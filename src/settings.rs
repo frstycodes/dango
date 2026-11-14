@@ -1068,7 +1068,7 @@ impl Rustcord {
                 .child(div().flex().flex_col().gap(px(16.)).child(devices).child(volumes))
                 .child(mic_test)
                 .children(notice)
-                .child(ui::settings_caption(&format!("Talk normally. You'll hear yourself back through {speaker}."), cx).px_0()),
+                .child(ui::settings_caption(format!("Talk normally. You'll hear yourself back through {speaker}."), cx).px_0()),
         )
     }
 

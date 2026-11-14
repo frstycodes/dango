@@ -281,11 +281,14 @@ impl Render for GifPlayer {
 // `AHEAD` pictures in front. The first loop is decoded; if its pictures fit in `REPLAY_BYTES` they're
 // kept and replayed, so a short GIF costs no CPU after one loop. Ends when the receiver is dropped
 // (taking any kept pictures with it) or the clip can't be decoded.
+// A decoded picture kept for replay, at its time within the loop.
+type Kept = (Duration, Arc<RenderImage>);
+
 fn decode_looping(clip: Arc<[u8]>) -> mpsc::Receiver<Picture> {
     let (send, receive) = mpsc::sync_channel(AHEAD);
     let decode = move || {
         let mut offset = Duration::ZERO;
-        let mut replay: Option<(Duration, Vec<(Duration, Arc<RenderImage>)>)> = None;
+        let mut replay: Option<(Duration, Vec<Kept>)> = None;
         loop {
             if let Some((length, pictures)) = &replay {
                 for (at, image) in pictures {
