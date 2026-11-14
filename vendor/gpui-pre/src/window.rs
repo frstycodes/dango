@@ -6,12 +6,12 @@ use crate::Inspector;
 use crate::profiler;
 use crate::{
     Action, AnyDrag, AnyElement, AnyImageCache, AnyTooltip, AnyView, App, AppContext, Arena, Asset,
-    AsyncWindowContext, AtlasTile, AvailableSpace, BackdropBlur, BackdropFilter, Background,
-    BorderStyle, Bounds, BoxShadow, Capslock, Context, Corners, CursorHideMode, CursorStyle,
-    Decorations, DevicePixels, DispatchActionListener, DispatchNodeId, DispatchTree, DisplayId,
-    Edges, Effect, Entity, EntityId, EventEmitter, FileDropEvent, FontId, Global, GlobalElementId,
-    GlyphId, GpuSpecs, Hsla, InputHandler, InputPreference, IsZero, KeyBinding, KeyContext,
-    KeyDownEvent, KeyEvent, Keystroke, KeystrokeEvent, LayoutId, LineLayoutIndex, Modifiers,
+    AsyncWindowContext, AtlasTile, AvailableSpace, BackdropBlur, BackdropFilter, Background, BorderStyle, Bounds, BoxShadow,
+    Capslock, Context, CornerShape, Corners, CursorHideMode, CursorStyle, Decorations,
+    DevicePixels, DispatchActionListener, DispatchNodeId, DispatchTree, DisplayId, Edges, Effect,
+    Entity, EntityId, EventEmitter, FileDropEvent, FontId, Global, GlobalElementId, GlyphId,
+    GpuSpecs, Hsla, InputHandler, InputPreference, IsZero, KeyBinding, KeyContext, KeyDownEvent,
+    KeyEvent, Keystroke, KeystrokeEvent, LayoutId, LineLayoutIndex, Modifiers,
     ModifiersChangedEvent, MonochromeSprite, MouseButton, MouseEvent, MouseMoveEvent, MouseUpEvent,
     Path, Pixels, PlatformAtlas, PlatformDisplay, PlatformInput, PlatformInputHandler,
     PlatformWindow, Point, PolychromeSprite, Priority, PromptButton, PromptLevel, Quad, Render,
@@ -1058,6 +1058,9 @@ pub(crate) struct Frame {
     #[cfg(any(feature = "inspector", debug_assertions))]
     pub(crate) inspector_hitboxes: FxHashMap<HitboxId, crate::InspectorElementId>,
     pub(crate) tab_stops: TabStopMap,
+    /// Parallel to `hitboxes`: for each hitbox inserted under an element transformation, the
+    /// transformation from window space into its own space, so it is hit-tested untransformed.
+    hitbox_inverse_transformations: Vec<Option<TransformationMatrix>>,
 }
 
 #[derive(Clone, Default)]
@@ -1117,6 +1120,7 @@ impl Frame {
             #[cfg(any(feature = "inspector", debug_assertions))]
             inspector_hitboxes: FxHashMap::default(),
             tab_stops: TabStopMap::default(),
+            hitbox_inverse_transformations: Vec::new(),
         }
     }
 
@@ -1130,6 +1134,7 @@ impl Frame {
         self.tooltip_requests.clear();
         self.cursor_styles.clear();
         self.hitboxes.clear();
+        self.hitbox_inverse_transformations.clear();
         self.window_control_hitboxes.clear();
         self.deferred_draws.clear();
         self.tab_stops.clear();
@@ -1166,9 +1171,25 @@ impl Frame {
     pub(crate) fn hit_test(&self, position: Point<Pixels>) -> HitTest {
         let mut set_hover_hitbox_count = false;
         let mut hit_test = HitTest::default();
-        for hitbox in self.hitboxes.iter().rev() {
-            let bounds = hitbox.bounds.intersect(&hitbox.content_mask.bounds);
-            if bounds.contains(&position) {
+        for (hitbox, inverse_transformation) in self
+            .hitboxes
+            .iter()
+            .zip(&self.hitbox_inverse_transformations)
+            .rev()
+        {
+            let is_hit = match inverse_transformation {
+                None => hitbox
+                    .bounds
+                    .intersect(&hitbox.content_mask.bounds)
+                    .contains(&position),
+                Some(inverse_transformation) => {
+                    hitbox.content_mask.bounds.contains(&position)
+                        && hitbox
+                            .bounds
+                            .contains(&inverse_transformation.apply(position))
+                }
+            };
+            if is_hit {
                 hit_test.ids.push(hitbox.id);
                 if !set_hover_hitbox_count
                     && hitbox.behavior == HitboxBehavior::BlockMouseExceptScroll
@@ -1241,6 +1262,8 @@ pub struct Window {
     pub(crate) element_offset_stack: Vec<Point<Pixels>>,
     pub(crate) element_opacity: f32,
     pub(crate) content_mask_stack: Vec<ContentMask<Pixels>>,
+    element_transformation: TransformationMatrix,
+    element_corner_shape: CornerShape,
     pub(crate) requested_autoscroll: Option<Bounds<Pixels>>,
     /// The [`TextInputConfiguration`] most recently forwarded to the platform
     /// window, so that only actual changes are forwarded (reconfiguring a live
@@ -2145,6 +2168,8 @@ impl Window {
             element_offset_stack: Vec::new(),
             content_mask_stack: Vec::new(),
             element_opacity: 1.0,
+            element_transformation: TransformationMatrix::unit(),
+            element_corner_shape: CornerShape::default(),
             requested_autoscroll: None,
             last_text_input_configuration: None,
             focused_text_input_active: false,
@@ -3224,7 +3249,8 @@ impl Window {
     ) {
         self.invalidator.debug_assert_paint();
         let underline = self.underline(origin, width, style);
-        if exclusions.is_empty() {
+        // Exclusions are window-space spans, which only line up with an untransformed underline.
+        if exclusions.is_empty() || !underline.transformation.is_unit() {
             self.next_frame.scene.insert_primitive(underline);
             return;
         }
@@ -3283,6 +3309,7 @@ impl Window {
                 .opacity(self.element_opacity()),
             thickness: self.snap_stroke(style.thickness),
             wavy: style.wavy.into(),
+            transformation: self.element_transformation,
         }
     }
 
@@ -4000,6 +4027,12 @@ impl Window {
                 .iter()
                 .cloned(),
         );
+        self.next_frame
+            .hitbox_inverse_transformations
+            .extend_from_slice(
+                &self.rendered_frame.hitbox_inverse_transformations
+                    [range.start.hitboxes_index..range.end.hitboxes_index],
+            );
         self.next_frame.tooltip_requests.extend(
             self.rendered_frame.tooltip_requests
                 [range.start.tooltips_index..range.end.tooltips_index]
@@ -4168,7 +4201,10 @@ impl Window {
     ) -> R {
         self.invalidator.debug_assert_paint_or_prepaint();
         if let Some(mask) = mask {
-            let mask = mask.intersect(&self.content_mask());
+            let mask = ContentMask {
+                bounds: self.transformed_bounds(mask.bounds),
+            }
+            .intersect(&self.content_mask());
             self.content_mask_stack.push(mask);
             let result = f(self);
             self.content_mask_stack.pop();
@@ -4228,6 +4264,80 @@ impl Window {
         result
     }
 
+    /// Invoke the given function with the given transformation applied after the current one.
+    ///
+    /// Everything painted inside `f` is transformed on the GPU, content masks pushed inside `f`
+    /// clip to the window-space bounding box of their transformed bounds, and hitboxes inserted
+    /// inside `f` are hit-tested in their untransformed space. The transformation is in scaled
+    /// pixels; see [`Style::transformation`]. Call this around both the prepaint and the paint of
+    /// the same elements, so that hit testing matches what is painted.
+    pub fn with_element_transformation<R>(
+        &mut self,
+        transformation: Option<TransformationMatrix>,
+        f: impl FnOnce(&mut Self) -> R,
+    ) -> R {
+        self.invalidator.debug_assert_paint_or_prepaint();
+
+        let Some(transformation) = transformation else {
+            return f(self);
+        };
+
+        let previous_transformation = self.element_transformation;
+        self.element_transformation = previous_transformation.compose(transformation);
+        let result = f(self);
+        self.element_transformation = previous_transformation;
+        result
+    }
+
+    /// The transformation applied to everything painted at this point, in scaled pixels.
+    pub fn element_transformation(&self) -> TransformationMatrix {
+        self.invalidator.debug_assert_paint_or_prepaint();
+        self.element_transformation
+    }
+
+    /// Invoke the given function with the quads, shadows and images it paints drawn with the given
+    /// corner shape. Unlike opacity or transformations, a corner shape belongs to one element, so
+    /// wrap only that element's own painting, not its children's.
+    pub fn with_corner_shape<R>(
+        &mut self,
+        corner_shape: CornerShape,
+        f: impl FnOnce(&mut Self) -> R,
+    ) -> R {
+        self.invalidator.debug_assert_paint();
+
+        let previous_corner_shape = mem::replace(&mut self.element_corner_shape, corner_shape);
+        let result = f(self);
+        self.element_corner_shape = previous_corner_shape;
+        result
+    }
+
+    /// The window-space bounding box of `bounds` under the current element transformation.
+    fn transformed_bounds(&self, bounds: Bounds<Pixels>) -> Bounds<Pixels> {
+        if self.element_transformation.is_unit() {
+            return bounds;
+        }
+        let scale_factor = self.scale_factor();
+        let transformed = self
+            .element_transformation
+            .transform_bounds(bounds.scale(scale_factor));
+        Bounds {
+            origin: transformed.origin.map(|value| px(value.0 / scale_factor)),
+            size: transformed.size.map(|value| px(value.0 / scale_factor)),
+        }
+    }
+
+    /// The transformation from window space into the space of hitboxes inserted at this point,
+    /// in logical pixels, or `None` when they are untransformed.
+    fn hitbox_inverse_transformation(&self) -> Option<TransformationMatrix> {
+        if self.element_transformation.is_unit() {
+            return None;
+        }
+        let scale_factor = self.scale_factor();
+        let mut transformation = self.element_transformation;
+        transformation.translation = transformation.translation.map(|value| value / scale_factor);
+        Some(transformation.inverse())
+    }
+
     /// Perform prepaint on child elements in a "retryable" manner, so that any side effects
     /// of prepaints can be discarded before prepainting again. This is used to support autoscroll
     /// where we need to prepaint children to detect the autoscroll bounds, then adjust the
@@ -4239,6 +4349,9 @@ impl Window {
         let result = f(self);
         if result.is_err() {
             self.next_frame.hitboxes.truncate(index.hitboxes_index);
+            self.next_frame
+                .hitbox_inverse_transformations
+                .truncate(index.hitboxes_index);
             self.next_frame
                 .tooltip_requests
                 .truncate(index.tooltips_index);
@@ -4535,7 +4648,9 @@ impl Window {
         self.invalidator.debug_assert_paint();
 
         let content_mask = self.content_mask();
-        let clipped_bounds = bounds.intersect(&content_mask.bounds);
+        let clipped_bounds = self
+            .transformed_bounds(bounds)
+            .intersect(&content_mask.bounds);
         if !clipped_bounds.is_empty() {
             self.next_frame
                 .scene
@@ -4615,6 +4730,9 @@ impl Window {
                 element_corner_radii,
                 inset: 0,
                 pad: 0,
+                transformation: self.element_transformation,
+                corner_exponent: self.element_corner_shape.exponent(),
+                pad2: 0,
             });
         }
     }
@@ -4660,6 +4778,9 @@ impl Window {
                 element_corner_radii,
                 inset: 1,
                 pad: 0,
+                transformation: self.element_transformation,
+                corner_exponent: self.element_corner_shape.exponent(),
+                pad2: 0,
             });
         }
     }
@@ -4727,9 +4848,14 @@ impl Window {
             corner_radii: quad.corner_radii.scale(self.scale_factor()),
             border_widths: snapped_border_widths,
             border_style: quad.border_style,
+            transformation: self.element_transformation,
+            corner_exponent: self.element_corner_shape.exponent(),
+            pad: 0,
         };
 
-        if !quad.background.is_transparent() {
+        // The strips below are clipped with the window-space content mask, which only lines up
+        // with the quad's own space when it is untransformed.
+        if !quad.background.is_transparent() || !quad.transformation.is_unit() {
             self.next_frame.scene.insert_primitive(quad);
             return;
         }
@@ -4792,9 +4918,15 @@ impl Window {
         path.content_mask = content_mask;
         let color: Background = color.into();
         path.color = color.opacity(opacity);
-        self.next_frame
-            .scene
-            .insert_primitive(path.scale(scale_factor));
+        let mut path = path.scale(scale_factor);
+        // Paths are rasterized in window space, so they are transformed here rather than on the GPU.
+        if !self.element_transformation.is_unit() {
+            for vertex in &mut path.vertices {
+                vertex.xy_position = self.element_transformation.apply_scaled(vertex.xy_position);
+            }
+            path.bounds = self.element_transformation.transform_bounds(path.bounds);
+        }
+        self.next_frame.scene.insert_primitive(path);
     }
 
     /// Paint an underline into the scene for the next frame at the current z-index.
@@ -4838,6 +4970,7 @@ impl Window {
             thickness: self.snap_stroke(style.thickness),
             color: style.color.unwrap_or_default().opacity(opacity),
             wavy: false.into(),
+            transformation: self.element_transformation,
         });
     }
 
@@ -4910,7 +5043,7 @@ impl Window {
                     content_mask,
                     color: color.opacity(element_opacity),
                     tile,
-                    transformation: TransformationMatrix::unit(),
+                    transformation: self.element_transformation,
                 });
             } else {
                 self.next_frame.scene.insert_primitive(MonochromeSprite {
@@ -4920,7 +5053,7 @@ impl Window {
                     content_mask,
                     color: color.opacity(element_opacity),
                     tile,
-                    transformation: TransformationMatrix::unit(),
+                    transformation: self.element_transformation,
                 });
             }
         }
@@ -5003,6 +5136,9 @@ impl Window {
                 content_mask,
                 tile,
                 opacity,
+                transformation: self.element_transformation,
+                corner_exponent: CornerShape::Round.exponent(),
+                pad2: 0,
             });
         }
         Ok(())
@@ -5067,7 +5203,7 @@ impl Window {
             content_mask,
             color: color.opacity(element_opacity),
             tile,
-            transformation,
+            transformation: self.element_transformation.compose(transformation),
         });
 
         Ok(())
@@ -5175,6 +5311,9 @@ impl Window {
             corner_radii,
             tile: sub_tile,
             opacity,
+            transformation: self.element_transformation,
+            corner_exponent: self.element_corner_shape.exponent(),
+            pad2: 0,
         });
         Ok(())
     }
@@ -5336,6 +5475,9 @@ impl Window {
             behavior,
         };
         self.next_frame.hitboxes.push(hitbox.clone());
+        self.next_frame
+            .hitbox_inverse_transformations
+            .push(self.hitbox_inverse_transformation());
         hitbox
     }
 

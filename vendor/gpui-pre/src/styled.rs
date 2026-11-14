@@ -1,9 +1,10 @@
 use crate::{
-    self as gpui, AbsoluteLength, AlignContent, AlignItems, AlignSelf, BorderStyle, CursorStyle,
-    DefiniteLength, Display, Fill, FlexDirection, FlexWrap, Font, FontFeatures, FontStyle,
-    FontWeight, GridPlacement, GridTemplate, GridTemplateMinSize, Hsla, JustifyContent, Length,
-    Pixels, SharedString, StrikethroughStyle, StyleRefinement, TextAlign, TextOverflow,
-    TextStyleRefinement, UnderlineStyle, WhiteSpace, px, relative, rems,
+    self as gpui, AbsoluteLength, AlignContent, AlignItems, AlignSelf, BorderStyle, CornerShape,
+    CursorStyle, DefiniteLength, Display, Fill, FlexDirection, FlexWrap, Font, FontFeatures,
+    FontStyle, FontWeight, GridPlacement, GridTemplate, GridTemplateMinSize, Hsla, JustifyContent,
+    Length, Pixels, Point, PointRefinement, Radians, SharedString, SizeRefinement,
+    StrikethroughStyle, StyleRefinement, TextAlign, TextOverflow, TextStyleRefinement,
+    UnderlineStyle, WhiteSpace, px, relative, rems,
 };
 pub use gpui_macros::{
     border_style_methods, box_shadow_style_methods, cursor_style_methods, margin_style_methods,
@@ -901,6 +902,62 @@ pub trait Styled: Sized {
     fn row_span_full(mut self) -> Self {
         let grid_location = self.style().grid_location_mut();
         grid_location.row = GridPlacement::Line(1)..GridPlacement::Line(-1);
+        self
+    }
+
+    /// Scales this element and its children around the transform origin, like the CSS `scale`
+    /// property. Transformations affect painting and hit testing, not layout.
+    fn scale(mut self, scale: f32) -> Self {
+        self.style().scale = SizeRefinement {
+            width: Some(scale),
+            height: Some(scale),
+        };
+        self
+    }
+
+    /// Rotates this element and its children clockwise around the transform origin, like the CSS
+    /// `rotate` property. Transformations affect painting and hit testing, not layout.
+    fn rotate(mut self, angle: impl Into<Radians>) -> Self {
+        self.style().rotate = Some(angle.into());
+        self
+    }
+
+    /// Moves this element and its children, like the CSS `translate` property.
+    /// Transformations affect painting and hit testing, not layout.
+    fn translate(mut self, offset: Point<Pixels>) -> Self {
+        self.style().translate = PointRefinement {
+            x: Some(offset.x),
+            y: Some(offset.y),
+        };
+        self
+    }
+
+    /// Moves this element and its children horizontally, like the CSS `translate` property.
+    fn translate_x(mut self, offset: impl Into<Pixels>) -> Self {
+        self.style().translate.x = Some(offset.into());
+        self
+    }
+
+    /// Moves this element and its children vertically, like the CSS `translate` property.
+    fn translate_y(mut self, offset: impl Into<Pixels>) -> Self {
+        self.style().translate.y = Some(offset.into());
+        self
+    }
+
+    /// Sets the point that scale and rotation act around, relative to this element's bounds,
+    /// like the CSS `transform-origin` property. Defaults to the center.
+    fn transform_origin(mut self, origin: Point<DefiniteLength>) -> Self {
+        self.style().transform_origin = PointRefinement {
+            x: Some(origin.x),
+            y: Some(origin.y),
+        };
+        self
+    }
+
+    /// Sets the shape of this element's rounded corners, like the CSS `corner-shape` property.
+    /// The shape is drawn within the area the corner radii give each corner.
+    fn corner_shape(mut self, shape: CornerShape) -> Self {
+        self.style().corner_shape = Some(shape);
         self
     }
 
