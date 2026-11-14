@@ -176,7 +176,7 @@ impl Rustcord {
 
     // A Go Live we're watching takes the transcript's place, fitted to the column, like Discord's stream view.
     fn stream_view(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let watching = self.call.as_ref()?.watching.as_ref()?;
+        let watching = self.call.as_ref()?.focused()?;
         let name = self.user_name(&watching.streamer_id);
         let stage: AnyElement = match &watching.frame {
             Some(frame) => {

@@ -39,6 +39,13 @@ const HEADER_HEIGHT: f32 = 48.;
 const CONTROLS_HEIGHT: f32 = 96.;
 const TILE_BG: gpui_kit::Rgba = gpui_kit::Rgba { r: 0x1E as f32 / 255., g: 0x1F as f32 / 255., b: 0x22 as f32 / 255., a: 1. };
 
+// How several watched streams share the stage: one large with the rest small, or an even grid.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum StreamLayout {
+    Focus,
+    Split,
+}
+
 // Which corner of the call stage our stream's self-view sits in.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Corner {
@@ -569,36 +576,11 @@ impl Rustcord {
             true => (f32::from(viewport.width), f32::from(viewport.height)),
             false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width, f32::from(viewport.height) - crate::layout::TITLE_HEIGHT - 1.),
         };
-        let stage: AnyElement = match &call.watching {
-            Some(watching) => {
-                let strip_shown = !self.call_strip_hidden && tiles.len() > 1;
-                let main_h = (height - CONTROLS_HEIGHT - if strip_shown { STRIP_HEIGHT + TILE_GAP } else { 0. }).max(120.);
-                let main = match &watching.frame {
-                    Some(frame) => {
-                        let (w, h) = (frame.size(0).width.0 as f32, frame.size(0).height.0 as f32);
-                        let scale = (width / w).min(main_h / h);
-                        img(ImageSource::Render(frame.clone())).w(px(w * scale)).h(px(h * scale)).rounded(px(TILE_RADIUS)).into_any_element()
-                    }
-                    None => div().text_color(gpui_kit::white().opacity(0.7)).child(format!("Joining {}'s stream…", self.user_name(&watching.streamer_id))).into_any_element(),
-                };
-                let strip_w = STRIP_HEIGHT * 16. / 9.;
-                let strip: Vec<AnyElement> = tiles
-                    .iter()
-                    .filter(|t| !matches!(t, Tile::Stream(s) if s.user_id == watching.streamer_id))
-                    .take(STRIP_LIMIT)
-                    .map(|t| self.tile(t, strip_w, STRIP_HEIGHT, true, cx))
-                    .collect();
-                div()
-                    .size_full()
-                    .pb(px(CONTROLS_HEIGHT))
-                    .flex()
-                    .flex_col()
-                    .gap(px(TILE_GAP))
-                    .child(div().flex_1().min_h_0().flex().items_center().justify_center().child(main))
-                    .when(strip_shown, |d| d.child(div().flex_none().flex().justify_center().gap(px(TILE_GAP)).children(strip)))
-                    .into_any_element()
-            }
-            None => {
+        let ended = call.ended.clone().filter(|_| call.watching.is_empty());
+        let stage: AnyElement = match (call.watching.is_empty(), ended) {
+            (false, _) => self.stream_stage(&tiles, width, height, cx),
+            (true, Some(streamer)) => self.ended_stage(&streamer, cx),
+            (true, None) => {
                 let grid_h = height - HEADER_HEIGHT - CONTROLS_HEIGHT;
                 let n = tiles.len().max(1);
                 // The column count that makes the biggest 16:9 tiles fit the stage.
@@ -624,8 +606,13 @@ impl Rustcord {
                     .into_any_element()
             }
         };
-        let fade = |id: &'static str, el: AnyElement| {
-            div().with_animation(SharedString::from(format!("{id}-{chrome}")), Animation::new(Duration::from_millis(if chrome { 150 } else { 300 })), move |d, t| d.opacity(if chrome { t } else { 1. - t })).child(el)
+        // Discord's idle rule: the chrome fades over 200ms while the top bar rises 8px and the bottom bar drops 8px.
+        let fade = |id: &'static str, rise: f32, el: AnyElement| {
+            div().relative().with_animation(SharedString::from(format!("{id}-{chrome}")), Animation::new(Duration::from_millis(200)), move |d, t| {
+                let shown = if chrome { t } else { 1. - t };
+                d.opacity(shown).top(px(rise * (1. - shown)))
+            })
+            .child(el)
         };
         Some(
             div()
@@ -644,8 +631,8 @@ impl Rustcord {
                 .on_mouse_up_out(MouseButton::Left, cx.listener(move |this, e: &gpui_kit::MouseUpEvent, _, cx| this.drop_pip(e.position, stage_size, cx)))
                 .child(div().size_full().px_4().child(stage))
                 .children(self.self_view(stage_size, window, cx))
-                .child(div().absolute().top_0().left_0().right_0().child(fade("call-header", self.call_header(cx))))
-                .child(div().absolute().bottom_0().left_0().right_0().child(fade("call-controls", self.call_controls(cx).into_any_element())))
+                .child(div().absolute().top_0().left_0().right_0().child(fade("call-header", -8., self.call_header(cx))))
+                .child(div().absolute().bottom_0().left_0().right_0().child(fade("call-controls", 8., self.call_controls(cx).into_any_element())))
                 .into_any_element(),
         )
     }
@@ -655,7 +642,7 @@ impl Rustcord {
     fn self_view(&self, stage: (f32, f32), window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let call = self.call.as_ref()?;
         call.sharing.as_ref()?;
-        let watching_self = self.me.as_ref().is_some_and(|m| call.watching.as_ref().is_some_and(|w| w.streamer_id == m.id));
+        let watching_self = self.me.as_ref().is_some_and(|m| call.watched(&m.id).is_some());
         if !self.pip_shown || watching_self {
             return None;
         }
@@ -805,7 +792,7 @@ impl Rustcord {
             .gap_2()
             .bg(gpui_kit::linear_gradient(180., gpui_kit::linear_color_stop(gpui_kit::black().opacity(0.6), 0.), gpui_kit::linear_color_stop(gpui_kit::transparent_black(), 1.)))
             .text_color(gpui_kit::white());
-        let Some(watching) = &call.watching else {
+        let Some(watching) = call.focused() else {
             let people = self.participants().len();
             return bar
                 .child(Icon::new(Glyph::VolumeHigh).size(px(20.)).text_color(gpui_kit::white().opacity(0.7)))
@@ -813,20 +800,231 @@ impl Rustcord {
                 .child(div().text_size(px(14.)).text_color(gpui_kit::white().opacity(0.6)).child(format!("{people} in voice")))
                 .into_any_element();
         };
+        let several = call.watching.len() > 1;
         let suffix = format!(":{}", watching.streamer_id);
         let viewers: Vec<String> = self.stream_viewers.iter().find(|(key, _)| key.ends_with(&suffix)).map(|(_, v)| v.clone()).unwrap_or_default();
         // GAP: the frame rate isn't reported by the voice engine, so only the resolution shows.
         let quality = watching.frame.as_ref().map(|f| format!("{}P", f.size(0).height.0));
         let avatars: Vec<AnyElement> = viewers.iter().take(3).map(|id| img(self.user_avatar(id)).size(px(20.)).rounded_full().border_2().border_color(gpui_kit::black()).ml(px(-6.)).into_any_element()).collect();
+        let title = match several {
+            true => format!("Watching {} streams", call.watching.len()),
+            false => format!("{}'s Screen", self.user_name(&watching.streamer_id)),
+        };
+        let layout = call.stream_layout;
+        let segment = |id: &'static str, text: &'static str, value: StreamLayout| {
+            let on = layout == value;
+            div()
+                .id(id)
+                .h(px(28.))
+                .px_3()
+                .rounded(px(6.))
+                .flex()
+                .items_center()
+                .cursor_pointer()
+                .text_size(px(13.))
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(if on { gpui_kit::black() } else { gpui_kit::white() })
+                .when(on, |d| d.bg(gpui_kit::white()))
+                .when(!on, |d| d.hover(|s| s.bg(gpui_kit::white().opacity(0.12))))
+                .child(text)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    if let Some(call) = &mut this.call {
+                        call.stream_layout = value;
+                    }
+                    cx.notify();
+                }))
+        };
         bar.child(Icon::new(Glyph::Screen).size(px(20.)).text_color(gpui_kit::white().opacity(0.7)))
-            .child(div().font_weight(FontWeight::SEMIBOLD).truncate().child(format!("{}'s Screen", self.user_name(&watching.streamer_id))))
-            .children(quality.map(|q| div().h(px(18.)).px_1().rounded(px(4.)).bg(gpui_kit::white().opacity(0.16)).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child(q)))
-            .child(live_badge())
-            .when(!viewers.is_empty(), |b| {
-                b.child(div().pl(px(6.)).flex().items_center().children(avatars).when(viewers.len() > 3, |d| d.child(div().pl_1().text_size(px(12.)).font_weight(FontWeight::BOLD).child(format!("+{}", viewers.len() - 3)))))
+            .child(div().font_weight(FontWeight::SEMIBOLD).truncate().child(title))
+            .when(!several, |b| {
+                b.children(quality.map(|q| div().h(px(18.)).px_1().rounded(px(4.)).bg(gpui_kit::white().opacity(0.16)).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child(q)))
+                    .child(live_badge())
+                    .when(!viewers.is_empty(), |b| {
+                        b.child(div().pl(px(6.)).flex().items_center().children(avatars).when(viewers.len() > 3, |d| d.child(div().pl_1().text_size(px(12.)).font_weight(FontWeight::BOLD).child(format!("+{}", viewers.len() - 3)))))
+                    })
             })
             .child(div().flex_1())
-            .child(pill_button("stop-watching", "Stop Watching").on_click(cx.listener(|this, _, _, cx| this.stop_watching(cx))))
+            .when(several, |b| b.child(div().p(px(2.)).rounded(px(8.)).bg(gpui_kit::white().opacity(0.1)).flex().child(segment("layout-focus", "Focus", StreamLayout::Focus)).child(segment("layout-split", "Side by Side", StreamLayout::Split))))
+            .child(pill_button("stop-watching", if several { "Stop All" } else { "Stop Watching" }).on_click(cx.listener(|this, _, _, cx| this.stop_watching(cx))))
+            .into_any_element()
+    }
+
+    // The streams we watch, laid out by `stream_layout`, over a strip of everyone else (folded away
+    // with the bar's toggle). Unwatched streams sit in the strip with Watch Too.
+    fn stream_stage(&self, tiles: &[Tile], width: f32, height: f32, cx: &mut Context<Self>) -> AnyElement {
+        let call = self.call.as_ref().expect("in a call");
+        let strip_w = STRIP_HEIGHT * 16. / 9.;
+        let strip: Vec<AnyElement> = tiles
+            .iter()
+            .filter(|t| !matches!(t, Tile::Stream(s) if call.watched(&s.user_id).is_some()))
+            .take(STRIP_LIMIT)
+            .map(|t| self.tile(t, strip_w, STRIP_HEIGHT, true, cx))
+            .collect();
+        let strip_shown = !self.call_strip_hidden && !strip.is_empty();
+        let main_h = (height - HEADER_HEIGHT - CONTROLS_HEIGHT - if strip_shown { STRIP_HEIGHT + TILE_GAP } else { 0. }).max(120.);
+        let focused = call.focused().map(|w| w.streamer_id.clone()).unwrap_or_default();
+        let main: AnyElement = match call.stream_layout {
+            StreamLayout::Focus => {
+                let others: Vec<AnyElement> = call
+                    .watching
+                    .iter()
+                    .filter(|w| w.streamer_id != focused)
+                    .map(|w| self.stream_video(w, width * 0.24, main_h * 0.3, true, cx))
+                    .collect();
+                let big = call.focused().map(|w| self.stream_video(w, width, main_h, false, cx));
+                div()
+                    .relative()
+                    .size_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .children(big)
+                    .when(!others.is_empty(), |d| d.child(div().absolute().right(px(12.)).bottom(px(12.)).flex().flex_col().gap(px(TILE_GAP)).children(others)))
+                    .into_any_element()
+            }
+            StreamLayout::Split => {
+                let n = call.watching.len();
+                let cols = (n as f32).sqrt().ceil().max(1.) as usize;
+                let rows = n.div_ceil(cols);
+                let (cell_w, cell_h) = ((width - TILE_GAP * (cols as f32 - 1.)) / cols as f32, (main_h - TILE_GAP * (rows as f32 - 1.)) / rows as f32);
+                let videos: Vec<AnyElement> = call.watching.iter().map(|w| self.stream_video(w, cell_w, cell_h, false, cx)).collect();
+                div().size_full().flex().flex_wrap().items_center().justify_center().content_center().gap(px(TILE_GAP)).children(videos).into_any_element()
+            }
+        };
+        div()
+            .size_full()
+            .pt(px(HEADER_HEIGHT))
+            .pb(px(CONTROLS_HEIGHT))
+            .flex()
+            .flex_col()
+            .gap(px(TILE_GAP))
+            .child(div().flex_1().min_h_0().child(main))
+            .when(strip_shown, |d| d.child(div().flex_none().flex().justify_center().gap(px(TILE_GAP)).children(strip)))
+            .into_any_element()
+    }
+
+    // One watched stream fitted into `max_w` x `max_h`. Hovering shows its name and app, its volume,
+    // and buttons to focus or stop it; a small one (Focus layout) swaps in on click.
+    fn stream_video(&self, watch: &crate::Watching, max_w: f32, max_h: f32, small: bool, cx: &mut Context<Self>) -> AnyElement {
+        let call = self.call.as_ref().expect("in a call");
+        let (fw, fh) = watch.frame.as_ref().map_or((16., 9.), |f| (f.size(0).width.0 as f32, f.size(0).height.0 as f32));
+        let scale = (max_w / fw).min(max_h / fh);
+        let (w, h) = (fw * scale, fh * scale);
+        let id = watch.streamer_id.clone();
+        let name = self.user_name(&id);
+        let several = call.watching.len() > 1;
+        let body: AnyElement = match &watch.frame {
+            Some(frame) => img(ImageSource::Render(frame.clone())).size_full().into_any_element(),
+            None => div().size_full().bg(TILE_BG).flex().items_center().justify_center().text_color(gpui_kit::white().opacity(0.7)).child(format!("Joining {name}'s stream…")).into_any_element(),
+        };
+        let group = SharedString::from(format!("stream-{id}"));
+        let app = self.activity_name(&id);
+        let (focus_id, stop_id, volume_id) = (id.clone(), id.clone(), id.clone());
+        let overlay = div()
+            .absolute()
+            .left_0()
+            .right_0()
+            .bottom_0()
+            .p_2()
+            .flex()
+            .items_center()
+            .gap_2()
+            .text_color(gpui_kit::white())
+            .bg(gpui_kit::linear_gradient(180., gpui_kit::linear_color_stop(gpui_kit::transparent_black(), 0.), gpui_kit::linear_color_stop(gpui_kit::black().opacity(0.75), 1.)))
+            .opacity(0.)
+            .group_hover(group.clone(), |s| s.opacity(1.))
+            .child(div().min_w_0().truncate().font_weight(FontWeight::SEMIBOLD).child(match app {
+                Some(app) => format!("{name} · {app}"),
+                None => name.clone(),
+            }))
+            .child(div().flex_1())
+            .child(
+                round_button_small(SharedString::from(format!("volume-{id}")), Glyph::VolumeHigh, "Stream Volume")
+                    .on_mouse_down(MouseButton::Left, cx.listener(move |this, e: &MouseDownEvent, _, cx| this.open_stream_volume(volume_id.clone(), e.position, cx))),
+            )
+            .when(several && call.stream_layout == StreamLayout::Split, |d| {
+                d.child(pill_button(SharedString::from(format!("focus-{id}")), "Focus").on_click(cx.listener(move |this, _, _, cx| this.focus_stream(&focus_id, cx))))
+            })
+            .child(pill_button(SharedString::from(format!("unwatch-{id}")), "Stop Watching").on_click(cx.listener(move |this, _, _, cx| this.unwatch_stream(&stop_id, cx))));
+        let swap_id = id.clone();
+        div()
+            .id(SharedString::from(format!("stream-video-{id}-{small}")))
+            .group(group)
+            .relative()
+            .w(px(w))
+            .h(px(h))
+            .flex_none()
+            .rounded(px(TILE_RADIUS))
+            .overflow_hidden()
+            .bg(gpui_kit::black())
+            .child(body)
+            .when(several, |d| d.child(div().absolute().left(px(8.)).top(px(8.)).flex().gap_1().child(live_badge()).child(div().h(px(18.)).px_1().rounded(px(4.)).bg(gpui_kit::black().opacity(0.56)).text_size(px(11.)).font_weight(FontWeight::BOLD).text_color(gpui_kit::white()).flex().items_center().child(name.clone()))))
+            .when(!small, |d| d.child(overlay))
+            .when(small, |d| {
+                d.cursor_pointer()
+                    .border_1()
+                    .border_color(gpui_kit::white().opacity(0.14))
+                    .shadow_lg()
+                    .on_click(cx.listener(move |this, _, _, cx| this.focus_stream(&swap_id, cx)))
+            })
+            .with_animation(SharedString::from(format!("stream-in-{id}-{small}")), Animation::new(Duration::from_millis(220)), |d, t| d.opacity(t.min(1.)))
+            .into_any_element()
+    }
+
+    // What someone is playing or streaming, from their presence, for name tags.
+    fn activity_name(&self, user_id: &str) -> Option<String> {
+        let activity = self.presences.get(user_id)?.activity.as_ref()?;
+        matches!(activity.kind, discord::ActivityKind::Playing | discord::ActivityKind::Streaming | discord::ActivityKind::Competing).then(|| activity.text.clone())
+    }
+
+    fn focus_stream(&mut self, streamer_id: &str, cx: &mut Context<Self>) {
+        if let Some(call) = &mut self.call {
+            call.focus = Some(streamer_id.to_owned());
+            call.stream_layout = StreamLayout::Focus;
+        }
+        cx.notify();
+    }
+
+    fn open_stream_volume(&mut self, streamer_id: String, at: Point<Pixels>, cx: &mut Context<Self>) {
+        cx.stop_propagation();
+        self.open_live_menu(
+            at,
+            move |this| {
+                let volume = this.stream_volumes.get(&streamer_id).copied().unwrap_or(1.);
+                let id = streamer_id.clone();
+                vec![crate::menu::slider("Stream Volume", format!("stream-volume-{streamer_id}"), volume / 2., move |this, f, cx| this.set_stream_volume(&id, f * 2., cx))]
+            },
+            cx,
+        );
+    }
+
+    fn set_stream_volume(&mut self, streamer_id: &str, volume: f32, cx: &mut Context<Self>) {
+        self.stream_volumes.insert(streamer_id.to_owned(), volume);
+        if let Some(call) = &self.call {
+            call.session.set_stream_volume(streamer_id, volume);
+        }
+        cx.notify();
+    }
+
+    // What the stage says when the stream we watched ends, in place of a blank or an error.
+    fn ended_stage(&self, streamer: &str, cx: &mut Context<Self>) -> AnyElement {
+        let mine = self.me.as_ref().is_some_and(|m| m.id == streamer);
+        let title = if mine { "You stopped streaming".to_owned() } else { format!("{} stopped streaming", self.user_name(streamer)) };
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .items_center()
+            .justify_center()
+            .gap_3()
+            .child(div().text_size(px(18.)).font_weight(FontWeight::BOLD).text_color(gpui_kit::white()).child(title))
+            .child(pill_button("ended-back", "Back to Call").on_click(cx.listener(|this, _, _, cx| {
+                if let Some(call) = &mut this.call {
+                    call.ended = None;
+                }
+                cx.notify();
+            })))
+            .with_animation("ended-in", Animation::new(Duration::from_millis(240)), |d, t| d.opacity(t.min(1.)).mt(px((1. - crate::motion::back_out(t)) * 10.)))
             .into_any_element()
     }
 
@@ -865,7 +1063,7 @@ impl Rustcord {
                 .child(img(user.avatar.clone()).size(px((h * 0.4).clamp(32., 80.))).rounded_full())
                 .into_any_element(),
         };
-        let watching = call.watching.as_ref().is_some_and(|w| w.streamer_id == state.user_id);
+        let watching = call.watched(&state.user_id).is_some();
         let watchable = is_stream && !watching && (!me || call.sharing.is_some());
         let status = |glyph: Glyph| {
             let pad = if compact { 4. } else { 6. };
@@ -893,7 +1091,8 @@ impl Rustcord {
                     .items_center()
                     .gap_1()
                     .when(is_stream, |d| d.child(Icon::new(Glyph::ShareScreen).size(px(16.)).flex_none()))
-                    .child(div().truncate().child(user.name.clone())),
+                    .child(div().flex_none().child(user.name.clone()))
+                    .children(self.activity_name(&state.user_id).filter(|_| !compact).map(|app| div().min_w_0().truncate().font_weight(FontWeight::NORMAL).text_color(gpui_kit::white().opacity(0.7)).child(format!("· {app}")))),
             )
             .when(!is_stream && muted, |d| d.child(status(Glyph::MicOff)))
             .when(!is_stream && deafened, |d| d.child(status(Glyph::HeadphonesOff)));
@@ -917,7 +1116,7 @@ impl Rustcord {
                         .flex()
                         .items_center()
                         .justify_center()
-                        .child(pill_button(SharedString::from(format!("watch-{streamer}")), "Watch Stream").on_click(cx.listener(move |this, _, _, cx| this.watch_stream(streamer.clone(), cx)))),
+                        .child(pill_button(SharedString::from(format!("watch-{streamer}")), if call.watching.is_empty() { "Watch Stream" } else { "Watch Too" }).on_click(cx.listener(move |this, _, _, cx| this.watch_stream(streamer.clone(), cx)))),
                 )
             })
             .child(label)
@@ -939,7 +1138,7 @@ impl Rustcord {
             let channel = call.channel.id.clone();
             round_button("call-invite", Glyph::GroupPlus, "Invite to Voice").on_click(cx.listener(move |this, _, window, cx| this.show_invite(guild.clone(), channel.clone(), window, cx)))
         });
-        let strip_toggle = call.watching.is_some().then(|| {
+        let strip_toggle = (!call.watching.is_empty()).then(|| {
             let hidden = self.call_strip_hidden;
             round_button("call-strip", if hidden { Glyph::ChevronUp } else { Glyph::ChevronDown }, if hidden { "Show Members" } else { "Hide Members" }).on_click(cx.listener(|this, _, _, cx| {
                 this.call_strip_hidden = !this.call_strip_hidden;
@@ -1380,6 +1579,23 @@ fn menu_row(id: impl Into<SharedString>, label: String, checked: bool, cx: &mut 
         .hover(|s| s.bg(palette::blurple()).text_color(gpui_kit::white()))
         .child(div().flex_1().min_w_0().truncate().child(label))
         .when(checked, |d| d.child(Icon::new(Glyph::Checkmark).size(px(16.)).text_color(theme.foreground)))
+}
+
+// A 28px round button over a stream's hover overlay.
+fn round_button_small(id: SharedString, glyph: Glyph, label: &'static str) -> Stateful<Div> {
+    div()
+        .id(id)
+        .size(px(28.))
+        .rounded_full()
+        .flex()
+        .items_center()
+        .justify_center()
+        .cursor_pointer()
+        .bg(gpui_kit::white().opacity(0.14))
+        .text_color(gpui_kit::white())
+        .hover(|s| s.bg(gpui_kit::white().opacity(0.24)))
+        .child(Icon::new(glyph).size(px(16.)))
+        .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
 }
 
 // A secondary call bar button: a 40px circle, white icon on a dark wash.

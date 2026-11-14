@@ -316,6 +316,8 @@ struct Shared {
     mixer: Arc<audio::Mixer>,
     // Local per-user listening volume (0..=2) and mute, by user id.
     listening: Mutex<HashMap<String, (f32, bool)>>,
+    // Per-streamer Go Live volume (0..=2), on top of their listening volume.
+    stream_volume: Mutex<HashMap<String, f32>>,
     // The camera the user wants on (None = off); the voice connection follows it.
     camera: Mutex<Option<String>>,
 }
@@ -356,6 +358,11 @@ impl Shared {
         }
     }
 
+    // A watched Go Live plays at the streamer's listening gain times its own stream volume.
+    fn stream_gain(&self, user_id: &str) -> f32 {
+        self.listening_gain(user_id) * self.stream_volume.lock().ok().and_then(|v| v.get(user_id).copied()).unwrap_or(1.0)
+    }
+
     fn server_id(&self) -> &str {
         self.guild_id.as_deref().unwrap_or(&self.channel_id)
     }
@@ -389,6 +396,7 @@ pub fn join(
         audio: Arc::new(settings.audio()),
         mixer: Arc::default(),
         listening: Mutex::new(HashMap::new()),
+        stream_volume: Mutex::new(HashMap::new()),
         camera: Mutex::new(None),
     });
     let (leave_tx, leave_rx) = oneshot::channel();
@@ -430,6 +438,13 @@ impl VoiceSession {
     }
 
     // How loud `user_id` plays for us, 0..=2.0. Local only.
+    // The volume of `user_id`'s Go Live while watching it (0..=2), apart from their voice.
+    pub fn set_stream_volume(&self, user_id: &str, volume: f32) {
+        if let Ok(mut volumes) = self.shared.stream_volume.lock() {
+            volumes.insert(user_id.to_owned(), volume.clamp(0.0, audio::MAX_VOLUME));
+        }
+    }
+
     pub fn set_user_volume(&self, user_id: &str, volume: f32) {
         if let Ok(mut listening) = self.shared.listening.lock() {
             listening.entry(user_id.to_owned()).or_insert((1.0, false)).0 = volume.clamp(0.0, audio::MAX_VOLUME);
@@ -991,6 +1006,7 @@ mod tests {
             audio: Arc::new(VoiceSettings::default().audio()),
             mixer: Arc::default(),
             listening: Mutex::new(HashMap::new()),
+            stream_volume: Mutex::new(HashMap::new()),
             camera: Mutex::new(None),
         };
         (shared, rx)

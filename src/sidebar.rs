@@ -560,7 +560,7 @@ impl Rustcord {
                     .into_any_element(),
             );
             let speaking = self.call.as_ref().filter(|_| in_call).map(|c| c.speaking.clone()).unwrap_or_default();
-            let watching = self.call.as_ref().and_then(|c| c.watching.as_ref()).map(|w| w.streamer_id.clone());
+            let watching: Vec<String> = self.call.as_ref().map(|c| c.watching.iter().map(|w| w.streamer_id.clone()).collect()).unwrap_or_default();
             let connected = self.call.as_ref().is_some_and(|c| c.connected && in_call);
             let can_drag_people = self.can_move_people(&guild.id);
             let mut present: Vec<&crate::discord::VoiceState> = guild.voice_states.iter().filter(|v| v.channel_id.as_ref() == Some(&channel.id)).collect();
@@ -588,7 +588,7 @@ impl Rustcord {
                 let avatar = user.map(|u| u.avatar).unwrap_or_else(|| crate::discord::avatar_url(&state.user_id, None));
                 let talking = speaking.contains(&state.user_id);
                 let streamer = state.user_id.clone();
-                let is_watched = watching.as_ref() == Some(&state.user_id);
+                let is_watched = watching.contains(&state.user_id);
                 let stream_key = format!("stream-{}", state.user_id);
                 // Open while the row or the card itself is hovered, so the card's button can be reached.
                 let card_open = self.hovered.as_deref() == Some(stream_key.as_str()) || self.stream_card_hover.as_deref() == Some(stream_key.as_str());
