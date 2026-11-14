@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Rustcord,
     icons::Glyph,
-    palette, ui,
+    palette,
+    ui::{self, Squircle},
     voice::{self, ShareSource, ShareableScreen, ShareableWindow},
 };
 
@@ -291,13 +292,12 @@ impl Rustcord {
             .gap(px(2.))
             .child(div().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child(format!("Go live in {channel}")))
             .child(div().text_color(palette::muted(cx)).child("Choose a screen, a window or a capture device."));
-        // PATCH(transform): open from scale 0.95 (@keyframes pop) as well as fading in.
         let dialog = div()
             .id("share-picker")
             .w(px(DIALOG_WIDTH))
             .max_h(relative(0.92))
             .p(px(24.))
-            .rounded(px(ui::RADIUS_XL))
+            .squircle(ui::RADIUS_XL)
             .bg(palette::surface(palette::Level::Raised, cx))
             .shadow(crate::call::pop_shadow(palette::line_strong(cx), cx))
             .flex()
@@ -312,7 +312,10 @@ impl Rustcord {
             .child(self.share_quality(window, cx))
             .child(self.share_audio(window, cx))
             .child(self.share_footer(cx))
-            .with_animation("share-open", Animation::new(ui::DUR_PANEL), |dialog, t| dialog.opacity(ease_out(t)));
+            .with_animation("share-open", Animation::new(ui::DUR_PANEL), |dialog, t| {
+                let t = ease_out(t);
+                dialog.opacity(t).scale(0.95 + 0.05 * t)
+            });
         let scrim = if cx.theme().is_dark() { Hsla::from(rgb(0x030102)).opacity(0.7) } else { Hsla::from(rgb(0x1D1217)).opacity(0.4) };
         Some(
             div()
@@ -337,7 +340,7 @@ impl Rustcord {
     // GAP: the underline doesn't slide between tabs; it moves in one step.
     fn share_tabs(&self, picker: &SharePicker, cx: &mut Context<Self>) -> impl IntoElement {
         let (strong, muted) = (palette::strong(cx), palette::muted(cx));
-        let tabs = [(ShareTab::Screens, Glyph::Screen, "Screens"), (ShareTab::Windows, Glyph::ShareScreen, "Windows"), (ShareTab::Devices, Glyph::Video, "Devices")].map(|(tab, glyph, label)| {
+        let tabs = [(ShareTab::Screens, Glyph::Screen, "Screens"), (ShareTab::Windows, Glyph::AppWindow, "Windows"), (ShareTab::Devices, Glyph::Usb, "Devices")].map(|(tab, glyph, label)| {
             let on = picker.tab == tab;
             div()
                 .id(SharedString::from(format!("share-tab-{label}")))
@@ -400,7 +403,7 @@ impl Rustcord {
             .relative()
             .w_full()
             .aspect_ratio(16. / 10.)
-            .rounded(px(ui::RADIUS_MD))
+            .squircle(ui::RADIUS_MD)
             .bg(palette::surface(palette::Level::Rail, cx))
             .border_1()
             .border_color(palette::line(cx))
@@ -418,7 +421,7 @@ impl Rustcord {
             .min_w_0()
             .p(px(4.))
             .m(px(-4.))
-            .rounded(px(ui::RADIUS_LG))
+            .squircle(ui::RADIUS_LG)
             .flex()
             .flex_col()
             .gap(px(6.))
@@ -494,7 +497,7 @@ impl Rustcord {
     fn share_footer(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let ready = self.share_choice.is_some();
         let go = ui::button("go-live", ui::Tone::Primary, cx)
-            .child(Icon::new(Glyph::Stream).size(px(18.)))
+            .child(Icon::new(Glyph::StreamBold).size(px(18.)))
             .child("Go live")
             .when(!ready, |b| b.opacity(0.45).cursor(gpui_kit::CursorStyle::OperationNotAllowed))
             .when(ready, |b| b.on_click(cx.listener(|this, _, _, cx| this.go_live_from_picker(cx))));
@@ -527,14 +530,14 @@ fn source_key(source: ShareSource) -> String {
 fn glyph(source: ShareSource) -> Glyph {
     match source {
         ShareSource::Screen(_) => Glyph::Screen,
-        ShareSource::App(_) | ShareSource::Window(_) => Glyph::ShareScreen,
+        ShareSource::App(_) | ShareSource::Window(_) => Glyph::AppWindow,
     }
 }
 
 // .src[aria-pressed] .shot: a 2px gap in the dialog's colour, then a 2px accent ring. A user's pick
 // springs out from the still's edge, overshooting a touch; the preselection lands still.
 fn selection_ring(key: &str, animate: bool, gap: Hsla) -> AnyElement {
-    let ring = div().absolute().border_2().border_color(palette::accent()).child(div().absolute().inset_0().rounded(px(ui::RADIUS_MD + 2.)).border_2().border_color(gap));
+    let ring = div().absolute().border_2().border_color(palette::accent()).child(div().absolute().inset_0().squircle(ui::RADIUS_MD + 2.).border_2().border_color(gap));
     if !animate {
         return place_ring(ring, 1., 1.).into_any_element();
     }
@@ -543,7 +546,7 @@ fn selection_ring(key: &str, animate: bool, gap: Hsla) -> AnyElement {
 
 fn place_ring(ring: Div, grow: f32, alpha: f32) -> Div {
     let offset = 1. - 5. * grow;
-    ring.top(px(offset)).left(px(offset)).right(px(offset)).bottom(px(offset)).rounded(px(ui::RADIUS_MD - offset)).opacity(alpha)
+    ring.top(px(offset)).left(px(offset)).right(px(offset)).bottom(px(offset)).squircle(ui::RADIUS_MD - offset).opacity(alpha)
 }
 
 // --ease-out, near enough: cubic, landing softly.
@@ -551,7 +554,7 @@ fn ease_out(t: f32) -> f32 {
     1. - (1. - t).powi(3)
 }
 
-#[cfg(test)]#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
 

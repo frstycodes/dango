@@ -13,7 +13,7 @@ use crate::{
     layout::{decorated_avatar, nameplate},
     palette,
     sidebar::{activity_glyph, mix},
-    ui,
+    ui::{self, Squircle},
 };
 
 impl Rustcord {
@@ -107,7 +107,7 @@ impl Rustcord {
             .flex()
             .items_center()
             .gap(px(10.))
-            .rounded(px(ui::RADIUS_SM))
+            .squircle(ui::RADIUS_SM)
             .cursor_pointer()
             .when(selected, |r| r.bg(palette::selected(cx)))
             .when(!selected, |r| r.hover(move |s| s.bg(hover)))
@@ -160,7 +160,7 @@ impl Rustcord {
                         div()
                             .id(SharedString::from(format!("hit-{}", hit.id)))
                             .p_2()
-                            .rounded(px(ui::RADIUS_MD))
+                            .squircle(ui::RADIUS_MD)
                             .bg(page)
                             .cursor_pointer()
                             .hover(move |s| s.bg(hover))
@@ -197,7 +197,7 @@ fn wait_line(id: &'static str, text: &'static str, cx: &App) -> Div {
 // The list before Discord sends it: the static label, no false count, rows shaped like the real ones.
 fn members_loading(cx: &App) -> Div {
     let fill = palette::selected(cx);
-    let bar = move |w: f32, h: f32| div().w(gpui_kit::relative(w)).h(px(h)).rounded(px(ui::RADIUS_XS)).bg(fill);
+    let bar = move |w: f32, h: f32| div().w(gpui_kit::relative(w)).h(px(h)).squircle(ui::RADIUS_XS).bg(fill);
     // GAP: the design sweeps one shimmer band across all skeletons; these hold still.
     let row = move |name: f32, line: Option<f32>| {
         div().h(px(44.)).px_2().flex().items_center().gap(px(10.)).child(div().size(px(32.)).flex_none().rounded_full().bg(fill)).child(div().flex_1().flex().flex_col().gap(px(6.)).child(bar(name, 12.)).children(line.map(|w| bar(w, 8.))))

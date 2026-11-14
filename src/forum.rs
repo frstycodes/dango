@@ -18,7 +18,7 @@ use crate::{
     icons::Glyph,
     mascot::Mood,
     palette::{self, Level},
-    ui,
+    ui::{self, Squircle},
 };
 
 #[derive(Default)]
@@ -223,14 +223,14 @@ impl Rustcord {
         let starter = first.map(|m| div().flex().items_center().gap(px(4.)).child(ui::avatar(m.author.avatar.clone(), 20.)).child(div().max_w(px(140.)).truncate().font_weight(FontWeight::MEDIUM).text_color(muted).child(m.author.name.clone())));
         let open = post.clone();
         let (menu_post, guild_id) = (post.clone(), self.guild_id.clone().unwrap_or_default());
-        // PATCH(transform): press scales the card to 0.99.
         div()
             .id(SharedString::from(format!("post-{}", post.id)))
+            .active(|s| s.scale(0.99))
             .py(px(14.))
             .px(px(16.))
             .flex()
             .gap(px(16.))
-            .rounded(px(ui::RADIUS_LG))
+            .squircle(ui::RADIUS_LG)
             .bg(sidebar)
             .border_1()
             .border_color(palette::line(cx))
