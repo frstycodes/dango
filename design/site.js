@@ -11,6 +11,10 @@ const PAGES = [
   ["messages.html", "Messages"],
   ["voice.html", "Voice and streams"],
   ["overlays.html", "Overlays"],
+  ["menus.html", "Context menus"],
+  ["panels.html", "Panels and views"],
+  ["media.html", "Media and drag"],
+  ["auth.html", "Sign in and states"],
   ["settings.html", "Settings"],
 ];
 const FONTS = [["Gabarito", "Gabarito"], ["Onest", "Onest"], ["Figtree", "Figtree"], ["Rubik", "Rubik"], ["gg sans", "gg sans (current)"]];
@@ -46,6 +50,10 @@ $("#theme").addEventListener("click", e => {
 $("#font").addEventListener("change", e => { root.style.setProperty("--font-ui", `"${e.target.value}", system-ui, sans-serif`); save("font", e.target.value); });
 $("#neutral").addEventListener("change", e => { e.target.value ? root.dataset.neutral = e.target.value : delete root.dataset.neutral; save("neutral", e.target.value); });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => document.dispatchEvent(new CustomEvent("wave:prefs")));
+
+// ?only=section-id shows one section, so a headless screenshot of a long page can be taken in parts.
+const only = new URLSearchParams(location.search).get("only");
+if (only) for (const sec of document.querySelectorAll("main > section[id]")) if (!only.split(",").includes(sec.id)) sec.hidden = true;
 
 // Navigation: every page, and the current page's sections under it.
 const sections = $$("main > section[id]");
