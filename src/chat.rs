@@ -1209,7 +1209,8 @@ fn actions(message: &Message, mine: bool, ctx: &std::rc::Rc<RowContext>, group: 
             this.update(cx, |this, cx| this.open_message_menu(msg.clone(), at, cx)).ok();
         })),
     };
-    bar.into_any_element()
+    // Deferred so it paints above the next message's images and embeds, which come later in the list.
+    gpui_kit::deferred(bar).with_priority(1).into_any_element()
 }
 
 fn chip(label: &'static str, cx: &App) -> AnyElement {

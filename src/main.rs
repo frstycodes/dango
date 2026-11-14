@@ -6,6 +6,7 @@ mod chat;
 #[cfg(debug_assertions)]
 mod demo;
 mod discord;
+mod drag;
 mod icons;
 mod layout;
 mod login;
@@ -244,6 +245,8 @@ pub struct Rustcord {
     folders: Vec<Folder>,
     open_folders: HashSet<String>,
     rail_drop: Option<(String, rail_drag::Drop)>,
+    // Where a dragged channel would land: the row's id and above/below it.
+    channel_drop: Option<(String, drag::Place)>,
     // Every user seen as their server shows them, keyed by guild then user, for voice rows and tiles.
     members: HashMap<String, HashMap<String, User>>,
     dms: Vec<Channel>,
@@ -401,6 +404,7 @@ impl Rustcord {
             folders: Vec::new(),
             open_folders: HashSet::new(),
             rail_drop: None,
+            channel_drop: None,
             members: HashMap::new(),
             dms: Vec::new(),
             guild_id: None,

@@ -42,9 +42,15 @@ impl Rustcord {
         guild.can(&me.id, bit)
     }
 
-    // Saves part of our notification settings for a server ("@me" for DMs) and keeps Discord's answer.
+    // Saves part of our notification settings for a server ("@me" for DMs). The change shows at
+    // once; Discord's answer then replaces it, or a refusal puts the old settings back.
     pub(crate) fn patch_guild_settings(&mut self, guild_key: String, body: Value, cx: &mut Context<Self>) {
         let Some(client) = self.client.clone() else { return };
+        let before = self.guild_settings.get(&guild_key).cloned();
+        let mut optimistic = self.settings_for(&guild_key);
+        merge_settings(&mut optimistic, &body);
+        self.guild_settings.insert(guild_key.clone(), optimistic);
+        cx.notify();
         cx.spawn(async move |this, cx| {
             let result = client.call(Method::PATCH, format!("/users/@me/guilds/{guild_key}/settings"), Some(body)).await;
             this.update(cx, |this, cx| {
@@ -53,7 +59,13 @@ impl Rustcord {
                         let (key, settings) = parse_guild_settings(&updated);
                         this.guild_settings.insert(key, settings);
                     }
-                    Err(error) => this.show_toast(error, cx),
+                    Err(error) => {
+                        match before {
+                            Some(settings) => this.guild_settings.insert(guild_key.clone(), settings),
+                            None => this.guild_settings.remove(&guild_key),
+                        };
+                        this.show_toast(error, cx);
+                    }
                 }
                 cx.notify();
             })
@@ -662,6 +674,37 @@ impl Rustcord {
     }
 }
 
+// Applies a settings PATCH body to our local copy, field by field, as Discord will.
+fn merge_settings(settings: &mut GuildSettings, body: &Value) {
+    let end = |v: &Value| v["mute_config"]["end_time"].as_str().map(str::to_owned);
+    if let Some(muted) = body["muted"].as_bool() {
+        settings.muted = muted;
+        settings.mute_end = end(body);
+    }
+    if let Some(level) = body["message_notifications"].as_u64() {
+        settings.notifications = level as u8;
+    }
+    if let Some(on) = body["suppress_everyone"].as_bool() {
+        settings.suppress_everyone = on;
+    }
+    if let Some(on) = body["suppress_roles"].as_bool() {
+        settings.suppress_roles = on;
+    }
+    if let Some(on) = body["hide_muted_channels"].as_bool() {
+        settings.hide_muted = on;
+    }
+    for (id, change) in body["channel_overrides"].as_object().into_iter().flatten() {
+        let channel = settings.channels.entry(id.clone()).or_insert_with(|| crate::discord::ChannelSettings { notifications: 3, ..Default::default() });
+        if let Some(muted) = change["muted"].as_bool() {
+            channel.muted = muted;
+            channel.mute_end = end(change);
+        }
+        if let Some(level) = change["message_notifications"].as_u64() {
+            channel.notifications = level as u8;
+        }
+    }
+}
+
 fn rail_key(entry: &crate::RailEntry) -> String {
     match entry {
         crate::RailEntry::Guild(g) => g.id.clone(),
@@ -680,5 +723,21 @@ fn notification_label(level: u8) -> &'static str {
         1 => "Only @mentions",
         2 => "Nothing",
         _ => "Use Default",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn settings_patches_apply_locally() {
+        let mut settings = GuildSettings::default();
+        merge_settings(&mut settings, &json!({ "muted": true, "mute_config": { "end_time": "2030-01-01T00:00:00Z" }, "suppress_everyone": true }));
+        assert!(settings.muted && settings.suppress_everyone);
+        assert_eq!(settings.mute_end.as_deref(), Some("2030-01-01T00:00:00Z"));
+        merge_settings(&mut settings, &json!({ "channel_overrides": { "9": { "message_notifications": 2 } } }));
+        assert_eq!(settings.channels["9"].notifications, 2);
+        assert!(!settings.channels["9"].muted);
     }
 }
