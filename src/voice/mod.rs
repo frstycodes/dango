@@ -9,11 +9,16 @@ mod audio;
 mod camera;
 #[cfg(target_os = "macos")]
 mod capture;
+#[cfg(target_os = "windows")]
+#[path = "capture_windows.rs"]
+mod capture;
 mod dave;
 mod dsp;
 mod media;
 mod rtp;
 mod video;
+#[cfg(target_os = "windows")]
+mod video_mf;
 
 use std::{
     collections::{HashMap, VecDeque},
@@ -194,12 +199,12 @@ pub struct ShareableWindow {
     pub pid: i32,
 }
 
-// Visible, titled windows of other apps (macOS); Err elsewhere.
+// Visible, titled windows of other apps (macOS and Windows); Err elsewhere.
 pub fn shareable_windows() -> Result<Vec<ShareableWindow>, String> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     return capture::shareable_windows();
-    #[cfg(not(target_os = "macos"))]
-    Err("Screen sharing is only implemented on macOS".into())
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    Err("Screen sharing is only implemented on macOS and Windows".into())
 }
 
 // The voice module's view of the main gateway. `src/discord.rs` writes every string from the

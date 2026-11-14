@@ -120,35 +120,149 @@ impl VideoDecoder {
     }
 }
 
+// On Windows the first frame opens a Media Foundation hardware encoder (video_mf.rs) at that size;
+// OpenH264 takes over if there is none, it fails, or RUSTCORD_VIDEO_ENCODER=software. A size change
+// reopens the hardware encoder; OpenH264 follows size changes by itself.
 pub struct VideoEncoder {
-    encoder: Encoder,
+    fps: u32,
+    bitrate: u32,
+    backend: Backend,
+    keyframe_pending: bool,
+}
+
+enum Backend {
+    #[cfg(target_os = "windows")]
+    Undecided,
+    #[cfg(target_os = "windows")]
+    Hardware(super::video_mf::MfEncoder),
+    Software(Box<Encoder>),
 }
 
 impl VideoEncoder {
-    // A keyframe every few seconds lets late viewers start even if keyframe requests are lost.
     pub fn new(fps: u32, bitrate: u32) -> Result<Self, String> {
-        let config = EncoderConfig::new()
-            .usage_type(UsageType::ScreenContentRealTime)
-            .adaptive_quantization(false)
-            .background_detection(false)
-            .bitrate(BitRate::from_bps(bitrate))
-            .max_frame_rate(FrameRate::from_hz(fps as f32))
-            .intra_frame_period(IntraFramePeriod::from_num_frames(fps * 3));
-        let encoder = Encoder::with_api_config(OpenH264API::from_source(), config).map_err(|e| e.to_string())?;
-        Ok(Self { encoder })
+        #[cfg(target_os = "windows")]
+        let backend = if std::env::var("RUSTCORD_VIDEO_ENCODER").as_deref() == Ok("software") { Backend::Software(Box::new(software(fps, bitrate)?)) } else { Backend::Undecided };
+        #[cfg(not(target_os = "windows"))]
+        let backend = Backend::Software(Box::new(software(fps, bitrate)?));
+        Ok(Self { fps, bitrate, backend, keyframe_pending: false })
     }
 
     pub fn force_keyframe(&mut self) {
-        self.encoder.force_intra_frame();
+        match &mut self.backend {
+            Backend::Software(encoder) => encoder.force_intra_frame(),
+            // Applied once the encoder for the next frame exists.
+            #[cfg(target_os = "windows")]
+            _ => self.keyframe_pending = true,
+        }
     }
 
-    // One Annex-B access unit, or None when the rate controller skipped the frame.
-    pub fn encode(&mut self, frame: &VideoFrame) -> Option<Vec<u8>> {
-        let size = (frame.width as usize, frame.height as usize);
-        let yuv = YUVBuffer::from_rgb8_source(BgraSliceU8::new(&frame.bgra, size));
-        let unit = self.encoder.encode(&yuv).ok()?.to_vec();
-        (!unit.is_empty()).then_some(unit)
+    /// Which encoder is in use: "OpenH264", the hardware encoder's name, or "undecided" before the first frame.
+    pub fn backend_name(&self) -> String {
+        match &self.backend {
+            Backend::Software(_) => "OpenH264".into(),
+            #[cfg(target_os = "windows")]
+            Backend::Hardware(encoder) => encoder.name.clone(),
+            #[cfg(target_os = "windows")]
+            Backend::Undecided => "undecided".into(),
+        }
     }
+
+    // One Annex-B access unit, or None when the encoder skipped or is still holding the frame.
+    pub fn encode(&mut self, frame: &VideoFrame) -> Option<Vec<u8>> {
+        #[cfg(target_os = "windows")]
+        self.ensure_hardware(frame);
+        let keyframe = std::mem::take(&mut self.keyframe_pending);
+        match &mut self.backend {
+            Backend::Software(encoder) => {
+                if keyframe {
+                    encoder.force_intra_frame();
+                }
+                let size = (frame.width as usize, frame.height as usize);
+                let yuv = YUVBuffer::from_rgb8_source(BgraSliceU8::new(&frame.bgra, size));
+                let unit = encoder.encode(&yuv).ok()?.to_vec();
+                (!unit.is_empty()).then_some(unit)
+            }
+            #[cfg(target_os = "windows")]
+            Backend::Hardware(encoder) => {
+                if keyframe {
+                    encoder.force_keyframe();
+                }
+                match encoder.encode(frame) {
+                    Ok(unit) => unit,
+                    Err(e) => {
+                        eprintln!("voice: {} failed ({e}); switching to OpenH264", encoder.name);
+                        self.backend = Backend::Software(Box::new(software(self.fps, self.bitrate).ok()?));
+                        self.keyframe_pending = true;
+                        self.encode(frame)
+                    }
+                }
+            }
+            #[cfg(target_os = "windows")]
+            Backend::Undecided => None,
+        }
+    }
+
+    // Opens the hardware encoder for this frame's size, or settles on OpenH264.
+    #[cfg(target_os = "windows")]
+    fn ensure_hardware(&mut self, frame: &VideoFrame) {
+        let fits = match &self.backend {
+            Backend::Undecided => false,
+            Backend::Hardware(encoder) => (encoder.width, encoder.height) == (frame.width, frame.height),
+            Backend::Software(_) => return,
+        };
+        if fits {
+            return;
+        }
+        self.backend = match super::video_mf::MfEncoder::new(frame.width, frame.height, self.fps, self.bitrate) {
+            Ok(encoder) => {
+                if super::debug() {
+                    eprintln!("voice: video encoder: {} at {}x{}", encoder.name, frame.width, frame.height);
+                }
+                Backend::Hardware(encoder)
+            }
+            Err(e) => {
+                if super::debug() {
+                    eprintln!("voice: no hardware H.264 encoder ({e}); using OpenH264");
+                }
+                match software(self.fps, self.bitrate) {
+                    Ok(encoder) => Backend::Software(Box::new(encoder)),
+                    Err(_) => return,
+                }
+            }
+        };
+        // A new encoder starts with a keyframe anyway; a stale request would only cost bandwidth.
+        self.keyframe_pending = false;
+    }
+}
+
+// A keyframe every few seconds lets late viewers start even if keyframe requests are lost.
+fn software(fps: u32, bitrate: u32) -> Result<Encoder, String> {
+    let config = EncoderConfig::new()
+        .usage_type(UsageType::ScreenContentRealTime)
+        .adaptive_quantization(false)
+        .background_detection(false)
+        .bitrate(BitRate::from_bps(bitrate))
+        .max_frame_rate(FrameRate::from_hz(fps as f32))
+        .intra_frame_period(IntraFramePeriod::from_num_frames(fps * 3));
+    Encoder::with_api_config(OpenH264API::from_source(), config).map_err(|e| e.to_string())
+}
+
+/// The NAL unit types in an Annex-B access unit, in order.
+pub fn nal_types(unit: &[u8]) -> Vec<u8> {
+    nal_units(unit).iter().filter_map(|nal| nal.first().map(|h| h & 0x1f)).collect()
+}
+
+/// The access unit rebuilt with 4-byte start codes, leaving out NALs of the given types.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+pub fn without_nal_types(unit: &[u8], drop: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(unit.len());
+    for nal in nal_units(unit) {
+        if nal.first().is_some_and(|h| !drop.contains(&(h & 0x1f))) {
+            out.extend_from_slice(&START_CODE);
+            out.extend_from_slice(nal);
+        }
+    }
+    out
 }
 
 // RTP payloads for one access unit: each NAL whole if it fits `mtu`, else as FU-A fragments.
@@ -216,6 +330,12 @@ mod tests {
     }
 
     #[test]
+    fn drops_delimiter_and_filler_nals() {
+        let unit = [0, 0, 0, 1, 0x09, 0xf0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x65, 2, 0, 0, 0, 1, 0x0c, 0xff, 0xff];
+        assert_eq!(without_nal_types(&unit, &[9, 12]), [0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x65, 2]);
+    }
+
+    #[test]
     fn sequence_gap_drops_the_frame() {
         let mut d = Depacketizer::default();
         d.push(10, false, &[0x7c, 0x85, 1]);
@@ -223,21 +343,75 @@ mod tests {
         assert!(d.push(13, true, &[0x41, 3]).is_some());
     }
 
+    // A moving gradient so every frame differs, like scrolling content.
+    fn moving_frame(w: u32, h: u32, i: u32) -> VideoFrame {
+        let bgra: Vec<u8> = (0..w * h).flat_map(|p| { let x = (p % w + i * 8) as u8; let y = (p / w) as u8; [x, y, x ^ y, 255] }).collect();
+        VideoFrame { width: w, height: h, bgra }
+    }
+
+    // `cargo test --release --example voice_join -- --ignored bench_ --nocapture`. On Windows set
+    // RUSTCORD_VIDEO_ENCODER=software to time OpenH264 instead of the hardware encoder.
     #[test]
     #[ignore]
     fn bench_720p_encode() {
-        let (w, h) = (1280u32, 720u32);
+        bench_encode(1280, 720);
+    }
+
+    #[test]
+    #[ignore]
+    fn bench_1080p_encode() {
+        bench_encode(1920, 1080);
+    }
+
+    fn bench_encode(w: u32, h: u32) {
         let mut encoder = VideoEncoder::new(30, 2_500_000).unwrap();
-        let mut total = std::time::Duration::ZERO;
-        for i in 0..60u32 {
-            // A moving gradient so every frame differs, like scrolling content.
-            let bgra: Vec<u8> = (0..w * h).flat_map(|p| { let x = (p % w + i * 8) as u8; let y = (p / w) as u8; [x, y, x ^ y, 255] }).collect();
-            let frame = VideoFrame { width: w, height: h, bgra };
+        let frames: Vec<VideoFrame> = (0..90).map(|i| moving_frame(w, h, i)).collect();
+        // The first frame opens the encoder; time steady state only.
+        encoder.encode(&frames[0]);
+        let (mut total, mut units, mut bytes) = (std::time::Duration::ZERO, 0, 0);
+        for frame in &frames[1..] {
             let t = std::time::Instant::now();
-            encoder.encode(&frame);
+            if let Some(unit) = encoder.encode(frame) {
+                units += 1;
+                bytes += unit.len();
+            }
             total += t.elapsed();
         }
-        eprintln!("BENCH avg encode (incl. BGRA->YUV) per 720p frame: {:?}", total / 60);
+        let n = frames.len() as u32 - 1;
+        eprintln!("BENCH {} {w}x{h}: avg {:?} per frame (incl. colour conversion), {units}/{n} frames out, {} KB/frame", encoder.backend_name(), total / n, bytes / units.max(1) / 1024);
+    }
+
+    // Whatever encoder `VideoEncoder` picks (hardware on Windows when present) must produce streams
+    // our own receive path accepts: Annex-B with SPS/PPS before the IDR, no B-frames (output in
+    // input order), RTP round trip byte for byte, decodable by OpenH264, keyframes on request.
+    #[test]
+    fn chosen_encoder_output_survives_the_receive_path() {
+        let (w, h) = (320, 240);
+        let mut encoder = VideoEncoder::new(30, 1_000_000).unwrap();
+        let mut decoder = VideoDecoder::new().unwrap();
+        let mut decoded = 0;
+        let mut units = Vec::new();
+        for i in 0..30 {
+            if i == 20 {
+                encoder.force_keyframe();
+            }
+            let Some(unit) = encoder.encode(&moving_frame(w, h, i)) else { continue };
+            let packets = packetize(&unit, 1200);
+            let mut depacketizer = Depacketizer::default();
+            let last = packets.len() - 1;
+            let rebuilt = packets.iter().enumerate().find_map(|(n, p)| depacketizer.push(n as u16, n == last, p)).unwrap();
+            assert_eq!(rebuilt, unit);
+            if decoder.decode(&rebuilt).is_some_and(|f| (f.width, f.height) == (w, h)) {
+                decoded += 1;
+            }
+            units.push(nal_types(&unit));
+        }
+        eprintln!("{}: {} units, {decoded} decoded, first {:?}", encoder.backend_name(), units.len(), units.first());
+        assert!(units.iter().flatten().all(|t| ![9, 12].contains(t) || encoder.backend_name() == "OpenH264"), "no delimiters or filler on the wire");
+        let first = units.first().expect("encoder produced output");
+        assert!(first.contains(&7) && first.contains(&8) && first.contains(&5), "first unit is SPS+PPS+IDR: {first:?}");
+        assert!(units.iter().skip(1).any(|t| t.contains(&5)), "a requested keyframe arrives");
+        assert!(decoded + 2 >= units.len(), "nearly every unit decodes ({decoded}/{})", units.len());
     }
 
     #[test]
