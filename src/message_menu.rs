@@ -193,7 +193,7 @@ impl Rustcord {
 }
 
 // How a reaction reads in a menu row: `:fire:` for Unicode, `:name:` for a server's own.
-fn shortcode(emoji: &Emoji) -> String {
+pub(crate) fn shortcode(emoji: &Emoji) -> String {
     let name = emojis::get(&emoji.name).and_then(|e| e.shortcode()).unwrap_or(&emoji.name);
     format!(":{name}:")
 }
