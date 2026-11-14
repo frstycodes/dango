@@ -375,8 +375,8 @@ impl Rustcord {
                 true => wide_button("panel-share", Glyph::ShareScreen, "Stream Options", true, connected, cx).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stream_menu(e.position, cx))),
                 false => wide_button("panel-share", Glyph::ShareScreen, "Share Your Screen", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx))),
             })
-            .child(wide_button("panel-activities", Glyph::Activities, "Start an Activity", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities aren't in Rustcord yet", cx))))
-            .child(wide_button("panel-soundboard", Glyph::Soundboard, "Open Soundboard", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.show_toast("The soundboard isn't in Rustcord yet", cx))));
+            .child(wide_button("panel-activities", Glyph::Activities, "Start an Activity", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities aren't in Wave yet", cx))))
+            .child(wide_button("panel-soundboard", Glyph::Soundboard, "Open Soundboard", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.show_toast("The soundboard isn't in Wave yet", cx))));
         let warning = self.voice_warning();
         let voice = div()
             .min_h(px(VOICE_HEIGHT))
@@ -1292,13 +1292,13 @@ impl Rustcord {
                 split_button("call-activities", Glyph::Activities, "Start an Activity", false, cx)
                     .rounded(px(12.))
                     .when(!connected, |b| b.opacity(0.5))
-                    .on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities aren't in Rustcord yet", cx))),
+                    .on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities aren't in Wave yet", cx))),
             )
             .child(
                 split_button("call-soundboard", Glyph::Soundboard, "Open Soundboard", false, cx)
                     .rounded(px(12.))
                     .when(!connected, |b| b.opacity(0.5))
-                    .on_click(cx.listener(|this, _, _, cx| this.show_toast("The soundboard isn't in Rustcord yet", cx))),
+                    .on_click(cx.listener(|this, _, _, cx| this.show_toast("The soundboard isn't in Wave yet", cx))),
             )
             .child(
                 div()

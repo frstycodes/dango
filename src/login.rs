@@ -10,7 +10,7 @@ use qrcode::QrCode;
 use crate::{
     Rustcord,
     discord::User,
-    mascot::{Mood, clyde},
+    mascot::{Mood, mascot},
     motion,
 };
 
@@ -58,7 +58,7 @@ pub fn render(login: &Login, _: &mut Window, cx: &mut Context<Rustcord>) -> AnyE
             "captcha",
             Mood::Waiting,
             "One more step".into(),
-            "Discord wants a quick check. Solve the captcha in your browser and Rustcord will finish signing in.".into(),
+            "Discord wants a quick check. Solve the captcha in your browser and Wave will finish signing in.".into(),
         ),
         Login::Failed(error) => ("failed", Mood::Idle, "Sign-in didn't finish".into(), error.clone()),
     };
@@ -86,7 +86,7 @@ pub fn render(login: &Login, _: &mut Window, cx: &mut Context<Rustcord>) -> AnyE
         .gap_4()
         .px_6()
         .window_control_area(gpui_kit::WindowControlArea::Drag)
-        .child(clyde("login", mood, cx))
+        .child(mascot("login", mood, cx))
         .child(
             div()
                 .flex()
@@ -98,7 +98,7 @@ pub fn render(login: &Login, _: &mut Window, cx: &mut Context<Rustcord>) -> AnyE
                 .child(div().text_center().text_color(theme.muted_foreground).child(detail)),
         )
         .child(div().mt_2().child(card))
-        .child(div().mt_2().text_size(px(12.)).text_color(theme.muted_foreground).child("Rustcord never sees your password."))
+        .child(div().mt_2().text_size(px(12.)).text_color(theme.muted_foreground).child("Wave never sees your password."))
         .into_any_element()
 }
 

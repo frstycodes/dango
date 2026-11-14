@@ -4,9 +4,11 @@ use gpui_kit::{
     rgb,
 };
 
-// Discord's blurple. Accent only for the primary action, focus, links and selection marks.
-const BLURPLE: u32 = 0x5865F2;
-const BLURPLE_HOVER: u32 = 0x4752C4;
+// Rustcord's magenta, its own identity. Accent only for the primary action, focus and selection
+// marks. The fill is a shade deeper than the logo's #E8326F so white labels on it clear 4.5:1.
+const ACCENT: u32 = 0xDB2B65;
+const ACCENT_HOVER: u32 = 0xC2215A;
+const ACCENT_ACTIVE: u32 = 0xA81C4E;
 const LIVE: u32 = 0xED4245;
 const POSITIVE: u32 = 0x41A063;
 const DANGER: u32 = 0xDA3E44;
@@ -39,7 +41,7 @@ struct Tokens {
 }
 
 // The Midnight mock the user picked (2026-11-14). The ink tokens are text-safe shades of the fills:
-// blurple, positive and danger fills sit under 4.5:1 as text on these surfaces.
+// Accent, positive and danger fills sit under 4.5:1 as text on these surfaces.
 const MIDNIGHT: Tokens = Tokens {
     page: 0x0B0B0E,
     frame: 0x000000,
@@ -53,7 +55,7 @@ const MIDNIGHT: Tokens = Tokens {
     strong: 0xFBFBFB,
     muted: 0x8F9099,
     faint: 0x6B6C74,
-    accent_ink: 0x949CF7,
+    accent_ink: 0xFF6B9C,
     positive_ink: 0x62B77C,
     danger_ink: 0xEB5F5E,
     warning: WARNING,
@@ -73,7 +75,7 @@ const LIGHT: Tokens = Tokens {
     strong: 0x060607,
     muted: 0x5C5E66,
     faint: 0x80848E,
-    accent_ink: BLURPLE_HOVER,
+    accent_ink: 0xB81F55,
     positive_ink: 0x1F7A45,
     danger_ink: 0xC4262E,
     warning: 0x945300,
@@ -125,13 +127,13 @@ pub fn sync(window: &mut Window, cx: &mut App) {
         theme.sidebar_accent = wash(WASH_HOVER);
         theme.sidebar_accent_foreground = hex(t.strong);
         theme.list_hover = wash(WASH);
-        // White on #5865F2 is 4.6:1, so the label passes AA in both themes.
-        theme.primary = blurple();
-        theme.primary_hover = blurple_hover();
-        theme.primary_active = hex(0x3C45A5);
+        // White on #DB2B65 is 4.6:1, so the label passes AA in both themes.
+        theme.primary = accent();
+        theme.primary_hover = accent_hover();
+        theme.primary_active = hex(ACCENT_ACTIVE);
         theme.primary_foreground = gpui_kit::white();
-        theme.ring = blurple().opacity(0.6);
-        theme.selection = blurple().opacity(0.3);
+        theme.ring = accent().opacity(0.6);
+        theme.selection = accent().opacity(0.3);
         theme.link = hex(if theme.is_dark() { 0x2781E7 } else { 0x006CE7 });
         theme.link_hover = theme.link;
         theme.danger = danger();
@@ -144,12 +146,12 @@ pub fn sync(window: &mut Window, cx: &mut App) {
     });
 }
 
-pub fn blurple() -> Hsla {
-    hex(BLURPLE)
+pub fn accent() -> Hsla {
+    hex(ACCENT)
 }
 
-pub fn blurple_hover() -> Hsla {
-    hex(BLURPLE_HOVER)
+pub fn accent_hover() -> Hsla {
+    hex(ACCENT_HOVER)
 }
 
 pub fn danger() -> Hsla {
@@ -250,7 +252,7 @@ mod tests {
                 }
             }
         }
-        assert!(contrast(0xFFFFFF, BLURPLE) >= 4.5);
+        assert!(contrast(0xFFFFFF, ACCENT) >= 4.5);
         assert!(contrast(MIDNIGHT.text, CALL_TILE) >= 4.5);
     }
 }

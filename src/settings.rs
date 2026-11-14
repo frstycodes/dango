@@ -87,6 +87,7 @@ pub enum NoiseMode {
 #[serde(default)]
 pub struct Prefs {
     pub theme: ThemePref,
+    pub app_icon: crate::app_icon::AppIcon,
     pub input_device: Option<String>,
     pub output_device: Option<String>,
     pub camera: Option<String>,
@@ -142,6 +143,7 @@ impl Default for Prefs {
     fn default() -> Self {
         Self {
             theme: ThemePref::System,
+            app_icon: crate::app_icon::AppIcon::default(),
             input_device: None,
             output_device: None,
             camera: None,
@@ -743,7 +745,7 @@ impl Rustcord {
     }
 
     fn notifications_page(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
-        let mut out = vec![h2("Sounds", cx), description("Sounds Rustcord plays for new messages in direct messages and for mentions.", cx).mb_4().into_any_element()];
+        let mut out = vec![h2("Sounds", cx), description("Sounds Wave plays for new messages in direct messages and for mentions.", cx).mb_4().into_any_element()];
         out.extend([("Message", Cue::Message), ("Mention", Cue::Mention)].into_iter().map(|(label, cue)| self.cue_row(label, cue, cx)));
         out
     }
@@ -766,7 +768,7 @@ impl Rustcord {
                         .size(px(60.))
                         .rounded_full()
                         .border_2()
-                        .border_color(if selected { palette::blurple() } else { wash(0.24) })
+                        .border_color(if selected { palette::accent() } else { wash(0.24) })
                         .p(px(3.))
                         .child(fill)
                         .children(selected.then(|| {
@@ -776,7 +778,7 @@ impl Rustcord {
                                 .right(px(-4.))
                                 .size(px(20.))
                                 .rounded_full()
-                                .bg(palette::blurple())
+                                .bg(palette::accent())
                                 .text_color(gpui_kit::white())
                                 .flex()
                                 .items_center()
@@ -801,7 +803,7 @@ impl Rustcord {
             .into_any_element();
         vec![
             h2("Theme", cx),
-            description("Midnight is Discord's darkest theme, the one Rustcord is built on.", cx).mb_4().into_any_element(),
+            description("Midnight is Discord's darkest theme, the one Wave is built on.", cx).mb_4().into_any_element(),
             div()
                 .flex()
                 .gap_6()
@@ -809,7 +811,42 @@ impl Rustcord {
                 .child(swatch("theme-dark", "Midnight", ThemePref::Dark, disc(gpui_kit::black())))
                 .child(swatch("theme-system", "Sync with OS", ThemePref::System, split))
                 .into_any_element(),
+            divider(&theme).into_any_element(),
+            h2("App Icon", cx),
+            description("How Wave looks in your Dock. The same voice wave in different media.", cx).mb_4().into_any_element(),
+            self.app_icon_grid(cx),
         ]
+    }
+
+    fn app_icon_grid(&self, cx: &mut Context<Self>) -> AnyElement {
+        let muted = cx.theme().muted_foreground;
+        let current = self.prefs.app_icon;
+        let tiles = crate::app_icon::AppIcon::ALL.map(|icon| {
+            let selected = icon == current;
+            div()
+                .id(SharedString::from(format!("app-icon-{}", icon.label())))
+                .flex()
+                .flex_col()
+                .items_center()
+                .gap_2()
+                .cursor_pointer()
+                .child(
+                    div()
+                        .size(px(76.))
+                        .rounded(px(20.))
+                        .border_2()
+                        .border_color(if selected { palette::accent() } else { gpui_kit::transparent_black() })
+                        .p(px(3.))
+                        .hover(|s| s.bg(wash(0.12)))
+                        .child(img(icon.asset()).size_full()),
+                )
+                .child(div().text_size(px(13.)).text_color(if selected { palette::strong(cx) } else { muted }).child(icon.label()))
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.update_prefs(cx, |prefs| prefs.app_icon = icon);
+                    icon.apply();
+                }))
+        });
+        div().flex().flex_wrap().gap_4().children(tiles).into_any_element()
     }
 
     fn voice_page(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
@@ -849,7 +886,7 @@ impl Rustcord {
                 .mt_2()
                 .flex()
                 .flex_col()
-                .child(label("Rustcord isn\u{2019}t detecting any input from your mic.", cx))
+                .child(label("Wave isn\u{2019}t detecting any input from your mic.", cx))
                 .child(description("Please check that you\u{2019}ve selected the right input device.", cx))
         });
         let profile = |id: &'static str, title: &'static str, detail: &'static str, value: InputProfile, cx: &mut Context<Self>| {
@@ -893,7 +930,7 @@ impl Rustcord {
                     .flex()
                     .flex_col()
                     .gap_1()
-                    .child(profile("profile-isolation", "Voice Isolation", "Just your beautiful voice: let Rustcord cut through the noise", InputProfile::VoiceIsolation, cx))
+                    .child(profile("profile-isolation", "Voice Isolation", "Just your beautiful voice: let Wave cut through the noise", InputProfile::VoiceIsolation, cx))
                     .child(profile("profile-studio", "Studio", "Pure audio: open mic with no processing", InputProfile::Studio, cx))
                     .child(profile("profile-custom", "Custom", "Advanced mode: give me all the buttons and dials!", InputProfile::Custom, cx)),
             )
@@ -1128,9 +1165,9 @@ impl Rustcord {
         let prefs = &self.prefs;
         let (auto, enabled) = (prefs.sensitivity_auto, !prefs.push_to_talk);
         let detail = if auto {
-            "Controls how much sound Rustcord transmits from your mic. Speak to test your mic \u{2013} if the meter is filled, Rustcord is transmitting your beautiful voice."
+            "Controls how much sound Wave transmits from your mic. Speak to test your mic \u{2013} if the meter is filled, Wave is transmitting your beautiful voice."
         } else {
-            "Controls how much sound Rustcord transmits from your mic."
+            "Controls how much sound Wave transmits from your mic."
         };
         let control = if auto {
             speaking_bar(speaking && enabled, cx).into_any_element()
@@ -1190,7 +1227,7 @@ impl Rustcord {
             .child(self.toggle_row(
                 "silence-warning",
                 "No Audio Detected Warning",
-                Some("Show a warning when Rustcord is not detecting audio from your mic"),
+                Some("Show a warning when Wave is not detecting audio from your mic"),
                 prefs.silence_warning,
                 |p| &mut p.silence_warning,
                 cx,
@@ -1199,7 +1236,7 @@ impl Rustcord {
             .child(self.toggle_row(
                 "qos",
                 "Quality of Service",
-                Some("Hints to your router that the packets Rustcord is transmitting are high priority. Some routers or internet service providers may misbehave when this is set."),
+                Some("Hints to your router that the packets Wave is transmitting are high priority. Some routers or internet service providers may misbehave when this is set."),
                 prefs.qos,
                 |p| &mut p.qos,
                 cx,
@@ -1328,7 +1365,7 @@ impl Rustcord {
             .pr_2()
             .rounded(px(8.))
             .border_1()
-            .border_color(if open { palette::blurple() } else { wash(0.24) })
+            .border_color(if open { palette::accent() } else { wash(0.24) })
             .bg(field_fill(cx))
             .flex()
             .items_center()
@@ -1359,7 +1396,7 @@ impl Rustcord {
                         .when(selected, |d| d.bg(wash(0.2)))
                         .hover(|s| s.bg(wash(0.12)))
                         .child(div().flex_1().min_w_0().truncate().child(name.clone()))
-                        .children(selected.then(|| Icon::new(Glyph::Checkmark).size(px(16.)).text_color(palette::blurple())))
+                        .children(selected.then(|| Icon::new(Glyph::Checkmark).size(px(16.)).text_color(palette::accent())))
                         .on_click(cx.listener(move |this, _, _, cx| this.choose(select, &id, cx)))
                         .into_any_element()
                 })
@@ -1408,7 +1445,7 @@ impl Rustcord {
         });
     }
 
-    // Discord's slider: 4px track, blurple fill, 16px white knob. The sensitivity slider instead paints
+    // Discord's slider: 4px track, accent fill, 16px white knob. The sensitivity slider instead paints
     // below-threshold yellow and above green, with the live mic level over it.
     fn slider(&self, slider: Slider, level: Option<f32>, cx: &mut Context<Self>) -> AnyElement {
         let fill = match slider {
@@ -1418,7 +1455,7 @@ impl Rustcord {
         self.range(format!("{slider:?}").into(), slider.fraction(&self.prefs), fill, move |this, f, cx| this.update_prefs(cx, |p| slider.set(p, f)), cx)
     }
 
-    // Discord's slider: 4px track, blurple fill, 16px white knob; click or drag anywhere on it.
+    // Discord's slider: 4px track, accent fill, 16px white knob; click or drag anywhere on it.
     pub(crate) fn range(
         &self,
         key: SharedString,
@@ -1438,7 +1475,7 @@ impl Rustcord {
                 .bg(theme.success)
                 .child(part(fraction).bg(theme.warning))
                 .children(level.map(|db| part((db + 100.) / 100.).bg(gpui_kit::black().opacity(0.35)))),
-            Fill::Accent => bar().bg(track(cx)).child(part(fraction).rounded(px(4.)).bg(palette::blurple())),
+            Fill::Accent => bar().bg(track(cx)).child(part(fraction).rounded(px(4.)).bg(palette::accent())),
         };
         let (down_key, drag_key, move_key, record_key) = (key.clone(), key.clone(), key.clone(), key.clone());
         let set = move |this: &mut Rustcord, key: &SharedString, x: Pixels, cx: &mut Context<Rustcord>| {
@@ -1558,8 +1595,8 @@ pub(crate) fn switch(on: bool, theme: &gpui_kit::component::Theme) -> Div {
         .p(px(3.))
         .rounded_full()
         .border_1()
-        .border_color(if on { palette::blurple() } else { wash(0.3) })
-        .bg(if on { palette::blurple() } else { theme.input })
+        .border_color(if on { palette::accent() } else { wash(0.3) })
+        .bg(if on { palette::accent() } else { theme.input })
         .flex()
         .items_center()
         .when(on, |d| d.justify_end())
@@ -1582,12 +1619,12 @@ fn radio_row(id: &'static str, title: &'static str, detail: &'static str, select
                 .flex_none()
                 .rounded_full()
                 .border_2()
-                .border_color(if selected { palette::blurple() } else { theme.muted_foreground })
+                .border_color(if selected { palette::accent() } else { theme.muted_foreground })
                 .flex()
                 .items_center()
                 .justify_center()
                 .children(selected.then(|| div().size(px(8.)).rounded_full().bg(gpui_kit::white())))
-                .when(selected, |d| d.bg(palette::blurple())),
+                .when(selected, |d| d.bg(palette::accent())),
         )
         .child(div().flex().flex_col().gap_1().child(div().text_size(px(16.)).child(title)).child(div().text_size(px(14.)).text_color(theme.muted_foreground).child(detail)))
 }
@@ -1616,7 +1653,7 @@ fn expander(id: &'static str, title: &str, detail: &str, open: bool, theme: &gpu
 }
 
 fn primary_button(id: &'static str, text: &'static str) -> Stateful<Div> {
-    button(id, text, palette::blurple(), palette::blurple_hover())
+    button(id, text, palette::accent(), palette::accent_hover())
 }
 
 fn danger_button(id: &'static str, text: &'static str) -> Stateful<Div> {

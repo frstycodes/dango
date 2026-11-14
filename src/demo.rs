@@ -90,7 +90,7 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             }
             let window = |id, pid, app: &str, title: &str| crate::voice::ShareableWindow { id, title: title.into(), app_name: app.into(), pid };
             let windows = vec![
-                window(1, 500, "Safari", "Rustcord: a Discord client in Rust with gpui, the full and very long window title of a pull request"),
+                window(1, 500, "Safari", "Wave: a Discord client in Rust with gpui, the full and very long window title of a pull request"),
                 window(2, 501, "Figma", "Go Live picker"),
                 window(3, 502, "Terminal", "zsh"),
                 window(4, 503, "Notes", "N"),

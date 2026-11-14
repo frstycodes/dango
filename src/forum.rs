@@ -155,7 +155,7 @@ impl Rustcord {
             .items_center()
             .gap_2()
             .cursor_pointer()
-            .bg(palette::blurple())
+            .bg(palette::accent())
             .text_color(gpui_kit::white())
             .font_weight(FontWeight::MEDIUM)
             .hover(|s| s.opacity(0.9))

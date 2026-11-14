@@ -35,7 +35,7 @@ pub struct RailDrag {
 impl Render for RailDrag {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         let face = match (&self.icon, self.key.starts_with("folder-")) {
-            (_, true) => div().size(px(40.)).rounded(px(12.)).bg(crate::palette::blurple().opacity(0.3)).flex().items_center().justify_center().child(gpui_kit::component::Icon::new(Glyph::Folder).size(px(22.))).into_any_element(),
+            (_, true) => div().size(px(40.)).rounded(px(12.)).bg(crate::palette::accent().opacity(0.3)).flex().items_center().justify_center().child(gpui_kit::component::Icon::new(Glyph::Folder).size(px(22.))).into_any_element(),
             (Some(url), _) => img(url.clone()).size(px(40.)).rounded(px(12.)).into_any_element(),
             (None, _) => identity_tile(&self.key, self.label.clone(), 14.).size(px(40.)).rounded(px(12.)).into_any_element(),
         };

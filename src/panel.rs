@@ -106,7 +106,7 @@ impl Rustcord {
                             .when(owner, |r| r.child(Icon::new(Glyph::Crown).size(px(14.)).flex_none().ml(px(3.)).text_color(crown)))
                             .when(member.user.bot, |r| {
                                 r.child(
-                                    div().h(px(15.)).px_1().flex().items_center().rounded(px(4.)).bg(crate::palette::blurple()).text_color(gpui_kit::white()).text_size(px(10.)).font_weight(FontWeight::BOLD).child("APP"),
+                                    div().h(px(15.)).px_1().flex().items_center().rounded(px(4.)).bg(crate::palette::accent()).text_color(gpui_kit::white()).text_size(px(10.)).font_weight(FontWeight::BOLD).child("APP"),
                                 )
                             }),
                     )
