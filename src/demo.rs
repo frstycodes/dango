@@ -64,10 +64,10 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             chord.voice_user_menu("8388608", gpui_kit::point(gpui_kit::px(300.), gpui_kit::px(160.)), cx);
         }
         "server-menu" => chord.open_server_menu("1".into(), gpui_kit::point(gpui_kit::px(60.), gpui_kit::px(130.)), false, cx),
-        // Move to... is entry 13 (separators count); Folder is its first child.
+        // Move server is entry 14 (the header and separators count); Folder is its first child.
         "server-menu-nested" => {
             chord.open_server_menu("1".into(), gpui_kit::point(gpui_kit::px(60.), gpui_kit::px(130.)), false, cx);
-            chord.open_submenus(vec![13, 0]);
+            chord.open_submenus(vec![14, 0]);
         }
         "channel-menu" => {
             let general = chord.guild().and_then(|g| g.channels.iter().find(|c| c.id == "general").cloned());
