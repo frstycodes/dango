@@ -12,7 +12,7 @@ use crate::{
     icons::Glyph,
     layout::{decorated_avatar, nameplate},
     palette,
-    sidebar::{activity_glyph, mix},
+    sidebar::activity_glyph,
     ui::{self, Squircle},
 };
 
@@ -97,7 +97,7 @@ impl Rustcord {
         let plate = member.user.nameplate.as_ref().map(|plate| nameplate(plate, surface, true, dark));
         let owner = self.guild().is_some_and(|g| g.owner_id.as_ref() == Some(&member.user.id));
         let selected = self.profile_card.as_ref().is_some_and(|p| p.user.id == member.user.id);
-        let crown = mix(palette::status_in(Status::Idle, cx), strong, 0.4);
+        let crown = ui::mix(palette::status_in(Status::Idle, cx), strong, 0.4);
         div()
             .id(SharedString::from(format!("member-{}", member.user.id)))
             .relative()

@@ -6,18 +6,18 @@
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, App, BoxShadow, Context, DefiniteLength, Div, FocusHandle, FontWeight, Hsla, KeyDownEvent, MouseButton, Pixels, Point, SharedString, Stateful, Window,
-    component::{ActiveTheme, Icon, input::Input},
-    div, img, point, prelude::*, px, relative,
+    Animation, AnimationExt, AnyElement, App, BoxShadow, Context, Div, FocusHandle, FontWeight, Hsla, KeyDownEvent, MouseButton, Pixels, Point, SharedString, Stateful, Window,
+    component::{Icon, input::Input},
+    div, img, point, prelude::*, px,
 };
 
 use crate::{
     Rustcord,
     discord::{Emoji, Status},
     icons::Glyph,
-    palette,
+    motion, palette,
     settings::Fill,
-    ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XL, RADIUS_XS, SURFACE_INSET, Squircle},
+    ui::{self, RADIUS_LG, RADIUS_SM, RADIUS_XL, RADIUS_XS, SURFACE_INSET, Squircle},
 };
 
 pub type Act = Rc<dyn Fn(&mut Rustcord, &mut Window, &mut Context<Rustcord>)>;
@@ -452,7 +452,7 @@ impl Rustcord {
         // Keyed by where it opened, so a fresh right-click replays the rise.
         let open_key = format!("{at_x:.0}-{at_y:.0}");
         let top = self.menu_card(&entries, &[], menu.sub.first().copied(), menu.cursor.filter(|_| menu.sub.is_empty()), WIDTH, cx).left(px(x)).top(px(y)).max_h(px(vh - 16.)).overflow_y_scroll();
-        let mut cards = vec![rise(top, format!("menu-rise-{open_key}"), corner(flip_x, flip_y), Duration::ZERO).into_any_element()];
+        let mut cards = vec![ui::rise(top.transform_origin(ui::corner(flip_x, flip_y)), SharedString::from(format!("menu-rise-{open_key}")), Duration::ZERO).into_any_element()];
         // One flyout per open level beside its parent row, its first row level with that row; it
         // flips to the left at the window's edge.
         let (mut level, mut card_x, mut card_y, mut card_w) = (&entries, x, y, WIDTH);
@@ -469,7 +469,7 @@ impl Rustcord {
             let path = &menu.sub[..=depth];
             let cursor = menu.cursor.filter(|_| depth + 1 == menu.sub.len());
             let card = self.menu_card(&item.sub, path, menu.sub.get(depth + 1).copied(), cursor, sub_w, cx).left(px(card_x)).top(px(card_y));
-            cards.push(rise(card, format!("menu-rise-{open_key}-{path:?}"), corner(flip, false), SUB_DELAY).into_any_element());
+            cards.push(ui::rise(card.transform_origin(ui::corner(flip, false)), SharedString::from(format!("menu-rise-{open_key}-{path:?}")), SUB_DELAY).into_any_element());
             level = &item.sub;
         }
         Some(
@@ -505,7 +505,7 @@ impl Rustcord {
                 }
             })
             .collect();
-        menu_surface(width, cx).id(SharedString::from(format!("menu-{path:?}"))).absolute().on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation()).children(rows)
+        ui::surface(cx).w(px(width)).id(SharedString::from(format!("menu-{path:?}"))).absolute().on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation()).children(rows)
     }
 
     fn menu_slider(&self, label: SharedString, key: SharedString, value: f32, on_set: SetValue, cx: &mut Context<Self>) -> Div {
@@ -531,7 +531,7 @@ impl Rustcord {
             .child(self.range(key, value, Fill::Accent, move |this, f, cx| on_set(this, f.clamp(0., 1.), cx), cx))
     }
 
-    fn menu_row(&self, item: &Item, path: Vec<usize>, sub_open: bool, keyboard: bool, lead_slot: bool, cx: &mut Context<Self>) -> Stateful<Div> {
+    fn menu_row(&self, item: &Item, path: Vec<usize>, sub_open: bool, keyboard: bool, lead_slot: bool, cx: &mut Context<Self>) -> ui::Control {
         let has_sub = !item.sub.is_empty();
         let run_path = path.clone();
         // Keyboard focus: the hover fill and a 2px accent ring inside the row.
@@ -569,7 +569,7 @@ impl Rustcord {
             .p(px(24.))
             .squircle(RADIUS_XL)
             .bg(palette::surface(palette::Level::Raised, cx))
-            .shadow(pop_shadow(cx))
+            .shadow(ui::shadow_pop(cx))
             .flex()
             .flex_col()
             .gap(px(16.))
@@ -600,14 +600,14 @@ impl Rustcord {
                     .child(ui::button("dialog-confirm", tone, cx).child(dialog.confirm.clone()).on_click(submit)),
             );
         // Pops from the centre: scale 0.95 with its fade (CSS `pop`, 260ms ease-out).
-        let card = card.with_animation("dialog-pop", Animation::new(ui::DUR_PANEL).with_easing(ease_out), |card, t| card.opacity(t).scale(0.95 + 0.05 * t));
+        let card = card.with_animation("dialog-pop", Animation::new(ui::DUR_PANEL).with_easing(|t| motion::ease_out().sample(t)), |card, t| card.opacity(t).scale(0.95 + 0.05 * t));
         Some(
             div()
                 .id("dialog-backdrop")
                 .absolute()
                 .inset_0()
                 .occlude()
-                .bg(scrim(cx))
+                .bg(palette::scrim(cx))
                 .flex()
                 .items_center()
                 .justify_center()
@@ -621,23 +621,18 @@ impl Rustcord {
     }
 }
 
-// The menu card: overlay surface, 6px inset, rows 1px apart, the pop shadow with its hairline.
-// MOVE(ui): menu_surface
-pub(crate) fn menu_surface(width: f32, cx: &App) -> Div {
-    // The hairline is the shadow's 1px ring outside the edge, as in CSS, not a border inside it.
-    ui::surface(cx).border_0().w(px(width)).squircle(RADIUS_LG).shadow(pop_shadow(cx)).gap(px(GAP))
-}
-
-// The look of one menu row, without its behaviour: callers add `.on_click` (and hover for submenus).
-// MOVE(ui): menu_item_row
-pub(crate) fn menu_item_row(id: SharedString, item: &Item, sub_open: bool, lead_slot: bool, cx: &App) -> Stateful<Div> {
-    let colors = RowColors::of(item, cx);
+// One menu row built on `ui::menu_row`, styled by the item's tone, mark and lead; callers add `.on_click`
+// (and hover for submenus).
+pub(crate) fn menu_item_row(id: SharedString, item: &Item, sub_open: bool, lead_slot: bool, cx: &App) -> ui::Control {
     let has_sub = !item.sub.is_empty();
     let chosen = item.chosen();
-    let (hover_bg, hover_ink, hover_icon, hover_hint) = (colors.hover_bg, colors.hover_ink, colors.hover_icon, colors.hover_hint);
-    let group = id.clone();
+    let row = match item.tone {
+        Tone::Danger => ui::menu_row(id.clone(), cx).danger(cx),
+        Tone::Accent => ui::menu_row(id.clone(), cx).accent(cx),
+        Tone::Plain => ui::menu_row(id.clone(), cx).toggled(chosen, cx),
+    };
     let lead = item.lead.as_ref().map(|lead| match lead {
-        Lead::Glyph(glyph) => div().group_hover(group.clone(), move |s| s.text_color(hover_icon)).text_color(colors.icon).child(Icon::new(*glyph).size(px(LEAD))).into_any_element(),
+        Lead::Glyph(glyph) => div().when_some(plain_icon(item, cx), |d, ink| d.text_color(ink)).child(Icon::new(*glyph).size(px(LEAD))).into_any_element(),
         Lead::Emoji(emoji) => emoji_face(emoji, LEAD).into_any_element(),
         // The 14px presence mark with no ring of its own; its cut-outs take the menu's colour.
         Lead::Status(status) => ui::status_mark(*status, 14., palette::surface(palette::Level::Overlay, cx), cx).border(px(0.)).into_any_element(),
@@ -645,26 +640,12 @@ pub(crate) fn menu_item_row(id: SharedString, item: &Item, sub_open: bool, lead_
         Lead::Server { icon, name } => server_icon(icon.as_deref(), name, 20., 6., cx),
     });
     let lead = lead.or_else(|| lead_slot.then(|| div().size(px(LEAD)).into_any_element()));
-    div()
-        .id(id.clone())
-        .group(group.clone())
-        .w_full()
+    let (hint, hint_hover) = hint_inks(item, cx);
+    row.group(id.clone())
         .min_h(px(item.height()))
-        .py(px(6.))
-        .px(px(10.))
-        .flex_none()
-        .squircle(RADIUS_SM)
-        .flex()
-        .items_center()
-        .gap(px(10.))
-        .text_size(px(14.))
         .line_height(px(20.))
-        .font_weight(FontWeight::MEDIUM)
-        .text_color(colors.ink)
-        .when(!item.disabled, |d| d.cursor_pointer())
-        .when(chosen, |d| d.bg(palette::press(cx)))
-        .when(sub_open, |d| d.bg(hover_bg).text_color(hover_ink))
-        .when(!item.disabled, |d| d.hover(move |s| s.bg(hover_bg).text_color(hover_ink)))
+        .highlighted(sub_open)
+        .disabled(item.disabled)
         .children(lead.map(|lead| div().size(px(LEAD)).flex_none().flex().items_center().justify_center().child(lead)))
         .child(
             div()
@@ -673,57 +654,45 @@ pub(crate) fn menu_item_row(id: SharedString, item: &Item, sub_open: bool, lead_
                 .flex()
                 .flex_col()
                 .child(div().truncate().child(item.label.clone()))
-                .children(item.hint.clone().map(|hint| {
+                .children(item.hint.clone().map(|text| {
                     div()
                         .text_size(px(12.))
                         .line_height(px(16.))
                         .font_weight(FontWeight::NORMAL)
-                        .text_color(colors.hint)
-                        .when(!item.disabled, |d| d.group_hover(group.clone(), move |s| s.text_color(hover_hint)))
-                        .child(hint)
+                        .text_color(if sub_open { hint_hover } else { hint })
+                        .group_hover(id.clone(), move |s| s.text_color(hint_hover))
+                        .child(text)
                 })),
         )
-        .children(match item.mark {
-            Some(Mark::Check(on)) => Some(ui::check(if on { ui::Check::On } else { ui::Check::Off }, cx).size(px(18.)).into_any_element()),
-            _ => None,
+        .when_some(item.mark, |d, mark| match mark {
+            Mark::Check(on) => d.child(ui::check(if on { ui::Check::On } else { ui::Check::Off }, cx).size(px(18.))),
+            Mark::Radio(_) => d,
         })
         .when(has_sub, |d| d.child(div().text_color(palette::faint(cx)).child(Icon::new(Glyph::ChevronRight).size(px(14.)))))
 }
 
-// A row's inks at rest and under the pointer, by tone; disabled rows don't change.
-struct RowColors {
-    ink: Hsla,
-    icon: Hsla,
-    hint: Hsla,
-    hover_bg: Hsla,
-    hover_ink: Hsla,
-    hover_icon: Hsla,
-    hover_hint: Hsla,
+// A plain row's icon stays muted under the pointer (strong on the chosen radio row, faint when disabled);
+// danger and accent icons follow the row's ink.
+fn plain_icon(item: &Item, cx: &App) -> Option<Hsla> {
+    if item.disabled {
+        return Some(palette::faint(cx));
+    }
+    match item.tone {
+        Tone::Plain if item.chosen() => Some(palette::strong(cx)),
+        Tone::Plain => Some(palette::muted(cx)),
+        Tone::Danger | Tone::Accent => None,
+    }
 }
 
-impl RowColors {
-    fn of(item: &Item, cx: &App) -> Self {
-        let (strong, muted, faint) = (palette::strong(cx), palette::muted(cx), palette::faint(cx));
-        let white = gpui_kit::white();
-        if item.disabled {
-            return RowColors { ink: faint, icon: faint, hint: muted, hover_bg: gpui_kit::transparent_black(), hover_ink: faint, hover_icon: faint, hover_hint: muted };
-        }
-        match item.tone {
-            Tone::Danger => {
-                let ink = palette::danger_ink(cx);
-                RowColors { ink, icon: ink, hint: mix(ink, muted, 0.2), hover_bg: palette::danger(), hover_ink: white, hover_icon: white, hover_hint: white.opacity(0.88) }
-            }
-            Tone::Accent => {
-                let ink = palette::accent_ink(cx);
-                RowColors { ink, icon: ink, hint: faint, hover_bg: palette::accent_soft(cx), hover_ink: ink, hover_icon: ink, hover_hint: faint }
-            }
-            Tone::Plain => {
-                let icon = if item.chosen() { strong } else { muted };
-                // The chosen radio row's hover goes a step past its own fill.
-                let hover_bg = if item.chosen() { strong.opacity(0.13) } else { palette::hover(cx) };
-                RowColors { ink: if item.chosen() { strong } else { palette::text(cx) }, icon, hint: faint, hover_bg, hover_ink: strong, hover_icon: icon, hover_hint: faint }
-            }
-        }
+// A row's sub-line at rest and under the pointer: faint, white on a danger row's fill, muted when disabled.
+fn hint_inks(item: &Item, cx: &App) -> (Hsla, Hsla) {
+    let (muted, faint) = (palette::muted(cx), palette::faint(cx));
+    if item.disabled {
+        return (muted, muted);
+    }
+    match item.tone {
+        Tone::Danger => (ui::mix(palette::danger_ink(cx), muted, 0.2), gpui_kit::white().opacity(0.88)),
+        Tone::Accent | Tone::Plain => (faint, faint),
     }
 }
 
@@ -818,74 +787,10 @@ fn emoji_face(emoji: &Emoji, size: f32) -> AnyElement {
     }
 }
 
-// A floating surface's entrance (CSS `rise`): from scale 0.95 at `origin`, the corner nearest its
-// trigger, with a 200ms ease-out fade, after `delay` (a submenu's intent delay).
-// MOVE(ui): rise
-pub(crate) fn rise<E: IntoElement + Styled + 'static>(el: E, id: String, origin: Point<DefiniteLength>, delay: Duration) -> gpui_kit::AnimationElement<E> {
-    let lead = delay.as_secs_f32() / (delay + ui::DUR_POP).as_secs_f32();
-    el.transform_origin(origin).with_animation(SharedString::from(id), Animation::new(delay + ui::DUR_POP), move |el, t| {
-        let t = ease_out(((t - lead) / (1. - lead)).clamp(0., 1.));
-        el.opacity(t).scale(0.95 + 0.05 * t)
-    })
-}
-
-// A transform origin at one of an element's corners.
-// MOVE(ui): corner
-pub(crate) fn corner(right: bool, bottom: bool) -> Point<DefiniteLength> {
-    point(relative(if right { 1. } else { 0. }), relative(if bottom { 1. } else { 0. }))
-}
-
-// The pop shadow: a soft drop and a 1px hairline ring (tokens.css --shadow-pop).
-// MOVE(ui): pop_shadow
-pub(crate) fn pop_shadow(cx: &App) -> Vec<BoxShadow> {
-    let drop = if cx.theme().is_dark() { gpui_kit::black().opacity(0.45) } else { gpui_kit::rgb(0x3B2A22).into() };
-    let drop = if cx.theme().is_dark() { drop } else { Hsla { a: 0.16, ..drop } };
-    vec![
-        BoxShadow { color: drop, offset: point(px(0.), px(12.)), blur_radius: px(32.), spread_radius: px(0.), inset: false },
-        BoxShadow { color: palette::line_strong(cx), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false },
-    ]
-}
-
-// What sits behind a dialog (tokens.css --scrim).
-// MOVE(ui): scrim
-pub(crate) fn scrim(cx: &App) -> Hsla {
-    if cx.theme().is_dark() { Hsla { a: 0.7, ..gpui_kit::rgb(0x0B0709).into() } } else { Hsla { a: 0.4, ..gpui_kit::rgb(0x24171C).into() } }
-}
-
-// A 40px text field frame on the page colour (primitives.css `.input`).
-// MOVE(ui): field_frame
-pub(crate) fn field_frame(cx: &App) -> Div {
-    div()
-        .h(px(40.))
-        .px(px(12.))
-        .squircle(RADIUS_MD)
-        .bg(palette::surface(palette::Level::Page, cx))
-        .border_1()
-        .border_color(palette::line_strong(cx))
-        .flex()
-        .items_center()
-        .gap(px(8.))
-        .text_size(px(16.))
-        .text_color(palette::strong(cx))
-}
-
 // The field with its focus ring, which it holds while its dialog is open: the dialog focuses it on open.
 fn field(cx: &App) -> Div {
     let ring = BoxShadow { color: palette::accent_soft(cx), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(3.), inset: false };
-    field_frame(cx).border_color(palette::accent()).shadow(vec![ring])
-}
-
-// The house ease-out, cubic-bezier(0.23, 1, 0.32, 1) (tokens.css --ease-out).
-// MOVE(ui): ease_out
-pub(crate) fn ease_out(t: f32) -> f32 {
-    gpui_kit::base::motion::Easing::cubic_bezier(0.23, 1., 0.32, 1.).map(|e| e.sample(t)).unwrap_or(t)
-}
-
-// Linear mix in RGB, for a tint between two inks.
-fn mix(from: Hsla, to: Hsla, t: f32) -> Hsla {
-    let (a, b) = (gpui_kit::Rgba::from(from), gpui_kit::Rgba::from(to));
-    let lerp = |x: f32, y: f32| x + (y - x) * t;
-    gpui_kit::Rgba { r: lerp(a.r, b.r), g: lerp(a.g, b.g), b: lerp(a.b, b.b), a: lerp(a.a, b.a) }.into()
+    ui::field_frame(cx).border_color(palette::accent()).shadow(vec![ring])
 }
 
 impl Rustcord {
@@ -967,7 +872,7 @@ impl Rustcord {
             .pr(px(10.))
             .squircle(RADIUS_LG)
             .bg(palette::surface(palette::Level::Overlay, cx))
-            .shadow(pop_shadow(cx))
+            .shadow(ui::shadow_pop(cx))
             .flex()
             .items_center()
             .text_size(px(14.))
@@ -977,7 +882,7 @@ impl Rustcord {
             .child(text.clone());
         // Rises 8px into place from scale 0.97 with its fade (CSS `toast-in`, 240ms).
         // GAP: and from blur(4px); gpui has no filter blur on an element's own painting.
-        let toast = toast.with_animation(SharedString::from(format!("toast-{text}")), Animation::new(Duration::from_millis(240)).with_easing(ease_out), |toast, t| {
+        let toast = toast.with_animation(SharedString::from(format!("toast-{text}")), Animation::new(Duration::from_millis(240)).with_easing(|t| motion::ease_out().sample(t)), |toast, t| {
             toast.translate_y(px(8. * (1. - t))).scale(0.97 + 0.03 * t).opacity(t)
         });
         Some(div().absolute().left_0().right_0().bottom(px(24.)).flex().justify_center().child(toast).into_any_element())

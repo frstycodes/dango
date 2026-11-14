@@ -1,7 +1,5 @@
 // Grouped settings (design/css/settings.css `.set-group`, `.set-card`, `.set-row`): a heading over a card
 // of rows, each a title and description with its control at the end, hairlines between them.
-#![expect(dead_code, reason = "promoted from settings.rs, which switches over after the merge")]
-
 use gpui_kit::{App, Div, FontWeight, InteractiveElement, IntoElement, ParentElement, SharedString, Stateful, Styled, div, prelude::FluentBuilder, px};
 
 use super::{RADIUS_LG, RADIUS_MD, Squircle};

@@ -218,7 +218,12 @@ impl Render for Nothing {
 
 // The mic meter: `bars` equal bars that light up to `level` (0..1), turning amber then red near the top.
 pub fn meter(level: f32, bars: usize, cx: &App) -> Div {
-    let (online, idle, dnd, rest) = (palette::status_in(crate::discord::Status::Online, cx), palette::status_in(crate::discord::Status::Idle, cx), palette::status_in(crate::discord::Status::Dnd, cx), palette::line_strong(cx));
+    let lit = [crate::discord::Status::Online, crate::discord::Status::Idle, crate::discord::Status::Dnd].map(|s| palette::status_in(s, cx));
+    meter_with(level, bars, lit, palette::line_strong(cx))
+}
+
+// The meter in a scope with its own colours (the call stage): `lit` is on, hot and clipping.
+pub fn meter_with(level: f32, bars: usize, [online, idle, dnd]: [Hsla; 3], rest: Hsla) -> Div {
     div().h(px(20.)).flex().items_center().gap(px(3.)).children((0..bars).map(move |i| {
         let at = i as f32 / bars as f32;
         let color = match at < level {

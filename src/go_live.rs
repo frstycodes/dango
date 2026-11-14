@@ -299,7 +299,7 @@ impl Rustcord {
             .p(px(24.))
             .squircle(ui::RADIUS_XL)
             .bg(palette::surface(palette::Level::Raised, cx))
-            .shadow(crate::call::pop_shadow(palette::line_strong(cx), cx))
+            .shadow(ui::shadow_pop(cx))
             .flex()
             .flex_col()
             .gap(px(16.))
@@ -313,7 +313,7 @@ impl Rustcord {
             .child(self.share_audio(window, cx))
             .child(self.share_footer(cx))
             .with_animation("share-open", Animation::new(ui::DUR_PANEL), |dialog, t| {
-                let t = ease_out(t);
+                let t = crate::motion::ease_out().sample(t);
                 dialog.opacity(t).scale(0.95 + 0.05 * t)
             });
         let scrim = if cx.theme().is_dark() { Hsla::from(rgb(0x030102)).opacity(0.7) } else { Hsla::from(rgb(0x1D1217)).opacity(0.4) };
@@ -547,11 +547,6 @@ fn selection_ring(key: &str, animate: bool, gap: Hsla) -> AnyElement {
 fn place_ring(ring: Div, grow: f32, alpha: f32) -> Div {
     let offset = 1. - 5. * grow;
     ring.top(px(offset)).left(px(offset)).right(px(offset)).bottom(px(offset)).squircle(ui::RADIUS_MD - offset).opacity(alpha)
-}
-
-// --ease-out, near enough: cubic, landing softly.
-fn ease_out(t: f32) -> f32 {
-    1. - (1. - t).powi(3)
 }
 
 #[cfg(test)]
