@@ -43,33 +43,34 @@
   <h2>Server settings window</h2>
   <p class="lede">Server settings take the whole window like user settings: the server heads the nav and pages group by job. Edits collect in one save bar that follows you between pages, and pages with a draft carry a dot.</p>
   <div class="set-wrap">
-    <div class="set" id="ss-win">
-      <nav class="set-nav" role="tablist" aria-label="Server settings" aria-orientation="vertical">
-        <div class="ss-navhead"><span class="av ss-srvav" data-av="Night Shift"></span><div><b>Night Shift</b><span>Server settings</span></div></div>
-        <button class="set-navi" role="tab" aria-selected="true" data-page="overview"><i class="ph ph-info"></i>Overview</button>
-        <button class="set-navi" role="tab" aria-selected="false" data-page="roles"><i class="ph ph-identification-badge"></i>Roles</button>
-        <button class="set-navi" role="tab" aria-selected="false" data-page="emoji"><i class="ph ph-smiley"></i>Emoji</button>
-        <button class="set-navi" role="tab" aria-selected="false" data-page="stickers"><i class="ph ph-sticker"></i>Stickers</button>
-        <button class="set-navi" role="tab" aria-selected="false" data-page="soundboard"><i class="ph ph-speaker-simple-high"></i>Soundboard</button>
+    <div class="set is-pushed" id="ss-win">
+      <nav class="set-nav" aria-label="Server settings">
+        <div class="set-me"><span class="av ss-srvav" data-av="Night Shift"></span><div><b>Night Shift</b><span>Server settings</span></div></div>
+        <button class="set-navi" aria-current="page" data-page="overview"><i class="ph ph-info"></i><span>Overview</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="roles"><i class="ph ph-identification-badge"></i><span>Roles</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="emoji"><i class="ph ph-smiley"></i><span>Emoji</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="stickers"><i class="ph ph-sticker"></i><span>Stickers</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="soundboard"><i class="ph ph-speaker-simple-high"></i><span>Soundboard</span><i class="ph ph-caret-right chev"></i></button>
         <h5>Moderation</h5>
-        <button class="set-navi" role="tab" aria-selected="false" data-page="safety"><i class="ph ph-shield-check"></i>Safety setup</button>
-        <button class="set-navi" role="tab" aria-selected="false" data-page="automod"><i class="ph ph-robot"></i>AutoMod</button>
-        <button class="set-navi" role="tab" aria-selected="false" data-page="audit"><i class="ph ph-scroll"></i>Audit log</button>
-        <button class="set-navi" role="tab" aria-selected="false" data-page="bans"><i class="ph ph-prohibit"></i>Bans</button>
+        <button class="set-navi" data-page="safety"><i class="ph ph-shield-check"></i><span>Safety setup</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="automod"><i class="ph ph-robot"></i><span>AutoMod</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="audit"><i class="ph ph-scroll"></i><span>Audit log</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="bans"><i class="ph ph-prohibit"></i><span>Bans</span><i class="ph ph-caret-right chev"></i></button>
         <h5>Community</h5>
-        <button class="set-navi" role="tab" aria-selected="false" data-page="community"><i class="ph ph-users-three"></i>Overview</button>
-        <button class="set-navi" role="tab" aria-selected="false" data-page="onboarding"><i class="ph ph-door-open"></i>Onboarding</button>
-        <button class="set-navi" role="tab" aria-selected="false" data-page="guide"><i class="ph ph-book-open-text"></i>Server guide</button>
+        <button class="set-navi" data-page="community"><i class="ph ph-users-three"></i><span>Overview</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="onboarding"><i class="ph ph-door-open"></i><span>Onboarding</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="guide"><i class="ph ph-book-open-text"></i><span>Server guide</span><i class="ph ph-caret-right chev"></i></button>
         <h5>Apps</h5>
-        <button class="set-navi" role="tab" aria-selected="false" data-page="integrations"><i class="ph ph-plugs-connected"></i>Integrations</button>
-        <button class="set-navi" role="tab" aria-selected="false" data-page="webhooks"><i class="ph ph-webhooks-logo"></i>Webhooks</button>
+        <button class="set-navi" data-page="integrations"><i class="ph ph-plugs-connected"></i><span>Integrations</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="webhooks"><i class="ph ph-webhooks-logo"></i><span>Webhooks</span><i class="ph ph-caret-right chev"></i></button>
         <h5>People</h5>
-        <button class="set-navi" role="tab" aria-selected="false" data-page="members"><i class="ph ph-users"></i>Members</button>
-        <button class="set-navi" role="tab" aria-selected="false" data-page="invites"><i class="ph ph-link"></i>Invites</button>
+        <button class="set-navi" data-page="members"><i class="ph ph-users"></i><span>Members</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="invites"><i class="ph ph-link"></i><span>Invites</span><i class="ph ph-caret-right chev"></i></button>
         <hr>
-        <button class="set-navi danger" data-open="dlg-delete-server"><i class="ph ph-trash"></i>Delete server</button>
+        <button class="set-navi danger" data-open="dlg-delete-server"><i class="ph ph-trash"></i><span>Delete server</span></button>
       </nav>
       <div class="set-main">
+        <div class="set-bar"><button class="set-back" data-ss-back><i class="ph-bold ph-caret-left"></i>Server settings</button><button class="iconbtn" aria-label="Close server settings" data-ss-close><i class="ph-bold ph-x"></i></button></div>
         <div class="set-close"><button aria-label="Close server settings" data-ss-close><i class="ph-bold ph-x"></i></button>Esc</div>
         <div class="set-page ss-page" data-page="overview">
           <h4 class="set-h">Overview</h4>
@@ -123,7 +124,7 @@
       </div>
     </div>
   </div>
-  <p class="note" style="margin-top: var(--space-3)">Every nav item is live and opens the page built further down. Shell, groups and rows are Settings' <code>set-*</code>; this page adds <code>ss-navhead</code> and <code>ss-savebar</code>. The bar floats 16px above the page bottom on <code>--bg-overlay</code> with <code>--shadow-pop</code>, rising 260ms when the first change lands.</p>
+  <p class="note" style="margin-top: var(--space-3)">Every nav item is live and opens the page built further down. Shell, groups and rows are Settings' <code>set-*</code>; this page adds <code>ss-savebar</code>. Under 680px the nav is a list that pushes into each page, as in Settings. The bar floats 16px above the page bottom on <code>--bg-overlay</code> with <code>--shadow-pop</code>, rising 260ms when the first change lands.</p>
 
   <h3>Save bar</h3>
   <div class="board stack" style="gap: var(--space-3)">
@@ -590,7 +591,7 @@
     </div>
     <div style="width: 210px" aria-hidden="true"></div>
     <form class="dialog dialog--md" role="dialog" aria-labelledby="dto" data-live="dlg-timeout" onsubmit="return false">
-      <div class="dhead"><h4 id="dto">Time out <span data-who>Theo</span></h4><p>They can read but can't chat, react or join voice until it ends.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="dhead"><h4 id="dto"><span>Time out <span data-who>Theo</span></span></h4><p>They can read but can't chat, react or join voice until it ends.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
       <div class="field"><label>For</label><div class="ss-tagrow" role="radiogroup" aria-label="Timeout length" data-single>
         <button type="button" class="chip" aria-pressed="false" data-len="60 seconds">60 seconds</button><button type="button" class="chip" aria-pressed="false" data-len="5 minutes">5 minutes</button><button type="button" class="chip" aria-pressed="false" data-len="10 minutes">10 minutes</button><button type="button" class="chip" aria-pressed="true" data-len="1 hour">1 hour</button><button type="button" class="chip" aria-pressed="false" data-len="1 day">1 day</button><button type="button" class="chip" aria-pressed="false" data-len="1 week">1 week</button>
       </div></div>
@@ -598,11 +599,11 @@
       <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-loading="Timing out…" data-len-label>Time out for 1 hour</button></footer>
     </form>
     <form class="dialog dialog--md" role="dialog" aria-labelledby="dbn" data-live="dlg-ban" onsubmit="return false">
-      <h4 id="dbn"><i class="ph-fill ph-prohibit"></i>Ban <span data-who>Theo</span>?</h4>
+      <h4 id="dbn"><i class="ph-fill ph-prohibit"></i><span>Ban <span data-who>Theo</span>?</span></h4>
       <p>They leave now and can't rejoin with any invite until someone unbans them.</p>
       <div class="field"><label>Delete their messages from</label><div class="seg" role="group" aria-label="Delete messages from"><button type="button" aria-pressed="true">Nothing</button><button type="button" aria-pressed="false">Last hour</button><button type="button" aria-pressed="false">Last day</button><button type="button" aria-pressed="false">Last week</button></div></div>
       <div class="field"><label for="ban-reason">Reason</label><textarea class="textarea" id="ban-reason" placeholder="Other moderators see this in Bans and the audit log" style="min-height: 64px"></textarea></div>
-      <footer><button type="button" class="btn" data-close>Keep <span data-who>Theo</span></button><button class="btn btn--danger" data-loading="Banning…">Ban <span data-who>Theo</span></button></footer>
+      <footer><button type="button" class="btn" data-close><span>Keep <span data-who>Theo</span></span></button><button class="btn btn--danger" data-loading="Banning…"><span>Ban <span data-who>Theo</span></span></button></footer>
     </form>
   </div>
 
@@ -628,7 +629,7 @@
     <button class="mi danger" role="menuitem" data-open="dlg-kick"><i class="ph ph-sign-out"></i><div>Kick <span data-who>Mira</span></div></button>
     <button class="mi danger" role="menuitem" data-open="dlg-ban"><i class="ph ph-prohibit"></i><div>Ban <span data-who>Mira</span></div></button>
   </div>
-  <dialog class="real" id="dlg-kick"><form class="dialog" onsubmit="return false" aria-labelledby="dk"><h4 id="dk"><i class="ph-fill ph-sign-out"></i>Kick <span data-who>Mira</span>?</h4><p><span data-who>Mira</span> leaves now and can rejoin with an invite. Their messages stay.</p><footer><button type="button" class="btn" data-close>Keep <span data-who>Mira</span></button><button class="btn btn--danger" data-loading="Kicking…">Kick <span data-who>Mira</span></button></footer></form></dialog>
+  <dialog class="real" id="dlg-kick"><form class="dialog" onsubmit="return false" aria-labelledby="dk"><h4 id="dk"><i class="ph-fill ph-sign-out"></i><span>Kick <span data-who>Mira</span>?</span></h4><p><span data-who>Mira</span> leaves now and can rejoin with an invite. Their messages stay.</p><footer><button type="button" class="btn" data-close><span>Keep <span data-who>Mira</span></span></button><button class="btn btn--danger" data-loading="Kicking…"><span>Kick <span data-who>Mira</span></span></button></footer></form></dialog>
 </section>
 
 <section id="invites">
@@ -1029,14 +1030,15 @@ function goto(name, from) {
   cur.replaceWith(next);
   winMain.scrollTop = 0;
   const navName = { "role-edit": "roles", "automod-edit": "automod" }[name] ?? name;
-  for (const b of $$(".set-navi[data-page]", win)) b.setAttribute("aria-selected", b.dataset.page === navName);
+  for (const b of $$(".set-navi[data-page]", win)) b.dataset.page === navName ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current");
   $$(".tabs, .seg", next).forEach(placeThumb);
   if (name === "automod-edit") runTest(next);
   if (name === "role-edit") paintPreviews(next);
 }
 document.addEventListener("click", e => {
   const nav = e.target.closest("#ss-win .set-navi[data-page]");
-  if (nav) return goto(nav.dataset.page, nav);
+  if (nav) { win.classList.add("is-pushed"); return goto(nav.dataset.page, nav); }
+  if (e.target.closest("[data-ss-back]")) return win.classList.remove("is-pushed");
   const link = e.target.closest("[data-goto]");
   if (link) return goto(link.dataset.goto, link);
   const role = e.target.closest(".ss-roleopen");
@@ -1051,7 +1053,7 @@ function renderBar(state = "idle") {
   const d = dirty(), n = d.length;
   const navi = $('.set-navi[data-page="overview"]', win);
   $(".dot", navi)?.remove();
-  if (n) navi.insertAdjacentHTML("beforeend", '<span class="dot" aria-label="Unsaved changes"></span>');
+  if (n) $(".chev", navi).insertAdjacentHTML("beforebegin", '<span class="dot" aria-label="Unsaved changes"></span>');
   if (!n) { bar.hidden = true; bar.className = "ss-savebar"; return; }
   const what = `${n} unsaved ${isOne(n) ? "change" : "changes"}`;
   const names = new Intl.ListFormat("en", { type: "conjunction" }).format(d.map(f => f.dataset.field));
@@ -1081,7 +1083,7 @@ bar.addEventListener("click", e => {
   renderBar("saving");
   setTimeout(() => { for (const f of dirty()) f.dataset.init = valueOf(f); renderBar(); }, 900);
 });
-$("[data-ss-close]").addEventListener("click", () => { if (dirty().length) renderBar("closing"); });
+for (const c of $$("[data-ss-close]")) c.addEventListener("click", () => { if (dirty().length) renderBar("closing"); });
 
 // Roles: drag the grip to reorder; others slide aside, the row glides into its slot on release.
 const roleName = row => $(".t b", row).textContent.trim();
