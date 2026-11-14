@@ -67,10 +67,10 @@
           <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-bell"></i><div>Notification settings<small>Only @mentions</small></div><i class="ph ph-caret-right chev"></i></button>
           <div class="menu" role="menu" aria-label="Notification settings">
             <div role="group" aria-label="Notify me about">
-              <button class="mi" role="menuitemradio" aria-checked="true"><div>Use category default<small>Only @mentions</small></div><span class="radio" aria-checked="true"></span></button>
-              <button class="mi" role="menuitemradio" aria-checked="false"><div>All messages</div><span class="radio" aria-checked="false"></span></button>
-              <button class="mi" role="menuitemradio" aria-checked="false"><div>Only @mentions</div><span class="radio" aria-checked="false"></span></button>
-              <button class="mi" role="menuitemradio" aria-checked="false"><div>Nothing</div><span class="radio" aria-checked="false"></span></button>
+              <button class="mi" role="menuitemradio" aria-checked="true"><div>Use category default<small>Only @mentions</small></div></button>
+              <button class="mi" role="menuitemradio" aria-checked="false"><div>All messages</div></button>
+              <button class="mi" role="menuitemradio" aria-checked="false"><div>Only @mentions</div></button>
+              <button class="mi" role="menuitemradio" aria-checked="false"><div>Nothing</div></button>
             </div>
           </div>
         </div>
@@ -109,10 +109,10 @@
           <button class="mi" role="menuitem" aria-haspopup="menu" aria-expanded="true"><i class="ph ph-bell"></i><div>Notification settings<small>Nothing while muted</small></div><i class="ph ph-caret-right chev"></i></button>
           <div class="menu" role="menu" aria-label="Notification settings">
             <div role="group" aria-label="Notify me about">
-              <button class="mi" role="menuitemradio" aria-checked="true"><div>Use category default<small>Only @mentions</small></div><span class="radio" aria-checked="true"></span></button>
-              <button class="mi" role="menuitemradio" aria-checked="false"><div>All messages</div><span class="radio" aria-checked="false"></span></button>
-              <button class="mi" role="menuitemradio" aria-checked="false"><div>Only @mentions</div><span class="radio" aria-checked="false"></span></button>
-              <button class="mi" role="menuitemradio" aria-checked="false"><div>Nothing</div><span class="radio" aria-checked="false"></span></button>
+              <button class="mi" role="menuitemradio" aria-checked="true"><div>Use category default<small>Only @mentions</small></div></button>
+              <button class="mi" role="menuitemradio" aria-checked="false"><div>All messages</div></button>
+              <button class="mi" role="menuitemradio" aria-checked="false"><div>Only @mentions</div></button>
+              <button class="mi" role="menuitemradio" aria-checked="false"><div>Nothing</div></button>
             </div>
           </div>
         </div>
@@ -189,7 +189,7 @@
 
 <section id="server-menu">
   <h2>Server menu</h2>
-  <p class="lede">Right-click a server in the rail, or open its name in the sidebar header. Invite people is the one accent row; Leave server is the one danger row and never shows for the owner.</p>
+  <p class="lede">Right-click a server in the rail, or open its name in the sidebar header. Invite people is the one accent row; Leave server is the one danger row. For the owner it still shows, and opens the step that hands the server on first.</p>
   <div class="board cm-board">
     <div class="cm-spot has-open cm-wide" id="cm-server">
       <div class="menu" role="menu" aria-label="Night Shift">
@@ -203,9 +203,9 @@
           <button class="mi" role="menuitem" aria-haspopup="menu" aria-expanded="true"><i class="ph ph-bell"></i><div>Notification settings<small>Only @mentions</small></div><i class="ph ph-caret-right chev"></i></button>
           <div class="menu" role="menu" aria-label="Notification settings" style="--menu-w: 236px">
             <div role="group" aria-label="Notify me about">
-              <button class="mi" role="menuitemradio" aria-checked="false"><div>All messages</div><span class="radio" aria-checked="false"></span></button>
-              <button class="mi" role="menuitemradio" aria-checked="true"><div>Only @mentions</div><span class="radio" aria-checked="true"></span></button>
-              <button class="mi" role="menuitemradio" aria-checked="false"><div>Nothing</div><span class="radio" aria-checked="false"></span></button>
+              <button class="mi" role="menuitemradio" aria-checked="false"><div>All messages</div></button>
+              <button class="mi" role="menuitemradio" aria-checked="true"><div>Only @mentions</div></button>
+              <button class="mi" role="menuitemradio" aria-checked="false"><div>Nothing</div></button>
             </div>
             <hr>
             <button class="mi" role="menuitemcheckbox" aria-checked="true"><div>Mute @everyone, @here</div><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
@@ -246,8 +246,10 @@
         <button class="mi" role="menuitem"><i class="ph ph-folder-plus"></i><div>Create category</div></button>
         <hr>
         <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-arrow-elbow-down-right"></i><div>Move server</div><i class="ph ph-caret-right chev"></i></button>
+        <hr>
+        <button class="mi danger" role="menuitem" data-href="community.html#leaving"><i class="ph ph-sign-out"></i><div>Leave server<small>Pick a new owner first</small></div></button>
       </div>
-      <p class="note">Owner, muted: no Leave server. Opened from the sidebar header the menu drops Mark as read and Move server.</p>
+      <p class="note cm-note">Owner, muted. Leave server opens the transfer step: pick a new owner, or delete the server if you're the only member. Both are on <a href="community.html#leaving">Servers and invites: leaving</a>. Opened from the sidebar header the menu drops Mark as read and Move server.</p>
     </div>
   </div>
 </section>
@@ -603,6 +605,46 @@
   </div>
 </section>
 
+<section id="choice-rows">
+  <h2>Choice rows</h2>
+  <p class="lede">Rows that set something keep the menu open. A checkbox row is on or off and carries its check. In a radio group the chosen row is filled, a step stronger than hover, with no dot beside it.</p>
+  <div class="board cm-board">
+    <div class="cm-spot">
+      <div class="menu" role="menu" aria-label="Notify me about">
+        <div class="mlabel">Notify me about</div>
+        <div role="group" aria-label="Notify me about">
+          <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-chat-text"></i><div>All messages</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="true"><i class="ph ph-at"></i><div>Only @mentions</div></button>
+          <button class="mi hover" role="menuitemradio" aria-checked="false"><i class="ph ph-bell-slash"></i><div>Nothing</div></button>
+        </div>
+      </div>
+      <p class="note">Selected (Only @mentions) beside a hovered row (Nothing): selected is the stronger fill, so the two never read as one state. Hovering the selected row deepens it a step.</p>
+    </div>
+    <div class="cm-spot">
+      <div class="menu" role="menu" aria-label="Stream quality">
+        <div class="mlabel">Stream quality</div>
+        <div role="group" aria-label="Stream quality">
+          <button class="mi is-kbd" role="menuitemradio" aria-checked="true" tabindex="-1"><i class="ph ph-sparkle"></i><div>Auto<small>Follows your connection</small></div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false" tabindex="-1"><i class="ph ph-monitor"></i><div>720p, 30 fps</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false" tabindex="-1"><i class="ph ph-device-mobile"></i><div>480p, 30 fps</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false" aria-disabled="true" tabindex="-1"><i class="ph ph-film-strip"></i><div>1080p, 60 fps<small>Needs Nitro on this account</small></div></button>
+        </div>
+      </div>
+      <p class="note">Selected and keyboard-focused: the fill keeps, the focus ring adds. A row you can't choose stays listed and says why.</p>
+    </div>
+    <div class="cm-spot">
+      <div class="menu" role="menu" aria-label="Mentions">
+        <div class="mlabel">Mentions</div>
+        <button class="mi" role="menuitemcheckbox" aria-checked="true"><i class="ph ph-megaphone-simple"></i><div>Mute @everyone, @here</div><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+        <button class="mi" role="menuitemcheckbox" aria-checked="false"><i class="ph ph-shield"></i><div>Mute all role @mentions</div><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        <button class="mi" role="menuitemcheckbox" aria-checked="true"><i class="ph ph-eye-slash"></i><div>Hide muted channels</div><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+      </div>
+      <p class="note">Checkbox rows: the check is the state, each independent of the others; the row fills only on hover. Click any of these to try.</p>
+    </div>
+  </div>
+  <p class="note">Tokens: hover <code>--hover</code>, selected <code>--press</code>, selected and hovered <code>--text-strong</code> at 13%; text and icon go to <code>--text-strong</code>. The same rule paints a chosen option in a listbox (Clear after, on <a href="profile.html#custom-status" style="color: var(--accent-ink)">Profile: custom status</a>).</p>
+</section>
+
 <section id="keyboard">
   <h2>Keyboard</h2>
   <p class="lede">Shift+F10 or the menu key opens the menu for what has focus, with the first row focused. Arrows move, wrapping at the ends; disabled rows are skipped. Every menu on this page takes these keys: click into one and try.</p>
@@ -829,6 +871,8 @@
     <div><p>Deleting your own message asks "Are you sure you want to delete this message?"</p><p><b><a href="#cm-own">Cm own</a></b>Your own message goes at once with a 6s Undo toast. Someone else's still asks, with the message shown.</p><p>A dialog for a thing you do daily trains you to click through it; Undo is safer and faster.</p></div>
     <div><p>Confirms ask "Are you sure…?" and the button is a bare verb: "Leave Server", "Remove All", "Kick".</p><p><b><a href="#confirms">Confirms</a></b>The body says what happens; buttons name both outcomes with the target: "Stay" / "Leave Night Shift", "Remove 14 reactions".</p><p>You can decide from the button alone, and the count shows the size of the mistake.</p></div>
     <div><p>Timeout is a submenu of six lengths: no end time, no reason.</p><p><b><a href="#confirms">Confirms</a></b>A dialog with each length's end time, an optional reason, and a button that says "Time out for 1 hour".</p><p>Moderators need the reason in the audit log and should see exactly when it lifts.</p></div>
+    <div><p>Notification levels and other one-of-many rows show a radio circle beside the chosen option.</p><p><b><a href="#choice-rows">Choice rows</a></b>The chosen row takes the selected fill, like a selected channel or a picked account; no dot.</p><p>One way to show "this one" across the app, and a whole row reads at a glance where a small dot doesn't.</p></div>
+    <div><p>The owner's server menu has no Leave Server; you first have to find Transfer Ownership in a member's settings.</p><p><b><a href="#server-menu">Server menu</a></b>Leave server stays in the owner's menu, says "Pick a new owner first", and opens the transfer step.</p><p>The action sits where you look for it, and the step it needs comes to you.</p></div>
   </div>
 </section>
 </main>
@@ -860,9 +904,15 @@ document.addEventListener("click", e => {
   }
   if (row.matches("[role=menuitemradio]")) for (const r of row.parentElement.querySelectorAll("[role=menuitemradio]")) {
     r.setAttribute("aria-checked", r === row);
-    r.querySelector(".radio").setAttribute("aria-checked", r === row);
+    r.querySelector(".radio")?.setAttribute("aria-checked", r === row);
   }
   if (row.dataset.toastDemo) document.getElementById("toast-undo").scrollIntoView({ behavior: "smooth", block: "center" });
+});
+
+// Owner's Leave server goes to the transfer step, which lives on the community page.
+document.addEventListener("click", e => {
+  const go = e.target.closest(".mi[data-href]");
+  if (go) location.href = go.dataset.href;
 });
 
 // One pressed swatch at a time (site.js toggles each aria-pressed on its own).

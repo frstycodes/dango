@@ -590,13 +590,17 @@
       <button class="mi danger" role="menuitem"><i class="ph ph-prohibit"></i><div>Ban Theo</div></button>
     </div>
     <div style="width: 210px" aria-hidden="true"></div>
-    <form class="dialog dialog--md" role="dialog" aria-labelledby="dto" data-live="dlg-timeout" onsubmit="return false">
-      <div class="dhead"><h4 id="dto"><span>Time out <span data-who>Theo</span></span></h4><p>They can read but can't chat, react or join voice until it ends.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
-      <div class="field"><label>For</label><div class="ss-tagrow" role="radiogroup" aria-label="Timeout length" data-single>
-        <button type="button" class="chip" aria-pressed="false" data-len="60 seconds">60 seconds</button><button type="button" class="chip" aria-pressed="false" data-len="5 minutes">5 minutes</button><button type="button" class="chip" aria-pressed="false" data-len="10 minutes">10 minutes</button><button type="button" class="chip" aria-pressed="true" data-len="1 hour">1 hour</button><button type="button" class="chip" aria-pressed="false" data-len="1 day">1 day</button><button type="button" class="chip" aria-pressed="false" data-len="1 week">1 week</button>
+    <form class="dialog dialog--md" role="dialog" aria-labelledby="dto" data-live="dlg-timeout" onsubmit="return false"><div class="dhead"><h4 id="dto"><span>Time out <span data-who>Theo</span></span></h4><p>They can read but can't send messages, react or talk in voice until it ends.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="field"><label>For</label><div class="typechoice cm-grid" role="radiogroup" aria-label="Timeout length" data-timeout>
+        <button type="button" class="choice" data-toggle="radio"><div><b>60 seconds</b><span>Ends 8:42 PM</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+        <button type="button" class="choice" data-toggle="radio"><div><b>5 minutes</b><span>Ends 8:46 PM</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+        <button type="button" class="choice" data-toggle="radio"><div><b>10 minutes</b><span>Ends 8:51 PM</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+        <button type="button" class="choice" data-toggle="radio"><div><b>1 hour</b><span>Ends 9:41 PM</span></div><span class="radio" role="radio" aria-checked="true"></span></button>
+        <button type="button" class="choice" data-toggle="radio"><div><b>1 day</b><span>Ends tomorrow at 8:41 PM</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+        <button type="button" class="choice" data-toggle="radio"><div><b>1 week</b><span>Ends Nov 22 at 8:41 PM</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
       </div></div>
-      <div class="field"><label for="to-reason">Reason</label><textarea class="textarea" id="to-reason" placeholder="Shown to Theo and in the audit log" style="min-height: 64px"></textarea></div>
-      <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-loading="Timing out…" data-len-label>Time out for 1 hour</button></footer>
+      <div class="field"><label for="to-reason">Reason (optional)</label><div class="input"><input id="to-reason" placeholder="Shows in the audit log"></div></div>
+      <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--danger" data-loading="Timing out…" data-timeout-go>Time out for 1 hour</button></footer>
     </form>
     <form class="dialog dialog--md" role="dialog" aria-labelledby="dbn" data-live="dlg-ban" onsubmit="return false">
       <h4 id="dbn"><i class="ph-fill ph-prohibit"></i><span>Ban <span data-who>Theo</span>?</span></h4>
@@ -1344,11 +1348,10 @@ for (const form of $$("[data-live]")) {
   if (!dlg) { dlg = document.createElement("dialog"); dlg.className = "real"; dlg.id = form.dataset.live; form.closest("section").append(dlg); }
   if (!dlg.children.length) { const c = form.cloneNode(true); c.removeAttribute("data-live"); c.removeAttribute("role"); for (const n of $$("[id]", c)) n.id += "-live"; dlg.append(c); }
 }
+// Timeout: the button names the chosen length (the same dialog as menus.html#confirms).
 document.addEventListener("click", e => {
-  const chip = e.target.closest("[data-single] .chip"); if (!chip) return;
-  for (const c of $$(".chip", chip.parentElement)) c.setAttribute("aria-pressed", c === chip);
-  const label = $("[data-len-label]", chip.closest("form"));
-  if (label) label.textContent = `Time out for ${chip.dataset.len}`;
+  const choice = e.target.closest("[data-timeout] .choice"); if (!choice) return;
+  $("[data-timeout-go]", choice.closest("form")).textContent = `Time out for ${$("b", choice).textContent}`;
 });
 document.addEventListener("click", e => {
   const pick = e.target.closest("[data-addlist] .choice"); if (!pick) return;

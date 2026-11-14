@@ -30,9 +30,16 @@
 .mi .chev { font-size: 14px; color: var(--text-faint); }
 .mi .check, .mi .radio { width: 18px; height: 18px; }
 .mi .radio[aria-checked="true"] { border-width: 5px; }
+/* Radio row (and a listbox option): the chosen one takes a fill a step above hover, so the two never read as one state; no dot beside it */
+.mi:is([role="menuitemradio"][aria-checked="true"], [role="option"][aria-selected="true"]) { background: var(--press); color: var(--text-strong); }
+.mi:is([role="menuitemradio"][aria-checked="true"], [role="option"][aria-selected="true"]) > i { color: var(--text-strong); }
+.mi:is([role="menuitemradio"][aria-checked="true"], [role="option"][aria-selected="true"]):hover { background: color-mix(in oklch, var(--text-strong) 13%, transparent); }
+.mi[role="menuitemradio"] > .radio { display: none; }
 .mi.danger, .mi.danger i { color: var(--danger-ink); }
 .mi.danger:hover, .mi.danger:focus-visible { background: var(--danger); color: #fff; }
 .mi.danger:hover i, .mi.danger:focus-visible i { color: #fff; }
+.mi.danger small { color: color-mix(in oklch, var(--danger-ink) 80%, var(--text-muted)); }
+.mi.danger:hover small, .mi.danger:focus-visible small { color: oklch(1 0 0 / 0.88); }
 .mi[aria-disabled="true"] { cursor: not-allowed; color: var(--text-faint); }
 .mi[aria-disabled="true"]:hover { background: none; color: var(--text-faint); }
 .mi[aria-disabled="true"] i { color: var(--text-faint); }
@@ -55,9 +62,9 @@
 .has-sub.flip > .menu { left: auto; right: calc(100% + 4px); transform-origin: top right; }
 @media (max-width: 600px) { .has-sub.open > .menu { position: static; width: auto; margin: 4px 0 4px 12px; } }
 /* Popover API: rises from its trigger (origin set per placement), from 0.95 + fade */
-.menu[popover], .pop[popover] { inset: auto; margin: 0; border: 0; color: var(--text); overflow: visible; opacity: 0; transform: scale(0.95); transform-origin: var(--origin, top left); transition: opacity var(--dur-pop) var(--ease-out), transform var(--dur-pop) var(--ease-out), display var(--dur-pop) allow-discrete, overlay var(--dur-pop) allow-discrete; }
-.menu[popover]:popover-open, .pop[popover]:popover-open { opacity: 1; transform: none; }
-@starting-style { .menu[popover]:popover-open, .pop[popover]:popover-open { opacity: 0; transform: scale(0.95); } }
+.menu[popover], .pop[popover], .preprompt[popover] { inset: auto; margin: 0; border: 0; color: var(--text); overflow: visible; opacity: 0; transform: scale(0.95); transform-origin: var(--origin, top left); transition: opacity var(--dur-pop) var(--ease-out), transform var(--dur-pop) var(--ease-out), display var(--dur-pop) allow-discrete, overlay var(--dur-pop) allow-discrete; }
+.menu[popover]:popover-open, .pop[popover]:popover-open, .preprompt[popover]:popover-open { opacity: 1; transform: none; }
+@starting-style { .menu[popover]:popover-open, .pop[popover]:popover-open, .preprompt[popover]:popover-open { opacity: 0; transform: scale(0.95); } }
 .menu.rise { animation: rise var(--dur-pop) var(--ease-out) backwards; transform-origin: var(--origin, top left); }
 @keyframes rise { from { opacity: 0; transform: scale(0.95); } }
 
@@ -195,6 +202,49 @@ dialog.real::backdrop { background: var(--scrim); }
 dialog.real > .dialog { width: min(calc(100vw - 32px), var(--dw)); max-height: calc(100vh - 32px); overflow: auto; }
 dialog.real[open] .dialog { animation: pop var(--dur-panel) var(--ease-out); }
 @keyframes pop { from { opacity: 0; transform: scale(0.95); } }
+/* Two-step dialog: the next page slides in from the side it comes from */
+.dialog.is-next, dialog.real[open] .dialog.is-next { animation: dstep-next var(--dur-pop) var(--ease-out); }
+.dialog.is-back, dialog.real[open] .dialog.is-back { animation: dstep-back var(--dur-pop) var(--ease-out); }
+@keyframes dstep-next { from { opacity: 0; transform: translateX(16px); } }
+@keyframes dstep-back { from { opacity: 0; transform: translateX(-16px); } }
+.dsum { margin-right: auto; display: flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--text-muted); font-size: var(--text-xs); }
+.dsum .stackav .av { --size: 20px; font-size: 0; box-shadow: 0 0 0 2px var(--bg-raised); }
+/* Auto-growing note field inside a dialog */
+.textarea.dtext { min-height: 40px; max-height: 128px; padding: 8px 12px; resize: none; field-sizing: content; }
+
+/* Pick list: multi-select rows in a dialog (forward, who can see a channel). A row you can't pick stays listed and says why */
+.picklist { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; max-height: 300px; overflow: auto; margin: 0 -8px; padding: 0 8px 12px; overscroll-behavior: contain; mask-image: linear-gradient(#000 calc(100% - 16px), transparent); }
+.pickgroup { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); padding: 12px 8px 4px; font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--text-muted); }
+.pickgroup:first-child { padding-top: 2px; }
+.pickgroup span { font-weight: var(--weight-regular); }
+.picklist .choice { gap: 10px; min-height: 48px; padding: 6px 8px; border-radius: var(--radius-sm); --bg-ring: var(--bg-raised); }
+.picklist .choice:has(> .check[aria-checked="true"]) { background: var(--selected); }
+.picklist .choice:has(> .check[aria-checked="true"]):hover { background: var(--press); }
+.picklist .choice:focus-visible { outline-offset: -2px; }
+.picklist .choice b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.picklist .choice > div > span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.picklist .choice > .av { --size: 32px; font-size: 13px; }
+.picklist .icontile { width: 32px; height: 32px; border-radius: var(--radius-sm); --tile: var(--bg-page); --ink: var(--text-muted); }
+.picklist .icontile i { font-size: 18px; }
+.picklist .roledot { width: 12px; height: 12px; border-radius: 50%; background: var(--role); corner-shape: round; }
+.picklist .choice[aria-disabled="true"] { cursor: not-allowed; }
+.picklist .choice[aria-disabled="true"]:hover { background: none; }
+.picklist .choice[aria-disabled="true"] b { color: var(--text-muted); }
+.picklist .choice[aria-disabled="true"] > :is(.av, .icontile) { opacity: 0.55; }
+.picklist .lockmark { width: 20px; flex: none; display: grid; place-items: center; }
+.picklist .lockmark i { font-size: 16px; color: var(--text-muted); }
+.picklist mark { background: none; color: var(--text-strong); font-weight: var(--weight-bold); }
+.pickhint { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: var(--text-xs); }
+.pickhint i { font-size: 14px; color: var(--warning-ink); }
+/* Picked chips stay above the list, so a search that hides a pick never loses it */
+.picked { display: flex; flex-wrap: wrap; gap: 6px; }
+.pickchip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 28px; padding: 0 2px 0 6px; border-radius: var(--radius-sm); background: var(--selected); color: var(--text-strong); font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.pickchip > span:not(.av) { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pickchip > i { font-size: 16px; color: var(--text-muted); }
+.pickchip .av { --size: 18px; font-size: 0; }
+.pickchip button { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; color: var(--text-muted); transition: background var(--dur-hover), color var(--dur-hover); }
+.pickchip button:hover { background: var(--press); color: var(--text-strong); }
+.pickchip button i { font-size: 14px; }
 
 /* Image viewer: dark in both themes, like the call stage */
 .viewer { --v-bg: oklch(0.12 0.01 350 / 0.94); --v-fg: oklch(0.96 0.004 350); --v-muted: oklch(0.78 0.01 350); --v-hover: oklch(1 0 0 / 0.1); position: relative; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--v-bg); color: var(--v-fg); border-radius: var(--radius-lg); overflow: hidden; min-height: 420px; }
@@ -252,3 +302,35 @@ dialog.viewer-dlg[open] .viewer img { animation: pop var(--dur-panel) var(--ease
 .hit mark { background: color-mix(in oklch, var(--accent) 24%, transparent); color: var(--text-strong); border-radius: 3px; padding: 0 2px; }
 .sfoot { display: flex; align-items: center; gap: var(--space-4); padding: 10px 14px; border-top: 1px solid var(--line); color: var(--text-muted); font-size: var(--text-xs); flex-wrap: wrap; }
 .sfoot span { display: inline-flex; align-items: center; gap: 4px; }
+
+/* OS permission alert: a neutral stand-in for the system's own dialog. No accent, a dashed frame and a label, so it never reads as Wave's UI */
+.osalert-frame { display: grid; justify-items: center; gap: var(--space-3); }
+.osalert-label { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.osalert-label i { font-size: 14px; }
+.osalert { width: 260px; max-width: 100%; display: grid; justify-items: center; gap: var(--space-2); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--bg-overlay); box-shadow: var(--shadow-pop); outline: 1px dashed var(--line-strong); outline-offset: 6px; text-align: center; }
+.osalert img { width: 52px; height: 52px; }
+.osalert b { color: var(--text-strong); font-weight: var(--weight-bold); text-wrap: balance; }
+.osalert p { color: var(--text-muted); font-size: var(--text-xs); text-wrap: pretty; }
+.osalert-acts { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin-top: var(--space-2); }
+.osalert-acts--stack { grid-template-columns: 1fr; }
+.osbtn { height: 28px; padding: 0 10px; border-radius: var(--radius-sm); background: var(--press); color: var(--text-strong); font-size: var(--text-sm); font-weight: var(--weight-medium); white-space: nowrap; transition: background var(--dur-hover), transform var(--dur-press) var(--ease-out); }
+.osbtn:hover { background: color-mix(in oklch, var(--text-strong) 14%, transparent); }
+.osbtn:active { transform: scale(0.97); }
+.osbtn--default { background: var(--text-strong); color: var(--bg-overlay); }
+.osbtn--default:hover { background: color-mix(in oklch, var(--text-strong) 86%, var(--bg-overlay)); }
+
+/* Permission pre-prompt: Wave's own card where the need arises, said before macOS asks */
+.preprompt { width: 340px; max-width: 100%; display: grid; gap: var(--space-3); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--bg-overlay); box-shadow: var(--shadow-pop); text-align: left; }
+.preprompt h4 { display: flex; align-items: center; gap: 10px; color: var(--text-strong); font-size: var(--text-md); font-weight: var(--weight-bold); line-height: var(--leading-tight); }
+.preprompt h4 .icontile { width: 32px; height: 32px; border-radius: var(--radius-sm); }
+.preprompt h4 .icontile i { font-size: 18px; }
+.preprompt h4 .icontile.is-off { --tile: oklch(0.6 0.2 30 / 0.14); --ink: var(--danger-ink); }
+.preprompt p { color: var(--text-muted); text-wrap: pretty; }
+.preprompt-acts { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); }
+.preprompt-wait { display: flex; align-items: center; gap: var(--space-2); color: var(--text-muted); font-size: var(--text-xs); }
+.ospath { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; padding: 8px 10px; border-radius: var(--radius-md); background: var(--bg-page); color: var(--text); font-size: var(--text-xs); font-weight: var(--weight-medium); }
+.ospath i { font-size: 12px; color: var(--text-muted); }
+.ospath b { color: var(--text-strong); font-weight: var(--weight-semibold); }
+.osflow { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--space-8) var(--space-6); align-items: start; justify-items: center; }
+.osflow > div { display: grid; gap: var(--space-3); justify-items: center; width: 100%; }
+.osflow .note { text-align: center; max-width: 36ch; }
