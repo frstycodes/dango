@@ -492,6 +492,125 @@ float quarter_ellipse_sdf(float2 pt, float2 radii) {
     return unit_circle_sdf * (radii.x + radii.y) * -0.5;
 }
 
+// Whether a transformation leaves everything where it is.
+bool is_unit_transformation(TransformationMatrix transformation) {
+    return transformation.rotation_scale[0][0] == 1.0 &&
+        transformation.rotation_scale[0][1] == 0.0 &&
+        transformation.rotation_scale[1][0] == 0.0 &&
+        transformation.rotation_scale[1][1] == 1.0 &&
+        transformation.translation.x == 0.0 &&
+        transformation.translation.y == 0.0;
+}
+
+// How many device pixels one untransformed pixel spans, averaged over both
+// axes. Exactly 1 for the unit transformation.
+float transformation_scale(TransformationMatrix transformation) {
+    return sqrt(abs(determinant(transformation.rotation_scale)));
+}
+
+// Transformed edges rarely fall on pixel boundaries, so their geometry grows by
+// a device pixel to rasterize the outer half of the antialiasing ramp, which
+// the signed distance field then fades out.
+Bounds antialiasing_geometry(Bounds bounds, TransformationMatrix transformation) {
+    if (is_unit_transformation(transformation)) {
+        return bounds;
+    }
+    float margin = 1.0 / max(transformation_scale(transformation), 1e-3);
+    bounds.origin -= margin;
+    bounds.size += 2.0 * margin;
+    return bounds;
+}
+
+// The untransformed position of a vertex, interpolated so fragments evaluate
+// signed distance fields in the primitive's own space.
+float2 to_local_position(float2 unit_vertex, Bounds bounds) {
+    return unit_vertex * bounds.size + bounds.origin;
+}
+
+// Where a vertex of `geometry` falls on a sprite drawn at `bounds`, as a
+// fraction of the sprite; outside [0, 1] when the geometry was grown for
+// antialiasing.
+float2 to_sprite_vertex(float2 unit_vertex, Bounds geometry, Bounds bounds) {
+    return unit_vertex * (geometry.size / bounds.size) + (geometry.origin - bounds.origin) / bounds.size;
+}
+
+// Keeps samples of a sprite whose geometry was grown for antialiasing within
+// its own atlas tile, so its edges don't pick up the neighbouring tiles.
+float2 clamp_to_tile(float2 tile_position, AtlasTile tile) {
+    float2 atlas_size;
+    t_sprite.GetDimensions(atlas_size.x, atlas_size.y);
+    float2 tile_origin = float2(tile.bounds.origin);
+    float2 tile_size = float2(tile.bounds.size);
+    return clamp(tile_position, (tile_origin + 0.5) / atlas_size, (tile_origin + tile_size - 0.5) / atlas_size);
+}
+
+// Approximate signed distance to the convex superellipse
+// `|x / rx|^n + |y / ry|^n = 1` from a point in its positive quadrant: its
+// implicit function divided by the gradient's length, which is exact on the
+// curve and close enough within the antialiasing band. Positive outside.
+float superellipse_sdf(float2 pt, float2 radii, float exponent) {
+    radii = max(radii, float2(1e-4, 1e-4));
+    float2 normalized = max(pt, float2(0.0, 0.0)) / radii;
+    float largest = max(normalized.x, normalized.y);
+    if (largest == 0.0) {
+        return -min(radii.x, radii.y);
+    }
+    // Dividing by the largest component keeps every power within [0, 1], and the
+    // floor keeps `pow` away from zero, where it is undefined.
+    float2 ratios = max(normalized / largest, float2(1e-6, 1e-6));
+    float norm = largest * pow(pow(ratios.x, exponent) + pow(ratios.y, exponent), 1.0 / exponent);
+    float2 gradient =
+        pow(max(normalized / norm, float2(1e-6, 1e-6)), float2(exponent - 1.0, exponent - 1.0)) / radii;
+    return (norm - 1.0) / length(gradient);
+}
+
+// Signed distance to a shaped corner from a point relative to its corner
+// center, mirrored into the bottom right quadrant. A negative exponent is the
+// concave mirror image of the convex curve, centered on the outer corner.
+float corner_superellipse_sdf(float2 corner_center_to_point, float2 radii, float corner_exponent) {
+    if (corner_exponent < 0.0) {
+        return -superellipse_sdf(radii - corner_center_to_point, radii, -corner_exponent);
+    }
+    return superellipse_sdf(corner_center_to_point, radii, corner_exponent);
+}
+
+// `quad_sdf_impl` with the corner drawn as a superellipse of the given exponent,
+// where 2 is the circular arc `quad_sdf_impl` draws.
+float shaped_quad_sdf_impl(float2 corner_center_to_point, float corner_radius, float corner_exponent) {
+    if (corner_exponent == 2.0 || corner_radius == 0.0 ||
+        corner_center_to_point.x <= 0.0 || corner_center_to_point.y <= 0.0) {
+        return quad_sdf_impl(corner_center_to_point, corner_radius);
+    }
+    return corner_superellipse_sdf(corner_center_to_point,
+                                   float2(corner_radius, corner_radius), corner_exponent);
+}
+
+// `quad_sdf` with the corners drawn as superellipses of the given exponent.
+float shaped_quad_sdf(float2 pt, Bounds bounds, Corners corner_radii, float corner_exponent) {
+    float2 half_size = bounds.size / 2.;
+    float2 center = bounds.origin + half_size;
+    float2 center_to_point = pt - center;
+    float corner_radius = pick_corner_radius(center_to_point, corner_radii);
+    float2 corner_to_point = abs(center_to_point) - half_size;
+    float2 corner_center_to_point = corner_to_point + corner_radius;
+    return shaped_quad_sdf_impl(corner_center_to_point, corner_radius, corner_exponent);
+}
+
+// The circular radius whose arc cuts the corner's diagonal where the shaped
+// corner does, so the blur, which integrates circular corners, keeps the
+// shape's visual weight.
+float blurred_corner_radius(float corner_radius, float corner_exponent, float2 half_size) {
+    if (corner_exponent == 2.0) {
+        return corner_radius;
+    }
+    // Where the curve crosses the diagonal, as a fraction of the radius from the
+    // corner center (CSS Borders 4, "normalized superellipse half corner").
+    float half_corner = pow(0.5, 1.0 / abs(corner_exponent));
+    float corner_depth = corner_exponent < 0.0 ? half_corner : 1.0 - half_corner;
+    float circular_depth = 1.0 - sqrt(0.5);
+    return min(corner_radius * corner_depth / circular_depth, min(half_size.x, half_size.y));
+}
+
 /*
 **
 **              Quads
@@ -507,6 +626,9 @@ struct Quad {
     Hsla border_color;
     Corners corner_radii;
     Edges border_widths;
+    TransformationMatrix transformation;
+    float corner_exponent;
+    uint pad; // align to 8 bytes
 };
 
 struct QuadVertexOutput {
@@ -516,6 +638,7 @@ struct QuadVertexOutput {
     nointerpolation float4 background_solid: COLOR1;
     nointerpolation float4 background_color0: COLOR2;
     nointerpolation float4 background_color1: COLOR3;
+    float2 local_position: TEXCOORD1;
     float4 clip_distance: SV_ClipDistance;
 };
 
@@ -526,6 +649,7 @@ struct QuadFragmentInput {
     nointerpolation float4 background_solid: COLOR1;
     nointerpolation float4 background_color0: COLOR2;
     nointerpolation float4 background_color1: COLOR3;
+    float2 local_position: TEXCOORD1;
 };
 
 StructuredBuffer<Quad> quads: register(t1);
@@ -534,7 +658,8 @@ QuadVertexOutput quad_vertex(uint vertex_id: SV_VertexID, uint instance_id: SV_I
     float2 unit_vertex = float2(float(vertex_id & 1u), 0.5 * float(vertex_id & 2u));
     uint quad_id = batch_start_index + instance_id;
     Quad quad = quads[quad_id];
-    float4 device_position = to_device_position(unit_vertex, quad.bounds);
+    Bounds geometry = antialiasing_geometry(quad.bounds, quad.transformation);
+    float4 device_position = to_device_position_transformed(unit_vertex, geometry, quad.transformation);
 
     GradientColor gradient = prepare_gradient_color(
         quad.background.tag,
@@ -542,7 +667,7 @@ QuadVertexOutput quad_vertex(uint vertex_id: SV_VertexID, uint instance_id: SV_I
         quad.background.solid,
         quad.background.colors
     );
-    float4 clip_distance = distance_from_clip_rect(unit_vertex, quad.bounds, quad.content_mask);
+    float4 clip_distance = distance_from_clip_rect_transformed(unit_vertex, geometry, quad.content_mask, quad.transformation);
     float4 border_color = hsla_to_rgba(quad.border_color);
 
     QuadVertexOutput output;
@@ -552,13 +677,14 @@ QuadVertexOutput quad_vertex(uint vertex_id: SV_VertexID, uint instance_id: SV_I
     output.background_solid = gradient.solid;
     output.background_color0 = gradient.color0;
     output.background_color1 = gradient.color1;
+    output.local_position = to_local_position(unit_vertex, geometry);
     output.clip_distance = clip_distance;
     return output;
 }
 
 float4 quad_fragment(QuadFragmentInput input): SV_Target {
     Quad quad = quads[input.quad_id];
-    float4 background_color = gradient_color(quad.background, input.position.xy, quad.bounds,
+    float4 background_color = gradient_color(quad.background, input.local_position, quad.bounds,
     input.background_solid, input.background_color0, input.background_color1);
 
     bool unrounded = quad.corner_radii.top_left == 0.0 &&
@@ -566,23 +692,30 @@ float4 quad_fragment(QuadFragmentInput input): SV_Target {
         quad.corner_radii.bottom_left == 0.0 &&
         quad.corner_radii.bottom_right == 0.0;
 
-    // Fast path when the quad is not rounded and doesn't have any border
+    // Fast path when the quad is not rounded and doesn't have any border. A
+    // transformed quad's edges still need antialiasing.
     if (quad.border_widths.top == 0.0 &&
         quad.border_widths.left == 0.0 &&
         quad.border_widths.right == 0.0 &&
         quad.border_widths.bottom == 0.0 &&
-        unrounded) {
+        unrounded &&
+        is_unit_transformation(quad.transformation)) {
         return background_color;
     }
 
     float2 size = quad.bounds.size;
     float2 half_size = size / 2.;
-    float2 the_point = input.position.xy - quad.bounds.origin;
+    float2 the_point = input.local_position - quad.bounds.origin;
     float2 center_to_point = the_point - half_size;
 
     // Signed distance field threshold for inclusion of pixels. 0.5 is the
     // minimum distance between the center of the pixel and the edge.
     const float antialias_threshold = 0.5;
+
+    // Distances are measured in the quad's own pixels; these convert them to
+    // device pixels so antialiasing stays one device pixel wide under scale.
+    float device_scale = transformation_scale(quad.transformation);
+    float local_antialias_threshold = antialias_threshold / device_scale;
 
     // Radius of the nearest corner
     float corner_radius = pick_corner_radius(center_to_point, quad.corner_radii);
@@ -595,8 +728,8 @@ float4 quad_fragment(QuadFragmentInput input): SV_Target {
     // 0-width borders are reduced so that `inner_sdf >= antialias_threshold`.
     // The purpose of this is to not draw antialiasing pixels in this case.
     float2 reduced_border = float2(
-        border.x == 0.0 ? -antialias_threshold : border.x,
-        border.y == 0.0 ? -antialias_threshold : border.y
+        border.x == 0.0 ? -local_antialias_threshold : border.x,
+        border.y == 0.0 ? -local_antialias_threshold : border.y
     );
 
     // Vector from the corner of the quad bounds to the point, after mirroring
@@ -626,8 +759,8 @@ float4 quad_fragment(QuadFragmentInput input): SV_Target {
     // Whether the point is far enough inside the quad, such that the pixels are
     // not affected by the straight border.
     bool is_within_inner_straight_border =
-        straight_border_inner_corner_to_point.x < -antialias_threshold &&
-        straight_border_inner_corner_to_point.y < -antialias_threshold;
+        straight_border_inner_corner_to_point.x < -local_antialias_threshold &&
+        straight_border_inner_corner_to_point.y < -local_antialias_threshold;
 
     // Fast path for points that must be part of the background
     if (is_within_inner_straight_border && !is_near_rounded_corner) {
@@ -635,7 +768,7 @@ float4 quad_fragment(QuadFragmentInput input): SV_Target {
     }
 
     // Signed distance of the point to the outside edge of the quad's border
-    float outer_sdf = quad_sdf_impl(corner_center_to_point, corner_radius);
+    float outer_sdf = shaped_quad_sdf_impl(corner_center_to_point, corner_radius, quad.corner_exponent);
 
     // Approximate signed distance of the point to the inside edge of the quad's
     // border. It is negative outside this edge (within the border), and
@@ -653,6 +786,10 @@ float4 quad_fragment(QuadFragmentInput input): SV_Target {
     } else if (is_beyond_inner_straight_border) {
         // Fast path for points that must be outside the inner edge
         inner_sdf = -1.0;
+    } else if (quad.corner_exponent != 2.0) {
+        // A shaped inner edge is the same shape, inset by the border widths.
+        float2 inner_radii = max(float2(0.0, 0.0), float2(corner_radius, corner_radius) - reduced_border);
+        inner_sdf = -corner_superellipse_sdf(corner_center_to_point, inner_radii, quad.corner_exponent);
     } else if (reduced_border.x == reduced_border.y) {
         // Fast path for circular inner edge.
         inner_sdf = -(outer_sdf + reduced_border.x);
@@ -660,6 +797,9 @@ float4 quad_fragment(QuadFragmentInput input): SV_Target {
         float2 ellipse_radii = max(float2(0.0, 0.0), float2(corner_radius, corner_radius) - reduced_border);
         inner_sdf = quarter_ellipse_sdf(corner_center_to_point, ellipse_radii);
     }
+
+    outer_sdf *= device_scale;
+    inner_sdf *= device_scale;
 
     // Negative when inside the border
     float border_sdf = max(inner_sdf, outer_sdf);
@@ -864,12 +1004,16 @@ struct Shadow {
     Corners element_corner_radii;
     uint inset;
     uint pad; // align to 8 bytes
+    TransformationMatrix transformation;
+    float corner_exponent;
+    uint pad2; // align to 8 bytes
 };
 
 struct ShadowVertexOutput {
     nointerpolation uint shadow_id: TEXCOORD0;
     float4 position: SV_Position;
     nointerpolation float4 color: COLOR;
+    float2 local_position: TEXCOORD1;
     float4 clip_distance: SV_ClipDistance;
 };
 
@@ -877,6 +1021,7 @@ struct ShadowFragmentInput {
   nointerpolation uint shadow_id: TEXCOORD0;
   float4 position: SV_Position;
   nointerpolation float4 color: COLOR;
+  float2 local_position: TEXCOORD1;
 };
 
 StructuredBuffer<Shadow> shadows: register(t1);
@@ -896,15 +1041,17 @@ ShadowVertexOutput shadow_vertex(uint vertex_id: SV_VertexID, uint instance_id: 
         bounds.origin -= margin;
         bounds.size += 2.0 * margin;
     }
+    bounds = antialiasing_geometry(bounds, shadow.transformation);
 
-    float4 device_position = to_device_position(unit_vertex, bounds);
-    float4 clip_distance = distance_from_clip_rect(unit_vertex, bounds, shadow.content_mask);
+    float4 device_position = to_device_position_transformed(unit_vertex, bounds, shadow.transformation);
+    float4 clip_distance = distance_from_clip_rect_transformed(unit_vertex, bounds, shadow.content_mask, shadow.transformation);
     float4 color = hsla_to_rgba(shadow.color);
 
     ShadowVertexOutput output;
     output.position = device_position;
     output.color = color;
     output.shadow_id = shadow_id;
+    output.local_position = to_local_position(unit_vertex, bounds);
     output.clip_distance = clip_distance;
 
     return output;
@@ -915,14 +1062,16 @@ float4 shadow_fragment(ShadowFragmentInput input): SV_TARGET {
 
     float2 half_size = shadow.bounds.size / 2.;
     float2 center = shadow.bounds.origin + half_size;
-    float2 point0 = input.position.xy - center;
+    float2 point0 = input.local_position - center;
+    float device_scale = transformation_scale(shadow.transformation);
     float corner_radius = pick_corner_radius(point0, shadow.corner_radii);
 
     float alpha;
     if (shadow.blur_radius == 0.) {
-        float distance = quad_sdf(input.position.xy, shadow.bounds, shadow.corner_radii);
-        alpha = saturate(0.5 - distance);
+        float distance = shaped_quad_sdf(input.local_position, shadow.bounds, shadow.corner_radii, shadow.corner_exponent);
+        alpha = saturate(0.5 - distance * device_scale);
     } else {
+        corner_radius = blurred_corner_radius(corner_radius, shadow.corner_exponent, half_size);
         // The signal is only non-zero in a limited range, so don't waste samples
         float low = point0.y - half_size.y;
         float high = point0.y + half_size.y;
@@ -945,9 +1094,9 @@ float4 shadow_fragment(ShadowFragmentInput input): SV_TARGET {
         // The inset shadow is the complement of the (blurred) hole rect, clipped to the element.
         // `saturate(0.5 - d)` gives a 1-pixel antialiased edge: d <= -0.5 -> 1, d >= 0.5 -> 0.
         alpha = 1.0 - alpha;
-        float element_distance = quad_sdf(input.position.xy, shadow.element_bounds,
-                                          shadow.element_corner_radii);
-        alpha *= saturate(0.5 - element_distance);
+        float element_distance = shaped_quad_sdf(input.local_position, shadow.element_bounds,
+                                                 shadow.element_corner_radii, shadow.corner_exponent);
+        alpha *= saturate(0.5 - element_distance * device_scale);
     }
 
     return input.color * float4(1., 1., 1., alpha);
@@ -1070,12 +1219,14 @@ struct Underline {
     Hsla color;
     float thickness;
     uint wavy;
+    TransformationMatrix transformation;
 };
 
 struct UnderlineVertexOutput {
   nointerpolation uint underline_id: TEXCOORD0;
   float4 position: SV_Position;
   nointerpolation float4 color: COLOR;
+  float2 local_position: TEXCOORD1;
   float4 clip_distance: SV_ClipDistance;
 };
 
@@ -1083,6 +1234,7 @@ struct UnderlineFragmentInput {
   nointerpolation uint underline_id: TEXCOORD0;
   float4 position: SV_Position;
   nointerpolation float4 color: COLOR;
+  float2 local_position: TEXCOORD1;
 };
 
 StructuredBuffer<Underline> underlines: register(t1);
@@ -1091,15 +1243,18 @@ UnderlineVertexOutput underline_vertex(uint vertex_id: SV_VertexID, uint instanc
     float2 unit_vertex = float2(float(vertex_id & 1u), 0.5 * float(vertex_id & 2u));
     uint underline_id = batch_start_index + instance_id;
     Underline underline = underlines[underline_id];
-    float4 device_position = to_device_position(unit_vertex, underline.bounds);
-    float4 clip_distance = distance_from_clip_rect(unit_vertex, underline.bounds,
-                                                    underline.content_mask);
+    float4 device_position = to_device_position_transformed(unit_vertex, underline.bounds,
+                                                            underline.transformation);
+    float4 clip_distance = distance_from_clip_rect_transformed(unit_vertex, underline.bounds,
+                                                               underline.content_mask,
+                                                               underline.transformation);
     float4 color = hsla_to_rgba(underline.color);
 
     UnderlineVertexOutput output;
     output.position = device_position;
     output.color = color;
     output.underline_id = underline_id;
+    output.local_position = to_local_position(unit_vertex, underline.bounds);
     output.clip_distance = clip_distance;
     return output;
 }
@@ -1113,7 +1268,7 @@ float4 underline_fragment(UnderlineFragmentInput input): SV_Target {
         float half_thickness = underline.thickness * 0.5;
         float2 origin = underline.bounds.origin;
 
-        float2 st = ((input.position.xy - origin) / underline.bounds.size.y) - float2(0., 0.5);
+        float2 st = ((input.local_position - origin) / underline.bounds.size.y) - float2(0., 0.5);
         float frequency = (M_PI_F * WAVE_FREQUENCY * underline.thickness) / underline.bounds.size.y;
         float amplitude = (underline.thickness * WAVE_HEIGHT_RATIO) / underline.bounds.size.y;
 
@@ -1219,12 +1374,16 @@ struct PolychromeSprite {
     Bounds content_mask;
     Corners corner_radii;
     AtlasTile tile;
+    TransformationMatrix transformation;
+    float corner_exponent;
+    uint pad2; // align to 8 bytes
 };
 
 struct PolychromeSpriteVertexOutput {
     nointerpolation uint sprite_id: TEXCOORD0;
     float4 position: SV_Position;
     float2 tile_position: POSITION;
+    float2 local_position: TEXCOORD1;
     float4 clip_distance: SV_ClipDistance;
 };
 
@@ -1232,6 +1391,7 @@ struct PolychromeSpriteFragmentInput {
     nointerpolation uint sprite_id: TEXCOORD0;
     float4 position: SV_Position;
     float2 tile_position: POSITION;
+    float2 local_position: TEXCOORD1;
 };
 
 StructuredBuffer<PolychromeSprite> poly_sprites: register(t1);
@@ -1240,23 +1400,36 @@ PolychromeSpriteVertexOutput polychrome_sprite_vertex(uint vertex_id: SV_VertexI
     float2 unit_vertex = float2(float(vertex_id & 1u), 0.5 * float(vertex_id & 2u));
     uint sprite_id = batch_start_index + instance_id;
     PolychromeSprite sprite = poly_sprites[sprite_id];
-    float4 device_position = to_device_position(unit_vertex, sprite.bounds);
-    float4 clip_distance = distance_from_clip_rect(unit_vertex, sprite.bounds,
-                                                    sprite.content_mask);
-    float2 tile_position = to_tile_position(unit_vertex, sprite.tile);
+    Bounds geometry = antialiasing_geometry(sprite.bounds, sprite.transformation);
+    float4 device_position = to_device_position_transformed(unit_vertex, geometry,
+                                                            sprite.transformation);
+    float4 clip_distance = distance_from_clip_rect_transformed(unit_vertex, geometry,
+                                                               sprite.content_mask,
+                                                               sprite.transformation);
+    float2 sprite_vertex = is_unit_transformation(sprite.transformation)
+        ? unit_vertex
+        : to_sprite_vertex(unit_vertex, geometry, sprite.bounds);
+    float2 tile_position = to_tile_position(sprite_vertex, sprite.tile);
 
     PolychromeSpriteVertexOutput output;
     output.position = device_position;
     output.tile_position = tile_position;
     output.sprite_id = sprite_id;
+    output.local_position = to_local_position(unit_vertex, geometry);
     output.clip_distance = clip_distance;
     return output;
 }
 
 float4 polychrome_sprite_fragment(PolychromeSpriteFragmentInput input): SV_Target {
     PolychromeSprite sprite = poly_sprites[input.sprite_id];
-    float4 sample = t_sprite.Sample(s_sprite, input.tile_position);
-    float distance = quad_sdf(input.position.xy, sprite.bounds, sprite.corner_radii);
+    // A select rather than a branch, so the sample's gradients stay defined.
+    float2 tile_position = is_unit_transformation(sprite.transformation)
+        ? input.tile_position
+        : clamp_to_tile(input.tile_position, sprite.tile);
+    float4 sample = t_sprite.Sample(s_sprite, tile_position);
+    float distance = shaped_quad_sdf(input.local_position, sprite.bounds, sprite.corner_radii,
+                                     sprite.corner_exponent) *
+                     transformation_scale(sprite.transformation);
 
     float4 color = sample;
     if (sprite.grayscale != 0u) {
