@@ -436,7 +436,10 @@ fn recv_loop(link: &Link, socket: &UdpSocket, stop: &AtomicBool, users: &Mutex<H
                             let _ = link.events.unbounded_send(VoiceEvent::Speaking { user_id: user.clone(), speaking: true });
                         }
                         if let Some(audio) = audio_in(&mut decoders, packet.ssrc) {
-                            let gain = link.shared.listening_gain(&user);
+                            let gain = match link.role {
+                                Role::Watch => link.shared.stream_gain(&user),
+                                _ => link.shared.listening_gain(&user),
+                            };
                             audio.play(link, packet.ssrc, packet.sequence, &opus, &mut pcm, gain);
                         }
                     }

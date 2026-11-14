@@ -180,7 +180,13 @@ struct Call {
     // Latest camera frame per user, ours included.
     cameras: HashMap<String, Arc<RenderImage>>,
     camera_on: bool,
-    watching: Option<Watching>,
+    // Go Lives we're watching, in the order we started them.
+    watching: Vec<Watching>,
+    // The stream shown large in Focus layout; the first watched when unset.
+    focus: Option<String>,
+    stream_layout: crate::call::StreamLayout,
+    // A watched stream that just ended, so the stage can say so instead of going blank.
+    ended: Option<String>,
     // Our own Go Live; dropping it ends the stream.
     sharing: Option<voice::GoLive>,
     // What we're sharing, as the Go Live panel names it ("Screen 1", an app, a window).
@@ -193,10 +199,29 @@ struct Call {
     _events: Task<()>,
 }
 
+impl Call {
+    fn watched(&self, streamer_id: &str) -> Option<&Watching> {
+        self.watching.iter().find(|w| w.streamer_id == streamer_id)
+    }
+
+    // The stream shown large: the focused one, else the first watched.
+    fn focused(&self) -> Option<&Watching> {
+        self.focus.as_deref().and_then(|id| self.watched(id)).or(self.watching.first())
+    }
+
+    fn unwatch(&mut self, streamer_id: &str) -> Option<Watching> {
+        let at = self.watching.iter().position(|w| w.streamer_id == streamer_id)?;
+        if self.focus.as_deref() == Some(streamer_id) {
+            self.focus = None;
+        }
+        Some(self.watching.remove(at))
+    }
+}
+
 // Someone's Go Live we're watching. Dropping it stops the stream.
-struct Watching {
-    streamer_id: String,
-    frame: Option<Arc<RenderImage>>,
+pub(crate) struct Watching {
+    pub(crate) streamer_id: String,
+    pub(crate) frame: Option<Arc<RenderImage>>,
     // None for our own Go Live, shown from its local frames: watching it through Discord would
     // end it on stop, since leaving a stream and ending one are the same gateway op.
     _watch: Option<voice::StreamWatch>,
@@ -341,6 +366,8 @@ pub struct Rustcord {
     pip_shown: bool,
     pip_corner: crate::call::Corner,
     pip_drag: Option<crate::call::PipDrag>,
+    // Our local volume for each streamer's Go Live (0..=2), kept across watches.
+    stream_volumes: HashMap<String, f32>,
     // Where a released self-view glides from, and when it let go.
     pip_snap: Option<((f32, f32), Instant)>,
     // Bumped on each Go Live so an earlier stream's preview uploads stop.
@@ -503,6 +530,7 @@ impl Rustcord {
             pip_shown: true,
             pip_corner: crate::call::Corner::TopRight,
             pip_drag: None,
+            stream_volumes: HashMap::new(),
             pip_snap: None,
             call_fullscreen: false,
             voice_start: HashMap::new(),
@@ -812,7 +840,7 @@ impl Rustcord {
                     sounds::play(if is_here { sounds::Cue::UserJoin } else { sounds::Cue::UserLeave });
                 } else if Some(&state.user_id) != me.as_ref() && !was_live && is_live {
                     sounds::play(sounds::Cue::StreamStarted);
-                } else if was_live && !is_live && self.call.as_ref().and_then(|c| c.watching.as_ref()).is_some_and(|w| w.streamer_id == state.user_id) {
+                } else if was_live && !is_live && self.call.as_ref().is_some_and(|c| c.watched(&state.user_id).is_some()) {
                     sounds::play(sounds::Cue::StreamEnded);
                 }
                 guild.voice_states.retain(|v| v.user_id != state.user_id);
@@ -1787,7 +1815,7 @@ impl Rustcord {
             }
         })
         .detach();
-        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: None, sharing: None, share_label: None, share_source: None, live_since: None, self_view: None, _events: task });
+        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: Vec::new(), focus: None, stream_layout: crate::call::StreamLayout::Focus, ended: None, sharing: None, share_label: None, share_source: None, live_since: None, self_view: None, _events: task });
         cx.notify();
     }
 
@@ -1795,7 +1823,7 @@ impl Rustcord {
         self.call_fullscreen = false;
         let Some(mut call) = self.call.take() else { return };
         sounds::play(sounds::Cue::Disconnect);
-        if let Some(frame) = call.watching.take().and_then(|w| w.frame) {
+        for frame in call.watching.drain(..).filter_map(|w| w.frame) {
             cx.drop_image(frame, None);
         }
         for (_, frame) in call.cameras.drain() {
@@ -1849,7 +1877,7 @@ impl Rustcord {
             }
             voice::VoiceEvent::StreamFrame { user_id, source: voice::VideoSource::GoLive, frame } => {
                 let mine = self.me.as_ref().is_some_and(|m| m.id == user_id);
-                let watching_self = call.watching.as_ref().is_some_and(|w| w.streamer_id == user_id);
+                let watching_self = call.watched(&user_id).is_some();
                 // The self-view runs at 15 fps: a full-rate copy of every frame isn't worth it for a thumbnail.
                 if mine && !watching_self {
                     if call.self_view.as_ref().is_some_and(|(_, at)| at.elapsed() < SELF_VIEW_INTERVAL) {
@@ -1861,7 +1889,7 @@ impl Rustcord {
                     }
                     return cx.notify();
                 }
-                let Some(watching) = call.watching.as_mut().filter(|w| w.streamer_id == user_id) else { return };
+                let Some(watching) = call.watching.iter_mut().find(|w| w.streamer_id == user_id) else { return };
                 let Some(image) = render_image(&frame) else { return };
                 if let Some(old) = watching.frame.replace(image) {
                     // Each frame is a new GPU texture; the old one must be freed or the atlas grows forever.
@@ -1878,12 +1906,18 @@ impl Rustcord {
                 if let Some(frame) = call.cameras.remove(&user_id) {
                     cx.drop_image(frame, None);
                 }
-                if call.watching.as_ref().is_some_and(|w| w.streamer_id == user_id) {
+                if let Some(watch) = call.unwatch(&user_id) {
                     sounds::play(sounds::Cue::StreamEnded);
-                    if let Some(frame) = call.watching.take().and_then(|w| w.frame) {
+                    if let Some(frame) = watch.frame {
                         cx.drop_image(frame, None);
                     }
-                    self.voice_error = Some(format!("Stream ended: {reason}").into());
+                    // The stage says who stopped; the reason only matters when it wasn't them.
+                    if call.watching.is_empty() {
+                        call.ended = Some(user_id);
+                    }
+                    if reason != "Stream ended" && reason != "user_requested" {
+                        eprintln!("voice: stream ended: {reason}");
+                    }
                 }
             }
             voice::VoiceEvent::Disconnected(reason) => {
@@ -1900,20 +1934,33 @@ impl Rustcord {
         cx.notify();
     }
 
+    // Adds `streamer_id`'s Go Live to the streams we watch and focuses it; Discord lets you watch several.
     fn watch_stream(&mut self, streamer_id: String, cx: &mut Context<Self>) {
+        let mine = self.me.as_ref().is_some_and(|m| m.id == streamer_id);
         let Some(call) = &mut self.call else { return };
-        if call.watching.as_ref().is_some_and(|w| w.streamer_id == streamer_id) {
-            return;
-        }
-        if self.me.as_ref().is_some_and(|m| m.id == streamer_id) {
-            if call.sharing.is_some() {
-                call.watching = Some(Watching { streamer_id, frame: None, _watch: None });
-            }
+        call.ended = None;
+        call.focus = Some(streamer_id.clone());
+        if call.watched(&streamer_id).is_some() {
             return cx.notify();
         }
-        match call.session.watch_stream(&streamer_id) {
-            Ok(watch) => call.watching = Some(Watching { streamer_id, frame: None, _watch: Some(watch) }),
-            Err(error) => self.voice_error = Some(error.into()),
+        let watch = match mine {
+            true if call.sharing.is_some() => None,
+            true => return cx.notify(),
+            false => match call.session.watch_stream(&streamer_id) {
+                Ok(watch) => Some(watch),
+                Err(error) => {
+                    self.voice_error = Some(error.into());
+                    return cx.notify();
+                }
+            },
+        };
+        call.watching.push(Watching { streamer_id, frame: None, _watch: watch });
+        cx.notify();
+    }
+
+    fn unwatch_stream(&mut self, streamer_id: &str, cx: &mut Context<Self>) {
+        if let Some(frame) = self.call.as_mut().and_then(|c| c.unwatch(streamer_id)).and_then(|w| w.frame) {
+            cx.drop_image(frame, None);
         }
         cx.notify();
     }
@@ -1922,12 +1969,15 @@ impl Rustcord {
     fn in_stream(&self, key: &str) -> bool {
         let Some(call) = &self.call else { return false };
         let mine = call.sharing.is_some() && self.me.as_ref().is_some_and(|m| key.ends_with(&format!(":{}", m.id)));
-        let watched = call.watching.as_ref().is_some_and(|w| key.ends_with(&format!(":{}", w.streamer_id)));
+        // Discord announces viewers only for the single stream you're in.
+        let watched = matches!(call.watching.as_slice(), [only] if key.ends_with(&format!(":{}", only.streamer_id)));
         mine || watched
     }
 
     fn stop_watching(&mut self, cx: &mut Context<Self>) {
-        if let Some(frame) = self.call.as_mut().and_then(|c| c.watching.take()).and_then(|w| w.frame) {
+        let Some(call) = &mut self.call else { return };
+        call.focus = None;
+        for frame in call.watching.drain(..).filter_map(|w| w.frame) {
             cx.drop_image(frame, None);
         }
         cx.notify();
@@ -1943,8 +1993,8 @@ impl Rustcord {
             if let Some((frame, _)) = call.self_view.take() {
                 cx.drop_image(frame, None);
             }
-            if self.me.as_ref().is_some_and(|m| call.watching.as_ref().is_some_and(|w| w.streamer_id == m.id)) {
-                self.stop_watching(cx);
+            if let Some(me) = self.me.as_ref().map(|m| m.id.clone()) {
+                self.unwatch_stream(&me, cx);
             }
             return cx.notify();
         }
