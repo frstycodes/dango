@@ -1485,6 +1485,9 @@
     // cursor to wherever that row actually is on screen, then the two swap without a seam.
     flip(() => { if (d.slot) d.slot.replaceWith(d.el); d.el.classList.remove("is-hole"); }, d.el);
     d.el.style.visibility = "hidden";
+    const look = getComputedStyle(d.el);
+    Object.assign(d.ghost.style, { backgroundColor: look.backgroundColor, color: look.color });
+    d.ghost.classList.add("is-landing");
     d.spring.land(() => d.el.getBoundingClientRect(), () => {
       d.el.style.visibility = "";
       d.ghost.remove();
