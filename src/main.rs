@@ -222,6 +222,8 @@ impl Call {
 pub(crate) struct Watching {
     pub(crate) streamer_id: String,
     pub(crate) frame: Option<Arc<RenderImage>>,
+    // When recent frames arrived, for the header's health dot.
+    pub(crate) arrivals: std::collections::VecDeque<Instant>,
     // None for our own Go Live, shown from its local frames: watching it through Discord would
     // end it on stop, since leaving a stream and ending one are the same gateway op.
     _watch: Option<voice::StreamWatch>,
@@ -1891,6 +1893,10 @@ impl Rustcord {
                 }
                 let Some(watching) = call.watching.iter_mut().find(|w| w.streamer_id == user_id) else { return };
                 let Some(image) = render_image(&frame) else { return };
+                watching.arrivals.push_back(Instant::now());
+                while watching.arrivals.len() > 120 {
+                    watching.arrivals.pop_front();
+                }
                 if let Some(old) = watching.frame.replace(image) {
                     // Each frame is a new GPU texture; the old one must be freed or the atlas grows forever.
                     cx.drop_image(old, None);
@@ -1954,7 +1960,7 @@ impl Rustcord {
                 }
             },
         };
-        call.watching.push(Watching { streamer_id, frame: None, _watch: watch });
+        call.watching.push(Watching { streamer_id, frame: None, arrivals: Default::default(), _watch: watch });
         cx.notify();
     }
 
