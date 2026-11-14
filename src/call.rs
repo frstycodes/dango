@@ -1,48 +1,64 @@
-// Everything around a voice call, after Discord: the voice panel over the user panel with its
-// connection stages, the connection details popout, the call view with participant tiles and the
+// Everything around a voice call (design/voice.html): the voice panel over the user panel with its
+// connection stages, the connection details popover, the call stage with its tiles, header and
 // control bar, device menus and the participant menu.
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, Context, Div, FontWeight, Hsla, ImageSource, MouseButton, MouseDownEvent, Pixels, Point, SharedString, Stateful, Window,
+    Animation, AnimationExt, AnyElement, App, BoxShadow, Context, Div, ElementId, FontFeatures, FontWeight, Hsla, ImageSource, MouseButton, MouseDownEvent, Pixels, Point, SharedString, Stateful, Window,
     component::{ActiveTheme, Icon, tooltip::Tooltip},
-    div, img, prelude::*, px, rgb,
+    div, point, prelude::*, px, relative, rgb,
 };
 
 use crate::{
     Rustcord,
-    ui::{self, Tone},
-    menu::{Entry, item, submenu},
     discord::{self, User, VoiceState},
     icons::Glyph,
     layout::RAIL_WIDTH,
+    menu::{Entry, item, submenu},
     palette,
-    settings::{Fill, Page},
+    settings::Page,
+    ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XS},
     voice::{self, Stage},
 };
 
-// Discord's voice panel: 8px padding, a 40px status row, 12px gap, 32px buttons.
-pub const VOICE_HEIGHT: f32 = 100.;
-const GO_LIVE_HEIGHT: f32 = 57.;
-// A warning line under the voice status: 16px of text plus the panel's 12px gap.
-const WARNING_HEIGHT: f32 = 28.;
+// .voicebar: 10px padding, a 38px status block (a 20px line over an 18px one), 8px gap, 32px
+// buttons, and its 1px hairline.
+pub const VOICE_HEIGHT: f32 = 99.;
+const PANEL_PAD: f32 = 10.;
+// The error bar is the voicebar without its buttons.
+const ERROR_HEIGHT: f32 = 59.;
 const PREVIEW_AGE: std::time::Duration = std::time::Duration::from_secs(60);
 // After a failed preview fetch, how long until the next try.
 const PREVIEW_RETRY: std::time::Duration = std::time::Duration::from_secs(20);
-// Discord's call tiles (read from Discord web, 2026-11-14).
-const TILE_RADIUS: f32 = 8.;
-const TILE_GAP: f32 = 8.;
-const STRIP_HEIGHT: f32 = 112.;
+// The stage (.call): 16px padding and gaps around a 32px header and 48px controls.
+const STAGE_PAD: f32 = 16.;
+const STAGE_GAP: f32 = 16.;
+const HEAD_HEIGHT: f32 = 32.;
+const CONTROLS_HEIGHT: f32 = 48.;
+// .tiles: 10px apart, 8px once the grid is three across; avatars shrink in small tiles.
+const TILE_GAP: f32 = 10.;
+const TILE_GAP_DENSE: f32 = 8.;
+const SMALL_TILE: f32 = 240.;
+// .filmstrip under a focused stream.
+const STRIP_TILE: f32 = 148.;
+const STRIP_GAP: f32 = 8.;
 const STRIP_LIMIT: usize = 12;
 const RECENT_SPEAKER: std::time::Duration = std::time::Duration::from_secs(10);
 const CONTROLS_IDLE: Duration = Duration::from_secs(3);
-const PIP_WIDTH: f32 = 240.;
 const CHAT_WIDTH: f32 = 340.;
-const PIP_INSET: f32 = 16.;
+// .pip: 30% of the tile area, 132 to 220px wide, 16:10, 12px from its corner.
+const PIP_INSET: f32 = 12.;
 const PIP_DECELERATION: f32 = 0.995;
-const PIP_SNAP: Duration = Duration::from_millis(320);
-const HEADER_HEIGHT: f32 = 48.;
-const CONTROLS_HEIGHT: f32 = 96.;
+const PIP_SNAP: Duration = ui::DUR_PANEL;
+// The connection popover's colour bands (its legend): under 80 ms, 80 to 120, over 120.
+const PING_FAIR: u32 = 80;
+const PING_BAD: u32 = 120;
+// When the panel says "Poor connection": a bad average ping, or this much packet loss.
+const LOSS_POOR_PCT: f32 = 5.;
+const METER_BARS: usize = 28;
 
 // How several watched streams share the stage: one large with the rest small, or an even grid.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -60,6 +76,8 @@ pub enum Corner {
     BottomRight,
 }
 
+const CORNERS: [Corner; 4] = [Corner::TopLeft, Corner::TopRight, Corner::BottomLeft, Corner::BottomRight];
+
 impl Corner {
     // The corner a released self-view heads for: where its centre would coast to at its release
     // velocity (px/s) under scroll-like deceleration, so a flick throws it across the stage.
@@ -74,12 +92,12 @@ impl Corner {
         }
     }
 
-    // Top-left of a self-view sitting in this corner of a stage of `stage` size.
+    // Top-left of a self-view sitting in this corner of the stage's tile area.
     fn spot(self, stage: (f32, f32)) -> (f32, f32) {
-        let left = PIP_INSET;
-        let right = stage.0 - PIP_WIDTH - PIP_INSET;
-        let top = HEADER_HEIGHT + 8.;
-        let bottom = stage.1 - CONTROLS_HEIGHT - PIP_WIDTH * 9. / 16. - 8.;
+        let (x, y, w, h) = tile_area(stage);
+        let (pw, ph) = pip_size(stage);
+        let (left, top) = (x + PIP_INSET, y + PIP_INSET);
+        let (right, bottom) = (x + w - pw - PIP_INSET, y + h - ph - PIP_INSET);
         match self {
             Corner::TopLeft => (left, top),
             Corner::TopRight => (right, top),
@@ -87,6 +105,17 @@ impl Corner {
             Corner::BottomRight => (right, bottom),
         }
     }
+}
+
+// The stage's tile area (left, top, width, height), between its header and controls.
+fn tile_area(stage: (f32, f32)) -> (f32, f32, f32, f32) {
+    let top = STAGE_PAD + HEAD_HEIGHT + STAGE_GAP;
+    (STAGE_PAD, top, stage.0 - STAGE_PAD * 2., (stage.1 - top - CONTROLS_HEIGHT - STAGE_GAP - STAGE_PAD).max(0.))
+}
+
+fn pip_size(stage: (f32, f32)) -> (f32, f32) {
+    let w = (tile_area(stage).2 * 0.3).clamp(132., 220.);
+    (w, w * 10. / 16.)
 }
 
 // A self-view being dragged: where the pointer and view started, and recent pointer samples for
@@ -102,7 +131,6 @@ enum Tile {
     User(VoiceState),
     Stream(VoiceState),
 }
-const ERROR_HEIGHT: f32 = 56.;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum DeviceKind {
@@ -114,31 +142,69 @@ pub enum DeviceKind {
 pub struct DeviceMenu {
     kind: DeviceKind,
     at: Point<Pixels>,
-    devices: Vec<voice::Device>,
+    // Opened from the call controls, so it takes the stage's dark tokens.
+    on_stage: bool,
+    inputs: Vec<voice::Device>,
+    outputs: Vec<voice::Device>,
+    cameras: Vec<voice::Device>,
 }
 
-// Discord's names for each connection stage, and the colour its status line takes.
-fn stage_text(stage: Stage) -> &'static str {
-    match stage {
-        Stage::AwaitingEndpoint => "Awaiting Endpoint",
-        Stage::Authenticating => "Authenticating",
-        Stage::RtcConnecting => "RTC Connecting",
-        Stage::IceChecking => "ICE Checking",
-        Stage::DtlsConnecting => "DTLS Connecting",
-        Stage::Connected => "Voice Connected",
-        Stage::NoRoute => "No Route",
-        Stage::Disconnected => "RTC Disconnected",
+// Where the connection stands, as the voice panel words and colours it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Link {
+    Connecting,
+    Connected,
+    Poor,
+    Lost,
+}
+
+impl Link {
+    fn of(stage: Stage, stats: Option<&voice::Stats>) -> Self {
+        match stage {
+            Stage::Connected if stats.is_some_and(|s| s.avg_ping_ms > PING_BAD || loss(s) >= LOSS_POOR_PCT) => Link::Poor,
+            Stage::Connected => Link::Connected,
+            Stage::NoRoute | Stage::Disconnected => Link::Lost,
+            _ => Link::Connecting,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Link::Connecting => "Connecting…",
+            Link::Connected => "Voice connected",
+            Link::Poor => "Poor connection",
+            Link::Lost => "Reconnecting…",
+        }
+    }
+
+    // .voicebar's --tone: muted while it connects, green when up, amber when something needs you.
+    fn tone(self, cx: &App) -> Hsla {
+        match self {
+            Link::Connecting => palette::muted(cx),
+            Link::Connected => palette::positive_ink(cx),
+            Link::Poor | Link::Lost => palette::warning_ink(cx),
+        }
     }
 }
 
-// Not verified: Discord's exact ping bands for its signal icon; these follow its "above 250 ms" warning.
-fn signal(ping: Option<u32>) -> (Glyph, Hsla) {
-    let good = palette::status(discord::Status::Online);
+fn loss(stats: &voice::Stats) -> f32 {
+    stats.inbound_loss_pct.max(stats.outbound_loss_pct)
+}
+
+// A ping's band in the connection graph.
+fn ping_color(ping: u32, cx: &App) -> Hsla {
     match ping {
-        None => (Glyph::ConnectionUnknown, good),
-        Some(p) if p < 150 => (Glyph::ConnectionFine, good),
-        Some(p) if p < 250 => (Glyph::ConnectionAverage, palette::status(discord::Status::Idle)),
-        Some(_) => (Glyph::ConnectionBad, palette::status(discord::Status::Dnd)),
+        p if p < PING_FAIR => palette::status_in(discord::Status::Online, cx),
+        p if p <= PING_BAD => palette::status_in(discord::Status::Idle, cx),
+        _ => palette::status_in(discord::Status::Dnd, cx),
+    }
+}
+
+fn quality_word(ping: u32) -> &'static str {
+    match ping {
+        p if p < PING_FAIR => "Good",
+        p if p <= PING_BAD => "Fair",
+        _ => "Poor",
     }
 }
 
@@ -278,8 +344,8 @@ impl Rustcord {
         self.stream_previews.get(user_id).map(|(url, _)| url.clone()).filter(|url| !url.is_empty())
     }
 
-    // Discord's in-call warnings: a mic that sends nothing, and Advanced suppression that had to
-    // fall back to RNNoise because this computer can't keep up with it.
+    // In-call warnings: a mic that sends nothing, and Advanced suppression that had to fall back to
+    // RNNoise because this computer can't keep up with it.
     fn voice_warning(&self) -> Option<&'static str> {
         let call = self.call.as_ref()?;
         let silent = self.prefs.silence_warning && !self.muted && !self.deafened && call.session.input_detected() == Some(false);
@@ -291,9 +357,8 @@ impl Rustcord {
     }
 
     pub(crate) fn voice_panel_height(&self) -> f32 {
-        let warning = if self.voice_warning().is_some() { WARNING_HEIGHT } else { 0. };
         match (&self.call, &self.voice_error) {
-            (Some(call), _) => VOICE_HEIGHT + warning + if call.sharing.is_some() { GO_LIVE_HEIGHT } else { 0. },
+            (Some(_), _) => VOICE_HEIGHT,
             (None, Some(_)) => ERROR_HEIGHT,
             (None, None) => 0.,
         }
@@ -303,210 +368,139 @@ impl Rustcord {
         std::mem::take(&mut self.connection_info) | self.device_menu.take().is_some()
     }
 
-    // "Voice Connected" (or the stage it's at), the channel and server, the hang-up button, then
-    // Discord's row of call buttons.
+    // .voicebar: the connection's state and where you are (or why it needs you), the one button
+    // that leaves, then camera, share and activities.
     pub(crate) fn voice_panel(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let theme = cx.theme().clone();
-        let Some(call) = &self.call else {
-            let error = self.voice_error.clone()?;
-            return Some(
-                div()
-                    .h(px(ERROR_HEIGHT))
-                    .px_3()
-                    .flex()
-                    .items_center()
-                    .gap_2()
-                    .border_b_1()
-                    .border_color(theme.border)
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .flex()
-                            .flex_col()
-                            .child(div().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(theme.danger).child("Voice Disconnected"))
-                            .child(div().truncate().text_size(px(12.)).text_color(theme.muted_foreground).child(error)),
-                    )
-                    .child(ui::icon_button("dismiss-voice", Glyph::X, "Dismiss", cx).on_click(cx.listener(|this, _, _, cx| {
-                        this.voice_error = None;
-                        cx.notify();
-                    })))
-                    .into_any_element(),
-            );
-        };
+        let Some(call) = &self.call else { return self.voice_error_panel(cx) };
+        let link = Link::of(call.stage, call.stats.as_ref());
+        let tone = link.tone(cx);
         let connected = call.stage == Stage::Connected;
-        // --text-feedback-positive / -warning / -critical, Discord's status text.
-        let color: Hsla = match call.stage {
-            Stage::Connected => rgb(0x41A063).into(),
-            Stage::NoRoute | Stage::Disconnected => rgb(0xEB5F5E).into(),
-            _ => rgb(0xCE8100).into(),
-        };
         let ping = call.stats.as_ref().map(|s| s.ping_ms);
-        let (glyph, quality) = signal(ping);
         let place = match call.guild_id.as_ref().and_then(|id| self.guilds.iter().find(|g| &g.id == id)) {
-            Some(guild) => format!("{} / {}", call.channel.name, guild.name),
+            Some(guild) => format!("{} · {}", call.channel.name, guild.name),
             None => call.channel.name.clone(),
         };
         let channel = call.channel.clone();
-        // Discord's large ping: an 18px signal in a 32px tile tinted by connection quality.
-        let ping_tile = div()
-            .id("voice-ping")
-            .size(px(32.))
-            .flex_none()
-            .rounded(px(8.))
-            .bg(quality.opacity(0.08))
-            .border_1()
-            .border_color(palette::wash(0.16))
-            .flex()
-            .items_center()
-            .justify_center()
-            .cursor_pointer()
-            .text_color(quality)
-            .child(Icon::new(glyph).size(px(18.)))
-            .on_click(cx.listener(|this, _, _, cx| {
-                this.connection_info = !this.connection_info;
-                cx.notify();
-            }));
+        let second: AnyElement = match (link, call.stats.as_ref(), self.voice_warning()) {
+            (Link::Poor, Some(stats), _) => why_line(format!("{} ms ping, {:.0}% packet loss", stats.avg_ping_ms, loss(stats)), tone).into_any_element(),
+            (Link::Lost, _, _) => why_line("Lost the connection, retrying", tone).into_any_element(),
+            (_, _, Some(warning)) => why_line(warning, palette::warning_ink(cx))
+                .id("voice-warning")
+                .cursor_pointer()
+                .hover(|s| s.underline())
+                .on_click(cx.listener(|this, _, window, cx| {
+                    cx.stop_propagation();
+                    this.open_settings(Page::VoiceVideo, window, cx);
+                }))
+                .into_any_element(),
+            _ => div()
+                .id("voice-place")
+                .h(px(18.))
+                .truncate()
+                .text_size(px(12.))
+                .text_color(palette::faint(cx))
+                .hover(|s| s.underline())
+                .child(place)
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    cx.stop_propagation();
+                    this.show_call(channel.clone(), window, cx);
+                }))
+                .into_any_element(),
+        };
+        let bars: AnyElement = match link {
+            Link::Connecting | Link::Lost => ui::bars("voice-bars", tone, 12.),
+            Link::Connected => still_bars(tone, 12., false).into_any_element(),
+            Link::Poor => still_bars(tone, 12., true).into_any_element(),
+        };
+        let tip: SharedString = match (link, ping) {
+            (Link::Connected | Link::Poor, Some(ms)) => format!("{ms} ms ping, {} connection. Click for details", quality_word(ms).to_lowercase()).into(),
+            _ => "Click for connection details".into(),
+        };
+        let hover = palette::hover(cx);
         let status = div()
             .id("voice-status")
             .flex_1()
             .min_w_0()
-            .flex()
-            .flex_col()
+            .mx(px(-6.))
+            .my(px(-4.))
+            .px(px(6.))
+            .py(px(4.))
+            .rounded(px(RADIUS_SM))
             .cursor_pointer()
-            .child(div().truncate().h(px(20.)).text_size(px(16.)).line_height(px(20.)).font_weight(FontWeight::SEMIBOLD).text_color(color).child(stage_text(call.stage)))
-            .child(
-                div()
-                    .id("voice-place")
-                    .truncate()
-                    .text_size(px(14.))
-                    .line_height(px(18.))
-                    .text_color(theme.muted_foreground)
-                    .hover(|s| s.underline())
-                    .child(place)
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        cx.stop_propagation();
-                        this.show_call(channel.clone(), window, cx);
-                    })),
-            )
+            .hover(move |s| s.bg(hover))
+            .when(self.connection_info, |d| d.bg(hover))
+            .child(div().h(px(20.)).flex().items_center().gap(px(6.)).text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(tone).child(bars).child(div().truncate().child(link.label())))
+            .child(second)
+            .tooltip(move |window, cx| Tooltip::new(tip.clone()).build(window, cx))
             .on_click(cx.listener(|this, _, _, cx| {
                 this.connection_info = !this.connection_info;
                 cx.notify();
             }));
-        let noise = self.prefs.noise_suppression;
-        let header = div()
-            .h(px(40.))
-            .flex()
-            .items_center()
-            .gap_2()
-            .child(ping_tile)
-            .child(status)
-            .child(
-                ui::icon_button("noise", Glyph::Waveform, if noise { "Disable Noise Suppression" } else { "Enable Noise Suppression" }, cx)
-                    .when(noise, |b| b.text_color(theme.foreground))
-                    .on_click(cx.listener(|this, _, _, cx| this.toggle_noise_suppression(cx))),
-            )
-            .child(panel_button_tinted("hang-up", Glyph::CallEnd, "Disconnect", Some(palette::danger()), cx).on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx))));
+        let leave_tip = if link == Link::Connecting { "Cancel joining" } else { "Disconnect" };
+        let top = div().flex().items_center().gap(px(8.)).child(status).child(ui::icon_button("hang-up", Glyph::CallEnd, leave_tip, cx).on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx))));
+        let wait = if link == Link::Lost { "Available once you're reconnected" } else { "Available once you're connected" };
+        let ready = |label: &'static str| if connected { label } else { wait };
         let sharing = call.sharing.is_some();
-        let actions = div()
-            .flex()
-            .gap_2()
-            .child(wide_button("panel-camera", if call.camera_on { Glyph::Video } else { Glyph::VideoOff }, if call.camera_on { "Turn Off Camera" } else { "Turn On Camera" }, call.camera_on, connected, cx).on_click(cx.listener(|this, _, _, cx| this.toggle_camera(cx))))
-            .child(match sharing {
-                true => wide_button("panel-share", Glyph::ShareScreen, "Stream Options", true, connected, cx).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stream_menu(e.position, cx))),
-                false => wide_button("panel-share", Glyph::ShareScreen, "Share Your Screen", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx))),
-            })
-            .child(wide_button("panel-activities", Glyph::Activities, "Start an Activity", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities aren't in Wave yet", cx))))
-            .child(wide_button("panel-soundboard", Glyph::Soundboard, "Open Soundboard", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.show_toast("The soundboard isn't in Wave yet", cx))));
-        let warning = self.voice_warning();
+        let camera = panel_action("panel-camera", Glyph::Video, ready(if call.camera_on { "Turn off camera" } else { "Turn on camera" }), connected, cx)
+            .when(call.camera_on, |b| b.bg(palette::strong(cx)).text_color(palette::surface(palette::Level::Page, cx)))
+            .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_camera(cx))));
+        let share = match sharing {
+            true => panel_action("panel-share", Glyph::ShareScreen, "Stream options", true, cx)
+                .bg(palette::accent())
+                .text_color(gpui_kit::white())
+                .hover(|s| s.bg(palette::accent_hover()))
+                .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stream_menu(e.position, cx))),
+            false => panel_action("panel-share", Glyph::ShareScreen, ready("Share your screen"), connected, cx).when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx)))),
+        };
+        let activities = panel_action("panel-activities", Glyph::Activities, ready("Activities and soundboard"), connected, cx)
+            .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities and the soundboard aren't in Wave yet", cx))));
         let voice = div()
-            .min_h(px(VOICE_HEIGHT))
-            .p_2()
+            .h(px(VOICE_HEIGHT))
+            .flex_none()
+            .p(px(PANEL_PAD))
             .flex()
             .flex_col()
-            .gap(px(12.))
+            .gap(px(8.))
+            .rounded_t(px(RADIUS_MD))
+            .bg(palette::surface(palette::Level::Rail, cx))
             .border_b_1()
-            .border_color(palette::wash(0.16))
-            .child(header)
-            .children(warning.map(|text| {
-                div()
-                    .id("voice-warning")
-                    .h(px(16.))
-                    .flex()
-                    .items_center()
-                    .gap_2()
-                    .text_size(px(12.))
-                    .text_color(rgb(0xCE8100))
-                    .cursor_pointer()
-                    .child(Icon::new(Glyph::Help).size(px(14.)))
-                    .child(div().min_w_0().truncate().child(text))
-                    .on_click(cx.listener(|this, _, window, cx| this.open_settings(Page::VoiceVideo, window, cx)))
-            }))
-            .child(actions);
-        Some(div().flex().flex_col().children(self.go_live_panel(cx)).child(voice).into_any_element())
+            .border_color(palette::line(cx))
+            .child(top)
+            .child(div().flex().gap(px(6.)).child(camera).child(share).child(activities));
+        Some(voice.into_any_element())
     }
 
-    // Above the voice panel while we share: our stream's live thumbnail, what it is, its quality,
-    // who's watching and for how long. Clicking it opens the stream menu.
-    fn go_live_panel(&self, cx: &mut Context<Self>) -> Option<impl IntoElement> {
-        let call = self.call.as_ref()?;
-        call.sharing.as_ref()?;
-        let theme = cx.theme().clone();
-        let label = call.share_label.clone().unwrap_or_else(|| "Screen".into());
-        // Discord colours quality above its free tier (720p 30fps) in Nitro pink.
-        let boosted = self.prefs.stream_resolution == 0 || self.prefs.stream_resolution > 720 || self.prefs.stream_fps > 30;
-        let quality_ink: Hsla = if boosted { rgb(0xFF73FA).into() } else { theme.muted_foreground };
-        let viewers = self.own_viewers();
-        let since = call.live_since.map(|t| clock(t.elapsed().as_secs())).unwrap_or_default();
-        let thumb = match &call.self_view {
-            Some((frame, _)) => img(ImageSource::Render(frame.clone())).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
-            None => div().size_full().bg(rgb(0x45A796)).into_any_element(),
-        };
-        let watching = match viewers {
-            0 => String::new(),
-            n => format!(" · {n} watching"),
-        };
+    // The voicebar's danger state once a call is gone: what happened, and a way to dismiss it.
+    fn voice_error_panel(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let error = self.voice_error.clone()?;
+        let tone = palette::danger_ink(cx);
         Some(
             div()
-                .id("go-live-card")
-                .h(px(GO_LIVE_HEIGHT))
-                .px_2()
+                .h(px(ERROR_HEIGHT))
+                .p(px(PANEL_PAD))
                 .flex()
                 .items_center()
-                .gap_3()
-                .cursor_pointer()
+                .gap(px(8.))
+                .rounded_t(px(RADIUS_MD))
+                .bg(palette::surface(palette::Level::Rail, cx))
                 .border_b_1()
-                .border_color(palette::wash(0.16))
-                .hover(|s| s.bg(palette::wash(0.12)))
-                .child(div().relative().w(px(64.)).h(px(36.)).flex_none().rounded(px(4.)).overflow_hidden().child(thumb).child(div().absolute().left(px(3.)).top(px(3.)).child(ui::live_badge().h(px(12.)).text_size(px(8.)))))
+                .border_color(palette::line(cx))
                 .child(
                     div()
                         .flex_1()
                         .min_w_0()
-                        .flex()
-                        .flex_col()
-                        .child(div().truncate().text_size(px(14.)).font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(label))
-                        .child(
-                            div()
-                                .truncate()
-                                .text_size(px(12.))
-                                .text_color(theme.muted_foreground)
-                                .child(gpui_kit::StyledText::new(format!("{}{watching} · {since}", quality_label(self.prefs.stream_resolution, self.prefs.stream_fps))).with_highlights([(0..quality_label(self.prefs.stream_resolution, self.prefs.stream_fps).len(), gpui_kit::HighlightStyle { color: Some(quality_ink), ..Default::default() })])),
-                        ),
+                        .child(div().h(px(20.)).flex().items_center().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(tone).child("Voice disconnected"))
+                        .child(why_line(error, tone)),
                 )
-                .child(Icon::new(Glyph::ChevronRight).size(px(16.)).text_color(theme.muted_foreground))
-                .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stream_menu(e.position, cx)))
-                .with_animation("go-live-card-in", Animation::new(Duration::from_millis(220)), |d, t| d.opacity(t.min(1.)).mt(px((1. - crate::motion::back_out(t)) * 8.))),
+                .child(ui::icon_button("dismiss-voice", Glyph::X, "Dismiss", cx).on_click(cx.listener(|this, _, _, cx| {
+                    this.voice_error = None;
+                    cx.notify();
+                })))
+                .into_any_element(),
         )
     }
 
-    fn own_viewers(&self) -> usize {
-        let Some(me) = &self.me else { return 0 };
-        let suffix = format!(":{}", me.id);
-        self.stream_viewers.iter().find(|(key, _)| key.ends_with(&suffix)).map_or(0, |(_, v)| v.iter().filter(|id| **id != me.id).count())
-    }
-
-    // Discord's stream menu, opened from the share button or the Go Live card while we're live.
+    // The stream menu, opened from the share button while we're live.
     pub(crate) fn open_stream_menu(&mut self, at: Point<Pixels>, cx: &mut Context<Self>) {
         cx.stop_propagation();
         self.open_live_menu(at, |this| this.stream_menu(), cx);
@@ -700,67 +694,40 @@ impl Rustcord {
         cx.notify();
     }
 
-    // The call view: a grid of 16:9 tiles, or the watched stream large over a collapsible strip of
-    // everyone else. The header and control bar float over the stage and fade out while the pointer
-    // is still, as Discord's do.
+    // .call: the stage, dark in both themes. The header, the tiles (or the watched streams over a
+    // filmstrip) and the control bar; over a stream the chrome steps aside while the pointer rests.
     pub(crate) fn render_call(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let call = self.call.as_ref()?;
         let tiles = self.ordered_tiles();
         let viewport = window.viewport_size();
         let chat = if self.call_chat && self.channel.as_ref().is_some_and(|c| c.id == call.channel.id) { CHAT_WIDTH } else { 0. };
-        let (width, height) = match self.call_fullscreen {
-            true => (f32::from(viewport.width) - 32. - chat, f32::from(viewport.height)),
-            false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - 32. - chat, f32::from(viewport.height) - 32. - 16.),
-        };
-        let chrome = !self.call_idle();
         let stage_size = match self.call_fullscreen {
             true => (f32::from(viewport.width) - chat, f32::from(viewport.height)),
             false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - chat, f32::from(viewport.height) - crate::layout::TITLE_HEIGHT - 1.),
         };
-        let ended = call.ended.clone().filter(|_| call.watching.is_empty());
-        let stage: AnyElement = match (call.watching.is_empty(), ended) {
-            (false, _) => self.stream_stage(&tiles, width, height, cx),
-            (true, Some(streamer)) => self.ended_stage(&streamer, cx),
-            (true, None) => {
-                let grid_h = height - HEADER_HEIGHT - CONTROLS_HEIGHT;
-                let n = tiles.len().max(1);
-                // The column count that makes the biggest 16:9 tiles fit the stage.
-                let size = |cols: usize| {
-                    let rows = n.div_ceil(cols) as f32;
-                    let w = (width - TILE_GAP * (cols as f32 - 1.)) / cols as f32;
-                    w.min((grid_h - TILE_GAP * (rows - 1.)) / rows * 16. / 9.)
-                };
-                let cols = (1..=n).max_by(|a, b| size(*a).total_cmp(&size(*b))).unwrap_or(1);
-                let tile_w = size(cols).max(124.);
-                let rendered: Vec<AnyElement> = tiles.iter().map(|t| self.tile(t, tile_w, tile_w * 9. / 16., false, cx)).collect();
-                div()
-                    .size_full()
-                    .pt(px(HEADER_HEIGHT))
-                    .pb(px(CONTROLS_HEIGHT))
-                    .flex()
-                    .flex_wrap()
-                    .items_center()
-                    .justify_center()
-                    .content_center()
-                    .gap(px(TILE_GAP))
-                    .children(rendered)
-                    .into_any_element()
-            }
+        let (_, _, width, height) = tile_area(stage_size);
+        let watching = !call.watching.is_empty();
+        let ended = call.ended.clone().filter(|_| !watching);
+        let body: AnyElement = match (watching, ended) {
+            (true, _) => self.stream_stage(&tiles, width, height, cx),
+            (false, Some(streamer)) => self.ended_stage(&streamer, width, height, cx),
+            (false, None) => self.tile_grid(&tiles, width, height, cx),
         };
-        // Discord's idle rule: the chrome fades over 200ms while the top bar rises 8px and the bottom bar drops 8px.
-        let fade = |id: &'static str, rise: f32, el: AnyElement| {
-            div().relative().with_animation(SharedString::from(format!("{id}-{chrome}")), Animation::new(Duration::from_millis(200)), move |d, t| {
-                let shown = if chrome { t } else { 1. - t };
-                d.opacity(shown).top(px(rise * (1. - shown)))
-            })
-            .child(el)
-        };
+        // .call.autohide: 260ms out, drifting 6px toward its edge; any move brings it back.
+        let rest = watching && self.call_idle();
+        let shown = gpui_kit::base::transition("call-chrome", if rest { 0. } else { 1. }, gpui_kit::base::Transition::new(ui::DUR_PANEL), window, cx);
+        let drift = 6. * (1. - shown);
         Some(
             div()
                 .id("call-view")
                 .relative()
                 .size_full()
-                .bg(gpui_kit::black())
+                .p(px(STAGE_PAD))
+                .flex()
+                .flex_col()
+                .gap(px(STAGE_GAP))
+                .bg(stage::bg())
+                .text_color(stage::text())
                 .on_mouse_move(cx.listener(|this, e: &gpui_kit::MouseMoveEvent, _, cx| {
                     let was_idle = this.call_idle();
                     this.call_pointer_at = Instant::now();
@@ -770,105 +737,169 @@ impl Rustcord {
                 }))
                 .on_mouse_up(MouseButton::Left, cx.listener(move |this, e: &gpui_kit::MouseUpEvent, _, cx| this.drop_pip(e.position, stage_size, cx)))
                 .on_mouse_up_out(MouseButton::Left, cx.listener(move |this, e: &gpui_kit::MouseUpEvent, _, cx| this.drop_pip(e.position, stage_size, cx)))
-                .child(div().size_full().px_4().child(stage))
+                .child(div().relative().top(px(-drift)).opacity(shown).child(self.call_header(cx)))
+                .child(div().flex_1().min_h_0().child(body))
+                .child(div().relative().top(px(drift)).opacity(shown).child(self.call_controls(cx)))
                 .children(self.self_view(stage_size, window, cx))
-                .child(div().absolute().top_0().left_0().right_0().child(fade("call-header", -8., self.call_header(cx))))
-                .child(div().absolute().bottom_0().left_0().right_0().child(fade("call-controls", 8., self.call_controls(cx).into_any_element())))
                 .into_any_element(),
         )
     }
 
-    // Our own stream in a corner of the stage, straight from the capture: it hangs from the pointer
-    // while dragged and glides into the corner it's thrown toward. Clicking it watches it full size.
-    fn self_view(&self, stage: (f32, f32), window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let call = self.call.as_ref()?;
-        call.sharing.as_ref()?;
+    // .tiles: the size that makes the biggest 16:9 tiles fit, 10px apart (8px three across and up).
+    fn tile_grid(&self, tiles: &[Tile], width: f32, height: f32, cx: &mut Context<Self>) -> AnyElement {
+        let n = tiles.len().max(1);
+        let gap = |cols: usize| if cols >= 3 { TILE_GAP_DENSE } else { TILE_GAP };
+        let size = |cols: usize| {
+            let rows = n.div_ceil(cols) as f32;
+            let w = (width - gap(cols) * (cols as f32 - 1.)) / cols as f32;
+            w.min((height - gap(cols) * (rows - 1.)) / rows * 16. / 9.)
+        };
+        let cols = (1..=n).max_by(|a, b| size(*a).total_cmp(&size(*b))).unwrap_or(1);
+        let tile_w = size(cols).max(124.);
+        let rendered: Vec<AnyElement> = tiles.iter().map(|t| self.tile(t, tile_w, cx)).collect();
+        div().size_full().flex().flex_wrap().items_center().justify_center().content_center().gap(px(gap(cols))).children(rendered).into_any_element()
+    }
+
+    // Our own stream in a corner of the tile area, straight from the capture: it lifts and follows
+    // the pointer while dragged, with the four corners showing as wells, and springs into the one
+    // it's thrown toward. Clicking it watches it full size. Closed, a small control stays in its
+    // corner to bring it back.
+    fn self_view(&self, stage: (f32, f32), window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let Some(call) = self.call.as_ref().filter(|c| c.sharing.is_some()) else { return Vec::new() };
         let watching_self = self.me.as_ref().is_some_and(|m| call.watched(&m.id).is_some());
-        if !self.pip_shown || watching_self {
-            return None;
+        if watching_self {
+            return Vec::new();
         }
+        if !self.pip_shown {
+            return vec![self.pip_restore(stage, cx)];
+        }
+        let (w, h) = pip_size(stage);
         let target = self.pip_corner.spot(stage);
         let (x, y) = match (&self.pip_drag, self.pip_snap) {
             (Some(drag), _) => drag.pos,
             (None, Some((from, at))) if at.elapsed() < PIP_SNAP => {
                 window.request_animation_frame();
-                let t = crate::motion::back_out((at.elapsed().as_secs_f32() / PIP_SNAP.as_secs_f32()).min(1.));
+                let t = ease_spring((at.elapsed().as_secs_f32() / PIP_SNAP.as_secs_f32()).min(1.));
                 (from.0 + (target.0 - from.0) * t, from.1 + (target.1 - from.1) * t)
             }
             _ => target,
         };
-        let frame: AnyElement = match &call.self_view {
-            Some((frame, _)) => img(ImageSource::Render(frame.clone())).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
-            None => div().size_full().bg(palette::call_tile()).into_any_element(),
-        };
-        let viewers = self.own_viewers();
         let dragging = self.pip_drag.is_some();
-        Some(
+        let near = Corner::thrown((x + w / 2., y + h / 2.), (0., 0.), stage);
+        let wells = CORNERS.into_iter().filter(|_| dragging).map(|corner| {
+            let (wx, wy) = corner.spot(stage);
+            let lit = corner == near;
             div()
-                .id("self-view")
-                .group("self-view")
                 .absolute()
-                .left(px(x))
-                .top(px(y))
-                .w(px(PIP_WIDTH))
-                .h(px(PIP_WIDTH * 9. / 16.))
-                .rounded(px(10.))
-                .overflow_hidden()
-                .border_1()
-                .border_color(gpui_kit::white().opacity(0.12))
-                .shadow_lg()
-                .cursor(if dragging { gpui_kit::CursorStyle::ClosedHand } else { gpui_kit::CursorStyle::OpenHand })
-                .child(frame)
-                .child(
-                    div()
-                        .absolute()
-                        .left(px(8.))
-                        .right(px(8.))
-                        .bottom(px(8.))
-                        .flex()
-                        .items_center()
-                        .gap_1()
-                        .text_size(px(12.))
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(gpui_kit::white())
-                        .child(ui::live_badge())
-                        .child("Your stream")
-                        .child(div().flex_1())
-                        .when(viewers > 0, |d| d.child(div().px_1().rounded(px(6.)).bg(gpui_kit::black().opacity(0.56)).child(format!("{viewers} watching")))),
-                )
-                .child(
-                    div()
-                        .id("self-view-close")
-                        .absolute()
-                        .top(px(6.))
-                        .right(px(6.))
-                        .size(px(24.))
-                        .rounded_full()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .bg(gpui_kit::black().opacity(0.6))
-                        .text_color(gpui_kit::white())
-                        .opacity(0.)
-                        .group_hover("self-view", |s| s.opacity(1.))
-                        .hover(|s| s.bg(gpui_kit::black().opacity(0.85)))
-                        .child(Icon::new(Glyph::X).size(px(14.)))
-                        .tooltip(|window, cx| Tooltip::new("Hide Self-View").build(window, cx))
-                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.pip_shown = false;
-                            cx.notify();
-                        })),
-                )
-                .on_mouse_down(MouseButton::Left, cx.listener(move |this, e: &MouseDownEvent, _, cx| {
-                    cx.stop_propagation();
-                    this.pip_snap = None;
-                    this.pip_drag = Some(PipDrag { start_mouse: e.position, start: (x, y), pos: (x, y), samples: vec![(e.position, Instant::now())] });
-                    cx.notify();
-                }))
-                .with_animation("self-view-in", Animation::new(Duration::from_millis(220)), |d, t| d.opacity(t.min(1.)))
-                .into_any_element(),
-        )
+                .left(px(wx))
+                .top(px(wy))
+                .w(px(w))
+                .h(px(h))
+                .rounded(px(RADIUS_LG))
+                .bg(if lit { palette::accent().opacity(0.18) } else { stage::wash(0.05) })
+                .border(px(if lit { 2. } else { 1.5 }))
+                .border_color(if lit { palette::accent() } else { stage::wash(0.24) })
+                .into_any_element()
+        });
+        let frame: AnyElement = match &call.self_view {
+            Some((frame, _)) => ui::media(ImageSource::Render(frame.clone()), ui::all(RADIUS_LG)).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
+            None => div().size_full().rounded(px(RADIUS_LG)).bg(stage::page()).into_any_element(),
+        };
+        // .pip: 0 10px 28px black 55% under a 1px white edge; deeper while lifted.
+        let lift = if dragging { (18., 40., 0.6, 0.18) } else { (10., 28., 0.55, 0.12) };
+        let shadow = vec![
+            BoxShadow { color: gpui_kit::black().opacity(lift.2), offset: point(px(0.), px(lift.0)), blur_radius: px(lift.1), spread_radius: px(0.), inset: false },
+            BoxShadow { color: stage::wash(lift.3), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false },
+        ];
+        // PATCH(transform): scale the self-view to 1.04 while dragged (.pip.is-dragging), easing back on release.
+        let pip = div()
+            .id("self-view")
+            .group("self-view")
+            .absolute()
+            .left(px(x))
+            .top(px(y))
+            .w(px(w))
+            .h(px(h))
+            .rounded(px(RADIUS_LG))
+            .shadow(shadow)
+            .cursor(if dragging { gpui_kit::CursorStyle::ClosedHand } else { gpui_kit::CursorStyle::OpenHand })
+            .child(frame)
+            .child(scrim_bottom(RADIUS_LG))
+            .child(div().absolute().left(px(10.)).right(px(10.)).bottom(px(8.)).flex().items_center().gap(px(6.)).text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(gpui_kit::white()).child(div().truncate().child("You")))
+            .child(
+                div()
+                    .id("self-view-close")
+                    .absolute()
+                    .top(px(4.))
+                    .right(px(4.))
+                    .size(px(24.))
+                    .rounded(px(RADIUS_XS))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .bg(gpui_kit::black().opacity(0.5))
+                    .text_color(gpui_kit::white())
+                    .opacity(0.)
+                    .when(!dragging, |d| d.group_hover("self-view", |s| s.opacity(1.)))
+                    .hover(|s| s.bg(gpui_kit::black().opacity(0.7)))
+                    .child(Icon::new(Glyph::X).size(px(14.)))
+                    .tooltip(|window, cx| Tooltip::new("Hide self-view. Others still see your stream").build(window, cx))
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.pip_shown = false;
+                        cx.notify();
+                    })),
+            )
+            .on_mouse_down(MouseButton::Left, cx.listener(move |this, e: &MouseDownEvent, _, cx| {
+                cx.stop_propagation();
+                this.pip_snap = None;
+                this.pip_drag = Some(PipDrag { start_mouse: e.position, start: (x, y), pos: (x, y), samples: vec![(e.position, Instant::now())] });
+                cx.notify();
+            }))
+            .into_any_element();
+        wells.chain([pip]).collect()
+    }
+
+    // .pip-restore: "Show self-view", left in the corner the self-view closed from.
+    fn pip_restore(&self, stage: (f32, f32), cx: &mut Context<Self>) -> AnyElement {
+        let (x, y, w, h) = tile_area(stage);
+        let (right_gap, bottom_gap) = (stage.0 - x - w + PIP_INSET, stage.1 - y - h + PIP_INSET);
+        let ring = vec![
+            BoxShadow { color: stage::wash(0.16), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false },
+            BoxShadow { color: gpui_kit::black().opacity(0.35), offset: point(px(0.), px(6.)), blur_radius: px(16.), spread_radius: px(0.), inset: false },
+        ];
+        let button = div()
+            .id("self-view-restore")
+            .absolute()
+            .h(px(32.))
+            .pl(px(10.))
+            .pr(px(12.))
+            .rounded(px(RADIUS_MD))
+            .flex()
+            .items_center()
+            .gap(px(6.))
+            .cursor_pointer()
+            .bg(stage::bg().opacity(0.78))
+            .shadow(ring)
+            .text_color(gpui_kit::white())
+            .text_size(px(12.))
+            .font_weight(FontWeight::SEMIBOLD)
+            .whitespace_nowrap()
+            .hover(|s| s.bg(stage::raised().opacity(0.9)))
+            .child(Icon::new(Glyph::User).size(px(16.)))
+            .child("Show self-view")
+            .tooltip(|window, cx| Tooltip::new("Others still see your stream").build(window, cx))
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.pip_shown = true;
+                cx.notify();
+            }));
+        let placed = match self.pip_corner {
+            Corner::TopLeft => button.left(px(x + PIP_INSET)).top(px(y + PIP_INSET)),
+            Corner::TopRight => button.right(px(right_gap)).top(px(y + PIP_INSET)),
+            Corner::BottomLeft => button.left(px(x + PIP_INSET)).bottom(px(bottom_gap)),
+            Corner::BottomRight => button.right(px(right_gap)).bottom(px(bottom_gap)),
+        };
+        placed.with_animation("self-view-restore-in", Animation::new(ui::DUR_POP), |d, t| d.opacity(t)).into_any_element()
     }
 
     // Moves a dragged self-view with the pointer; false when nothing is being dragged.
@@ -882,7 +913,7 @@ impl Rustcord {
         true
     }
 
-    // Lets go of the self-view: a click (barely moved) watches our stream full size; a drag glides
+    // Lets go of the self-view: a click (barely moved) watches our stream full size; a drag springs
     // to the corner it was thrown toward.
     fn drop_pip(&mut self, mouse: Point<Pixels>, stage: (f32, f32), cx: &mut Context<Self>) {
         let Some(drag) = self.pip_drag.take() else { return };
@@ -901,13 +932,14 @@ impl Rustcord {
             }
             _ => (0., 0.),
         };
-        let center = (drag.pos.0 + PIP_WIDTH / 2., drag.pos.1 + PIP_WIDTH * 9. / 32.);
+        let (w, h) = pip_size(stage);
+        let center = (drag.pos.0 + w / 2., drag.pos.1 + h / 2.);
         self.pip_corner = Corner::thrown(center, velocity, stage);
         self.pip_snap = Some((drag.pos, Instant::now()));
         cx.notify();
     }
 
-    // Discord's full screen shows the call alone: no servers, channels or user panel.
+    // Full screen shows the call alone: no servers, channels or user panel.
     pub(crate) fn set_call_fullscreen(&mut self, on: bool, window: &mut Window, cx: &mut Context<Self>) {
         self.call_fullscreen = on;
         if window.is_fullscreen() != on {
@@ -917,95 +949,132 @@ impl Rustcord {
     }
 
     // Still pointer for a while, and nothing open that belongs to the bar.
-    // GAP: Discord's idle timeout isn't in the cached bundle chunks; 3 seconds by eye.
     fn call_idle(&self) -> bool {
         self.call_pointer_at.elapsed() > CONTROLS_IDLE && self.device_menu.is_none() && self.menu.is_none()
     }
 
-    // The channel name, or while watching: whose screen, its quality, LIVE and who else is watching.
+    // .callhead: the room (or whose screen), how long the call has run, who's in it, then the view
+    // controls. While watching one stream: its quality, how smoothly it plays and a way to stop.
     fn call_header(&self, cx: &mut Context<Self>) -> AnyElement {
         let call = self.call.as_ref().expect("in a call");
-        let bar = div()
-            .h(px(HEADER_HEIGHT))
-            .px_4()
+        let people = self.participants();
+        let watching = call.focused();
+        let several = call.watching.len() > 1;
+        let title = match (watching, several) {
+            (None, _) => call.channel.name.clone(),
+            (Some(_), true) => format!("Watching {} streams", call.watching.len()),
+            (Some(w), false) => format!("{}'s screen", self.user_name(&w.streamer_id)),
+        };
+        let glyph = if watching.is_some() { Glyph::Screen } else { Glyph::VolumeHigh };
+        let timer = div()
+            .h(px(22.))
+            .px(px(8.))
+            .flex_none()
+            .rounded(px(RADIUS_XS))
             .flex()
             .items_center()
-            .gap_2()
-            .bg(gpui_kit::linear_gradient(180., gpui_kit::linear_color_stop(gpui_kit::black().opacity(0.6), 0.), gpui_kit::linear_color_stop(gpui_kit::transparent_black(), 1.)))
-            .text_color(gpui_kit::white());
-        let Some(watching) = call.focused() else {
-            let people = self.participants().len();
-            return bar
-                .child(Icon::new(Glyph::VolumeHigh).size(px(20.)).text_color(gpui_kit::white().opacity(0.7)))
-                .child(div().font_weight(FontWeight::SEMIBOLD).child(call.channel.name.clone()))
-                .child(div().text_size(px(14.)).text_color(gpui_kit::white().opacity(0.6)).child(format!("{people} in voice")))
-                .into_any_element();
-        };
-        let several = call.watching.len() > 1;
-        let suffix = format!(":{}", watching.streamer_id);
-        let viewers: Vec<String> = self.stream_viewers.iter().find(|(key, _)| key.ends_with(&suffix)).map(|(_, v)| v.clone()).unwrap_or_default();
-        // GAP: the frame rate isn't reported by the voice engine, so only the resolution shows.
-        let quality = watching.frame.as_ref().map(|f| format!("{}P", f.size(0).height.0));
-        let avatars: Vec<AnyElement> = viewers.iter().take(3).map(|id| img(self.user_avatar(id)).size(px(20.)).rounded_full().border_2().border_color(gpui_kit::black()).ml(px(-6.)).into_any_element()).collect();
-        let title = match several {
-            true => format!("Watching {} streams", call.watching.len()),
-            false => format!("{}'s Screen", self.user_name(&watching.streamer_id)),
-        };
+            .gap(px(6.))
+            .bg(stage::wash(0.08))
+            .text_color(stage::muted())
+            .text_size(px(12.))
+            .font_weight(FontWeight::SEMIBOLD)
+            .font_features(tabular())
+            .child(div().size(px(6.)).rounded_full().bg(stage::online()))
+            .child(clock(call.joined.elapsed().as_secs()));
+        let faces: Vec<String> = people.iter().take(3).map(|p| p.user.as_ref().map(|u| u.avatar.clone()).unwrap_or_else(|| self.user_avatar(&p.user_id))).collect();
+        let count = people.len();
+        let who = div()
+            .id("call-people")
+            .h(px(32.))
+            .pl(px(4.))
+            .pr(px(8.))
+            .flex_none()
+            .rounded(px(RADIUS_SM))
+            .flex()
+            .items_center()
+            .gap(px(6.))
+            .text_color(stage::muted())
+            .text_size(px(12.))
+            .font_weight(FontWeight::SEMIBOLD)
+            .child(face_stack(faces, 22., stage::bg()))
+            .child(count.to_string())
+            .tooltip(move |window, cx| Tooltip::new(format!("{count} in {}", if count == 1 { "the call alone" } else { "the call" })).build(window, cx));
+        let health = watching.filter(|w| !several && !w.arrivals.is_empty()).map(|w| {
+            let (health, fps) = stream_health(&w.arrivals, Instant::now());
+            let (label, color) = match health {
+                Health::Smooth => ("Smooth", stage::online()),
+                Health::Choppy => ("Choppy", stage::idle()),
+                Health::Stalled => ("Stalled", stage::dnd()),
+            };
+            // GAP: the frame rate isn't reported by the voice engine, so only the resolution shows.
+            let quality = w.frame.as_ref().map(|f| format!("{}p · ", f.size(0).height.0)).unwrap_or_default();
+            div()
+                .id("stream-health")
+                .flex_none()
+                .flex()
+                .items_center()
+                .gap(px(6.))
+                .text_size(px(12.))
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(stage::muted())
+                .child(div().size(px(6.)).rounded_full().bg(color))
+                .child(format!("{quality}{label}"))
+                .tooltip(move |window, cx| Tooltip::new(format!("{label}: {fps:.0} frames per second")).build(window, cx))
+        });
         let layout = call.stream_layout;
-        let segment = |id: &'static str, text: &'static str, value: StreamLayout| {
-            ui::segment(id, text, layout == value, cx).on_click(cx.listener(move |this, _, _, cx| {
+        let layout_button = several.then(|| {
+            let (glyph, tip, next) = match layout {
+                StreamLayout::Focus => (Glyph::Screen, "Layout: focus. Switch to side by side", StreamLayout::Split),
+                StreamLayout::Split => (Glyph::Users, "Layout: side by side. Switch to focus", StreamLayout::Focus),
+            };
+            stage_icon_button("call-layout", glyph, tip, false).on_click(cx.listener(move |this, _, _, cx| {
                 if let Some(call) = &mut this.call {
-                    call.stream_layout = value;
+                    call.stream_layout = next;
                 }
                 cx.notify();
             }))
-        };
-        bar.child(Icon::new(Glyph::Screen).size(px(20.)).text_color(gpui_kit::white().opacity(0.7)))
-            .child(div().font_weight(FontWeight::SEMIBOLD).truncate().child(title))
-            .when(!several, |b| {
-                b.children(quality.map(|q| ui::badge(gpui_kit::white().opacity(0.16), gpui_kit::white()).child(q)))
-                    .child(ui::live_badge())
-                    .when(!watching.arrivals.is_empty(), |b| b.child({
-                        let (health, fps) = stream_health(&watching.arrivals, Instant::now());
-                        let (label, color): (&str, Hsla) = match health {
-                            Health::Smooth => ("Smooth", rgb(0x41A063).into()),
-                            Health::Choppy => ("Choppy", rgb(0xCE8100).into()),
-                            Health::Stalled => ("Stalled", rgb(0xEB5F5E).into()),
-                        };
-                        div()
-                            .id("stream-health")
-                            .flex()
-                            .items_center()
-                            .gap_1()
-                            .text_size(px(12.))
-                            .text_color(gpui_kit::white().opacity(0.75))
-                            .child(div().size(px(8.)).rounded_full().bg(color))
-                            .child(label)
-                            .tooltip(move |window, cx| Tooltip::new(format!("{label}: {fps:.0} frames per second")).build(window, cx))
-                    }))
-                    .when(!viewers.is_empty(), |b| {
-                        b.child(div().pl(px(6.)).flex().items_center().children(avatars).when(viewers.len() > 3, |d| d.child(div().pl_1().text_size(px(12.)).font_weight(FontWeight::BOLD).child(format!("+{}", viewers.len() - 3)))))
-                    })
-            })
+        });
+        let stop = watching.map(|_| stage_button("stop-watching", if several { "Stop all" } else { "Stop watching" }).on_click(cx.listener(|this, _, _, cx| this.stop_watching(cx))));
+        let fullscreen = self.call_fullscreen;
+        let chat_open = self.call_chat;
+        div()
+            .h(px(HEAD_HEIGHT))
+            .flex()
+            .items_center()
+            .gap(px(8.))
+            .text_color(stage::strong())
+            .child(Icon::new(glyph).size(px(20.)).text_color(stage::muted()))
+            .child(div().min_w_0().truncate().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).child(title))
+            .child(timer)
+            .children(health)
             .child(div().flex_1())
-            .when(several, |b| b.child(ui::segmented(cx).w(px(220.)).child(segment("layout-focus", "Focus", StreamLayout::Focus)).child(segment("layout-split", "Side by Side", StreamLayout::Split))))
-            .child(ui::button("stop-watching", Tone::OnMedia, cx).child(if several { "Stop All" } else { "Stop Watching" }).on_click(cx.listener(|this, _, _, cx| this.stop_watching(cx))))
+            .children(stop)
+            .child(who)
+            .child(div().w(px(1.)).h(px(20.)).mx(px(2.)).flex_none().bg(stage::wash(0.14)))
+            .children(layout_button)
+            .child(
+                stage_icon_button("call-fullscreen", if fullscreen { Glyph::FullscreenExit } else { Glyph::Fullscreen }, if fullscreen { "Exit full screen" } else { "Full screen" }, false)
+                    .on_click(cx.listener(move |this, _, window, cx| this.set_call_fullscreen(!fullscreen, window, cx))),
+            )
+            .child(
+                stage_icon_button("call-chat", Glyph::ChatRound, if chat_open { "Chat: hide the channel's messages" } else { "Chat: show the channel's messages beside the call" }, chat_open)
+                    .on_click(cx.listener(|this, _, window, cx| this.toggle_call_chat(window, cx))),
+            )
             .into_any_element()
     }
 
-    // The streams we watch, laid out by `stream_layout`, over a strip of everyone else (folded away
-    // with the bar's toggle). Unwatched streams sit in the strip with Watch Too.
+    // .focus: the streams we watch, laid out by `stream_layout`, over a filmstrip of everyone else
+    // (folded away from More). Unwatched streams sit in the filmstrip with Watch too.
     fn stream_stage(&self, tiles: &[Tile], width: f32, height: f32, cx: &mut Context<Self>) -> AnyElement {
         let call = self.call.as_ref().expect("in a call");
-        let strip_w = STRIP_HEIGHT * 16. / 9.;
         let strip: Vec<AnyElement> = tiles
             .iter()
             .filter(|t| !matches!(t, Tile::Stream(s) if call.watched(&s.user_id).is_some()))
             .take(STRIP_LIMIT)
-            .map(|t| self.tile(t, strip_w, STRIP_HEIGHT, true, cx))
+            .map(|t| self.tile(t, STRIP_TILE, cx))
             .collect();
         let strip_shown = !self.call_strip_hidden && !strip.is_empty();
-        let main_h = (height - HEADER_HEIGHT - CONTROLS_HEIGHT - if strip_shown { STRIP_HEIGHT + TILE_GAP } else { 0. }).max(120.);
+        let main_h = (height - if strip_shown { STRIP_TILE * 9. / 16. + STRIP_GAP } else { 0. }).max(120.);
         let focused = call.focused().map(|w| w.streamer_id.clone()).unwrap_or_default();
         let main: AnyElement = match call.stream_layout {
             StreamLayout::Focus => {
@@ -1023,7 +1092,7 @@ impl Rustcord {
                     .items_center()
                     .justify_center()
                     .children(big)
-                    .when(!others.is_empty(), |d| d.child(div().absolute().right(px(12.)).bottom(px(12.)).flex().flex_col().gap(px(TILE_GAP)).children(others)))
+                    .when(!others.is_empty(), |d| d.child(div().absolute().right(px(12.)).bottom(px(12.)).flex().flex_col().gap(px(STRIP_GAP)).children(others)))
                     .into_any_element()
             }
             StreamLayout::Split => {
@@ -1037,18 +1106,17 @@ impl Rustcord {
         };
         div()
             .size_full()
-            .pt(px(HEADER_HEIGHT))
-            .pb(px(CONTROLS_HEIGHT))
             .flex()
             .flex_col()
-            .gap(px(TILE_GAP))
+            .gap(px(STRIP_GAP))
             .child(div().flex_1().min_h_0().child(main))
-            .when(strip_shown, |d| d.child(div().flex_none().flex().justify_center().gap(px(TILE_GAP)).children(strip)))
+            .when(strip_shown, |d| d.child(div().flex_none().flex().justify_center().gap(px(STRIP_GAP)).children(strip)))
             .into_any_element()
     }
 
-    // One watched stream fitted into `max_w` x `max_h`. Hovering shows its name and app, its volume,
-    // and buttons to focus or stop it; a small one (Focus layout) swaps in on click.
+    // One watched stream fitted into `max_w` x `max_h`, as a media tile: LIVE and its viewers on top,
+    // the name over the scrim. Hovering adds its volume and buttons to focus or stop it; a small one
+    // (Focus layout) swaps in on click.
     fn stream_video(&self, watch: &crate::Watching, max_w: f32, max_h: f32, small: bool, cx: &mut Context<Self>) -> AnyElement {
         let call = self.call.as_ref().expect("in a call");
         let (fw, fh) = watch.frame.as_ref().map_or((16., 9.), |f| (f.size(0).width.0 as f32, f.size(0).height.0 as f32));
@@ -1058,39 +1126,32 @@ impl Rustcord {
         let name = self.user_name(&id);
         let several = call.watching.len() > 1;
         let body: AnyElement = match &watch.frame {
-            Some(frame) => img(ImageSource::Render(frame.clone())).size_full().into_any_element(),
-            None => div().size_full().bg(palette::call_tile()).flex().items_center().justify_center().text_color(gpui_kit::white().opacity(0.7)).child(format!("Joining {name}'s stream…")).into_any_element(),
+            Some(frame) => ui::media(ImageSource::Render(frame.clone()), ui::all(RADIUS_LG)).size_full().into_any_element(),
+            None => stream_fill().size_full().flex().items_center().justify_center().text_size(px(14.)).text_color(stage::muted()).child(format!("Joining {name}'s stream…")).into_any_element(),
         };
         let group = SharedString::from(format!("stream-{id}"));
-        let app = self.activity_name(&id);
+        let label = match self.activity_name(&id) {
+            Some(app) => format!("{name} · {app}"),
+            None => name.clone(),
+        };
         let (focus_id, stop_id, volume_id) = (id.clone(), id.clone(), id.clone());
-        let overlay = div()
+        let controls = div()
             .absolute()
-            .left_0()
-            .right_0()
-            .bottom_0()
-            .p_2()
+            .right(px(8.))
+            .bottom(px(6.))
             .flex()
             .items_center()
-            .gap_2()
-            .text_color(gpui_kit::white())
-            .bg(gpui_kit::linear_gradient(180., gpui_kit::linear_color_stop(gpui_kit::transparent_black(), 0.), gpui_kit::linear_color_stop(gpui_kit::black().opacity(0.75), 1.)))
+            .gap(px(6.))
             .opacity(0.)
             .group_hover(group.clone(), |s| s.opacity(1.))
-            .child(div().min_w_0().truncate().font_weight(FontWeight::SEMIBOLD).child(match app {
-                Some(app) => format!("{name} · {app}"),
-                None => name.clone(),
-            }))
-            .child(div().flex_1())
             .child(
-                ui::round_button(SharedString::from(format!("volume-{id}")), Glyph::VolumeHigh, "Stream Volume", 28.)
+                ui::round_button(SharedString::from(format!("volume-{id}")), Glyph::VolumeHigh, "Stream volume", 28.)
                     .on_mouse_down(MouseButton::Left, cx.listener(move |this, e: &MouseDownEvent, _, cx| this.open_stream_volume(volume_id.clone(), e.position, cx))),
             )
-            .when(several && call.stream_layout == StreamLayout::Split, |d| {
-                d.child(ui::button(SharedString::from(format!("focus-{id}")), Tone::OnMedia, cx).child("Focus").on_click(cx.listener(move |this, _, _, cx| this.focus_stream(&focus_id, cx))))
-            })
-            .child(ui::button(SharedString::from(format!("unwatch-{id}")), Tone::OnMedia, cx).child("Stop Watching").on_click(cx.listener(move |this, _, _, cx| this.unwatch_stream(&stop_id, cx))));
+            .when(several && call.stream_layout == StreamLayout::Split, |d| d.child(ui::small(ui::button(SharedString::from(format!("focus-{id}")), ui::Tone::OnMedia, cx)).child("Focus").on_click(cx.listener(move |this, _, _, cx| this.focus_stream(&focus_id, cx)))))
+            .child(ui::small(ui::button(SharedString::from(format!("unwatch-{id}")), ui::Tone::OnMedia, cx)).child("Stop watching").on_click(cx.listener(move |this, _, _, cx| this.unwatch_stream(&stop_id, cx))));
         let swap_id = id.clone();
+        let viewers = self.viewer_count(&id);
         div()
             .id(SharedString::from(format!("stream-video-{id}-{small}")))
             .group(group)
@@ -1098,21 +1159,25 @@ impl Rustcord {
             .w(px(w))
             .h(px(h))
             .flex_none()
-            .rounded(px(TILE_RADIUS))
-            .overflow_hidden()
+            .rounded(px(RADIUS_LG))
             .bg(gpui_kit::black())
             .child(body)
-            .when(several, |d| d.child(div().absolute().left(px(8.)).top(px(8.)).flex().gap_1().child(ui::live_badge()).child(ui::badge(gpui_kit::black().opacity(0.56), gpui_kit::white()).child(name.clone()))))
-            .when(!small, |d| d.child(overlay))
-            .when(small, |d| {
-                d.cursor_pointer()
-                    .border_1()
-                    .border_color(gpui_kit::white().opacity(0.14))
-                    .shadow_lg()
-                    .on_click(cx.listener(move |this, _, _, cx| this.focus_stream(&swap_id, cx)))
-            })
-            .with_animation(SharedString::from(format!("stream-in-{id}-{small}")), Animation::new(Duration::from_millis(220)), |d, t| d.opacity(t.min(1.)))
+            .child(scrim_top(RADIUS_LG))
+            .child(scrim_bottom(RADIUS_LG))
+            .child(div().absolute().left(px(8.)).top(px(8.)).child(ui::live_badge()))
+            .when(viewers > 0 && !small, |d| d.child(viewer_chip(viewers)))
+            .child(tile_name(div().child(div().min_w_0().truncate().child(label))))
+            .when(!small, |d| d.child(controls))
+            .child(tile_ring(false, false))
+            .when(small, |d| d.cursor_pointer().on_click(cx.listener(move |this, _, _, cx| this.focus_stream(&swap_id, cx))))
+            .with_animation(SharedString::from(format!("stream-in-{id}-{small}")), Animation::new(ui::DUR_POP), |d, t| d.opacity(t.min(1.)))
             .into_any_element()
+    }
+
+    // Everyone watching a streamer, other than the streamer.
+    fn viewer_count(&self, streamer_id: &str) -> usize {
+        let suffix = format!(":{streamer_id}");
+        self.stream_viewers.iter().find(|(key, _)| key.ends_with(&suffix)).map_or(0, |(_, v)| v.iter().filter(|id| *id != streamer_id).count())
     }
 
     // What someone is playing or streaming, from their presence, for name tags.
@@ -1136,7 +1201,7 @@ impl Rustcord {
             move |this| {
                 let volume = this.stream_volumes.get(&streamer_id).copied().unwrap_or(1.);
                 let id = streamer_id.clone();
-                vec![crate::menu::slider("Stream Volume", format!("stream-volume-{streamer_id}"), volume / 2., move |this, f, cx| this.set_stream_volume(&id, f * 2., cx))]
+                vec![crate::menu::slider("Stream volume", format!("stream-volume-{streamer_id}"), volume / 2., move |this, f, cx| this.set_stream_volume(&id, f * 2., cx))]
             },
             cx,
         );
@@ -1150,32 +1215,53 @@ impl Rustcord {
         cx.notify();
     }
 
-    // What the stage says when the stream we watched ends, in place of a blank or an error.
-    fn ended_stage(&self, streamer: &str, cx: &mut Context<Self>) -> AnyElement {
+    // .tile.ended in the stream's place: that it ended, who stopped, and the way back to the call.
+    fn ended_stage(&self, streamer: &str, width: f32, height: f32, cx: &mut Context<Self>) -> AnyElement {
         let mine = self.me.as_ref().is_some_and(|m| m.id == streamer);
-        let title = if mine { "You stopped streaming".to_owned() } else { format!("{} stopped streaming", self.user_name(streamer)) };
+        let name = if mine { "You".to_owned() } else { self.user_name(streamer) };
+        let line = match self.activity_name(streamer) {
+            Some(app) => format!("{name} stopped sharing {app}"),
+            None => format!("{name} stopped sharing"),
+        };
+        let w = width.min(height * 16. / 9.).min(720.);
         div()
             .size_full()
             .flex()
-            .flex_col()
             .items_center()
             .justify_center()
-            .gap_3()
-            .child(div().text_size(px(18.)).font_weight(FontWeight::BOLD).text_color(gpui_kit::white()).child(title))
-            .child(ui::button("ended-back", Tone::OnMedia, cx).child("Back to Call").on_click(cx.listener(|this, _, _, cx| {
-                if let Some(call) = &mut this.call {
-                    call.ended = None;
-                }
-                cx.notify();
-            })))
-            .with_animation("ended-in", Animation::new(Duration::from_millis(240)), |d, t| d.opacity(t.min(1.)).mt(px((1. - crate::motion::back_out(t)) * 10.)))
+            .child(
+                div()
+                    .w(px(w))
+                    .h(px(w * 9. / 16.))
+                    .rounded(px(RADIUS_LG))
+                    .bg(stage::ended())
+                    .relative()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .justify_center()
+                    .gap(px(4.))
+                    .p(px(12.))
+                    .child(div().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).text_color(stage::strong()).child("Stream ended"))
+                    .child(div().text_size(px(12.)).text_color(stage::muted()).child(line))
+                    .child(div().mt(px(6.)).child(stage_button("ended-back", "Back to call").on_click(cx.listener(|this, _, _, cx| {
+                        if let Some(call) = &mut this.call {
+                            call.ended = None;
+                        }
+                        cx.notify();
+                    }))))
+                    .child(tile_ring(false, false)),
+            )
+            .with_animation("ended-in", Animation::new(ui::DUR_PANEL), |d, t| d.opacity(t.min(1.)))
             .into_any_element()
     }
 
-    // A participant (camera or avatar, green ring while speaking, name and mute state in Discord's
-    // overlay pill) or someone's Go Live (their preview dimmed, with Watch Stream).
-    fn tile(&self, tile: &Tile, w: f32, h: f32, compact: bool, cx: &mut Context<Self>) -> AnyElement {
+    // .tile: a person (camera, or their avatar on their own tint) or someone's Go Live (its preview
+    // under LIVE and the viewer count). Speaking draws the accent ring above everything; the label
+    // carries one mark for what's off.
+    fn tile(&self, tile: &Tile, w: f32, cx: &mut Context<Self>) -> AnyElement {
         let call = self.call.as_ref().expect("in a call");
+        let h = w * 9. / 16.;
         let (Tile::User(state) | Tile::Stream(state)) = tile;
         let user = state.user.clone().unwrap_or_else(|| User {
             id: state.user_id.clone(),
@@ -1188,219 +1274,198 @@ impl Rustcord {
         });
         let me = self.me.as_ref().is_some_and(|m| m.id == state.user_id);
         let (muted, deafened) = if me { (self.muted || self.deafened, self.deafened) } else { (state.muted, state.deafened) };
+        let local_muted = !me && self.prefs.local_mutes.contains(&state.user_id);
         let is_stream = matches!(tile, Tile::Stream(_));
         let talking = !is_stream && self.speaking(&state.user_id);
-        let margin = if compact { 4. } else { 12. };
-        let face: AnyElement = match (is_stream, call.cameras.get(&state.user_id)) {
-            (true, _) => div()
+        let camera = (!is_stream).then(|| call.cameras.get(&state.user_id)).flatten();
+        let media = is_stream || camera.is_some();
+        let face: AnyElement = match (is_stream, camera) {
+            (true, _) => stream_fill()
                 .size_full()
-                .bg(palette::call_tile())
-                // Dimmed behind Watch Stream, but still clearly the picture, as in Discord.
-                .children(self.stream_preview(&state.user_id).map(|url| img(url).size_full().object_fit(gpui_kit::ObjectFit::Cover).opacity(0.6)))
+                .children(self.stream_preview(&state.user_id).map(|url| ui::media(url, ui::all(RADIUS_LG)).absolute().inset_0().size_full().object_fit(gpui_kit::ObjectFit::Cover)))
                 .into_any_element(),
-            (false, Some(frame)) => img(ImageSource::Render(frame.clone())).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
+            (false, Some(frame)) => ui::media(ImageSource::Render(frame.clone()), ui::all(RADIUS_LG)).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
             (false, None) => div()
                 .size_full()
-                .bg(self.avatar_colors.get(&state.user_id).copied().flatten().unwrap_or(palette::call_tile()))
+                .rounded(px(RADIUS_LG))
+                .bg(self.tile_fill(&state.user_id))
                 .flex()
                 .items_center()
                 .justify_center()
-                .child(img(user.avatar.clone()).size(px((h * 0.4).clamp(32., 80.))).rounded_full())
+                .child(ui::avatar(user.avatar.clone(), if w < SMALL_TILE { 40. } else { 64. }).when(local_muted, |a| a.opacity(0.5)))
                 .into_any_element(),
         };
         let watching = call.watched(&state.user_id).is_some();
         let watchable = is_stream && !watching && (!me || call.sharing.is_some());
-        let status = |glyph: Glyph| {
-            let pad = if compact { 4. } else { 6. };
-            div().size(px(20. + pad * 2.)).p(px(pad)).flex_none().rounded_full().bg(gpui_kit::black().opacity(0.56)).text_color(gpui_kit::white()).child(Icon::new(glyph).size_full())
+        let label = match (is_stream, self.activity_name(&state.user_id)) {
+            (true, Some(app)) => format!("{} · {app}", user.name),
+            _ => user.name.clone(),
         };
-        let label = div()
-            .absolute()
-            .left(px(margin))
-            .bottom(px(margin))
-            .max_w(px(w - margin * 2.))
-            .flex()
-            .items_center()
-            .gap_1()
-            .child(
-                div()
-                    .min_w_0()
-                    .px(px(12.))
-                    .py(px(6.))
-                    .rounded(px(TILE_RADIUS))
-                    .bg(gpui_kit::black().opacity(0.56))
-                    .text_color(gpui_kit::white())
-                    .text_size(px(14.))
-                    .font_weight(FontWeight::MEDIUM)
-                    .flex()
-                    .items_center()
-                    .gap_1()
-                    .when(is_stream, |d| d.child(Icon::new(Glyph::ShareScreen).size(px(16.)).flex_none()))
-                    .child(div().flex_none().child(user.name.clone()))
-                    .children(self.activity_name(&state.user_id).filter(|_| !compact).map(|app| div().min_w_0().truncate().font_weight(FontWeight::NORMAL).text_color(gpui_kit::white().opacity(0.7)).child(format!("· {app}")))),
-            )
-            .when(!is_stream && muted, |d| d.child(status(Glyph::MicOff)))
-            .when(!is_stream && deafened, |d| d.child(status(Glyph::HeadphonesOff)));
+        let name = tile_name(
+            div()
+                .when(talking, |d| d.child(still_bars(gpui_kit::white(), 10., false)))
+                .when(!is_stream && state.server_muted, |d| d.child(vmark(Glyph::MicOff, None, MarkKind::Server)))
+                .when(!is_stream && !state.server_muted && muted && !deafened, |d| d.child(Icon::new(Glyph::MicOff).size(px(14.)).text_color(stage::off_ink())))
+                .when(!is_stream && deafened, |d| d.child(Icon::new(Glyph::HeadphonesOff).size(px(14.)).text_color(stage::off_ink())))
+                .child(div().min_w_0().truncate().child(label))
+                .when(local_muted, |d| d.child(vmark(Glyph::VolumeOff, Some("Muted for you"), MarkKind::Local))),
+        );
         let streamer = state.user_id.clone();
         let menu_user = state.user_id.clone();
+        let group = SharedString::from(format!("tile-{}-{is_stream}", state.user_id));
+        let viewers = if is_stream { self.viewer_count(&state.user_id) } else { 0 };
+        let watch_label = if call.watching.is_empty() { "Watch stream" } else { "Watch too" };
         div()
-            .id(SharedString::from(format!("tile-{}-{is_stream}", state.user_id)))
+            .id(group.clone())
+            .group(group.clone())
             .relative()
             .w(px(w))
             .h(px(h))
             .flex_none()
-            .rounded(px(TILE_RADIUS))
-            .overflow_hidden()
+            .rounded(px(RADIUS_LG))
             .child(face)
-            .when(is_stream, |d| d.child(div().absolute().top(px(8.)).right(px(8.)).child(ui::live_badge())))
+            .when(media, |d| d.child(scrim_top(RADIUS_LG)).child(scrim_bottom(RADIUS_LG)))
+            .when(is_stream, |d| d.child(div().absolute().left(px(8.)).top(px(8.)).child(ui::live_badge())))
+            .when(viewers > 0, |d| d.child(viewer_chip(viewers)))
+            .child(name)
             .when(watchable, |d| {
-                d.child(
-                    div()
-                        .absolute()
-                        .inset_0()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .child(ui::button(SharedString::from(format!("watch-{streamer}")), Tone::OnMedia, cx).child(if call.watching.is_empty() { "Watch Stream" } else { "Watch Too" }).on_click(cx.listener(move |this, _, _, cx| this.watch_stream(streamer.clone(), cx)))),
-                )
+                let streamer = streamer.clone();
+                d.cursor_pointer()
+                    .child(
+                        div()
+                            .absolute()
+                            .inset_0()
+                            .rounded(px(RADIUS_LG))
+                            .bg(gpui_kit::black().opacity(0.45))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .opacity(0.)
+                            .group_hover(group.clone(), |s| s.opacity(1.))
+                            .child(watch_button(watch_label)),
+                    )
+                    .on_click(cx.listener(move |this, _, _, cx| this.watch_stream(streamer.clone(), cx)))
             })
-            .child(label)
-            // Speaking: a 2px green ring inside the tile edge, as Discord draws its tile border.
-            .child(div().absolute().inset_0().rounded(px(TILE_RADIUS)).border_2().border_color(if talking { rgb(0x3D9E60).into() } else { gpui_kit::transparent_black() }))
+            .child(tile_ring(talking, local_muted).when(watchable, |r| r.group_hover(group.clone(), |s| s.border_color(stage::wash(0.2)))))
             .on_mouse_down(MouseButton::Right, cx.listener(move |this, e: &MouseDownEvent, _, cx| this.voice_user_menu(&menu_user, e.position, cx)))
             .into_any_element()
     }
 
-    // Discord's call bar: invite on the left; mic and camera with their device chevrons, share,
-    // activities, soundboard and the red hang-up in the middle; strip and fullscreen on the right.
+    // A person's tile tint (oklch 0.24 0.02, their hue): their avatar's hue once fetched, else one
+    // from their id so the grid isn't one grey.
+    fn tile_fill(&self, user_id: &str) -> Hsla {
+        let hue = match self.avatar_colors.get(user_id).copied().flatten() {
+            Some(color) => oklch_hue(color),
+            None => user_id.bytes().fold(0u32, |h, b| h.wrapping_mul(31).wrapping_add(b as u32)) as f32 % 360.,
+        };
+        oklch(0.24, 0.02, hue)
+    }
+
+    // .controls: mic and camera as split buttons with their device menus, share, activities, more,
+    // then the one red fill that leaves.
     fn call_controls(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let call = self.call.as_ref().expect("in a call");
         let muted = self.muted || self.deafened;
         let connected = call.stage == Stage::Connected;
         let sharing = call.sharing.is_some();
-        let fullscreen = self.call_fullscreen;
-        let invite = call.guild_id.clone().map(|guild| {
-            let channel = call.channel.id.clone();
-            ui::round_button("call-invite", Glyph::GroupPlus, "Invite to Voice", 40.).on_click(cx.listener(move |this, _, window, cx| this.show_invite(guild.clone(), channel.clone(), window, cx)))
-        });
-        let strip_toggle = (!call.watching.is_empty()).then(|| {
-            let hidden = self.call_strip_hidden;
-            ui::round_button("call-strip", if hidden { Glyph::ChevronUp } else { Glyph::ChevronDown }, if hidden { "Show Members" } else { "Hide Members" }, 40.).on_click(cx.listener(|this, _, _, cx| {
-                this.call_strip_hidden = !this.call_strip_hidden;
-                cx.notify();
-            }))
-        });
-        let center = div()
-            .flex()
-            .items_center()
-            .gap_2()
-            .child(
-                // Button and chevron sit 1px apart: the stage shows through as their divider, so the
-                // two translucent fills never overlap into a lighter strip.
-                div()
-                    .flex()
-                    .gap(px(1.))
-                    .child(
-                        split_button("call-mic", if muted { Glyph::MicOff } else { Glyph::Mic }, if muted { "Unmute" } else { "Mute" }, muted, cx)
-                            .on_click(cx.listener(|this, _, _, cx| this.toggle_mute(cx))),
-                    )
-                    .child(chevron("call-mic-devices", cx).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(DeviceKind::Input, e.position, cx)))),
-            )
-            .child(
-                // Button and chevron sit 1px apart: the stage shows through as their divider, so the
-                // two translucent fills never overlap into a lighter strip.
-                div()
-                    .flex()
-                    .gap(px(1.))
-                    .child(
-                        split_button("call-camera", if call.camera_on { Glyph::Video } else { Glyph::VideoOff }, if call.camera_on { "Turn Off Camera" } else { "Turn On Camera" }, !call.camera_on, cx)
-                            .when(!connected, |b| b.opacity(0.5))
-                            .on_click(cx.listener(|this, _, _, cx| this.toggle_camera(cx))),
-                    )
-                    .child(chevron("call-camera-devices", cx).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(DeviceKind::Camera, e.position, cx)))),
-            )
-            .child(match sharing {
-                true => split_button("call-share", Glyph::ShareScreen, "Stream Options", false, cx)
-                    .rounded(px(12.))
-                    .bg(Hsla::from(rgb(0x008545)).opacity(0.24))
-                    .text_color(rgb(0x62B77C))
-                    .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stream_menu(e.position, cx))),
-                false => split_button("call-share", Glyph::ShareScreen, "Share Your Screen", false, cx)
-                    .rounded(px(12.))
-                    .when(!connected, |b| b.opacity(0.5))
-                    .on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx))),
-            })
-            .child(
-                split_button("call-activities", Glyph::Activities, "Start an Activity", false, cx)
-                    .rounded(px(12.))
-                    .when(!connected, |b| b.opacity(0.5))
-                    .on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities aren't in Wave yet", cx))),
-            )
-            .child(
-                split_button("call-soundboard", Glyph::Soundboard, "Open Soundboard", false, cx)
-                    .rounded(px(12.))
-                    .when(!connected, |b| b.opacity(0.5))
-                    .on_click(cx.listener(|this, _, _, cx| this.show_toast("The soundboard isn't in Wave yet", cx))),
-            )
-            .child(
-                div()
-                    .id("call-hang-up")
-                    .ml_2()
-                    .w(px(64.))
-                    .h(px(48.))
-                    .rounded(px(12.))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .cursor_pointer()
-                    .bg(palette::danger())
-                    .text_color(gpui_kit::white())
-                    .hover(|s| s.bg(palette::danger_hover()))
-                    .child(Icon::new(Glyph::CallEnd).size(px(24.)))
-                    .tooltip(|window, cx| Tooltip::new("Disconnect").build(window, cx))
-                    .on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx))),
-            );
+        let menu_open = |kind: DeviceKind| self.device_menu.as_ref().is_some_and(|m| m.on_stage && m.kind == kind);
+        let mic_state = if muted { Control::Off } else { Control::Rest };
+        let camera_state = if call.camera_on { Control::On } else { Control::Rest };
+        let mic = split_control(
+            control("call-mic", if muted { Glyph::MicOff } else { Glyph::Mic }, if muted { "Unmute" } else { "Mute" }, mic_state, true).on_click(cx.listener(|this, _, _, cx| this.toggle_mute(cx))),
+            control("call-mic-devices", Glyph::ChevronUp, "Microphone options", if menu_open(DeviceKind::Input) { Control::Open } else { mic_state }, true)
+                .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stage_device_menu(DeviceKind::Input, e.position, cx))),
+        );
+        let camera = split_control(
+            control("call-camera", if call.camera_on { Glyph::Video } else { Glyph::VideoOff }, if call.camera_on { "Turn off camera" } else { "Turn on camera" }, camera_state, connected)
+                .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_camera(cx)))),
+            control("call-camera-devices", Glyph::ChevronUp, "Camera options", if menu_open(DeviceKind::Camera) { Control::Open } else { camera_state }, true)
+                .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stage_device_menu(DeviceKind::Camera, e.position, cx))),
+        );
+        let share = match sharing {
+            true => control("call-share", Glyph::ShareScreen, "Stream options", Control::Active, true).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stream_menu(e.position, cx))),
+            false => control("call-share", Glyph::ShareScreen, "Share your screen", Control::Rest, connected).when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx)))),
+        };
+        let activities = control("call-activities", Glyph::Activities, "Activities and soundboard", Control::Rest, connected)
+            .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities and the soundboard aren't in Wave yet", cx))));
+        let more = control("call-more", Glyph::More, "More options", Control::Rest, true).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_call_more(e.position, cx)));
+        let leave = control("call-hang-up", Glyph::CallEnd, "Leave call", Control::Leave, true).w(px(68.)).on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx)));
         div()
             .h(px(CONTROLS_HEIGHT))
-            .px_4()
             .flex()
+            .justify_center()
             .items_center()
-            .bg(gpui_kit::linear_gradient(0., gpui_kit::linear_color_stop(gpui_kit::black().opacity(0.6), 0.), gpui_kit::linear_color_stop(gpui_kit::transparent_black(), 1.)))
-            .child(div().flex_1().flex().children(invite))
-            .child(center)
-            .child(
-                div()
-                    .flex_1()
-                    .flex()
-                    .justify_end()
-                    .gap_2()
-                    .child({
-                        let open = self.call_chat;
-                        ui::round_button("call-chat", Glyph::ChatRound, if open { "Hide Chat" } else { "Show Chat" }, 40.)
-                            .when(open, |b| b.bg(gpui_kit::white()).text_color(gpui_kit::black()))
-                            .on_click(cx.listener(|this, _, window, cx| this.toggle_call_chat(window, cx)))
-                    })
-                    .children(strip_toggle)
-                    .child(
-                        ui::round_button("call-fullscreen", if fullscreen { Glyph::FullscreenExit } else { Glyph::Fullscreen }, if fullscreen { "Exit Full Screen" } else { "Full Screen" }, 40.)
-                            .on_click(cx.listener(move |this, _, window, cx| this.set_call_fullscreen(!fullscreen, window, cx))),
-                    ),
-            )
+            .gap(px(10.))
+            .child(mic)
+            .child(camera)
+            .child(share)
+            .child(activities)
+            .child(more)
+            .child(div().w(px(6.)))
+            .child(leave)
+    }
+
+    // More options: what didn't earn a button of its own.
+    fn open_call_more(&mut self, at: Point<Pixels>, cx: &mut Context<Self>) {
+        cx.stop_propagation();
+        self.open_live_menu(
+            at,
+            |this| {
+                let Some(call) = &this.call else { return Vec::new() };
+                let mut entries = Vec::new();
+                if let Some(guild) = call.guild_id.clone() {
+                    let channel = call.channel.id.clone();
+                    entries.push(item("Invite to voice", move |this, window, cx| this.show_invite(guild.clone(), channel.clone(), window, cx)).icon(Glyph::GroupPlus).entry());
+                }
+                entries.push(item("Soundboard", |this, _, cx| this.show_toast("The soundboard isn't in Wave yet", cx)).icon(Glyph::Soundboard).entry());
+                if !call.watching.is_empty() {
+                    let hidden = this.call_strip_hidden;
+                    entries.push(
+                        item(if hidden { "Show everyone" } else { "Hide everyone" }, |this, _, cx| {
+                            this.call_strip_hidden = !this.call_strip_hidden;
+                            cx.notify();
+                        })
+                        .hint("The filmstrip under the stream")
+                        .icon(Glyph::Users)
+                        .entry(),
+                    );
+                }
+                if call.sharing.is_some() {
+                    entries.push(
+                        item("Show self-view", |this, _, cx| {
+                            this.pip_shown = !this.pip_shown;
+                            cx.notify();
+                        })
+                        .checked(this.pip_shown)
+                        .entry(),
+                    );
+                }
+                entries
+            },
+            cx,
+        );
     }
 
     pub(crate) fn open_device_menu(&mut self, kind: DeviceKind, at: Point<Pixels>, cx: &mut Context<Self>) {
+        self.show_device_menu(kind, at, false, cx);
+    }
+
+    fn open_stage_device_menu(&mut self, kind: DeviceKind, at: Point<Pixels>, cx: &mut Context<Self>) {
+        self.show_device_menu(kind, at, true, cx);
+    }
+
+    fn show_device_menu(&mut self, kind: DeviceKind, at: Point<Pixels>, on_stage: bool, cx: &mut Context<Self>) {
         cx.stop_propagation();
-        let devices = match kind {
-            DeviceKind::Input => voice::input_devices(),
-            DeviceKind::Output => voice::output_devices(),
-            DeviceKind::Camera => voice::cameras(),
+        let (inputs, outputs, cameras) = match kind {
+            DeviceKind::Input => (voice::input_devices(), voice::output_devices(), Vec::new()),
+            DeviceKind::Output => (Vec::new(), voice::output_devices(), Vec::new()),
+            DeviceKind::Camera => (Vec::new(), Vec::new(), voice::cameras()),
         };
-        self.device_menu = Some(DeviceMenu { kind, at, devices });
+        self.device_menu = Some(DeviceMenu { kind, at, on_stage, inputs, outputs, cameras });
         cx.notify();
     }
 
     fn choose_device(&mut self, kind: DeviceKind, id: Option<String>, cx: &mut Context<Self>) {
-        self.device_menu = None;
         self.update_prefs(cx, |p| match kind {
             DeviceKind::Input => p.input_device = id,
             DeviceKind::Output => p.output_device = id,
@@ -1422,148 +1487,242 @@ impl Rustcord {
         out
     }
 
-    // Discord's connection popout: ping over time, the numbers behind it, and how the call is secured.
+    // .connpop: how the connection is doing, ping over the last few minutes, the numbers behind it,
+    // and how the call is secured.
     fn connection_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         if !self.connection_info {
             return None;
         }
         let call = self.call.as_ref()?;
-        let theme = cx.theme().clone();
         let stats = call.stats.clone().unwrap_or_default();
-        let (_, color) = signal(call.stats.as_ref().map(|s| s.ping_ms));
-        let peak = stats.last_pings.iter().copied().max().unwrap_or(1).max(100) as f32;
-        let bars = div().h(px(64.)).flex().items_end().gap(px(2.)).children(stats.last_pings.iter().map(|&p| {
-            let (_, c) = signal(Some(p));
-            div().flex_1().h(px((p as f32 / peak * 60.).max(2.))).rounded_t(px(2.)).bg(c)
-        }));
-        let row = |label: &'static str, value: String| {
-            div().flex().justify_between().gap_4().text_size(px(14.)).child(div().flex_none().text_color(theme.muted_foreground).child(label)).child(div().min_w_0().truncate().font_weight(FontWeight::MEDIUM).child(value))
-        };
         let measured = call.stats.is_some();
+        let (strong, muted, faint) = (palette::strong(cx), palette::muted(cx), palette::faint(cx));
+        let link = Link::of(call.stage, call.stats.as_ref());
+        let verdict = match (link, measured) {
+            (Link::Connected | Link::Poor, true) => quality_word(stats.avg_ping_ms),
+            (Link::Lost, _) => "Reconnecting",
+            _ => "Connecting",
+        };
+        let verdict_ink = match verdict {
+            "Good" => palette::positive_ink(cx),
+            "Connecting" => muted,
+            _ => palette::warning_ink(cx),
+        };
+        let peak = stats.last_pings.iter().copied().max().unwrap_or(0).max(160) as f32;
+        let graph = div()
+            .h(px(56.))
+            .p(px(6.))
+            .rounded(px(RADIUS_SM))
+            .bg(palette::surface(palette::Level::Page, cx))
+            .flex()
+            .items_end()
+            .gap(px(2.))
+            .children(stats.last_pings.iter().map(|&p| div().flex_1().min_w(px(2.)).h(relative((p as f32 / peak).clamp(0.06, 1.))).rounded_t(px(2.)).rounded_b(px(1.)).bg(ping_color(p, cx))));
+        let swatch = |color: Hsla, text: &'static str| div().flex().items_center().gap(px(4.)).child(div().size(px(8.)).rounded(px(2.)).bg(color)).child(text);
+        let legend = div()
+            .flex()
+            .flex_wrap()
+            .gap(px(12.))
+            .text_size(px(12.))
+            .text_color(muted)
+            .child(swatch(ping_color(0, cx), "Under 80 ms"))
+            .child(swatch(ping_color(PING_FAIR, cx), "80–120"))
+            .child(swatch(ping_color(PING_BAD + 1, cx), "Over 120"));
         let dash = |value: String| if measured { value } else { "—".into() };
+        let row = |label: &'static str, value: String| {
+            div()
+                .min_h(px(26.))
+                .flex()
+                .items_center()
+                .justify_between()
+                .gap(px(12.))
+                .child(div().flex_none().text_color(muted).child(label))
+                .child(div().min_w_0().truncate().text_color(strong).font_weight(FontWeight::SEMIBOLD).font_features(tabular()).child(value))
+        };
+        let (lock_ink, secured) = match stats.dave {
+            true => (palette::positive_ink(cx), "Voice and video in this call are end-to-end encrypted. Only the people in it can hear them."),
+            false => (muted, "Voice and video are encrypted on the way to Discord's servers, not end to end."),
+        };
         let card = div()
             .id("connection-card")
             .absolute()
             .left(px(8.))
             .bottom(px(self.panel_stack_height() + 16.))
-            .w(px(320.))
-            .p_4()
-            .rounded(px(8.))
-            .bg(theme.popover)
-            .border_1()
-            .border_color(theme.input)
-            .shadow_lg()
+            .w(px(300.))
+            .p(px(16.))
+            .rounded(px(RADIUS_LG))
+            .bg(palette::surface(palette::Level::Overlay, cx))
+            .shadow(pop_shadow(palette::line_strong(cx), cx))
             .flex()
             .flex_col()
-            .gap_3()
+            .gap(px(12.))
+            .text_size(px(14.))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .child(div().flex().items_center().gap_2().text_color(color).child(Icon::new(signal(call.stats.as_ref().map(|s| s.ping_ms)).0).size(px(20.))).child(div().font_weight(FontWeight::SEMIBOLD).child(stage_text(call.stage))))
-            .child(bars)
-            .child(row("Average ping", dash(format!("{} ms", stats.avg_ping_ms))))
-            .child(row("Last ping", dash(format!("{} ms", stats.ping_ms))))
-            .child(row("Outbound packet loss rate", dash(format!("{:.1}%", stats.outbound_loss_pct))))
-            .child(row("Inbound packet loss rate", dash(format!("{:.1}%", stats.inbound_loss_pct))))
-            .child(div().h(px(1.)).bg(theme.border))
-            .child(row("Hostname", dash(stats.endpoint.clone())))
-            .child(row("Encryption", dash(stats.encryption.clone())))
+            .child(div().flex().items_baseline().justify_between().gap(px(8.)).child(div().text_color(strong).font_weight(FontWeight::SEMIBOLD).child("Connection")).child(div().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(verdict_ink).child(verdict)))
             .child(
                 div()
                     .flex()
-                    .items_center()
-                    .gap_2()
-                    .text_size(px(14.))
-                    .text_color(if stats.dave { palette::status(discord::Status::Online) } else { theme.muted_foreground })
-                    .child(Icon::new(Glyph::ShieldLock).size(px(16.)))
-                    .child(if stats.dave { "End-to-end encrypted" } else { "Encrypted in transit" }),
+                    .flex_col()
+                    .gap(px(4.))
+                    .child(graph)
+                    // GAP: the engine keeps its last 20 heartbeat pings, about 13.75s apart, so the graph spans roughly five minutes.
+                    .child(div().flex().justify_between().text_size(px(12.)).text_color(faint).child("5 min ago").child("Now"))
+                    .child(legend),
             )
-            .child(div().text_size(px(12.)).text_color(theme.muted_foreground).child("If your average ping stays above 250 ms, try another server region or check your network."));
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(2.))
+                    .child(row("Average ping", dash(format!("{} ms", stats.avg_ping_ms))))
+                    .child(row("Packet loss", dash(format!("{:.1}%", loss(&stats)))))
+                    .child(row("Server", dash(stats.endpoint.clone()))),
+            )
+            .child(
+                div()
+                    .pt(px(12.))
+                    .border_t_1()
+                    .border_color(palette::line(cx))
+                    .flex()
+                    .items_start()
+                    .gap(px(8.))
+                    .text_size(px(12.))
+                    .text_color(muted)
+                    .child(Icon::new(Glyph::HashtagLock).size(px(16.)).flex_none().text_color(lock_ink))
+                    .child(div().flex_1().min_w_0().child(secured)),
+            )
+            .child(div().text_size(px(12.)).text_color(faint).child("Updated every 2 seconds"))
+            .with_animation("connection-in", Animation::new(ui::DUR_POP), |d, t| d.opacity(t));
         Some(call_backdrop("connection-backdrop", cx).child(card).into_any_element())
     }
 
-    // The chevron menus: pick a device, set its volume, or jump to Voice & Video settings.
+    // .devmenu, opened above its chevron: the devices to pick from, volume (with the live level for
+    // the mic), noise suppression, and the way to the full settings. Over the stage it stays dark.
     fn device_overlay(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let menu = self.device_menu.as_ref()?;
-        let theme = cx.theme().clone();
+        let ink = Inks::of(menu.on_stage, cx);
         let kind = menu.kind;
-        let chosen = match kind {
-            DeviceKind::Input => self.prefs.input_device.clone(),
-            DeviceKind::Output => self.prefs.output_device.clone(),
-            DeviceKind::Camera => self.prefs.camera.clone(),
+        let mut body: Vec<AnyElement> = Vec::new();
+        let group = |body: &mut Vec<AnyElement>, title: &'static str, which: DeviceKind, devices: &[voice::Device], chosen: Option<String>, cx: &mut Context<Self>| {
+            body.push(menu_label(title, &ink).into_any_element());
+            let mut options: Vec<(Option<String>, String)> = Vec::new();
+            if which != DeviceKind::Camera {
+                options.push((None, "Default".into()));
+            }
+            options.extend(devices.iter().map(|d| (Some(d.id.clone()), d.name.clone())));
+            body.extend(options.into_iter().enumerate().map(|(i, (id, name))| {
+                let on = id == chosen;
+                choice_row(SharedString::from(format!("device-{title}-{i}")), &ink)
+                    .child(radio(on, &ink))
+                    .child(div().flex_1().min_w_0().truncate().font_weight(FontWeight::MEDIUM).text_color(ink.strong).child(name))
+                    .on_click(cx.listener(move |this, _, _, cx| this.choose_device(which, id.clone(), cx)))
+                    .into_any_element()
+            }));
         };
-        let title = match kind {
-            DeviceKind::Input => "Input Device",
-            DeviceKind::Output => "Output Device",
-            DeviceKind::Camera => "Camera",
-        };
-        let mut options: Vec<(Option<String>, String)> = Vec::new();
-        if kind != DeviceKind::Camera {
-            options.push((None, "Default".into()));
+        match kind {
+            DeviceKind::Input => {
+                group(&mut body, "Input device", DeviceKind::Input, &menu.inputs, self.prefs.input_device.clone(), cx);
+                group(&mut body, "Output device", DeviceKind::Output, &menu.outputs, self.prefs.output_device.clone(), cx);
+            }
+            DeviceKind::Output => group(&mut body, "Output device", DeviceKind::Output, &menu.outputs, self.prefs.output_device.clone(), cx),
+            DeviceKind::Camera => group(&mut body, "Camera", DeviceKind::Camera, &menu.cameras, self.prefs.camera.clone(), cx),
         }
-        options.extend(menu.devices.iter().map(|d| (Some(d.id.clone()), d.name.clone())));
-        let rows: Vec<AnyElement> = options
-            .into_iter()
-            .enumerate()
-            .map(|(i, (id, name))| {
-                let selected = id == chosen;
-                menu_row(SharedString::from(format!("device-{i}")), name, selected, cx).on_click(cx.listener(move |this, _, _, cx| this.choose_device(kind, id.clone(), cx))).into_any_element()
-            })
-            .collect();
-        let volume = match kind {
-            DeviceKind::Input => Some(("Input Volume", self.prefs.input_volume)),
-            DeviceKind::Output => Some(("Output Volume", self.prefs.output_volume)),
-            DeviceKind::Camera => None,
-        };
-        let volume = volume.map(|(label, value)| {
-            div()
-                .px_2()
-                .pt_2()
-                .flex()
-                .flex_col()
-                .gap_1()
-                .child(div().text_size(px(12.)).font_weight(FontWeight::BOLD).text_color(theme.muted_foreground).child(label))
-                .child(self.range(
-                    SharedString::from(format!("menu-{label}")),
-                    value / 2.,
-                    Fill::Accent,
-                    move |this, f, cx| {
-                        this.update_prefs(cx, |p| match kind {
-                            DeviceKind::Output => p.output_volume = f.clamp(0., 1.) * 2.,
-                            _ => p.input_volume = f.clamp(0., 1.) * 2.,
-                        })
-                    },
-                    cx,
-                ))
-        });
+        body.push(menu_rule(&ink).into_any_element());
+        if kind != DeviceKind::Camera {
+            let (label, value, key) = match kind {
+                DeviceKind::Output => ("Output volume", self.prefs.output_volume, "menu-output-volume"),
+                _ => ("Input volume", self.prefs.input_volume, "menu-input-volume"),
+            };
+            let level = (kind == DeviceKind::Input).then(|| self.call.as_ref().map(|c| c.level.0)).flatten();
+            body.push(
+                self.menu_slider(SharedString::from(key), label, value / 2., &ink, move |this, f, cx| {
+                    this.update_prefs(cx, |p| match kind {
+                        DeviceKind::Output => p.output_volume = f.clamp(0., 1.) * 2.,
+                        _ => p.input_volume = f.clamp(0., 1.) * 2.,
+                    })
+                }, cx)
+                .children(level.map(|db| meter((db + 100.) / 100., &ink)))
+                .into_any_element(),
+            );
+        }
+        if kind == DeviceKind::Input {
+            let noise = self.prefs.noise_suppression;
+            body.push(
+                choice_row("device-noise", &ink)
+                    .child(div().flex_1().min_w_0().child(div().font_weight(FontWeight::MEDIUM).text_color(ink.strong).child("Noise suppression")).child(div().text_size(px(12.)).text_color(ink.muted).child("Filters fans and keys on this device")))
+                    .child(ui::switch_live("device-noise-switch", noise, window, cx))
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle_noise_suppression(cx)))
+                    .into_any_element(),
+            );
+            body.push(menu_rule(&ink).into_any_element());
+        }
+        let settings_label = if kind == DeviceKind::Camera { "Video settings" } else { "Voice settings" };
+        body.push(
+            choice_row("device-settings", &ink)
+                .child(Icon::new(Glyph::Settings).size(px(18.)).text_color(ink.muted))
+                .child(div().flex_1().font_weight(FontWeight::MEDIUM).text_color(ink.text).child(settings_label))
+                .child(Icon::new(Glyph::ChevronRight).size(px(14.)).text_color(ink.faint))
+                .on_click(cx.listener(|this, _, window, cx| {
+                    this.device_menu = None;
+                    this.open_settings(Page::VoiceVideo, window, cx);
+                }))
+                .into_any_element(),
+        );
         let viewport = window.viewport_size();
         let card = div()
             .id("device-menu")
             .absolute()
-            .left(px((f32::from(menu.at.x) - 120.).clamp(8., f32::from(viewport.width) - 268.)))
+            .left(px((f32::from(menu.at.x) - 150.).clamp(8., f32::from(viewport.width) - 308.)))
             .bottom(px((f32::from(viewport.height) - f32::from(menu.at.y) + 12.).max(8.)))
-            .w(px(260.))
-            .p_2()
-            .rounded(px(8.))
-            .bg(theme.popover)
-            .border_1()
-            .border_color(theme.input)
-            .shadow_lg()
+            .w(px(300.))
+            .p(px(6.))
+            .rounded(px(RADIUS_LG))
+            .bg(ink.overlay)
+            .shadow(pop_shadow(ink.line_strong, cx))
             .flex()
             .flex_col()
-            .gap_1()
+            .gap(px(1.))
+            .text_size(px(14.))
+            .text_color(ink.text)
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .child(div().px_2().pb_1().text_size(px(12.)).font_weight(FontWeight::BOLD).text_color(theme.muted_foreground).child(title))
-            .children(rows)
-            .children(volume)
-            .child(div().my_1().h(px(1.)).bg(theme.border))
-            .child(
-                menu_row("device-settings", "Voice Settings".into(), false, cx)
-                    .child(Icon::new(Glyph::Settings).size(px(16.)))
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.device_menu = None;
-                        this.open_settings(Page::VoiceVideo, window, cx);
-                    })),
-            );
+            .children(body)
+            .with_animation("device-menu-in", Animation::new(ui::DUR_POP), |d, t| d.opacity(t));
         Some(call_backdrop("device-backdrop", cx).child(card).into_any_element())
+    }
+
+    // .mslider: the label and its percentage over the slider; click or drag anywhere on it.
+    fn menu_slider(&self, key: SharedString, label: &'static str, fraction: f32, ink: &Inks, on_set: impl Fn(&mut Rustcord, f32, &mut Context<Rustcord>) + Clone + 'static, cx: &mut Context<Self>) -> Div {
+        let bounds = self.slider_bounds.clone();
+        let record = bounds.clone();
+        let (down_key, move_key, record_key) = (key.clone(), key.clone(), key.clone());
+        let set = move |this: &mut Rustcord, key: &SharedString, x: Pixels, cx: &mut Context<Rustcord>| {
+            let Some(b) = bounds.borrow().get(key).copied() else { return };
+            on_set(this, ((x - b.left()) / b.size.width).clamp(0., 1.), cx);
+        };
+        let set_drag = set.clone();
+        let slider = div()
+            .id(SharedString::from(format!("menu-slider-{key}")))
+            .relative()
+            .w_full()
+            .cursor_pointer()
+            .child(gpui_kit::canvas(move |b, _, _| { record.borrow_mut().insert(record_key.clone(), b); }, |_, _, _, _| {}).absolute().size_full())
+            .child(ui::slider(fraction, cx))
+            .on_mouse_down(MouseButton::Left, cx.listener(move |this, e: &MouseDownEvent, _, cx| set(this, &down_key, e.position.x, cx)))
+            .on_drag(MenuSliderDrag(key.clone()), |drag, _, _, cx| cx.new(|_| drag.clone()))
+            .on_drag_move::<MenuSliderDrag>(cx.listener(move |this, e: &gpui_kit::DragMoveEvent<MenuSliderDrag>, _, cx| {
+                if e.drag(cx).0 == move_key {
+                    set_drag(this, &move_key, e.event.position.x, cx);
+                }
+            }));
+        div()
+            .px(px(10.))
+            .pt(px(6.))
+            .pb(px(10.))
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .child(div().flex().justify_between().font_weight(FontWeight::MEDIUM).text_color(ink.text).child(label).child(div().text_color(ink.muted).font_features(tabular()).child(format!("{:.0}%", fraction * 100.))))
+            .child(slider)
     }
 
     // Right-click on anyone in voice opens Discord's server user menu with its voice items.
@@ -1617,86 +1776,437 @@ fn call_backdrop(id: &'static str, cx: &mut Context<Rustcord>) -> Stateful<Div> 
     )
 }
 
-// `hover_ink` recolours the icon on hover, as the hang-up button turns red.
-fn panel_button_tinted(id: &'static str, glyph: Glyph, label: &'static str, hover_ink: Option<Hsla>, cx: &mut Context<Rustcord>) -> Stateful<Div> {
-    let theme = cx.theme().clone();
-    let ink = hover_ink.unwrap_or(theme.foreground);
+// The call stage is dark in both themes (design/css/voice.css `.call`), so whatever sits on it reads
+// these instead of the theme's tokens. Converted from the CSS's OKLCH.
+// MOVE(ui): stage scope, as palette::stage(..) beside the theme ramps.
+mod stage {
+    use gpui_kit::{Hsla, rgb};
+
+    fn hex(value: u32) -> Hsla {
+        rgb(value).into()
+    }
+
+    pub fn bg() -> Hsla {
+        hex(0x0A0608)
+    }
+
+    pub fn page() -> Hsla {
+        hex(0x1C1619)
+    }
+
+    pub fn raised() -> Hsla {
+        hex(0x261F22)
+    }
+
+    pub fn overlay() -> Hsla {
+        hex(0x2C2528)
+    }
+
+    pub fn ended() -> Hsla {
+        hex(0x171214)
+    }
+
+    pub fn strong() -> Hsla {
+        hex(0xF7F4F5)
+    }
+
+    pub fn text() -> Hsla {
+        hex(0xDCD5D8)
+    }
+
+    pub fn muted() -> Hsla {
+        hex(0xABA2A5)
+    }
+
+    pub fn faint() -> Hsla {
+        hex(0x958C90)
+    }
+
+    pub fn online() -> Hsla {
+        hex(0x3EC87D)
+    }
+
+    pub fn idle() -> Hsla {
+        hex(0xF2B036)
+    }
+
+    pub fn dnd() -> Hsla {
+        hex(0xF05136)
+    }
+
+    // Translucent white: hover .05, press .09, selected .08, line .08, strong line .14.
+    pub fn wash(alpha: f32) -> Hsla {
+        gpui_kit::white().opacity(alpha)
+    }
+
+    // Off states (muted, camera off) are soft coral, apart from the red that leaves.
+    pub fn off(hover: bool) -> Hsla {
+        hex(0xF05136).opacity(if hover { 0.3 } else { 0.2 })
+    }
+
+    pub fn off_ink() -> Hsla {
+        hex(0xFF9079)
+    }
+
+    // On states (camera on) are a light fill with dark ink.
+    pub fn on(hover: bool) -> Hsla {
+        hex(if hover { 0xDBD6D8 } else { 0xF1EDEF })
+    }
+
+    pub fn on_ink() -> Hsla {
+        hex(0x1A1417)
+    }
+}
+
+// The few tokens a menu reads, from the stage or from the theme.
+struct Inks {
+    overlay: Hsla,
+    strong: Hsla,
+    text: Hsla,
+    muted: Hsla,
+    faint: Hsla,
+    hover: Hsla,
+    line: Hsla,
+    line_strong: Hsla,
+}
+
+impl Inks {
+    fn of(on_stage: bool, cx: &App) -> Self {
+        match on_stage {
+            true => Inks { overlay: stage::overlay(), strong: stage::strong(), text: stage::text(), muted: stage::muted(), faint: stage::faint(), hover: stage::wash(0.05), line: stage::wash(0.08), line_strong: stage::wash(0.14) },
+            false => Inks {
+                overlay: palette::surface(palette::Level::Overlay, cx),
+                strong: palette::strong(cx),
+                text: palette::text(cx),
+                muted: palette::muted(cx),
+                faint: palette::faint(cx),
+                hover: palette::hover(cx),
+                line: palette::line(cx),
+                line_strong: palette::line_strong(cx),
+            },
+        }
+    }
+}
+
+// --shadow-pop: a soft drop plus a 1px ring in the strong line colour.
+fn pop_shadow(ring: Hsla, cx: &App) -> Vec<BoxShadow> {
+    let drop = if cx.theme().is_dark() { gpui_kit::black().opacity(0.45) } else { Hsla::from(rgb(0x3D2A22)).opacity(0.16) };
+    vec![
+        BoxShadow { color: drop, offset: point(px(0.), px(12.)), blur_radius: px(32.), spread_radius: px(0.), inset: false },
+        BoxShadow { color: ring, offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false },
+    ]
+}
+
+// The mini wave at rest (.bars.still): 3px bars, 2px apart. `weak` dims all but the first.
+// MOVE(ui): bars_still at the .bars size (ui's is the LIVE badge's 2px).
+fn still_bars(color: Hsla, height: f32, weak: bool) -> Div {
+    div().h(px(height)).flex_none().flex().items_center().gap(px(2.)).children([0.55_f32, 1., 0.7].into_iter().enumerate().map(move |(i, base)| {
+        let ink = if weak && i > 0 { color.opacity(0.3) } else { color };
+        div().w(px(3.)).h(px(height * base)).rounded_full().bg(ink)
+    }))
+}
+
+// .voicebar .why: the second line, in the status's tone, saying what needs you.
+fn why_line(text: impl Into<SharedString>, tone: Hsla) -> Div {
+    div().h(px(18.)).truncate().text_size(px(12.)).text_color(tone).child(text.into())
+}
+
+// .voicebar .acts .btn: equal-width 32px buttons; disabled until connected, saying why.
+fn panel_action(id: &'static str, glyph: Glyph, tip: &'static str, enabled: bool, cx: &App) -> Stateful<Div> {
+    let (fill, press, ink) = (palette::selected(cx), palette::press(cx), palette::strong(cx));
+    div()
+        .id(id)
+        .flex_1()
+        .min_w_0()
+        .h(px(32.))
+        .rounded(px(RADIUS_SM))
+        .flex()
+        .items_center()
+        .justify_center()
+        .bg(fill)
+        .text_color(ink)
+        .child(Icon::new(glyph).size(px(18.)))
+        .when(enabled, |b| b.cursor_pointer().hover(move |s| s.bg(press)))
+        .when(!enabled, |b| b.opacity(0.45).cursor(gpui_kit::CursorStyle::OperationNotAllowed))
+        .tooltip(move |window, cx| Tooltip::new(tip).build(window, cx))
+}
+
+// .iconbtn on the stage: muted until hovered; `pressed` holds the selected fill.
+fn stage_icon_button(id: &'static str, glyph: Glyph, tip: &'static str, pressed: bool) -> Stateful<Div> {
     div()
         .id(id)
         .size(px(32.))
         .flex_none()
-        .rounded(px(8.))
+        .rounded(px(RADIUS_SM))
         .flex()
         .items_center()
         .justify_center()
         .cursor_pointer()
-        .text_color(theme.foreground.opacity(0.7))
-        .hover(move |s| s.bg(theme.foreground.opacity(0.1)).text_color(ink))
+        .text_color(if pressed { stage::strong() } else { stage::muted() })
+        .when(pressed, |b| b.bg(stage::wash(0.08)))
+        .hover(|s| s.bg(stage::wash(0.05)).text_color(stage::strong()))
+        .active(|s| s.bg(stage::wash(0.09)))
         .child(Icon::new(glyph).size(px(20.)))
-        .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
+        .tooltip(move |window, cx| Tooltip::new(tip).build(window, cx))
 }
 
-// The panel's row of equal-width call buttons, from Discord's stylesheet: 32px, 8px radius, a 12%
-// wash with a 16% border; while on (sharing, camera), green at 12% with a green icon.
-fn wide_button(id: &'static str, glyph: Glyph, label: &'static str, on: bool, enabled: bool, _cx: &mut Context<Rustcord>) -> Stateful<Div> {
-    let wash = |a: f32| palette::wash(a);
-    let green = |a: f32| Hsla::from(rgb(0x008545)).opacity(a);
+// .btn.btn--sm on the stage: the quiet fill.
+fn stage_button(id: &'static str, label: &'static str) -> Stateful<Div> {
     div()
         .id(id)
-        .flex_1()
-        .h(px(32.))
-        .rounded(px(8.))
-        .border_1()
-        .border_color(if on { green(0.12) } else { wash(0.16) })
-        .bg(if on { green(0.12) } else { wash(0.12) })
+        .h(px(30.))
+        .px(px(10.))
+        .flex_none()
+        .rounded(px(RADIUS_SM))
+        .flex()
+        .items_center()
+        .gap(px(8.))
+        .cursor_pointer()
+        .bg(stage::wash(0.08))
+        .hover(|s| s.bg(stage::wash(0.09)))
+        .text_color(stage::strong())
+        .text_size(px(14.))
+        .font_weight(FontWeight::SEMIBOLD)
+        .whitespace_nowrap()
+        .child(label)
+}
+
+// .preview .watch: the light button over a dimmed stream.
+fn watch_button(label: &'static str) -> Div {
+    div()
+        .h(px(30.))
+        .px(px(10.))
+        .rounded(px(RADIUS_SM))
+        .flex()
+        .items_center()
+        .gap(px(8.))
+        .bg(stage::strong())
+        .hover(|s| s.bg(gpui_kit::white()))
+        .text_color(stage::on_ink())
+        .text_size(px(14.))
+        .font_weight(FontWeight::SEMIBOLD)
+        .child(Icon::new(Glyph::Play).size(px(16.)))
+        .child(label)
+}
+
+// A call control's state: .cbtn at rest, .off (coral), .on (light), .active (accent), the open
+// chevron ([aria-expanded]), or .leave (the one red fill).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Control {
+    Rest,
+    Off,
+    On,
+    Active,
+    Open,
+    Leave,
+}
+
+// .cbtn: 52x48, a squircle; icons 22px (the chevron 14px).
+// GAP: the design's icons here are Phosphor's fill weight; Wave bundles the regular ones only.
+// PATCH(transform): scale to 0.92 while pressed (.cbtn:active), on the touch spring.
+fn control(id: &'static str, glyph: Glyph, tip: &'static str, state: Control, enabled: bool) -> Stateful<Div> {
+    let (fill, hover, ink) = match state {
+        Control::Rest => (stage::wash(0.1), stage::wash(0.16), gpui_kit::white()),
+        Control::Off => (stage::off(false), stage::off(true), stage::off_ink()),
+        Control::On => (stage::on(false), stage::on(true), stage::on_ink()),
+        Control::Active => (palette::accent(), palette::accent_hover(), gpui_kit::white()),
+        Control::Open => (stage::wash(0.2), stage::wash(0.2), gpui_kit::white()),
+        Control::Leave => (palette::danger(), palette::danger_hover(), gpui_kit::white()),
+    };
+    let chevron = matches!(glyph, Glyph::ChevronUp);
+    div()
+        .id(id)
+        .w(px(if chevron { 26. } else { 52. }))
+        .h(px(CONTROLS_HEIGHT))
+        .flex_none()
+        .rounded(px(12.))
         .flex()
         .items_center()
         .justify_center()
-        .cursor_pointer()
-        .text_color(if on { rgb(0x62B77C) } else { rgb(0xDCDCDF) })
-        .hover(move |s| s.bg(if on { green(0.24) } else { wash(0.2) }))
-        .when(!enabled, |b| b.opacity(0.3))
-        .child(Icon::new(glyph).size(px(20.)))
-        .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
+        .bg(fill)
+        .text_color(ink)
+        .child(Icon::new(glyph).size(px(if chevron { 14. } else { 22. })))
+        .when(enabled, |b| b.cursor_pointer().hover(move |s| s.bg(hover)))
+        .when(!enabled, |b| b.opacity(0.4).cursor(gpui_kit::CursorStyle::OperationNotAllowed))
+        .tooltip(move |window, cx| Tooltip::new(tip).build(window, cx))
 }
 
-// A call bar button: 56×48, light on the dark stage, red when that input is off.
-fn split_button(id: &'static str, glyph: Glyph, label: &'static str, off: bool, cx: &mut Context<Rustcord>) -> Stateful<Div> {
-    let danger = cx.theme().danger;
-    div()
-        .id(id)
-        .w(px(56.))
-        .h(px(48.))
-        .rounded_l(px(12.))
-        .flex()
-        .items_center()
-        .justify_center()
-        .cursor_pointer()
-        .bg(gpui_kit::white().opacity(0.1))
-        .text_color(if off { danger } else { gpui_kit::white() })
-        .hover(|s| s.bg(gpui_kit::white().opacity(0.16)))
-        .child(Icon::new(glyph).size(px(24.)))
-        .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
+// .csplit: the main half and its chevron 2px apart, their facing corners small.
+fn split_control(main: Stateful<Div>, chevron: Stateful<Div>) -> Div {
+    div().flex().gap(px(2.)).child(main.rounded_tr(px(4.)).rounded_br(px(4.))).child(chevron.rounded_tl(px(4.)).rounded_bl(px(4.)))
 }
 
-fn chevron(id: &'static str, _cx: &mut Context<Rustcord>) -> Stateful<Div> {
+// .tile .name: 12px semibold white along the tile's foot.
+// GAP: gpui has no text-shadow, so the 1px shadow under the label is left to the scrim.
+fn tile_name(content: Div) -> Div {
+    content.absolute().left(px(10.)).right(px(10.)).bottom(px(8.)).flex().items_center().gap(px(6.)).min_w_0().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(gpui_kit::white())
+}
+
+// The tile's edge, drawn above its media so a stream can't hide it: a faint 1px line, or while
+// speaking a 2px accent ring with a dark inner line (neutral when they're muted for you).
+fn tile_ring(speaking: bool, local_muted: bool) -> Div {
+    let ring = div().absolute().inset_0().rounded(px(RADIUS_LG));
+    if !speaking {
+        return ring.border_1().border_color(stage::wash(0.06));
+    }
+    let color = if local_muted { stage::wash(0.42) } else { palette::accent() };
+    ring.border(px(2.)).border_color(color).child(div().absolute().inset_0().rounded(px(RADIUS_LG - 2.)).border(px(2.)).border_color(stage::bg().opacity(0.6)))
+}
+
+// .tile.has-media::before: a smooth scrim under the labels, never a hard strip.
+fn scrim_top(radius: f32) -> Div {
+    ui::edge(div().absolute().top_0().left_0().right_0().h(relative(0.3)), ui::top(radius)).bg(gpui_kit::linear_gradient(180., gpui_kit::linear_color_stop(gpui_kit::black().opacity(0.35), 0.), gpui_kit::linear_color_stop(gpui_kit::transparent_black(), 1.)))
+}
+
+fn scrim_bottom(radius: f32) -> Div {
+    ui::edge(div().absolute().bottom_0().left_0().right_0().h(relative(0.38)), ui::bottom(radius)).bg(gpui_kit::linear_gradient(180., gpui_kit::linear_color_stop(gpui_kit::transparent_black(), 0.), gpui_kit::linear_color_stop(gpui_kit::black().opacity(0.55), 1.)))
+}
+
+// .tile .viewers: the watch count, top right.
+// GAP: the design's eye glyph isn't bundled; the people glyph stands in.
+fn viewer_chip(viewers: usize) -> Div {
     div()
-        .id(id)
-        .w(px(28.))
-        .h(px(48.))
-        .rounded_r(px(12.))
+        .absolute()
+        .right(px(8.))
+        .top(px(8.))
+        .h(px(20.))
+        .px(px(7.))
+        .rounded(px(RADIUS_XS))
         .flex()
         .items_center()
-        .justify_center()
-        .cursor_pointer()
-        .bg(gpui_kit::white().opacity(0.1))
+        .gap(px(4.))
+        .bg(gpui_kit::black().opacity(0.45))
         .text_color(gpui_kit::white())
-        .hover(|s| s.bg(gpui_kit::white().opacity(0.16)))
-        .child(Icon::new(Glyph::ChevronDown).size(px(16.)))
+        .text_size(px(11.))
+        .font_weight(FontWeight::BOLD)
+        .font_features(tabular())
+        .child(Icon::new(Glyph::Users).size(px(12.)))
+        .child(viewers.to_string())
 }
 
-fn menu_row(id: impl Into<SharedString>, label: String, checked: bool, cx: &mut Context<Rustcord>) -> Stateful<Div> {
-    ui::menu_row(gpui_kit::ElementId::Name(id.into()), cx).child(div().flex_1().min_w_0().truncate().child(label)).when(checked, |d| d.child(Icon::new(Glyph::Checkmark).size(px(16.))))
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MarkKind {
+    // A moderator's lock: solid red.
+    Server,
+    // Your own choice, so neutral.
+    Local,
+}
+
+// .vmark: why you can't hear someone, as a chip; on tiles it can carry the words.
+fn vmark(glyph: Glyph, words: Option<&'static str>, kind: MarkKind) -> Div {
+    let base = div()
+        .h(px(18.))
+        .min_w(px(18.))
+        .flex_none()
+        .rounded(px(4.))
+        .flex()
+        .items_center()
+        .justify_center()
+        .gap(px(4.))
+        .text_size(px(11.))
+        .font_weight(FontWeight::BOLD)
+        .whitespace_nowrap()
+        .text_color(gpui_kit::white())
+        .when(words.is_some(), |d| d.pl(px(4.)).pr(px(6.)))
+        .when(words.is_none(), |d| d.px(px(3.)))
+        .child(Icon::new(glyph).size(px(12.)))
+        .children(words);
+    match kind {
+        MarkKind::Server => base.bg(palette::danger()),
+        MarkKind::Local => base.bg(stage::bg().opacity(0.72)).border_1().border_color(stage::wash(0.16)),
+    }
+}
+
+// .stackav: avatars overlapping by 6px, each ringed in the surface so they read apart.
+// MOVE(ui): avatar_stack measures narrower than its avatars under negative margins, so its
+// neighbours slide underneath; this one is sized up front.
+fn face_stack(urls: Vec<String>, size: f32, ring: Hsla) -> Div {
+    let step = size - 6.;
+    let width = if urls.is_empty() { 0. } else { size + step * (urls.len() - 1) as f32 };
+    div().relative().flex_none().w(px(width)).h(px(size)).children(urls.into_iter().enumerate().map(move |(i, url)| ui::avatar(url, size).absolute().top_0().left(px(step * i as f32)).border_2().border_color(ring)))
+}
+
+// .tile.stream: a stream before its first preview arrives.
+fn stream_fill() -> Div {
+    let glow = gpui_kit::linear_gradient(135., gpui_kit::linear_color_stop(Hsla::from(rgb(0x0097A1)).opacity(0.7), 0.), gpui_kit::linear_color_stop(Hsla::from(rgb(0x9D2398)).opacity(0.7), 1.));
+    div().relative().rounded(px(RADIUS_LG)).bg(rgb(0x1D1E39)).child(div().absolute().inset_0().rounded(px(RADIUS_LG)).bg(glow))
+}
+
+// .mlabel
+fn menu_label(text: &'static str, ink: &Inks) -> Div {
+    div().pt(px(6.)).px(px(10.)).pb(px(2.)).text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(ink.muted).child(text)
+}
+
+// .devmenu hr
+fn menu_rule(ink: &Inks) -> Div {
+    div().h(px(1.)).mx(px(4.)).my(px(4.)).flex_none().bg(ink.line)
+}
+
+// .choice.vrow: a 34px menu row holding a radio or a switch.
+fn choice_row(id: impl Into<ElementId>, ink: &Inks) -> Stateful<Div> {
+    let hover = ink.hover;
+    div().id(id).min_h(px(34.)).px(px(10.)).py(px(6.)).rounded(px(RADIUS_SM)).flex().items_center().gap(px(10.)).cursor_pointer().hover(move |s| s.bg(hover))
+}
+
+// .vrow .radio: 18px; on is a 5px accent band.
+// MOVE(ui): radio with a size and a ring colour, so a dark scope can use it.
+fn radio(on: bool, ink: &Inks) -> Div {
+    div().size(px(18.)).flex_none().rounded_full().when(on, |d| d.border(px(5.)).border_color(palette::accent())).when(!on, |d| d.border(px(1.5)).border_color(ink.line_strong))
+}
+
+// .meter: the live level as a row of pills.
+// MOVE(ui): meter.
+fn meter(level: f32, ink: &Inks) -> Div {
+    let lit = (level.clamp(0., 1.) * METER_BARS as f32).round() as usize;
+    div().h(px(14.)).flex().items_center().gap(px(2.)).children((0..METER_BARS).map(|i| div().flex_1().min_w(px(3.)).h_full().rounded_full().bg(if i < lit { stage::online() } else { ink.line_strong })))
+}
+
+#[derive(Clone)]
+struct MenuSliderDrag(SharedString);
+
+impl gpui_kit::Render for MenuSliderDrag {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div()
+    }
+}
+
+// --ease-spring: CSS linear() stops for a small overshoot that settles.
+// MOVE(ui): ease_spring beside the motion tokens.
+fn ease_spring(t: f32) -> f32 {
+    use gpui_kit::base::{Easing, LinearStop};
+    let stops = [LinearStop::new(0.), LinearStop::at(0.42, 0.12), LinearStop::at(0.82, 0.25), LinearStop::at(1.06, 0.4), LinearStop::at(1.1, 0.48), LinearStop::at(1.04, 0.62), LinearStop::at(0.99, 0.78), LinearStop::new(1.)];
+    Easing::linear_stops(stops).map_or(t, |e| e.sample(t))
+}
+
+fn tabular() -> FontFeatures {
+    FontFeatures(Arc::new(vec![("tnum".into(), 1)]))
+}
+
+// MOVE(ui): oklch <-> sRGB, as palette already does privately for role colours.
+fn oklch(l: f32, c: f32, h: f32) -> Hsla {
+    let (a, b) = (c * h.to_radians().cos(), c * h.to_radians().sin());
+    let l_ = (l + 0.396_337_8 * a + 0.215_803_76 * b).powi(3);
+    let m_ = (l - 0.105_561_35 * a - 0.063_854_17 * b).powi(3);
+    let s_ = (l - 0.089_484_18 * a - 1.291_485_5 * b).powi(3);
+    let channel = |v: f32| {
+        let v = v.clamp(0., 1.);
+        if v <= 0.003_130_8 { 12.92 * v } else { 1.055 * v.powf(1. / 2.4) - 0.055 }
+    };
+    let r = channel(4.076_741_7 * l_ - 3.307_711_6 * m_ + 0.230_969_94 * s_);
+    let g = channel(-1.268_438 * l_ + 2.609_757_4 * m_ - 0.341_319_38 * s_);
+    let bl = channel(-0.004_196_086 * l_ - 0.703_418_6 * m_ + 1.707_614_7 * s_);
+    gpui_kit::Rgba { r, g, b: bl, a: 1. }.into()
+}
+
+fn oklch_hue(color: Hsla) -> f32 {
+    let rgba = gpui_kit::Rgba::from(color);
+    let lin = |c: f32| if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) };
+    let (r, g, b) = (lin(rgba.r), lin(rgba.g), lin(rgba.b));
+    let l = (0.412_221_47 * r + 0.536_332_55 * g + 0.051_445_995 * b).cbrt();
+    let m = (0.211_903_5 * r + 0.680_699_5 * g + 0.107_396_96 * b).cbrt();
+    let s = (0.088_302_46 * r + 0.281_718_85 * g + 0.629_978_7 * b).cbrt();
+    let (a, bb) = (1.977_998_5 * l - 2.428_592_2 * m + 0.450_593_7 * s, 0.025_904_037 * l + 0.782_771_77 * m - 0.808_675_77 * s);
+    bb.atan2(a).to_degrees().rem_euclid(360.)
 }
 
 // A BGRA frame as the data URL Discord's preview upload takes.

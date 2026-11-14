@@ -144,6 +144,7 @@ fn demo_call(chord: &mut Rustcord) {
         ended: None,
         sharing: None,
         share_source: None, live_since: None, self_view: None, share_label: None,
+        joined: std::time::Instant::now().checked_sub(std::time::Duration::from_secs(5047)).unwrap_or_else(std::time::Instant::now),
         _events: gpui_kit::Task::ready(()),
     });
     chord.call_view = true;
