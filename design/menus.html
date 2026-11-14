@@ -36,9 +36,897 @@
 <section id="intro">
   <h1>Context menus</h1>
   <p class="lede">Every right-click and overflow menu in Wave, their submenus, and the dialogs they open.</p>
+  <p class="note cm-note">The menu card, rows, submenus, slider rows and dialog shell are the primitives on <a href="overlays.html#menus">Overlays: menus</a> and <a href="overlays.html#dialogs">dialogs</a>. This page is their content. Rows that open a dialog open the live one here: click them. Every menu takes the keyboard too.</p>
+</section>
+
+<section id="channel-menu">
+  <h2>Channel menu</h2>
+  <p class="lede">Right-click a channel in the sidebar. Read state first, sharing next, your own settings, then managing the channel, with delete last before the developer ID.</p>
+  <div class="board cm-board">
+    <div class="cm-spot has-open" id="cm-mute">
+      <div class="menu" role="menu" aria-label="#clips">
+        <div class="mhead"><span class="icontile"><i class="ph ph-hash"></i></span><div><b>clips</b><span>Night Shift · Highlights</span></div></div>
+        <button class="mi" role="menuitem"><i class="ph ph-checks"></i><div>Mark as read</div><kbd>Esc</kbd></button>
+        <hr>
+        <button class="mi cm-accent" role="menuitem" data-open="d-invite"><i class="ph ph-user-plus"></i><div>Invite people</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-link"></i><div>Copy link</div></button>
+        <hr>
+        <div class="has-sub open">
+          <button class="mi" role="menuitem" aria-haspopup="menu" aria-expanded="true"><i class="ph ph-bell-slash"></i><div>Mute channel</div><i class="ph ph-caret-right chev"></i></button>
+          <div class="menu" role="menu" aria-label="Mute channel">
+            <button class="mi" role="menuitem"><div>For 15 minutes<small>Until 8:56 PM</small></div></button>
+            <button class="mi" role="menuitem"><div>For 1 hour<small>Until 9:41 PM</small></div></button>
+            <button class="mi" role="menuitem"><div>For 3 hours<small>Until 11:41 PM</small></div></button>
+            <button class="mi" role="menuitem"><div>For 8 hours<small>Until tomorrow at 4:41 AM</small></div></button>
+            <button class="mi" role="menuitem"><div>For 24 hours<small>Until tomorrow at 8:41 PM</small></div></button>
+            <hr>
+            <button class="mi" role="menuitem"><div>Until I turn it back on</div></button>
+          </div>
+        </div>
+        <div class="has-sub">
+          <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-bell"></i><div>Notification settings<small>Only @mentions</small></div><i class="ph ph-caret-right chev"></i></button>
+          <div class="menu" role="menu" aria-label="Notification settings">
+            <div role="group" aria-label="Notify me about">
+              <button class="mi" role="menuitemradio" aria-checked="true"><div>Use category default<small>Only @mentions</small></div><span class="radio" aria-checked="true"></span></button>
+              <button class="mi" role="menuitemradio" aria-checked="false"><div>All messages</div><span class="radio" aria-checked="false"></span></button>
+              <button class="mi" role="menuitemradio" aria-checked="false"><div>Only @mentions</div><span class="radio" aria-checked="false"></span></button>
+              <button class="mi" role="menuitemradio" aria-checked="false"><div>Nothing</div><span class="radio" aria-checked="false"></span></button>
+            </div>
+          </div>
+        </div>
+        <hr>
+        <div class="has-sub">
+          <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-arrow-elbow-down-right"></i><div>Move to category</div><i class="ph ph-caret-right chev"></i></button>
+          <div class="menu" role="menu" aria-label="Move to category">
+            <button class="mi" role="menuitem"><div>No category</div></button>
+            <hr>
+            <button class="mi" role="menuitem" aria-disabled="true"><i class="ph ph-check"></i><div>Highlights<small>It's here now</small></div></button>
+            <button class="mi" role="menuitem"><i class="ph ph-folder-simple"></i><div>Hangouts</div></button>
+            <button class="mi" role="menuitem"><i class="ph ph-folder-simple"></i><div>Voice</div></button>
+          </div>
+        </div>
+        <hr>
+        <button class="mi" role="menuitem" data-open="d-edit-channel"><i class="ph ph-pencil-simple"></i><div>Edit channel</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-copy-simple"></i><div>Duplicate channel</div></button>
+        <button class="mi" role="menuitem" data-open="d-create-thread"><i class="ph ph-chats-circle"></i><div>Create thread</div></button>
+        <button class="mi danger" role="menuitem" data-open="d-del-channel"><i class="ph ph-trash"></i><div>Delete channel</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-identification-card"></i><div>Copy channel ID</div></button>
+      </div>
+      <p class="note">Unmuted, Mute channel open. Each length says when it ends; it's 8:41 PM.</p>
+    </div>
+
+    <div class="cm-spot has-open" id="cm-muted">
+      <div class="menu" role="menu" aria-label="#clips, muted">
+        <div class="mhead"><span class="icontile"><i class="ph ph-hash"></i></span><div><b>clips</b><span>Night Shift · Highlights</span></div></div>
+        <button class="mi" role="menuitem" aria-disabled="true"><i class="ph ph-checks"></i><div>Mark as read<small>You're all caught up</small></div></button>
+        <hr>
+        <button class="mi cm-accent" role="menuitem" data-open="d-invite"><i class="ph ph-user-plus"></i><div>Invite people</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-link"></i><div>Copy link</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-bell-ringing"></i><div>Unmute channel<small>Muted until 9:41 PM</small></div></button>
+        <div class="has-sub open">
+          <button class="mi" role="menuitem" aria-haspopup="menu" aria-expanded="true"><i class="ph ph-bell"></i><div>Notification settings<small>Nothing while muted</small></div><i class="ph ph-caret-right chev"></i></button>
+          <div class="menu" role="menu" aria-label="Notification settings">
+            <div role="group" aria-label="Notify me about">
+              <button class="mi" role="menuitemradio" aria-checked="true"><div>Use category default<small>Only @mentions</small></div><span class="radio" aria-checked="true"></span></button>
+              <button class="mi" role="menuitemradio" aria-checked="false"><div>All messages</div><span class="radio" aria-checked="false"></span></button>
+              <button class="mi" role="menuitemradio" aria-checked="false"><div>Only @mentions</div><span class="radio" aria-checked="false"></span></button>
+              <button class="mi" role="menuitemradio" aria-checked="false"><div>Nothing</div><span class="radio" aria-checked="false"></span></button>
+            </div>
+          </div>
+        </div>
+        <hr>
+        <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-arrow-elbow-down-right"></i><div>Move to category</div><i class="ph ph-caret-right chev"></i></button>
+        <hr>
+        <button class="mi" role="menuitem" data-open="d-edit-channel"><i class="ph ph-pencil-simple"></i><div>Edit channel</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-copy-simple"></i><div>Duplicate channel</div></button>
+        <button class="mi" role="menuitem" data-open="d-create-thread"><i class="ph ph-chats-circle"></i><div>Create thread</div></button>
+        <button class="mi danger" role="menuitem" data-open="d-del-channel"><i class="ph ph-trash"></i><div>Delete channel</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-identification-card"></i><div>Copy channel ID</div></button>
+      </div>
+      <p class="note">Muted, nothing unread, Notification settings open. The level row says what muting does to it.</p>
+    </div>
+
+    <div class="cm-spot">
+      <div class="menu" role="menu" aria-label="#clips, member">
+        <div class="mhead"><span class="icontile"><i class="ph ph-hash"></i></span><div><b>a-channel-with-a-very-long-name-for-late-night-chat</b><span>Night Shift · Hangouts</span></div></div>
+        <button class="mi" role="menuitem"><i class="ph ph-checks"></i><div>Mark as read</div><kbd>Esc</kbd></button>
+        <hr>
+        <button class="mi cm-accent" role="menuitem" data-open="d-invite"><i class="ph ph-user-plus"></i><div>Invite people</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-link"></i><div>Copy link</div></button>
+        <hr>
+        <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-bell-slash"></i><div>Mute channel</div><i class="ph ph-caret-right chev"></i></button>
+        <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-bell"></i><div>Notification settings<small>All messages</small></div><i class="ph ph-caret-right chev"></i></button>
+      </div>
+      <p class="note">Without Manage channels: the managing group and the ID (developer mode off) drop out. Long names truncate in the header.</p>
+    </div>
+  </div>
+  <p class="note">A voice channel swaps Invite people for Invite to voice and adds Open chat and Hide names (checkbox) under it; it has no notification level. Row order: 34px rows, separators between groups, the danger row last before the ID.</p>
+</section>
+
+<section id="category-menu">
+  <h2>Category menu</h2>
+  <p class="lede">Right-click a category header. Same shape as the channel menu, with folding in place of sharing.</p>
+  <div class="board cm-board">
+    <div class="cm-spot">
+      <div class="menu" role="menu" aria-label="Highlights category">
+        <div class="mhead"><span class="icontile"><i class="ph ph-folder-simple"></i></span><div><b>Highlights</b><span>4 channels</span></div></div>
+        <button class="mi" role="menuitem"><i class="ph ph-checks"></i><div>Mark as read</div></button>
+        <hr>
+        <button class="mi" role="menuitemcheckbox" aria-checked="false"><i class="ph ph-arrows-in-line-vertical"></i><div>Collapse category</div><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        <button class="mi" role="menuitem"><i class="ph ph-arrows-in-simple"></i><div>Collapse all categories</div></button>
+        <hr>
+        <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-bell-slash"></i><div>Mute category</div><i class="ph ph-caret-right chev"></i></button>
+        <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-bell"></i><div>Notification settings<small>All messages, the server default</small></div><i class="ph ph-caret-right chev"></i></button>
+        <hr>
+        <button class="mi" role="menuitem" data-open="d-edit-channel"><i class="ph ph-pencil-simple"></i><div>Edit category</div></button>
+        <button class="mi danger" role="menuitem"><i class="ph ph-trash"></i><div>Delete category</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-identification-card"></i><div>Copy category ID</div></button>
+      </div>
+      <p class="note">Expanded.</p>
+    </div>
+    <div class="cm-spot">
+      <div class="menu" role="menu" aria-label="Voice category, collapsed">
+        <div class="mhead"><span class="icontile"><i class="ph ph-folder-simple"></i></span><div><b>Voice</b><span>6 channels, collapsed</span></div></div>
+        <button class="mi" role="menuitem" aria-disabled="true"><i class="ph ph-checks"></i><div>Mark as read<small>You're all caught up</small></div></button>
+        <hr>
+        <button class="mi" role="menuitemcheckbox" aria-checked="true"><i class="ph ph-arrows-in-line-vertical"></i><div>Collapse category</div><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+        <button class="mi" role="menuitem"><i class="ph ph-arrows-out-simple"></i><div>Expand all categories</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-bell-ringing"></i><div>Unmute category<small>Muted until I turn it back on</small></div></button>
+        <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-bell"></i><div>Notification settings<small>Nothing while muted</small></div><i class="ph ph-caret-right chev"></i></button>
+        <hr>
+        <button class="mi" role="menuitem" data-open="d-edit-channel"><i class="ph ph-pencil-simple"></i><div>Edit category</div></button>
+        <button class="mi danger" role="menuitem"><i class="ph ph-trash"></i><div>Delete category</div></button>
+      </div>
+      <p class="note">Collapsed and muted. When every category is collapsed the second row turns into Expand all.</p>
+    </div>
+  </div>
+</section>
+
+<section id="server-menu">
+  <h2>Server menu</h2>
+  <p class="lede">Right-click a server in the rail, or open its name in the sidebar header. Invite people is the one accent row; Leave server is the one danger row and never shows for the owner.</p>
+  <div class="board cm-board">
+    <div class="cm-spot has-open cm-wide" id="cm-server">
+      <div class="menu" role="menu" aria-label="Night Shift">
+        <div class="mhead"><span class="av cm-server" style="--size: 32px" data-av="Night Shift"></span><div><b>Night Shift</b><span>1,204 members · 87 online</span></div></div>
+        <button class="mi" role="menuitem"><i class="ph ph-checks"></i><div>Mark as read</div></button>
+        <hr>
+        <button class="mi cm-accent" role="menuitem" data-open="d-invite"><i class="ph ph-user-plus"></i><div>Invite people</div></button>
+        <hr>
+        <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-bell-slash"></i><div>Mute server</div><i class="ph ph-caret-right chev"></i></button>
+        <div class="has-sub open">
+          <button class="mi" role="menuitem" aria-haspopup="menu" aria-expanded="true"><i class="ph ph-bell"></i><div>Notification settings<small>Only @mentions</small></div><i class="ph ph-caret-right chev"></i></button>
+          <div class="menu" role="menu" aria-label="Notification settings" style="--menu-w: 236px">
+            <div role="group" aria-label="Notify me about">
+              <button class="mi" role="menuitemradio" aria-checked="false"><div>All messages</div><span class="radio" aria-checked="false"></span></button>
+              <button class="mi" role="menuitemradio" aria-checked="true"><div>Only @mentions</div><span class="radio" aria-checked="true"></span></button>
+              <button class="mi" role="menuitemradio" aria-checked="false"><div>Nothing</div><span class="radio" aria-checked="false"></span></button>
+            </div>
+            <hr>
+            <button class="mi" role="menuitemcheckbox" aria-checked="true"><div>Mute @everyone, @here</div><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+            <button class="mi" role="menuitemcheckbox" aria-checked="false"><div>Mute all role @mentions</div><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+          </div>
+        </div>
+        <button class="mi" role="menuitemcheckbox" aria-checked="true"><i class="ph ph-eye-slash"></i><div>Hide muted channels</div><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-shield-check"></i><div>Privacy settings</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-user-circle-gear"></i><div>Edit server profile</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-plus"></i><div>Create channel</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-folder-plus"></i><div>Create category</div></button>
+        <hr>
+        <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-arrow-elbow-down-right"></i><div>Move server</div><i class="ph ph-caret-right chev"></i></button>
+        <hr>
+        <button class="mi danger" role="menuitem" data-open="d-leave"><i class="ph ph-sign-out"></i><div>Leave server</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-identification-card"></i><div>Copy server ID</div></button>
+      </div>
+      <p class="note">Notification settings open: the level, then two checkbox rows for the loud mentions.</p>
+    </div>
+    <div class="cm-spot">
+      <div class="menu" role="menu" aria-label="Clip Club, owner">
+        <div class="mhead"><span class="av cm-server" style="--size: 32px" data-av="Clip Club"></span><div><b>Clip Club</b><span>You own this server</span></div></div>
+        <button class="mi" role="menuitem" aria-disabled="true"><i class="ph ph-checks"></i><div>Mark as read<small>You're all caught up</small></div></button>
+        <hr>
+        <button class="mi cm-accent" role="menuitem" data-open="d-invite"><i class="ph ph-user-plus"></i><div>Invite people</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-bell-ringing"></i><div>Unmute server<small>Muted until tomorrow at 8:41 PM</small></div></button>
+        <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-bell"></i><div>Notification settings<small>Nothing while muted</small></div><i class="ph ph-caret-right chev"></i></button>
+        <button class="mi" role="menuitemcheckbox" aria-checked="false"><i class="ph ph-eye-slash"></i><div>Hide muted channels</div><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-shield-check"></i><div>Privacy settings</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-user-circle-gear"></i><div>Edit server profile</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-plus"></i><div>Create channel</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-folder-plus"></i><div>Create category</div></button>
+        <hr>
+        <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-arrow-elbow-down-right"></i><div>Move server</div><i class="ph ph-caret-right chev"></i></button>
+      </div>
+      <p class="note">Owner, muted: no Leave server. Opened from the sidebar header the menu drops Mark as read and Move server.</p>
+    </div>
+  </div>
+</section>
+
+<section id="moving">
+  <h2>Folders and moving</h2>
+  <p class="lede">Moving a channel or a server is one submenu deep, names where it is now, and moves at once; the sidebar shows the result before the server agrees. Folders get their own short menu.</p>
+  <div class="board cm-board">
+    <div class="cm-spot">
+      <div class="menu" role="menu" aria-label="Move #clips to category">
+        <div class="mlabel">Move #clips to</div>
+        <button class="mi" role="menuitem"><i class="ph ph-minus"></i><div>No category</div></button>
+        <hr>
+        <button class="mi" role="menuitem" aria-disabled="true"><i class="ph ph-check"></i><div>Highlights<small>It's here now</small></div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-folder-simple"></i><div>Hangouts</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-folder-simple"></i><div>Voice</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-folder-simple"></i><div>Archive of every old event we ever ran</div></button>
+      </div>
+      <p class="note">Move to category, from the channel menu.</p>
+    </div>
+    <div class="cm-spot">
+      <div class="menu" role="menu" aria-label="Move Night Shift">
+        <div class="mlabel">Move Night Shift</div>
+        <button class="mi" role="menuitem"><i class="ph ph-arrow-line-up"></i><div>To the top</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-arrow-line-down"></i><div>To the bottom</div></button>
+        <hr>
+        <div class="mlabel">After</div>
+        <div class="scroll">
+          <button class="mi" role="menuitem"><span class="av cm-server" data-av="Clip Club"></span><div>Clip Club</div></button>
+          <button class="mi" role="menuitem" aria-disabled="true"><span class="av cm-server" data-av="Hades speedruns"></span><div>Hades speedruns<small>It's here now</small></div></button>
+          <button class="mi" role="menuitem"><span class="av cm-server" data-av="Pixel Pals"></span><div>Pixel Pals</div></button>
+          <button class="mi" role="menuitem"><span class="av cm-server" data-av="Lo-fi Lounge"></span><div>Lo-fi Lounge</div></button>
+          <button class="mi" role="menuitem"><span class="av cm-server" data-av="The Extremely Long Server Name Society"></span><div>The Extremely Long Server Name Society</div></button>
+        </div>
+        <hr>
+        <div class="mlabel">Into a folder</div>
+        <button class="mi" role="menuitem"><i class="ph-fill ph-folder-simple cm-folder" style="--c: oklch(0.68 0.15 250)"></i><div>Games<small>3 servers</small></div></button>
+        <button class="mi" role="menuitem"><i class="ph-fill ph-folder-simple cm-folder" style="--c: oklch(0.70 0.14 145)"></i><div>Friends<small>2 servers</small></div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-folder-simple-plus"></i><div>New folder</div></button>
+      </div>
+      <p class="note">Move server, from the server menu.</p>
+    </div>
+    <div class="cm-spot has-open">
+      <div class="menu" role="menu" aria-label="Games folder">
+        <div class="mhead"><span class="icontile" style="--ink: oklch(0.68 0.15 250)"><i class="ph-fill ph-folder-simple"></i></span><div><b>Games</b><span>3 servers · 12 unread</span></div></div>
+        <button class="mi" role="menuitem"><i class="ph ph-checks"></i><div>Mark folder as read</div></button>
+        <hr>
+        <button class="mi" role="menuitemcheckbox" aria-checked="false"><i class="ph ph-arrows-in-line-vertical"></i><div>Collapse folder</div><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        <div class="has-sub open">
+          <button class="mi" role="menuitem" aria-haspopup="menu" aria-expanded="true"><i class="ph ph-arrow-elbow-down-right"></i><div>Move folder</div><i class="ph ph-caret-right chev"></i></button>
+          <div class="menu" role="menu" aria-label="Move folder">
+            <button class="mi" role="menuitem"><i class="ph ph-arrow-line-up"></i><div>To the top</div></button>
+            <button class="mi" role="menuitem"><i class="ph ph-arrow-line-down"></i><div>To the bottom</div></button>
+          </div>
+        </div>
+        <hr>
+        <button class="mi" role="menuitem" data-open="d-folder"><i class="ph ph-gear-six"></i><div>Folder settings</div></button>
+        <button class="mi danger" role="menuitem"><i class="ph ph-folder-minus"></i><div>Remove folder<small>Its 3 servers stay in the rail</small></div></button>
+      </div>
+      <p class="note">Folder menu. Remove folder needs no confirm: nothing is lost, and Undo is in the toast.</p>
+    </div>
+  </div>
+</section>
+
+<section id="thread-menu">
+  <h2>Thread menu</h2>
+  <p class="lede">Right-click a thread in the sidebar or the Threads list. Joining is what unlocks muting and notification levels, so before you join those rows say so.</p>
+  <div class="board cm-board">
+    <div class="cm-spot" id="cm-thread">
+      <div class="menu" role="menu" aria-label="Hades route talk, not joined">
+        <div class="mhead"><span class="icontile"><i class="ph ph-chats-circle"></i></span><div><b>Hades route talk</b><span>In #clips · 48 messages</span></div></div>
+        <button class="mi" role="menuitem"><i class="ph ph-checks"></i><div>Mark as read</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-sign-in"></i><div>Join thread</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-link"></i><div>Copy link</div></button>
+        <hr>
+        <button class="mi" role="menuitem" aria-disabled="true"><i class="ph ph-bell-slash"></i><div>Mute thread<small>Join the thread to mute it</small></div></button>
+        <button class="mi" role="menuitem" aria-disabled="true"><i class="ph ph-bell"></i><div>Notification settings<small>Join the thread to change this</small></div></button>
+      </div>
+      <p class="note">Not joined, no Manage threads.</p>
+    </div>
+    <div class="cm-spot">
+      <div class="menu" role="menu" aria-label="Hades route talk, joined">
+        <div class="mhead"><span class="icontile"><i class="ph ph-chats-circle"></i></span><div><b>Hades route talk</b><span>In #clips · 48 messages</span></div></div>
+        <button class="mi" role="menuitem"><i class="ph ph-checks"></i><div>Mark as read</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-link"></i><div>Copy link</div></button>
+        <hr>
+        <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-bell-slash"></i><div>Mute thread</div><i class="ph ph-caret-right chev"></i></button>
+        <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-bell"></i><div>Notification settings<small>Only @mentions</small></div><i class="ph ph-caret-right chev"></i></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-archive"></i><div>Archive thread<small>Hides it from the list; a new message reopens it</small></div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-lock-simple"></i><div>Lock thread</div></button>
+        <button class="mi danger" role="menuitem"><i class="ph ph-trash"></i><div>Delete thread</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-sign-out"></i><div>Leave thread</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-identification-card"></i><div>Copy thread ID</div></button>
+      </div>
+      <p class="note">Joined, with Manage threads. An archived thread reads Unarchive thread.</p>
+    </div>
+  </div>
+</section>
+
+<section id="message-menu">
+  <h2>Message menu</h2>
+  <p class="lede">Right-click a message or open its overflow button. Four recent reactions sit on top, one click each; the rest follows the order of the hover bar.</p>
+  <div class="board cm-board">
+    <div class="cm-spot has-open" id="cm-own">
+      <div class="menu" role="menu" aria-label="Your message">
+        <div class="cm-quick" role="group" aria-label="Quick reactions">
+          <button aria-label="React with loudly crying face">😭</button>
+          <button aria-label="React with fire">🔥</button>
+          <button aria-label="React with clapping hands">👏</button>
+          <button aria-label="React with skull">💀</button>
+          <button aria-label="All reactions"><i class="ph ph-smiley"></i></button>
+        </div>
+        <div class="has-sub open">
+          <button class="mi" role="menuitem" aria-haspopup="menu" aria-expanded="true"><i class="ph ph-smiley"></i><div>Add reaction</div><i class="ph ph-caret-right chev"></i></button>
+          <div class="menu" role="menu" aria-label="Add reaction">
+            <div class="scroll">
+              <button class="mi" role="menuitem"><span style="font-size: 18px">😭</span><div>:sob:</div></button>
+              <button class="mi" role="menuitem"><span style="font-size: 18px">🔥</span><div>:fire:</div></button>
+              <button class="mi" role="menuitem"><span style="font-size: 18px">👏</span><div>:clap:</div></button>
+              <button class="mi" role="menuitem"><span style="font-size: 18px">💀</span><div>:skull:</div></button>
+              <button class="mi" role="menuitem"><span style="font-size: 18px">👀</span><div>:eyes:</div></button>
+              <button class="mi" role="menuitem"><span style="font-size: 18px">🎉</span><div>:tada:</div></button>
+              <button class="mi" role="menuitem"><span style="font-size: 18px">💯</span><div>:100:</div></button>
+              <button class="mi" role="menuitem"><span style="font-size: 18px">🙏</span><div>:pray:</div></button>
+            </div>
+            <hr>
+            <button class="mi" role="menuitem"><i class="ph ph-magnifying-glass"></i><div>All reactions</div></button>
+          </div>
+        </div>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-pencil-simple"></i><div>Edit message</div><kbd>E</kbd></button>
+        <button class="mi" role="menuitem"><i class="ph ph-arrow-bend-up-left"></i><div>Reply</div><kbd>R</kbd></button>
+        <button class="mi" role="menuitem"><i class="ph ph-arrow-bend-up-right"></i><div>Forward</div><kbd>F</kbd></button>
+        <button class="mi" role="menuitem" data-open="d-create-thread"><i class="ph ph-chats-circle"></i><div>Create thread</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-copy"></i><div>Copy text</div><kbd>⌘C</kbd></button>
+        <button class="mi" role="menuitem"><i class="ph ph-push-pin"></i><div>Pin message</div><kbd>P</kbd></button>
+        <button class="mi" role="menuitem"><i class="ph ph-envelope-simple"></i><div>Mark unread</div><kbd>⌥ Click</kbd></button>
+        <button class="mi" role="menuitem"><i class="ph ph-link"></i><div>Copy message link</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-speaker-simple-high"></i><div>Speak message</div></button>
+        <hr>
+        <button class="mi danger" role="menuitem" data-open="d-rm-reacts"><i class="ph ph-smiley-x-eyes"></i><div>Remove all reactions</div></button>
+        <button class="mi danger" role="menuitem" data-toast-demo="undo"><i class="ph ph-trash"></i><div>Delete message<small>Undo for 6 seconds after</small></div><kbd>⌫</kbd></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-identification-card"></i><div>Copy message ID</div></button>
+      </div>
+      <p class="note cm-note">Your own message, in a server where you manage messages. Add reaction open. Deleting your own message has no confirm, see <a href="#toasts">the undo toast</a>.</p>
+    </div>
+    <div class="cm-spot" id="cm-other">
+      <div class="menu" role="menu" aria-label="Theo's message">
+        <div class="cm-quick" role="group" aria-label="Quick reactions">
+          <button aria-label="React with loudly crying face">😭</button>
+          <button aria-label="React with fire">🔥</button>
+          <button aria-label="React with clapping hands">👏</button>
+          <button aria-label="React with skull">💀</button>
+          <button aria-label="All reactions"><i class="ph ph-smiley"></i></button>
+        </div>
+        <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-smiley"></i><div>Add reaction</div><i class="ph ph-caret-right chev"></i></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-arrow-bend-up-left"></i><div>Reply</div><kbd>R</kbd></button>
+        <button class="mi" role="menuitem"><i class="ph ph-arrow-bend-up-right"></i><div>Forward</div><kbd>F</kbd></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-copy"></i><div>Copy text</div><kbd>⌘C</kbd></button>
+        <button class="mi" role="menuitem"><i class="ph ph-push-pin-slash"></i><div>Unpin message</div><kbd>P</kbd></button>
+        <button class="mi" role="menuitem"><i class="ph ph-envelope-simple"></i><div>Mark unread</div><kbd>⌥ Click</kbd></button>
+        <button class="mi" role="menuitem"><i class="ph ph-link"></i><div>Copy message link</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-speaker-simple-high"></i><div>Speak message</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-identification-card"></i><div>Copy message ID</div></button>
+      </div>
+      <p class="note">Theo's pinned message in your DM: no Edit, no Delete, no Create thread (DMs have none).</p>
+    </div>
+    <div class="cm-spot">
+      <div class="menu" role="menu" aria-label="Rosa's message, as moderator">
+        <div class="mhead"><span class="av" style="--size: 24px; font-size: 10px" data-av="Rosa"></span><div><b>Rosa</b><span>caught this on stream last night</span></div></div>
+        <button class="mi" role="menuitem"><i class="ph ph-arrow-bend-up-left"></i><div>Reply</div><kbd>R</kbd></button>
+        <button class="mi" role="menuitem" data-open="d-create-thread"><i class="ph ph-chats-circle"></i><div>Create thread</div></button>
+        <hr>
+        <button class="mi" role="menuitem" aria-disabled="true"><i class="ph ph-push-pin"></i><div>Pin message<small>#clips has all 50 pins in use</small></div></button>
+        <hr>
+        <button class="mi danger" role="menuitem" data-open="d-rm-reacts"><i class="ph ph-smiley-x-eyes"></i><div>Remove all reactions</div></button>
+        <button class="mi danger" role="menuitem" data-open="d-del-msg"><i class="ph ph-trash"></i><div>Delete message</div><kbd>⌫</kbd></button>
+      </div>
+      <p class="note">Someone else's message as a moderator (rows above Reply trimmed here): Delete asks first and shows what goes.</p>
+      <div class="menu" role="menu" aria-label="Failed message" style="margin-top: var(--space-4)">
+        <button class="mi" role="menuitem"><i class="ph ph-arrow-clockwise"></i><div>Resend message</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-copy"></i><div>Copy text</div><kbd>⌘C</kbd></button>
+        <hr>
+        <button class="mi danger" role="menuitem"><i class="ph ph-trash"></i><div>Delete message</div></button>
+      </div>
+      <p class="note">A message that failed to send.</p>
+    </div>
+  </div>
+</section>
+
+<section id="user-menu">
+  <h2>User menu</h2>
+  <p class="lede">Right-click a name, an avatar, a member or a voice tile. One list grows by where you are: social rows everywhere, server rows in a server, voice rows in a call, moderation last.</p>
+  <h3>In a server</h3>
+  <div class="board cm-board">
+    <div class="cm-spot has-open" id="cm-roles">
+      <div class="menu" role="menu" aria-label="Mira">
+        <div class="mhead"><span class="av" style="--size: 32px" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>mira.wav</span></div></div>
+        <button class="mi" role="menuitem"><i class="ph ph-user-circle"></i><div>Profile</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-at"></i><div>Mention</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-chat-circle"></i><div>Message</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-phone"></i><div>Call</div></button>
+        <button class="mi" role="menuitem" data-open="d-note"><i class="ph ph-note-pencil"></i><div>Add note<small>Only you can see it</small></div></button>
+        <button class="mi" role="menuitem" data-open="d-friendnick"><i class="ph ph-tag"></i><div>Add friend nickname</div></button>
+        <hr>
+        <button class="mi" role="menuitem" data-open="d-nickname"><i class="ph ph-signature"></i><div>Change nickname</div></button>
+        <div class="has-sub open">
+          <button class="mi" role="menuitem" aria-haspopup="menu" aria-expanded="true"><i class="ph ph-shield"></i><div>Roles<small>Mod, Editor</small></div><i class="ph ph-caret-right chev"></i></button>
+          <div class="menu" role="menu" aria-label="Roles">
+            <button class="mi" role="menuitemcheckbox" aria-checked="false" aria-disabled="true"><span class="cm-dot" style="--role: oklch(0.62 0.2 25)"></span><div>Admin<small>Above your highest role</small></div><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+            <button class="mi" role="menuitemcheckbox" aria-checked="true"><span class="cm-dot" style="--role: oklch(0.66 0.19 350)"></span><div>Mod</div><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+            <button class="mi" role="menuitemcheckbox" aria-checked="true"><span class="cm-dot" style="--role: oklch(0.66 0.15 250)"></span><div>Editor</div><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+            <button class="mi" role="menuitemcheckbox" aria-checked="false"><span class="cm-dot" style="--role: oklch(0.72 0.14 145)"></span><div>Speedrunners</div><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+            <button class="mi" role="menuitemcheckbox" aria-checked="false"><span class="cm-dot" style="--role: oklch(0.78 0.13 85)"></span><div>Night owls</div><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+          </div>
+        </div>
+        <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-paper-plane-tilt"></i><div>Invite to server</div><i class="ph ph-caret-right chev"></i></button>
+        <hr>
+        <button class="mi" role="menuitem" data-open="d-rm-friend"><i class="ph ph-user-minus"></i><div>Remove friend</div></button>
+        <button class="mi" role="menuitem" data-open="d-ignore"><i class="ph ph-eye-slash"></i><div>Ignore</div></button>
+        <button class="mi danger" role="menuitem" data-open="d-block"><i class="ph ph-prohibit"></i><div>Block</div></button>
+        <hr>
+        <button class="mi danger" role="menuitem" data-open="d-timeout"><i class="ph ph-timer"></i><div>Time out Mira</div></button>
+        <button class="mi danger" role="menuitem" data-open="d-kick"><i class="ph ph-door-open"></i><div>Kick Mira</div></button>
+        <button class="mi danger" role="menuitem" data-open="d-ban"><i class="ph ph-gavel"></i><div>Ban Mira</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-identification-card"></i><div>Copy user ID</div></button>
+      </div>
+      <p class="note">A friend, as a moderator. Roles toggle at once; ones above your own are listed and say why you can't.</p>
+    </div>
+    <div class="cm-spot has-open" id="cm-voice">
+      <div class="menu" role="menu" aria-label="Theo in voice">
+        <div class="mhead"><span class="av speaking" style="--size: 32px" data-av="Theo"></span><div><b>Theo</b><span>In Lounge · speaking</span></div></div>
+        <button class="mi" role="menuitem"><i class="ph ph-user-circle"></i><div>Profile</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-chat-circle"></i><div>Message</div></button>
+        <hr>
+        <div class="mslider"><div><label for="theo-vol">User volume</label><output id="theo-vol-out">140%</output></div><input id="theo-vol" class="range" type="range" min="0" max="200" value="140" data-out="theo-vol-out"></div>
+        <button class="mi" role="menuitemcheckbox" aria-checked="false"><i class="ph ph-microphone-slash"></i><div>Mute</div><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        <button class="mi" role="menuitemcheckbox" aria-checked="true"><i class="ph ph-speaker-simple-slash"></i><div>Mute soundboard</div><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+        <button class="mi" role="menuitemcheckbox" aria-checked="false"><i class="ph ph-video-camera-slash"></i><div>Hide video</div><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        <hr>
+        <div class="has-sub open">
+          <button class="mi" role="menuitem" aria-haspopup="menu" aria-expanded="true"><i class="ph ph-arrow-elbow-down-right"></i><div>Move to</div><i class="ph ph-caret-right chev"></i></button>
+          <div class="menu" role="menu" aria-label="Move Theo to">
+            <button class="mi" role="menuitem" aria-disabled="true"><i class="ph ph-speaker-high"></i><div>Lounge<small>Theo is here</small></div></button>
+            <button class="mi" role="menuitem"><i class="ph ph-speaker-high"></i><div>Clip review</div></button>
+            <button class="mi" role="menuitem"><i class="ph ph-speaker-high"></i><div>Hades runs</div></button>
+            <button class="mi" role="menuitem"><i class="ph ph-speaker-high"></i><div>Movie night</div></button>
+            <button class="mi" role="menuitem"><i class="ph ph-moon"></i><div>AFK</div></button>
+          </div>
+        </div>
+        <button class="mi" role="menuitemcheckbox" aria-checked="false"><i class="ph ph-microphone-slash"></i><div>Server mute<small>Mutes Theo for everyone</small></div><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        <button class="mi" role="menuitemcheckbox" aria-checked="false"><i class="ph ph-ear-slash"></i><div>Server deafen</div><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        <button class="mi danger" role="menuitem"><i class="ph ph-phone-disconnect"></i><div>Disconnect</div></button>
+      </div>
+      <p class="note">In voice, with Move members (social and moderation rows trimmed). Mute is for you only; Server mute is for everyone and says so.</p>
+    </div>
+  </div>
+  <h3>Friends list and DMs</h3>
+  <div class="board cm-board">
+    <div class="cm-spot has-open">
+      <div class="menu" role="menu" aria-label="Ana">
+        <div class="mhead"><span class="av" style="--size: 32px" data-av="Ana"><span class="status idle"></span></span><div><b>Ana</b><span>ana.k</span></div></div>
+        <button class="mi" role="menuitem"><i class="ph ph-user-circle"></i><div>Profile</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-chat-circle"></i><div>Message</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-phone"></i><div>Call</div></button>
+        <button class="mi" role="menuitem" data-open="d-note"><i class="ph ph-note-pencil"></i><div>Edit note<small>Plays support, ask before…</small></div></button>
+        <button class="mi" role="menuitem" data-open="d-friendnick"><i class="ph ph-tag"></i><div>Add friend nickname</div></button>
+        <hr>
+        <div class="has-sub open">
+          <button class="mi" role="menuitem" aria-haspopup="menu" aria-expanded="true"><i class="ph ph-paper-plane-tilt"></i><div>Invite to server</div><i class="ph ph-caret-right chev"></i></button>
+          <div class="menu" role="menu" aria-label="Invite Ana to">
+            <button class="mi" role="menuitem"><span class="av cm-server" data-av="Night Shift"></span><div>Night Shift</div></button>
+            <button class="mi" role="menuitem"><span class="av cm-server" data-av="Clip Club"></span><div>Clip Club</div></button>
+            <button class="mi" role="menuitem" aria-disabled="true"><span class="av cm-server" data-av="Hades speedruns"></span><div>Hades speedruns<small>Ana is already a member</small></div></button>
+            <button class="mi" role="menuitem" aria-disabled="true"><span class="av cm-server" data-av="Pixel Pals"></span><div>Pixel Pals<small>You can't invite people here</small></div></button>
+          </div>
+        </div>
+        <hr>
+        <button class="mi" role="menuitem" data-open="d-rm-friend"><i class="ph ph-user-minus"></i><div>Remove friend</div></button>
+        <button class="mi" role="menuitem" data-open="d-ignore"><i class="ph ph-eye-slash"></i><div>Ignore</div></button>
+        <button class="mi danger" role="menuitem" data-open="d-block"><i class="ph ph-prohibit"></i><div>Block</div></button>
+      </div>
+      <p class="note">A friend in the Friends list, Invite to server open. Sending posts an invite in your DM with them.</p>
+    </div>
+    <div class="cm-spot has-open">
+      <div class="menu" role="menu" aria-label="DM with Jun">
+        <div class="mhead"><span class="av" style="--size: 32px" data-av="Jun"><span class="status offline"></span></span><div><b>Jun</b><span>jun · 3 unread</span></div></div>
+        <button class="mi" role="menuitem"><i class="ph ph-checks"></i><div>Mark as read</div><kbd>Esc</kbd></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-user-circle"></i><div>Profile</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-phone"></i><div>Call</div></button>
+        <button class="mi" role="menuitem" data-open="d-note"><i class="ph ph-note-pencil"></i><div>Add note<small>Only you can see it</small></div></button>
+        <hr>
+        <div class="has-sub open">
+          <button class="mi" role="menuitem" aria-haspopup="menu" aria-expanded="true"><i class="ph ph-bell-slash"></i><div>Mute conversation</div><i class="ph ph-caret-right chev"></i></button>
+          <div class="menu" role="menu" aria-label="Mute conversation">
+            <button class="mi" role="menuitem"><div>For 15 minutes<small>Until 8:56 PM</small></div></button>
+            <button class="mi" role="menuitem"><div>For 1 hour<small>Until 9:41 PM</small></div></button>
+            <button class="mi" role="menuitem"><div>For 3 hours<small>Until 11:41 PM</small></div></button>
+            <button class="mi" role="menuitem"><div>For 8 hours<small>Until tomorrow at 4:41 AM</small></div></button>
+            <button class="mi" role="menuitem"><div>For 24 hours<small>Until tomorrow at 8:41 PM</small></div></button>
+            <hr>
+            <button class="mi" role="menuitem"><div>Until I turn it back on</div></button>
+          </div>
+        </div>
+        <button class="mi" role="menuitem"><i class="ph ph-x"></i><div>Close DM<small>Your messages stay; it comes back when Jun writes</small></div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-identification-card"></i><div>Copy user ID</div></button>
+      </div>
+      <p class="note" style="padding-bottom: 96px">A DM row in the sidebar.</p>
+    </div>
+  </div>
+</section>
+
+<section id="link-image-menus">
+  <h2>Link and image menus</h2>
+  <p class="lede">Right-click a link or an image inside a message. The menu names what you clicked, so you can check where a link goes before opening it; the message's own menu sits under it as a submenu.</p>
+  <div class="board cm-board">
+    <div class="cm-spot">
+      <div class="menu" role="menu" aria-label="Link">
+        <div class="mhead"><span class="icontile"><i class="ph ph-link"></i></span><div><b>youtube.com</b><span>youtube.com/watch?v=q8Hm_hades-any-percent-wr</span></div></div>
+        <button class="mi" role="menuitem"><i class="ph ph-arrow-square-out"></i><div>Open link</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-link"></i><div>Copy link</div></button>
+        <hr>
+        <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-chat-text"></i><div>Message</div><i class="ph ph-caret-right chev"></i></button>
+      </div>
+      <p class="note">Link.</p>
+    </div>
+    <div class="cm-spot">
+      <div class="menu" role="menu" aria-label="Image">
+        <div class="mhead"><span class="icontile"><i class="ph ph-image"></i></span><div><b>riso.png</b><span>1024 × 1024 · 184 KB</span></div></div>
+        <button class="mi" role="menuitem"><i class="ph ph-copy"></i><div>Copy image</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-download-simple"></i><div>Save image</div><kbd>⌘S</kbd></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-arrow-square-out"></i><div>Open original</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-link"></i><div>Copy link</div></button>
+        <hr>
+        <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-chat-text"></i><div>Message</div><i class="ph ph-caret-right chev"></i></button>
+      </div>
+      <p class="note">Image or GIF. A video adds Copy link at time.</p>
+    </div>
+  </div>
+</section>
+
+<section id="keyboard">
+  <h2>Keyboard</h2>
+  <p class="lede">Shift+F10 or the menu key opens the menu for what has focus, with the first row focused. Arrows move, wrapping at the ends; disabled rows are skipped. Every menu on this page takes these keys: click into one and try.</p>
+  <div class="board cm-board">
+    <div class="cm-spot">
+      <div class="menu" role="menu" aria-label="Keyboard frame 1">
+        <button class="mi is-kbd" role="menuitem" tabindex="-1"><i class="ph ph-checks"></i><div>Mark as read</div><kbd>Esc</kbd></button>
+        <hr>
+        <button class="mi" role="menuitem" tabindex="-1"><i class="ph ph-user-circle"></i><div>Profile</div></button>
+        <button class="mi" role="menuitem" tabindex="-1"><i class="ph ph-phone"></i><div>Call</div></button>
+        <hr>
+        <button class="mi" role="menuitem" tabindex="-1" aria-haspopup="menu"><i class="ph ph-bell-slash"></i><div>Mute conversation</div><i class="ph ph-caret-right chev"></i></button>
+        <button class="mi" role="menuitem" tabindex="-1"><i class="ph ph-x"></i><div>Close DM</div></button>
+      </div>
+      <p class="note">1. Opened with Shift+F10: the first row has focus.</p>
+    </div>
+    <div class="cm-spot">
+      <div class="menu" role="menu" aria-label="Keyboard frame 2">
+        <button class="mi" role="menuitem" tabindex="-1"><i class="ph ph-checks"></i><div>Mark as read</div><kbd>Esc</kbd></button>
+        <hr>
+        <button class="mi" role="menuitem" tabindex="-1"><i class="ph ph-user-circle"></i><div>Profile</div></button>
+        <button class="mi" role="menuitem" tabindex="-1"><i class="ph ph-phone"></i><div>Call</div></button>
+        <hr>
+        <button class="mi is-kbd" role="menuitem" tabindex="-1" aria-haspopup="menu"><i class="ph ph-bell-slash"></i><div>Mute conversation</div><i class="ph ph-caret-right chev"></i></button>
+        <button class="mi" role="menuitem" tabindex="-1"><i class="ph ph-x"></i><div>Close DM</div></button>
+      </div>
+      <p class="note">2. Down three times. Separators take no stop.</p>
+    </div>
+    <div class="cm-spot has-open">
+      <div class="menu" role="menu" aria-label="Keyboard frame 3">
+        <button class="mi" role="menuitem" tabindex="-1"><i class="ph ph-checks"></i><div>Mark as read</div><kbd>Esc</kbd></button>
+        <hr>
+        <button class="mi" role="menuitem" tabindex="-1"><i class="ph ph-user-circle"></i><div>Profile</div></button>
+        <button class="mi" role="menuitem" tabindex="-1"><i class="ph ph-phone"></i><div>Call</div></button>
+        <hr>
+        <div class="has-sub open">
+          <button class="mi" role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="true"><i class="ph ph-bell-slash"></i><div>Mute conversation</div><i class="ph ph-caret-right chev"></i></button>
+          <div class="menu" role="menu" aria-label="Mute conversation">
+            <button class="mi is-kbd" role="menuitem" tabindex="-1"><div>For 15 minutes<small>Until 8:56 PM</small></div></button>
+            <button class="mi" role="menuitem" tabindex="-1"><div>For 1 hour<small>Until 9:41 PM</small></div></button>
+            <button class="mi" role="menuitem" tabindex="-1"><div>For 3 hours<small>Until 11:41 PM</small></div></button>
+          </div>
+        </div>
+        <button class="mi" role="menuitem" tabindex="-1"><i class="ph ph-x"></i><div>Close DM</div></button>
+      </div>
+      <p class="note">3. Right opens the submenu on its first row; the parent row stays lit.</p>
+    </div>
+    <div class="cm-spot" style="max-width: 380px">
+      <div class="cm-keys">
+        <span><kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd></span><span>Move, wrapping at the ends</span>
+        <span><kbd class="kbd">Home</kbd><kbd class="kbd">End</kbd></span><span>First or last row</span>
+        <span><kbd class="kbd">→</kbd></span><span>Open the submenu</span>
+        <span><kbd class="kbd">←</kbd></span><span>Back to the parent row</span>
+        <span><kbd class="kbd">Return</kbd><kbd class="kbd">Space</kbd></span><span>Choose; checkbox rows stay open</span>
+        <span><kbd class="kbd">A</kbd></span><span>Jump to the next row starting with that letter</span>
+        <span><kbd class="kbd">Esc</kbd></span><span>Close, focus back on what opened it</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="form-dialogs">
+  <h2>Form dialogs</h2>
+  <p class="lede">What a menu row opens when it needs input. Title says the action, the line under it names the target, the primary button repeats the action.</p>
+  <div class="board cm-open">
+    <button class="btn" data-open="d-edit-channel">Edit channel</button>
+    <button class="btn" data-open="d-create-thread">Create thread</button>
+    <button class="btn" data-open="d-nickname">Change nickname</button>
+    <button class="btn" data-open="d-folder">Folder settings</button>
+    <button class="btn" data-open="d-note">Add note</button>
+    <button class="btn" data-open="d-friendnick">Add friend nickname</button>
+    <button class="btn" data-open="d-invite">Invite people</button>
+  </div>
+  <div class="board cm-dialogs" style="margin-top: var(--space-4)">
+    <form class="dialog dialog--md" role="dialog" aria-labelledby="t-edit" data-live="d-edit-channel" onsubmit="return false">
+      <div class="dhead"><h4 id="t-edit">Edit channel</h4><p>#clips in Night Shift</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="dbody">
+        <div class="field"><label for="ec-name">Name</label><div class="input"><span class="affix">#</span><input id="ec-name" value="clips" maxlength="100"></div></div>
+        <div class="field"><label for="ec-topic">Topic</label><textarea id="ec-topic" class="textarea" maxlength="1024" data-count>Your best moments from last night's streams. Put the game in the first line so people can search for it.</textarea><span class="hint"><span>Shows under the channel name</span><span></span></span></div>
+        <div class="field"><label>Slowmode</label><div class="row" style="gap: var(--space-3); flex-wrap: nowrap"><div class="stepper" data-steps="Off,5s,10s,15s,30s,1m,2m,5m,10m,15m,30m,1h,2h,6h"><button type="button" aria-label="Shorter"><i class="ph-bold ph-minus"></i></button><output>10s</output><button type="button" aria-label="Longer"><i class="ph-bold ph-plus"></i></button></div><span class="note">Members wait this long between messages. Mods skip it.</span></div></div>
+        <button type="button" class="choice" data-toggle="switch" style="padding: 10px 0"><div><b>Age-restricted channel</b><span>For content that isn't for everyone. Members confirm they're 18 or older before it opens, and it stays hidden from younger accounts.</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+      </div>
+      <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-loading="Saving…">Save changes</button></footer>
+    </form>
+
+    <form class="dialog dialog--md" role="dialog" aria-labelledby="t-thread" data-live="d-create-thread" onsubmit="return false">
+      <div class="dhead"><h4 id="t-thread">Create thread</h4><p>From Rosa's message in #clips</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="dbody">
+        <div class="cm-quote"><span class="av" data-av="Rosa"></span><div class="head"><b>Rosa</b><time>Today at 8:12 PM</time></div><p>caught this on stream last night, the Hades boss skip actually works if you dash cancel twice</p></div>
+        <div class="field"><label for="ct-name">Thread name</label><div class="input"><input id="ct-name" value="Hades route talk" maxlength="100" data-count></div><span class="hint"><span>Everyone in #clips can see and join it</span><span></span></span></div>
+        <div class="field"><label>Archive after no messages for</label><div class="seg cm-fill" role="group" aria-label="Archive after"><button type="button" aria-pressed="false">1 hour</button><button type="button" aria-pressed="true">24 hours</button><button type="button" aria-pressed="false">3 days</button><button type="button" aria-pressed="false">1 week</button></div></div>
+      </div>
+      <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-loading="Creating…">Create thread</button></footer>
+    </form>
+
+    <form class="dialog" role="dialog" aria-labelledby="t-nick" data-live="d-nickname" onsubmit="return false">
+      <div class="dhead"><h4 id="t-nick">Change nickname</h4><p>For Mira in Night Shift. Everyone in the server sees it.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="field"><label for="cn-name">Nickname</label><div class="input"><input id="cn-name" value="mira (editing)" placeholder="mira.wav" maxlength="32" data-count></div><span class="hint"><span>Leave it empty to show mira.wav</span><span></span></span></div>
+      <footer><button type="button" class="btn btn--ghost cm-left" onclick="const i=this.closest('form').querySelector('input');i.value='';i.dispatchEvent(new Event('input',{bubbles:true}))">Reset nickname</button><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-loading="Saving…">Save nickname</button></footer>
+    </form>
+
+    <form class="dialog" role="dialog" aria-labelledby="t-folder" data-live="d-folder" onsubmit="return false">
+      <div class="dhead"><h4 id="t-folder">Folder settings</h4><p>Games · 3 servers</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="field"><label for="fs-name">Name</label><div class="input"><input id="fs-name" value="Games" placeholder="Folder"></div></div>
+      <div class="field"><label>Colour</label><div class="swatches" role="radiogroup" aria-label="Folder colour" style="--bg-sidebar: var(--bg-raised)" data-single>
+        <button type="button" aria-label="Pink" aria-pressed="false" style="--c: oklch(0.64 0.19 355)"><i class="ph-bold ph-check"></i></button>
+        <button type="button" aria-label="Orange" aria-pressed="false" style="--c: oklch(0.66 0.16 45)"><i class="ph-bold ph-check"></i></button>
+        <button type="button" aria-label="Yellow" aria-pressed="false" style="--c: oklch(0.70 0.14 85)"><i class="ph-bold ph-check"></i></button>
+        <button type="button" aria-label="Green" aria-pressed="false" style="--c: oklch(0.62 0.14 145)"><i class="ph-bold ph-check"></i></button>
+        <button type="button" aria-label="Teal" aria-pressed="false" style="--c: oklch(0.62 0.11 200)"><i class="ph-bold ph-check"></i></button>
+        <button type="button" aria-label="Blue" aria-pressed="true" style="--c: oklch(0.60 0.15 250)"><i class="ph-bold ph-check"></i></button>
+        <button type="button" aria-label="Purple" aria-pressed="false" style="--c: oklch(0.58 0.17 295)"><i class="ph-bold ph-check"></i></button>
+        <button type="button" aria-label="Grey" aria-pressed="false" style="--c: oklch(0.58 0.01 350)"><i class="ph-bold ph-check"></i></button>
+      </div></div>
+      <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-loading="Saving…">Save folder</button></footer>
+    </form>
+
+    <form class="dialog" role="dialog" aria-labelledby="t-note" data-live="d-note" onsubmit="return false">
+      <div class="dhead"><h4 id="t-note">Note for Mira</h4><p>Only you can see it, on her profile and in this menu.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="field"><label for="an-note">Note</label><textarea id="an-note" class="textarea" maxlength="256" data-count placeholder="Something to remember about Mira">Met in the Hades speedrun server. Plays support, ask before inviting to duos.</textarea><span class="hint"><span></span><span></span></span></div>
+      <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-loading="Saving…">Save note</button></footer>
+    </form>
+
+    <form class="dialog" role="dialog" aria-labelledby="t-fnick" data-live="d-friendnick" onsubmit="return false">
+      <div class="dhead"><h4 id="t-fnick">Add friend nickname</h4><p>A name only you see for Mira, everywhere Wave shows her.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="field"><label for="fn-name">Nickname</label><div class="input"><input id="fn-name" value="Mimi" placeholder="mira.wav" maxlength="32" data-count></div><span class="hint"><span>Mira isn't told</span><span></span></span></div>
+      <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-loading="Saving…">Save nickname</button></footer>
+    </form>
+
+    <div class="dialog" role="dialog" aria-labelledby="t-invite" data-live="d-invite">
+      <div class="dhead"><h4 id="t-invite">Invite people to #clips</h4><p>Anyone with the link joins Night Shift and lands here.</p><button class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="linkrow"><div class="input"><input aria-label="Invite link" value="wave.gg/nightshift-7Kq2" readonly></div><button class="btn btn--primary" data-copy>Copy</button></div>
+      <p class="note">Expires in 7 days. <button class="btn btn--link" style="font-size: var(--text-xs)">Edit invite link</button></p>
+    </div>
+
+    <div class="dialog" role="dialog" aria-labelledby="t-invite2">
+      <div class="dhead"><h4 id="t-invite2">Invite people to #clips</h4><p>Anyone with the link joins Night Shift and lands here.</p><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+      <div class="linkrow"><div class="input"><input aria-label="Invite link" value="wave.gg/nightshift-7Kq2" readonly></div><button class="btn btn--primary copied" aria-live="polite"><i class="ph-bold ph-check"></i>Copied</button></div>
+      <p class="note cm-note">Copied state: green for 1.6s, then back to Copy. The version with a friend list is on <a href="overlays.html#dialogs">Overlays: dialogs</a>.</p>
+    </div>
+  </div>
+</section>
+
+<section id="confirms">
+  <h2>Confirms</h2>
+  <p class="lede">Only for what can't be undone or hits someone else. The title asks about the exact thing, the body says what happens, and the buttons name both outcomes: "Leave Night Shift" or "Stay".</p>
+  <div class="board cm-open">
+    <button class="btn" data-open="d-del-channel">Delete channel</button>
+    <button class="btn" data-open="d-leave">Leave server</button>
+    <button class="btn" data-open="d-del-msg">Delete message</button>
+    <button class="btn" data-open="d-rm-reacts">Remove all reactions</button>
+    <button class="btn" data-open="d-rm-friend">Remove friend</button>
+    <button class="btn" data-open="d-ignore">Ignore</button>
+    <button class="btn" data-open="d-block">Block</button>
+    <button class="btn" data-open="d-timeout">Time out</button>
+    <button class="btn" data-open="d-kick">Kick</button>
+    <button class="btn" data-open="d-ban">Ban</button>
+  </div>
+  <div class="board cm-dialogs" style="margin-top: var(--space-4)">
+    <div class="dialog" role="dialog" aria-labelledby="t-delch" data-live="d-del-channel"><h4 id="t-delch"><i class="ph-fill ph-warning"></i>Delete #clips?</h4><p>#clips, its 1,204 messages, 38 files and 3 threads go for everyone. This can't be undone.</p><footer><button class="btn" data-close>Keep channel</button><button class="btn btn--danger" data-close>Delete #clips</button></footer></div>
+
+    <div class="dialog" role="dialog" aria-labelledby="t-leave" data-live="d-leave"><h4 id="t-leave">Leave Night Shift?</h4><p>You lose its channels and your roles there. You can rejoin with a new invite.</p><footer><button class="btn" data-close>Stay</button><button class="btn btn--danger" data-close>Leave Night Shift</button></footer></div>
+
+    <div class="dialog" role="dialog" aria-labelledby="t-delmsg" data-live="d-del-msg"><h4 id="t-delmsg"><i class="ph-fill ph-warning"></i>Delete Rosa's message?</h4>
+      <div class="cm-quote"><span class="av" data-av="Rosa"></span><div class="head"><b>Rosa</b><time>Today at 8:12 PM</time></div><p>caught this on stream last night, the Hades boss skip actually works if you dash cancel twice, I have no idea why the devs left it in but please nobody report it before the tournament on Saturday</p></div>
+      <p>It goes for everyone in #clips and can't be brought back.</p><footer><button class="btn" data-close>Keep message</button><button class="btn btn--danger" data-close>Delete message</button></footer></div>
+
+    <div class="dialog" role="dialog" aria-labelledby="t-rmr" data-live="d-rm-reacts"><h4 id="t-rmr">Remove all reactions?</h4>
+      <div class="cm-reacts"><span class="react"><span class="e">😭</span>6</span><span class="react"><span class="e">🔥</span>4</span><span class="react"><span class="e">👏</span>3</span><span class="react"><span class="e">💀</span>1</span></div>
+      <p>All 14 go from Rosa's message, for everyone. People can react again.</p><footer><button class="btn" data-close>Keep reactions</button><button class="btn btn--danger" data-close>Remove 14 reactions</button></footer></div>
+
+    <div class="dialog" role="dialog" aria-labelledby="t-rmf" data-live="d-rm-friend"><h4 id="t-rmf">Remove Mira as a friend?</h4><p>Your DMs and the servers you share stay. To be friends again, one of you sends a new request.</p><footer><button class="btn" data-close>Keep friend</button><button class="btn btn--danger" data-close>Remove Mira</button></footer></div>
+
+    <div class="dialog" role="dialog" aria-labelledby="t-ign" data-live="d-ignore"><h4 id="t-ign">Ignore Mira?</h4><p>You won't see her messages or get notified by her, and she won't know. Unignore any time from her profile.</p><footer><button class="btn" data-close>Cancel</button><button class="btn btn--primary" data-close>Ignore Mira</button></footer></div>
+
+    <div class="dialog" role="dialog" aria-labelledby="t-blk" data-live="d-block"><h4 id="t-blk">Block Mira?</h4><p>She can't message or call you, her messages are hidden, and you stop being friends. She isn't told.</p><footer><button class="btn" data-close>Don't block</button><button class="btn btn--danger" data-close>Block Mira</button></footer></div>
+
+    <form class="dialog dialog--md" role="dialog" aria-labelledby="t-to" data-live="d-timeout" onsubmit="return false"><div class="dhead"><h4 id="t-to">Time out Mira</h4><p>She can read but can't send messages, react or talk in voice until it ends.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="field"><label>For</label><div class="typechoice cm-grid" role="radiogroup" aria-label="Timeout length" data-timeout>
+        <button type="button" class="choice" data-toggle="radio"><div><b>60 seconds</b><span>Ends 8:42 PM</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+        <button type="button" class="choice" data-toggle="radio"><div><b>5 minutes</b><span>Ends 8:46 PM</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+        <button type="button" class="choice" data-toggle="radio"><div><b>10 minutes</b><span>Ends 8:51 PM</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+        <button type="button" class="choice" data-toggle="radio"><div><b>1 hour</b><span>Ends 9:41 PM</span></div><span class="radio" role="radio" aria-checked="true"></span></button>
+        <button type="button" class="choice" data-toggle="radio"><div><b>1 day</b><span>Ends tomorrow at 8:41 PM</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+        <button type="button" class="choice" data-toggle="radio"><div><b>1 week</b><span>Ends Nov 22 at 8:41 PM</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+      </div></div>
+      <div class="field"><label for="to-why">Reason (optional)</label><div class="input"><input id="to-why" placeholder="Shows in the audit log"></div></div>
+      <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--danger" data-close data-timeout-go>Time out for 1 hour</button></footer></form>
+
+    <form class="dialog" role="dialog" aria-labelledby="t-kick" data-live="d-kick" onsubmit="return false"><h4 id="t-kick">Kick Mira from Night Shift?</h4><p>She's removed now and can rejoin with a new invite.</p>
+      <div class="field"><label for="k-why">Reason (optional)</label><div class="input"><input id="k-why" placeholder="Shows in the audit log"></div></div>
+      <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--danger" data-close>Kick Mira</button></footer></form>
+
+    <form class="dialog dialog--md" role="dialog" aria-labelledby="t-ban" data-live="d-ban" onsubmit="return false"><h4 id="t-ban"><i class="ph-fill ph-warning"></i>Ban Mira from Night Shift?</h4><p>She's removed now and can't rejoin, even with an invite, until someone unbans her.</p>
+      <div class="field"><label>Delete her messages from</label><div class="seg cm-fill" role="group" aria-label="Delete message history"><button type="button" aria-pressed="true">Don't delete</button><button type="button" aria-pressed="false">Last hour</button><button type="button" aria-pressed="false">24 hours</button><button type="button" aria-pressed="false">7 days</button></div></div>
+      <div class="field"><label for="b-why">Reason (optional)</label><div class="input"><input id="b-why" placeholder="Shows in the audit log"></div></div>
+      <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--danger" data-close>Ban Mira</button></footer></form>
+  </div>
+  <p class="note">Delete category and Delete thread use the channel confirm with their own counts. Kick and ban sit in the user menu as "Kick Mira", so the confirm is one more look, not the first mention of the name.</p>
+</section>
+
+<section id="toasts">
+  <h2>Toasts</h2>
+  <p class="lede">Menu actions apply at once. A toast follows only when something failed or can be taken back; copies and toggles stay silent.</p>
+  <div class="board" style="display: grid; gap: var(--space-3); justify-items: start">
+    <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>Couldn't create the thread<small>Wave lost the connection. Your thread name is kept.</small></p><button class="btn btn--sm" data-loading="Creating…">Try again</button></div>
+    <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>You can't invite people here<small>Night Shift needs the Create invite permission. Ask a mod for a link.</small></p><button class="iconbtn" aria-label="Dismiss"><i class="ph ph-x"></i></button></div>
+    <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>Couldn't move #clips<small>It's back in Highlights. Check your connection and try again.</small></p><button class="btn btn--sm" data-loading="Moving…">Try again</button></div>
+    <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>Couldn't give Mira the Mod role<small>Mod is above your highest role now. Ask an admin.</small></p><button class="iconbtn" aria-label="Dismiss"><i class="ph ph-x"></i></button></div>
+    <div class="toast" data-tone="undo" id="toast-undo"><i class="ph-fill ph-trash"></i><p>Message deleted<small>From #clips</small></p><button class="btn btn--sm">Undo</button></div>
+    <div class="toast" data-tone="undo"><i class="ph-fill ph-folder-minus"></i><p>Removed the Games folder<small>Its 3 servers are back in the rail</small></p><button class="btn btn--sm">Undo</button></div>
+    <p class="note cm-note">Error toasts stay until dismissed or retried; undo toasts leave after 6s and the request waits until then. Behaviour and stacking: <a href="overlays.html#toasts">Overlays: toasts</a>.</p>
+  </div>
+</section>
+
+<section id="better-than-discord">
+  <h2>Better than Discord</h2>
+  <p class="lede">Where these menus differ from Discord's on purpose. Discord's side is read from Wave's Rust port of its menus (<code>src/*_menu.rs</code>), which mirrors Discord's menu code.</p>
+  <div class="board cm-better">
+    <div class="cm-bt"><div><small>Discord</small><p>Mute lengths say how long, not until when. Once muted, the row reads "Muted until 11/15/2026, 9:41 PM".</p></div><div><small>Wave</small><p>Each length shows its end ("Until 11:41 PM"); muted reads "Muted until 9:41 PM" or "tomorrow at…".</p></div><div><small>Why</small><p>You pick a mute by when you'll be back, and today's date is noise.</p></div><a href="#cm-mute">See demo</a></div>
+    <div class="cm-bt"><div><small>Discord</small><p>Rows you can't use are greyed with no reason (Mark as read, Mute thread before joining, roles above yours).</p></div><div><small>Wave</small><p>Every disabled row has a second line saying why: "Join the thread to mute it", "Above your highest role", "It's here now".</p></div><div><small>Why</small><p>A grey row with no reason looks broken; the reason tells you what to do.</p></div><a href="#cm-thread">See demo</a></div>
+    <div class="cm-bt"><div><small>Discord</small><p>Moving a channel is two levels deep: Move to… › Category › list. Server moves offer only first or last in the list, or a folder.</p></div><div><small>Wave</small><p>One submenu: Move to category, or Move server with top, bottom, after any server, or into a folder. The current spot is marked.</p></div><div><small>Why</small><p>Fewer hover hops, and you can put a server anywhere without dragging.</p></div><a href="#moving">See demo</a></div>
+    <div class="cm-bt"><div><small>Discord</small><p>Deleting your own message asks "Are you sure you want to delete this message?"</p></div><div><small>Wave</small><p>Your own message goes at once with a 6s Undo toast. Someone else's still asks, with the message shown.</p></div><div><small>Why</small><p>A dialog for a thing you do daily trains you to click through it; Undo is safer and faster.</p></div><a href="#cm-own">See demo</a></div>
+    <div class="cm-bt"><div><small>Discord</small><p>Confirms ask "Are you sure…?" and the button is a bare verb: "Leave Server", "Remove All", "Kick".</p></div><div><small>Wave</small><p>The body says what happens; buttons name both outcomes with the target: "Stay" / "Leave Night Shift", "Remove 14 reactions".</p></div><div><small>Why</small><p>You can decide from the button alone, and the count shows the size of the mistake.</p></div><a href="#confirms">See demo</a></div>
+    <div class="cm-bt"><div><small>Discord</small><p>Timeout is a submenu of six lengths: no end time, no reason.</p></div><div><small>Wave</small><p>A dialog with each length's end time, an optional reason, and a button that says "Time out for 1 hour".</p></div><div><small>Why</small><p>Moderators need the reason in the audit log and should see exactly when it lifts.</p></div><a href="#confirms">See demo</a></div>
+  </div>
 </section>
 </main>
 </div>
 <script src="site.js"></script>
+<script>
+// Live dialogs: each [data-live] demo is cloned into a real <dialog> driven by site.js's data-open.
+for (const demo of document.querySelectorAll("[data-live]")) {
+  const dlg = document.createElement("dialog");
+  dlg.id = demo.dataset.live;
+  dlg.className = "real";
+  const copy = demo.cloneNode(true);
+  copy.removeAttribute("data-live");
+  for (const el of copy.querySelectorAll("[id]")) el.id += "-live";
+  for (const el of copy.querySelectorAll("[for]")) el.htmlFor += "-live";
+  for (const el of [copy, ...copy.querySelectorAll("[aria-labelledby]")]) if (el.hasAttribute("aria-labelledby")) el.setAttribute("aria-labelledby", el.getAttribute("aria-labelledby") + "-live");
+  dlg.append(copy);
+  document.body.append(dlg);
+}
+
+// Checkbox and radio menu rows toggle in place; plain rows would close the menu.
+document.addEventListener("click", e => {
+  const row = e.target.closest(".mi:not([aria-disabled=true])");
+  if (!row) return;
+  if (row.matches("[role=menuitemcheckbox]")) {
+    const on = row.getAttribute("aria-checked") !== "true";
+    row.setAttribute("aria-checked", on);
+    row.querySelector(".check")?.setAttribute("aria-checked", on);
+  }
+  if (row.matches("[role=menuitemradio]")) for (const r of row.parentElement.querySelectorAll("[role=menuitemradio]")) {
+    r.setAttribute("aria-checked", r === row);
+    r.querySelector(".radio").setAttribute("aria-checked", r === row);
+  }
+  if (row.dataset.toastDemo) document.getElementById("toast-undo").scrollIntoView({ behavior: "smooth", block: "center" });
+});
+
+// One pressed swatch at a time (site.js toggles each aria-pressed on its own).
+document.addEventListener("click", e => {
+  const pick = e.target.closest("[data-single] [aria-pressed]");
+  if (pick) for (const b of pick.parentElement.querySelectorAll("[aria-pressed]")) b.setAttribute("aria-pressed", b === pick);
+});
+
+// Timeout: the button names the chosen length.
+document.addEventListener("click", e => {
+  const choice = e.target.closest("[data-timeout] .choice");
+  if (choice) choice.closest("form").querySelector("[data-timeout-go]").textContent = "Time out for " + choice.querySelector("b").textContent;
+});
+
+// Slowmode stepper walks a fixed list.
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-steps] button");
+  if (!b) return;
+  const st = b.parentElement, steps = st.dataset.steps.split(","), out = st.querySelector("output");
+  const i = steps.indexOf(out.value) + (b === st.lastElementChild ? 1 : -1);
+  out.value = steps[Math.max(0, Math.min(steps.length - 1, i))];
+});
+
+// Character counts and slider readouts.
+function count(el) {
+  const hint = el.closest(".field")?.querySelector(".hint span:last-child");
+  if (hint) hint.textContent = `${el.value.length.toLocaleString()}/${(+el.maxLength).toLocaleString()}`;
+}
+document.querySelectorAll("[data-count]").forEach(count);
+document.addEventListener("input", e => {
+  if (e.target.matches("[data-count]")) count(e.target);
+  const out = e.target.dataset.out && document.getElementById(e.target.dataset.out);
+  if (out) out.textContent = e.target.value + "%";
+});
+
+// Copy: optimistic, with a quiet confirmation.
+document.addEventListener("click", e => {
+  const copy = e.target.closest("[data-copy]");
+  if (!copy || copy.classList.contains("copied")) return;
+  try { navigator.clipboard?.writeText("https://" + copy.parentElement.querySelector("input").value); } catch {}
+  copy.classList.add("copied");
+  copy.innerHTML = '<i class="ph-bold ph-check"></i>Copied';
+  setTimeout(() => { copy.classList.remove("copied"); copy.textContent = "Copy"; }, 1600);
+});
+
+// Menu keyboard: arrows move and wrap, Home/End, Right opens a submenu, Left returns, letters jump.
+const rowsOf = menu => [...menu.querySelectorAll(".mi:not([aria-disabled=true])")].filter(r => r.closest(".menu") === menu);
+document.addEventListener("keydown", e => {
+  const row = e.target.closest?.(".menu .mi");
+  if (!row) return;
+  const menu = row.closest(".menu"), rows = rowsOf(menu), i = rows.indexOf(row);
+  const go = r => { if (r) { e.preventDefault(); r.focus(); } };
+  if (e.key === "ArrowDown") go(rows[(i + 1) % rows.length]);
+  else if (e.key === "ArrowUp") go(rows[(i - 1 + rows.length) % rows.length]);
+  else if (e.key === "Home") go(rows[0]);
+  else if (e.key === "End") go(rows.at(-1));
+  else if (e.key === "ArrowRight" && row.matches("[aria-haspopup]")) {
+    const sub = row.parentElement.matches(".has-sub") && row.nextElementSibling;
+    if (sub) { row.parentElement.classList.add("open"); go(rowsOf(sub)[0]); }
+  } else if (e.key === "ArrowLeft") {
+    const host = menu.parentElement.closest(".has-sub");
+    if (host) go(host.querySelector(":scope > .mi"));
+  } else if (e.key === "Escape") row.blur();
+  else if (/^\w$/.test(e.key)) go([...rows.slice(i + 1), ...rows.slice(0, i)].find(r => r.textContent.trim().toLowerCase().startsWith(e.key.toLowerCase())));
+});
+</script>
 </body>
 </html>
