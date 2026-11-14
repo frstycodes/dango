@@ -334,6 +334,8 @@ struct Call {
     // The source behind `sharing`, kept so a quality change can restart the same stream.
     share_source: Option<voice::ShareSource>,
     live_since: Option<Instant>,
+    // When we joined, for the call header's timer.
+    joined: Instant,
     // Our own Go Live from its local frames, for the panel thumbnail and the self-view.
     self_view: Option<(Arc<RenderImage>, Instant)>,
     _events: Task<()>,
@@ -495,7 +497,7 @@ pub struct Rustcord {
     // A short notice at the bottom, e.g. why a moderation action failed.
     toast: Option<SharedString>,
     // The Go Live picker: None closed, Some(None) loading, Some(Some(..)) listed.
-    share_picker: Option<overlays::SharePicker>,
+    share_picker: Option<go_live::SharePicker>,
     // The source picked in the Go Live window, waiting for "Go Live".
     share_choice: Option<voice::ShareSource>,
     share_choice_label: Option<String>,
@@ -2038,7 +2040,7 @@ impl Rustcord {
             }
         })
         .detach();
-        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: Vec::new(), focus: None, stream_layout: crate::call::StreamLayout::Focus, ended: None, sharing: None, share_label: None, share_source: None, live_since: None, self_view: None, _events: task });
+        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: Vec::new(), focus: None, stream_layout: crate::call::StreamLayout::Focus, ended: None, sharing: None, share_label: None, share_source: None, live_since: None, self_view: None, joined: Instant::now(), _events: task });
         cx.notify();
     }
 
