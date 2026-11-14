@@ -546,6 +546,31 @@ impl Rustcord {
         .detach();
     }
 
+    // Discord's optimistic actions: `apply` changes what you see at once, the request goes out
+    // in the background, and if Discord refuses, `revert` puts it back and a toast says why.
+    pub(crate) fn rest_optimistic(
+        &mut self,
+        method: reqwest::Method,
+        path: String,
+        body: Option<serde_json::Value>,
+        apply: impl FnOnce(&mut Rustcord),
+        revert: impl FnOnce(&mut Rustcord) + 'static,
+        cx: &mut Context<Self>,
+    ) {
+        apply(self);
+        cx.notify();
+        let Some(client) = self.client.clone() else { return };
+        cx.spawn(async move |this, cx| {
+            let Err(error) = client.call(method, path, body).await else { return };
+            this.update(cx, |this, cx| {
+                revert(this);
+                this.show_toast(error, cx);
+            })
+            .ok();
+        })
+        .detach();
+    }
+
     pub(crate) fn show_toast(&mut self, text: impl Into<SharedString>, cx: &mut Context<Self>) {
         let text = text.into();
         self.toast = Some(text.clone());

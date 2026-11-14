@@ -30,6 +30,7 @@ impl Rustcord {
         let border = cx.theme().sidebar_border;
         if !cx.has_active_drag() {
             self.rail_drop = None;
+            self.channel_drop = None;
         }
         let dm_mentions: u32 = self.dms.iter().map(|d| self.mention_count(&d.id)).sum();
         let dms = self.rail_item("dms".into(), "Direct Messages".into(), self.guild_id.is_none(), (false, dm_mentions), Face::Dms, None, window, cx);
@@ -455,6 +456,11 @@ impl Rustcord {
                 }
                 cx.notify();
             }))
+            .drag_over::<crate::drag::ChannelDrag>(|s, _, _, _| s.text_color(gpui_kit::rgb(0xDCDCDF)))
+            .on_drop({
+                let category = category_for_menu.clone();
+                cx.listener(move |this, drag: &crate::drag::ChannelDrag, _, cx| this.drop_channel(drag, &category, crate::drag::Place::Into, cx))
+            })
             .on_mouse_down(gpui_kit::MouseButton::Right, {
                 let category = category_for_menu;
                 cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| {
@@ -517,12 +523,16 @@ impl Rustcord {
             .when(mentions > 0, |r| r.child(mention_badge(mentions, cx)))
             .when(unread && !selected, |r| r.child(div().absolute().left(px(-8.)).w(px(4.)).h(px(8.)).rounded_r(px(4.)).bg(theme.foreground)));
         let row = if selected { row.bg(theme.sidebar_accent) } else { row.hover(|s| s.bg(theme.sidebar_accent.opacity(0.6)).text_color(theme.foreground)) };
+        let row = self.channel_draggable(row, channel, guild, cx);
         let mut rows = Vec::new();
         if channel.kind == ChannelKind::Voice {
             let join = channel.clone();
             let in_call = self.call.as_ref().is_some_and(|c| c.channel.id == channel.id);
+            let drop_target = channel.clone();
             rows.push(
                 row.when(in_call, |r| r.text_color(theme.foreground))
+                    .drag_over::<crate::drag::VoiceDrag>(|s, _, _, _| s.bg(Hsla::from(gpui_kit::rgb(0x97979F)).opacity(0.2)))
+                    .on_drop(cx.listener(move |this, drag: &crate::drag::VoiceDrag, _, cx| this.drop_voice_user(drag, drop_target.clone(), cx)))
                     .on_click(cx.listener(move |this, _, window, cx| this.show_call(join.clone(), window, cx)))
                     .on_mouse_down(gpui_kit::MouseButton::Right, {
                         let (channel, guild_id) = (channel.clone(), guild.id.clone());
@@ -533,6 +543,7 @@ impl Rustcord {
             let speaking = self.call.as_ref().filter(|_| in_call).map(|c| c.speaking.clone()).unwrap_or_default();
             let watching = self.call.as_ref().and_then(|c| c.watching.as_ref()).map(|w| w.streamer_id.clone());
             let connected = self.call.as_ref().is_some_and(|c| c.connected && in_call);
+            let can_drag_people = self.can_move_people(&guild.id);
             let present: Vec<&crate::discord::VoiceState> = guild.voice_states.iter().filter(|v| v.channel_id.as_ref() == Some(&channel.id)).collect();
             if self.hidden_voice_names.contains(&channel.id) && !present.is_empty() {
                 rows.push(
@@ -563,6 +574,10 @@ impl Rustcord {
                 rows.push(
                     div()
                         .id(SharedString::from(format!("voice-{}", state.user_id)))
+                        .when(can_drag_people || self.me.as_ref().is_some_and(|m| m.id == state.user_id), |r| {
+                            let drag = crate::drag::VoiceDrag { user_id: state.user_id.clone(), guild_id: guild.id.clone(), name: name.clone().into(), avatar: avatar.clone() };
+                            r.on_drag(drag, |drag, _, _, cx| cx.new(|_| drag.clone()))
+                        })
                         .h(px(32.))
                         .pl(px(30.))
                         .pr_2()
@@ -617,6 +632,39 @@ impl Rustcord {
         );
         rows.extend(self.thread_rows(channel, guild, cx));
         rows
+    }
+
+    // With Manage Channels, a channel can be dragged above or below another, or onto a category.
+    fn channel_draggable(&self, row: gpui_kit::Stateful<Div>, channel: &Channel, guild: &Guild, cx: &mut Context<Self>) -> gpui_kit::Stateful<Div> {
+        if !self.can_arrange_channels(&guild.id) {
+            return row;
+        }
+        let hint = self.channel_drop.as_ref().filter(|(id, _)| *id == channel.id).map(|(_, place)| *place);
+        let marker = hint.map(|place| {
+            let bar = div().absolute().left_0().right_0().h(px(2.)).rounded_full().bg(cx.theme().success);
+            match place {
+                crate::drag::Place::After => bar.bottom(px(-2.)),
+                _ => bar.top(px(-2.)),
+            }
+        });
+        let drag = crate::drag::ChannelDrag { channel_id: channel.id.clone(), guild_id: guild.id.clone(), name: channel.name.clone().into() };
+        let (move_id, drop_target) = (channel.id.clone(), channel.clone());
+        row.children(marker)
+            .on_drag(drag, |drag, _, _, cx| cx.new(|_| drag.clone()))
+            .on_drag_move::<crate::drag::ChannelDrag>(cx.listener(move |this, e: &gpui_kit::DragMoveEvent<crate::drag::ChannelDrag>, _, cx| {
+                let inside = e.bounds.contains(&e.event.position);
+                let hint = inside.then(|| (move_id.clone(), crate::drag::place_at((e.event.position.y - e.bounds.top()) / e.bounds.size.height)));
+                match (&hint, &this.channel_drop) {
+                    (Some(_), _) if this.channel_drop != hint => this.channel_drop = hint,
+                    (None, Some((id, _))) if *id == move_id => this.channel_drop = None,
+                    _ => return,
+                }
+                cx.notify();
+            }))
+            .on_drop(cx.listener(move |this, drag: &crate::drag::ChannelDrag, _, cx| {
+                let place = this.channel_drop.take().map_or(crate::drag::Place::Before, |(_, p)| p);
+                this.drop_channel(drag, &drop_target, place, cx);
+            }))
     }
 
     // Discord lists the threads you've joined (and the one you have open) under their channel,

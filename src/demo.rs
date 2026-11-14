@@ -41,6 +41,12 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         "settings" => chord.open_settings(crate::settings::Page::Account, window, cx),
         "voice-settings" => chord.open_settings(crate::settings::Page::VoiceVideo, window, cx),
         "keybinds" => chord.open_settings(crate::settings::Page::Keybinds, window, cx),
+        "keybinds-select" => {
+            chord.open_settings(crate::settings::Page::Keybinds, window, cx);
+            if let Some(view) = chord.settings.as_mut() {
+                view.open_first_select();
+            }
+        }
         "appearance" => chord.open_settings(crate::settings::Page::Appearance, window, cx),
         "unread" => chord.unread_marker = Some(103),
         "user-menu" => {

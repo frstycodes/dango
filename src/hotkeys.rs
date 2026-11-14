@@ -105,8 +105,11 @@ pub fn from_keystroke(keystroke: &Keystroke) -> Option<String> {
 pub fn display(keys: &str) -> String {
     keys.split('+')
         .map(|part| match part {
-            "cmd" => "CMD".to_owned(),
-            "alt" => "OPTION".to_owned(),
+            // The platform key and Alt go by their own names on each system, as Discord shows them.
+            "cmd" if cfg!(target_os = "macos") => "CMD".to_owned(),
+            "cmd" => "WIN".to_owned(),
+            "alt" if cfg!(target_os = "macos") => "OPTION".to_owned(),
+            "alt" => "ALT".to_owned(),
             "ctrl" => "CTRL".to_owned(),
             p => p.trim_start_matches("Arrow").to_uppercase(),
         })
@@ -124,7 +127,8 @@ mod tests {
         assert_eq!(k("cmd-shift-m").as_deref(), Some("shift+cmd+m"));
         assert_eq!(k("`").as_deref(), Some("`"));
         assert_eq!(k("alt-up").as_deref(), Some("alt+ArrowUp"));
-        assert_eq!(display("shift+cmd+m"), "SHIFT + CMD + M");
-        assert_eq!(display("alt+ArrowUp"), "OPTION + UP");
+        let (cmd, alt) = if cfg!(target_os = "macos") { ("CMD", "OPTION") } else { ("WIN", "ALT") };
+        assert_eq!(display("shift+cmd+m"), format!("SHIFT + {cmd} + M"));
+        assert_eq!(display("alt+ArrowUp"), format!("{alt} + UP"));
     }
 }

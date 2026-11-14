@@ -306,6 +306,12 @@ impl Devices {
 }
 
 impl SettingsView {
+    // Demo scenes open the first keybind's action list.
+    #[cfg(debug_assertions)]
+    pub fn open_first_select(&mut self) {
+        self.select = Some(Select::Action(0));
+    }
+
     pub fn new(page: Page) -> Self {
         Self {
             page,
@@ -887,8 +893,8 @@ impl Rustcord {
         out.push(divider(&theme).into_any_element());
         out.push(h2("Default Keybinds", cx));
         let defaults = [
-            ("Quick Switcher", "CMD + K"),
-            ("Navigate Between Channels", "OPTION + UP / DOWN"),
+            ("Quick Switcher", if cfg!(target_os = "macos") { "CMD + K" } else { "CTRL + K" }),
+            ("Navigate Between Channels", if cfg!(target_os = "macos") { "OPTION + UP / DOWN" } else { "ALT + UP / DOWN" }),
             ("Mark Channel as Read", "ESCAPE"),
             ("Previous and Next in the Image Viewer", "LEFT / RIGHT"),
             ("Close a Popup", "ESCAPE"),
@@ -1144,7 +1150,8 @@ impl Rustcord {
                 .occlude()
                 .children(rows)
         });
-        div().relative().child(field).children(list).into_any_element()
+        // Deferred so the open list paints above the settings below it.
+        div().relative().child(field).children(list.map(|list| gpui_kit::deferred(list).with_priority(2))).into_any_element()
     }
 
     fn choose(&mut self, select: Select, id: &str, cx: &mut Context<Self>) {
