@@ -7,7 +7,6 @@
 // Audio: WASAPI process loopback (Windows 10 2004+). The whole screen captures every process except
 // Rustcord's own tree, so viewers don't hear the call echoed; an app or window captures only that
 // app's process tree.
-// ponytail: primary monitor only for `ShareSource::Screen`, like macOS; add a display choice.
 // ponytail: `ShareSource::App` captures the app's largest window (Windows.Graphics.Capture has no
 // "all windows of an app" item); its audio does cover the whole app.
 
@@ -32,7 +31,7 @@ use windows_capture::{
     window::Window,
 };
 
-use super::{ShareSource, ShareableWindow, video::VideoFrame};
+use super::{ShareSource, ShareableScreen, ShareableWindow, video::VideoFrame};
 
 // Stops capturing when dropped.
 pub struct Capture {
@@ -66,8 +65,8 @@ pub fn start(source: ShareSource, fps: u32, max_width: u32, max_height: u32, wit
     let flags = FrameFlags { tx, max_width, max_height };
     let interval = MinimumUpdateIntervalSettings::Custom(Duration::from_micros(1_000_000 / u64::from(fps.max(1))));
     let (control, audio_pid) = match source {
-        ShareSource::Screen(_) => {
-            let monitor = Monitor::primary().map_err(|e| format!("No display to capture: {e}"))?;
+        ShareSource::Screen(id) => {
+            let monitor = monitor(id)?;
             (FrameHandler::start_free_threaded(settings(monitor, interval, flags)), AudioTarget::AllExcept(std::process::id()))
         }
         ShareSource::App(pid) => {
@@ -96,6 +95,40 @@ pub fn start(source: ShareSource, fps: u32, max_width: u32, max_height: u32, wit
         })
     });
     Ok(Captured { capture: Capture { control: Some(control), audio_stop, audio_thread }, frames, audio })
+}
+
+// `ShareableScreen::id` is the display number Windows gives the monitor (`\\.\DISPLAYn`); 0 or a
+// display that has gone away falls back to the primary monitor.
+fn monitor(id: u32) -> Result<Monitor, String> {
+    let chosen = Monitor::enumerate().ok().and_then(|all| all.into_iter().find(|m| m.index().ok() == Some(id as usize)));
+    chosen.map_or_else(|| Monitor::primary().map_err(|e| format!("No display to capture: {e}")), Ok)
+}
+
+// Every display, the primary first, then in Windows' display order.
+pub fn screens() -> Result<Vec<ShareableScreen>, String> {
+    let primary = Monitor::primary().ok().map(|m| m.as_raw_hmonitor());
+    let mut monitors: Vec<(bool, usize, Monitor)> = Monitor::enumerate()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .filter_map(|m| Some((Some(m.as_raw_hmonitor()) != primary, m.index().ok()?, m)))
+        .collect();
+    monitors.sort_by_key(|(not_primary, index, _)| (*not_primary, *index));
+    let screens = monitors.iter().enumerate().map(|(n, (_, index, m))| ShareableScreen {
+        id: *index as u32,
+        name: format!("Screen {}", n + 1),
+        width: m.width().unwrap_or(0),
+        height: m.height().unwrap_or(0),
+    });
+    Ok(screens.collect())
+}
+
+// One still of `source`, fitted to `max_width`: a short capture session that keeps its first
+// frame. Minimized windows draw nothing, so they time out.
+pub fn thumbnail(source: ShareSource, max_width: u32) -> Result<VideoFrame, String> {
+    let captured = start(source, 10, max_width, u32::MAX, false)?;
+    let frame = captured.frames.recv_timeout(Duration::from_secs(2)).map_err(|_| "No picture from that source".to_owned())?;
+    drop(captured);
+    Ok(Arc::try_unwrap(frame).unwrap_or_else(|shared| VideoFrame { width: shared.width, height: shared.height, bgra: shared.bgra.clone() }))
 }
 
 fn settings<T: TryInto<GraphicsCaptureItemType>>(item: T, interval: MinimumUpdateIntervalSettings, flags: FrameFlags) -> Settings<FrameFlags, T> {
@@ -293,6 +326,12 @@ mod tests {
         assert!(frame.width <= 1280 && frame.height <= 720 && frame.width % 2 == 0);
         assert_eq!(frame.bgra.len(), (frame.width * frame.height * 4) as usize);
         eprintln!("captured {}x{}", frame.width, frame.height);
+        let screens = screens().unwrap();
+        eprintln!("screens: {:?}", screens.iter().map(|s| (s.id, &s.name, s.width, s.height)).collect::<Vec<_>>());
+        assert!(!screens.is_empty());
+        let still = thumbnail(ShareSource::Screen(screens[0].id), 512).unwrap();
+        assert!(still.width <= 512 && still.bgra.len() == (still.width * still.height * 4) as usize);
+        eprintln!("thumbnail {}x{}", still.width, still.height);
         let windows = shareable_windows().unwrap();
         eprintln!("{} shareable windows, e.g. {:?}", windows.len(), windows.first().map(|w| (&w.app_name, &w.title)));
         assert!(windows.iter().all(|w| w.pid != std::process::id() as i32));

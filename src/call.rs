@@ -27,6 +27,8 @@ const GO_LIVE_HEIGHT: f32 = 57.;
 // A warning line under the voice status: 16px of text plus the panel's 12px gap.
 const WARNING_HEIGHT: f32 = 28.;
 const PREVIEW_AGE: std::time::Duration = std::time::Duration::from_secs(60);
+// After a failed preview fetch, how long until the next try.
+const PREVIEW_RETRY: std::time::Duration = std::time::Duration::from_secs(20);
 // Discord's call tiles (read from Discord web, 2026-11-14).
 const TILE_RADIUS: f32 = 8.;
 const TILE_GAP: f32 = 8.;
@@ -166,8 +168,24 @@ impl Rustcord {
                 if cfg!(debug_assertions) && std::env::var_os("RUSTCORD_STREAM_DEBUG").is_some() {
                     eprintln!("stream preview {key}: {:?}", result.as_ref().map(|b| b.to_string()));
                 }
-                let Ok(body) = result else { return };
-                let Some(url) = body["url"].as_str().map(str::to_owned) else { return };
+                let url = match &result {
+                    Ok(body) => body["url"].as_str().map(str::to_owned),
+                    Err(_) => None,
+                };
+                let Some(url) = url else {
+                    // Often just too early: the streamer uploads its first preview a few seconds
+                    // after going live. Ask again soon instead of waiting for the next voice event.
+                    cx.background_executor().timer(PREVIEW_RETRY).await;
+                    this.update(cx, |this, cx| {
+                        this.expire_stream_preview(&user_id);
+                        this.refresh_stream_previews(cx);
+                    })
+                    .ok();
+                    return;
+                };
+                if std::env::var_os("RUSTCORD_STREAM_DEBUG").is_some() {
+                    eprintln!("stream preview fetched for {key}");
+                }
                 this.update(cx, |this, cx| {
                     this.stream_previews.insert(user_id, (url, std::time::Instant::now()));
                     cx.notify();
@@ -175,6 +193,15 @@ impl Rustcord {
                 .ok();
             })
             .detach();
+        }
+    }
+
+    // Lets the next refresh fetch this streamer's preview again, keeping the picture shown so far.
+    pub(crate) fn expire_stream_preview(&mut self, user_id: &str) {
+        if let Some((_, at)) = self.stream_previews.get_mut(user_id)
+            && let Some(old) = std::time::Instant::now().checked_sub(PREVIEW_AGE)
+        {
+            *at = old;
         }
     }
 
@@ -220,12 +247,26 @@ impl Rustcord {
                 let sent = match thumbnail {
                     Some(url) => {
                         let result = client.call(reqwest::Method::POST, format!("/streams/{key}/preview"), Some(serde_json::json!({ "thumbnail": url }))).await;
-                        if cfg!(debug_assertions) && std::env::var_os("RUSTCORD_STREAM_DEBUG").is_some() {
-                            eprintln!("stream preview upload {key}: {result:?}");
+                        if let Err(e) = &result {
+                            eprintln!("stream preview upload {key} failed: {e}");
+                        } else {
+                            if std::env::var_os("RUSTCORD_STREAM_DEBUG").is_some() {
+                                eprintln!("stream preview uploaded for {key}");
+                            }
+                            // Show our own new preview right away rather than at the next refresh.
+                            let _ = this.update(cx, |this, cx| {
+                                if let Some(me) = this.me.as_ref().map(|m| m.id.clone()) {
+                                    this.expire_stream_preview(&me);
+                                }
+                                this.refresh_stream_previews(cx);
+                            });
                         }
                         result.is_ok()
                     }
-                    None => false,
+                    None => {
+                        eprintln!("stream preview: couldn't grab a still of {source:?}");
+                        false
+                    }
                 };
                 cx.background_executor().timer(Duration::from_secs(if sent { 300 } else { 60 })).await;
             }
@@ -1154,7 +1195,8 @@ impl Rustcord {
             (true, _) => div()
                 .size_full()
                 .bg(palette::call_tile())
-                .children(self.stream_preview(&state.user_id).map(|url| img(url).size_full().object_fit(gpui_kit::ObjectFit::Cover).opacity(0.15)))
+                // Dimmed behind Watch Stream, but still clearly the picture, as in Discord.
+                .children(self.stream_preview(&state.user_id).map(|url| img(url).size_full().object_fit(gpui_kit::ObjectFit::Cover).opacity(0.6)))
                 .into_any_element(),
             (false, Some(frame)) => img(ImageSource::Render(frame.clone())).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
             (false, None) => div()
