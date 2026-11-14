@@ -184,7 +184,6 @@ struct Call {
     sharing: Option<voice::GoLive>,
     // What we're sharing, as the Go Live panel names it ("Screen 1", an app, a window).
     share_label: Option<String>,
-    joined_at: Instant,
     _events: Task<()>,
 }
 
@@ -334,6 +333,12 @@ pub struct Rustcord {
     call_strip_hidden: bool,
     // Bumped on each Go Live so an earlier stream's preview uploads stop.
     preview_generation: u64,
+    // The call view filling the screen on its own, as Discord's full screen does.
+    call_fullscreen: bool,
+    // Voice channel → when its current session began (Unix seconds), from CHANNEL_INFO.
+    voice_start: HashMap<String, u64>,
+    // Servers whose channel info we've asked for since connecting.
+    channel_info_requested: HashSet<String>,
     // Each call participant's avatar colour for their tile; None while loading or when it failed.
     avatar_colors: HashMap<String, Option<Hsla>>,
     pins: Option<Option<Result<Vec<Message>, SharedString>>>,
@@ -483,6 +488,9 @@ impl Rustcord {
             call_pointer_at: Instant::now(),
             call_strip_hidden: false,
             preview_generation: 0,
+            call_fullscreen: false,
+            voice_start: HashMap::new(),
+            channel_info_requested: HashSet::new(),
             avatar_colors: HashMap::new(),
             pins: None,
             revealed: Rc::default(),
@@ -608,6 +616,7 @@ impl Rustcord {
         match event {
             Event::Ready(ready) => {
                 let ready = *ready;
+                self.channel_info_requested.clear();
                 self.me = Some(ready.me);
                 self.my_status = ready.status;
                 self.custom_status = ready.custom_status;
@@ -796,6 +805,21 @@ impl Rustcord {
                 }
             }
             Event::VoiceServer(_) => {}
+            Event::VoiceStartTimes { guild_id, times, all } => {
+                if all
+                    && let Some(guild) = self.guilds.iter().find(|g| g.id == guild_id)
+                {
+                    for channel in &guild.channels {
+                        self.voice_start.remove(&channel.id);
+                    }
+                }
+                for (channel, start) in times {
+                    match start {
+                        Some(start) => self.voice_start.insert(channel, start),
+                        None => self.voice_start.remove(&channel),
+                    };
+                }
+            }
             Event::StreamViewers { key, viewers } => {
                 let before = self.stream_viewers.get(&key).map_or(0, Vec::len);
                 if self.in_stream(&key)
@@ -909,6 +933,7 @@ impl Rustcord {
     fn open_guild(&mut self, guild_id: Option<String>, window: &mut Window, cx: &mut Context<Self>) {
         self.guild_id = guild_id.clone();
         self.refresh_stream_previews(cx);
+        self.request_channel_info();
         let remembered = self.last_channel.get(&guild_id).cloned();
         // In sidebar order, and only channels we can open (Discord also lists hidden ones).
         let channels: Vec<Channel> = match &guild_id {
@@ -1603,6 +1628,21 @@ impl Rustcord {
         users
     }
 
+    // Asked once per server per connection, when it's opened, as Discord does.
+    fn request_channel_info(&mut self) {
+        let (Some(guild_id), Some(client)) = (self.guild_id.clone(), self.client.as_ref()) else { return };
+        if self.channel_info_requested.insert(guild_id.clone()) {
+            client.request_channel_info(&guild_id);
+        }
+    }
+
+    // How long a voice channel's current session has run, from Discord's start time.
+    pub(crate) fn voice_elapsed(&self, channel_id: &str) -> Option<u64> {
+        let start = *self.voice_start.get(channel_id)?;
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
+        Some(now.saturating_sub(start))
+    }
+
     fn user_avatar(&self, user_id: &str) -> String {
         self.known_users().into_iter().find(|u| u.id == user_id).map(|u| u.avatar).unwrap_or_else(|| discord::avatar_url(user_id, None))
     }
@@ -1731,11 +1771,12 @@ impl Rustcord {
             }
         })
         .detach();
-        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: None, sharing: None, share_label: None, joined_at: Instant::now(), _events: task });
+        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: None, sharing: None, share_label: None, _events: task });
         cx.notify();
     }
 
     fn leave_voice(&mut self, cx: &mut Context<Self>) {
+        self.call_fullscreen = false;
         let Some(mut call) = self.call.take() else { return };
         sounds::play(sounds::Cue::Disconnect);
         if let Some(frame) = call.watching.take().and_then(|w| w.frame) {

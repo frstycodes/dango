@@ -564,6 +564,8 @@ pub enum Event {
     Ready(Box<Ready>),
     // Who is watching a Go Live stream, by its key.
     StreamViewers { key: String, viewers: Vec<String> },
+    // When each voice channel's current session began (Unix seconds); `all` replaces the server's list.
+    VoiceStartTimes { guild_id: String, times: Vec<(String, Option<u64>)>, all: bool },
     // A channel or thread created or changed in a server.
     ChannelUpsert { guild_id: String, channel: Channel },
     ChannelDelete { guild_id: String, id: String },
@@ -629,6 +631,11 @@ impl Client {
     /// Sends a raw gateway payload (lazy member list, member requests, voice state updates).
     pub fn gateway(&self, payload: Value) {
         let _ = self.commands.unbounded_send(payload);
+    }
+
+    // Discord's REQUEST_CHANNEL_INFO (op 43): voice channel statuses and start times, answered by CHANNEL_INFO.
+    pub fn request_channel_info(&self, guild_id: &str) {
+        self.gateway(json!({ "op": 43, "d": { "guild_id": guild_id, "fields": ["status", "voice_start_time"] } }));
     }
 
     pub fn request_member_list(&self, guild_id: &str, channel_id: &str) {
@@ -1045,6 +1052,12 @@ fn dispatch(kind: &str, d: &Value) -> Option<Event> {
         }),
         "MESSAGE_ACK" => Some(Event::Ack { channel_id: s(&d["channel_id"]), message_id: snowflake(&d["message_id"]) }),
         "VOICE_STATE_UPDATE" => Some(Event::VoiceState(parse_voice_state(d))),
+        "CHANNEL_INFO" => Some(Event::VoiceStartTimes {
+            guild_id: s(&d["guild_id"]),
+            times: d["channels"].as_array().into_iter().flatten().map(|c| (s(&c["id"]), c["voice_start_time"].as_u64())).collect(),
+            all: true,
+        }),
+        "VOICE_CHANNEL_START_TIME_UPDATE" => Some(Event::VoiceStartTimes { guild_id: s(&d["guild_id"]), times: vec![(s(&d["id"]), d["voice_start_time"].as_u64())], all: false }),
         "STREAM_UPDATE" => Some(Event::StreamViewers { key: s(&d["stream_key"]), viewers: strings(&d["viewer_ids"]) }),
         "VOICE_SERVER_UPDATE" => Some(Event::VoiceServer(d.clone())),
         _ => None,

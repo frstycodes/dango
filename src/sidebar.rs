@@ -514,8 +514,7 @@ impl Rustcord {
         let in_this_call = self.call.as_ref().is_some_and(|c| c.channel.id == channel.id);
         let lead_color = if in_this_call { palette::status(Status_::Online) } else { theme.muted_foreground };
         let lead = div().size(px(20.)).flex_none().flex().items_center().justify_center().text_color(lead_color).child(Icon::new(glyph).size(px(20.)));
-        let elapsed = self.call.as_ref().filter(|c| c.channel.id == channel.id && c.connected).map(|c| {
-            let secs = c.joined_at.elapsed().as_secs();
+        let elapsed = self.call.as_ref().filter(|c| c.channel.id == channel.id && c.connected).and_then(|_| self.voice_elapsed(&channel.id)).map(|secs| {
             div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::status(Status_::Online)).child(format!("{}:{:02}", secs / 60, secs % 60))
         });
         let row = div()
