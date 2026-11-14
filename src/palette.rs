@@ -163,7 +163,6 @@ pub fn live() -> Hsla {
     hex(LIVE)
 }
 
-#[expect(dead_code, reason = "call.rs adopts it when the call view takes the palette")]
 pub fn call_tile() -> Hsla {
     hex(CALL_TILE)
 }
