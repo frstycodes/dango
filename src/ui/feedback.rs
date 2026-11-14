@@ -76,6 +76,11 @@ struct Thumb {
     ring: Option<Hsla>,
 }
 
+/// The slider's resting look, for screens that run their own drag.
+pub fn slider_track(value: f32, cx: &App) -> Div {
+    thumb_track(value.clamp(0., 1.), Thumb { hover: 0., press: 0., ring: None }, cx)
+}
+
 fn thumb_track(f: f32, thumb: Thumb, cx: &App) -> Div {
     let piece = |grow: f32, color: Hsla| div().h(px(8.)).flex_basis(px(0.)).flex_grow(grow).bg(color);
     let ring = |color: Hsla, spread: f32| BoxShadow { color, offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(spread), inset: false };
