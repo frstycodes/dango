@@ -16,6 +16,9 @@ const PAGES = [
   ["media.html", "Media and drag"],
   ["auth.html", "Sign in and states"],
   ["settings.html", "Settings"],
+  ["profile.html", "Profile and privacy"],
+  ["community.html", "Servers and invites"],
+  ["server-settings.html", "Server settings"],
 ];
 const FONTS = [["Gabarito", "Gabarito"], ["Onest", "Onest"], ["Figtree", "Figtree"], ["Rubik", "Rubik"], ["gg sans", "gg sans (current)"]];
 const NEUTRALS = [["", "Ink and bone"], ["plum", "Plum"], ["graphite", "Graphite"]];
