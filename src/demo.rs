@@ -43,6 +43,17 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         "keybinds" => chord.open_settings(crate::settings::Page::Keybinds, window, cx),
         "appearance" => chord.open_settings(crate::settings::Page::Appearance, window, cx),
         "unread" => chord.unread_marker = Some(103),
+        "user-menu" => {
+            demo_call(chord);
+            chord.call_view = false;
+            chord.voice_user_menu("8388608", gpui_kit::point(gpui_kit::px(300.), gpui_kit::px(160.)), cx);
+        }
+        "message-menu" => {
+            let message = chord.feeds.get("general").and_then(|f| f.messages.iter().find(|m| m.author.id == "8388608").cloned());
+            if let Some(message) = message {
+                chord.open_message_menu(message, gpui_kit::point(gpui_kit::px(700.), gpui_kit::px(260.)), cx);
+            }
+        }
         "call" | "call-info" | "call-devices" => {
             demo_call(chord);
             match scene {
@@ -79,6 +90,7 @@ fn demo_call(chord: &mut Rustcord) {
         stats: Some(stats),
         level: (-30., true),
         speaking: ["8388608".to_owned()].into_iter().collect(),
+        last_spoke: Default::default(),
         cameras: Default::default(),
         camera_on: false,
         watching: None,
@@ -117,9 +129,9 @@ fn ready(me: User) -> Ready {
     let mut media = channel("media", "📷-media", ChannelKind::Text, Some("c0"));
     media.last_message_id = Some("900".into());
     let roles = vec![
-        Role { id: "r1".into(), name: "Council".into(), color: 0xE91E63, position: 3 },
-        Role { id: "r2".into(), name: "Rustacean".into(), color: 0xE67E22, position: 2 },
-        Role { id: "1".into(), name: "@everyone".into(), color: 0, position: 0 },
+        Role { id: "r1".into(), name: "Council".into(), color: 0xE91E63, position: 3, permissions: 0, managed: false },
+        Role { id: "r2".into(), name: "Rustacean".into(), color: 0xE67E22, position: 2, permissions: 0, managed: false },
+        Role { id: "1".into(), name: "@everyone".into(), color: 0, position: 0, permissions: 0, managed: false },
     ];
     let guild = |id: &str, name: &str, channels: Vec<Channel>, voice_states: Vec<VoiceState>| Guild {
         id: id.into(),
@@ -128,14 +140,16 @@ fn ready(me: User) -> Ready {
         channels,
         roles: roles.clone(),
         voice_states,
+        owner_id: Some("4194304".into()),
+        my_roles: Vec::new(),
         emojis: Vec::new(),
     };
     let lounge_states = vec![
-        VoiceState { guild_id: Some("1".into()), channel_id: Some("lounge".into()), user_id: "12582912".into(), user: Some(user("12582912", "moss lantern")), muted: false, deafened: false, streaming: true, camera: false },
-        VoiceState { guild_id: Some("1".into()), channel_id: Some("lounge".into()), user_id: "16777216".into(), user: Some(user("16777216", "toma reed")), muted: true, deafened: false, streaming: false, camera: false },
-        VoiceState { guild_id: Some("1".into()), channel_id: Some("lounge".into()), user_id: "8388608".into(), user: Some(user("8388608", "Wren")), muted: false, deafened: false, streaming: false, camera: false },
-        VoiceState { guild_id: Some("1".into()), channel_id: Some("lounge".into()), user_id: "20971520".into(), user: Some(user("20971520", "ferris")), muted: true, deafened: true, streaming: false, camera: false },
-        VoiceState { guild_id: Some("1".into()), channel_id: Some("lounge".into()), user_id: "4194304".into(), user: Some(user("4194304", "kiwi")), muted: false, deafened: false, streaming: false, camera: false },
+        VoiceState { guild_id: Some("1".into()), channel_id: Some("lounge".into()), user_id: "12582912".into(), user: Some(user("12582912", "moss lantern")), muted: false, deafened: false, server_muted: false, server_deafened: false, streaming: true, camera: false },
+        VoiceState { guild_id: Some("1".into()), channel_id: Some("lounge".into()), user_id: "16777216".into(), user: Some(user("16777216", "toma reed")), muted: true, deafened: false, server_muted: false, server_deafened: false, streaming: false, camera: false },
+        VoiceState { guild_id: Some("1".into()), channel_id: Some("lounge".into()), user_id: "8388608".into(), user: Some(user("8388608", "Wren")), muted: false, deafened: false, server_muted: false, server_deafened: false, streaming: false, camera: false },
+        VoiceState { guild_id: Some("1".into()), channel_id: Some("lounge".into()), user_id: "20971520".into(), user: Some(user("20971520", "ferris")), muted: true, deafened: true, server_muted: false, server_deafened: false, streaming: false, camera: false },
+        VoiceState { guild_id: Some("1".into()), channel_id: Some("lounge".into()), user_id: "4194304".into(), user: Some(user("4194304", "kiwi")), muted: false, deafened: false, server_muted: false, server_deafened: false, streaming: false, camera: false },
     ];
     let channels = vec![
         channel("c0", "General", ChannelKind::Category, None),
@@ -150,6 +164,9 @@ fn ready(me: User) -> Ready {
     let mut dm = channel("dm", "Wren", ChannelKind::Dm, None);
     dm.recipient = Some(user("8388608", "Wren"));
     Ready {
+        developer_mode: true,
+        guild_settings: Vec::new(),
+        ignored: Vec::new(),
         me,
         status: Presence_::Dnd,
         custom_status: None,
@@ -227,6 +244,14 @@ fn messages() -> Vec<Message> {
         title: Some("Rust Programming Language".into()),
         description: Some("A language empowering everyone to build reliable and efficient software.".into()),
         thumbnail: Some(Media { url: avatar_url("1", None), width: 80., height: 80., kind: MediaKind::Image }),
+        ..Default::default()
+    }, Embed {
+        color: Some(0x43B581),
+        author: Some("_kiwi".into()),
+        author_icon: Some(avatar_url("4194304", None)),
+        description: Some("**<@8388608> joined voice channel <#lounge>**".into()),
+        footer: Some("ID: 8388608".into()),
+        timestamp: Some("2026-11-14T08:12:00Z".into()),
         ..Default::default()
     }];
     let mut reply = message("103", me.clone(), &["r1"], "2026-11-14T08:15:00Z", "discord on rust <@8388608>, check <#media>");

@@ -100,6 +100,11 @@ pub struct Prefs {
     // Per-user listening volume (0..=2) and local mutes, kept across calls as Discord does.
     pub user_volumes: HashMap<String, f32>,
     pub local_mutes: Vec<String>,
+    // Discord's per-user "Mute Soundboard" and "Disable Video", kept locally like the volume.
+    pub soundboard_mutes: Vec<String>,
+    pub hidden_video: Vec<String>,
+    // How often we've reacted with each emoji, for the "frequently used" rows.
+    pub emoji_uses: Vec<(crate::discord::Emoji, u32)>,
     // Go Live quality: height (0 = source), frame rate, and whether the source's sound goes too.
     pub stream_resolution: u32,
     pub stream_fps: u32,
@@ -127,6 +132,9 @@ impl Default for Prefs {
             keybinds: vec![Keybind { action: Action::PushToTalk, keys: Some("`".into()) }],
             user_volumes: HashMap::new(),
             local_mutes: Vec::new(),
+            soundboard_mutes: Vec::new(),
+            hidden_video: Vec::new(),
+            emoji_uses: Vec::new(),
             stream_resolution: 720,
             stream_fps: 30,
             stream_audio: true,
@@ -191,6 +199,33 @@ impl Prefs {
         session.set_echo_cancellation(self.echo_cancellation);
         session.set_noise_suppression(self.noise_suppression);
         session.set_auto_gain(self.auto_gain);
+    }
+}
+
+impl Prefs {
+    // Most-used first, topped up with Discord's own defaults when we haven't reacted enough yet.
+    // ponytail: counts only; Discord's frecency (time-decayed, synced in settings-proto) is the upgrade.
+    pub fn frequent_emojis(&self, n: usize, pad: &[&str]) -> Vec<crate::discord::Emoji> {
+        let mut uses = self.emoji_uses.clone();
+        uses.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
+        let mut out: Vec<crate::discord::Emoji> = uses.into_iter().map(|(e, _)| e).take(n).collect();
+        for name in pad {
+            if out.len() >= n {
+                break;
+            }
+            let emoji = crate::discord::Emoji::unicode(name);
+            if !out.contains(&emoji) {
+                out.push(emoji);
+            }
+        }
+        out
+    }
+
+    pub fn record_emoji(&mut self, emoji: &crate::discord::Emoji) {
+        match self.emoji_uses.iter_mut().find(|(e, _)| e == emoji) {
+            Some((_, count)) => *count += 1,
+            None => self.emoji_uses.push((emoji.clone(), 1)),
+        }
     }
 }
 

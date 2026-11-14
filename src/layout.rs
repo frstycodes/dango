@@ -37,6 +37,12 @@ impl Render for Rustcord {
             .text_color(theme.foreground)
             .text_size(px(16.))
             .on_key_down(cx.listener(Self::on_root_key))
+            .on_modifiers_changed(cx.listener(|this, e: &gpui_kit::ModifiersChangedEvent, _, cx| {
+                if this.shift_held != e.modifiers.shift {
+                    this.shift_held = e.modifiers.shift;
+                    cx.notify();
+                }
+            }))
             .on_mouse_move(cx.listener(Self::on_drag_move))
             .on_mouse_up(MouseButton::Left, cx.listener(|this, _, _, cx| {
                 if this.drag.take().is_some() {
@@ -67,6 +73,9 @@ impl Render for Rustcord {
             .child(body)
             .children(self.render_overlays(window, cx))
             .children(self.render_call_overlays(window, cx))
+            .children(self.render_toast(cx))
+            .children(self.render_menu(window, cx))
+            .children(self.render_dialog(cx))
             .children(self.viewer_overlay(window, cx))
             .children(self.render_settings(window, cx))
             .into_any_element()
@@ -341,6 +350,7 @@ impl Rustcord {
         let url = item.url.clone();
         let stage = match &item.kind {
             MediaKind::Image => img(item.url.clone()).w(px(w)).h(px(h)).rounded(px(6.)).into_any_element(),
+            MediaKind::Gif { poster } => crate::chat::gif_image(&item.url, poster).w(px(w)).h(px(h)).rounded(px(6.)).into_any_element(),
             // ponytail: video plays in the system player; an in-app AVPlayer view is the upgrade.
             MediaKind::Video { poster } => {
                 let open = item.url.clone();

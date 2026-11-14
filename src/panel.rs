@@ -5,7 +5,6 @@ use gpui_kit::{
     div, img, prelude::*, px,
 };
 
-use gpui_kit::component::menu::{ContextMenuExt, PopupMenuItem};
 
 use crate::{
     Rustcord, Edge, RightPanel,
@@ -75,6 +74,9 @@ impl Rustcord {
         let color = self.role_color(self.guild_id.as_ref(), &member.user.id, Some(&member.roles)).unwrap_or(theme.foreground);
         let surface = theme.sidebar;
         let nameplate = member.user.nameplate.as_ref().map(|plate| nameplate(plate, surface, true, theme.is_dark()));
+        let owner = self.guild().is_some_and(|g| g.owner_id.as_ref() == Some(&member.user.id));
+        // --text-feedback-warning, Discord's owner crown (read from Discord web, 2026-11-14).
+        let crown: gpui_kit::Hsla = gpui_kit::rgb(if theme.is_dark() { 0xCE8100 } else { 0x945300 }).into();
         div()
             .id(SharedString::from(format!("member-{}", member.user.id)))
             .relative()
@@ -102,6 +104,7 @@ impl Rustcord {
                             .items_center()
                             .gap_1()
                             .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(color).child(member.user.name.clone()))
+                            .when(owner, |r| r.child(Icon::new(Glyph::Crown).size(px(14.)).flex_none().ml(px(3.)).text_color(crown)))
                             .when(member.user.bot, |r| {
                                 r.child(
                                     div().h(px(15.)).px_1().flex().items_center().rounded(px(4.)).bg(crate::palette::blurple()).text_color(gpui_kit::white()).text_size(px(10.)).font_weight(FontWeight::BOLD).child("APP"),
@@ -114,22 +117,9 @@ impl Rustcord {
                 let user = member.user.clone();
                 cx.listener(move |this, event: &gpui_kit::ClickEvent, _, cx| this.open_profile(user.clone(), event.position() - gpui_kit::point(px(320.), px(0.)), cx))
             })
-            .context_menu({
-                let (this, user) = (cx.weak_entity(), member.user.clone());
-                move |menu, _, _| {
-                    let (mention, message, copy) = (this.clone(), this.clone(), this.clone());
-                    let (u1, u2, u3) = (user.clone(), user.id.clone(), user.id.clone());
-                    menu.item(PopupMenuItem::new("Mention").on_click(move |_, window, cx| {
-                        mention.update(cx, |this, cx| this.mention_user(&u1, window, cx)).ok();
-                    }))
-                    .item(PopupMenuItem::new("Message").on_click(move |_, window, cx| {
-                        message.update(cx, |this, cx| this.message_user(u2.clone(), window, cx)).ok();
-                    }))
-                    .separator()
-                    .item(PopupMenuItem::new("Copy User ID").on_click(move |_, _, cx| {
-                        copy.update(cx, |this, cx| this.copy_text(u3.clone(), cx)).ok();
-                    }))
-                }
+            .on_mouse_down(gpui_kit::MouseButton::Right, {
+                let (user, guild_id) = (member.user.clone(), self.guild_id.clone());
+                cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_user_menu(user.clone(), guild_id.clone(), crate::user_menu::Surface::ServerChat, e.position, cx))
             })
             .into_any_element()
     }

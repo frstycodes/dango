@@ -76,11 +76,11 @@ Tokens: `docs/discord-tokens.json` (Discord web, Midnight, read 2026-11-14).
 - [ ] Role colours in light mode: Discord darkens them for contrast; ours use the raw value
 
 ### Typography
-- [ ] Message text is 16px in Discord; ours is 15px
-- [ ] Author names are 16px medium (500) in Discord; ours are semibold
-- [ ] Channel names in the sidebar are 16px medium; ours are 15px regular
-- [ ] Category labels are 12px semibold; matches
-- [ ] Member names are 16px; ours are 15px
+- [x] Message text is 16px in Discord; ours is 15px
+- [x] Author names are 16px medium (500) in Discord; ours are semibold
+- [x] Channel names in the sidebar are 16px medium; ours are 15px regular
+- [x] Category labels are 12px semibold; matches
+- [x] Member names are 16px; ours are 15px
 
 ### Layout and size
 - [ ] Friends page: Discord adds an "Add Friend" button, a search field and an "Active Now" column
@@ -103,6 +103,12 @@ Tokens: `docs/discord-tokens.json` (Discord web, Midnight, read 2026-11-14).
 - [ ] Image attachments: Discord shows a size badge for files and a hover download button
 - [x] Voice channel participant row is 32px with a 24px avatar in Discord
 - [ ] Voice panel: Activities and Soundboard buttons are missing (not built)
+- [x] Server nicknames and server avatars (messages, history, member list, voice, typing)
+- [x] Voice participants resolve to real names and avatars (members requested from the gateway)
+- [x] Owner crown in the member list (--text-feedback-warning, 14px)
+- [x] Stream previews: thumbnails on call tiles and a hover card on LIVE voice rows (GET /streams/{key}/preview, refreshed each minute)
+- [x] A message that is only a GIF or image link shows just the embed
+- [ ] Right-click menus: rebuilding every menu from Discord's own menu code (items, order, conditions)
 - [ ] Call view tiles: Discord tints each tile with the user's banner colour; ours are neutral
 - [ ] Settings search only filters page names; Discord searches every setting
 

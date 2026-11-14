@@ -17,7 +17,6 @@ use gpui_motion_kit::core::{Motion, Target};
 
 use std::rc::Rc;
 
-use gpui_kit::component::menu::{ContextMenuExt, PopupMenuItem};
 
 use crate::{
     Rustcord, EmojiTarget, Feed, RightPanel,
@@ -29,7 +28,6 @@ use crate::{
 
 // Messages from one author closer together than this share a header, like Discord.
 const GROUP_GAP_SECS: i64 = 7 * 60;
-const QUICK_REACTIONS: [&str; 3] = ["👍", "😂", "❤️"];
 const MAX_IMAGE: (f32, f32) = (400., 320.);
 
 impl Rustcord {
@@ -61,7 +59,7 @@ impl Rustcord {
                     .items_center()
                     .gap_2()
                     .child(div().size(px(4.)).flex_none().rounded_full().bg(theme.muted_foreground.opacity(0.5)))
-                    .child(div().truncate().text_size(px(13.)).text_color(theme.muted_foreground).child(topic))
+                    .child(div().flex_1().min_w_0().truncate().text_size(px(14.)).text_color(theme.muted_foreground).child(topic))
             }))
             .when(channel.topic.is_none(), |h| h.child(div().flex_1()))
             .child(
@@ -196,7 +194,16 @@ impl Rustcord {
         let messages: std::rc::Rc<Vec<Message>> = std::rc::Rc::new(feed.messages.clone());
         let ctx = std::rc::Rc::new(RowContext {
             me: self.me.clone(),
-            names: messages.iter().flat_map(|m| std::iter::once(&m.author).chain(&m.mentions)).chain(self.me.iter()).map(|u| (u.id.clone(), u.name.clone())).collect(),
+            names: self
+                .guild_id
+                .as_ref()
+                .and_then(|g| self.members.get(g))
+                .into_iter()
+                .flat_map(|m| m.values())
+                .chain(messages.iter().flat_map(|m| std::iter::once(&m.author).chain(&m.mentions)))
+                .chain(self.me.iter())
+                .map(|u| (u.id.clone(), u.name.clone()))
+                .collect(),
             colors: messages.iter().filter_map(|m| Some((m.author.id.clone(), self.role_color(m.guild_id.as_ref().or(self.guild_id.as_ref()), &m.author.id, m.roles.as_ref())?))).collect(),
             mentions_me: messages.iter().filter(|m| self.mentions_me(m)).map(|m| m.id.clone()).collect(),
             channel_names: self.guild().map(|g| g.channels.iter().map(|c| (c.id.clone(), c.name.clone())).collect()).unwrap_or_default(),
@@ -207,6 +214,9 @@ impl Rustcord {
             unread_marker: self.unread_marker,
             this: cx.weak_entity(),
             has_more: feed.has_more,
+            quick_reactions: self.prefs.frequent_emojis(3, &["💯", "😆", "💖"]),
+            shift: self.shift_held,
+            manage_messages: self.guild().is_some_and(|g| self.me.as_ref().is_some_and(|me| g.can(&me.id, crate::discord::perm::MANAGE_MESSAGES))),
         });
         let arrivals = self.arrivals.clone();
         list(self.list.clone(), move |ix, window, cx| {
@@ -573,6 +583,10 @@ struct RowContext {
     unread_marker: Option<u64>,
     this: WeakEntity<Rustcord>,
     has_more: bool,
+    // Discord's three hover-bar reactions: most used, padded with 💯 😆 💖.
+    quick_reactions: Vec<Emoji>,
+    shift: bool,
+    manage_messages: bool,
 }
 
 fn message_row(message: &Message, starts_group: bool, ctx: &std::rc::Rc<RowContext>, cx: &App) -> AnyElement {
@@ -591,7 +605,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &std::rc::Rc<RowConte
         .when(message.state != SendState::Sent, |b| b.opacity(0.55))
         .children(content(message, ctx, cx))
         .children(media_grid(message, ctx, cx))
-        .children(message.embeds.iter().map(|e| embed_card(e, cx)))
+        .children(message.embeds.iter().enumerate().map(|(i, e)| embed_card(e, format!("embed-{}-{i}", message.id), ctx, cx)))
         .children(files(message, cx))
         .children(reactions(message, ctx, cx))
         .when(message.state == SendState::Failed, |b| {
@@ -671,40 +685,29 @@ fn message_row(message: &Message, starts_group: bool, ctx: &std::rc::Rc<RowConte
 // Clicking an avatar or name opens their profile popout at the pointer, as in Discord.
 fn profile_trigger(id: String, user: &User, ctx: &std::rc::Rc<RowContext>) -> gpui_kit::Stateful<gpui_kit::Div> {
     let (this, user) = (ctx.this.clone(), user.clone());
-    div().id(SharedString::from(id)).cursor_pointer().on_click(move |event, _, cx| {
-        let at = event.position();
-        this.update(cx, |this, cx| this.open_profile(user.clone(), at, cx)).ok();
-    })
+    let (menu_this, menu_user) = (this.clone(), user.clone());
+    div()
+        .id(SharedString::from(id))
+        .cursor_pointer()
+        .on_click(move |event, _, cx| {
+            let at = event.position();
+            this.update(cx, |this, cx| this.open_profile(user.clone(), at, cx)).ok();
+        })
+        // The author's menu, not the message's: Discord stops the click here.
+        .on_mouse_down(gpui_kit::MouseButton::Right, move |event, _, cx| {
+            cx.stop_propagation();
+            let at = event.position;
+            menu_this.update(cx, |this, cx| this.open_author_menu(menu_user.clone(), at, cx)).ok();
+        })
 }
 
-type MenuAction = Rc<dyn Fn(&mut Rustcord, &mut Window, &mut Context<Rustcord>)>;
 
 // Discord's message menu, trimmed to what Rustcord can do.
-fn with_message_menu(row: gpui_kit::Stateful<gpui_kit::Div>, message: &Message, mine: bool, ctx: &std::rc::Rc<RowContext>) -> AnyElement {
-    if message.state != SendState::Sent {
-        return row.into_any_element();
-    }
+fn with_message_menu(row: gpui_kit::Stateful<gpui_kit::Div>, message: &Message, _mine: bool, ctx: &std::rc::Rc<RowContext>) -> AnyElement {
     let (this, message) = (ctx.this.clone(), message.clone());
-    row.context_menu(move |menu, _, _| {
-        let item = |label: &'static str, run: MenuAction| {
-            let this = this.clone();
-            PopupMenuItem::new(label).on_click(move |_, window, cx| {
-                let run = run.clone();
-                this.update(cx, |chord, cx| run(chord, window, cx)).ok();
-            })
-        };
-        let m = message.clone();
-        let menu = menu
-            .item(item("Add Reaction", Rc::new({ let m = m.clone(); move |c, w, cx| c.open_emoji_picker(EmojiTarget::Reaction(Box::new(m.clone())), w, cx) })))
-            .item(item("Reply", Rc::new({ let m = m.clone(); move |c, w, cx| c.start_reply(m.clone(), w, cx) })));
-        let menu = if mine { menu.item(item("Edit Message", Rc::new({ let m = m.clone(); move |c, w, cx| c.start_edit(m.clone(), w, cx) }))) } else { menu };
-        let menu = menu
-            .separator()
-            .item(item("Copy Text", Rc::new({ let m = m.clone(); move |c, _, cx| c.copy_text(m.content.clone(), cx) })))
-            .item(item("Mark Unread", Rc::new({ let m = m.clone(); move |c, _, cx| c.mark_unread(&m, cx) })))
-            .item(item("Copy Message Link", Rc::new({ let m = m.clone(); move |c, _, cx| { let link = c.message_link(&m); c.copy_text(link, cx) } })));
-        let menu = if mine { menu.separator().item(item("Delete Message", Rc::new({ let m = m.clone(); move |c, _, cx| c.delete(m.clone(), cx) }))) } else { menu };
-        menu.separator().item(item("Copy Message ID", Rc::new({ let m = m.clone(); move |c, _, cx| c.copy_text(m.id.clone(), cx) })))
+    row.on_mouse_down(gpui_kit::MouseButton::Right, move |event, _, cx| {
+        let at = event.position;
+        this.update(cx, |this, cx| this.open_message_menu(message.clone(), at, cx)).ok();
     })
     .into_any_element()
 }
@@ -737,8 +740,15 @@ fn reply_preview(reply: &Message, target: Option<String>, ctx: &std::rc::Rc<RowC
         .into_any_element()
 }
 
+// Discord drops the text of a message that is nothing but the link its GIF or image embed shows.
+fn only_media_link(message: &Message) -> bool {
+    let text = message.content.trim();
+    let is_link = (text.starts_with("https://") || text.starts_with("http://")) && !text.contains(char::is_whitespace);
+    is_link && !message.media.is_empty() && message.embeds.is_empty()
+}
+
 fn content(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &App) -> Option<AnyElement> {
-    if message.content.is_empty() {
+    if message.content.is_empty() || only_media_link(message) {
         return None;
     }
     // A message of only custom emoji renders them big, as Discord's "jumbo" emoji.
@@ -751,27 +761,7 @@ fn content(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &App) -> Option
     let has_spoiler = message.content.contains("||");
     let (body, subtext) = split_subtext(&message.content);
     let text = hide_spoilers(&readable(&body, ctx), revealed);
-    let this = ctx.this.clone();
-    let (copy_target, copied) = (ctx.this.clone(), ctx.copied.clone());
-    let view = TextView::markdown(SharedString::from(format!("md-{}", message.id)), text)
-        .selectable(true)
-        .code_block_actions(move |block, _, cx| copy_button(block.code().to_string(), copied.as_deref() == Some(block.code().as_ref()), copy_target.clone(), cx))
-        .on_link_click(move |url, _, window, cx| {
-            let url = url.to_string();
-            if let Some(channel_id) = url.strip_prefix("rustcord://channel/") {
-                this.update(cx, |this, cx| {
-                    let channel = this.guild().and_then(|g| g.channels.iter().find(|c| c.id == channel_id).cloned());
-                    if let Some(channel) = channel {
-                        this.open_channel(channel, window, cx);
-                    }
-                })
-                .ok();
-                return;
-            }
-            if !url.starts_with("rustcord://") {
-                cx.open_url(&url);
-            }
-        });
+    let view = markdown(SharedString::from(format!("md-{}", message.id)), text, ctx);
     let (reveal, id) = (ctx.revealed.clone(), message.id.clone());
     let refresh = ctx.this.clone();
     Some(
@@ -797,6 +787,31 @@ fn content(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &App) -> Option
             .children(subtext.into_iter().map(|line| div().text_size(px(12.)).text_color(cx.theme().muted_foreground).child(line)))
             .into_any_element(),
     )
+}
+
+// Discord markdown with mentions, channel links and code copy buttons; messages and embeds share it.
+fn markdown(id: SharedString, text: String, ctx: &RowContext) -> TextView {
+    let this = ctx.this.clone();
+    let (copy_target, copied) = (ctx.this.clone(), ctx.copied.clone());
+    TextView::markdown(id, text)
+        .selectable(true)
+        .code_block_actions(move |block, _, cx| copy_button(block.code().to_string(), copied.as_deref() == Some(block.code().as_ref()), copy_target.clone(), cx))
+        .on_link_click(move |url, _, window, cx| {
+            let url = url.to_string();
+            if let Some(channel_id) = url.strip_prefix("rustcord://channel/") {
+                this.update(cx, |this, cx| {
+                    let channel = this.guild().and_then(|g| g.channels.iter().find(|c| c.id == channel_id).cloned());
+                    if let Some(channel) = channel {
+                        this.open_channel(channel, window, cx);
+                    }
+                })
+                .ok();
+                return;
+            }
+            if !url.starts_with("rustcord://") {
+                cx.open_url(&url);
+            }
+        })
 }
 
 fn split_subtext(content: &str) -> (String, Vec<String>) {
@@ -830,6 +845,14 @@ fn hide_spoilers(text: &str, revealed: bool) -> String {
 
 // Images and videos sized like Discord's: one fills up to 400×320, several tile smaller. A click opens
 // the gallery at that item.
+// A GIF plays as soon as it's decoded; the still shows meanwhile and if decoding fails.
+pub(crate) fn gif_image(url: &str, poster: &str) -> gpui_kit::Img {
+    let (loading, fallback) = (poster.to_owned(), poster.to_owned());
+    img(crate::gif::source(url.to_owned()))
+        .with_loading(move || img(loading.clone()).size_full().rounded(px(8.)).into_any_element())
+        .with_fallback(move || img(fallback.clone()).size_full().rounded(px(8.)).into_any_element())
+}
+
 fn media_grid(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &App) -> Option<AnyElement> {
     if message.media.is_empty() {
         return None;
@@ -841,6 +864,7 @@ fn media_grid(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &App) -> Opt
         let (this, url) = (ctx.this.clone(), item.url.clone());
         let picture = match &item.kind {
             MediaKind::Image => img(item.url.clone()).size_full().rounded(px(8.)).into_any_element(),
+            MediaKind::Gif { poster } => gif_image(&item.url, poster).size_full().rounded(px(8.)).into_any_element(),
             MediaKind::Video { poster } => div()
                 .relative()
                 .size_full()
@@ -868,58 +892,99 @@ fn media_grid(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &App) -> Opt
     Some(div().mt_1().flex().flex_wrap().gap_1().max_w(px(MAX_IMAGE.0 + 8.)).children(tiles).into_any_element())
 }
 
-// Discord's rich embed: a card with the embed's colour down its left edge, provider, author, linked
-// title, description, fields, and a thumbnail (large for video links, small beside text otherwise).
-fn embed_card(embed: &Embed, cx: &App) -> AnyElement {
+// Discord's rich embed, from its stylesheet (2026-11-14): a 4px colour bar, 1px subtle border,
+// 4px radius, padding 8/16/16/12; author with a 24px round icon, title, markdown description and
+// fields, image, and a footer with a 20px icon and the embed's time.
+fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElement {
     let theme = cx.theme();
-    let bar: Hsla = embed.color.filter(|c| *c != 0).map(|c| gpui_kit::rgb(c).into()).unwrap_or(theme.input);
+    let strong = crate::palette::strong(cx);
+    let bar: Hsla = embed.color.filter(|c| *c != 0).map(|c| gpui_kit::rgb(c).into()).unwrap_or(Hsla::from(gpui_kit::rgb(0x97979F)).opacity(0.24));
+    let fill: Hsla = if theme.is_dark() { gpui_kit::rgb(0x0A0A0C).into() } else { theme.muted };
     let large = embed.thumbnail.as_ref().filter(|t| t.width >= 400.);
     let small = embed.thumbnail.as_ref().filter(|t| t.width < 400.);
+    let md = |part: &str, text: &str| markdown(SharedString::from(format!("{key}-{part}")), readable(text, ctx), ctx);
     let link = embed.url.clone();
     let title = embed.title.clone().map(|title| {
         div()
-            .id(SharedString::from(format!("embed-title-{}", title.len())))
+            .id(SharedString::from(format!("{key}-title")))
+            .mt_2()
+            .text_size(px(16.))
             .font_weight(FontWeight::SEMIBOLD)
-            .text_color(if link.is_some() { theme.link } else { theme.foreground })
+            .text_color(if link.is_some() { theme.link } else { strong })
             .when_some(link.clone(), |t, url| t.cursor_pointer().hover(|s| s.underline()).on_click(move |_, _, cx| cx.open_url(&url)))
             .child(title)
+    });
+    let author = embed.author.clone().map(|name| {
+        let url = embed.author_url.clone();
+        div()
+            .id(SharedString::from(format!("{key}-author")))
+            .mt_2()
+            .flex()
+            .items_center()
+            .gap_2()
+            .children(embed.author_icon.clone().map(|icon| img(icon).size(px(24.)).rounded_full().flex_none()))
+            .child(div().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(strong).when(url.is_some(), |d| d.cursor_pointer().hover(|s| s.underline())).child(name))
+            .when_some(url, |d, url| d.on_click(move |_, _, cx| cx.open_url(&url)))
+    });
+    let footer_text: Vec<String> = embed.footer.clone().into_iter().chain(embed.timestamp.as_deref().map(footer_stamp)).collect();
+    let footer = (!footer_text.is_empty()).then(|| {
+        div()
+            .mt_2()
+            .flex()
+            .items_center()
+            .gap_2()
+            .children(embed.footer_icon.clone().map(|icon| img(icon).size(px(20.)).rounded_full().flex_none()))
+            .child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(theme.foreground).child(footer_text.join(" • ")))
     });
     let text = div()
         .flex_1()
         .min_w_0()
         .flex()
         .flex_col()
-        .gap_1()
-        .children(embed.provider.clone().map(|p| div().text_size(px(12.)).text_color(theme.muted_foreground).child(p)))
-        .children(embed.author.clone().map(|a| div().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).child(a)))
+        .children(embed.provider.clone().map(|p| div().mt_2().text_size(px(12.)).text_color(theme.muted_foreground).child(p)))
+        .children(author)
         .children(title)
-        .children(embed.description.clone().map(|d| div().text_size(px(14.)).text_color(theme.foreground.opacity(0.9)).line_clamp(6).child(d)))
+        .children(embed.description.as_deref().map(|d| div().mt_2().text_size(px(14.)).text_color(theme.foreground).child(md("description", d))))
         .when(!embed.fields.is_empty(), |t| {
-            t.child(div().flex().flex_wrap().gap_x_4().gap_y_2().children(embed.fields.iter().map(|(name, value, inline)| {
+            t.child(div().mt_2().flex().flex_wrap().gap_2().children(embed.fields.iter().enumerate().map(|(i, (name, value, inline))| {
                 div()
-                    .when(*inline, |f| f.min_w(px(140.)))
+                    .when(*inline, |f| f.min_w(px(150.)))
                     .when(!inline, |f| f.w_full())
                     .flex()
                     .flex_col()
-                    .child(div().text_size(px(13.)).font_weight(FontWeight::SEMIBOLD).child(name.clone()))
-                    .child(div().text_size(px(13.)).text_color(theme.foreground.opacity(0.9)).child(value.clone()))
+                    .gap(px(2.))
+                    .child(div().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(strong).child(name.clone()))
+                    .child(div().text_size(px(14.)).text_color(theme.foreground).child(md(&format!("field-{i}"), value)))
             })))
         })
         .children(large.map(|m| {
-            let scale = (400. / m.width).min(225. / m.height).min(1.);
-            img(m.url.clone()).w(px(m.width * scale)).h(px(m.height * scale)).mt_1().rounded(px(6.))
+            let scale = (400. / m.width).min(300. / m.height).min(1.);
+            img(m.url.clone()).w(px(m.width * scale)).h(px(m.height * scale)).mt_4().rounded(px(4.))
         }))
-        .children(embed.footer.clone().map(|f| div().text_size(px(12.)).text_color(theme.muted_foreground).child(f)));
+        .children(footer);
     div()
         .mt_1()
-        .max_w(px(520.))
+        .max_w(px(516.))
         .flex()
-        .rounded(px(6.))
+        .rounded(px(4.))
         .overflow_hidden()
-        .bg(theme.muted)
+        .border_1()
+        .border_color(Hsla::from(gpui_kit::rgb(0x97979F)).opacity(0.2))
+        .bg(fill)
         .child(div().w(px(4.)).flex_none().bg(bar))
-        .child(div().flex_1().min_w_0().p_3().flex().gap_3().child(text).children(small.map(|m| img(m.url.clone()).size(px(80.)).rounded(px(6.)).flex_none())))
+        .child(div().flex_1().min_w_0().pt(px(2.)).pr_4().pb_4().pl_3().flex().gap_4().child(text).children(small.map(|m| img(m.url.clone()).size(px(80.)).rounded(px(4.)).flex_none().mt_2())))
         .into_any_element()
+}
+
+// An embed footer's time: "Today at 15:48", "Yesterday at 23:03", else the date and time.
+fn footer_stamp(timestamp: &str) -> String {
+    let Ok(time) = DateTime::parse_from_rfc3339(timestamp) else { return String::new() };
+    let time = time.with_timezone(&Local);
+    match (Local::now().date_naive() - time.date_naive()).num_days() {
+        0 => time.format("Today at %H:%M").to_string(),
+        1 => time.format("Yesterday at %H:%M").to_string(),
+        _ => time.format("%d/%m/%Y %H:%M").to_string(),
+    }
 }
 
 fn files(message: &Message, cx: &App) -> Vec<AnyElement> {
@@ -1034,35 +1099,42 @@ fn actions(message: &Message, mine: bool, ctx: &std::rc::Rc<RowContext>, group: 
         .invisible()
         .group_hover(group.clone(), |s| s.visible());
     if message.state == SendState::Sent {
+        for quick in ctx.quick_reactions.iter().cloned() {
+            let (this, msg, emoji) = (ctx.this.clone(), message.clone(), quick.clone());
+            let face: AnyElement = match quick.url() {
+                Some(url) => img(url).size(px(20.)).into_any_element(),
+                None => div().text_size(px(18.)).child(quick.name.clone()).into_any_element(),
+            };
+            bar = bar.child(button(format!("quick-{}-{}", message.id, quick.name), "Click to react").child(face).on_click(move |_, _, cx| {
+                this.update(cx, |this, cx| this.toggle_reaction(&msg, emoji.clone(), cx)).ok();
+            }));
+        }
+        bar = bar.child(div().w(px(1.)).h(px(20.)).mx_1().self_center().bg(theme.border));
         let (this, msg) = (ctx.this.clone(), message.clone());
         bar = bar.child(button(format!("react-{}", message.id), "Add Reaction").child(Icon::new(Glyph::EmojiAdd).size(px(18.))).on_click(move |_, window, cx| {
             this.update(cx, |this, cx| this.open_emoji_picker(EmojiTarget::Reaction(Box::new(msg.clone())), window, cx)).ok();
         }));
-        for quick in QUICK_REACTIONS {
-            let (this, msg) = (ctx.this.clone(), message.clone());
-            bar = bar.child(button(format!("quick-{}-{quick}", message.id), "Add Reaction").text_size(px(16.)).child(quick).on_click(move |_, _, cx| {
-                this.update(cx, |this, cx| this.toggle_reaction(&msg, Emoji::unicode(quick), cx)).ok();
-            }));
-        }
         let (this, msg) = (ctx.this.clone(), message.clone());
-        bar = bar.child(button(format!("reply-{}", message.id), "Reply").child(Icon::new(Glyph::Reply).size(px(18.))).on_click(move |_, window, cx| {
-            this.update(cx, |this, cx| this.start_reply(msg.clone(), window, cx)).ok();
-        }));
+        bar = match mine {
+            true => bar.child(button(format!("edit-{}", message.id), "Edit").child(Icon::new(Glyph::Pen).size(px(18.))).on_click(move |_, window, cx| {
+                this.update(cx, |this, cx| this.start_edit(msg.clone(), window, cx)).ok();
+            })),
+            false => bar.child(button(format!("reply-{}", message.id), "Reply").child(Icon::new(Glyph::Reply).size(px(18.))).on_click(move |_, window, cx| {
+                this.update(cx, |this, cx| this.start_reply(msg.clone(), window, cx)).ok();
+            })),
+        };
     }
-    if mine && message.state == SendState::Sent {
-        let (this, msg) = (ctx.this.clone(), message.clone());
-        bar = bar.child(button(format!("edit-{}", message.id), "Edit").child(Icon::new(Glyph::Pen).size(px(18.))).on_click(move |_, window, cx| {
-            this.update(cx, |this, cx| this.start_edit(msg.clone(), window, cx)).ok();
-        }));
-    }
-    if mine {
-        let (this, msg) = (ctx.this.clone(), message.clone());
-        bar = bar.child(
-            button(format!("delete-{}", message.id), "Delete").child(Icon::new(Glyph::Trash).size(px(18.))).on_click(move |_, _, cx| {
-                this.update(cx, |this, cx| this.delete(msg.clone(), cx)).ok();
-            }),
-        );
-    }
+    // Discord swaps More for Delete while Shift is held, skipping the confirmation.
+    let (this, msg) = (ctx.this.clone(), message.clone());
+    bar = match ctx.shift && (mine || ctx.manage_messages) || message.state == SendState::Failed {
+        true => bar.child(button(format!("delete-{}", message.id), "Delete").child(Icon::new(Glyph::Trash).size(px(18.))).on_click(move |_, _, cx| {
+            this.update(cx, |this, cx| this.delete(msg.clone(), cx)).ok();
+        })),
+        false => bar.child(button(format!("more-{}", message.id), "More").child(Icon::new(Glyph::More).size(px(18.))).on_click(move |event, _, cx| {
+            let at = event.position();
+            this.update(cx, |this, cx| this.open_message_menu(msg.clone(), at, cx)).ok();
+        })),
+    };
     bar.into_any_element()
 }
 
@@ -1333,6 +1405,15 @@ fn format_size(bytes: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bare_media_links_are_hidden() {
+        let gif = crate::discord::Media { url: "https://t/x.mp4".into(), width: 1., height: 1., kind: crate::discord::MediaKind::Image };
+        let msg = |content: &str, media: bool| Message { content: content.into(), media: if media { vec![gif.clone()] } else { vec![] }, ..Default::default() };
+        assert!(only_media_link(&msg("https://klipy.com/gifs/x", true)));
+        assert!(!only_media_link(&msg("look https://klipy.com/gifs/x", true)));
+        assert!(!only_media_link(&msg("https://example.com", false)));
+    }
 
     #[test]
     fn jumbo_emoji_detection() {

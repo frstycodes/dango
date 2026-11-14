@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::OnceLock, time::Duration};
+use std::{collections::HashMap, path::PathBuf, sync::OnceLock, time::Duration};
 
 use futures::{SinkExt, StreamExt, channel::mpsc};
 use serde_json::{Value, json};
@@ -116,6 +116,9 @@ pub struct Role {
     pub name: String,
     pub color: u32,
     pub position: i64,
+    pub permissions: u64,
+    // Owned by an integration (a bot's role); nobody can hand these out.
+    pub managed: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -127,6 +130,112 @@ pub struct Guild {
     pub roles: Vec<Role>,
     pub voice_states: Vec<VoiceState>,
     pub emojis: Vec<Emoji>,
+    pub owner_id: Option<String>,
+    // Our own roles here, for working out what moderation we may do.
+    pub my_roles: Vec<String>,
+}
+
+// Your notification settings for one server, or for DMs under the key "@me" (Discord's
+// user_guild_settings). Message notification levels: 0 all, 1 mentions, 2 nothing, 3 inherit.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct GuildSettings {
+    pub muted: bool,
+    // RFC 3339 end of a timed mute; None for "until I turn it back on".
+    pub mute_end: Option<String>,
+    pub notifications: u8,
+    pub suppress_everyone: bool,
+    pub suppress_roles: bool,
+    pub hide_muted: bool,
+    pub channels: HashMap<String, ChannelSettings>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ChannelSettings {
+    pub muted: bool,
+    pub mute_end: Option<String>,
+    pub notifications: u8,
+}
+
+impl GuildSettings {
+    // A timed mute that has run out no longer counts, as in Discord.
+    pub fn is_muted(&self) -> bool {
+        self.muted && still_muted(self.mute_end.as_deref())
+    }
+
+    pub fn channel_muted(&self, channel_id: &str) -> bool {
+        self.channels.get(channel_id).is_some_and(|c| c.muted && still_muted(c.mute_end.as_deref()))
+    }
+}
+
+fn still_muted(end: Option<&str>) -> bool {
+    end.and_then(|e| chrono::DateTime::parse_from_rfc3339(e).ok()).is_none_or(|end| end > chrono::Utc::now())
+}
+
+pub fn parse_guild_settings(g: &Value) -> (String, GuildSettings) {
+    let key = g["guild_id"].as_str().unwrap_or("@me").to_owned();
+    let channels = g["channel_overrides"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|c| {
+            Some((
+                c["channel_id"].as_str()?.to_owned(),
+                ChannelSettings {
+                    muted: c["muted"].as_bool().unwrap_or(false),
+                    mute_end: c["mute_config"]["end_time"].as_str().map(str::to_owned),
+                    notifications: c["message_notifications"].as_u64().unwrap_or(3) as u8,
+                },
+            ))
+        })
+        .collect();
+    let settings = GuildSettings {
+        muted: g["muted"].as_bool().unwrap_or(false),
+        mute_end: g["mute_config"]["end_time"].as_str().map(str::to_owned),
+        notifications: g["message_notifications"].as_u64().unwrap_or(0) as u8,
+        suppress_everyone: g["suppress_everyone"].as_bool().unwrap_or(false),
+        suppress_roles: g["suppress_roles"].as_bool().unwrap_or(false),
+        hide_muted: g["hide_muted_channels"].as_bool().unwrap_or(false),
+        channels,
+    };
+    (key, settings)
+}
+
+// Discord's permission bits used by the menus.
+pub mod perm {
+    pub const CREATE_INSTANT_INVITE: u64 = 1;
+    pub const KICK_MEMBERS: u64 = 1 << 1;
+    pub const BAN_MEMBERS: u64 = 1 << 2;
+    pub const ADMINISTRATOR: u64 = 1 << 3;
+    pub const MUTE_MEMBERS: u64 = 1 << 22;
+    pub const DEAFEN_MEMBERS: u64 = 1 << 23;
+    pub const MOVE_MEMBERS: u64 = 1 << 24;
+    pub const MANAGE_MESSAGES: u64 = 1 << 13;
+    pub const MANAGE_NICKNAMES: u64 = 1 << 27;
+    pub const MANAGE_ROLES: u64 = 1 << 28;
+    pub const MODERATE_MEMBERS: u64 = 1 << 40;
+}
+
+impl Guild {
+    // Server-wide permissions (no channel overwrites): owner and Administrator have everything.
+    pub fn permissions(&self, me: &str) -> u64 {
+        if self.owner_id.as_deref() == Some(me) {
+            return u64::MAX;
+        }
+        let bits = self.roles.iter().filter(|r| r.id == self.id || self.my_roles.contains(&r.id)).fold(0, |acc, r| acc | r.permissions);
+        if bits & perm::ADMINISTRATOR != 0 { u64::MAX } else { bits }
+    }
+
+    pub fn can(&self, me: &str, bit: u64) -> bool {
+        self.permissions(me) & bit != 0
+    }
+
+    // The highest role we hold; Discord lets us manage only roles below it.
+    pub fn top_position(&self, me: &str) -> i64 {
+        if self.owner_id.as_deref() == Some(me) {
+            return i64::MAX;
+        }
+        self.roles.iter().filter(|r| self.my_roles.contains(&r.id)).map(|r| r.position).max().unwrap_or(0)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -137,6 +246,9 @@ pub struct VoiceState {
     pub user: Option<User>,
     pub muted: bool,
     pub deafened: bool,
+    // Muted or deafened by a moderator, which only a moderator can undo.
+    pub server_muted: bool,
+    pub server_deafened: bool,
     // Live on Go Live, or camera on.
     pub streaming: bool,
     pub camera: bool,
@@ -179,6 +291,8 @@ pub enum MediaKind {
     Image,
     // `poster` is a still frame to show; the video itself plays outside the app for now.
     Video { poster: String },
+    // A GIF embed: a silent looping MP4 that plays inline, with a still to show until it's ready.
+    Gif { poster: String },
 }
 
 #[derive(Clone, Debug, Default)]
@@ -187,11 +301,16 @@ pub struct Embed {
     pub color: Option<u32>,
     pub provider: Option<String>,
     pub author: Option<String>,
+    pub author_icon: Option<String>,
+    pub author_url: Option<String>,
     pub title: Option<String>,
     pub description: Option<String>,
     pub fields: Vec<(String, String, bool)>,
     pub thumbnail: Option<Media>,
     pub footer: Option<String>,
+    pub footer_icon: Option<String>,
+    // RFC 3339; Discord prints it after the footer text.
+    pub timestamp: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -209,7 +328,7 @@ pub struct File {
     pub size: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Emoji {
     pub id: Option<String>,
     pub name: String,
@@ -224,6 +343,15 @@ impl Emoji {
     pub fn url(&self) -> Option<String> {
         let id = self.id.as_ref()?;
         Some(format!("{CDN}/emojis/{id}.{}?size=48", if self.animated { "gif" } else { "webp" }))
+    }
+
+    // `key` percent-encoded for a URL path, as reaction routes need for unicode emoji.
+    pub fn path(&self) -> String {
+        let mut url = reqwest::Url::parse("https://x/").expect("static URL");
+        if let Ok(mut segments) = url.path_segments_mut() {
+            segments.pop_if_empty().push(&self.key());
+        }
+        url.path().trim_start_matches('/').to_owned()
     }
 
     // The REST path segment: `name:id` for custom emoji, the character itself for unicode.
@@ -274,6 +402,7 @@ pub struct Message {
     pub mention_everyone: bool,
     pub nonce: Option<String>,
     pub state: SendState,
+    pub pinned: bool,
 }
 
 // What a profile popout shows beyond the user object. From GET /users/{id}/profile (user-account API, Not verified).
@@ -351,10 +480,16 @@ pub struct Ready {
     // The rail's order and folders. A folder without an id is a single, unfoldered server.
     pub folders: Vec<Folder>,
     pub relationships: Vec<Relationship>,
+    // Settings › Advanced › Developer Mode: shows the Copy … ID items.
+    pub developer_mode: bool,
+    pub guild_settings: Vec<(String, GuildSettings)>,
+    // Users we've ignored (Discord's newer, softer block).
+    pub ignored: Vec<String>,
 }
 
 pub enum Event {
     Ready(Box<Ready>),
+    GuildSettings((String, GuildSettings)),
     GuildCreate(Guild),
     MessageCreate(Box<Message>),
     // Partial: apply with `apply_update`.
@@ -574,6 +709,16 @@ impl Client {
         let _ = self.run(req).await;
     }
 
+    /// Any REST call the menus make: moderation, relationships, notes. `body` None sends no JSON.
+    pub async fn call(&self, method: reqwest::Method, path: String, body: Option<Value>) -> Result<Value, String> {
+        let req = self.request(method, &path);
+        let req = match body {
+            Some(body) => req.json(&body),
+            None => req,
+        };
+        self.run(req).await
+    }
+
     /// Marks several channels read at once (a server's "Mark As Read").
     pub async fn ack_bulk(&self, reads: Vec<(String, u64)>) {
         let read_states: Vec<Value> = reads.into_iter().map(|(channel, message)| json!({ "channel_id": channel, "message_id": message.to_string(), "read_state_type": 0 })).collect();
@@ -608,7 +753,8 @@ impl gpui_kit::http_client::HttpClient for Images {
         &self,
         req: gpui_kit::http_client::Request<gpui_kit::http_client::AsyncBody>,
     ) -> futures::future::BoxFuture<'static, gpui_kit::http_client::Result<gpui_kit::http_client::Response<gpui_kit::http_client::AsyncBody>>> {
-        let get = self.0.get(req.uri().to_string());
+        let url = req.uri().to_string();
+        let get = self.0.get(&url);
         Box::pin(async move {
             let (status, bytes) = runtime()
                 .spawn(async move {
@@ -616,6 +762,9 @@ impl gpui_kit::http_client::HttpClient for Images {
                     Ok::<_, reqwest::Error>((res.status().as_u16(), res.bytes().await?))
                 })
                 .await??;
+            if cfg!(debug_assertions) && std::env::var_os("RUSTCORD_IMAGE_DEBUG").is_some() && status >= 400 {
+                eprintln!("image {status} {url}");
+            }
             Ok(gpui_kit::http_client::Response::builder().status(status).body(bytes.to_vec().into())?)
         })
     }
@@ -739,6 +888,7 @@ fn dispatch(kind: &str, d: &Value) -> Option<Event> {
     match kind {
         "READY" => Some(Event::Ready(Box::new(parse_ready(d)))),
         "GUILD_CREATE" => parse_guild(d).map(Event::GuildCreate),
+        "USER_GUILD_SETTINGS_UPDATE" => Some(Event::GuildSettings(parse_guild_settings(d))),
         "MESSAGE_CREATE" => parse_message(d).map(|m| Event::MessageCreate(Box::new(m))),
         "MESSAGE_UPDATE" => Some(Event::MessageUpdate(d.clone())),
         "MESSAGE_DELETE" => Some(Event::MessageDelete { channel_id: s(&d["channel_id"]), id: s(&d["id"]) }),
@@ -779,7 +929,17 @@ fn parse_ready(d: &Value) -> Ready {
         status: Status::parse(d["user_settings"]["status"].as_str().unwrap_or("online")),
         custom_status: d["user_settings"]["custom_status"]["text"].as_str().filter(|t| !t.is_empty()).map(str::to_owned),
         session_id: d["session_id"].as_str().unwrap_or_default().to_owned(),
-        guilds: d["guilds"].as_array().into_iter().flatten().filter_map(parse_guild).collect(),
+        guilds: d["guilds"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .enumerate()
+            .filter_map(|(i, g)| {
+                let mut guild = parse_guild(g)?;
+                guild.my_roles = my_roles(g, &d["merged_members"][i], d["user"]["id"].as_str().unwrap_or_default());
+                Some(guild)
+            })
+            .collect(),
         dms: d["private_channels"].as_array().into_iter().flatten().filter_map(|c| parse_dm(c, &d["users"])).collect(),
         read_states: entries
             .into_iter()
@@ -789,6 +949,9 @@ fn parse_ready(d: &Value) -> Ready {
                 Some((id, ReadState { last_read: snowflake(&r["last_message_id"]), mentions: r["mention_count"].as_u64().unwrap_or(0) as u32 }))
             })
             .collect(),
+        developer_mode: d["user_settings"]["developer_mode"].as_bool().unwrap_or(false),
+        guild_settings: d["user_guild_settings"]["entries"].as_array().or(d["user_guild_settings"].as_array()).into_iter().flatten().map(parse_guild_settings).collect(),
+        ignored: d["relationships"].as_array().into_iter().flatten().filter(|r| r["user_ignored"].as_bool() == Some(true)).filter_map(|r| r["id"].as_str().map(str::to_owned)).collect(),
         relationships: d["relationships"]
             .as_array()
             .into_iter()
@@ -846,12 +1009,22 @@ fn parse_guild(g: &Value) -> Option<Guild> {
                     name: r["name"].as_str().unwrap_or_default().to_owned(),
                     color: r["color"].as_u64().unwrap_or(0) as u32,
                     position: r["position"].as_i64().unwrap_or(0),
+                    permissions: permission(&r["permissions"]),
+                    managed: r["managed"].as_bool().unwrap_or(false),
                 })
             })
             .collect(),
         voice_states: g["voice_states"].as_array().into_iter().flatten().map(parse_voice_state).collect(),
         emojis: g["emojis"].as_array().into_iter().flatten().map(parse_emoji).collect(),
+        owner_id: props["owner_id"].as_str().or(g["owner_id"].as_str()).map(str::to_owned),
+        my_roles: Vec::new(),
     })
+}
+
+// READY lists our own member entry per server, either inside each guild or in `merged_members`.
+fn my_roles(guild: &Value, merged: &Value, me: &str) -> Vec<String> {
+    let mine = |list: &Value| list.as_array().into_iter().flatten().find(|m| m["user_id"].as_str().or(m["user"]["id"].as_str()) == Some(me)).map(|m| strings(&m["roles"]));
+    mine(&guild["members"]).or_else(|| mine(merged)).unwrap_or_default()
 }
 
 fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
@@ -930,7 +1103,7 @@ pub fn parse_message(m: &Value) -> Option<Message> {
                 let poster = embed_media(&e["thumbnail"]);
                 let video = e["video"]["url"].as_str();
                 if let (Some(poster), Some(video)) = (poster, video) {
-                    media.push(Media { url: video.to_owned(), width: poster.width, height: poster.height, kind: MediaKind::Video { poster: poster.url } });
+                    media.push(Media { url: video.to_owned(), width: poster.width, height: poster.height, kind: MediaKind::Gif { poster: poster.url } });
                 }
             }
             _ => embeds.push(parse_embed(e)),
@@ -962,6 +1135,7 @@ pub fn parse_message(m: &Value) -> Option<Message> {
         mention_everyone: m["mention_everyone"].as_bool().unwrap_or(false),
         nonce: m["nonce"].as_str().map(str::to_owned),
         state: SendState::Sent,
+        pinned: m["pinned"].as_bool().unwrap_or(false),
     })
 }
 
@@ -1031,6 +1205,8 @@ fn parse_embed(e: &Value) -> Embed {
         color: e["color"].as_u64().map(|c| c as u32),
         provider: text(&e["provider"]["name"]),
         author: text(&e["author"]["name"]),
+        author_icon: text(&e["author"]["proxy_icon_url"]).or_else(|| text(&e["author"]["icon_url"])),
+        author_url: text(&e["author"]["url"]),
         title: text(&e["title"]),
         description: text(&e["description"]),
         fields: e["fields"]
@@ -1042,6 +1218,8 @@ fn parse_embed(e: &Value) -> Embed {
         // Video embeds (YouTube) show their thumbnail large; others keep it small beside the text.
         thumbnail: embed_media(&e["image"]).or_else(|| embed_media(&e["thumbnail"])),
         footer: text(&e["footer"]["text"]),
+        footer_icon: text(&e["footer"]["proxy_icon_url"]).or_else(|| text(&e["footer"]["icon_url"])),
+        timestamp: text(&e["timestamp"]),
     }
 }
 
@@ -1099,6 +1277,8 @@ fn parse_voice_state(v: &Value) -> VoiceState {
         user: user.is_object().then(|| parse_member_user(&v["member"], user, v["guild_id"].as_str())),
         muted: v["self_mute"].as_bool().unwrap_or(false) || v["mute"].as_bool().unwrap_or(false),
         deafened: v["self_deaf"].as_bool().unwrap_or(false) || v["deaf"].as_bool().unwrap_or(false),
+        server_muted: v["mute"].as_bool().unwrap_or(false),
+        server_deafened: v["deaf"].as_bool().unwrap_or(false),
         streaming: v["self_stream"].as_bool().unwrap_or(false),
         camera: v["self_video"].as_bool().unwrap_or(false),
     }
@@ -1188,6 +1368,7 @@ mod tests {
         assert_eq!(m.media.len(), 3);
         assert_eq!(m.media[0].kind, MediaKind::Video { poster: "https://media/v.mp4?format=jpeg".into() });
         assert_eq!(m.media[1].url, "g.mp4");
+        assert_eq!(m.media[1].kind, MediaKind::Gif { poster: "t.png".into() });
         assert_eq!(m.embeds.len(), 1);
         assert_eq!(m.embeds[0].provider.as_deref(), Some("YouTube"));
     }

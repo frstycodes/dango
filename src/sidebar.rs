@@ -265,6 +265,56 @@ impl Rustcord {
             }))
     }
 
+    // Discord's hover card on someone live: the stream's thumbnail and a way in.
+    fn stream_card(&self, user_id: &str, name: &str, connected: bool, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme().clone();
+        let preview = self.stream_preview(user_id);
+        let streamer = user_id.to_owned();
+        div()
+            .ml_2()
+            .w(px(288.))
+            .rounded(px(8.))
+            .overflow_hidden()
+            .border_1()
+            .border_color(theme.input)
+            .bg(theme.popover)
+            .shadow_lg()
+            .flex()
+            .flex_col()
+            .child(
+                div().w_full().h(px(162.)).bg(gpui_kit::black()).flex().items_center().justify_center().child(match preview {
+                    Some(url) => img(url).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
+                    None => div().text_size(px(14.)).text_color(theme.muted_foreground).child("Loading preview…").into_any_element(),
+                }),
+            )
+            .child(
+                div()
+                    .p_3()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .child(div().flex_1().min_w_0().truncate().text_size(px(14.)).font_weight(FontWeight::MEDIUM).child(format!("{name} is streaming")))
+                    .when(connected, |d| {
+                        d.child(
+                            div()
+                                .id("card-watch")
+                                .h(px(32.))
+                                .px_3()
+                                .rounded(px(8.))
+                                .flex()
+                                .items_center()
+                                .cursor_pointer()
+                                .bg(palette::blurple())
+                                .text_color(gpui_kit::white())
+                                .text_size(px(14.))
+                                .font_weight(FontWeight::MEDIUM)
+                                .child("Watch Stream")
+                                .on_click(cx.listener(move |this, _, _, cx| this.watch_stream(streamer.clone(), cx))),
+                        )
+                    }),
+            )
+    }
+
     pub fn render_channels(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
         let title: SharedString = match self.guild() {
@@ -471,6 +521,9 @@ impl Rustcord {
                 let talking = speaking.contains(&state.user_id);
                 let streamer = state.user_id.clone();
                 let is_watched = watching.as_ref() == Some(&state.user_id);
+                let stream_key = format!("stream-{}", state.user_id);
+                let stream_card = (state.streaming && self.hovered.as_deref() == Some(stream_key.as_str())).then(|| self.stream_card(&state.user_id, &name, connected, cx).into_any_element());
+                let stream_hover = cx.listener(move |this, hovered: &bool, _, cx| this.set_hovered(&stream_key, *hovered, cx));
                 rows.push(
                     div()
                         .id(SharedString::from(format!("voice-{}", state.user_id)))
@@ -495,10 +548,10 @@ impl Rustcord {
                         })
                         .on_mouse_down(gpui_kit::MouseButton::Right, {
                             let user_id = state.user_id.clone();
-                            cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| {
-                                this.participant_menu = Some((user_id.clone(), e.position));
-                                cx.notify();
-                            })
+                            cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.voice_user_menu(&user_id, e.position, cx))
+                        })
+                        .when(state.streaming, |r| {
+                            r.on_hover(stream_hover).children(stream_card.map(|card| div().absolute().top_0().right(px(-8.)).child(gpui_kit::deferred(gpui_kit::anchored().snap_to_window_with_margin(px(8.)).child(card)))))
                         })
                         .when(state.streaming && connected, |r| {
                             r.cursor_pointer()
@@ -570,7 +623,11 @@ impl Rustcord {
                     this.prefetch(&hover_id, cx);
                 }
             }))
-            .on_click(cx.listener(move |this, _, window, cx| this.open_channel(open.clone(), window, cx)));
+            .on_click(cx.listener(move |this, _, window, cx| this.open_channel(open.clone(), window, cx)))
+            .on_mouse_down(gpui_kit::MouseButton::Right, {
+                let channel = channel.clone();
+                cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_dm_menu(channel.clone(), e.position, cx))
+            });
         if selected {
             return row.bg(theme.sidebar_accent).into_any_element();
         }
