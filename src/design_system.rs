@@ -273,7 +273,7 @@ impl DesignSystem {
                             .child(
                                 group("Toggle and split", cx).child(
                                     row()
-                                        .child(ui::button("b-muted", Tone::Secondary, cx).toggled(self.muted, cx).child(glyph(Glyph::Bell)).child(if self.muted { "Muted" } else { "Mute" }).on_click(cx.listener(|this, _, _, cx| {
+                                        .child(ui::button("b-muted", Tone::Secondary, cx).toggled(self.muted, cx).child(glyph(if self.muted { Glyph::BellSlash } else { Glyph::Bell })).child(if self.muted { "Muted" } else { "Mute" }).on_click(cx.listener(|this, _, _, cx| {
                                             this.muted = !this.muted;
                                             cx.notify();
                                         })))
