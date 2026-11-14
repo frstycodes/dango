@@ -206,6 +206,52 @@ fn distance_from_clip_rect_transformed(unit_vertex: vec2<f32>, bounds: Bounds, c
     return distance_from_clip_rect_impl(transformed, clip_bounds);
 }
 
+// Whether a transformation leaves everything where it is.
+fn is_unit_transformation(transform: TransformationMatrix) -> bool {
+    return all(transform.rotation_scale[0] == vec2<f32>(1.0, 0.0)) &&
+        all(transform.rotation_scale[1] == vec2<f32>(0.0, 1.0)) &&
+        all(transform.translation == vec2<f32>(0.0));
+}
+
+// How many device pixels one untransformed pixel spans, averaged over both
+// axes. Exactly 1 for the unit transformation.
+fn transformation_scale(transform: TransformationMatrix) -> f32 {
+    return sqrt(abs(determinant(transform.rotation_scale)));
+}
+
+// Transformed edges rarely fall on pixel boundaries, so their geometry grows by
+// a device pixel to rasterize the outer half of the antialiasing ramp, which
+// the signed distance field then fades out.
+fn antialiasing_geometry(bounds: Bounds, transform: TransformationMatrix) -> Bounds {
+    if (is_unit_transformation(transform)) {
+        return bounds;
+    }
+    let margin = 1.0 / max(transformation_scale(transform), 1e-3);
+    return Bounds(bounds.origin - vec2<f32>(margin), bounds.size + vec2<f32>(2.0 * margin));
+}
+
+// The untransformed position of a vertex, interpolated so fragments evaluate
+// signed distance fields in the primitive's own space.
+fn to_local_position(unit_vertex: vec2<f32>, bounds: Bounds) -> vec2<f32> {
+    return unit_vertex * bounds.size + bounds.origin;
+}
+
+// Where a vertex of `geometry` falls on a sprite drawn at `bounds`, as a
+// fraction of the sprite; outside [0, 1] when the geometry was grown for
+// antialiasing.
+fn to_sprite_vertex(unit_vertex: vec2<f32>, geometry: Bounds, bounds: Bounds) -> vec2<f32> {
+    return unit_vertex * (geometry.size / bounds.size) + (geometry.origin - bounds.origin) / bounds.size;
+}
+
+// Keeps samples of a sprite whose geometry was grown for antialiasing within
+// its own atlas tile, so its edges don't pick up the neighbouring tiles.
+fn clamp_to_tile(tile_position: vec2<f32>, tile: AtlasTile) -> vec2<f32> {
+    let atlas_size = vec2<f32>(textureDimensions(t_sprite, 0));
+    let tile_origin = vec2<f32>(tile.bounds.origin);
+    let tile_size = vec2<f32>(tile.bounds.size);
+    return clamp(tile_position, (tile_origin + 0.5) / atlas_size, (tile_origin + tile_size - 0.5) / atlas_size);
+}
+
 // https://gamedev.stackexchange.com/questions/92015/optimized-linear-to-srgb-glsl
 fn srgb_to_linear(srgb: vec3<f32>) -> vec3<f32> {
     let cutoff = srgb < vec3<f32>(0.04045);
@@ -386,6 +432,71 @@ fn quad_sdf_impl(corner_center_to_point: vec2<f32>, corner_radius: f32) -> f32 {
     }
 }
 
+// Approximate signed distance to the convex superellipse
+// `|x / rx|^n + |y / ry|^n = 1` from a point in its positive quadrant: its
+// implicit function divided by the gradient's length, which is exact on the
+// curve and close enough within the antialiasing band. Positive outside.
+fn superellipse_sdf(point: vec2<f32>, corner_radii: vec2<f32>, exponent: f32) -> f32 {
+    let radii = max(corner_radii, vec2<f32>(1e-4));
+    let normalized = max(point, vec2<f32>(0.0)) / radii;
+    let largest = max(normalized.x, normalized.y);
+    if (largest == 0.0) {
+        return -min(radii.x, radii.y);
+    }
+    // Dividing by the largest component keeps every power within [0, 1], and the
+    // floor keeps `pow` away from zero, where it is undefined.
+    let ratios = max(normalized / largest, vec2<f32>(1e-6));
+    let norm = largest * pow(pow(ratios.x, exponent) + pow(ratios.y, exponent), 1.0 / exponent);
+    let gradient = pow(max(normalized / norm, vec2<f32>(1e-6)), vec2<f32>(exponent - 1.0)) / radii;
+    return (norm - 1.0) / length(gradient);
+}
+
+// Signed distance to a shaped corner from a point relative to its corner
+// center, mirrored into the bottom right quadrant. A negative exponent is the
+// concave mirror image of the convex curve, centered on the outer corner.
+fn corner_superellipse_sdf(corner_center_to_point: vec2<f32>, radii: vec2<f32>, corner_exponent: f32) -> f32 {
+    if (corner_exponent < 0.0) {
+        return -superellipse_sdf(radii - corner_center_to_point, radii, -corner_exponent);
+    }
+    return superellipse_sdf(corner_center_to_point, radii, corner_exponent);
+}
+
+// `quad_sdf_impl` with the corner drawn as a superellipse of the given exponent,
+// where 2 is the circular arc `quad_sdf_impl` draws.
+fn shaped_quad_sdf_impl(corner_center_to_point: vec2<f32>, corner_radius: f32, corner_exponent: f32) -> f32 {
+    if (corner_exponent == 2.0 || corner_radius == 0.0 ||
+            corner_center_to_point.x <= 0.0 || corner_center_to_point.y <= 0.0) {
+        return quad_sdf_impl(corner_center_to_point, corner_radius);
+    }
+    return corner_superellipse_sdf(corner_center_to_point, vec2<f32>(corner_radius), corner_exponent);
+}
+
+// `quad_sdf` with the corners drawn as superellipses of the given exponent.
+fn shaped_quad_sdf(point: vec2<f32>, bounds: Bounds, corner_radii: Corners, corner_exponent: f32) -> f32 {
+    let half_size = bounds.size / 2.0;
+    let center = bounds.origin + half_size;
+    let center_to_point = point - center;
+    let corner_radius = pick_corner_radius(center_to_point, corner_radii);
+    let corner_to_point = abs(center_to_point) - half_size;
+    let corner_center_to_point = corner_to_point + corner_radius;
+    return shaped_quad_sdf_impl(corner_center_to_point, corner_radius, corner_exponent);
+}
+
+// The circular radius whose arc cuts the corner's diagonal where the shaped
+// corner does, so the blur, which integrates circular corners, keeps the
+// shape's visual weight.
+fn blurred_corner_radius(corner_radius: f32, corner_exponent: f32, half_size: vec2<f32>) -> f32 {
+    if (corner_exponent == 2.0) {
+        return corner_radius;
+    }
+    // Where the curve crosses the diagonal, as a fraction of the radius from the
+    // corner center (CSS Borders 4, "normalized superellipse half corner").
+    let half_corner = pow(0.5, 1.0 / abs(corner_exponent));
+    let corner_depth = select(1.0 - half_corner, half_corner, corner_exponent < 0.0);
+    let circular_depth = 1.0 - sqrt(0.5);
+    return min(corner_radius * corner_depth / circular_depth, min(half_size.x, half_size.y));
+}
+
 // Abstract away the final color transformation based on the
 // target alpha compositing mode.
 fn blend_color(color: vec4<f32>, alpha_factor: f32) -> vec4<f32> {
@@ -525,6 +636,9 @@ struct Quad {
     border_color: Hsla,
     corner_radii: Corners,
     border_widths: Edges,
+    transformation: TransformationMatrix,
+    corner_exponent: f32,
+    pad: u32,
 }
 
 struct QuadVarying {
@@ -536,6 +650,7 @@ struct QuadVarying {
     @location(3) @interpolate(flat) background_solid: vec4<f32>,
     @location(4) @interpolate(flat) background_color0: vec4<f32>,
     @location(5) @interpolate(flat) background_color1: vec4<f32>,
+    @location(6) local_position: vec2<f32>,
 }
 
 @vertex
@@ -543,8 +658,9 @@ fn vs_quad(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index) insta
     let unit_vertex = vec2<f32>(f32(vertex_id & 1u), 0.5 * f32(vertex_id & 2u));
     let quad = load_quad(instance_id);
 
+    let geometry = antialiasing_geometry(quad.bounds, quad.transformation);
     var out = QuadVarying();
-    out.position = to_device_position(unit_vertex, quad.bounds);
+    out.position = to_device_position_transformed(unit_vertex, geometry, quad.transformation);
 
     let gradient = prepare_gradient_color(
         quad.background.tag,
@@ -557,7 +673,8 @@ fn vs_quad(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index) insta
     out.background_color1 = gradient.color1;
     out.border_color = hsla_to_rgba(quad.border_color);
     out.quad_id = instance_id;
-    out.clip_distances = distance_from_clip_rect(unit_vertex, quad.bounds, quad.content_mask);
+    out.clip_distances = distance_from_clip_rect_transformed(unit_vertex, geometry, quad.content_mask, quad.transformation);
+    out.local_position = to_local_position(unit_vertex, geometry);
     return out;
 }
 
@@ -570,7 +687,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
 
     let quad = load_quad(input.quad_id);
 
-    let background_color = gradient_color(quad.background, input.position.xy, quad.bounds,
+    let background_color = gradient_color(quad.background, input.local_position, quad.bounds,
         input.background_solid, input.background_color0, input.background_color1);
 
     let unrounded = quad.corner_radii.top_left == 0.0 &&
@@ -578,23 +695,30 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
         quad.corner_radii.top_right == 0.0 &&
         quad.corner_radii.bottom_right == 0.0;
 
-    // Fast path when the quad is not rounded and doesn't have any border
+    // Fast path when the quad is not rounded and doesn't have any border. A
+    // transformed quad's edges still need antialiasing.
     if (quad.border_widths.top == 0.0 &&
             quad.border_widths.left == 0.0 &&
             quad.border_widths.right == 0.0 &&
             quad.border_widths.bottom == 0.0 &&
-            unrounded) {
+            unrounded &&
+            is_unit_transformation(quad.transformation)) {
         return blend_color(background_color, 1.0);
     }
 
     let size = quad.bounds.size;
     let half_size = size / 2.0;
-    let point = input.position.xy - quad.bounds.origin;
+    let point = input.local_position - quad.bounds.origin;
     let center_to_point = point - half_size;
 
     // Signed distance field threshold for inclusion of pixels. 0.5 is the
     // minimum distance between the center of the pixel and the edge.
     let antialias_threshold = 0.5;
+
+    // Distances are measured in the quad's own pixels; these convert them to
+    // device pixels so antialiasing stays one device pixel wide under scale.
+    let device_scale = transformation_scale(quad.transformation);
+    let local_antialias_threshold = antialias_threshold / device_scale;
 
     // Radius of the nearest corner
     let corner_radius = pick_corner_radius(center_to_point, quad.corner_radii);
@@ -613,8 +737,8 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
     // 0-width borders are reduced so that `inner_sdf >= antialias_threshold`.
     // The purpose of this is to not draw antialiasing pixels in this case.
     let reduced_border =
-        vec2<f32>(select(border.x, -antialias_threshold, border.x == 0.0),
-                  select(border.y, -antialias_threshold, border.y == 0.0));
+        vec2<f32>(select(border.x, -local_antialias_threshold, border.x == 0.0),
+                  select(border.y, -local_antialias_threshold, border.y == 0.0));
 
     // Vector from the corner of the quad bounds to the point, after mirroring
     // the point into the bottom right quadrant. Both components are <= 0.
@@ -640,8 +764,8 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
     // Whether the point is far enough inside the quad, such that the pixels are
     // not affected by the straight border.
     let is_within_inner_straight_border =
-        straight_border_inner_corner_to_point.x < -antialias_threshold &&
-        straight_border_inner_corner_to_point.y < -antialias_threshold;
+        straight_border_inner_corner_to_point.x < -local_antialias_threshold &&
+        straight_border_inner_corner_to_point.y < -local_antialias_threshold;
 
     // Fast path for points that must be part of the background.
     //
@@ -655,7 +779,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
 
     // Signed distance of the point to the outside edge of the quad's border. It
     // is positive outside this edge, and negative inside.
-    let outer_sdf = quad_sdf_impl(corner_center_to_point, corner_radius);
+    var outer_sdf = shaped_quad_sdf_impl(corner_center_to_point, corner_radius, quad.corner_exponent);
 
     // Approximate signed distance of the point to the inside edge of the quad's
     // border. It is negative outside this edge (within the border), and
@@ -673,6 +797,10 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
     } else if (is_beyond_inner_straight_border) {
         // Fast path for points that must be outside the inner edge.
         inner_sdf = -1.0;
+    } else if (quad.corner_exponent != 2.0) {
+        // A shaped inner edge is the same shape, inset by the border widths.
+        let inner_radii = max(vec2<f32>(0.0), corner_radius - reduced_border);
+        inner_sdf = -corner_superellipse_sdf(corner_center_to_point, inner_radii, quad.corner_exponent);
     } else if (reduced_border.x == reduced_border.y) {
         // Fast path for circular inner edge.
         inner_sdf = -(outer_sdf + reduced_border.x);
@@ -680,6 +808,9 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
         let ellipse_radii = max(vec2<f32>(0.0), corner_radius - reduced_border);
         inner_sdf = quarter_ellipse_sdf(corner_center_to_point, ellipse_radii);
     }
+
+    outer_sdf *= device_scale;
+    inner_sdf *= device_scale;
 
     // Negative when inside the border
     let border_sdf = max(inner_sdf, outer_sdf);
@@ -962,6 +1093,9 @@ struct Shadow {
     // 0 = drop shadow, 1 = inset shadow.
     inset: u32,
     pad: u32, // align to 8 bytes
+    transformation: TransformationMatrix,
+    corner_exponent: f32,
+    pad2: u32, // align to 8 bytes
 }
 
 struct ShadowVarying {
@@ -970,6 +1104,7 @@ struct ShadowVarying {
     @location(1) @interpolate(flat) shadow_id: u32,
     //TODO: use `clip_distance` once Naga supports it
     @location(3) clip_distances: vec4<f32>,
+    @location(4) local_position: vec2<f32>,
 }
 
 @vertex
@@ -987,12 +1122,14 @@ fn vs_shadow(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index) ins
         geometry.origin -= vec2<f32>(margin);
         geometry.size += 2.0 * vec2<f32>(margin);
     }
+    geometry = antialiasing_geometry(geometry, shadow.transformation);
 
     var out = ShadowVarying();
-    out.position = to_device_position(unit_vertex, geometry);
+    out.position = to_device_position_transformed(unit_vertex, geometry, shadow.transformation);
     out.color = hsla_to_rgba(shadow.color);
     out.shadow_id = instance_id;
-    out.clip_distances = distance_from_clip_rect(unit_vertex, geometry, shadow.content_mask);
+    out.clip_distances = distance_from_clip_rect_transformed(unit_vertex, geometry, shadow.content_mask, shadow.transformation);
+    out.local_position = to_local_position(unit_vertex, geometry);
     return out;
 }
 
@@ -1006,15 +1143,17 @@ fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
     let shadow = load_shadow(input.shadow_id);
     let half_size = shadow.bounds.size / 2.0;
     let center = shadow.bounds.origin + half_size;
-    let center_to_point = input.position.xy - center;
+    let center_to_point = input.local_position - center;
+    let device_scale = transformation_scale(shadow.transformation);
 
     let corner_radius = pick_corner_radius(center_to_point, shadow.corner_radii);
 
     var alpha: f32;
     if (shadow.blur_radius == 0.0) {
-        let distance = quad_sdf(input.position.xy, shadow.bounds, shadow.corner_radii);
-        alpha = saturate(0.5 - distance);
+        let distance = shaped_quad_sdf(input.local_position, shadow.bounds, shadow.corner_radii, shadow.corner_exponent);
+        alpha = saturate(0.5 - distance * device_scale);
     } else {
+        let blurred_radius = blurred_corner_radius(corner_radius, shadow.corner_exponent, half_size);
         // The signal is only non-zero in a limited range, so don't waste samples
         let low = center_to_point.y - half_size.y;
         let high = center_to_point.y + half_size.y;
@@ -1027,7 +1166,7 @@ fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
         alpha = 0.0;
         for (var i = 0; i < 4; i += 1) {
             let blur = blur_along_x(center_to_point.x, center_to_point.y - y,
-                shadow.blur_radius, corner_radius, half_size);
+                shadow.blur_radius, blurred_radius, half_size);
             alpha +=  blur * gaussian(y, shadow.blur_radius) * step;
             y += step;
         }
@@ -1037,9 +1176,9 @@ fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
         // The inset shadow is the complement of the (blurred) hole rect, clipped to the element.
         // `saturate(0.5 - d)` gives a 1-pixel antialiased edge: d <= -0.5 -> 1, d >= 0.5 -> 0.
         alpha = 1.0 - alpha;
-        let element_distance = quad_sdf(input.position.xy, shadow.element_bounds,
-                                        shadow.element_corner_radii);
-        alpha *= saturate(0.5 - element_distance);
+        let element_distance = shaped_quad_sdf(input.local_position, shadow.element_bounds,
+                                               shadow.element_corner_radii, shadow.corner_exponent);
+        alpha *= saturate(0.5 - element_distance * device_scale);
     }
 
     return blend_color(input.color, alpha);
@@ -1154,6 +1293,7 @@ struct Underline {
     color: Hsla,
     thickness: f32,
     wavy: u32,
+    transformation: TransformationMatrix,
 }
 
 
@@ -1163,6 +1303,7 @@ struct UnderlineVarying {
     @location(1) @interpolate(flat) underline_id: u32,
     //TODO: use `clip_distance` once Naga supports it
     @location(3) clip_distances: vec4<f32>,
+    @location(4) local_position: vec2<f32>,
 }
 
 @vertex
@@ -1171,10 +1312,11 @@ fn vs_underline(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index) 
     let underline = load_underline(instance_id);
 
     var out = UnderlineVarying();
-    out.position = to_device_position(unit_vertex, underline.bounds);
+    out.position = to_device_position_transformed(unit_vertex, underline.bounds, underline.transformation);
     out.color = hsla_to_rgba(underline.color);
     out.underline_id = instance_id;
-    out.clip_distances = distance_from_clip_rect(unit_vertex, underline.bounds, underline.content_mask);
+    out.clip_distances = distance_from_clip_rect_transformed(unit_vertex, underline.bounds, underline.content_mask, underline.transformation);
+    out.local_position = to_local_position(unit_vertex, underline.bounds);
     return out;
 }
 
@@ -1196,7 +1338,7 @@ fn fs_underline(input: UnderlineVarying) -> @location(0) vec4<f32> {
 
     let half_thickness = underline.thickness * 0.5;
 
-    let st = (input.position.xy - underline.bounds.origin) / underline.bounds.size.y - vec2<f32>(0.0, 0.5);
+    let st = (input.local_position - underline.bounds.origin) / underline.bounds.size.y - vec2<f32>(0.0, 0.5);
     let frequency = M_PI_F * WAVE_FREQUENCY * underline.thickness / underline.bounds.size.y;
     let amplitude = (underline.thickness * WAVE_HEIGHT_RATIO) / underline.bounds.size.y;
 
@@ -1268,6 +1410,9 @@ struct PolychromeSprite {
     content_mask: Bounds,
     corner_radii: Corners,
     tile: AtlasTile,
+    transformation: TransformationMatrix,
+    corner_exponent: f32,
+    pad2: u32, // align to 8 bytes
 }
 
 
@@ -1276,6 +1421,7 @@ struct PolySpriteVarying {
     @location(0) tile_position: vec2<f32>,
     @location(1) @interpolate(flat) sprite_id: u32,
     @location(3) clip_distances: vec4<f32>,
+    @location(4) local_position: vec2<f32>,
 }
 
 @vertex
@@ -1283,24 +1429,37 @@ fn vs_poly_sprite(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index
     let unit_vertex = vec2<f32>(f32(vertex_id & 1u), 0.5 * f32(vertex_id & 2u));
     let sprite = load_poly_sprite(instance_id);
 
+    let geometry = antialiasing_geometry(sprite.bounds, sprite.transformation);
+    var sprite_vertex = unit_vertex;
+    if (!is_unit_transformation(sprite.transformation)) {
+        sprite_vertex = to_sprite_vertex(unit_vertex, geometry, sprite.bounds);
+    }
+
     var out = PolySpriteVarying();
-    out.position = to_device_position(unit_vertex, sprite.bounds);
-    out.tile_position = to_tile_position(unit_vertex, sprite.tile);
+    out.position = to_device_position_transformed(unit_vertex, geometry, sprite.transformation);
+    out.tile_position = to_tile_position(sprite_vertex, sprite.tile);
     out.sprite_id = instance_id;
-    out.clip_distances = distance_from_clip_rect(unit_vertex, sprite.bounds, sprite.content_mask);
+    out.clip_distances = distance_from_clip_rect_transformed(unit_vertex, geometry, sprite.content_mask, sprite.transformation);
+    out.local_position = to_local_position(unit_vertex, geometry);
     return out;
 }
 
 @fragment
 fn fs_poly_sprite(input: PolySpriteVarying) -> @location(0) vec4<f32> {
-    let sample = textureSample(t_sprite, s_sprite, input.tile_position);
+    let sprite = load_poly_sprite(input.sprite_id);
+    // `select`, not a branch: sampling must stay in uniform control flow.
+    let tile_position = select(
+        clamp_to_tile(input.tile_position, sprite.tile),
+        input.tile_position,
+        is_unit_transformation(sprite.transformation));
+    let sample = textureSample(t_sprite, s_sprite, tile_position);
     // Alpha clip after using the derivatives.
     if (any(input.clip_distances < vec4<f32>(0.0))) {
         return vec4<f32>(0.0);
     }
 
-    let sprite = load_poly_sprite(input.sprite_id);
-    let distance = quad_sdf(input.position.xy, sprite.bounds, sprite.corner_radii);
+    let distance = shaped_quad_sdf(input.local_position, sprite.bounds, sprite.corner_radii, sprite.corner_exponent)
+        * transformation_scale(sprite.transformation);
 
     var color = sample;
     if (sprite.grayscale != 0u) {
