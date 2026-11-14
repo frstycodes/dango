@@ -17,7 +17,7 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 
-use super::dsp::Processor;
+use super::dsp::{BLOCKS_PER_FRAME, Block, Processor};
 
 pub const SAMPLE_RATE: u32 = 48_000;
 pub const FRAME_SAMPLES: usize = 960;
@@ -110,15 +110,24 @@ impl AudioSettings {
         f32::from_bits(self.output_volume.load(Ordering::Relaxed))
     }
 
-    // The mic chain for one 20 ms frame, in place; returns its level in dBFS.
-    pub fn process_mic(&self, frame: &mut [f32]) -> f32 {
+    // The mic chain for one 20 ms frame, in place.
+    pub fn process_mic(&self, frame: &mut [f32; FRAME_LEN]) -> Mic {
+        let raw_db = level_db(frame);
         let volume = self.input_volume();
         if volume != 1.0 {
             frame.iter_mut().for_each(|s| *s = (*s * volume).clamp(-1.0, 1.0));
         }
-        self.processor.capture(frame);
-        level_db(frame)
+        let blocks = self.processor.capture(frame);
+        Mic { db: level_db(frame), raw_db, blocks }
     }
+}
+
+pub struct Mic {
+    // dBFS after processing, and as captured.
+    pub db: f32,
+    pub raw_db: f32,
+    // Voice-activity analysis of each 10 ms block.
+    pub blocks: [Block; BLOCKS_PER_FRAME],
 }
 
 pub fn level_db(frame: &[f32]) -> f32 {
@@ -400,8 +409,10 @@ mod tests {
     #[test]
     fn mic_chain_applies_volume_and_reports_level() {
         let settings = AudioSettings::new(None, None, 0.5, 1.0, Processor::new(false, crate::voice::NoiseSuppression::Off, false));
-        let mut frame = vec![0.2; FRAME_LEN];
-        let db = settings.process_mic(&mut frame);
+        let mut frame = [0.2; FRAME_LEN];
+        let mic = settings.process_mic(&mut frame);
+        let db = mic.db;
+        assert!((mic.raw_db - level_db(&[0.2; 4])).abs() < 1e-4, "raw level is before the volume");
         assert!(frame.iter().all(|&s| (s - 0.1).abs() < 1e-6));
         assert!((db - -20.0).abs() < 0.01, "0.1 RMS is -20 dBFS, got {db}");
         assert_eq!(level_db(&[0.0; 4]), SILENCE_DB);
