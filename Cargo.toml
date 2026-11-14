@@ -34,6 +34,20 @@ notify-rust = "4"
 sonora = "0.3"
 nokhwa = { version = "0.10", features = ["input-native", "output-threaded"] }
 nnnoiseless = { version = "0.5.2", default-features = false }
+# DeepFilterNet3 (MIT/Apache-2.0) with its bundled model on the tract backend: the Krisp-tier noise
+# suppressor. crates.io only has the pre-tract 0.2 line, so this pins the upstream repo.
+deep_filter = { git = "https://github.com/Rikorose/DeepFilterNet", rev = "7b14b895fe7fc42cab72b4a4c1e49c982bd6404b", default-features = false, features = ["tract", "default-model"] }
+# deep_filter is written against ndarray 0.15; tract moved to ndarray 0.16 in 0.21.7, so tract stays
+# on 0.21.4, the version upstream's own lockfile builds with (0.21.5+ renamed `symbol_table`).
+ndarray = "0.15"
+tract-core = "=0.21.4"
+tract-onnx = "=0.21.4"
+tract-pulse = "=0.21.4"
+tract-hir = "=0.21.4"
+# Port of WebRTC's GMM voice activity detector: what Discord runs for automatic sensitivity
+# without Advanced Voice Activity (vadAutoThreshold = VERY_AGGRESSIVE). 0.1 is the WebRTC port.
+earshot = "=0.1.0"
+socket2 = "0.6"
 rodio = { version = "0.23.0", default-features = false, features = ["playback", "mp3", "symphonia-aac"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -46,6 +60,11 @@ screencapturekit = { version = "11", features = ["macos_14_0"] }
 [profile.dev.package."*"]
 opt-level = 2
 
+# tract 0.21.4's debug-only graph check rejects DeepFilterNet3's encoder ("duplicate name
+# /convt3/Conv.bias") although release builds run it fine; debug builds skip the check like release.
+[profile.dev.package.tract-core]
+debug-assertions = false
+
 # Go Live on Windows: Windows.Graphics.Capture for video, WASAPI (process) loopback for audio, and the
 # Media Foundation H.264 encoder (hardware MFTs: NVENC, Quick Sync, AMF) with OpenH264 as fallback.
 [target.'cfg(target_os = "windows")'.dependencies]
@@ -53,6 +72,7 @@ windows-capture = "2.0"
 wasapi = "0.27"
 windows = { version = "0.62", features = [
     "Win32_Foundation",
+    "Win32_Media_Audio",
     "Win32_Media_MediaFoundation",
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
