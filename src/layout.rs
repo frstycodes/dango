@@ -58,6 +58,9 @@ impl Render for Rustcord {
                 .children(crate::window_controls::render(window, cx))
                 .into_any_element();
         }
+        if let Some(video) = crate::video::fullscreen(cx) {
+            return root.child(video).into_any_element();
+        }
         if self.call_fullscreen && self.call_view
             && let Some(call) = self.render_call(window, cx)
         {
