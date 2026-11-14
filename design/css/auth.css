@@ -168,20 +168,3 @@
 .au-full .row { justify-content: center; margin-top: var(--space-4); gap: var(--space-4); }
 
 /* Toast titles that list names wrap anywhere rather than overflow */
-
-/* Better than Discord: Discord does, Wave does, why */
-.au-btd { display: grid; gap: 2px; }
-.au-btd > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.2fr) 136px; gap: var(--space-4); align-items: start; padding: 12px 14px; border-radius: var(--radius-md); background: var(--bg-page); }
-.au-btd > div:first-child { background: none; padding-block: 0 4px; font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--text-muted); }
-.au-btd p { color: var(--text-muted); text-wrap: pretty; }
-.au-btd p:nth-child(2) { color: var(--text-strong); }
-.au-btd a { display: inline-flex; justify-self: end; align-items: center; gap: 4px; color: var(--accent-ink); font-weight: var(--weight-semibold); text-decoration: none; white-space: nowrap; border-radius: var(--radius-xs); }
-.au-btd a:hover { text-decoration: underline; }
-.au-btd a i { font-size: 14px; }
-.au-btd [data-k] { display: none; }
-@media (max-width: 860px) {
-  .au-btd > div { grid-template-columns: minmax(0, 1fr); gap: 6px; }
-  .au-btd > div:first-child { display: none; }
-  .au-btd [data-k] { display: block; font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--text-faint); }
-  .au-btd a { justify-self: start; }
-}
