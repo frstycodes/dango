@@ -545,7 +545,7 @@ impl Rustcord {
                 }))
                 .child(div().size_full().px_4().child(stage))
                 .child(div().absolute().top_0().left_0().right_0().child(fade("call-header", self.call_header(cx))))
-                .child(div().absolute().bottom_0().left_0().right_0().child(fade("call-controls", self.call_controls(window, cx).into_any_element())))
+                .child(div().absolute().bottom_0().left_0().right_0().child(fade("call-controls", self.call_controls(cx).into_any_element())))
                 .into_any_element(),
         )
     }
@@ -700,7 +700,7 @@ impl Rustcord {
 
     // Discord's call bar: invite on the left; mic and camera with their device chevrons, share,
     // activities, soundboard and the red hang-up in the middle; strip and fullscreen on the right.
-    fn call_controls(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn call_controls(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let call = self.call.as_ref().expect("in a call");
         let muted = self.muted || self.deafened;
         let connected = call.stage == Stage::Connected;
