@@ -2,7 +2,7 @@ use crate::{
     self as gpui, AbsoluteLength, AlignContent, AlignItems, AlignSelf, BorderStyle, CursorStyle,
     DefiniteLength, Display, Fill, FlexDirection, FlexWrap, Font, FontFeatures, FontStyle,
     FontWeight, GridPlacement, GridTemplate, GridTemplateMinSize, Hsla, JustifyContent, Length,
-    SharedString, StrikethroughStyle, StyleRefinement, TextAlign, TextOverflow,
+    Pixels, SharedString, StrikethroughStyle, StyleRefinement, TextAlign, TextOverflow,
     TextStyleRefinement, UnderlineStyle, WhiteSpace, px, relative, rems,
 };
 pub use gpui_macros::{
@@ -745,6 +745,22 @@ pub trait Styled: Sized {
     /// Sets the opacity of this element and its children.
     fn opacity(mut self, opacity: f32) -> Self {
         self.style().opacity = Some(opacity);
+        self
+    }
+
+    /// Blurs what is painted behind this element, inside its rounded bounds. The radius is the
+    /// gaussian's standard deviation, like CSS `backdrop-filter: blur()`.
+    /// [Docs](https://tailwindcss.com/docs/backdrop-filter-blur)
+    fn backdrop_blur(mut self, radius: impl Into<Pixels>) -> Self {
+        self.style().backdrop_filter.blur_radius = Some(radius.into());
+        self
+    }
+
+    /// Saturates what is painted behind this element, after any [`Self::backdrop_blur`]: 0 is
+    /// grayscale and 1 leaves colors unchanged, like CSS `backdrop-filter: saturate()`.
+    /// [Docs](https://tailwindcss.com/docs/backdrop-filter-saturate)
+    fn backdrop_saturate(mut self, saturation: f32) -> Self {
+        self.style().backdrop_filter.saturation = Some(saturation);
         self
     }
 
