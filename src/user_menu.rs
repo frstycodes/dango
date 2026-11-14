@@ -9,7 +9,7 @@ use crate::{
     Rustcord,
     discord::{ChannelKind, Relation, User, perm},
     icons::Glyph,
-    menu::{Entry, item, slider, submenu},
+    menu::{Entry, HeadLead, header, item, slider, submenu},
 };
 
 // Where the menu was opened, which decides Discord's variant and its flags.
@@ -26,7 +26,7 @@ pub enum Surface {
 }
 
 // Discord's timeout lengths, in seconds.
-const TIMEOUTS: [(&str, i64); 6] = [("60 Seconds", 60), ("5 Minutes", 300), ("10 Minutes", 600), ("1 Hour", 3600), ("1 Day", 86_400), ("1 Week", 604_800)];
+const TIMEOUTS: [(&str, i64); 6] = [("60 seconds", 60), ("5 minutes", 300), ("10 minutes", 600), ("1 hour", 3600), ("1 day", 86_400), ("1 week", 604_800)];
 
 impl Rustcord {
     pub(crate) fn open_user_menu(&mut self, user: User, guild_id: Option<String>, surface: Surface, at: Point<Pixels>, cx: &mut Context<Self>) {
@@ -42,7 +42,7 @@ impl Rustcord {
         let mut entries = Vec::new();
         let unread = self.unread(&channel.id);
         let id = channel.id.clone();
-        let read = item("Mark As Read", move |this, _, cx| this.mark_channel_read(&id, cx));
+        let read = item("Mark as read", move |this, _, cx| this.mark_channel_read(&id, cx));
         entries.push(if unread { read } else { read.disabled() }.entry());
         entries.push(Entry::Separator);
         if let Some(user) = channel.recipient.clone() {
@@ -54,10 +54,10 @@ impl Rustcord {
         if self.developer_mode {
             if let Some(user) = &channel.recipient {
                 let uid = user.id.clone();
-                entries.push(item("Copy User ID", move |this, _, cx| this.copy_text(uid.clone(), cx)).icon(Glyph::Id).entry());
+                entries.push(item("Copy user ID", move |this, _, cx| this.copy_text(uid.clone(), cx)).icon(Glyph::Id).entry());
             }
             let cid = channel.id.clone();
-            entries.push(item("Copy Channel ID", move |this, _, cx| this.copy_text(cid.clone(), cx)).icon(Glyph::Id).entry());
+            entries.push(item("Copy channel ID", move |this, _, cx| this.copy_text(cid.clone(), cx)).icon(Glyph::Id).entry());
         }
         entries
     }
@@ -104,32 +104,32 @@ impl Rustcord {
         let (friend, blocked) = (relation == Some(Relation::Friend), relation == Some(Relation::Blocked));
         let ignored = self.ignored.contains(&target);
         let name = user.name.clone();
-        let mut out: Vec<Entry> = Vec::new();
+        let mut out: Vec<Entry> = vec![self.user_header(user, guild)];
 
         // G2: profile and social.
         let profile_user = user.clone();
-        out.push(item("Profile", move |this, _, cx| this.open_profile(profile_user.clone(), at, cx)).entry());
+        out.push(item("Profile", move |this, _, cx| this.open_profile(profile_user.clone(), at, cx)).icon(Glyph::User).entry());
         if surface == Surface::ServerChat && self.channel.is_some() {
             let mention = user.clone();
             out.push(item("Mention", move |this, window, cx| this.mention_user(&mention, window, cx)).entry());
         }
         if !is_me && surface != Surface::Dm {
             let id = target.clone();
-            out.push(item("Message", move |this, window, cx| this.message_user(id.clone(), window, cx)).entry());
+            out.push(item("Message", move |this, window, cx| this.message_user(id.clone(), window, cx)).icon(Glyph::ChatRound).entry());
         }
         let in_dm_call = self.call.as_ref().is_some_and(|c| c.channel.kind == ChannelKind::Dm && c.channel.recipient.as_ref().is_some_and(|r| r.id == target));
         if !is_me && !user.bot && !in_dm_call {
             let id = target.clone();
-            let start = item("Start a Call", move |this, window, cx| this.start_call(id.clone(), window, cx));
+            let start = item("Call", move |this, window, cx| this.start_call(id.clone(), window, cx));
             out.push(if blocked { start.disabled() } else { start }.entry());
         }
         if !is_me {
             let (id, who) = (target.clone(), name.clone());
-            out.push(item("Add Note", move |this, window, cx| this.edit_note(id.clone(), who.clone(), window, cx)).hint("Only visible to you").entry());
+            out.push(item("Add note", move |this, window, cx| this.edit_note(id.clone(), who.clone(), window, cx)).hint("Only you can see it").entry());
         }
         if friend {
             let (id, who) = (target.clone(), name.clone());
-            out.push(item("Add Friend Nickname", move |this, window, cx| this.edit_friend_nickname(id.clone(), who.clone(), window, cx)).entry());
+            out.push(item("Add friend nickname", move |this, window, cx| this.edit_friend_nickname(id.clone(), who.clone(), window, cx)).entry());
         }
         out.push(Entry::Separator);
 
@@ -137,33 +137,33 @@ impl Rustcord {
         if media && !is_me {
             let volume = self.prefs.user_volumes.get(&target).copied().unwrap_or(1.);
             let id = target.clone();
-            out.push(slider("User Volume", format!("user-volume-{target}"), volume / 2., move |this, f, cx| this.set_user_volume(&id, f * 2., cx)));
+            out.push(slider("User volume", format!("user-volume-{target}"), volume / 2., move |this, f, cx| this.set_user_volume(&id, f * 2., cx)));
             out.push(Entry::Separator);
         }
 
         // G5: media and social actions.
         if media && is_me {
-            out.push(item("Mute", |this, _, cx| this.toggle_mute(cx)).checked(self.muted || self.deafened).entry());
-            out.push(item("Deafen", |this, _, cx| this.toggle_deafen(cx)).checked(self.deafened).entry());
+            out.push(item("Mute", |this, _, cx| this.toggle_mute(cx)).checked(self.muted || self.deafened).icon(Glyph::MicOff).entry());
+            out.push(item("Deafen", |this, _, cx| this.toggle_deafen(cx)).checked(self.deafened).icon(Glyph::HeadphonesOff).entry());
         }
         if media && !is_me {
             let id = target.clone();
-            out.push(item("Mute", move |this, _, cx| this.toggle_local_mute(&id, cx)).checked(self.prefs.local_mutes.contains(&target)).entry());
+            out.push(item("Mute", move |this, _, cx| this.toggle_local_mute(&id, cx)).checked(self.prefs.local_mutes.contains(&target)).icon(Glyph::MicOff).entry());
             let id = target.clone();
             out.push(
-                item("Mute Soundboard", move |this, _, cx| this.update_prefs(cx, |p| toggle(&mut p.soundboard_mutes, &id))).checked(self.prefs.soundboard_mutes.contains(&target)).entry(),
+                item("Mute soundboard", move |this, _, cx| this.update_prefs(cx, |p| toggle(&mut p.soundboard_mutes, &id))).checked(self.prefs.soundboard_mutes.contains(&target)).icon(Glyph::VolumeOff).entry(),
             );
             let id = target.clone();
-            out.push(item("Disable Video", move |this, _, cx| this.update_prefs(cx, |p| toggle(&mut p.hidden_video, &id))).checked(self.prefs.hidden_video.contains(&target)).entry());
+            out.push(item("Hide video", move |this, _, cx| this.update_prefs(cx, |p| toggle(&mut p.hidden_video, &id))).checked(self.prefs.hidden_video.contains(&target)).icon(Glyph::VideoOff).entry());
         }
         if let Some(guild) = guild {
             let gid = guild.id.clone();
             if is_me {
                 let current = self.members.get(&gid).and_then(|m| m.get(&me.id)).map(|u| u.name.clone()).unwrap_or_default();
-                out.push(item("Edit Per-server Profile", move |this, window, cx| this.edit_nickname(gid.clone(), "@me".into(), current.clone(), window, cx)).entry());
+                out.push(item("Edit per-server profile", move |this, window, cx| this.edit_nickname(gid.clone(), "@me".into(), current.clone(), window, cx)).icon(Glyph::Pen).entry());
             } else if self.can_manage(&guild.id, &target, perm::MANAGE_NICKNAMES) {
                 let (id, current) = (target.clone(), name.clone());
-                out.push(item("Change Nickname", move |this, window, cx| this.edit_nickname(gid.clone(), id.clone(), current.clone(), window, cx)).entry());
+                out.push(item("Change nickname", move |this, window, cx| this.edit_nickname(gid.clone(), id.clone(), current.clone(), window, cx)).icon(Glyph::Pen).entry());
             }
         }
         if !is_me && !user.bot && !blocked && !ignored {
@@ -173,33 +173,33 @@ impl Rustcord {
                 .filter(|g| Some(g.id.as_str()) != guild_id && g.can(&me.id, perm::CREATE_INSTANT_INVITE))
                 .map(|g| {
                     let (gid, uid) = (g.id.clone(), target.clone());
-                    item(g.name.clone(), move |this, window, cx| this.invite_to_server(gid.clone(), uid.clone(), window, cx)).entry()
+                    item(g.name.clone(), move |this, window, cx| this.invite_to_server(gid.clone(), uid.clone(), window, cx)).server(g.icon.clone(), g.name.clone()).entry()
                 })
                 .collect();
             if !invites.is_empty() {
-                out.push(submenu("Invite to Server", invites).entry());
+                out.push(submenu("Invite to server", invites).icon(Glyph::GroupPlus).entry());
             }
         }
         if !is_me && !user.bot {
             let id = target.clone();
             let who = name.clone();
             out.push(match relation {
-                Some(Relation::Friend) => item("Remove Friend", move |this, _, cx| {
+                Some(Relation::Friend) => item("Remove friend", move |this, _, cx| {
                     let id = id.clone();
-                    this.confirm(format!("Remove '{who}'"), format!("Are you sure you want to remove {who} from your friends?"), "Remove Friend", move |this, _, cx| {
+                    this.confirm(format!("Remove '{who}'"), format!("Are you sure you want to remove {who} from your friends?"), "Remove friend", move |this, _, cx| {
                         this.relation_optimistic(&id, None, Method::DELETE, None, cx);
                     }, cx);
                 })
                 .entry(),
                 Some(Relation::Incoming) => {
                     let friend = user.clone();
-                    item("Accept Friend Request", move |this, _, cx| this.relation_optimistic(&id, Some((friend.clone(), Relation::Friend)), Method::PUT, Some(json!({})), cx)).entry()
+                    item("Accept friend request", move |this, _, cx| this.relation_optimistic(&id, Some((friend.clone(), Relation::Friend)), Method::PUT, Some(json!({})), cx)).entry()
                 }
-                Some(Relation::Outgoing) => item("Friend Request Sent", |_, _, _| {}).disabled().entry(),
-                Some(Relation::Blocked) => item("Add Friend", |_, _, _| {}).disabled().entry(),
+                Some(Relation::Outgoing) => item("Friend request sent", |_, _, _| {}).disabled().entry(),
+                Some(Relation::Blocked) => item("Add friend", |_, _, _| {}).disabled().entry(),
                 None => {
                     let friend = user.clone();
-                    item("Add Friend", move |this, _, cx| this.relation_optimistic(&id, Some((friend.clone(), Relation::Outgoing)), Method::PUT, Some(json!({})), cx)).entry()
+                    item("Add friend", move |this, _, cx| this.relation_optimistic(&id, Some((friend.clone(), Relation::Outgoing)), Method::PUT, Some(json!({})), cx)).entry()
                 }
             });
         }
@@ -226,6 +226,7 @@ impl Rustcord {
                     }, cx);
                 })
                 .danger()
+                .icon(Glyph::ScreenOff)
                 .entry(),
             });
         }
@@ -244,8 +245,9 @@ impl Rustcord {
                 .filter(|r| theirs.contains(&r.id) || (manage && r.position < top))
                 .map(|role| {
                     let has = theirs.contains(&role.id);
+                    let dot = if role.color == 0 { None } else { Some(role.color) };
                     if !manage {
-                        return item(role.name.clone(), |_, _, _| {}).entry();
+                        return item(role.name.clone(), |_, _, _| {}).dot(dot).entry();
                     }
                     let (gid, uid, rid) = (guild.id.clone(), target.clone(), role.id.clone());
                     let row = item(role.name.clone(), move |this, _, cx| {
@@ -260,13 +262,18 @@ impl Rustcord {
                             cx,
                         );
                     })
-                    .checked(has);
-                    if role.position >= top { row.disabled() } else { row }.entry()
+                    .checked(has)
+                    .dot(dot);
+                    if role.position >= top { row.disabled().hint("Above your highest role") } else { row }.entry()
                 })
                 .collect();
             if !rows.is_empty() {
                 let label = if rows.len() == 1 { "Role" } else { "Roles" };
-                out.push(submenu(label, rows).entry());
+                let mut held: Vec<_> = guild.roles.iter().filter(|r| theirs.contains(&r.id)).collect();
+                held.sort_by_key(|r| std::cmp::Reverse(r.position));
+                let names = held.iter().map(|r| r.name.as_str()).collect::<Vec<_>>().join(", ");
+                let roles = submenu(label, rows).icon(Glyph::ShieldLock);
+                out.push(if names.is_empty() { roles } else { roles.hint(names) }.entry());
             }
         }
         if let Some((guild, state)) = &voice {
@@ -301,15 +308,15 @@ impl Rustcord {
             let gid = guild.id.clone();
             if guild.can(&me.id, perm::MUTE_MEMBERS) {
                 let (gid, uid, on) = (gid.clone(), target.clone(), state.server_muted);
-                out.push(item("Server Mute", move |this, _, cx| this.server_voice_optimistic(&gid, &uid, json!({ "mute": !on }), |v| v.server_muted = !v.server_muted, cx)).checked(on).danger().entry());
+                out.push(item("Server mute", move |this, _, cx| this.server_voice_optimistic(&gid, &uid, json!({ "mute": !on }), |v| v.server_muted = !v.server_muted, cx)).checked(on).hint(format!("Mutes {name} for everyone")).icon(Glyph::MicOff).entry());
             }
             if guild.can(&me.id, perm::DEAFEN_MEMBERS) {
                 let (gid, uid, on) = (gid.clone(), target.clone(), state.server_deafened);
-                out.push(item("Server Deafen", move |this, _, cx| this.server_voice_optimistic(&gid, &uid, json!({ "deaf": !on }), |v| v.server_deafened = !v.server_deafened, cx)).checked(on).danger().entry());
+                out.push(item("Server deafen", move |this, _, cx| this.server_voice_optimistic(&gid, &uid, json!({ "deaf": !on }), |v| v.server_deafened = !v.server_deafened, cx)).checked(on).icon(Glyph::HeadphonesOff).entry());
             }
             if !is_me && guild.can(&me.id, perm::MOVE_MEMBERS) {
                 let (gid, uid) = (gid.clone(), target.clone());
-                out.push(item("Disconnect", move |this, _, cx| this.server_voice_optimistic(&gid, &uid, json!({ "channel_id": null }), |v| v.channel_id = None, cx)).danger().entry());
+                out.push(item("Disconnect", move |this, _, cx| this.server_voice_optimistic(&gid, &uid, json!({ "channel_id": null }), |v| v.channel_id = None, cx)).danger().icon(Glyph::CallEnd).entry());
             }
         }
         if let Some(guild) = guild.filter(|_| !is_me) {
@@ -339,6 +346,7 @@ impl Rustcord {
                         }, cx);
                     })
                     .danger()
+                    .icon(Glyph::DoorExit)
                     .entry(),
                 );
             }
@@ -352,6 +360,7 @@ impl Rustcord {
                         }, cx);
                     })
                     .danger()
+                    .icon(Glyph::ScreenOff)
                     .entry(),
                 );
             }
@@ -361,9 +370,18 @@ impl Rustcord {
         // G9: developer.
         if self.developer_mode {
             let id = target.clone();
-            out.push(item("Copy User ID", move |this, _, cx| this.copy_text(id.clone(), cx)).icon(Glyph::Id).entry());
+            out.push(item("Copy user ID", move |this, _, cx| this.copy_text(id.clone(), cx)).icon(Glyph::Id).entry());
         }
         out
+    }
+
+    // Who the menu is about: their avatar and presence, their name, and in a call where they are.
+    fn user_header(&self, user: &User, guild: Option<&crate::discord::Guild>) -> Entry {
+        let status = self.presences.get(&user.id).map(|p| p.status).or(self.me.as_ref().filter(|me| me.id == user.id).map(|_| self.my_status));
+        let voice = guild.and_then(|g| g.voice_states.iter().find(|v| v.user_id == user.id).and_then(|v| g.channels.iter().find(|c| v.channel_id.as_ref() == Some(&c.id))));
+        let speaking = self.call.as_ref().is_some_and(|c| c.speaking.contains(&user.id));
+        let subtitle = voice.map(|c| if speaking { format!("In {} · speaking", c.name) } else { format!("In {}", c.name) });
+        header(HeadLead::Avatar { url: user.avatar.clone(), status }, user.name.clone(), subtitle.map(Into::into))
     }
 
     // Friends, blocks and requests change at once; Discord's refusal restores the old relationship.
@@ -458,7 +476,7 @@ impl Rustcord {
     }
 
     fn edit_friend_nickname(&mut self, user_id: String, name: String, window: &mut Window, cx: &mut Context<Self>) {
-        self.prompt("Add Friend Nickname", format!("A name only you see for {name}."), "", "Save", move |this, nick, _, cx| {
+        self.prompt("Add friend nickname", format!("A name only you see for {name}."), "", "Save", move |this, nick, _, cx| {
             let nickname = (!nick.trim().is_empty()).then(|| nick.trim().to_owned());
             this.rest(Method::PATCH, format!("/users/@me/relationships/{user_id}"), Some(json!({ "nickname": nickname })), |_, _| {}, cx);
         }, window, cx);
@@ -466,7 +484,7 @@ impl Rustcord {
 
     // `user_id` is "@me" for our own nickname, as Discord's API spells it.
     fn edit_nickname(&mut self, guild_id: String, user_id: String, current: String, window: &mut Window, cx: &mut Context<Self>) {
-        self.prompt("Change Nickname", "Everyone in this server sees this name.", &current, "Save", move |this, nick, _, cx| {
+        self.prompt("Change nickname", "Everyone in this server sees this name.", &current, "Save", move |this, nick, _, cx| {
             let nick = (!nick.trim().is_empty()).then(|| nick.trim().to_owned());
             this.nickname_optimistic(&guild_id, &user_id, nick, cx);
         }, window, cx);
