@@ -2,7 +2,7 @@
 use gpui_kit::{
     AnyElement, Context, FontWeight, SharedString, Window,
     component::{ActiveTheme, Icon},
-    div, img, prelude::*, px,
+    div, prelude::*, px,
 };
 
 
@@ -172,7 +172,7 @@ impl Rustcord {
                         .flex_col()
                         .gap_1()
                         .child(div().text_size(px(12.)).text_color(theme.muted_foreground).child(format!("#{}", channel.map(|c| c.name).unwrap_or_default())))
-                        .child(div().flex().items_center().gap_2().child(img(hit.author.avatar.clone()).size(px(20.)).rounded_full()).child(div().font_weight(FontWeight::SEMIBOLD).child(hit.author.name.clone())))
+                        .child(div().flex().items_center().gap_2().child(crate::ui::avatar(hit.author.avatar.clone(), 20.)).child(div().font_weight(FontWeight::SEMIBOLD).child(hit.author.name.clone())))
                         .child(div().text_size(px(13.)).line_clamp(3).child(hit.content.clone()))
                         .on_click(cx.listener(move |this, _, window, cx| {
                             let Some(channel) = target.clone() else { return };
