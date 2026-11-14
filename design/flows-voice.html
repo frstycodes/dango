@@ -1292,6 +1292,25 @@
   </div>
 </section>
 
+<section id="drag-voice">
+  <h2>Drag people and voice channels</h2>
+  <p class="lede">Moving people and rearranging voice channels should feel like picking up something real: it lifts, lags a touch behind your hand, tilts with your speed, and glides from your cursor straight into its new spot. Refusals are gentle: a full channel shakes its head, and the person springs home.</p>
+  <h3>Live: drag anyone, or drag a channel by its name</h3>
+  <div class="vd-play board">
+    <div class="vd" id="vd"><div class="vd-cat " data-cat="Voice"><div class="cathead"><button class="cat" aria-expanded="true" tabindex="-1"><i class="ph-bold ph-caret-down"></i>Voice</button></div><div class="vd-list"><div class="vd-chan " data-chan="Lounge"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div><div class="vd-people"><div class="vp speaking" tabindex="0" data-user="Mira"><span class="av" data-av="Mira"></span><span class="nm">Mira</span><span class="end"><span class="bars" aria-label="Speaking"><i></i><i></i><i></i></span></span></div><div class="vp " tabindex="0" data-user="Theo"><span class="av" data-av="Theo"></span><span class="nm">Theo</span></div><div class="vp " tabindex="0" data-user="You"><span class="av" data-av="You"></span><span class="nm">You</span><span class="end"><i class="ph-fill ph-microphone-slash" aria-label="Muted"></i></span></div></div></div><div class="vd-chan " data-chan="Ranked grind" data-limit="3"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Ranked grind</span><span class="vd-cap">3/3</span></div><div class="vd-people"><div class="vp " tabindex="0" data-user="Ana"><span class="av" data-av="Ana"></span><span class="nm">Ana</span></div><div class="vp " tabindex="0" data-user="Jun"><span class="av" data-av="Jun"></span><span class="nm">Jun</span></div><div class="vp " tabindex="0" data-user="Rosa"><span class="av" data-av="Rosa"></span><span class="nm">Rosa</span></div></div></div><div class="vd-chan " data-chan="Movie night"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Movie night</span></div><div class="vd-people"></div></div></div></div><div class="vd-cat " data-cat="Staff" data-locked="Staff is private: you can't move people or channels into it"><div class="cathead"><button class="cat" aria-expanded="true" tabindex="-1"><i class="ph-bold ph-caret-down"></i>Staff</button></div><div class="vd-list"><div class="vd-chan " data-chan="Staff only"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Staff only</span><i class="ph ph-lock-simple vd-lock" aria-label="Private"></i></div><div class="vd-people"><div class="vp " tabindex="0" data-user="Ops"><span class="av" data-av="Ops"></span><span class="nm">Ops</span></div></div></div></div></div><div class="vd-cat " data-cat="Archive"><div class="cathead"><button class="cat" aria-expanded="true" tabindex="-1"><i class="ph-bold ph-caret-down"></i>Archive</button></div><div class="vd-list"><div class="vd-chan " data-chan="AFK"><div class="ch" tabindex="0"><i class="ph ph-moon"></i><span class="nm">AFK</span></div><div class="vd-people"></div></div></div></div></div>
+    <div class="vd-side">
+      <p class="note">Drag a person onto another channel. Drag a channel row to rearrange, even into another category. Esc cancels mid-drag. Keyboard: focus a person, press Space, use the arrow keys, Space again to drop.</p>
+      <div id="vd-toast" class="vd-toast" aria-live="polite"></div>
+      <ul class="vd-log" id="vd-log" aria-live="polite"><li>Ranked grind holds 3. Staff is private.</li></ul>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Motion: the carried ghost follows a loose spring (stiffness 520, damping 0.62) with tilt from horizontal speed (up to 14°) and a squash from vertical speed; on release a tighter spring (900, 0.82) carries it in about 250ms from the cursor to the row’s live position, following it while the neighbours slide, then the row swaps in exactly where the ghost is. Reduced motion moves instantly with no tilt or squash.</p>
+  <h3>Move someone to another channel</h3>
+  <div class="flow"><div class="flow-step"><div class="flow-head"><span class="flow-n">1</span><b>Pick them up</b><span>Press and drag past 4px. Their row lifts, tilts with your hand, and leaves a soft outline behind.</span></div><div class="flow-frame top"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-chan " data-chan="Lounge"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div><div class="vd-people"><div style="--rot:-4deg" class="vd-ghost is-static vp speaking" tabindex="0" data-user="Mira"><span class="av" data-av="Mira"></span><span class="nm">Mira</span><span class="end"><span class="bars" aria-label="Speaking"><i></i><i></i><i></i></span></span></div><div class="vp " tabindex="0" data-user="Theo"><span class="av" data-av="Theo"></span><span class="nm">Theo</span></div><div class="vp " tabindex="0" data-user="You"><span class="av" data-av="You"></span><span class="nm">You</span><span class="end"><i class="ph-fill ph-microphone-slash" aria-label="Muted"></i></span></div></div></div><div class="vd-chan " data-chan="Movie night"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Movie night</span></div><div class="vd-people"></div></div></div></div></div><div class="flow-edges"><div class="flow-edge"><span class="flow-if bad"><i class="ph-bold ph-x-circle"></i>You can't move members</span><div class="flow-frame top" style="--frame-h: 150px"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-chan " data-chan="Lounge"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div><div class="vd-people"><div class="vp speaking is-nope-wiggle" tabindex="0" data-user="Mira"><span class="av" data-av="Mira"></span><span class="nm">Mira</span><span class="end"><span class="bars" aria-label="Speaking"><i></i><i></i><i></i></span></span></div><div class="vp " tabindex="0" data-user="Theo"><span class="av" data-av="Theo"></span><span class="nm">Theo</span></div></div></div><p class="note" style="margin:6px 8px">Only people with Move Members can drag others. You can always drag yourself.</p></div></div></div><p>The row wiggles once in place and says why; it never lifts and then refuses.</p><div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Nothing moves</div></div><div class="flow-edge"><span class="flow-if warn"><i class="ph-bold ph-warning"></i>They leave mid-drag</span><div class="flow-frame top" style="--frame-h: 150px"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-chan " data-chan="Lounge"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div><div class="vd-people"><div class="vp is-hole" tabindex="0" data-user="Mira"><span class="av" data-av="Mira"></span><span class="nm">Mira</span></div><div class="vp " tabindex="0" data-user="Theo"><span class="av" data-av="Theo"></span><span class="nm">Theo</span></div></div></div><p class="note" style="margin:6px 8px"><i class="ph ph-sparkle"></i> Mira left the call, so the pill puffs away.</p></div></div></div><p>The ghost shrinks to a puff and the log says why, so a vanished drag never looks like a bug.</p><div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Back in the list</div></div></div></div><div class="flow-step"><div class="flow-head"><span class="flow-n">2</span><b>Carry them over</b><span>The channel under them lights up, its speaker wiggles, and a slot opens where they will sit.</span></div><div class="flow-frame top"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-chan " data-chan="Lounge"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div><div class="vd-people"><div class="vp is-hole" tabindex="0" data-user="Mira"><span class="av" data-av="Mira"></span><span class="nm">Mira</span><span class="end"><span class="bars" aria-label="Speaking"><i></i><i></i><i></i></span></span></div><div class="vp " tabindex="0" data-user="Theo"><span class="av" data-av="Theo"></span><span class="nm">Theo</span></div></div></div><div class="vd-chan is-target" data-chan="Movie night"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Movie night</span></div><div class="vd-people"><div class="vd-slot"></div></div></div><div style="--rot:5deg" class="vd-ghost is-static vp speaking" tabindex="0" data-user="Mira"><span class="av" data-av="Mira"></span><span class="nm">Mira</span><span class="end"><span class="bars" aria-label="Speaking"><i></i><i></i><i></i></span></span><span class="vd-tag is-on"><i class="ph-bold ph-arrow-right"></i>Move to Movie night</span></div></div></div></div><div class="flow-edges"><div class="flow-edge"><span class="flow-if bad"><i class="ph-bold ph-x-circle"></i>Channel is full</span><div class="flow-frame top" style="--frame-h: 170px"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-chan is-nope" data-chan="Ranked grind" data-limit="3"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Ranked grind</span><span class="vd-cap">3/3</span></div><div class="vd-people"><div class="vp " tabindex="0" data-user="Ana"><span class="av" data-av="Ana"></span><span class="nm">Ana</span></div><div class="vp " tabindex="0" data-user="Jun"><span class="av" data-av="Jun"></span><span class="nm">Jun</span></div><div class="vp " tabindex="0" data-user="Rosa"><span class="av" data-av="Rosa"></span><span class="nm">Rosa</span></div></div></div><div style="--rot:-3deg" class="vd-ghost is-static vp speaking" tabindex="0" data-user="Mira"><span class="av" data-av="Mira"></span><span class="nm">Mira</span><span class="end"><span class="bars" aria-label="Speaking"><i></i><i></i><i></i></span></span><span class="vd-tag is-on is-bad"><i class="ph-bold ph-prohibit"></i>Ranked grind is full (3/3)</span></div></div></div></div><p>The channel shakes its head and the tag names the limit. Let go and Mira springs home.</p><div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Springs back to Lounge</div></div><div class="flow-edge"><span class="flow-if bad"><i class="ph-bold ph-x-circle"></i>No access to the channel</span><div class="flow-frame top" style="--frame-h: 150px"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-cat " data-cat="Staff"><div class="cathead"><button class="cat" aria-expanded="true" tabindex="-1"><i class="ph-bold ph-caret-down"></i>Staff</button></div><div class="vd-list"><div class="vd-chan is-nope" data-chan="Staff only"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Staff only</span><i class="ph ph-lock-simple vd-lock" aria-label="Private"></i></div><div class="vd-people"><div class="vp " tabindex="0" data-user="Ops"><span class="av" data-av="Ops"></span><span class="nm">Ops</span></div></div></div></div></div><div style="--rot:4deg" class="vd-ghost is-static vp speaking" tabindex="0" data-user="Mira"><span class="av" data-av="Mira"></span><span class="nm">Mira</span><span class="end"><span class="bars" aria-label="Speaking"><i></i><i></i><i></i></span></span><span class="vd-tag is-on is-bad"><i class="ph-bold ph-lock-simple"></i>Staff is private</span></div></div></div></div><p>A private category refuses with a lock and the reason, before you let go.</p><div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Springs back to Lounge</div></div><div class="flow-edge"><span class="flow-if "><i class="ph-bold ph-git-branch"></i>Let go over nothing, or press Esc</span><div class="flow-frame top" style="--frame-h: 110px"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-chan " data-chan="Lounge"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div><div class="vd-people"><div class="vp speaking" tabindex="0" data-user="Mira"><span class="av" data-av="Mira"></span><span class="nm">Mira</span><span class="end"><span class="bars" aria-label="Speaking"><i></i><i></i><i></i></span></span></div><div class="vp " tabindex="0" data-user="Theo"><span class="av" data-av="Theo"></span><span class="nm">Theo</span></div></div></div></div></div></div><p>The pill flies home on a spring with a little overshoot. Nothing changed, so nothing to undo.</p><div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Back where they were</div></div></div></div><div class="flow-step"><div class="flow-head"><span class="flow-n">3</span><b>Let go</b><span>The pill glides from your cursor into the slot and becomes the row there. Undo waits in a toast.</span></div><div class="flow-frame top"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-chan " data-chan="Lounge"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div><div class="vd-people"><div class="vp " tabindex="0" data-user="Theo"><span class="av" data-av="Theo"></span><span class="nm">Theo</span></div><div class="vp " tabindex="0" data-user="You"><span class="av" data-av="You"></span><span class="nm">You</span><span class="end"><i class="ph-fill ph-microphone-slash" aria-label="Muted"></i></span></div></div></div><div class="vd-chan " data-chan="Movie night"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Movie night</span></div><div class="vd-people"><div class="vp speaking" tabindex="0" data-user="Mira"><span class="av" data-av="Mira"></span><span class="nm">Mira</span><span class="end"><span class="bars" aria-label="Speaking"><i></i><i></i><i></i></span></span></div></div></div></div><div class="toast" style="margin:10px 8px 0"><i class="ph-fill ph-arrows-down-up" style="color:var(--text-muted)"></i><p>Moved Mira to Movie night</p><button class="btn btn--sm">Undo</button></div></div></div><div class="flow-edges"><div class="flow-edge"><span class="flow-if "><i class="ph-bold ph-git-branch"></i>Undo</span><div class="flow-frame top" style="--frame-h: 110px"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-chan " data-chan="Lounge"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div><div class="vd-people"><div class="vp speaking" tabindex="0" data-user="Mira"><span class="av" data-av="Mira"></span><span class="nm">Mira</span><span class="end"><span class="bars" aria-label="Speaking"><i></i><i></i><i></i></span></span></div><div class="vp " tabindex="0" data-user="Theo"><span class="av" data-av="Theo"></span><span class="nm">Theo</span></div></div></div></div></div></div><p>Mira travels back to her old spot the same springy way, and the log notes it.</p><div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Back in Lounge</div></div><div class="flow-edge"><span class="flow-if "><i class="ph-bold ph-git-branch"></i>You moved yourself</span><div class="flow-frame top" style="--frame-h: 150px"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-chan " data-chan="Movie night"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Movie night</span></div><div class="vd-people"><div class="vp" tabindex="0" data-user="You"><span class="av" data-av="You"></span><span class="nm">You</span><span class="end"><i class="ph-fill ph-microphone-slash" aria-label="Muted"></i></span></div></div></div></div><div class="toast" style="margin:10px 8px 0"><i class="ph-fill ph-arrows-down-up" style="color:var(--text-muted)"></i><p>You joined Movie night</p><button class="btn btn--sm">Undo</button></div></div></div><p>Dragging yourself is switching channels: no Move Members needed. If you are streaming, the stream comes with you.</p><div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>In Movie night</div></div></div></div></div>
+  <h3>Rearrange voice channels</h3>
+  <div class="flow"><div class="flow-step"><div class="flow-head"><span class="flow-n">1</span><b>Grab a channel</b><span>Press its row and drag. The whole channel lifts as a card, people and all; their call carries on.</span></div><div class="flow-frame top"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-cat " data-cat="Voice"><div class="cathead"><button class="cat" aria-expanded="true" tabindex="-1"><i class="ph-bold ph-caret-down"></i>Voice</button></div><div class="vd-list"><div style="--rot:-3deg" class="vd-ghost is-static vd-chan " data-chan="Movie night"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Movie night</span></div><div class="vd-people"><div class="vp " tabindex="0" data-user="Kai"><span class="av" data-av="Kai"></span><span class="nm">Kai</span></div></div></div><div class="vd-chan " data-chan="Lounge"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div><div class="vd-people"><div class="vp " tabindex="0" data-user="Theo"><span class="av" data-av="Theo"></span><span class="nm">Theo</span></div></div></div><div class="vd-chan " data-chan="Ranked grind"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Ranked grind</span></div><div class="vd-people"><div class="vp " tabindex="0" data-user="Ana"><span class="av" data-av="Ana"></span><span class="nm">Ana</span></div></div></div></div></div></div></div></div><div class="flow-edges"><div class="flow-edge"><span class="flow-if bad"><i class="ph-bold ph-x-circle"></i>You can't manage channels</span><div class="flow-frame top" style="--frame-h: 150px"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-cat " data-cat="Voice"><div class="cathead"><button class="cat" aria-expanded="true" tabindex="-1"><i class="ph-bold ph-caret-down"></i>Voice</button></div><div class="vd-list"><div class="vd-chan is-nope" data-chan="Movie night"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Movie night</span></div><div class="vd-people"></div></div><div class="vd-chan " data-chan="Lounge"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div><div class="vd-people"></div></div></div></div></div><p class="note" style="margin:6px 8px">Only people with Manage Channels can rearrange them.</p></div></div><p>The row shakes once and says why. People can still be dragged if you can move members.</p><div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Nothing moves</div></div></div></div><div class="flow-step"><div class="flow-head"><span class="flow-n">2</span><b>Neighbours part</b><span>As you carry it, the other channels slide apart around the outline, like water around a hand.</span></div><div class="flow-frame top"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-cat " data-cat="Voice"><div class="cathead"><button class="cat" aria-expanded="true" tabindex="-1"><i class="ph-bold ph-caret-down"></i>Voice</button></div><div class="vd-list"><div class="vd-chan " data-chan="Lounge"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div><div class="vd-people"><div class="vp " tabindex="0" data-user="Theo"><span class="av" data-av="Theo"></span><span class="nm">Theo</span></div></div></div><div class="vd-chan is-hole" data-chan="Movie night"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Movie night</span></div><div class="vd-people"></div></div><div class="vd-chan " data-chan="Ranked grind"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Ranked grind</span></div><div class="vd-people"><div class="vp " tabindex="0" data-user="Ana"><span class="av" data-av="Ana"></span><span class="nm">Ana</span></div></div></div></div></div><div style="--rot:4deg" class="vd-ghost is-static vd-chan " data-chan="Movie night"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Movie night</span></div><div class="vd-people"><div class="vp " tabindex="0" data-user="Kai"><span class="av" data-av="Kai"></span><span class="nm">Kai</span></div></div></div></div></div></div></div><div class="flow-step"><div class="flow-head"><span class="flow-n">3</span><b>Into another category</b><span>Over a category header, it lights up and the channel can drop to the end of that category.</span></div><div class="flow-frame top"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-cat " data-cat="Voice"><div class="cathead"><button class="cat" aria-expanded="true" tabindex="-1"><i class="ph-bold ph-caret-down"></i>Voice</button></div><div class="vd-list"><div class="vd-chan " data-chan="Lounge"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div><div class="vd-people"><div class="vp " tabindex="0" data-user="Theo"><span class="av" data-av="Theo"></span><span class="nm">Theo</span></div></div></div></div></div><div class="vd-cat is-target" data-cat="Archive"><div class="cathead"><button class="cat" aria-expanded="true" tabindex="-1"><i class="ph-bold ph-caret-down"></i>Archive</button></div><div class="vd-list"><div class="vd-chan " data-chan="AFK"><div class="ch" tabindex="0"><i class="ph ph-moon"></i><span class="nm">AFK</span></div><div class="vd-people"></div></div><div class="vd-chan is-hole" data-chan="Movie night"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Movie night</span></div><div class="vd-people"></div></div></div></div><div style="--rot:-4deg" class="vd-ghost is-static vd-chan " data-chan="Movie night"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Movie night</span></div><div class="vd-people"></div><span class="vd-tag is-on"><i class="ph-bold ph-arrow-right"></i>Move to Archive</span></div></div></div></div><div class="flow-edges"><div class="flow-edge"><span class="flow-if bad"><i class="ph-bold ph-x-circle"></i>Category is locked</span><div class="flow-frame top" style="--frame-h: 130px"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-cat is-nope" data-cat="Staff" data-locked="x"><div class="cathead"><button class="cat" aria-expanded="true" tabindex="-1"><i class="ph-bold ph-caret-down"></i>Staff</button></div><div class="vd-list"><div class="vd-chan " data-chan="Staff only"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Staff only</span><i class="ph ph-lock-simple vd-lock" aria-label="Private"></i></div><div class="vd-people"></div></div></div></div><div style="--rot:3deg" class="vd-ghost is-static vd-chan " data-chan="Movie night"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Movie night</span></div><div class="vd-people"></div><span class="vd-tag is-on is-bad"><i class="ph-bold ph-lock-simple"></i>Staff is private</span></div></div></div></div><p>Locked categories shake and the outline stays where it last could go.</p><div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Drops at its last allowed spot</div></div><div class="flow-edge"><span class="flow-if "><i class="ph-bold ph-git-branch"></i>Category is collapsed</span><div class="flow-frame top" style="--frame-h: 120px"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-cat is-target" data-cat="Archive"><div class="cathead"><button class="cat" aria-expanded="true" tabindex="-1"><i class="ph-bold ph-caret-down"></i>Archive</button></div><div class="vd-list"></div></div></div><p class="note" style="margin:6px 8px">Hover the closed header for half a second and it opens to take the channel.</p></div></div><p>No dropping blind into a closed category.</p><div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Opens, then step 3</div></div></div></div><div class="flow-step"><div class="flow-head"><span class="flow-n">4</span><b>Let go</b><span>It glides into its spot; Undo puts it back. People inside never notice: their call never drops.</span></div><div class="flow-frame top"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-cat " data-cat="Voice"><div class="cathead"><button class="cat" aria-expanded="true" tabindex="-1"><i class="ph-bold ph-caret-down"></i>Voice</button></div><div class="vd-list"><div class="vd-chan " data-chan="Lounge"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div><div class="vd-people"><div class="vp " tabindex="0" data-user="Theo"><span class="av" data-av="Theo"></span><span class="nm">Theo</span></div></div></div><div class="vd-chan " data-chan="Ranked grind"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Ranked grind</span></div><div class="vd-people"><div class="vp " tabindex="0" data-user="Ana"><span class="av" data-av="Ana"></span><span class="nm">Ana</span></div></div></div></div></div><div class="vd-cat " data-cat="Archive"><div class="cathead"><button class="cat" aria-expanded="true" tabindex="-1"><i class="ph-bold ph-caret-down"></i>Archive</button></div><div class="vd-list"><div class="vd-chan " data-chan="AFK"><div class="ch" tabindex="0"><i class="ph ph-moon"></i><span class="nm">AFK</span></div><div class="vd-people"></div></div><div class="vd-chan" data-chan="Movie night"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Movie night</span></div><div class="vd-people"><div class="vp " tabindex="0" data-user="Kai"><span class="av" data-av="Kai"></span><span class="nm">Kai</span></div></div></div></div></div></div><div class="toast" style="margin:10px 8px 0"><i class="ph-fill ph-arrows-down-up" style="color:var(--text-muted)"></i><p>Moved Movie night to Archive</p><button class="btn btn--sm">Undo</button></div></div></div><div class="flow-edges"><div class="flow-edge"><span class="flow-if "><i class="ph-bold ph-git-branch"></i>Undo</span><div class="flow-frame top" style="--frame-h: 100px"><div class="flow-clip"><div class="vd is-frame" style="width:100%;box-shadow:none;background:none;"><div class="vd-cat " data-cat="Voice"><div class="cathead"><button class="cat" aria-expanded="true" tabindex="-1"><i class="ph-bold ph-caret-down"></i>Voice</button></div><div class="vd-list"><div class="vd-chan" data-chan="Movie night"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Movie night</span></div><div class="vd-people"></div></div><div class="vd-chan " data-chan="Lounge"><div class="ch" tabindex="0"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div><div class="vd-people"></div></div></div></div></div></div></div><p>Back to its old place, same spring.</p><div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Where it was</div></div></div></div></div>
+</section>
+
 <section id="better-than-discord">
   <h2>Better than Discord</h2>
   <p class="lede">Where these flows differ from Discord on purpose. Discord's side is described from its current desktop app.</p>
@@ -1313,5 +1332,220 @@
 </main>
 </div>
 <script src="site.js"></script>
+<script>
+(() => {
+  const root = document.getElementById("vd");
+  if (!root) return;
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const spring = getComputedStyle(document.documentElement).getPropertyValue("--ease-spring").trim() || "ease-out";
+  const log = document.getElementById("vd-log"), toastHost = document.getElementById("vd-toast");
+  const say = (text, kind = "") => { const li = document.createElement("li"); li.className = kind; li.textContent = text; log.prepend(li); while (log.children.length > 5) log.lastChild.remove(); };
+  const name = el => el.dataset.user || el.dataset.chan;
+  const chanOf = el => el.closest(".vd-chan");
+  const catOf = el => el.closest(".vd-cat");
+  const replay = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+
+  // FLIP: things that moved slide from where they were. A person's move is measured against its channel's, so nested moves don't double up.
+  function flip(change, skip) {
+    const els = [...root.querySelectorAll(".vd-chan, .vp, .vd-slot, .vd-cat > .cathead")];
+    const before = new Map(els.map(e => [e, e.getBoundingClientRect()]));
+    change();
+    if (still) return;
+    const delta = new Map();
+    for (const e of root.querySelectorAll(".vd-chan, .vp, .vd-slot, .vd-cat > .cathead")) {
+      const b = before.get(e); if (!b) continue;
+      const a = e.getBoundingClientRect(); delta.set(e, [b.left - a.left, b.top - a.top]);
+    }
+    for (const [e, [dx, dy]] of delta) {
+      if (skip && (e === skip || skip.contains(e))) continue;
+      const parent = e.classList.contains("vd-chan") ? null : chanOf(e.parentElement || e);
+      const [px, py] = (parent && delta.get(parent)) || [0, 0];
+      const x = dx - px, y = dy - py;
+      if (Math.abs(x) < 0.5 && Math.abs(y) < 0.5) continue;
+      e.animate([{ transform: `translate(${x}px, ${y}px)` }, { transform: "none" }], { duration: 320, easing: spring });
+    }
+  }
+
+  // The carried ghost: a damped spring toward the pointer, tilting with horizontal speed and squashing with vertical speed.
+  function carry(ghost, x, y) {
+    const s = { x, y, vx: 0, vy: 0, tx: x, ty: y, rot: 0, vr: 0, sc: 1, vs: 0, tsc: 1.05, done: null };
+    let k = 520, c = 2 * Math.sqrt(k) * 0.62, kr = 260, cr = 2 * Math.sqrt(kr) * 0.55;
+    let last = performance.now(), raf = 0;
+    const paint = () => {
+      const sq = Math.min(0.08, Math.abs(s.vy) / 9000);
+      ghost.style.transform = `translate(${s.x}px, ${s.y}px) rotate(${s.rot}deg) scale(${s.sc * (1 - sq)}, ${s.sc * (1 + sq)})`;
+    };
+    const step = now => {
+      const dt = Math.min(0.032, (now - last) / 1000); last = now;
+      for (const [p, v, t] of [["x", "vx", "tx"], ["y", "vy", "ty"]]) { s[v] += (-k * (s[p] - s[t]) - c * s[v]) * dt; s[p] += s[v] * dt; }
+      const tr = s.done ? 0 : Math.max(-14, Math.min(14, s.vx * 0.018));
+      s.vr += (-kr * (s.rot - tr) - cr * s.vr) * dt; s.rot += s.vr * dt;
+      s.vs += (-k * (s.sc - s.tsc) - c * s.vs) * dt; s.sc += s.vs * dt;
+      paint();
+      if (s.target) { const r = s.target(); s.tx = r.left; s.ty = r.top; }
+      if (s.done && Math.hypot(s.x - s.tx, s.y - s.ty) < 1 && Math.hypot(s.vx, s.vy) < 90 && Math.abs(s.rot) < 0.6 && Math.abs(s.sc - 1) < 0.008) { const cb = s.done; s.done = null; cb(); return; }
+      raf = requestAnimationFrame(step);
+    };
+    if (!still) raf = requestAnimationFrame(step); else paint();
+    return {
+      to(x, y) { s.tx = x; s.ty = y; if (still) { s.x = x; s.y = y; paint(); } },
+      land(target, cb) { k = 900; c = 2 * Math.sqrt(k) * 0.82; kr = 900; cr = 2 * Math.sqrt(kr) * 0.9; s.target = target; s.tsc = 1; s.done = cb; if (still) { cancelAnimationFrame(raf); s.done = null; cb(); } },
+      puff(cb) { cancelAnimationFrame(raf); ghost.animate([{ opacity: 1 }, { opacity: 0, transform: ghost.style.transform + " scale(0.4)" }], { duration: still ? 0 : 220, easing: "ease-in" }).finished.then(cb); },
+    };
+  }
+
+  function toast(text, undo) {
+    toastHost.innerHTML = `<div class="toast"><i class="ph-fill ph-arrows-down-up" style="color:var(--text-muted)"></i><p>${text}</p><button class="btn btn--sm">Undo</button></div>`;
+    const t = toastHost.firstElementChild;
+    if (!still) t.animate([{ opacity: 0, transform: "translateY(6px) scale(0.97)" }, { opacity: 1, transform: "none" }], { duration: 220, easing: spring });
+    t.querySelector("button").onclick = () => { undo(); toastHost.innerHTML = ""; };
+  }
+
+  // What a person may be dropped on, and why not.
+  function verdict(person, chan) {
+    if (!chan) return null;
+    const lockCat = chan.closest(".vd-cat[data-locked]");
+    if (lockCat) return { ok: false, why: lockCat.dataset.locked.split(":")[0], icon: "ph-lock-simple" };
+    const limit = +chan.dataset.limit || 0;
+    const count = chan.querySelectorAll(".vd-people > .vp:not(.is-hole)").length;
+    if (limit && chanOf(person) !== chan && count >= limit) return { ok: false, why: `${chan.dataset.chan} is full (${count}/${limit})`, icon: "ph-prohibit" };
+    return { ok: true };
+  }
+  function moveCap(chan) { const cap = chan && chan.querySelector(".vd-cap"); if (cap) cap.textContent = `${chan.querySelectorAll(".vd-people > .vp:not(.is-hole)").length}/${chan.dataset.limit}`; }
+
+  let drag = null;
+  root.addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    const el = e.target.closest(".vp") || (e.target.closest(".vd-chan > .ch") && chanOf(e.target));
+    if (!el || el.classList.contains("is-hole")) return;
+    drag = { el, kind: el.classList.contains("vp") ? "person" : "chan", sx: e.clientX, sy: e.clientY, id: e.pointerId, live: false };
+  });
+  addEventListener("pointermove", e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    if (!drag.live) { if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 4) return; begin(e); }
+    drag.spring.to(e.clientX - drag.ox, e.clientY - drag.oy);
+    hover(e.clientX, e.clientY);
+  });
+  addEventListener("pointerup", e => { if (drag && e.pointerId === drag.id) drag.live ? drop() : (drag = null); });
+  addEventListener("keydown", e => { if (e.key === "Escape" && drag?.live) { drag.cancel = true; drop(); } });
+
+  function begin(e) {
+    const { el } = drag, r = el.getBoundingClientRect();
+    drag.live = true; drag.ox = e.clientX - r.left; drag.oy = e.clientY - r.top;
+    drag.home = { parent: el.parentElement, next: el.nextElementSibling, chan: chanOf(el.parentElement), cat: catOf(el) };
+    const g = el.cloneNode(true);
+    g.removeAttribute("tabindex"); g.classList.remove("is-landed", "is-target", "is-nope");
+    g.classList.add("vd-ghost"); g.style.width = r.width + "px";
+    g.style.setProperty("--ox", (drag.ox / r.width) * 100 + "%"); g.style.setProperty("--oy", (drag.oy / r.height) * 100 + "%");
+    g.insertAdjacentHTML("beforeend", '<span class="vd-tag"></span>');
+    document.body.append(g);
+    drag.ghost = g; drag.tag = g.querySelector(".vd-tag");
+    el.classList.add("is-hole");
+    drag.spring = carry(g, r.left, r.top);
+  }
+  function setTag(html, bad) { drag.tag.innerHTML = html || ""; drag.tag.classList.toggle("is-on", !!html); drag.tag.classList.toggle("is-bad", !!bad); }
+  function clearMarks() { root.querySelectorAll(".is-target, .is-nope").forEach(n => n.classList.remove("is-target", "is-nope")); }
+
+  function hover(x, y) {
+    const under = document.elementFromPoint(x, y);
+    const inside = under && root.contains(under) ? under : null;
+    if (drag.kind === "person") {
+      const chan = inside && chanOf(inside);
+      if (chan === drag.over) return;
+      drag.over = chan; clearMarks();
+      const v = verdict(drag.el, chan);
+      flip(() => { drag.slot?.remove(); drag.slot = null; if (v?.ok && chan !== drag.home.chan) { drag.slot = Object.assign(document.createElement("div"), { className: "vd-slot" }); chan.querySelector(".vd-people").append(drag.slot); } });
+      if (!v) return setTag("");
+      if (!v.ok) { replay(chan, "is-nope"); return setTag(`<i class="ph-bold ${v.icon}"></i>${v.why}`, true); }
+      if (chan === drag.home.chan) return setTag("");
+      chan.classList.add("is-target");
+      setTag(`<i class="ph-bold ph-arrow-right"></i>${drag.el.dataset.user === "You" ? "Join" : "Move to"} ${chan.dataset.chan}`);
+    } else {
+      // Anywhere over the sidebar counts: between or below categories, the nearest one takes the channel.
+      let cat = inside && catOf(inside);
+      if (!cat && inside) cat = [...root.querySelectorAll(".vd-cat")].reduce((best, c) => { const r = c.getBoundingClientRect(), d = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0; return !best || d < best.d ? { c, d } : best; }, null).c;
+      clearMarks();
+      if (!cat) return setTag("");
+      if (cat.dataset.locked) { if (drag.nope !== cat) replay(cat, "is-nope"); drag.nope = cat; return setTag(`<i class="ph-bold ph-lock-simple"></i>${cat.dataset.locked.split(":")[0]}`, true); }
+      drag.nope = null;
+      const list = cat.querySelector(".vd-list");
+      const others = [...list.children].filter(c => c !== drag.el);
+      const before = others.find(c => { const r = c.getBoundingClientRect(); return y < r.top + r.height / 2; }) || null;
+      if (cat !== drag.home.cat) cat.classList.add("is-target");
+      setTag(cat !== drag.home.cat ? `<i class="ph-bold ph-arrow-right"></i>Move to ${cat.dataset.cat}` : "");
+      if (drag.el.parentElement === list && drag.el.nextElementSibling === before) return;
+      flip(() => list.insertBefore(drag.el, before));
+    }
+  }
+
+  function settle(after) {
+    const d = drag; drag = null;
+    clearMarks();
+    // The real row takes its final place now, hidden; everything else slides there. The ghost flies from the
+    // cursor to wherever that row actually is on screen, then the two swap without a seam.
+    flip(() => { if (d.slot) d.slot.replaceWith(d.el); d.el.classList.remove("is-hole"); }, d.el);
+    d.el.style.visibility = "hidden";
+    d.spring.land(() => d.el.getBoundingClientRect(), () => {
+      d.el.style.visibility = "";
+      d.ghost.remove();
+      moveCap(chanOf(d.el.parentElement)); moveCap(d.home.chan);
+      after?.();
+    });
+  }
+  function restore(d) {
+    return () => flip(() => { d.home.parent.insertBefore(d.el, d.home.next && d.home.next.parentElement === d.home.parent ? d.home.next : null); moveCap(d.home.chan); moveCap(chanOf(d.el.parentElement)); });
+  }
+
+  function drop() {
+    const d = drag;
+    if (d.kind === "person") {
+      const v = !d.cancel && verdict(d.el, d.over);
+      if (v && !v.ok) say(`${v.why}, so ${d.el.dataset.user === "You" ? "you" : name(d.el)} went back.`, "is-bad");
+      if (!(v && v.ok && d.slot)) { flip(() => { d.slot?.remove(); d.slot = null; }); return settle(); }
+      const to = d.over.dataset.chan, self = d.el.dataset.user === "You";
+      settle(() => {
+        say(self ? `You joined ${to}.` : `Moved ${name(d.el)} to ${to}.`, "is-ok");
+        toast(self ? `You joined ${to}` : `Moved ${name(d.el)} to ${to}`, () => { restore(d)(); say(`Undid: ${name(d.el)} is back in ${d.home.chan.dataset.chan}.`); });
+      });
+    } else {
+      if (d.cancel) flip(() => d.home.parent.insertBefore(d.el, d.home.next));
+      const moved = d.el.parentElement !== d.home.parent || d.el.nextElementSibling !== d.home.next;
+      const cat = catOf(d.el.parentElement).dataset.cat;
+      settle(() => {
+        if (!moved) return;
+        say(`Moved ${name(d.el)} to ${cat}.`, "is-ok");
+        toast(`Moved ${name(d.el)}${cat !== d.home.cat.dataset.cat ? ` to ${cat}` : ""}`, () => { restore(d)(); say(`Undid: ${name(d.el)} is back.`); });
+      });
+    }
+  }
+
+  // Keyboard: Space picks a person up, arrows walk them through channels that accept them, Space drops, Esc puts them back.
+  let held = null;
+  root.addEventListener("keydown", e => {
+    const p = e.target.closest(".vp");
+    if (!p) return;
+    const chans = [...root.querySelectorAll(".vd-chan")];
+    if ((e.key === " " || e.key === "Enter") && !held) { e.preventDefault(); held = { el: p, home: { parent: p.parentElement, next: p.nextElementSibling, chan: chanOf(p.parentElement) } }; p.classList.add("is-picked"); say(`Picked up ${name(p)}. Arrows choose a channel.`); return; }
+    if (!held || held.el !== p) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      let i = chans.indexOf(chanOf(p.parentElement));
+      for (let n = 0; n < chans.length; n++) {
+        i = (i + (e.key === "ArrowDown" ? 1 : -1) + chans.length) % chans.length;
+        const v = verdict(p, chans[i]);
+        if (v.ok) { flip(() => chans[i].querySelector(".vd-people").append(p)); p.focus(); say(`Over ${chans[i].dataset.chan}.`); break; }
+        replay(chans[i], "is-nope"); say(`${v.why}.`, "is-bad");
+      }
+    } else if (e.key === " " || e.key === "Enter") {
+      e.preventDefault(); p.classList.remove("is-picked"); replay(p, "is-landed");
+      const d = { el: p, home: held.home }, to = chanOf(p.parentElement).dataset.chan; held = null;
+      moveCap(chanOf(p.parentElement)); moveCap(d.home.chan);
+      if (chanOf(p.parentElement) !== d.home.chan) { say(`Moved ${name(p)} to ${to}.`, "is-ok"); toast(`Moved ${name(p)} to ${to}`, restore(d)); }
+    } else if (e.key === "Escape") {
+      p.classList.remove("is-picked"); restore(held)(); p.focus(); held = null; say("Put back.");
+    }
+  });
+})();
+</script>
 </body>
 </html>
