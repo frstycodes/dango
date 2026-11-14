@@ -1,18 +1,19 @@
-// Pressable controls: buttons, icon buttons, round media buttons, chips, colour swatches. Each is a
-// RenderOnce that fades its fill, ink and edge over DUR_HOVER the way the design's CSS transitions do
-// (gpui's own `.hover` style swaps in one frame), and keeps the caller's builder chain: `.child`,
-// `.on_click`, `.tooltip`, layout. A fill or ink the caller sets wins over the control's own.
+// Pressable controls: buttons, icon buttons, round media buttons, chips, colour swatches, choice and menu
+// rows. Each is a RenderOnce that fades its fill, ink and edge over DUR_HOVER and eases its press scale over
+// DUR_PRESS, the way the design's CSS transitions do (gpui's own `.hover` and `.active` styles swap in one
+// frame), and keeps the caller's builder chain: `.child`, `.on_click`, `.tooltip`, layout. A fill, ink or
+// corner the caller sets wins over the control's own.
 use std::sync::Arc;
 
 use gpui_kit::{
-    AnyElement, AnyView, App, AppContext, BoxShadow, Div, ElementId, FontWeight, Hsla, InteractiveElement, Interactivity, IntoElement, ParentElement, Render, RenderOnce, SharedString, Stateful,
-    StatefulInteractiveElement, StyleRefinement, Styled, Window,
-    base::{Transition, transition},
+    AnyElement, AnyView, App, AppContext, BoxShadow, Div, ElementId, FontWeight, Hsla, InteractiveElement, Interactivity, IntoElement, MouseButton, ParentElement, Render, RenderOnce, SharedString,
+    Stateful, StatefulInteractiveElement, StyleRefinement, Styled, Window,
+    base::{Easing, Transition, transition},
     component::Icon,
-    div, point, prelude::FluentBuilder, px,
+    div, point, prelude::FluentBuilder, px, relative,
 };
 
-use super::{DUR_HOVER, RADIUS_MD, RADIUS_SM, RADIUS_XS, Tone, mix};
+use super::{DUR_HOVER, DUR_PRESS, RADIUS_MD, RADIUS_SM, RADIUS_XS, SQUIRCLE, Tone, mix};
 use crate::{icons::Glyph, motion, palette};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -24,6 +25,8 @@ enum Kind {
     Swatch,
     Tab(TabKind),
     Field,
+    // Full-width rows (choices, menu items) and bare sides (the stepper's): they fill but never scale.
+    Row,
 }
 
 // The options of a strip (`tabs.rs`): underline tabs, pill tabs, segmented options.
@@ -42,7 +45,7 @@ enum Size {
     Large,
 }
 
-// A control's colours at rest and hovered; pressed snaps to `press`.
+// A control's colours at rest, hovered and pressed; each change fades over the hover timing.
 #[derive(Clone, Copy)]
 struct Look {
     rest: Hsla,
@@ -128,10 +131,19 @@ pub fn swatch(id: impl Into<ElementId>, color: Hsla, on: bool, ring: Hsla) -> Co
     control.when(on, |c| c.child(Icon::new(Glyph::Checkmark).size(px(16.))))
 }
 
-// A bare icon-style control without glyph or tooltip, for callers that draw their own content (stepper sides).
+// A row inside a floating surface (menu, popover, picker): no fill until hovered, then the hover fill and
+// the strong ink fade in. Callers add the lead glyph, the label (`flex_1`) and any trailing mark;
+// `.danger(cx)` makes it the destructive row.
+pub fn menu_row(id: impl Into<ElementId>, cx: &App) -> Control {
+    let hover = palette::hover(cx);
+    let look = Look { rest: gpui_kit::transparent_black(), hover, press: hover, ink: palette::text(cx), ink_hover: palette::strong(cx), edge: None };
+    Control::new(id, Kind::Row, look).base_style(|b| b.w_full().h_auto().min_h(px(34.)).px(px(10.)).py(px(6.)).gap(px(10.)).justify_start().text_size(px(14.)).font_weight(FontWeight::MEDIUM))
+}
+
+// A bare control without glyph or tooltip, for callers that draw their own content (stepper sides).
 pub(super) fn icon_control(id: impl Into<ElementId>, cx: &App) -> Control {
     let look = Look { rest: gpui_kit::transparent_black(), hover: palette::hover(cx), press: palette::press(cx), ink: palette::muted(cx), ink_hover: palette::strong(cx), edge: None };
-    Control::new(id, Kind::Icon, look)
+    Control::new(id, Kind::Row, look)
 }
 
 // A field-shaped trigger (dropdowns): the page fill, an edge that firms on hover and takes the accent while open.
@@ -142,11 +154,11 @@ pub(super) fn field_trigger(id: impl Into<ElementId>, open: bool, cx: &App) -> C
     Control::new(id, Kind::Field, Look { rest: page, hover: page, press: page, ink, ink_hover: ink, edge: Some(edge) }).w_full().justify_start()
 }
 
-// A full-width row around a choice and its text (`ui::choice_row`): no fill until hovered.
+// A full-width row around a choice and its text (`ui::toggle_row`, `ui::pick_row`): no fill until hovered.
 pub(super) fn choice(id: impl Into<ElementId>, cx: &App) -> Control {
     let clear = gpui_kit::transparent_black();
     let ink = palette::text(cx);
-    Control::new(id, Kind::Icon, Look { rest: clear, hover: palette::hover(cx), press: palette::press(cx), ink, ink_hover: ink, edge: None })
+    Control::new(id, Kind::Row, Look { rest: clear, hover: palette::hover(cx), press: palette::press(cx), ink, ink_hover: ink, edge: None })
         .base_style(|b| b.w_full().h_auto().px(px(12.)).py(px(10.)).gap(px(12.)).rounded(px(RADIUS_MD)).justify_start().text_size(px(14.)))
 }
 
@@ -207,6 +219,13 @@ impl Control {
         self
     }
 
+    // The destructive row: danger ink, and on hover the danger fill under white ink.
+    pub fn danger(mut self, cx: &App) -> Self {
+        let fill = palette::danger();
+        self.look = Look { hover: fill, press: fill, ink: palette::danger_ink(cx), ink_hover: gpui_kit::white(), ..self.look };
+        self
+    }
+
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
         self
@@ -234,6 +253,7 @@ impl Control {
             (Kind::Tab(TabKind::Underline), _) => (40., 0., 16.),
             (Kind::Tab(TabKind::Pill), _) => (30., RADIUS_SM, 16.),
             (Kind::Tab(TabKind::Segment), _) => (28., RADIUS_MD - 3., 16.),
+            (Kind::Row, _) => (34., RADIUS_SM, 18.),
         }
     }
 
@@ -250,29 +270,55 @@ impl Control {
             _ => None,
         }
     }
+
+    // How far the design's `:active` scales the control, on which curve; `None` for kinds that hold still.
+    fn press(&self) -> Option<(f32, Easing)> {
+        match self.kind {
+            Kind::Button | Kind::Chip => Some((0.97, motion::ease_out())),
+            Kind::Icon | Kind::Round(_) => Some((0.92, motion::ease_out())),
+            Kind::Swatch => Some((0.9, motion::ease_spring())),
+            Kind::Tab(TabKind::Segment) => Some((0.96, motion::ease_out())),
+            Kind::Tab(_) | Kind::Field | Kind::Row => None,
+        }
+    }
 }
 
-// Whether the pointer is over a control, kept per control so its fill can fade rather than swap.
+// Whether the pointer is over a control and holding it down, kept per control so its fill and scale ease
+// rather than swap.
 #[derive(Default)]
 struct Pointer {
     hovered: bool,
+    pressed: bool,
+}
+
+// Whether the control `id` is held down, for parts that answer the whole control's press (a toggle row's
+// switch swells while the row is held).
+pub(super) fn pressed(id: &ElementId, window: &mut Window, cx: &mut App) -> bool {
+    window.use_keyed_state(part(id, "pointer"), cx, |_, _| Pointer::default()).read(cx).pressed
 }
 
 impl RenderOnce for Control {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let pointer = window.use_keyed_state(part(&self.id, "pointer"), cx, |_, _| Pointer::default());
-        let hovered = pointer.read(cx).hovered && !self.disabled;
+        let (hovered, pressed) = {
+            let p = pointer.read(cx);
+            (p.hovered && !self.disabled, p.pressed && !self.disabled)
+        };
         let t = hover_fade(part(&self.id, "hover"), hovered, window, cx);
+        let scale = self.press().map(|(to, curve)| {
+            let held = transition(part(&self.id, "press"), if pressed { 1. } else { 0. }, Transition::new(DUR_PRESS).easing(curve), window, cx);
+            1. - (1. - to) * held
+        });
         let (height, radius, icon) = self.dimensions();
         let type_and_padding = self.type_and_padding();
         let look = self.look;
-        let (fill, ink) = (mix(look.rest, look.hover, t), mix(look.ink, look.ink_hover, t));
+        let held = hover_fade(part(&self.id, "held"), pressed, window, cx);
+        let (fill, ink) = (mix(mix(look.rest, look.hover, t), look.press, held), mix(look.ink, look.ink_hover, t));
         let mut base = self.base;
         // Whatever the caller set on the builder chain wins over the kind's defaults.
         let caller = base.style().clone();
         let square = matches!(self.kind, Kind::Icon | Kind::Round(_) | Kind::Swatch);
-        // PATCH(transform): while pressed, scale to 0.97 (icon buttons 0.92, swatches 0.9 on the spring)
-        // over DUR_PRESS ease-out; track the press with on_mouse_down/up on `hit_area`.
+        let round = matches!(self.kind, Kind::Round(_));
         base = base
             .when(caller.position.is_none(), |b| b.relative())
             .when(caller.flex_grow.is_none() && caller.flex_shrink.is_none(), |b| b.flex_none())
@@ -283,6 +329,8 @@ impl RenderOnce for Control {
             .when(caller.size.height.is_none(), |b| b.h(px(height)))
             .when(square && caller.size.width.is_none(), |b| b.w(px(height)))
             .when(caller.corner_radii.top_left.is_none(), |b| b.rounded(px(radius)))
+            .when(caller.corner_shape.is_none() && !round, |b| b.corner_shape(SQUIRCLE))
+            .when_some(scale.filter(|s| *s < 1.), |b, s| b.scale(s))
             .when(caller.gap.width.is_none(), |b| b.gap(px(if matches!(self.kind, Kind::Chip | Kind::Tab(_)) { 6. } else { 8. })))
             .when_some(type_and_padding, |b, (pad, size, weight)| {
                 b.when(caller.padding.left.is_none(), |b| b.px(px(pad)))
@@ -293,7 +341,7 @@ impl RenderOnce for Control {
             .when(caller.text.color.is_none(), |b| b.text_color(ink))
             .when_some(look.edge, |b, (rest, hover)| b.border_1().border_color(mix(rest, hover, t)))
             .when_some(self.ring, |b, ring| b.shadow(halo(ring, look.rest)))
-            .when(!self.disabled, |b| b.cursor_pointer().when(caller.background.is_none(), |b| b.active(move |s| s.bg(look.press))))
+            .when(!self.disabled, |b| b.cursor_pointer())
             .when(self.disabled, |b| b.opacity(0.45));
         base.child(hit_area(&self.id, &pointer, self.disabled, window))
             .when_some(self.glyph, |b, glyph| b.child(Icon::new(glyph).size(px(icon))))
@@ -302,8 +350,8 @@ impl RenderOnce for Control {
     }
 }
 
-// The transparent layer that tracks the pointer, so the caller keeps `on_hover` on the control itself.
-// Disabled, it swallows the pointer so the control's own click never fires.
+// The transparent layer that tracks the pointer, so the caller keeps `on_hover` and the mouse handlers
+// on the control itself. Disabled, it swallows the pointer so the control's own click never fires.
 fn hit_area(id: &ElementId, pointer: &gpui_kit::Entity<Pointer>, disabled: bool, window: &mut Window) -> Stateful<Div> {
     div()
         .id(part(id, "hit"))
@@ -315,7 +363,20 @@ fn hit_area(id: &ElementId, pointer: &gpui_kit::Entity<Pointer>, disabled: bool,
             p.hovered = *hovered;
             cx.notify();
         }))
+        .on_mouse_down(MouseButton::Left, hold(pointer, true, window))
+        .on_mouse_up(MouseButton::Left, hold(pointer, false, window))
+        .on_mouse_up_out(MouseButton::Left, hold(pointer, false, window))
         .when(disabled, |d| d.occlude().cursor_not_allowed())
+}
+
+// A mouse listener that records whether the control is held down.
+fn hold<E: 'static>(pointer: &gpui_kit::Entity<Pointer>, held: bool, window: &Window) -> impl Fn(&E, &mut Window, &mut App) + 'static {
+    window.listener_for(pointer, move |p: &mut Pointer, _: &E, _, cx| {
+        if p.pressed != held {
+            p.pressed = held;
+            cx.notify();
+        }
+    })
 }
 
 // A 2px gap in the surface's colour, then a 2px ring in the control's: the chosen swatch.
@@ -367,7 +428,8 @@ impl ParentElement for Control {
     }
 }
 
-// The design's tooltip: inverted ink, 12px semibold, fading in from 0.95 over the hover timing.
+// The design's tooltip: inverted ink, 12px semibold, popping in from 0.95 with its fade over the hover
+// timing. gpui places it just below and right of the pointer, so it grows from its top-left corner.
 pub struct Tip {
     text: SharedString,
 }
@@ -380,18 +442,19 @@ pub fn tip(text: impl Into<SharedString>, _: &mut Window, cx: &mut App) -> AnyVi
 impl Render for Tip {
     fn render(&mut self, _: &mut Window, cx: &mut gpui_kit::Context<Self>) -> impl IntoElement {
         use gpui_kit::{Animation, AnimationExt};
-        // PATCH(transform): scale from 0.95 to 1 with the fade, origin toward the trigger.
         div()
             .max_w(px(240.))
             .px(px(10.))
             .py(px(6.))
             .rounded(px(RADIUS_SM))
+            .corner_shape(SQUIRCLE)
+            .transform_origin(point(relative(0.), relative(0.)))
             .bg(palette::strong(cx))
             .text_color(palette::surface(palette::Level::Page, cx))
             .text_size(px(12.))
             .font_weight(FontWeight::SEMIBOLD)
-            .line_height(gpui_kit::relative(1.35))
+            .line_height(relative(1.35))
             .child(self.text.clone())
-            .with_animation("tip-in", Animation::new(DUR_HOVER).with_easing(|t| motion::ease_out().sample(t)), |tip, t| tip.opacity(t))
+            .with_animation("tip-in", Animation::new(DUR_HOVER).with_easing(|t| motion::ease_out().sample(t)), |tip, t| tip.opacity(t).scale(0.95 + 0.05 * t))
     }
 }

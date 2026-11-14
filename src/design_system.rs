@@ -20,7 +20,7 @@ use crate::{
     mascot::Mood,
     motion,
     palette::{self, Level},
-    ui::{self, Check, Notice, Tone},
+    ui::{self, Check, Notice, Squircle, Tone},
 };
 
 pub fn open(cx: &mut App) {
@@ -56,6 +56,7 @@ pub fn open(cx: &mut App) {
             started: Instant::now(),
             meter: (0, 0.),
             played: [false; 6],
+            password_shown: false,
         })
     })
     .expect("open design system window");
@@ -96,6 +97,7 @@ pub struct DesignSystem {
     members: bool,
     busy: [bool; 2],
     // Fields
+    password_shown: bool,
     device_open: bool,
     slowmode: u32,
     role_colour: usize,
@@ -264,8 +266,7 @@ impl DesignSystem {
                                         .child(ui::button("b-off-1", Tone::Primary, cx).disabled(true).child("Join voice"))
                                         .child(ui::button("b-off-2", Tone::Secondary, cx).disabled(true).child("Invite friends"))
                                         .child(ui::button("b-busy-1", Tone::Primary, cx).loading(busy(0, self).then_some("Saving…")).child("Save changes").on_click(start_busy(0)))
-                                        // GAP: the design's paper-plane glyph isn't among the app's icons.
-                                        .child(ui::button("b-busy-2", Tone::Secondary, cx).loading(busy(1, self).then_some("Sending…")).child("Send invite").on_click(start_busy(1)))
+                                        .child(ui::button("b-busy-2", Tone::Secondary, cx).loading(busy(1, self).then_some("Sending…")).child(glyph(Glyph::PaperPlaneBold)).child("Send invite").on_click(start_busy(1)))
                                         .child(note("Loading keeps the width and shows the wave", cx)),
                                 ),
                             )
@@ -323,8 +324,7 @@ impl DesignSystem {
                     .child(ui::field("Display name", cx).child(input("f-name", &f.name, cx)).child(ui::field_hint("Shown to everyone", Some("3/32".into()), cx)))
                     .child(ui::field("Search", cx).child(input("f-search", &f.search, cx).leading(Icon::new(Glyph::Search).size(px(18.))).trailing(ui::keys(["⌘", "F"], cx))))
                     .child(ui::field("Channel name", cx).child(input("f-channel", &f.channel, cx).leading(div().text_size(px(16.)).child("#"))))
-                    // GAP: the design's show-password toggle is Phosphor's eye, which isn't among the app's glyphs.
-                    .child(ui::field("Password", cx).child(input("f-password", &f.password, cx)))
+                    .child(ui::field("Password", cx).child(input("f-password", &f.password, cx).trailing(self.show_password(cx))))
                     .child(ui::field("Invite link", cx).child(input("f-invite", &f.invite, cx).error(true)).child(ui::field_error("This invite has expired. Ask for a new one.", cx)))
                     .child(ui::field("Username", cx).child(input("f-username", &f.username, cx).disabled(true)).child(ui::field_hint("You can change this once every 30 days", None, cx)))
                     .child(
@@ -365,8 +365,7 @@ impl DesignSystem {
                                     this.drop_over = *over;
                                     cx.notify();
                                 }))
-                                // GAP: the design's upload glyph isn't among the app's icons; the folder stands in.
-                                .child(ui::drop_zone(self.drop_over, Glyph::Folder, "Drop files to upload", cx).child(
+                                .child(ui::drop_zone(self.drop_over, Glyph::Upload, "Drop files to upload", cx).child(
                                     div().flex().items_center().gap(px(4.)).child("Up to 25 MB each, or").child(ui::button("f-browse", Tone::Link, cx).child("browse files")),
                                 )),
                         ),
@@ -375,9 +374,20 @@ impl DesignSystem {
         )
     }
 
+    // The password field's eye: 28px, tucked 6px into the field's padding. The slot is narrowed rather than
+    // given a -6px margin, which taffy mis-measures (see `ui::stacked`).
+    fn show_password(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let label = if self.password_shown { "Hide password" } else { "Show password" };
+        let toggle = ui::icon_button("f-password-eye", Glyph::Eye, label, cx).w(px(28.)).h(px(28.)).on_click(cx.listener(|this, _, window, cx| {
+            this.password_shown = !this.password_shown;
+            let masked = !this.password_shown;
+            this.fields.password.update(cx, |state, cx| state.set_masked(masked, window, cx));
+            cx.notify();
+        }));
+        div().w(px(22.)).h(px(28.)).child(toggle)
+    }
+
     fn choices(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let noise = ui::switch_live("sw-noise", self.noise, window, cx);
-        let echo = ui::switch_live("sw-echo", self.echo, window, cx);
         let checks = [ui::check_live("k-0", if self.checks[0] { Check::On } else { Check::Off }, window, cx), ui::check_live("k-1", if self.checks[1] { Check::On } else { Check::Off }, window, cx), ui::check_live("k-2", Check::Mixed, window, cx)];
         let radios = [ui::radio_live("r-0", self.voice_mode == 0, window, cx), ui::radio_live("r-1", self.voice_mode == 1, window, cx)];
         let this = cx.entity().downgrade();
@@ -408,11 +418,11 @@ impl DesignSystem {
                     .gap(px(16.))
                     .child(
                         stack()
-                            .child(ui::toggle_row("c-noise", "Noise suppression", Some("Removes background sound from your mic".into()), noise, cx).on_click(cx.listener(|this, _, _, cx| {
+                            .child(ui::toggle_row("c-noise", "Noise suppression", Some("Removes background sound from your mic".into()), self.noise, window, cx).on_click(cx.listener(|this, _, _, cx| {
                                 this.noise = !this.noise;
                                 cx.notify();
                             })))
-                            .child(ui::toggle_row("c-echo", "Echo cancellation", Some("Stops others hearing themselves".into()), echo, cx).on_click(cx.listener(|this, _, _, cx| {
+                            .child(ui::toggle_row("c-echo", "Echo cancellation", Some("Stops others hearing themselves".into()), self.echo, window, cx).on_click(cx.listener(|this, _, _, cx| {
                                 this.echo = !this.echo;
                                 cx.notify();
                             }))),
@@ -451,8 +461,7 @@ impl DesignSystem {
                                     ),
                                 ),
                             )
-                            .child(row().children([("Images", Glyph::Folder), ("Links", Glyph::Open), ("Files", Glyph::Copy)].into_iter().enumerate().map(|(i, (name, icon))| {
-                                // GAP: the design's image, link and file glyphs aren't among the app's icons; near ones stand in.
+                            .child(row().children([("Images", Glyph::Image), ("Links", Glyph::Link), ("Files", Glyph::File)].into_iter().enumerate().map(|(i, (name, icon))| {
                                 ui::chip(("chip", i), Some(icon), name, self.chips[i], cx).on_click(cx.listener(move |this, _, _, cx| {
                                     this.chips[i] = !this.chips[i];
                                     cx.notify();
@@ -494,7 +503,7 @@ impl DesignSystem {
                 .flex()
                 .items_center()
                 .gap(px(8.))
-                .child(ui::skeleton((id, 0usize), 20., cx).size(px(40.)).flex_none())
+                .child(ui::skeleton_circle((id, 0usize), 40., cx))
                 .child(
                     stack()
                         .flex_1()
@@ -520,19 +529,19 @@ impl DesignSystem {
                 .child(stack().gap(px(12.)).child(skeleton_row("sk-a", (120., 0.72), false, cx)).child(skeleton_row("sk-b", (90., 0.48), true, cx)))
                 .child(
                     stack()
-                        .child(ui::callout(Notice::Info, Glyph::Help, "Slowmode is on", "You can send one message every 10 seconds.", cx))
-                        .child(ui::callout(Notice::Warning, Glyph::ConnectionAverage, "Your connection is unstable", "Others may hear you cut out. Try a wired connection.", cx).child(ui::button("cl-test", Tone::Secondary, cx).small().self_center().child("Run test")))
-                        .child(ui::callout(Notice::Danger, Glyph::ConnectionBad, "Couldn't send 2 messages", "Wave lost the connection. They're kept below.", cx).child(ui::button("cl-retry", Tone::Secondary, cx).small().self_center().child("Retry all")))
-                        .child(ui::callout(Notice::Success, Glyph::Checkmark, "Two-factor is on", "Keep your backup codes somewhere safe.", cx))
-                        .child(ui::callout(Notice::Accent, Glyph::Inbox, "3 mentions while you were away", "The oldest is in #looking-for-group.", cx).child(ui::button("cl-jump", Tone::Primary, cx).small().self_center().child("Jump to first"))),
+                        .child(ui::callout(Notice::Info, Glyph::InfoFill, "Slowmode is on", "You can send one message every 10 seconds.", cx))
+                        .child(ui::callout(Notice::Warning, Glyph::Warning, "Your connection is unstable", "Others may hear you cut out. Try a wired connection.", cx).child(ui::button("cl-test", Tone::Secondary, cx).small().self_center().child("Run test")))
+                        .child(ui::callout(Notice::Danger, Glyph::XCircle, "Couldn't send 2 messages", "Wave lost the connection. They're kept below.", cx).child(ui::button("cl-retry", Tone::Secondary, cx).small().self_center().child("Retry all")))
+                        .child(ui::callout(Notice::Success, Glyph::CheckCircle, "Two-factor is on", "Keep your backup codes somewhere safe.", cx))
+                        .child(ui::callout(Notice::Accent, Glyph::AtFill, "3 mentions while you were away", "The oldest is in #looking-for-group.", cx).child(ui::button("cl-jump", Tone::Primary, cx).small().self_center().child("Jump to first"))),
                 )
                 .child(
                     div()
                         .grid()
                         .grid_cols(3)
                         .gap(px(16.))
-                        .child(div().rounded(px(ui::RADIUS_LG)).bg(palette::surface(Level::Page, cx)).child(ui::empty_state("empty-idle", Mood::Idle, "No one's around", "None of your friends are online. Invite someone to play.", cx).child(ui::button("e-add", Tone::Primary, cx).mt(px(8.)).child("Add friend"))))
-                        .child(div().rounded(px(ui::RADIUS_LG)).bg(palette::surface(Level::Page, cx)).child(ui::empty_state("empty-wait", Mood::Waiting, "Loading messages…", "Fetching the last 50 messages in #general.", cx))),
+                        .child(div().squircle(ui::RADIUS_LG).bg(palette::surface(Level::Page, cx)).child(ui::empty_state("empty-idle", Mood::Idle, "No one's around", "None of your friends are online. Invite someone to play.", cx).child(ui::button("e-add", Tone::Primary, cx).mt(px(8.)).child("Add friend"))))
+                        .child(div().squircle(ui::RADIUS_LG).bg(palette::surface(Level::Page, cx)).child(ui::empty_state("empty-wait", Mood::Waiting, "Loading messages…", "Fetching the last 50 messages in #general.", cx))),
                 )
                 .child(div().flex().flex_col().items_center().gap(px(8.)).child(ui::toast("toast", Glyph::Checkmark, palette::positive_ink(cx), "Invite link copied", None, cx))),
         )
@@ -567,8 +576,8 @@ impl DesignSystem {
                 .child(div().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(name))
                 .child(note(detail, cx))
                 .child(
-                    div().relative().h(px(40.)).rounded(px(ui::RADIUS_MD)).bg(palette::surface(Level::Page, cx)).child(
-                        div().absolute().top(px(8.)).left(px(8.)).right(px(32.)).h(px(24.)).child(div().absolute().top_0().left(relative(at)).size(px(24.)).rounded(px(8.)).bg(palette::accent())),
+                    div().relative().h(px(40.)).squircle(ui::RADIUS_MD).bg(palette::surface(Level::Page, cx)).child(
+                        div().absolute().top(px(8.)).left(px(8.)).right(px(32.)).h(px(24.)).child(div().absolute().top_0().left(relative(at)).size(px(24.)).squircle(8.).bg(palette::accent())),
                     ),
                 )
                 .on_click(cx.listener(move |this, _, _, cx| {
@@ -598,7 +607,7 @@ fn lede(text: &'static str, cx: &App) -> gpui_kit::Div {
 
 // The design page's board: the sidebar fill, a hairline, the card radius, 24px in.
 fn board(cx: &App) -> gpui_kit::Div {
-    div().p(px(24.)).rounded(px(ui::RADIUS_LG)).bg(palette::surface(Level::Sidebar, cx)).border_1().border_color(palette::line(cx)).flex().flex_col().gap(px(16.))
+    div().p(px(24.)).squircle(ui::RADIUS_LG).bg(palette::surface(Level::Sidebar, cx)).border_1().border_color(palette::line(cx)).flex().flex_col().gap(px(16.))
 }
 
 // A titled group inside a board.
@@ -635,14 +644,14 @@ fn colour(cx: &App) -> impl IntoElement {
             .gap(px(16.))
             .px(px(12.))
             .py(px(8.))
-            .rounded(px(ui::RADIUS_SM))
+            .squircle(ui::RADIUS_SM)
             .bg(page)
             .child(div().flex().gap(px(4.)).child(div().font_weight(FontWeight::SEMIBOLD).text_color(color).child(name)).child(div().text_color(palette::faint(cx)).child(format!("· {use_}"))))
             .child(pass(color, page, cx))
     };
     let swatch = |token: &'static str, name: &'static str, color: Hsla, white_text: bool| {
         div()
-            .rounded(px(ui::RADIUS_MD))
+            .squircle(ui::RADIUS_MD)
             .border_1()
             .border_color(palette::line(cx))
             .bg(palette::surface(Level::Raised, cx))
@@ -654,14 +663,14 @@ fn colour(cx: &App) -> impl IntoElement {
         .child(
             div()
                 .flex()
-                .rounded(px(ui::RADIUS_LG))
+                .squircle(ui::RADIUS_LG)
                 .border_1()
                 .border_color(palette::line(cx))
-                .child(surface("Rail", "--bg-rail", Level::Rail).rounded_l(px(ui::RADIUS_LG - 1.)))
+                .child(surface("Rail", "--bg-rail", Level::Rail).rounded_l(px(ui::RADIUS_LG - 1.)).corner_shape(ui::SQUIRCLE))
                 .child(surface("Sidebar", "--bg-sidebar", Level::Sidebar))
                 .child(surface("Page", "--bg-page", Level::Page))
                 .child(surface("Raised", "--bg-raised", Level::Raised))
-                .child(surface("Overlay", "--bg-overlay", Level::Overlay).rounded_r(px(ui::RADIUS_LG - 1.))),
+                .child(surface("Overlay", "--bg-overlay", Level::Overlay).rounded_r(px(ui::RADIUS_LG - 1.)).corner_shape(ui::SQUIRCLE)),
         )
         .child(h3("Text", cx))
         .child(
@@ -751,7 +760,7 @@ fn space(cx: &App) -> impl IntoElement {
             .text_color(palette::faint(cx))
             .font_family(cx.theme().mono_font_family.clone())
             .child(div().w(px(70.)).child(format!("{n}px")))
-            .child(div().w(px(n * 3.)).h(px(12.)).rounded(px(3.)).bg(palette::accent().opacity(0.8)))
+            .child(div().w(px(n * 3.)).h(px(12.)).squircle(3.).bg(palette::accent().opacity(0.8)))
     };
     let tile = |name: &'static str, radius: f32, use_: &'static str| {
         div()
@@ -760,7 +769,7 @@ fn space(cx: &App) -> impl IntoElement {
             .items_center()
             .gap(px(6.))
             .text_size(px(12.))
-            .child(div().size(px(76.)).rounded(px(radius)).bg(palette::surface(Level::Raised, cx)).border(px(1.5)).border_color(palette::line_strong(cx)))
+            .child(div().size(px(76.)).squircle(radius).bg(palette::surface(Level::Raised, cx)).border(px(1.5)).border_color(palette::line_strong(cx)))
             .child(div().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).font_family(cx.theme().mono_font_family.clone()).child(name))
             .child(div().text_color(palette::faint(cx)).child(use_))
     };
@@ -775,11 +784,11 @@ fn space(cx: &App) -> impl IntoElement {
                     row()
                         .gap(px(16.))
                         .items_start()
-                        .child(tile("xs · 6", ui::RADIUS_XS, "Tags, tooltips"))
-                        .child(tile("sm · 8", ui::RADIUS_SM, "Rows, menu items"))
-                        .child(tile("md · 10", ui::RADIUS_MD, "Buttons, inputs"))
-                        .child(tile("lg · 14", ui::RADIUS_LG, "Cards, tiles, servers"))
-                        .child(tile("xl · 20", ui::RADIUS_XL, "Dialogs")),
+                        .child(tile("xs · 6", 6., "Tags, tooltips"))
+                        .child(tile("sm · 8", 8., "Rows, menu items"))
+                        .child(tile("md · 10", 10., "Buttons, inputs"))
+                        .child(tile("lg · 14", 14., "Cards, tiles, servers"))
+                        .child(tile("xl · 20", 20., "Dialogs")),
                 ),
             ),
     )
@@ -911,9 +920,9 @@ fn layout(cx: &App) -> impl IntoElement {
                     .child(ui::menu_row("m-react", cx).child(div().text_color(palette::muted(cx)).child(glyph(Glyph::EmojiAdd))).child(div().flex_1().child("Add reaction")))
                     .child(ui::menu_row("m-copy", cx).child(div().text_color(palette::muted(cx)).child(glyph(Glyph::Copy))).child(div().flex_1().child("Copy text")))
                     .child(ui::menu_row("m-mark", cx).child(div().flex_1().child("Mark as unread")).child(ui::check(Check::On, cx).size(px(18.))))
-                    .child(ui::menu_row("m-mode", cx).child(div().flex_1().child("Push to talk")).child(ui::radio(false, cx).size(px(18.))))
+                    .child(ui::menu_row("m-mode", cx).child(div().flex_1().child("Push to talk")).child(ui::radio_with(false, 18., palette::line_strong(cx))))
                     .child(div().my(px(4.)).mx(px(8.)).h(px(1.)).bg(palette::line(cx)))
-                    .child(ui::menu_row("m-delete", cx).text_color(palette::danger_ink(cx)).child(glyph(Glyph::Trash)).child("Delete message")),
+                    .child(ui::menu_row("m-delete", cx).danger(cx).child(glyph(Glyph::Trash)).child("Delete message")),
             ),
     )
 }
