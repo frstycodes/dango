@@ -97,7 +97,7 @@
       </aside>
     </div>
   </div>
-  <p class="note" style="margin-top: 8px">Open: the chat column narrows while the panel travels in from the right edge, 260ms on --ease-drawer; closing runs 200ms. The panel keeps its width, so it slides rather than squashes. Reduced motion: it appears and goes at once. Drag the left edge (or focus it and use the arrow keys) between 200 and 380px; double-click resets 264. Resizing turns the motion off so the edge tracks the pointer 1:1.</p>
+  <p class="note" style="margin-top: 8px">Only transform moves. Open: the chat column narrows in one step and the panel slides in from the right edge, 260ms on --ease-drawer. Close: the panel slides out in 200ms, then the chat widens once. Reduced motion: both snap. Drag the left edge (or focus it and use the arrow keys, Shift for bigger steps) between 200 and 380px; double-click resets 264. The edge tracks the pointer 1:1, with the width shown while dragging.</p>
 
   <h3>Anatomy and grip states</h3>
   <div class="pn-cols">
@@ -329,7 +329,7 @@
   <h2>Pinned messages</h2>
   <p class="lede">The channel's pins, newest first, docked in the side panel so you can read them beside the chat. Each one jumps to its place; unpinning is instant and undoable.</p>
   <div class="pn-cols">
-    <div class="pframe" style="height: 520px; width: 320px"><aside class="panel" style="--pw: 320px" id="pins-live">
+    <div class="pframe" style="height: 660px; width: 320px"><aside class="panel" style="--pw: 320px" id="pins-live">
       <div class="panel-head"><i class="ph ph-push-pin"></i><span class="panel-title">Pinned messages</span><div class="panel-acts"><button class="iconbtn" aria-label="Close panel"><i class="ph ph-x"></i></button></div></div>
       <div class="panel-body" style="padding: var(--space-3)">
         <article class="pinrow is-hover"><span class="av" data-av="Theo"></span><div class="pin-head"><b>Theo</b><time>Nov 12</time><span class="pin-acts"><button class="pin-jump">Jump</button><button class="iconbtn iconbtn--sm" data-unpin aria-label="Unpin message" title="Unpin"><i class="ph ph-push-pin-slash"></i></button></span></div><div class="pin-body">Server rules: be kind, no spoilers outside #spoilers, and clips go in #clips.</div></article>
@@ -422,7 +422,7 @@
         <div class="panel-body"><div class="dstate" role="alert"><i class="ph ph-hourglass-medium"></i><b>Search is still indexing</b><p>This server's messages are being indexed. Try again in a minute.</p><button class="btn btn--sm"><i class="ph-bold ph-arrow-clockwise"></i>Search again</button></div></div>
       </aside></div>
     </div>
-    <div class="pframe" style="height: 600px; width: 360px"><aside class="panel" style="--pw: 360px">
+    <div class="pframe" style="height: 460px; width: 360px"><aside class="panel" style="--pw: 360px">
       <div class="panel-head"><i class="ph ph-magnifying-glass"></i><span class="panel-title">Search</span><div class="panel-acts"><button class="iconbtn" aria-label="Close search"><i class="ph ph-x"></i></button></div></div>
       <div class="res-query"><span class="filter"><b>from:</b>Jun<button aria-label="Remove from: Jun"><i class="ph-bold ph-x"></i></button></span><span class="filter"><b>in:</b>#clips<button aria-label="Remove in: #clips"><i class="ph-bold ph-x"></i></button></span><span class="filter term">montage v3<button aria-label="Remove montage v3"><i class="ph-bold ph-x"></i></button></span></div>
       <div class="panel-body"><div class="empty">
@@ -585,7 +585,7 @@
       </div>
     </div>
   </div>
-  <p class="note" style="margin-top: 8px">Live: press the chat toggle. The drawer is 340 wide on the stage's dark tokens, opening 260ms on --ease-drawer and closing 200ms; the unread count shrinks away once it opens. The toggle is the call header's, from <a href="voice.html#call-header" style="color: var(--accent-ink)">Voice, Call header</a>. Mentions in the drawer tint the row like the main feed.</p>
+  <p class="note" style="margin-top: 8px">Live: press the chat toggle. The drawer is 340 wide on the stage's dark tokens. Like the side panel, only transform moves: the tiles make room in one step, the drawer slides in (260ms, --ease-drawer) and out (200ms), and the tiles widen once it has gone. The unread count shrinks away once it opens. The toggle is the call header's, from <a href="voice.html#call-header" style="color: var(--accent-ink)">Voice, Call header</a>. Mentions in the drawer tint the row like the main feed.</p>
 </section>
 
 <!-- Full profile -->
@@ -610,10 +610,10 @@
       <div class="pblock"><b>Member since</b><div class="since"><span><i class="ph ph-waveform"></i>Mar 4, 2021</span></div></div>
       <div class="pblock"><b>Connections</b>
         <div class="conns">
-          <div class="conn"><span class="brand" style="--b: #1db954"><i class="ph-fill ph-spotify-logo"></i></span><div><b>mira.wav<i class="ph-fill ph-seal-check" role="img" aria-label="Verified"></i></b><small>Spotify</small></div><button class="iconbtn iconbtn--sm" aria-label="Open mira.wav on Spotify"><i class="ph ph-arrow-square-out"></i></button></div>
-          <div class="conn"><span class="brand" style="--b: #9146ff"><i class="ph-fill ph-twitch-logo"></i></span><div><b>mirawav_clips<i class="ph-fill ph-seal-check" role="img" aria-label="Verified"></i></b><small>Twitch</small></div><button class="iconbtn iconbtn--sm" aria-label="Open mirawav_clips on Twitch"><i class="ph ph-arrow-square-out"></i></button></div>
-          <div class="conn"><span class="brand" style="--b: #2a475e"><i class="ph-fill ph-steam-logo"></i></span><div><b>MiraTheMontageEditorExtraordinaire</b><small>Steam</small></div><button class="iconbtn iconbtn--sm" aria-label="Open on Steam"><i class="ph ph-arrow-square-out"></i></button></div>
-          <div class="conn"><span class="brand" style="--b: #24292f"><i class="ph-fill ph-github-logo"></i></span><div><b>mira-wav</b><small>GitHub</small></div><button class="iconbtn iconbtn--sm" aria-label="Open mira-wav on GitHub"><i class="ph ph-arrow-square-out"></i></button></div>
+          <div class="conn"><span class="brand" style="--brand-c: #1db954"><i class="ph-fill ph-spotify-logo"></i></span><div><b>mira.wav<i class="ph-fill ph-seal-check" role="img" aria-label="Verified"></i></b><small>Spotify</small></div><button class="iconbtn iconbtn--sm" aria-label="Open mira.wav on Spotify"><i class="ph ph-arrow-square-out"></i></button></div>
+          <div class="conn"><span class="brand" style="--brand-c: #9146ff"><i class="ph-fill ph-twitch-logo"></i></span><div><b>mirawav_clips<i class="ph-fill ph-seal-check" role="img" aria-label="Verified"></i></b><small>Twitch</small></div><button class="iconbtn iconbtn--sm" aria-label="Open mirawav_clips on Twitch"><i class="ph ph-arrow-square-out"></i></button></div>
+          <div class="conn"><span class="brand" style="--brand-c: #2a475e"><i class="ph-fill ph-steam-logo"></i></span><div><b>MiraTheMontageEditorExtraordinaire</b><small>Steam</small></div><button class="iconbtn iconbtn--sm" aria-label="Open on Steam"><i class="ph ph-arrow-square-out"></i></button></div>
+          <div class="conn"><span class="brand" style="--brand-c: #24292f"><i class="ph-fill ph-github-logo"></i></span><div><b>mira-wav</b><small>GitHub</small></div><button class="iconbtn iconbtn--sm" aria-label="Open mira-wav on GitHub"><i class="ph ph-arrow-square-out"></i></button></div>
         </div></div>
       <div class="pblock"><b>Note</b><textarea class="note-field" rows="1" placeholder="Add a note only you can see" aria-label="Note about Mira"></textarea></div>
     </div>
@@ -748,7 +748,7 @@
     <div><p>No results shows an illustration and a "nothing found" line.</p><p><b><a href="#search-results">No results suggests what to drop</a></b>One-click chips remove a filter or widen to all channels, plus a matching tip.</p><p>An empty result is a dead end unless it says how to get a result.</p></div>
     <div><p>The member list has a fixed width.</p><p><b><a href="#side-panel">The side panel resizes</a></b>Drag or arrow keys, 200 to 380px, double-click to reset.</p><p>Long names and wide search results need room on big screens; small screens need the chat back.</p></div>
   </div>
-  <p class="note" style="margin-top: 8px">Discord behaviour as of the reference client used for Wave's port; check against current Discord before quoting it.</p>
+  <p class="note" style="margin-top: 8px">The Discord column describes its desktop client from use, not from a fresh check; confirm a row against current Discord before quoting it.</p>
 </section>
 
 </main>
@@ -788,16 +788,39 @@ document.addEventListener("click", e => {
 const shell = $p("#shell"), shellPanel = $p("#shell-panel"), grip = $p(".panel-grip", shellPanel), hud = $p(".grip-hud", shellPanel);
 const TITLES = { members: "Members", pins: "Pinned messages", threads: "Threads" };
 const DEFAULT_W = 264, MIN_W = 200, MAX_W = 380;
+// Open: the column snaps in and the panel slides. Close: the panel slides out, then the column snaps shut.
+// Ends that bubble up from children (a row's hover fade) don't count.
+function once(el, type, fn) {
+  const h = e => { if (e.target !== el) return; el.removeEventListener(type, h); fn(); };
+  el.addEventListener(type, h);
+}
+function slide(host, isOpen, { opening, closing, closed, openClass, target }) {
+  host.classList.remove(opening, closing);
+  if (isOpen) {
+    if (closed) host.classList.remove(closed);
+    if (openClass) host.classList.add(openClass);
+    if (still()) return;
+    void host.offsetWidth;
+    host.classList.add(opening);
+    once(target, "animationend", () => host.classList.remove(opening));
+    return;
+  }
+  const finish = () => { host.classList.remove(closing); if (closed) host.classList.add(closed); if (openClass) host.classList.remove(openClass); };
+  if (still()) return finish();
+  host.classList.add(closing);
+  once(target, "transitionend", finish);
+}
+const SHELL_SLIDE = { opening: "is-opening", closing: "is-closing", closed: "is-closed", target: shellPanel };
 function showPanel(name) {
-  const open = !shell.classList.contains("is-closed");
+  const open = !shell.classList.contains("is-closed") && !shell.classList.contains("is-closing");
   const current = $p("[data-body]:not([hidden])", shellPanel)?.dataset.body;
-  const closing = open && current === name;
-  shell.classList.toggle("is-closed", closing || !name);
-  shellPanel.inert = closing || !name;
+  const closing = !name || (open && current === name);
+  shellPanel.inert = closing;
   for (const b of $$p("[data-panel]", shell)) b.setAttribute("aria-pressed", !closing && b.dataset.panel === name);
-  if (closing || !name) return;
+  if (closing) return slide(shell, false, SHELL_SLIDE);
   for (const body of $$p("[data-body]", shellPanel)) body.hidden = body.dataset.body !== name;
   $p("#shell-title").textContent = TITLES[name];
+  if (!open) slide(shell, true, SHELL_SLIDE);
 }
 shell.addEventListener("click", e => {
   const b = e.target.closest("[data-panel]");
@@ -887,13 +910,13 @@ $p("#ib-markall").addEventListener("click", () => {
 // Call chat drawer.
 const call = $p("#call-live"), chatToggle = $p("#call-chat-toggle"), drawer = $p("#call-live .cdrawer");
 function setChat(open) {
-  call.classList.toggle("is-chat-open", open);
   drawer.inert = !open;
   chatToggle.setAttribute("aria-pressed", open);
   chatToggle.title = open ? "Hide chat" : "Show chat";
   chatToggle.setAttribute("aria-label", open ? "Chat" : "Chat, 3 unread");
+  slide(call, open, { opening: "is-chat-opening", closing: "is-chat-closing", openClass: "is-chat-open", target: drawer });
 }
-chatToggle.addEventListener("click", e => { e.stopImmediatePropagation(); setChat(!call.classList.contains("is-chat-open")); });
+chatToggle.addEventListener("click", e => { e.stopImmediatePropagation(); setChat(chatToggle.getAttribute("aria-pressed") !== "true"); });
 $p("#call-chat-close").addEventListener("click", () => setChat(false));
 </script>
 </body>

@@ -1,7 +1,7 @@
 /* Corners: squircles everywhere. People, status marks and the wave's bars stay circles and pills. */
 /* superellipse(1.4): continuous like Apple's corners; the spec's `squircle` (2) reads boxy. */
 *, *::before, *::after { corner-shape: superellipse(1.4); }
-.av, .status, .dot, .radio, .ring, .mascot i, .bars i, .switch, .switch::after, .meter i { corner-shape: round; }
+.av, .status, .dot, .radio, .ring, .skeleton.circle, .mascot i, .bars i, .switch, .switch::after, .meter i { corner-shape: round; }
 
 /* Mascot: the logo's five bars, moving with a mood */
 .mascot { display: flex; align-items: center; gap: calc(5px * var(--s, 1)); height: calc(66px * var(--s, 1)); }
@@ -204,8 +204,8 @@
 
 /* Progress and meters */
 /* Progress: the done part, a gap, then what's left. --v is a percentage. */
-@property --a { syntax: "<percentage>"; inherits: true; initial-value: 0%; }
-@property --b { syntax: "<percentage>"; inherits: true; initial-value: 30%; }
+@property --progress-from { syntax: "<percentage>"; inherits: true; initial-value: 0%; }
+@property --progress-to { syntax: "<percentage>"; inherits: true; initial-value: 30%; }
 .progress { --gap: 4px; position: relative; height: 6px; }
 .progress > span, .progress::before, .progress::after { position: absolute; top: 0; bottom: 0; }
 .progress > span { border-radius: 3px 2px 2px 3px; }
@@ -215,10 +215,10 @@
 .progress > span { left: 0; width: max(0px, calc(var(--v, 40%) - var(--gap) / 2)); background: var(--accent); transition: width var(--dur-panel) var(--ease-out); }
 .progress::after { content: ""; right: 0; left: min(100%, calc(var(--v, 40%) + var(--gap) / 2)); background: var(--line-strong); transition: left var(--dur-panel) var(--ease-out); }
 .progress--indeterminate { animation: travel 1.6s var(--ease-move) infinite; }
-.progress--indeterminate > span { left: var(--a); width: calc(var(--b) - var(--a)); transition: none; }
-.progress--indeterminate::before { content: ""; left: 0; width: max(0px, calc(var(--a) - var(--gap))); background: var(--line-strong); }
-.progress--indeterminate::after { left: min(100%, calc(var(--b) + var(--gap))); transition: none; }
-@keyframes travel { 0% { --a: 0%; --b: 0%; } 60% { --a: 45%; --b: 100%; } 100% { --a: 100%; --b: 100%; } }
+.progress--indeterminate > span { left: var(--progress-from); width: calc(var(--progress-to) - var(--progress-from)); transition: none; }
+.progress--indeterminate::before { content: ""; left: 0; width: max(0px, calc(var(--progress-from) - var(--gap))); background: var(--line-strong); }
+.progress--indeterminate::after { left: min(100%, calc(var(--progress-to) + var(--gap))); transition: none; }
+@keyframes travel { 0% { --progress-from: 0%; --progress-to: 0%; } 60% { --progress-from: 45%; --progress-to: 100%; } 100% { --progress-from: 100%; --progress-to: 100%; } }
 .meter { display: flex; align-items: center; gap: 3px; height: 20px; }
 .meter i { flex: 1; min-width: 3px; height: 100%; border-radius: 9px; background: var(--line-strong); transition: background 60ms; }
 .meter i.on { background: var(--online); }
