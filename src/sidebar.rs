@@ -187,7 +187,7 @@ impl Rustcord {
                 .px_1()
                 .rounded_full()
                 .border_2()
-                .border_color(theme.sidebar)
+                .border_color(theme.title_bar)
                 .bg(theme.danger)
                 .text_color(gpui_kit::white())
                 .text_size(px(11.))
@@ -453,6 +453,7 @@ impl Rustcord {
         );
         let degrees = chevron.target().x_px();
         let muted = cx.theme().muted_foreground;
+        let strong = palette::strong(cx);
         let id = category.id.clone();
         let category_for_menu = category.clone();
         let label = div()
@@ -476,7 +477,7 @@ impl Rustcord {
                 }
                 cx.notify();
             }))
-            .drag_over::<crate::drag::ChannelDrag>(|s, _, _, _| s.text_color(gpui_kit::rgb(0xDCDCDF)))
+            .drag_over::<crate::drag::ChannelDrag>(move |s, _, _, _| s.text_color(strong))
             .on_drop({
                 let category = category_for_menu.clone();
                 cx.listener(move |this, drag: &crate::drag::ChannelDrag, _, cx| this.drop_channel(drag, &category, crate::drag::Place::Into, cx))
@@ -515,7 +516,7 @@ impl Rustcord {
         let lead_color = if in_this_call { palette::status(Status_::Online) } else { theme.muted_foreground };
         let lead = div().size(px(20.)).flex_none().flex().items_center().justify_center().text_color(lead_color).child(Icon::new(glyph).size(px(20.)));
         let elapsed = self.call.as_ref().filter(|c| c.channel.id == channel.id && c.connected).and_then(|_| self.voice_elapsed(&channel.id)).map(|secs| {
-            div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::status(Status_::Online)).child(format!("{}:{:02}", secs / 60, secs % 60))
+            div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::positive_ink(cx)).child(format!("{}:{:02}", secs / 60, secs % 60))
         });
         let row = div()
             .id(SharedString::from(channel.id.clone()))
@@ -533,8 +534,8 @@ impl Rustcord {
             .text_color(match (selected, unread, muted) {
                 (true, _, _) | (_, true, _) => crate::palette::strong(cx),
                 // --text-muted at 50%, Discord's muted channel.
-                (_, _, true) => Hsla::from(gpui_kit::rgb(0x81828A)).opacity(0.5),
-                _ => gpui_kit::rgb(0x7A7B83).into(),
+                (_, _, true) => palette::faint(cx),
+                _ => theme.muted_foreground,
             })
             .child(lead)
             .child(div().flex_1().truncate().child(channel.name.clone()))
@@ -548,9 +549,10 @@ impl Rustcord {
             let join = channel.clone();
             let in_call = self.call.as_ref().is_some_and(|c| c.channel.id == channel.id);
             let drop_target = channel.clone();
+            let drop_wash = theme.sidebar_accent;
             rows.push(
                 row.when(in_call, |r| r.text_color(theme.foreground))
-                    .drag_over::<crate::drag::VoiceDrag>(|s, _, _, _| s.bg(Hsla::from(gpui_kit::rgb(0x97979F)).opacity(0.2)))
+                    .drag_over::<crate::drag::VoiceDrag>(move |s, _, _, _| s.bg(drop_wash))
                     .on_drop(cx.listener(move |this, drag: &crate::drag::VoiceDrag, _, cx| this.drop_voice_user(drag, drop_target.clone(), cx)))
                     .on_click(cx.listener(move |this, _, window, cx| this.show_call(join.clone(), window, cx)))
                     .on_mouse_down(gpui_kit::MouseButton::Right, {
@@ -618,7 +620,7 @@ impl Rustcord {
                         .when(state.muted, |r| r.child(Icon::new(Glyph::MicOff).size(px(16.))))
                         .when(state.deafened, |r| r.child(Icon::new(Glyph::HeadphonesOff).size(px(16.))))
                         .when(state.streaming, |r| {
-                            r.child(div().h(px(16.)).px_1().rounded(px(4.)).bg(theme.danger).text_color(gpui_kit::white()).text_size(px(10.)).font_weight(FontWeight::BOLD).flex().items_center().child("LIVE"))
+                            r.child(div().h(px(16.)).px_1().rounded(px(4.)).bg(palette::live()).text_color(gpui_kit::white()).text_size(px(10.)).font_weight(FontWeight::BOLD).flex().items_center().child("LIVE"))
                         })
                         .on_mouse_down(gpui_kit::MouseButton::Right, {
                             let user_id = state.user_id.clone();
@@ -720,8 +722,8 @@ impl Rustcord {
                     .border_l_1()
                     .border_b_1()
                     .rounded_bl(px(8.))
-                    .border_color(Hsla::from(gpui_kit::rgb(0x97979F)).opacity(0.4));
-                let rail = (i + 1 < count).then(|| div().absolute().left(px(16.)).top(px(16.)).bottom(px(-ROW_GAP)).w(px(1.)).bg(Hsla::from(gpui_kit::rgb(0x97979F)).opacity(0.4)));
+                    .border_color(palette::wash(0.4));
+                let rail = (i + 1 < count).then(|| div().absolute().left(px(16.)).top(px(16.)).bottom(px(-ROW_GAP)).w(px(1.)).bg(palette::wash(0.4)));
                 let row = div()
                     .id(SharedString::from(format!("thread-{}", thread.id)))
                     .relative()
@@ -734,7 +736,7 @@ impl Rustcord {
                     .rounded(px(8.))
                     .cursor_pointer()
                     .font_weight(FontWeight::MEDIUM)
-                    .text_color(if selected || unread { crate::palette::strong(cx) } else { gpui_kit::rgb(0x7A7B83).into() })
+                    .text_color(if selected || unread { crate::palette::strong(cx) } else { theme.muted_foreground })
                     .child(div().flex_1().truncate().child(thread.name.clone()))
                     .on_click(cx.listener(move |this, _, window, cx| this.open_channel(target.clone(), window, cx)))
                     .on_mouse_down(gpui_kit::MouseButton::Right, cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_thread_menu(menu_thread.clone(), guild_id.clone(), e.position, cx)));

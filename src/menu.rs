@@ -5,12 +5,12 @@
 use std::rc::Rc;
 
 use gpui_kit::{
-    AnyElement, Context, Div, FontWeight, Hsla, MouseButton, Pixels, Point, SharedString, Window,
+    AnyElement, Context, Div, FontWeight, MouseButton, Pixels, Point, SharedString, Window,
     component::{ActiveTheme, Icon, input::Input},
-    div, prelude::*, px, rgb,
+    div, prelude::*, px,
 };
 
-use crate::{Rustcord, icons::Glyph, palette, settings::Fill};
+use crate::{Rustcord, icons::Glyph, palette::{self, wash}, settings::Fill};
 
 pub type Act = Rc<dyn Fn(&mut Rustcord, &mut Window, &mut Context<Rustcord>)>;
 type Build = Rc<dyn Fn(&Rustcord) -> Vec<Entry>>;
@@ -358,14 +358,13 @@ impl Rustcord {
     }
 
     fn menu_row(&self, item: &Item, path: Vec<usize>, sub_open: bool, theme: &gpui_kit::component::Theme, cx: &mut Context<Self>) -> impl IntoElement {
-        let danger: Hsla = rgb(0xEB5F5E).into();
+        let danger = palette::danger_ink(cx);
         let ink = match (item.danger, item.brand) {
             (true, _) => danger,
-            (_, true) if cx.theme().is_dark() => rgb(0x949CF7).into(),
-            (_, true) => palette::blurple(),
+            (_, true) => palette::accent_ink(cx),
             _ => palette::strong(cx),
         };
-        let hover_bg = if item.danger { danger.opacity(0.08) } else { wash(0.12) };
+        let hover_bg = if item.danger { danger.opacity(0.08) } else { theme.list_hover };
         let has_sub = !item.sub.is_empty();
         let checkbox = item.check.map(|on| {
             div()
@@ -431,7 +430,7 @@ impl Rustcord {
     pub(crate) fn render_dialog(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let dialog = self.dialog.as_ref()?;
         let theme = cx.theme().clone();
-        let fill: Hsla = if dialog.danger { rgb(0xDA3E44).into() } else { palette::blurple() };
+        let fill = if dialog.danger { theme.danger } else { theme.primary };
         let submit = cx.listener(|this, _, window, cx| {
             let Some(dialog) = this.dialog.take() else { return };
             let value = this.dialog_input.read(cx).value().to_string();
@@ -603,10 +602,6 @@ impl Rustcord {
                 .into_any_element(),
         )
     }
-}
-
-fn wash(alpha: f32) -> Hsla {
-    Hsla::from(rgb(0x97979F)).opacity(alpha)
 }
 
 #[cfg(test)]
