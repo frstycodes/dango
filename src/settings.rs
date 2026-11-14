@@ -13,7 +13,7 @@ use crate::{
     Rustcord,
     hotkeys::{self, Action, Keybind},
     icons::Glyph,
-    palette,
+    palette::{self, wash},
     sounds::{self, Cue},
     voice,
 };
@@ -1281,11 +1281,6 @@ pub(crate) enum Fill {
     Threshold(Option<f32>),
 }
 
-// Discord's neutral wash (#97979F) behind hovers, selections and field edges.
-fn wash(alpha: f32) -> Hsla {
-    Hsla::from(rgb(0x97979F)).opacity(alpha)
-}
-
 // Inputs sit a shade below the page: black 12% on Midnight, a lighter touch on white.
 fn field_fill(cx: &App) -> Hsla {
     gpui_kit::black().opacity(if cx.theme().is_dark() { 0.12 } else { 0.03 })
@@ -1431,11 +1426,11 @@ fn expander(id: &'static str, title: &str, detail: &'static str, open: bool, the
 }
 
 fn primary_button(id: &'static str, text: &'static str) -> Stateful<Div> {
-    button(id, text, palette::blurple(), rgb(0x4752C4).into())
+    button(id, text, palette::blurple(), palette::blurple_hover())
 }
 
 fn danger_button(id: &'static str, text: &'static str) -> Stateful<Div> {
-    button(id, text, rgb(0xDA3E44).into(), rgb(0xA2212B).into())
+    button(id, text, palette::danger(), palette::danger_hover())
 }
 
 fn button(id: &'static str, text: &'static str, fill: Hsla, hover: Hsla) -> Stateful<Div> {

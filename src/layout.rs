@@ -33,7 +33,7 @@ impl Render for Rustcord {
             .size_full()
             .flex()
             .flex_col()
-            .bg(theme.sidebar)
+            .bg(theme.title_bar)
             .text_color(theme.foreground)
             .text_size(px(16.))
             .on_key_down(cx.listener(Self::on_root_key))
@@ -353,7 +353,7 @@ impl Rustcord {
                                             .gap_1()
                                             .text_size(px(12.))
                                             .text_color(theme.muted_foreground)
-                                            .child(Icon::new(Glyph::Screen).size(px(14.)).text_color(gpui_kit::rgb(0x41A063)))
+                                            .child(Icon::new(Glyph::Screen).size(px(14.)).text_color(theme.success))
                                             .child(div().truncate().child("Sharing their screen")),
                                         false => div().truncate().text_size(px(12.)).text_color(theme.muted_foreground).child(status_line),
                                     }),
