@@ -161,6 +161,7 @@ fn data_dir() -> Option<std::path::PathBuf> {
 }
 
 // The quietest mic level the meters show, in dBFS.
+const SELF_VIEW_INTERVAL: Duration = Duration::from_millis(66);
 const SILENCE_DB: f32 = -100.;
 
 // A voice channel we're in. Dropping it leaves the channel.
@@ -184,6 +185,11 @@ struct Call {
     sharing: Option<voice::GoLive>,
     // What we're sharing, as the Go Live panel names it ("Screen 1", an app, a window).
     share_label: Option<String>,
+    // The source behind `sharing`, kept so a quality change can restart the same stream.
+    share_source: Option<voice::ShareSource>,
+    live_since: Option<Instant>,
+    // Our own Go Live from its local frames, for the panel thumbnail and the self-view.
+    self_view: Option<(Arc<RenderImage>, Instant)>,
     _events: Task<()>,
 }
 
@@ -331,6 +337,12 @@ pub struct Rustcord {
     // When the pointer last moved over the call view; the bar and header fade out after a while.
     call_pointer_at: Instant,
     call_strip_hidden: bool,
+    // Our stream's self-view: shown, and which corner of the stage it sits in.
+    pip_shown: bool,
+    pip_corner: crate::call::Corner,
+    pip_drag: Option<crate::call::PipDrag>,
+    // Where a released self-view glides from, and when it let go.
+    pip_snap: Option<((f32, f32), Instant)>,
     // Bumped on each Go Live so an earlier stream's preview uploads stop.
     preview_generation: u64,
     // The call view filling the screen on its own, as Discord's full screen does.
@@ -488,6 +500,10 @@ impl Rustcord {
             call_pointer_at: Instant::now(),
             call_strip_hidden: false,
             preview_generation: 0,
+            pip_shown: true,
+            pip_corner: crate::call::Corner::TopRight,
+            pip_drag: None,
+            pip_snap: None,
             call_fullscreen: false,
             voice_start: HashMap::new(),
             channel_info_requested: HashSet::new(),
@@ -1771,7 +1787,7 @@ impl Rustcord {
             }
         })
         .detach();
-        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: None, sharing: None, share_label: None, _events: task });
+        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: None, sharing: None, share_label: None, share_source: None, live_since: None, self_view: None, _events: task });
         cx.notify();
     }
 
@@ -1832,6 +1848,19 @@ impl Rustcord {
                 }
             }
             voice::VoiceEvent::StreamFrame { user_id, source: voice::VideoSource::GoLive, frame } => {
+                let mine = self.me.as_ref().is_some_and(|m| m.id == user_id);
+                let watching_self = call.watching.as_ref().is_some_and(|w| w.streamer_id == user_id);
+                // The self-view runs at 15 fps: a full-rate copy of every frame isn't worth it for a thumbnail.
+                if mine && !watching_self {
+                    if call.self_view.as_ref().is_some_and(|(_, at)| at.elapsed() < SELF_VIEW_INTERVAL) {
+                        return;
+                    }
+                    let Some(image) = render_image(&frame) else { return };
+                    if let Some((old, _)) = call.self_view.replace((image, Instant::now())) {
+                        cx.drop_image(old, None);
+                    }
+                    return cx.notify();
+                }
                 let Some(watching) = call.watching.as_mut().filter(|w| w.streamer_id == user_id) else { return };
                 let Some(image) = render_image(&frame) else { return };
                 if let Some(old) = watching.frame.replace(image) {
@@ -1909,6 +1938,11 @@ impl Rustcord {
         let Some(call) = &mut self.call else { return };
         if call.sharing.take().is_some() {
             sounds::play(sounds::Cue::StreamEnded);
+            call.share_source = None;
+            call.live_since = None;
+            if let Some((frame, _)) = call.self_view.take() {
+                cx.drop_image(frame, None);
+            }
             if self.me.as_ref().is_some_and(|m| call.watching.as_ref().is_some_and(|w| w.streamer_id == m.id)) {
                 self.stop_watching(cx);
             }
@@ -1919,17 +1953,41 @@ impl Rustcord {
 
     fn start_share(&mut self, source: voice::ShareSource, cx: &mut Context<Self>) {
         self.close_share_picker(cx);
-        let Some(call) = &mut self.call else { return };
+        let label = self.share_choice_label.take();
+        if self.go_live(source, cx) {
+            if let Some(call) = &mut self.call {
+                call.share_label = label;
+                call.live_since = Some(Instant::now());
+            }
+            self.pip_shown = true;
+            sounds::play(sounds::Cue::StreamStarted);
+        }
+        cx.notify();
+    }
+
+    // Starts (or restarts) our Go Live of `source` with the current quality prefs.
+    fn go_live(&mut self, source: voice::ShareSource, cx: &mut Context<Self>) -> bool {
+        let Some(call) = &mut self.call else { return false };
         let options = voice::GoLiveOptions { resolution: self.prefs.stream_resolution, fps: self.prefs.stream_fps, audio: self.prefs.stream_audio };
         match call.session.go_live_with_options(source, options) {
             Ok(live) => {
                 call.sharing = Some(live);
-                call.share_label = self.share_choice_label.take();
+                call.share_source = Some(source);
                 self.upload_stream_previews(source, cx);
-                sounds::play(sounds::Cue::StreamStarted);
+                true
             }
-            Err(error) => self.voice_error = Some(error.into()),
+            Err(error) => {
+                self.voice_error = Some(error.into());
+                false
+            }
         }
+    }
+
+    // Quality and sound changes take effect by restarting the same stream; viewers rejoin it.
+    pub(crate) fn restart_share(&mut self, cx: &mut Context<Self>) {
+        let Some(call) = self.call.as_mut() else { return };
+        let Some(source) = call.share_source.filter(|_| call.sharing.take().is_some()) else { return };
+        self.go_live(source, cx);
         cx.notify();
     }
 

@@ -113,7 +113,7 @@ fn demo_call(chord: &mut Rustcord) {
         camera_on: false,
         watching: None,
         sharing: None,
-        share_label: None,
+        share_source: None, live_since: None, self_view: None, share_label: None,
         _events: gpui_kit::Task::ready(()),
     });
     chord.call_view = true;
