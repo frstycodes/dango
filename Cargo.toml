@@ -110,3 +110,12 @@ windows = { version = "0.62", features = [
     "Win32_UI_Shell_PropertiesSystem",
     "Win32_UI_WindowsAndMessaging",
 ] }
+
+# Wave's gpui patches (transforms, squircle corners, backdrop blur), applied to vendored copies of the
+# exact versions gpui-kit pins. Drop each crate here once upstream ships the same feature.
+[patch.crates-io]
+gpui-pre = { path = "vendor/gpui-pre" }
+gpui-pre-apple = { path = "vendor/gpui-pre-apple" }
+gpui-pre-windows = { path = "vendor/gpui-pre-windows" }
+gpui-pre-wgpu = { path = "vendor/gpui-pre-wgpu" }
+gpui-pre-macos = { path = "vendor/gpui-pre-macos" }
