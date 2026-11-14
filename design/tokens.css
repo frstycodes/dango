@@ -34,14 +34,14 @@
   --space-8: 32px;
   --space-12: 48px;
 
-  /* Radius, drawn as squircles (corner-shape in css/primitives.css): a squircle reads tighter than a
-     circular arc of the same radius, so these run larger. Controls 12, surfaces 18, dialogs 26;
-     pills only for counts, status and the wave's bars. */
+  /* Radius, drawn with a soft squircle (corner-shape in css/primitives.css). A squircle's curve hugs
+     the corner, so radii run ~1.4x a circular arc's to read as soft, not boxy. Controls 14, surfaces 20,
+     dialogs 28; pills only for counts, status and the wave's bars. */
   --radius-xs: 8px;
-  --radius-sm: 10px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
-  --radius-xl: 26px;
+  --radius-sm: 11px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
   --radius-full: 999px;
 
   /* Motion */

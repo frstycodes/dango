@@ -1,5 +1,6 @@
 /* Corners: squircles everywhere. People, status marks and the wave's bars stay circles and pills. */
-*, *::before, *::after { corner-shape: squircle; }
+/* superellipse(1.4): continuous like Apple's corners; the spec's `squircle` (2) reads boxy. */
+*, *::before, *::after { corner-shape: superellipse(1.4); }
 .av, .status, .dot, .radio, .ring, .mascot i, .bars i, .switch, .switch::after, .meter i { corner-shape: round; }
 
 /* Mascot: the logo's five bars, moving with a mood */

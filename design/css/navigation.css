@@ -190,6 +190,14 @@ button.cat:hover, .cat.is-hover { background: var(--hover); color: var(--text-st
 
 /* Member list (base rows live in voice.css; these extend them) */
 /* voice.css styles every span in a row as an activity line; give avatars back their own layout. */
+.members { background: var(--bg-sidebar); padding: 12px 8px; overflow: auto; --bg-ring: var(--bg-sidebar); }
+.mem { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 8px; border-radius: var(--radius-sm); transition: background var(--dur-hover); cursor: pointer; }
+.mem:hover { background: var(--hover); }
+.mem > div { min-width: 0; line-height: 1.25; }
+.mem b { display: flex; gap: 6px; align-items: center; color: var(--text-strong); font-weight: var(--weight-medium); white-space: nowrap; }
+.mem span { display: flex; align-items: center; gap: 4px; color: var(--text-faint); font-size: var(--text-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mem span i { font-size: 13px; }
+.mem.off { opacity: 0.5; }
 .mem .av { display: grid; overflow: visible; font-size: calc(var(--size) * 0.38); color: #fff; }
 .members .mem.off { opacity: 1; }
 .members .mem.off b { color: var(--text-faint); }
