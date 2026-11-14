@@ -1,8 +1,13 @@
 // Dragging servers and folders in the rail, as in Discord: the top and bottom quarter of a target
 // reorder, the middle combines (server on server makes a folder, server on folder joins it).
-use gpui_kit::{Context, IntoElement, Render, SharedString, Window, div, img, prelude::*, px};
+use gpui_kit::{Context, IntoElement, Render, SharedString, Window, div, prelude::*, px};
 
-use crate::{Rustcord, discord::Folder, icons::Glyph, sidebar::identity_tile};
+use crate::{
+    Rustcord,
+    discord::Folder,
+    sidebar::{Face, initials, render_face},
+    ui,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Drop {
@@ -32,14 +37,16 @@ pub struct RailDrag {
     pub label: SharedString,
 }
 
+// The dragged tile hangs from the grab point with the pop shadow (.srv.dragging).
+// PATCH(transform): rotate(-4deg) scale(1.04) from the grab point.
 impl Render for RailDrag {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let face = match (&self.icon, self.key.starts_with("folder-")) {
-            (_, true) => div().size(px(40.)).rounded(px(12.)).bg(crate::palette::accent().opacity(0.3)).flex().items_center().justify_center().child(gpui_kit::component::Icon::new(Glyph::Folder).size(px(22.))).into_any_element(),
-            (Some(url), _) => img(url.clone()).size(px(40.)).rounded(px(12.)).into_any_element(),
-            (None, _) => identity_tile(&self.key, self.label.clone(), 14.).size(px(40.)).rounded(px(12.)).into_any_element(),
+            (_, true) => Face::Folder { tint: crate::palette::faint(cx), minis: Vec::new() },
+            (Some(url), _) => Face::Icon(url.clone()),
+            (None, _) => Face::Letters(initials(&self.label)),
         };
-        div().opacity(0.85).child(face)
+        div().rounded(px(ui::RADIUS_LG)).shadow_lg().child(render_face(face, 44., ui::RADIUS_LG, false, 0., cx))
     }
 }
 

@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | gallery | profile | emoji | switcher | status | unread | stream-card | login | scanned | failed | empty.
+// CHORD_DEMO=chat | gallery | profile | emoji | switcher | status | unread | home | folder | stream-card | login | scanned | failed | empty.
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -49,6 +49,13 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         }
         "appearance" => chord.open_settings(crate::settings::Page::Appearance, window, cx),
         "unread" => chord.unread_marker = Some(103),
+        "home" => {
+            chord.restore = None;
+            chord.open_home(cx);
+        }
+        "folder" => {
+            chord.open_folders.insert("9".into());
+        }
         "stream-card" => {
             let key = "guild:1:lounge:12582912".to_owned();
             let blender = Activity { kind: ActivityKind::Playing, text: "Blender".into(), more: 0 };
