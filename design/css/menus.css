@@ -55,15 +55,6 @@
 .cm-open { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
 /* Better than Discord: one row per change */
-.cm-better { display: grid; gap: var(--space-2); }
-.cm-bt { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: var(--space-4); align-items: start; padding: var(--space-4); border-radius: var(--radius-md); background: var(--bg-page); }
-.cm-bt > div { display: grid; gap: 2px; min-width: 0; }
-.cm-bt small { color: var(--text-muted); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
-.cm-bt p { color: var(--text); text-wrap: pretty; }
-.cm-bt > div:nth-child(2) p { color: var(--text-strong); }
-.cm-bt a { color: var(--accent-ink); font-weight: var(--weight-semibold); white-space: nowrap; text-decoration: none; }
-.cm-bt a:hover { text-decoration: underline; }
-@media (max-width: 860px) { .cm-bt { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); } }
 
 /* Links inside demo notes; long rows inside a scrolling menu list truncate */
 .cm-note a { color: var(--accent-ink); font-weight: var(--weight-semibold); text-decoration: none; }
