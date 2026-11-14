@@ -228,7 +228,7 @@ pub fn avatar_stack(urls: impl IntoIterator<Item = String>, size: f32, ring: Hsl
 // so nothing reaches the rounded edge.
 pub fn surface(cx: &App) -> Div {
     let theme = cx.theme();
-    div().rounded(px(RADIUS_XL)).border_1().border_color(palette::wash(0.2)).bg(theme.popover).shadow_lg().p(px(SURFACE_INSET)).flex().flex_col()
+    div().rounded(px(RADIUS_LG)).border_1().border_color(palette::wash(0.2)).bg(theme.popover).shadow_lg().p(px(SURFACE_INSET)).flex().flex_col()
 }
 
 // A row inside a surface: hover fills blurple like Discord's menus, and stays inset by the
