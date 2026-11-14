@@ -647,8 +647,7 @@ impl Rustcord {
             .font_weight(FontWeight::SEMIBOLD)
             .text_color(muted)
             .child(
-                div()
-                    .id("settings-close")
+                ui::pressable(div().id("settings-close"), 0.94)
                     .size(px(36.))
                     .rounded_full()
                     .border(px(1.5))
@@ -660,7 +659,6 @@ impl Rustcord {
                     .cursor_pointer()
                     .text_color(muted)
                     .hover(move |s| s.bg(hover).text_color(strong))
-                    .active(|s| s.scale(0.94))
                     .child(Icon::new(Glyph::X).size(px(18.)))
                     .on_click(cx.listener(|this, _, _, cx| this.close_settings(cx))),
             )
@@ -896,8 +894,7 @@ impl Rustcord {
         let os_dark = matches!(window.appearance(), gpui_kit::WindowAppearance::Dark | gpui_kit::WindowAppearance::VibrantDark);
         let pick = |id: &'static str, pref: ThemePref, preview: AnyElement, label: &'static str, note: Option<&'static str>, cx: &mut Context<Self>| {
             let on = current == pref;
-            div()
-                .id(id)
+            ui::pressable(div().id(id), 0.97)
                 .flex_1()
                 .min_w_0()
                 .pt(px(6.))
@@ -915,7 +912,6 @@ impl Rustcord {
                     let hover = palette::hover(cx);
                     d.hover(move |s| s.bg(hover))
                 })
-                .active(|s| s.scale(0.97))
                 .child(
                     div()
                         .squircle(ui::RADIUS_MD)
@@ -955,8 +951,7 @@ impl Rustcord {
         let tiles = crate::app_icon::AppIcon::ALL.map(|icon| {
             let on = icon == current;
             let hover = palette::hover(cx);
-            div()
-                .id(SharedString::from(format!("app-icon-{}", icon.label())))
+            ui::pressable(div().id(SharedString::from(format!("app-icon-{}", icon.label()))), 0.95)
                 .w(px(88.))
                 .pt(px(10.))
                 .px(px(4.))
@@ -972,7 +967,6 @@ impl Rustcord {
                 .text_color(if on { palette::strong(cx) } else { palette::text(cx) })
                 .when(on, |d| d.bg(palette::selected(cx)).shadow(vec![inset_ring(palette::accent(), 2.)]))
                 .when(!on, |d| d.hover(move |s| s.bg(hover)))
-                .active(|s| s.scale(0.95))
                 .child(img(icon.asset()).size(px(56.)))
                 .child(icon.label())
                 .children((icon == crate::app_icon::AppIcon::default()).then(|| div().mt(px(-4.)).font_weight(FontWeight::NORMAL).text_color(palette::muted(cx)).child("Default")))

@@ -408,8 +408,7 @@ impl Rustcord {
         }
         let overlay = palette::surface(Level::Overlay, cx);
         let hover = ui::mix(overlay, palette::strong(cx), 0.06);
-        let capsule = div()
-            .id("jump-to-present")
+        let capsule = ui::pressable(div().id("jump-to-present"), 0.97)
             .h(px(32.))
             .px(px(14.))
             .flex()
@@ -419,7 +418,6 @@ impl Rustcord {
             .bg(overlay)
             .shadow(ui::shadow_pop(cx))
             .cursor_pointer()
-            .active(|s| s.scale(0.97))
             .whitespace_nowrap()
             .text_size(px(14.))
             .font_weight(FontWeight::SEMIBOLD)
@@ -969,9 +967,7 @@ fn thread_card(thread: &Channel, ctx: &Rc<RowContext>, cx: &App) -> AnyElement {
     let archived = meta.is_some_and(|t| t.archived);
     let (this, open) = (ctx.this.clone(), thread.clone());
     let edge = palette::line_strong(cx);
-    div()
-        .id(SharedString::from(format!("thread-card-{}", thread.id)))
-        .active(|s| s.scale(0.99))
+    ui::pressable(div().id(SharedString::from(format!("thread-card-{}", thread.id))), 0.99)
         .mt(px(8.))
         .w_full()
         .max_w(px(COLUMN))
@@ -1338,11 +1334,9 @@ fn reactions(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyEle
     Some(div().mt(px(6.)).flex().flex_wrap().gap(px(6.)).children(pills).child(add).into_any_element())
 }
 
-fn reaction_pill(id: SharedString, mine: bool, cx: &App) -> Stateful<Div> {
+fn reaction_pill(id: SharedString, mine: bool, cx: &App) -> ui::Pressable {
     let edge = palette::line_strong(cx);
-    div()
-        .id(id)
-        .active(|s| s.scale(0.92))
+    ui::pressable(div().id(id), 0.92)
         .h(px(28.))
         .flex()
         .items_center()
@@ -1407,8 +1401,7 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, group: &SharedSt
                 None => div().text_size(px(18.)).line_height(px(18.)).child(quick.name.clone()).into_any_element(),
             };
             bar = bar.child(
-                div()
-                    .id(SharedString::from(format!("quick-{}-{}", message.id, quick.name)))
+                ui::pressable(div().id(SharedString::from(format!("quick-{}-{}", message.id, quick.name))), 0.92)
                     .size(px(32.))
                     .flex()
                     .items_center()
@@ -1416,7 +1409,6 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, group: &SharedSt
                     .squircle(RADIUS_SM)
                     .cursor_pointer()
                     .hover(move |s| s.bg(hover))
-                    .active(|s| s.scale(0.92))
                     .child(face)
                     .tooltip(|window, cx| Tooltip::new("Click to react").build(window, cx))
                     .on_click(move |_, _, cx| {

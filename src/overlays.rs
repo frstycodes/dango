@@ -345,8 +345,7 @@ impl Rustcord {
                 .children(gifs.iter().enumerate().map(|(i, g)| {
                     let url = g.url.clone();
                     let height = column_width * g.height / g.width.max(1.);
-                    div()
-                        .id(SharedString::from(format!("gif-{i}")))
+                    ui::pressable(div().id(SharedString::from(format!("gif-{i}"))), 0.97)
                         .w(px(column_width))
                         .h(px(height))
                         .squircle(RADIUS_MD)
@@ -354,7 +353,6 @@ impl Rustcord {
                         .bg(theme.background)
                         .cursor_pointer()
                         .hover(|s| s.opacity(0.85))
-                        .active(|s| s.scale(0.97))
                         .child(img(g.preview.clone()).size_full().object_fit(gpui_kit::ObjectFit::Cover).squircle(RADIUS_MD))
                         .on_click(cx.listener(move |this, _, window, cx| this.send_gif(url.clone(), window, cx)))
                 }))
