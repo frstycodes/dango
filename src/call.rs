@@ -1986,7 +1986,7 @@ enum Control {
 }
 
 // .cbtn: 52x48, a squircle; icons 22px (the chevron 14px). Pressed, it sinks to 92%.
-fn control(id: &'static str, glyph: Glyph, tip: &'static str, state: Control, enabled: bool) -> Stateful<Div> {
+fn control(id: &'static str, glyph: Glyph, tip: &'static str, state: Control, enabled: bool) -> ui::Pressable {
     let (fill, hover, ink) = match state {
         Control::Rest => (stage::wash(0.1), stage::wash(0.16), gpui_kit::white()),
         Control::Off => (stage::off(false), stage::off(true), stage::off_ink()),
@@ -1996,8 +1996,7 @@ fn control(id: &'static str, glyph: Glyph, tip: &'static str, state: Control, en
         Control::Leave => (palette::danger(), palette::danger_hover(), gpui_kit::white()),
     };
     let chevron = matches!(glyph, Glyph::ChevronUpBold);
-    div()
-        .id(id)
+    ui::pressable(div().id(id), if enabled { 0.92 } else { 1. })
         .w(px(if chevron { 26. } else { 52. }))
         .h(px(CONTROLS_HEIGHT))
         .flex_none()
@@ -2008,13 +2007,13 @@ fn control(id: &'static str, glyph: Glyph, tip: &'static str, state: Control, en
         .bg(fill)
         .text_color(ink)
         .child(Icon::new(glyph).size(px(if chevron { 14. } else { 22. })))
-        .when(enabled, |b| b.cursor_pointer().hover(move |s| s.bg(hover)).active(|s| s.scale(0.92)))
+        .when(enabled, |b| b.cursor_pointer().hover(move |s| s.bg(hover)))
         .when(!enabled, |b| b.opacity(0.4).cursor(gpui_kit::CursorStyle::OperationNotAllowed))
         .tooltip(move |window, cx| Tooltip::new(tip).build(window, cx))
 }
 
 // .csplit: the main half and its chevron 2px apart, their facing corners small.
-fn split_control(main: Stateful<Div>, chevron: Stateful<Div>) -> Div {
+fn split_control(main: impl Styled + IntoElement, chevron: impl Styled + IntoElement) -> Div {
     div().flex().gap(px(2.)).child(main.rounded_tr(px(4.)).rounded_br(px(4.))).child(chevron.rounded_tl(px(4.)).rounded_bl(px(4.)))
 }
 

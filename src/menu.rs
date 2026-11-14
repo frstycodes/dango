@@ -750,8 +750,7 @@ pub(crate) fn server_icon(icon: Option<&str>, name: &str, size: f32, radius: f32
 fn quick_reactions(quick: &[(Emoji, Act)], more: Act, cx: &mut Context<Rustcord>) -> Div {
     let (fill, press, muted, strong) = (palette::selected(cx), palette::press(cx), palette::muted(cx), palette::strong(cx));
     let cell = |id: SharedString, ink: Hsla| {
-        div()
-            .id(id)
+        ui::pressable(div().id(id), 0.97)
             .flex_1()
             .h(px(38.))
             .squircle(RADIUS_SM)
@@ -762,7 +761,6 @@ fn quick_reactions(quick: &[(Emoji, Act)], more: Act, cx: &mut Context<Rustcord>
             .bg(fill)
             .text_color(muted)
             .hover(move |s| s.bg(press).text_color(ink))
-            .active(|s| s.scale(0.97))
     };
     let faces = quick.iter().enumerate().map(|(j, (emoji, act))| {
         let act = act.clone();

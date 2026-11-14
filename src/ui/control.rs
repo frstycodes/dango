@@ -327,10 +327,7 @@ impl RenderOnce for Control {
         // A disabled row goes faint and still; other kinds fade to 0.45 below.
         let faint_row = self.disabled && self.kind == Kind::Row;
         let t = hover_fade(part(&self.id, "hover"), hovered, window, cx);
-        let scale = self.press().map(|(to, curve)| {
-            let held = transition(part(&self.id, "press"), if pressed { 1. } else { 0. }, Transition::new(DUR_PRESS).easing(curve), window, cx);
-            1. - (1. - to) * held
-        });
+        let scale = self.press().map(|(to, curve)| press_scale(&self.id, pressed, to, curve, window, cx));
         let (height, radius, icon) = self.dimensions();
         let type_and_padding = self.type_and_padding();
         let look = if faint_row { faint_look(cx) } else { self.look };
@@ -369,6 +366,55 @@ impl RenderOnce for Control {
             .when_some(self.glyph, |b, glyph| b.child(Icon::new(glyph).size(px(icon))))
             .when_some(self.loading.clone(), |b, label| b.child(super::bars(part(&self.id, "busy"), ink, 12.)).child(label))
             .when(self.loading.is_none(), |b| b.children(self.children))
+    }
+}
+
+// How far a held element has shrunk toward `to`, eased over the press timing on `curve`.
+fn press_scale(id: &ElementId, pressed: bool, to: f32, curve: Easing, window: &mut Window, cx: &mut App) -> f32 {
+    let held = transition(part(id, "press"), if pressed { 1. } else { 0. }, Transition::new(DUR_PRESS).easing(curve), window, cx);
+    1. - (1. - to) * held
+}
+
+// Any element with an id that shrinks to `to` while held, eased like a Control's press (gpui's `.active`
+// style swaps in one frame). Keeps the caller's builder chain: `.child`, `.on_click`, `.hover`, layout.
+pub fn pressable(base: Stateful<Div>, to: f32) -> Pressable {
+    Pressable { base, to }
+}
+
+#[derive(IntoElement)]
+pub struct Pressable {
+    base: Stateful<Div>,
+    to: f32,
+}
+
+impl RenderOnce for Pressable {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let Some(id) = self.base.interactivity().element_id.clone() else { return self.base };
+        let pointer = window.use_keyed_state(part(&id, "pointer"), cx, |_, _| Pointer::default());
+        let pressed = pointer.read(cx).pressed;
+        let scale = press_scale(&id, pressed, self.to, motion::ease_out(), window, cx);
+        let positioned = self.base.style().position.is_some();
+        self.base.when(!positioned, |b| b.relative()).when(scale < 1., |b| b.scale(scale)).child(hit_area(&id, &pointer, false, window))
+    }
+}
+
+impl Styled for Pressable {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.base.style()
+    }
+}
+
+impl InteractiveElement for Pressable {
+    fn interactivity(&mut self) -> &mut Interactivity {
+        self.base.interactivity()
+    }
+}
+
+impl StatefulInteractiveElement for Pressable {}
+
+impl ParentElement for Pressable {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.base.extend(elements);
     }
 }
 

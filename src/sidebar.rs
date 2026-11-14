@@ -212,8 +212,7 @@ impl Rustcord {
             RowDrag::Hidden => div().size(px(TILE)).into_any_element(),
         };
         let hover_key = key.clone();
-        let item = div()
-            .id(item_id.clone())
+        let item = ui::pressable(div().id(item_id.clone()), 0.97)
             .children(self.drag_motion.spot(&item_id))
             .relative()
             .w(px(RAIL_WIDTH))
@@ -223,7 +222,6 @@ impl Rustcord {
             .child(div().absolute().left_0().top(px((TILE - pill_height) / 2.)).w(px(4.)).h(px(pill_height)).rounded_r(px(4.)).bg(palette::strong(cx)))
             // GAP: muted tiles skip the design's saturate(0.35): gpui has no element filters.
             .child(div().absolute().left(px(TILE_X)).top_0().when(muted, |f| f.opacity(0.55)).child(face))
-            .active(|s| s.scale(0.97))
             .when(mentions > 0 && badge_scale > 0.01, |item| item.child(rail_count(mentions, badge_scale, rail)))
             .when(in_voice && mentions == 0, |item| item.child(voice_mark(rail, cx)))
             .children(drop_hint.map(drop_marker))
@@ -244,7 +242,7 @@ impl Rustcord {
     }
 
     // Carried, a tile swells to 104% and hangs at -4° (.srv.dragging), tilting further with speed.
-    fn rail_draggable(&self, item: Stateful<Div>, drag: RailDrag, look: crate::drag::Look, cx: &mut Context<Self>) -> Stateful<Div> {
+    fn rail_draggable(&self, item: ui::Pressable, drag: RailDrag, look: crate::drag::Look, cx: &mut Context<Self>) -> ui::Pressable {
         let key = drag.key.clone();
         let can_combine = !key.starts_with("folder-");
         let (move_key, drop_key) = (key.clone(), key.clone());
