@@ -286,7 +286,7 @@
 .pf-qr { width: 148px; height: 148px; padding: 10px; border-radius: var(--radius-md); background: oklch(0.99 0.004 75); box-shadow: inset 0 0 0 1px oklch(0.3 0.03 40 / 0.12); flex: none; }
 .pf-qr svg { display: block; width: 100%; height: 100%; }
 .pf-qr rect { fill: oklch(0.22 0.015 350); }
-.pf-qrrow > div { flex: 1 1 160px; min-width: 0; display: grid; gap: var(--space-2); }
+.pf-qrrow > div:not(.pf-qr) { flex: 1 1 160px; min-width: 0; display: grid; gap: var(--space-2); }
 .pf-secret { font: var(--weight-medium) var(--text-sm) var(--font-mono); color: var(--text-strong); letter-spacing: 0.04em; overflow-wrap: anywhere; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--selected); }
 .pf-codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--bg-page); border: 1px solid var(--line); counter-reset: code; }
 .pf-codes code { font: var(--weight-medium) var(--text-sm) var(--font-mono); color: var(--text-strong); letter-spacing: 0.06em; }
