@@ -138,7 +138,7 @@ impl Rustcord {
     pub(crate) fn friends_row(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme().clone();
         let selected = self.guild_id.is_none() && self.channel.is_none();
-        let pending = self.relationships.iter().filter(|r| r.kind == Relation::Incoming).count();
+        let pending = self.relationships.iter().filter(|r| r.kind == Relation::Incoming).count() as u32;
         div()
             .id("friends-row")
             .h(px(42.))
@@ -155,7 +155,7 @@ impl Rustcord {
             .child(Icon::new(Glyph::Friends).size(px(24.)))
             .child(div().flex_1().child("Friends"))
             .when(pending > 0, |r| {
-                r.child(div().min_w(px(16.)).h(px(16.)).px_1().rounded_full().bg(theme.danger).text_color(gpui_kit::white()).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().justify_center().child(pending.to_string()))
+                r.child(crate::ui::count_badge(pending))
             })
             .on_click(cx.listener(|this, _, _, cx| this.open_home(cx)))
             .into_any_element()

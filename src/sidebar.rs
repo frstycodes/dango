@@ -15,6 +15,7 @@ use crate::{
     layout::{RAIL_WIDTH, avatar_with_status},
     motion, palette,
     rail_drag::{Drop, RailDrag},
+    ui::Tone,
 };
 
 const ROW_HEIGHT: f32 = 32.;
@@ -290,7 +291,7 @@ impl Rustcord {
             .shadow_lg()
             .flex()
             .flex_col()
-            .child(
+            .child(crate::ui::edge(
                 div()
                     .relative()
                     .w_full()
@@ -301,14 +302,15 @@ impl Rustcord {
                     .justify_center()
                     .child(div().text_size(px(14.)).text_color(theme.muted_foreground).child("Loading preview…"))
                     .children(preview.map(|url| {
-                        img(url)
+                        crate::ui::media(url, crate::ui::top(crate::ui::RADIUS_LG))
                             .absolute()
                             .size_full()
                             .object_fit(gpui_kit::ObjectFit::Cover)
                             .with_animation(SharedString::from(format!("stream-preview-{}", streamer.id)), Animation::new(Duration::from_millis(200)), |el, t| el.opacity(t))
                     }))
-                    .child(live_pill().absolute().top(px(8.)).left(px(8.)).h(px(20.)).px(px(6.)).text_size(px(12.))),
-            )
+                    .child(crate::ui::live_badge().absolute().top(px(8.)).left(px(8.)).h(px(20.)).px(px(6.)).text_size(px(12.))),
+                crate::ui::top(crate::ui::RADIUS_LG),
+            ))
             .child(
                 div()
                     .p_3()
@@ -320,7 +322,7 @@ impl Rustcord {
                             .flex()
                             .items_center()
                             .gap_2()
-                            .child(img(streamer.avatar.to_owned()).size(px(24.)).flex_none().rounded_full())
+                            .child(crate::ui::avatar(streamer.avatar.to_owned(), 24.))
                             .child(div().flex_1().min_w_0().truncate().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(theme.foreground).child(streamer.name.to_owned()))
                             .children(meta.map(|meta| div().flex_none().max_w(px(150.)).truncate().text_size(px(12.)).text_color(theme.muted_foreground).child(meta))),
                     )
@@ -329,17 +331,14 @@ impl Rustcord {
                             .flex()
                             .items_center()
                             .gap_2()
-                            .child(div().flex().flex_none().children(viewer_avatars.into_iter().enumerate().map(|(i, avatar)| {
-                                // A ring in the card's own colour cuts each face out of the one beneath.
-                                div().size(px(22.)).rounded_full().border_2().border_color(theme.popover).bg(theme.popover).when(i > 0, |a| a.ml(px(-8.))).child(img(avatar).size_full().rounded_full())
-                            })))
+                            .child(crate::ui::avatar_stack(viewer_avatars, 22., theme.popover).flex_none())
                             .child(div().flex_1().min_w_0().truncate().text_size(px(12.)).text_color(theme.muted_foreground).child(line))
                     }))
                     .child(
                         div()
                             .flex()
                             .gap_2()
-                            .child(card_button("card-watch", if connected { "Watch Stream" } else { "Join and Watch" }, true, cx).flex_1().on_click(cx.listener(move |this, _, window, cx| {
+                            .child(crate::ui::button("card-watch", Tone::Primary, cx).child(if connected { "Watch Stream" } else { "Join and Watch" }).flex_1().on_click(cx.listener(move |this, _, window, cx| {
                                 this.stream_card_hover = None;
                                 match connected {
                                     true => this.watch_stream(watch_id.clone(), cx),
@@ -349,7 +348,7 @@ impl Rustcord {
                                 this.show_call(watch_channel.clone(), window, cx);
                             })))
                             .when(!connected, |r| {
-                                r.child(card_button("card-join", "Join", false, cx).on_click(cx.listener(move |this, _, window, cx| {
+                                r.child(crate::ui::button("card-join", Tone::Secondary, cx).child("Join").on_click(cx.listener(move |this, _, window, cx| {
                                     this.stream_card_hover = None;
                                     this.watch_on_connect = None;
                                     this.show_call(join_channel.clone(), window, cx);
@@ -575,7 +574,7 @@ impl Rustcord {
             .child(lead)
             .child(div().flex_1().truncate().child(channel.name.clone()))
             .children(elapsed)
-            .when(mentions > 0, |r| r.child(mention_badge(mentions, cx)))
+            .when(mentions > 0, |r| r.child(crate::ui::count_badge(mentions)))
             .when(unread && !selected, |r| r.child(div().absolute().left(px(-8.)).w(px(4.)).h(px(8.)).rounded_r(px(4.)).bg(theme.foreground)));
         let row = if selected { row.bg(theme.sidebar_accent) } else { row.hover(|s| s.bg(theme.sidebar_accent.opacity(0.6)).text_color(theme.foreground)) };
         let row = self.channel_draggable(row, channel, guild, cx);
@@ -613,7 +612,7 @@ impl Rustcord {
                         .gap_1()
                         .children(present.iter().map(|v| {
                             let avatar = v.user.as_ref().map(|u| u.avatar.clone()).unwrap_or_else(|| crate::discord::avatar_url(&v.user_id, None));
-                            img(avatar).size(px(24.)).rounded_full()
+                            crate::ui::avatar(avatar, 24.)
                         }))
                         .into_any_element(),
                 );
@@ -658,7 +657,7 @@ impl Rustcord {
                         .when(state.muted, |r| r.child(Icon::new(Glyph::MicOff).size(px(16.))))
                         .when(state.deafened, |r| r.child(Icon::new(Glyph::HeadphonesOff).size(px(16.))))
                         .when(state.streaming, |r| {
-                            r.child(live_pill().h(px(16.)).px_1().text_size(px(10.)))
+                            r.child(crate::ui::live_badge().h(px(16.)).px_1().text_size(px(10.)))
                         })
                         .on_mouse_down(gpui_kit::MouseButton::Right, {
                             let user_id = state.user_id.clone();
@@ -806,7 +805,7 @@ impl Rustcord {
             .text_color(if selected || unread { theme.foreground } else { theme.muted_foreground })
             .child(avatar_with_status(&avatar, 32., status, surface))
             .child(div().flex_1().truncate().child(channel.name.clone()))
-            .when(mentions > 0, |r| r.child(mention_badge(mentions, cx)))
+            .when(mentions > 0, |r| r.child(crate::ui::count_badge(mentions)))
             .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
                 if *hovered {
                     this.prefetch(&hover_id, cx);
@@ -822,23 +821,6 @@ impl Rustcord {
         }
         row.hover(|s| s.bg(theme.sidebar_accent.opacity(0.6)).text_color(theme.foreground)).into_any_element()
     }
-}
-
-fn mention_badge(count: u32, cx: &App) -> AnyElement {
-    div()
-        .min_w(px(16.))
-        .h(px(16.))
-        .px_1()
-        .rounded_full()
-        .bg(cx.theme().danger)
-        .text_color(gpui_kit::white())
-        .text_size(px(11.))
-        .font_weight(FontWeight::BOLD)
-        .flex()
-        .items_center()
-        .justify_center()
-        .child(count.to_string())
-        .into_any_element()
 }
 
 pub(crate) fn channel_sections(guild: &Guild, me: &str) -> Vec<(Option<Channel>, Vec<Channel>)> {
@@ -902,36 +884,6 @@ struct Streamer<'a> {
 // The row and its card share one hover key, so moving from one onto the other keeps the card open.
 fn stream_hover_key(user_id: &str) -> String {
     format!("stream-{user_id}")
-}
-
-// Sized by the caller: small on a voice row, larger over a preview.
-fn live_pill() -> Div {
-    div().rounded(px(4.)).bg(palette::live()).text_color(gpui_kit::white()).font_weight(FontWeight::BOLD).flex().items_center().child("LIVE")
-}
-
-// --control-primary-background (default, hover) or --control-secondary-background, a grey wash.
-fn card_button(id: &'static str, label: &'static str, primary: bool, cx: &App) -> gpui_kit::Stateful<Div> {
-    let wash = palette::wash;
-    let (fill, hover, ink): (Hsla, Hsla, Hsla) = match primary {
-        true => (palette::blurple(), palette::blurple_hover(), gpui_kit::white()),
-        false => (wash(0.12), wash(0.2), cx.theme().foreground),
-    };
-    div()
-        .id(id)
-        .h(px(32.))
-        .px_4()
-        .flex_none()
-        .rounded(px(8.))
-        .flex()
-        .items_center()
-        .justify_center()
-        .cursor_pointer()
-        .bg(fill)
-        .hover(move |s| s.bg(hover))
-        .text_color(ink)
-        .text_size(px(14.))
-        .font_weight(FontWeight::MEDIUM)
-        .child(label)
 }
 
 // "Theo watching", "Theo and Ivy watching", "Theo, Ivy and Sam watching", "Theo, Ivy and 2 others watching".
