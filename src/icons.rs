@@ -8,7 +8,7 @@ pub const MARK_WHITE: &str = "brand/rustcord-mark-white.svg";
 
 // Phosphor icons (MIT, assets/icons/phosphor/LICENSE): regular for rows and chrome, bold for small
 // marks, fill for on and playing states. Order matches `Glyph`.
-const GLYPHS: [(&str, &[u8]); 90] = [
+const GLYPHS: [(&str, &[u8]); 91] = [
     ("icons/hashtag.svg", include_bytes!("../assets/icons/phosphor/hash.svg")),
     ("icons/hashtag-lock.svg", include_bytes!("../assets/icons/phosphor/lock-simple.svg")),
     ("icons/volume-high.svg", include_bytes!("../assets/icons/phosphor/speaker-high.svg")),
@@ -99,6 +99,7 @@ const GLYPHS: [(&str, &[u8]); 90] = [
     ("icons/video-off-fill.svg", include_bytes!("../assets/icons/phosphor/video-camera-slash-fill.svg")),
     ("icons/share-screen-fill.svg", include_bytes!("../assets/icons/phosphor/screencast-fill.svg")),
     ("icons/activities-fill.svg", include_bytes!("../assets/icons/phosphor/rocket-launch-fill.svg")),
+    ("icons/arrow-right-bold.svg", include_bytes!("../assets/icons/phosphor/arrow-right-bold.svg")),
 ];
 
 const BRAND: [(&str, &[u8]); 2] = [
@@ -198,6 +199,7 @@ pub enum Glyph {
     VideoOffFill,
     ShareScreenFill,
     ActivitiesFill,
+    ArrowRightBold,
 }
 
 impl IconNamed for Glyph {

@@ -46,6 +46,8 @@ impl Render for Rustcord {
 
 impl Rustcord {
     fn render_root(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        // Before the rows draw, so a row just let go of draws as landing rather than as a hole.
+        self.settle_carry(cx);
         let theme = cx.theme().clone();
         let root = div()
             .id("chord")
@@ -119,6 +121,7 @@ impl Rustcord {
             .children(self.viewer_overlay(window, cx))
             .children(self.render_settings(window, cx))
             .children(crate::window_controls::render(window, cx))
+            .children(self.render_landing(window, cx))
             .into_any_element()
     }
 }
