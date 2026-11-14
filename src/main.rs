@@ -66,13 +66,20 @@ fn main() {
     gpui_kit::application().with_assets(Assets).run(move |cx| {
         gpui_kit::init(cx);
         cx.text_system()
-            .add_fonts(vec![
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/Figtree-Regular.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/Figtree-Medium.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/Figtree-SemiBold.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/Figtree-Bold.ttf")),
-            ])
-            .expect("bundled Figtree");
+            .add_fonts(
+                [
+                    include_bytes!("../assets/discord/fonts/gg-sans-Regular.ttf").as_slice(),
+                    include_bytes!("../assets/discord/fonts/gg-sans-Medium.ttf"),
+                    include_bytes!("../assets/discord/fonts/gg-sans-SemiBold.ttf"),
+                    include_bytes!("../assets/discord/fonts/gg-sans-Bold.ttf"),
+                    include_bytes!("../assets/discord/fonts/gg-sans-ExtraBold.ttf"),
+                    include_bytes!("../assets/discord/fonts/gg-mono-Regular.ttf"),
+                    include_bytes!("../assets/discord/fonts/gg-mono-Bold.ttf"),
+                ]
+                .map(std::borrow::Cow::Borrowed)
+                .to_vec(),
+            )
+            .expect("bundled gg sans");
         cx.set_http_client(std::sync::Arc::new(discord::Images::default()));
         cx.set_reduce_motion(material::system_reduce_motion());
         material::set_app_icon();
@@ -801,7 +808,7 @@ impl Rustcord {
             Event::MessageCreate(message) => self.on_message(*message, cx),
             Event::MessageUpdate(patch) => {
                 let (channel_id, id) = (patch["channel_id"].as_str().unwrap_or_default(), patch["id"].as_str().unwrap_or_default());
-                if let Some(m) = self.feeds.get_mut(channel_id).and_then(|f| f.messages.iter_mut().find(|m| m.id == id)) {
+                if let Some(m) = self.message_mut(channel_id, id) {
                     discord::apply_update(m, &patch);
                 }
             }
@@ -1722,8 +1729,16 @@ impl Rustcord {
         self.known_users().into_iter().find(|u| u.id == user_id).map(|u| u.name).unwrap_or_else(|| "Someone".into())
     }
 
+    // A message changed in place (edit, reaction, embed, pin). gpui's list keeps each row's
+    // measured height until told otherwise, so the open channel's row is re-measured.
     pub(crate) fn message_mut(&mut self, channel_id: &str, id: &str) -> Option<&mut Message> {
-        self.feeds.get_mut(channel_id)?.messages.iter_mut().find(|m| m.id == id)
+        let open = self.channel.as_ref().is_some_and(|c| c.id == channel_id);
+        let feed = self.feeds.get_mut(channel_id)?;
+        let ix = feed.messages.iter().position(|m| m.id == id)?;
+        if open {
+            self.list.remeasure_items(ix..ix + 1);
+        }
+        feed.messages.get_mut(ix)
     }
 
     fn remove_message(&mut self, channel_id: &str, id: &str) {

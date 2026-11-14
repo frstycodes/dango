@@ -103,8 +103,10 @@ pub fn sync(window: &mut Window, cx: &mut App) {
     // `update`, not `global_mut`: gpui-component's own widgets paint from `theme.tokens`, which only
     // `update` reconciles with the colours set here.
     Theme::update(cx, |theme| {
-        // Figtree (OFL, bundled in assets/fonts), the user's pick for Rustcord's interface type.
-        theme.font_family = "Figtree".into();
+        // Discord's own gg sans and gg sans mono (its --font-primary and --font-code), converted from
+        // the woff2 discord.com serves to assets/discord/fonts; personal use, never redistributed.
+        theme.font_family = "gg sans".into();
+        theme.mono_font_family = "gg sans mono".into();
         let text = hex(t.text);
         let hairline = hex(t.hairline).opacity(t.hairline_alpha);
         theme.background = hex(t.page);
