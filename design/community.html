@@ -361,6 +361,18 @@
       </div>
       <span class="note">The picked option is its fill, no check. Voice and stage channels can be destinations too.</span>
     </div>
+
+    <div class="cm-step"><span class="note">Invites paused, seen by someone who can resume them</span>
+      <div class="dialog dialog--lg" role="dialog" aria-labelledby="ip4">
+        <div class="dhead"><h4 id="ip4">Invite friends to Night Shift</h4><p>They land in <button class="cm-dest" aria-haspopup="menu" aria-expanded="false"><i class="ph ph-hash"></i>general<i class="ph-bold ph-caret-down"></i></button></p><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <div class="callout callout--warning" role="status"><i class="ph-fill ph-pause-circle"></i><div><b>Invites are paused until <time datetime="2026-11-16T21:40">9:40 PM tomorrow</time></b>No one can join with a link until then. A link you share now starts working when invites resume.<div class="cm-callout-acts"><button class="btn btn--sm" data-loading="Resuming…">Resume invites</button></div></div></div>
+        <div class="divider">Invite link</div>
+        <div class="linkrow"><div class="input"><input aria-label="Invite link" value="wave.gg/nightshift-7Kq2" readonly></div><button class="btn btn--primary" data-copy>Copy</button></div>
+      </div>
+      <span class="note">Members without Manage Server get the same callout without the button:</span>
+      <div class="callout callout--warning"><i class="ph-fill ph-pause-circle"></i><div><b>Invites are paused until <time datetime="2026-11-16T21:40">9:40 PM tomorrow</time></b>A moderator paused new joins. A link you share now starts working then.</div></div>
+      <span class="note">The friend list hides while paused, since an invite sent now would arrive as a dead link. Resume clears the callout in place and the list comes back.</span>
+    </div>
   </div>
 
   <h3>Invite opened in a browser</h3>
@@ -516,6 +528,39 @@
         <footer><button class="btn btn--ghost cm-skip">Skip question</button><button class="btn">Back</button><button class="btn btn--primary">Next question</button></footer>
       </div>
       <span class="note">The last question's button reads Finish setup. Answers can be changed later from the server menu.</span>
+    </div>
+  </div>
+
+  <h3>Closed halfway</h3>
+  <div class="board cm-row">
+    <div class="cm-frame" style="width: 240px; flex: none">
+      <aside class="side" aria-label="Night owls channels">
+        <header class="srvhead"><button aria-expanded="false" aria-haspopup="menu"><span>Night owls</span><i class="ph-bold ph-caret-down"></i></button></header>
+        <div class="chlist">
+          <div class="ch cm-finish"><i class="ph ph-list-checks"></i><a class="nm" href="#" aria-describedby="fj1">Finish joining</a><span class="meta" id="fj1" aria-label="2 of 4 questions answered" title="2 of 4 questions answered"><span class="cm-dots"><span class="is-done"></span><span class="is-done"></span><span></span><span></span></span></span><span class="acts"><button aria-label="Skip the remaining questions" title="Skip the rest"><i class="ph ph-x"></i></button></span></div>
+          <div class="ch"><i class="ph ph-list-magnifying-glass"></i><a class="nm" href="#">Channels</a></div>
+          <div class="catgroup">
+            <div class="cathead"><button class="cat" aria-expanded="true"><i class="ph-bold ph-caret-down"></i>Text</button><button class="cat-add" aria-label="Create channel in Text"><i class="ph-bold ph-plus"></i></button></div>
+            <div class="ch sel"><i class="ph ph-hash"></i><a class="nm" href="#" aria-current="page">general</a></div>
+            <div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">rift</a></div>
+            <div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">hades</a></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="cm-frame" style="width: 240px; flex: none">
+      <aside class="side" aria-label="Night owls channels, hovering Finish joining">
+        <div class="chlist">
+          <div class="ch cm-finish is-hover"><i class="ph ph-list-checks"></i><a class="nm" href="#">Finish joining</a><span class="meta" aria-label="1 of 4 questions answered" title="1 of 4 questions answered"><span class="cm-dots"><span class="is-done"></span><span></span><span></span><span></span></span></span><span class="acts"><button aria-label="Skip the remaining questions" title="Skip the rest"><i class="ph ph-x"></i></button></span></div>
+          <div class="ch"><i class="ph ph-list-magnifying-glass"></i><a class="nm" href="#">Channels</a></div>
+        </div>
+      </aside>
+      <p class="note" style="padding: 0 12px 12px">Hover: Skip the rest replaces the dots</p>
+    </div>
+    <div class="stack" style="flex: 1; min-width: min(100%, 240px); gap: var(--space-3)">
+      <p class="note">Closing the questions midway keeps what you answered and leaves this row first in the list. It opens the dialog on the first unanswered question.</p>
+      <p class="note">The dots are the dialog's own progress: filled for answered, ringed for left. The full count is the row's description and tooltip.</p>
+      <p class="note">Skip the rest takes the server's defaults for what's left; the row becomes "Using defaults · Undo" for 6 seconds. Answers can always be changed later from the server menu.</p>
     </div>
   </div>
 
@@ -872,6 +917,8 @@
     <div><p>Joins first, then shows the server; failures share one "invalid or expired" line.</p><p><b><a href="#join-server">Join</a></b>Previews the server as you paste and names each failure: not found, expired, banned, full, too many servers, already in.</p><p>Errors say what happened and the next step, often as the one button.</p></div>
     <div><p>Link settings replace the invite dialog with a second one.</p><p><b><a href="#invite-people">Invite</a></b>Settings fold open inside the same dialog, with a one-line summary when closed.</p><p>No modal on a modal; you see the link change as you edit.</p></div>
     <div><p>The invite targets the channel you opened it from.</p><p><b><a href="#invite-people">Picker</a></b>"They land in" is a picker right in the title line.</p><p>Changing the destination doesn't mean closing and reopening elsewhere.</p></div>
+    <div><p>Closing onboarding halfway leaves no way back to the questions short of the server menu.</p><p><b><a href="#onboarding">Finish joining row</a></b>Kept answers, a row first in the channel list with the same progress dots, and Skip the rest with Undo.</p><p>Unfinished work stays visible where you'll look, and can be finished or dropped in one step.</p></div>
+    <div><p>Paused invites show up as a failure on the joiner's end.</p><p><b><a href="#invite-people">Paused, said in the dialog</a></b>The invite dialog names the pause and when it ends; a moderator resumes it right there.</p><p>The person inviting learns why before sending a dead link.</p></div>
     <div><p>Onboarding answers don't say what they give you.</p><p><b><a href="#onboarding">Questions</a></b>Each pick shows the channels and role it adds before you move on.</p><p>You choose with the consequence in view.</p></div>
     <div><p>Rules gating greys the composer and points to a separate banner.</p><p><b><a href="#onboarding">Rules</a></b>The composer itself holds the ask; pressing Accept without ticking says what's missing.</p><p>The ask sits where you tried to act; no disabled button with no reason.</p></div>
     <div><p>Channel browsing toggles one channel at a time.</p><p><b><a href="#onboarding">Channels</a></b>Per-category select-all, a live "You see 6 of 10" count, and locked channels say why.</p><p>An all-at-once path beside the per-item one.</p></div>

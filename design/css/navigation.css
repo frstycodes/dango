@@ -47,6 +47,14 @@
 .srv .vc .bars { --c: var(--online-ink); height: 10px; }
 .srv-mini { width: 20px; height: 20px; border-radius: var(--radius-xs); flex: none; }
 
+/* Server art: stand-ins for uploaded server icons, shared by rail tiles, folder minis and .srv-mini on every page */
+:is(.srv, .srv-mini, .minis > span).a1 { background: linear-gradient(135deg, oklch(0.58 0.17 20), oklch(0.44 0.17 350)); }
+:is(.srv, .srv-mini, .minis > span).a2 { background: linear-gradient(135deg, oklch(0.55 0.12 220), oklch(0.42 0.13 250)); }
+:is(.srv, .srv-mini, .minis > span).a3 { background: linear-gradient(135deg, oklch(0.56 0.13 140), oklch(0.42 0.12 165)); }
+:is(.srv, .srv-mini, .minis > span).a4 { background: linear-gradient(135deg, oklch(0.58 0.14 55), oklch(0.46 0.15 35)); }
+:is(.srv, .srv-mini, .minis > span).a5 { background: radial-gradient(circle at 34% 30%, oklch(0.92 0.08 90) 0 20%, transparent 21%), linear-gradient(160deg, oklch(0.55 0.14 270), oklch(0.32 0.1 300)); }
+:is(.srv, .srv-mini, .minis > span).a6 { background: repeating-linear-gradient(135deg, oklch(0.52 0.1 195) 0 6px, oklch(0.42 0.09 210) 6px 12px); }
+
 /* Server folders */
 .folder { --tint: var(--folder, var(--text-faint)); display: flex; flex-direction: column; align-items: center; gap: var(--space-2); border-radius: var(--radius-lg); background: color-mix(in oklch, var(--tint) 18%, transparent); flex: none; }
 .folder-head { color: var(--tint); }
@@ -194,6 +202,30 @@ button.cat:hover, .cat.is-hover { background: var(--hover); color: var(--text-st
 .friend .acts .accept:hover { color: var(--online-ink); }
 .friend .acts .ignore:hover { color: var(--danger-ink); }
 
+/* Add friend: one field under the Friends header. Its result takes a reserved line below, so nothing jumps. */
+/* Open, the header's Add friend stops being the primary (Send request is) and shows as pressed. */
+.fhead .af-toggle[aria-pressed="true"] { --bg: var(--selected); --bg-h: var(--press); --fg: var(--text-strong); }
+.fhead:has(.af-toggle[aria-pressed="false"]) + .addfriend { display: none; }
+.addfriend { display: grid; gap: var(--space-2); padding: var(--space-4) var(--space-4) var(--space-3); border-bottom: 1px solid var(--line); background: var(--bg-page); }
+.addfriend > label { color: var(--text-strong); font-weight: var(--weight-semibold); }
+.addfriend > p { color: var(--text-muted); font-size: var(--text-sm); }
+.addfriend .linkrow .input { height: 40px; }
+.addfriend .linkrow .input input { font-size: var(--text-md); }
+.addfriend .linkrow .btn { height: 40px; }
+/* Icon hangs in the gutter; text and its link run inline, so the link follows the words and wraps with them. */
+.af-result { position: relative; min-height: 20px; padding-left: 22px; color: var(--text-muted); font-size: var(--text-sm); line-height: 20px; overflow-wrap: anywhere; }
+.af-result > i { position: absolute; left: 0; top: 2px; font-size: 16px; color: var(--text-faint); }
+.af-result > span { margin-right: 6px; }
+.af-result b { color: var(--text-strong); font-weight: var(--weight-semibold); }
+.af-result .btn--link { display: inline; font-size: inherit; font-weight: var(--weight-semibold); line-height: inherit; vertical-align: baseline; white-space: nowrap; }
+.af-result--ok > i { color: var(--online-ink); }
+.af-result--warn > i { color: var(--warning-ink); }
+.af-result--err, .af-result--err > i, .af-result--err b { color: var(--danger-ink); }
+.af-try { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); color: var(--text-faint); font-size: var(--text-xs); }
+.af-try .btn { height: 24px; padding: 0 8px; border-radius: var(--radius-xs); font-size: var(--text-xs); }
+.friend.is-new { animation: af-in var(--dur-pop) var(--ease-out); }
+@keyframes af-in { from { opacity: 0; transform: translateY(-4px); } }
+
 /* Member list (base rows live in voice.css; these extend them) */
 /* voice.css styles every span in a row as an activity line; give avatars back their own layout. */
 .members { background: var(--bg-sidebar); padding: 12px 8px; overflow: auto; --bg-ring: var(--bg-sidebar); }
@@ -214,6 +246,15 @@ button.cat:hover, .cat.is-hover { background: var(--hover); color: var(--text-st
 .mem .crown { font-size: 14px; color: color-mix(in oklch, var(--idle) 60%, var(--text-strong)); }
 .mem span .ph-broadcast { color: var(--accent-ink); }
 .mem.skel { pointer-events: none; }
+
+/* Role colour: a member's top role tints their name, in the member list and on messages.
+   Any colour a server picks is clamped in lightness per theme and capped in chroma, so it clears 4.5:1 on
+   every sidebar, page, popover and selected fill (worst case: pure yellow or green on bone, 4.5:1; pure blue on ink, 5.6:1).
+   No role, no --role: the declaration is invalid and the name keeps its own ink. */
+.role-ink, .msg .name.role-ink { --role-l: clamp(0.72, l, 0.92); color: oklch(from var(--role) var(--role-l) min(c, 0.16) h); }
+:root[data-theme="light"] :is(.role-ink, .msg .name.role-ink) { --role-l: clamp(0.30, l, 0.45); }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) :is(.role-ink, .msg .name.role-ink) { --role-l: clamp(0.30, l, 0.45); } }
+.members .mem.off .role-ink { color: inherit; }
 
 /* Quick switcher */
 .switcher { width: min(100%, 560px); padding: 10px; border-radius: var(--radius-xl); background: var(--bg-overlay); box-shadow: var(--shadow-pop); display: grid; gap: var(--space-2); }

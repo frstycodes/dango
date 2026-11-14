@@ -34,13 +34,7 @@
 <nav class="toc" id="toc" aria-label="Design system"></nav>
 <main>
 <style>
-  /* Page-only demo scaffolding. Server art stands in for uploaded icons and banners. */
-  .a1 { background: linear-gradient(135deg, oklch(0.58 0.17 20), oklch(0.44 0.17 350)); }
-  .a2 { background: linear-gradient(135deg, oklch(0.55 0.12 220), oklch(0.42 0.13 250)); }
-  .a3 { background: linear-gradient(135deg, oklch(0.56 0.13 140), oklch(0.42 0.12 165)); }
-  .a4 { background: linear-gradient(135deg, oklch(0.58 0.14 55), oklch(0.46 0.15 35)); }
-  .a5 { background: radial-gradient(circle at 34% 30%, oklch(0.92 0.08 90) 0 20%, transparent 21%), linear-gradient(160deg, oklch(0.55 0.14 270), oklch(0.32 0.1 300)); }
-  .a6 { background: repeating-linear-gradient(135deg, oklch(0.52 0.1 195) 0 6px, oklch(0.42 0.09 210) 6px 12px); }
+  /* Page-only demo scaffolding. The banner art stands in for an uploaded banner; server art lives in css/navigation.css. */
   .banner-art { --art: radial-gradient(120% 90% at 20% 10%, oklch(0.78 0.12 60), transparent 60%), radial-gradient(120% 100% at 90% 100%, oklch(0.55 0.18 330), transparent 60%), oklch(0.4 0.08 280); }
   .nd-frame { border: 1px solid var(--line-strong); border-radius: var(--radius-lg); overflow: hidden; min-width: 0; }
   .nd-frame > .side, .nd-frame > .members { height: 100%; }
@@ -52,7 +46,8 @@
   .nd-states { display: grid; grid-template-columns: minmax(0, 240px) minmax(0, 1fr); gap: 2px var(--space-4); align-items: center; padding: var(--space-2); background: var(--bg-sidebar); }
   .nd-states > .note { line-height: 1.3; }
   .nd-tipwell { display: flex; align-items: center; gap: var(--space-3); padding: 12px; border-radius: var(--radius-lg); background: var(--bg-rail); --bg-ring: var(--bg-rail); flex-wrap: wrap; }
-  @media (max-width: 860px) { .nd-states { grid-template-columns: minmax(0, 1fr); } .nd-states > .note { margin: 0 0 var(--space-2) var(--space-2); } }
+  .nd-states.af-states { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: var(--space-3) var(--space-6); padding: var(--space-4); background: var(--bg-page); }
+  @media (max-width: 860px) { .nd-states, .nd-states.af-states { grid-template-columns: minmax(0, 1fr); } .nd-states > .note { margin: 0 0 var(--space-2) var(--space-2); } .af-states > .note { margin: 0 0 var(--space-2) 22px; } }
 </style>
 
 <section id="intro">
@@ -374,7 +369,7 @@
 <!-- Friends -->
 <section id="friends">
   <h2>Friends</h2>
-  <p class="lede">Home's main page. Tabs filter one list; Add friend is the page's one primary action.</p>
+  <p class="lede">Home's main page. Tabs filter one list; Add friend is the page's one primary action and opens a field above the list (try it).</p>
   <h3>Online</h3>
   <div class="nd-frame">
     <div class="fhead">
@@ -385,8 +380,13 @@
         <button class="tab" role="tab" aria-selected="false">Pending <span class="count" aria-label="2 requests">2</span></button>
         <button class="tab" role="tab" aria-selected="false">Blocked</button>
       </div>
-      <button class="btn btn--primary btn--sm"><i class="ph-bold ph-user-plus"></i>Add friend</button>
+      <button class="btn btn--primary btn--sm af-toggle" aria-pressed="false"><i class="ph-bold ph-user-plus"></i>Add friend</button>
     </div>
+    <form class="addfriend" novalidate>
+      <label for="af-0">Add friend by username</label>
+      <div class="linkrow"><div class="input"><span class="affix">@</span><input id="af-0" name="username" placeholder="kai.exe" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="af-0-res"></div><button class="btn btn--primary" type="submit">Send request</button></div>
+      <div class="af-result" id="af-0-res" role="status"><i class="ph ph-info"></i><span>Their username, not their display name. It's on their profile.</span></div>
+    </form>
     <div class="flist">
       <label class="input"><i class="ph ph-magnifying-glass"></i><input placeholder="Search friends" aria-label="Search friends"></label>
       <div class="flabel">Online · 3</div>
@@ -407,6 +407,56 @@
   </div>
   <p class="note" style="margin-top: 8px">Accept hovers to --online-ink, Ignore to --danger-ink (shown on Lee). Ignoring is undoable from a toast, so it never asks first.</p>
 
+  <h3>Add friend</h3>
+  <div class="nd-frame" id="af-demo">
+    <div class="fhead">
+      <span class="title"><i class="ph ph-users"></i>Friends</span>
+      <div class="pills" role="tablist" aria-label="Friends filter">
+        <button class="tab" role="tab" aria-selected="false">Online</button>
+        <button class="tab" role="tab" aria-selected="false">All</button>
+        <button class="tab" role="tab" aria-selected="true">Pending</button>
+        <button class="tab" role="tab" aria-selected="false">Blocked</button>
+      </div>
+      <button class="btn btn--primary btn--sm af-toggle" aria-pressed="true"><i class="ph-bold ph-user-plus"></i>Add friend</button>
+    </div>
+    <form class="addfriend" novalidate>
+      <label for="af-1">Add friend by username</label>
+      <div class="linkrow"><div class="input"><span class="affix">@</span><input id="af-1" name="username" placeholder="kai.exe" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="af-1-res"></div><button class="btn btn--primary" type="submit">Send request</button></div>
+      <div class="af-result" id="af-1-res" role="status"><i class="ph ph-info"></i><span>Their username, not their display name. It's on their profile.</span></div>
+    </form>
+    <div class="flist">
+      <div class="flabel">Pending · 1</div>
+      <div class="friend"><span class="av" data-av="Ola"></span><div><b>Ola</b><span>You sent a request · 2 days ago</span></div><div class="acts"><button class="iconbtn ignore" aria-label="Cancel request to Ola" title="Cancel request"><i class="ph-bold ph-x"></i></button></div></div>
+    </div>
+  </div>
+  <div class="af-try" style="margin-top: 8px">Try
+    <button type="button" class="btn btn--ghost" data-af-eg="kai.exe">kai.exe</button>
+    <button type="button" class="btn btn--ghost" data-af-eg="kai.ex">kai.ex</button>
+    <button type="button" class="btn btn--ghost" data-af-eg="mira.wav">mira.wav</button>
+    <button type="button" class="btn btn--ghost" data-af-eg="ana.k">ana.k</button>
+    <button type="button" class="btn btn--ghost" data-af-eg="kestrel_xx">kestrel_xx</button>
+    <button type="button" class="btn btn--ghost" data-af-eg="nova">nova (you)</button>
+    <button type="button" class="btn btn--ghost" data-af-eg="Kai Nakamura">Kai Nakamura</button>
+    <button type="button" class="btn btn--ghost" data-af-paste=" @Kai.exe#0420 ">Paste “ @Kai.exe#0420 ”</button>
+  </div>
+  <p class="note" style="margin-top: 8px">Enter sends. Send request stays enabled; an empty send just keeps focus in the field. A quick lookup runs on the button (mini wave), then the line below answers. Every outcome keeps what you typed except a sent request, which clears the field and appears under Pending at once.</p>
+
+  <h3>Add friend results</h3>
+  <div class="nd-frame"><div class="nd-states af-states">
+    <div class="af-result"><i class="ph ph-info"></i><span>Their username, not their display name. It's on their profile.</span></div><span class="note">Before anything is sent</span>
+    <div class="af-result"><i class="ph ph-sparkle"></i><span>Removed the @, the spaces and the old #0420 tag from what you pasted.</span><button class="btn btn--link" type="button">Undo</button></div><span class="note">Tidied on paste: a leading @, spaces, capitals and a pre-2023 #1234 tag. Says what it changed; Undo restores the paste.</span>
+    <div class="af-result af-result--err"><i class="ph-bold ph-warning-circle"></i><span>That looks like a display name. Usernames have no spaces, so ask them for theirs.</span></div><span class="note">Typed a display name: caught locally, no round trip. The field takes the error border.</span>
+    <div class="af-result af-result--ok"><i class="ph-fill ph-check-circle"></i><span>Request sent to <b>kai.exe</b>. It waits under Pending until they answer.</span></div><span class="note">Sent: the field clears and the request shows under Pending at once</span>
+    <div class="af-result af-result--err"><i class="ph-bold ph-x-circle"></i><span>No one goes by <b>kai.ex</b>. Check the spelling, dots and underscores too.</span></div><span class="note">Not found: the text stays so one character can be fixed</span>
+    <div class="af-result af-result--ok"><i class="ph-fill ph-user-check"></i><span>You and <b>Mira</b> are already friends.</span><button class="btn btn--link" type="button">Message Mira</button></div><span class="note">Already friends: not an error, so no error tone; the next useful step is the link</span>
+    <div class="af-result af-result--err"><i class="ph-bold ph-x-circle"></i><span><b>ana.k</b> isn't taking friend requests from you. Sharing a server with them may help.</span></div><span class="note">They don't accept requests from you (their privacy setting)</span>
+    <div class="af-result af-result--err"><i class="ph-bold ph-x-circle"></i><span><b>theo_</b> isn't taking friend requests from you. Sharing a server with them may help.</span></div><span class="note">They blocked you: word for word the line above, so a block is never revealed</span>
+    <div class="af-result af-result--warn"><i class="ph-fill ph-prohibit"></i><span>You blocked <b>kestrel_xx</b>.</span><button class="btn btn--link" type="button">Unblock and send</button></div><span class="note">You blocked them: your own block, so it says so and offers the way through</span>
+    <div class="af-result af-result--warn"><i class="ph ph-timer"></i><span>You've sent a lot of requests. Try again in 9 minutes.</span></div><span class="note">Rate limited: Send turns off and reads "Send in 8:59", counting down; the username stays filled</span>
+    <div class="af-result"><i class="ph ph-user-circle"></i><span>That's your own username. Send it to friends so they can add you.</span><button class="btn btn--link" type="button">Copy username</button></div><span class="note">Can't add yourself: turned into the thing you probably wanted</span>
+  </div></div>
+  <p class="note" style="margin-top: 8px">.af-result is one line under the field, 14px, reserved 20px tall so the list never jumps. Tones: --ok (--online-ink icon), --warn (--warning-ink icon), --err (all --danger-ink); neutral lines keep --text-muted. It is the field's aria-describedby and a role="status".</p>
+
   <h3>No one online</h3>
   <div class="nd-frame"><div class="flist">
     <div class="empty">
@@ -421,19 +471,19 @@
 <!-- Member list -->
 <section id="member-list">
   <h2>Member list</h2>
-  <p class="lede">Who is in this channel, grouped by their top role, then online and offline. One line of activity under each name.</p>
+  <p class="lede">Who is in this channel, grouped by their top role, then online and offline. Names take their top role's colour; one line of activity sits under each.</p>
   <div class="board nd-cols">
     <div class="nd-frame" style="width: 240px; flex: none">
       <aside class="members" aria-label="Members">
         <div class="cat">Host · 1</div>
-        <div class="mem"><span class="av" data-av="Theo"><span class="status dnd"></span></span><div><b><bdi>Theo</bdi><i class="ph-fill ph-crown-simple crown" aria-label="Server owner" title="Server owner"></i></b><span><i class="ph-fill ph-broadcast"></i><bdi>Streaming Hades II</bdi></span></div></div>
+        <div class="mem"><span class="av" data-av="Theo"><span class="status dnd"></span></span><div><b><bdi class="role-ink" style="--role: oklch(0.78 0.13 85)">Theo</bdi><i class="ph-fill ph-crown-simple crown" aria-label="Server owner" title="Server owner"></i></b><span><i class="ph-fill ph-broadcast"></i><bdi>Streaming Hades II</bdi></span></div></div>
         <div class="cat">Online · 4</div>
-        <div class="mem"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b><bdi>Mira</bdi></b><span><i class="ph-fill ph-game-controller"></i><bdi>Playing Balatro</bdi></span></div></div>
-        <div class="mem is-hover"><span class="av" data-av="Ana"><span class="status idle"></span></span><div><b><bdi>Ana</bdi></b><span><bdi>🍕 brb, pizza</bdi></span></div></div>
+        <div class="mem"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b><bdi class="role-ink" style="--role: oklch(0.72 0.14 145)">Mira</bdi></b><span><i class="ph-fill ph-game-controller"></i><bdi>Playing Balatro</bdi></span></div></div>
+        <div class="mem is-hover"><span class="av" data-av="Ana"><span class="status idle"></span></span><div><b><bdi class="role-ink" style="--role: #0000ff">Ana</bdi></b><span><bdi>🍕 brb, pizza</bdi></span></div></div>
         <div class="mem"><span class="av" data-av="Wavebot"><span class="status online"></span></span><div><b><bdi>Wavebot</bdi><span class="tag">App</span></b><span><i class="ph-fill ph-music-notes"></i><bdi>Listening to lofi beats</bdi></span></div></div>
-        <div class="mem sel"><span class="av" data-av="Maximiliana"><span class="status online"></span></span><div><b><bdi>Maximiliana Wolfeschlegelsteinhausen</bdi></b><span><bdi>🌙 night owl, reply by morning, probably later</bdi></span></div></div>
+        <div class="mem sel"><span class="av" data-av="Maximiliana"><span class="status online"></span></span><div><b><bdi class="role-ink" style="--role: #ffff00">Maximiliana Wolfeschlegelsteinhausen</bdi></b><span><bdi>🌙 night owl, reply by morning, probably later</bdi></span></div></div>
         <div class="cat">Offline · 2</div>
-        <div class="mem off"><span class="av" data-av="Jun"><span class="status offline"></span></span><div><b><bdi>Jun</bdi></b></div></div>
+        <div class="mem off"><span class="av" data-av="Jun"><span class="status offline"></span></span><div><b><bdi class="role-ink" style="--role: oklch(0.72 0.14 145)">Jun</bdi></b></div></div>
         <div class="mem off"><span class="av" data-av="Rosa"><span class="status offline"></span></span><div><b><bdi>Rosa</bdi></b></div></div>
       </aside>
     </div>
@@ -452,6 +502,29 @@
       <p class="note">Offline rows dim the avatar to 50% and the name to --text-faint, so the text still clears 4.5:1.</p>
       <p class="note">Hover is --hover; the member whose profile is open keeps --selected (Maximiliana).</p>
       <p class="note">The owner crown and the App tag follow the name and never truncate; the name gives way first.</p>
+      <p class="note">Names take their top role's colour through .role-ink (Ana's role is pure blue, Maximiliana's pure yellow). Offline names drop to --text-faint like everyone else's; Wavebot has no coloured role and keeps the plain ink.</p>
+    </div>
+  </div>
+
+  <h3>Role colour on names</h3>
+  <div class="board nd-cols">
+    <div class="nd-frame" style="flex: 1; min-width: min(100%, 300px); max-width: 560px; padding: 8px 0; background: var(--bg-page)">
+      <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name role-ink" style="--role: oklch(0.78 0.13 85)">Theo</span><span class="time">Today at 9:40 PM</span></div><div class="body">patch notes are up, healer got hit hard</div></div></div>
+      <div class="msg first"><span class="av" data-av="Ana"></span><div><div class="head"><span class="name role-ink" style="--role: #0000ff">Ana</span><span class="time">Today at 9:41 PM</span></div><div class="body">finally</div></div></div>
+      <div class="msg first"><span class="av" data-av="Maximiliana"></span><div><div class="head"><span class="name role-ink" style="--role: #ffff00">Maximiliana Wolfeschlegelsteinhausen</span><span class="time">Today at 9:43 PM</span></div><div class="body">my whole build is gone 😭</div></div></div>
+      <div class="msg first"><span class="av" data-av="Wavebot"></span><div><div class="head"><span class="name">Wavebot</span><span class="tag">App</span><span class="time">Today at 9:44 PM</span></div><div class="body">Now playing: lofi beats to queue to</div></div></div>
+    </div>
+    <div class="stack" style="flex: 1; min-width: min(100%, 240px); gap: var(--space-3)">
+      <div class="row" style="gap: var(--space-2)">
+        <span class="role" style="--role: #ffff00"><span class="role-ink">Night owls</span></span>
+        <span class="role" style="--role: #00ff00"><span class="role-ink">Speedrunners</span></span>
+        <span class="role" style="--role: #1abc9c"><span class="role-ink">Clippers</span></span>
+        <span class="role" style="--role: #0000ff"><span class="role-ink">Editor</span></span>
+        <span class="role" style="--role: #71368a"><span class="role-ink">Old guard</span></span>
+        <span class="role" style="--role: #e91e63"><span class="role-ink">Mod</span></span>
+      </div>
+      <p class="note">The dot is the colour the server picked; the label is what Wave draws. Same hue, lightness clamped per theme: 0.72 to 0.92 on ink, 0.30 to 0.45 on bone, chroma capped at 0.16. Every pick clears 4.5:1 on sidebar, page, popover and the selected fill in both themes.</p>
+      <p class="note">CSS: <code>oklch(from var(--role) clamp(lo, l, hi) min(c, 0.16) h)</code>. The port does the same in OKLCH, then gamut-maps by lowering chroma.</p>
     </div>
   </div>
 </section>
@@ -568,6 +641,20 @@
     </div></div>
   </div>
 </section>
+
+<!-- Better than Discord -->
+<section id="better-than-discord">
+  <h2>Better than Discord</h2>
+  <p class="lede">Where Wave's navigation parts ways with Discord's, and why.</p>
+  <div class="btd">
+    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
+    <div><p>Add Friend is its own tab that replaces your friends list.</p><p><b><a href="#friends">A field above the list</a></b>The header button opens it in place; a sent request shows under Pending right below.</p><p>You see the result land instead of switching tabs to check.</p></div>
+    <div><p>Most failures share one line: it didn't work, double-check the username.</p><p><b><a href="#friends">Each outcome says what happened</a></b>Not found, already friends, you blocked them, rate limited, that's you, each with its next step. A block against you stays word for word the "not taking requests" line.</p><p>Errors say how to fix them; privacy still holds.</p></div>
+    <div><p>A pasted <code>@name</code> or old <code>name#1234</code> fails as not found.</p><p><b><a href="#friends">Tidy on paste</a></b>Strips the @, spaces, capitals and the old tag, says what it removed, with Undo.</p><p>The common copy-paste mistake fixes itself, visibly.</p></div>
+    <div><p>Role colours draw exactly as picked, so dark roles sink into the dark theme and yellow vanishes on light.</p><p><b><a href="#member-list">Contrast-safe role tint</a></b>Same hue, lightness clamped per theme; every name clears 4.5:1.</p><p>A server's colour choice never makes a name unreadable.</p></div>
+  </div>
+  <p class="note" style="margin-top: 8px">The Discord column describes its desktop client from use, not from a fresh check; confirm a row against current Discord before quoting it.</p>
+</section>
 </main>
 </div>
 <script src="site.js"></script>
@@ -634,6 +721,79 @@ function toggleFolder(head) {
     if (dy) el.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], timing);
   }
 }
+
+// Add friend. Usernames in AF stand in for the server's answers; anything else is not found.
+const AF_ME = "nova";
+const AF = {
+  "mira.wav": ["ok", "ph-fill ph-user-check", "You and <b>Mira</b> are already friends.", "Message Mira"],
+  "ana.k": ["err", "ph-bold ph-x-circle", "<b>ana.k</b> isn't taking friend requests from you. Sharing a server with them may help."],
+  "theo_": ["err", "ph-bold ph-x-circle", "<b>theo_</b> isn't taking friend requests from you. Sharing a server with them may help."],
+  "kestrel_xx": ["warn", "ph-fill ph-prohibit", "You blocked <b>kestrel_xx</b>.", "Unblock and send"],
+  [AF_ME]: ["", "ph ph-user-circle", "That's your own username. Send it to friends so they can add you.", "Copy username"],
+};
+const afTidy = raw => raw.trim().replace(/^@+/, "").replace(/#\d{4}$/, "").replace(/\s+/g, " ").toLowerCase();
+
+function afSay(form, [tone, icon, html, link]) {
+  const line = form.querySelector(".af-result");
+  line.className = "af-result" + (tone ? ` af-result--${tone}` : "");
+  line.innerHTML = `<i class="${icon}"></i><span>${html}</span>` + (link ? `<button class="btn btn--link" type="button">${link}</button>` : "");
+  form.querySelector(".input").classList.toggle("error", tone === "err");
+}
+
+function afSend(form) {
+  const input = form.elements.username, name = afTidy(input.value);
+  if (!name) return input.focus();
+  if (name.includes(" ")) return afSay(form, ["err", "ph-bold ph-warning-circle", "That looks like a display name. Usernames have no spaces, so ask them for theirs."]);
+  const btn = form.querySelector("[type=submit]");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="bars" style="--c: currentColor"><i></i><i></i><i></i></span>Sending…';
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = "Send request";
+    if (AF[name]) return afSay(form, AF[name]);
+    if (name !== "kai.exe") return afSay(form, ["err", "ph-bold ph-x-circle", `No one goes by <b>${name}</b>. Check the spelling, dots and underscores too.`]);
+    afSay(form, ["ok", "ph-fill ph-check-circle", `Request sent to <b>${name}</b>. It waits under Pending until they answer.`]);
+    input.value = "";
+    afAddPending(form.nextElementSibling);
+  }, 450);
+}
+
+function afAddPending(list) {
+  const label = list.querySelector(".flabel");
+  if (!label?.textContent.startsWith("Pending")) return;
+  const row = document.createElement("div");
+  row.className = "friend is-new";
+  row.innerHTML = '<span class="av" data-av="Kai"></span><div><b>Kai</b><span>You sent a request · just now</span></div><div class="acts"><button class="iconbtn ignore" aria-label="Cancel request to Kai" title="Cancel request"><i class="ph-bold ph-x"></i></button></div>';
+  label.after(row);
+  window.paintAvatars?.(row);
+  label.textContent = `Pending · ${list.querySelectorAll(".friend").length}`;
+}
+
+function afPaste(form, raw) {
+  const input = form.elements.username, clean = afTidy(raw);
+  input.value = clean;
+  if (clean === raw) return;
+  const gone = [/^\s*@/.test(raw) && "the @", /\s/.test(raw) && "the spaces", /[A-Z]/.test(raw) && "the capitals", /#\d{4}\s*$/.test(raw) && `the old ${raw.trim().slice(-5)} tag`].filter(Boolean);
+  const list = new Intl.ListFormat("en", { type: "conjunction" }).format(gone);
+  afSay(form, ["", "ph ph-sparkle", `Removed ${list} from what you pasted.`, "Undo"]);
+  form.dataset.raw = raw;
+}
+
+for (const form of document.querySelectorAll("form.addfriend")) {
+  form.addEventListener("submit", e => { e.preventDefault(); afSend(form); });
+  form.elements.username.addEventListener("paste", e => { e.preventDefault(); afPaste(form, e.clipboardData.getData("text")); });
+  form.addEventListener("click", e => {
+    if (e.target.closest(".af-result .btn--link")?.textContent === "Undo") { form.elements.username.value = form.dataset.raw; afSay(form, ["", "ph ph-info", "Their username, not their display name. It's on their profile."]); }
+  });
+}
+document.addEventListener("click", e => {
+  const form = document.querySelector("#af-demo form.addfriend");
+  const eg = e.target.closest("[data-af-eg]"), paste = e.target.closest("[data-af-paste]");
+  if (eg) { form.elements.username.value = eg.dataset.afEg; afSend(form); }
+  if (paste) afPaste(form, paste.dataset.afPaste);
+  const toggle = e.target.closest(".af-toggle");
+  if (toggle?.getAttribute("aria-pressed") === "true") requestAnimationFrame(() => toggle.closest(".fhead").nextElementSibling.elements.username.focus());
+});
 </script>
 </body>
 </html>
