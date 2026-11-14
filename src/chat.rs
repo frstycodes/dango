@@ -348,7 +348,7 @@ impl Rustcord {
                             .px_1()
                             .cursor_pointer()
                             .font_weight(FontWeight::BOLD)
-                            .text_color(if ping { crate::palette::blurple() } else { theme.muted_foreground })
+                            .text_color(if ping { crate::palette::accent_ink(cx) } else { theme.muted_foreground })
                             .child(if ping { "@ ON" } else { "@ OFF" })
                             .tooltip(|window, cx| Tooltip::new("Mention the author of this message").build(window, cx))
                             .on_click(cx.listener(|this, _, _, cx| {
@@ -704,7 +704,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &std::rc::Rc<RowConte
                 .child(tag.text)
         }))
         .when(message.author.bot, |h| h.child(chip("APP", cx)))
-        .child(div().ml_1().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(gpui_kit::rgb(0x81828A)).child(format_stamp(&message.timestamp)));
+        .child(div().ml_1().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(cx.theme().muted_foreground).child(format_stamp(&message.timestamp)));
     let row = row
         .mt(px(17.))
         .pt(px(2.))
@@ -896,8 +896,8 @@ fn thread_chip(thread: &crate::discord::Channel, ctx: &std::rc::Rc<RowContext>, 
         .py_2()
         .rounded(px(8.))
         .border_1()
-        .border_color(Hsla::from(gpui_kit::rgb(0x97979F)).opacity(0.2))
-        .bg(if theme.is_dark() { gpui_kit::rgb(0x0A0A0C).into() } else { theme.muted })
+        .border_color(theme.border)
+        .bg(theme.popover)
         .flex()
         .items_center()
         .gap_2()
@@ -912,7 +912,7 @@ fn thread_chip(thread: &crate::discord::Channel, ctx: &std::rc::Rc<RowContext>, 
                 .text_color(theme.link)
                 .child(format!("{count} {} ›", if count == 1 { "Message" } else { "Messages" })),
         )
-        .hover(|s| s.bg(Hsla::from(gpui_kit::rgb(0x97979F)).opacity(0.08)))
+        .hover(|s| s.bg(theme.list_hover))
         .on_click(move |_, window, cx| {
             this.update(cx, |this, cx| this.open_channel(open.clone(), window, cx)).ok();
         })
@@ -972,8 +972,8 @@ fn media_grid(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &App) -> Opt
 fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElement {
     let theme = cx.theme();
     let strong = crate::palette::strong(cx);
-    let bar: Hsla = embed.color.filter(|c| *c != 0).map(|c| gpui_kit::rgb(c).into()).unwrap_or(Hsla::from(gpui_kit::rgb(0x97979F)).opacity(0.24));
-    let fill: Hsla = if theme.is_dark() { gpui_kit::rgb(0x0A0A0C).into() } else { theme.muted };
+    let bar: Hsla = embed.color.filter(|c| *c != 0).map(|c| gpui_kit::rgb(c).into()).unwrap_or(crate::palette::wash(0.24));
+    let fill = theme.popover;
     let large = embed.thumbnail.as_ref().filter(|t| t.width >= 400.);
     let small = embed.thumbnail.as_ref().filter(|t| t.width < 400.);
     let md = |part: &str, text: &str| markdown(SharedString::from(format!("{key}-{part}")), readable(text, ctx), ctx);
@@ -1043,7 +1043,7 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
         .rounded(px(4.))
         .overflow_hidden()
         .border_1()
-        .border_color(Hsla::from(gpui_kit::rgb(0x97979F)).opacity(0.2))
+        .border_color(theme.border)
         .bg(fill)
         .child(div().w(px(4.)).flex_none().bg(bar))
         .child(div().flex_1().min_w_0().pt(px(2.)).pr_4().pb_4().pl_3().flex().gap_4().child(text).children(small.map(|m| img(m.url.clone()).size(px(80.)).rounded(px(4.)).flex_none().mt_2())))

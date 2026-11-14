@@ -5,9 +5,9 @@
 use std::collections::HashMap;
 
 use gpui_kit::{
-    AnyElement, Context, FontWeight, Hsla, SharedString, Window,
+    AnyElement, Context, FontWeight, SharedString, Window,
     component::{ActiveTheme, Icon},
-    div, img, prelude::*, px, rgb,
+    div, img, prelude::*, px,
 };
 use reqwest::Method;
 use serde_json::{Value, json};
@@ -231,12 +231,12 @@ impl Rustcord {
             .p_4()
             .rounded(px(8.))
             .border_1()
-            .border_color(Hsla::from(rgb(0x97979F)).opacity(0.2))
-            .bg(if theme.is_dark() { rgb(0x0A0A0C).into() } else { theme.muted })
+            .border_color(theme.border)
+            .bg(theme.popover)
             .flex()
             .gap_4()
             .cursor_pointer()
-            .hover(|s| s.bg(Hsla::from(rgb(0x97979F)).opacity(0.08)))
+            .hover(|s| s.bg(theme.list_hover))
             .child(
                 div()
                     .flex_1()
