@@ -29,6 +29,48 @@
         ],
         "createdAt": "2026-11-14T18:49:00.675Z",
         "reason": "Claude: the match is the storyboard arrowhead, an 8px square with top and right borders rotated 45deg; no card has a side border"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/overlays.html"
+        ],
+        "createdAt": "2026-11-14T18:57:59.467Z",
+        "reason": "Claude: matches the indeterminate progress bar and skeleton shimmer from css/primitives.css, loading fills that move no content"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/voice.html"
+        ],
+        "createdAt": "2026-11-14T18:57:59.488Z",
+        "reason": "Claude: matches the indeterminate progress bar and skeleton shimmer from css/primitives.css, loading fills that move no content"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/navigation.html"
+        ],
+        "createdAt": "2026-11-14T18:57:59.508Z",
+        "reason": "Claude: matches the indeterminate progress bar and skeleton shimmer from css/primitives.css, loading fills that move no content"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/settings.html"
+        ],
+        "createdAt": "2026-11-14T18:57:59.526Z",
+        "reason": "Claude: matches the indeterminate progress bar and skeleton shimmer from css/primitives.css, loading fills that move no content"
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "var(--ease-spring)",
+        "createdAt": "2026-11-14T18:57:59.546Z",
+        "reason": "User taste for Wave (ui skill project notes): touch-driven springs overshoot about 0.3 and settle within 250ms; the token is that spring"
       }
     ]
   }
