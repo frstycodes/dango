@@ -20,6 +20,15 @@
         ],
         "createdAt": "2026-11-14T18:02:42.962Z",
         "reason": "Claude: radial gradients stand in for stream and image content (placeholder screenshots), not decorative page glows"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "design/css/flows.css"
+        ],
+        "createdAt": "2026-11-14T18:49:00.675Z",
+        "reason": "Claude: the match is the storyboard arrowhead, an 8px square with top and right borders rotated 45deg; no card has a side border"
       }
     ]
   }
