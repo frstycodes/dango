@@ -199,7 +199,7 @@ DM me your best `frame-perfect` moments. Spoiler: ||it's always the dodge||</tex
 <!-- Custom status -->
 <section id="custom-status">
   <h2>Custom status</h2>
-  <p class="lede">One dialog sets both your presence and a custom status, opened from your avatar in the user area. The user area then shows your custom status in place of the presence word.</p>
+  <p class="lede">Your name in the user area opens one menu: presence in one click, then your accounts. Its first row, Set a custom status, opens this dialog, which can change presence too. The user area then shows your custom status in place of the presence word.</p>
   <div class="board row" style="gap: var(--space-6); align-items: flex-start">
     <form class="dialog dialog--md" role="dialog" aria-labelledby="cs-h" data-live="dlg-status" onsubmit="return false">
       <div class="dhead"><h4 id="cs-h">Set your status</h4><p>Shown on your profile and in member lists.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
@@ -229,6 +229,25 @@ DM me your best `frame-perfect` moments. Spoiler: ||it's always the dodge||</tex
       <footer><button type="button" class="btn btn--ghost pf-cs-clearall" style="margin-right: auto">Clear status</button><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary pf-cs-save" data-close>Save status</button></footer>
     </form>
     <div class="stack" style="gap: var(--space-6); flex: 1 1 280px; min-width: 0">
+      <div class="stack" style="gap: 6px"><span class="note">Your menu, from your name in the user area (also on <a href="auth.html#accounts" style="color: var(--accent-ink)">Sign in: status and accounts</a>)</span>
+      <div class="au-acctwrap">
+      <div class="menu au-accts" role="menu" aria-label="Status and accounts">
+        <button class="mi" role="menuitem" data-open="dlg-status"><i class="ph ph-smiley"></i><div>Set a custom status</div></button>
+        <div role="group" aria-label="Presence">
+          <button class="mi" role="menuitemradio" aria-checked="true" data-presence="online"><span class="pf-smark" style="--bg-ring: var(--bg-overlay)"><span class="status online"></span></span><div>Online</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false" data-presence="idle"><span class="pf-smark" style="--bg-ring: var(--bg-overlay)"><span class="status idle"></span></span><div>Idle</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false" data-presence="dnd"><span class="pf-smark" style="--bg-ring: var(--bg-overlay)"><span class="status dnd"></span></span><div>Do not disturb</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false" data-presence="offline"><span class="pf-smark" style="--bg-ring: var(--bg-overlay)"><span class="status offline"></span></span><div>Invisible</div></button>
+        </div>
+        <hr>
+        <div class="mlabel">Accounts</div>
+        <div class="au-acct" aria-current="true"><span class="av" data-av="Juno"><span class="status online"></span></span><button class="nm" role="menuitemradio" aria-checked="true"><b>Juno</b><span>Online</span></button></div>
+        <div class="au-acct"><span class="av" data-av="juno.work"><span class="status idle"></span></span><button class="nm" role="menuitemradio" aria-checked="false"><b>juno.work</b><span>Idle</span></button><span class="au-end"><span class="count" aria-label="3 mentions">3</span><button class="iconbtn iconbtn--sm au-out" aria-label="Log out of juno.work" title="Log out of juno.work"><i class="ph ph-sign-out"></i></button></span></div>
+        <div class="au-acct"><span class="av" data-av="Rosa" style="opacity: 0.6"><span class="status offline"></span></span><button class="nm" role="menuitem"><b>rosa_work</b><span class="is-needs">Signed out. Sign in again</span></button><span class="au-end"><button class="iconbtn iconbtn--sm au-out" aria-label="Remove rosa_work" title="Remove rosa_work"><i class="ph ph-x"></i></button></span></div>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-plus"></i><div>Add an account</div></button>
+      </div>
+      </div></div>
       <div class="stack" style="gap: 6px"><span class="note">Clear after, open</span>
         <div class="menu" role="listbox" aria-label="Clear after" style="--menu-w: 240px">
           <button class="mi" role="option" aria-selected="false"><i class="ph ph-infinity"></i><div>Don't clear</div></button>
@@ -243,7 +262,23 @@ DM me your best `frame-perfect` moments. Spoiler: ||it's always the dodge||</tex
         <figure><div class="me"><button class="who"><span class="av" data-av="Juno"><span class="status online"></span></span><div><b>Juno</b><span>Online</span></div></button><button class="iconbtn" aria-label="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings"><i class="ph-bold ph-gear-six"></i></button></div><figcaption>No custom status: the presence word</figcaption></figure>
         <figure><div class="me"><button class="who" title="Clears in 4 hours"><span class="av" data-av="Juno"><span class="status dnd"></span></span><div><b>Juno</b><span>🎧 editing the montage</span></div></button><button class="iconbtn" aria-label="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings"><i class="ph-bold ph-gear-six"></i></button></div><figcaption>Saved: emoji and text replace it; the tooltip says when it clears</figcaption></figure>
         <figure><div class="me"><button class="who"><span class="av" data-av="Juno"><span class="status offline"></span></span><div><b>Juno</b><span>☕ rendering a 40 minute montage at 4K, back when the progress bar stops lying</span></div></button><button class="iconbtn" aria-label="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings"><i class="ph-bold ph-gear-six"></i></button></div><figcaption>Long status truncates; invisible keeps the hollow ring</figcaption></figure>
-        <figure><div class="me" id="me-live"><button class="who" data-open="dlg-status"><span class="av" data-av="Juno"><span class="status online"></span></span><div><b>Juno</b><span>Online</span></div></button><button class="iconbtn" aria-label="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings"><i class="ph-bold ph-gear-six"></i></button></div><figcaption>Live: click your avatar, set a status, save</figcaption></figure>
+        <figure><div class="me" id="me-live"><button class="who" popovertarget="you-menu" aria-label="Your status and accounts" style="anchor-name: --me-live"><span class="av" data-av="Juno"><span class="status online"></span></span><div><b>Juno</b><span>Online</span></div></button><button class="iconbtn" aria-label="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings"><i class="ph-bold ph-gear-six"></i></button></div><figcaption>Live: click your name, pick a presence or set a custom status</figcaption></figure>
+        <div class="menu au-accts" role="menu" aria-label="Status and accounts" popover id="you-menu" style="--origin: bottom left; position-anchor: --me-live; bottom: anchor(top); left: anchor(left); margin-bottom: 6px; position-try-fallbacks: flip-block">
+        <button class="mi" role="menuitem" data-open="dlg-status"><i class="ph ph-smiley"></i><div>Set a custom status</div></button>
+        <div role="group" aria-label="Presence">
+          <button class="mi" role="menuitemradio" aria-checked="true" data-presence="online"><span class="pf-smark" style="--bg-ring: var(--bg-overlay)"><span class="status online"></span></span><div>Online</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false" data-presence="idle"><span class="pf-smark" style="--bg-ring: var(--bg-overlay)"><span class="status idle"></span></span><div>Idle</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false" data-presence="dnd"><span class="pf-smark" style="--bg-ring: var(--bg-overlay)"><span class="status dnd"></span></span><div>Do not disturb</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false" data-presence="offline"><span class="pf-smark" style="--bg-ring: var(--bg-overlay)"><span class="status offline"></span></span><div>Invisible</div></button>
+        </div>
+        <hr>
+        <div class="mlabel">Accounts</div>
+        <div class="au-acct" aria-current="true"><span class="av" data-av="Juno"><span class="status online"></span></span><button class="nm" role="menuitemradio" aria-checked="true"><b>Juno</b><span>Online</span></button></div>
+        <div class="au-acct"><span class="av" data-av="juno.work"><span class="status idle"></span></span><button class="nm" role="menuitemradio" aria-checked="false"><b>juno.work</b><span>Idle</span></button><span class="au-end"><span class="count" aria-label="3 mentions">3</span><button class="iconbtn iconbtn--sm au-out" aria-label="Log out of juno.work" title="Log out of juno.work"><i class="ph ph-sign-out"></i></button></span></div>
+        <div class="au-acct"><span class="av" data-av="Rosa" style="opacity: 0.6"><span class="status offline"></span></span><button class="nm" role="menuitem"><b>rosa_work</b><span class="is-needs">Signed out. Sign in again</span></button><span class="au-end"><button class="iconbtn iconbtn--sm au-out" aria-label="Remove rosa_work" title="Remove rosa_work"><i class="ph ph-x"></i></button></span></div>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-plus"></i><div>Add an account</div></button>
+      </div>
       </div>
     </div>
   </div>
@@ -982,6 +1017,20 @@ document.addEventListener("click", e => {
   }
 });
 document.addEventListener("input", e => { if (e.target.matches(".pf-cs-text")) count(e.target); });
+
+// Your menu: presence in one click; Set a custom status hands over to the dialog.
+document.addEventListener("click", e => {
+  const row = e.target.closest(".mi[data-presence]");
+  if (row) {
+    for (const r of $$(".mi[data-presence]", row.parentElement)) r.setAttribute("aria-checked", r === row);
+    if (!row.closest("#you-menu")) return;
+    const me = $("#me-live"), word = $(".who span:not(.av):not(.status)", me);
+    $(".status", me).className = "status " + row.dataset.presence;
+    if (Object.values(STATUS_WORD).includes(word.textContent)) word.textContent = STATUS_WORD[row.dataset.presence];
+    $("#you-menu").hidePopover();
+  }
+  if (e.target.closest("#you-menu [data-open]")) $("#you-menu").hidePopover();
+});
 
 // Who can add you: Everyone is a tri-state parent of the options under it.
 $("#fr-who").addEventListener("click", e => {

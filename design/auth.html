@@ -22,6 +22,7 @@
 <link rel="stylesheet" href="css/panels.css">
 <link rel="stylesheet" href="css/media.css">
 <link rel="stylesheet" href="css/auth.css">
+<link rel="stylesheet" href="css/profile.css">
 <script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 </head>
 <body>
@@ -277,13 +278,21 @@
   </div>
 </section>
 
-<!-- Account switcher -->
+<!-- Your menu: status, then accounts -->
 <section id="accounts">
-  <h2>Account switcher</h2>
-  <p class="lede">Every signed-in account, one click from your panel. Each row shows its status and what waits for you there; logging out of one is instant, with Undo.</p>
+  <h2>Status and accounts</h2>
+  <p class="lede">Your name in the panel opens one menu: your presence first, then every signed-in account with what waits for you there. Logging out of one is instant, with Undo.</p>
   <div class="board" style="display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: flex-end">
     <div class="au-acctwrap">
-      <div class="menu au-accts" role="menu" aria-label="Accounts">
+      <div class="menu au-accts" role="menu" aria-label="Status and accounts">
+        <button class="mi" role="menuitem" onclick="location.href='profile.html#custom-status'"><i class="ph ph-smiley"></i><div>Set a custom status</div></button>
+        <div role="group" aria-label="Presence">
+          <button class="mi" role="menuitemradio" aria-checked="true" data-presence="online"><span class="pf-smark" style="--bg-ring: var(--bg-overlay)"><span class="status online"></span></span><div>Online</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false" data-presence="idle"><span class="pf-smark" style="--bg-ring: var(--bg-overlay)"><span class="status idle"></span></span><div>Idle</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false" data-presence="dnd"><span class="pf-smark" style="--bg-ring: var(--bg-overlay)"><span class="status dnd"></span></span><div>Do not disturb</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false" data-presence="offline"><span class="pf-smark" style="--bg-ring: var(--bg-overlay)"><span class="status offline"></span></span><div>Invisible</div></button>
+        </div>
+        <hr>
         <div class="mlabel">Accounts</div>
         <div class="au-acct" aria-current="true"><span class="av" data-av="Mira"><span class="status online"></span></span><button class="nm" role="menuitemradio" aria-checked="true"><b>Mira</b><span>Online</span></button></div>
         <div class="au-acct"><span class="av" data-av="Theo"><span class="status idle"></span></span><button class="nm" role="menuitemradio" aria-checked="false"><b>juno.alt</b><span>Idle</span></button><span class="au-end"><span class="count" aria-label="3 mentions">3</span><button class="iconbtn iconbtn--sm au-out" aria-label="Log out of juno.alt" title="Log out of juno.alt"><i class="ph ph-sign-out"></i></button></span></div>
@@ -292,11 +301,11 @@
         <hr>
         <button class="mi" role="menuitem"><i class="ph ph-plus"></i><div>Add an account</div></button>
       </div>
-      <div class="me"><button class="who" aria-label="Switch accounts" aria-expanded="true"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>Online</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div>
+      <div class="me" id="me-acct"><button class="who" aria-label="Your status and accounts" aria-expanded="true"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>Online</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div>
     </div>
     <div class="stack" style="flex: 1; min-width: min(100%, 260px); gap: var(--space-4)">
       <div class="toasts stack" id="acct-toasts" role="status" aria-live="polite" style="gap: var(--space-2); min-height: 56px; justify-items: start"></div>
-      <p class="note">Opens from the name in your panel, rising from it (0.95 and fade, 200ms). The current account takes the selected fill, no check. Mentions use the accent count because they ask for you; on hover or focus the count gives its slot to Log out. A signed-out account says so in the warning tone and signs in again on click. Add an account opens the sign-in window beside the app; nothing you're doing closes. Try logging out of a row.</p>
+      <p class="note">Opens from the name in your panel, rising from it (0.95 and fade, 200ms). Presence changes in one click and the panel follows at once; Set a custom status opens its dialog (<a href="profile.html#custom-status" style="color: var(--accent-ink)">Profile: custom status</a>). The chosen presence and the current account take the selected fill, no check or dot. Mentions use the accent count because they ask for you; on hover or focus the count gives its slot to Log out. A signed-out account says so in the warning tone and signs in again on click. Add an account opens the sign-in window beside the app; nothing you're doing closes. Try logging out of a row.</p>
     </div>
   </div>
 </section>
@@ -564,6 +573,17 @@ for (const rate of $$("[data-rate]")) {
     note.hidden = true; timer.hidden = true; send.disabled = false;
   }, 1000);
 }
+
+// Presence: one click, the panel follows.
+const PRESENCE = { online: "Online", idle: "Idle", dnd: "Do not disturb", offline: "Invisible" };
+document.addEventListener("click", e => {
+  const row = e.target.closest(".mi[data-presence]");
+  if (!row) return;
+  for (const r of $$(".mi[data-presence]", row.parentElement)) r.setAttribute("aria-checked", r === row);
+  const me = $("#me-acct");
+  $(".who .status", me).className = "status " + row.dataset.presence;
+  $(".who div span", me).textContent = PRESENCE[row.dataset.presence];
+});
 
 // Accounts: logging out of one is instant; the toast offers Undo.
 const acctToasts = $("#acct-toasts");

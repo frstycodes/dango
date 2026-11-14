@@ -107,10 +107,10 @@
     <div class="menu" role="menu" aria-label="Notifications for #clips">
       <div class="mlabel">Notifications for #clips</div>
       <div role="group" aria-label="Notify me about">
-        <button class="mi" role="menuitemradio" aria-checked="true"><i class="ph ph-gear-six"></i><div>Use server default<small>Only @mentions</small></div><span class="radio" aria-checked="true"></span></button>
-        <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-chat-text"></i><div>All messages</div><span class="radio" aria-checked="false"></span></button>
-        <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-at"></i><div>Only @mentions</div><span class="radio" aria-checked="false"></span></button>
-        <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-bell-slash"></i><div>Nothing</div><span class="radio" aria-checked="false"></span></button>
+        <button class="mi" role="menuitemradio" aria-checked="true"><i class="ph ph-gear-six"></i><div>Use server default<small>Only @mentions</small></div></button>
+        <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-chat-text"></i><div>All messages</div></button>
+        <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-at"></i><div>Only @mentions</div></button>
+        <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-bell-slash"></i><div>Nothing</div></button>
       </div>
       <hr>
       <button class="mi" role="menuitemcheckbox" aria-checked="true"><i class="ph ph-megaphone-simple"></i><div>Mute @everyone</div><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
@@ -309,6 +309,8 @@
   <div class="board row" style="gap: var(--space-2)">
     <button class="btn" data-open="dlg-delete"><i class="ph-bold ph-trash"></i>Delete channel</button>
     <button class="btn" data-open="dlg-create"><i class="ph-bold ph-plus"></i>Create channel</button>
+    <button class="btn" data-open="dlg-category"><i class="ph-bold ph-folder-plus"></i>Create category</button>
+    <button class="btn" data-open="dlg-forward"><i class="ph-bold ph-arrow-bend-up-right"></i>Forward message</button>
     <button class="btn" data-open="dlg-invite"><i class="ph-bold ph-user-plus"></i>Invite people</button>
     <button class="btn" data-open="dlg-viewer"><i class="ph-bold ph-image"></i>Open image</button>
     <button class="btn" data-open="dlg-keys"><i class="ph-bold ph-keyboard"></i>Keyboard shortcuts</button>
@@ -318,9 +320,9 @@
     <div class="dialog" role="dialog" aria-labelledby="dlg1" data-live="dlg-delete"><h4 id="dlg1"><i class="ph-fill ph-warning"></i>Delete #clips?</h4><p>#clips and its 1,204 messages, 38 files and 3 threads go for everyone. This can't be undone.</p><footer><button class="btn" data-close>Keep channel</button><button class="btn btn--danger" data-close>Delete channel</button></footer></div>
     <div class="dialog" role="dialog" aria-labelledby="dlg2"><h4 id="dlg2">Leave Night Shift?</h4><p>You can rejoin with a new invite.</p><footer><button class="btn" data-close>Stay</button><button class="btn btn--danger" data-close>Leave server</button></footer></div>
   </div>
-  <h3>Standard, with a form</h3>
-  <div class="board">
-    <form class="dialog dialog--md" role="dialog" aria-labelledby="dlg3" data-live="dlg-create" onsubmit="return false">
+  <h3>Standard, with a form: create a channel</h3>
+  <div class="board row" style="gap: var(--space-6); align-items: flex-start">
+    <form class="dialog dialog--md" role="dialog" aria-labelledby="dlg3" data-live="dlg-create" data-target-prefix="#" data-create-label="Create channel" onsubmit="return false">
       <div class="dhead"><h4 id="dlg3">Create channel</h4><p>In Clips</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
       <div class="dbody">
         <div class="field"><label>Type</label>
@@ -330,12 +332,108 @@
             <button type="button" class="choice" data-toggle="radio"><span class="icontile"><i class="ph ph-chats-teardrop"></i></span><div><b>Forum</b><span>Organised posts, each with its own thread</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
           </div>
         </div>
-        <div class="field"><label for="chname">Name</label><div class="input"><i class="ph ph-hash"></i><input id="chname" placeholder="new-channel" value="late-night-clips" autocomplete="off"></div></div>
-        <button type="button" class="choice" data-toggle="switch" style="padding: 10px 0"><div><b><i class="ph ph-lock-simple" style="font-size: 16px; vertical-align: -2px; margin-right: 4px"></i>Private channel</b><span>Only members and roles you pick can see it</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+        <div class="field"><label for="chname">Name</label><div class="input"><i class="ph ph-hash"></i><input id="chname" placeholder="new-channel" value="late-night-clips" autocomplete="off" data-target-name data-require="Name the channel to create it"></div></div>
+        <button type="button" class="choice" data-toggle="switch" data-private style="padding: 10px 0"><div><b><i class="ph ph-lock-simple" style="font-size: 16px; vertical-align: -2px; margin-right: 4px"></i>Private channel</b><span>Only roles and members you pick can see it</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
       </div>
-      <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-loading="Creating…">Create channel</button></footer>
+      <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-create-go>Next: who can see it</button></footer>
+    </form>
+    <div class="dialog dialog--md" role="dialog" aria-labelledby="dlg-who" data-step2>
+      <div class="dhead"><h4 id="dlg-who"><span>Who can see <span data-step2-name>#late-night-clips</span>?</span></h4><p>Everyone you don't pick won't see it in the list.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="input"><i class="ph ph-magnifying-glass"></i><input aria-label="Search roles and members" placeholder="Search roles and members" data-pick-search></div>
+      <div class="picklist" role="group" aria-label="Who can see it" data-picklist="audience">
+        <div class="pickgroup">Roles</div>
+        <button type="button" class="choice" data-toggle="check" data-people="6"><span class="icontile"><span class="roledot" style="--role: oklch(0.66 0.19 350)"></span></span><div><b>Mod</b><span>6 members</span></div><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+        <button type="button" class="choice" data-toggle="check" data-people="3"><span class="icontile"><span class="roledot" style="--role: oklch(0.66 0.15 250)"></span></span><div><b>Editor</b><span>3 members</span></div><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+        <button type="button" class="choice" data-toggle="check" data-people="31"><span class="icontile"><span class="roledot" style="--role: oklch(0.78 0.15 80)"></span></span><div><b>Night owls</b><span>31 members</span></div><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        <button type="button" class="choice" data-toggle="check" data-people="112"><span class="icontile"><span class="roledot" style="--role: oklch(0.72 0.14 145)"></span></span><div><b>Speedrunners</b><span>112 members</span></div><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        <button type="button" class="choice" aria-disabled="true"><span class="icontile"><span class="roledot" style="--role: oklch(0.62 0.2 25)"></span></span><div><b>Admin</b><span>Always sees it: it has Administrator</span></div><span class="lockmark"><i class="ph ph-lock-simple"></i></span></button>
+        <div class="pickgroup">Members</div>
+        <button type="button" class="choice" aria-disabled="true"><span class="av" data-av="Juno"></span><div><b>Juno</b><span>Always sees it: owns Night Shift</span></div><span class="lockmark"><i class="ph ph-lock-simple"></i></span></button>
+        <button type="button" class="choice" data-toggle="check" data-people="1"><span class="av" data-av="Rosa"></span><div><b>Rosa</b><span>Speedrunners</span></div><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+        <button type="button" class="choice" data-toggle="check" data-people="1"><span class="av" data-av="Theo"></span><div><b>Theo</b><span>Night owls</span></div><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        <button type="button" class="choice" data-toggle="check" data-people="1"><span class="av" data-av="Bartholomew"></span><div><b>Bartholomew Featherstonehaugh-Wright</b><span>No roles</span></div><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+      </div>
+      <footer><span class="dsum" aria-live="polite"><span class="stackav"><span class="av" data-av="Mira"></span><span class="av" data-av="Rosa"></span><span class="av" data-av="Theo"></span></span><span data-audience>13 people can see it</span></span><button type="button" class="btn btn--ghost" data-step-back>Back</button><button class="btn btn--primary" data-loading="Creating…" data-step2-go>Create channel</button></footer>
+    </div>
+  </div>
+  <p class="note">Private is a switch on the first page, so the second page only exists when it's needed: the primary reads "Next: who can see it" while the switch is on. Step two keeps everything typed on step one; Back slides back to it. Rows that always see the channel stay listed, locked, saying why. The count under the list is the real head count, so "Mod" can't hide that it's 6 people.</p>
+
+  <h3>Create category</h3>
+  <div class="board row" style="gap: var(--space-6); align-items: flex-start">
+    <form class="dialog" role="dialog" aria-labelledby="dlg-cat" data-live="dlg-category" data-target-prefix="" data-create-label="Create category" onsubmit="return false">
+      <div class="dhead"><h4 id="dlg-cat">Create category</h4><p>In Night Shift, under Voice</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="field"><label for="catname">Name</label><div class="input"><i class="ph ph-folder-simple"></i><input id="catname" placeholder="New category" value="Staff" maxlength="100" autocomplete="off" data-target-name data-require="Name the category to create it"></div></div>
+      <button type="button" class="choice" data-toggle="switch" data-private style="padding: 10px 0"><div><b><i class="ph ph-lock-simple" style="font-size: 16px; vertical-align: -2px; margin-right: 4px"></i>Private category</b><span>Only roles and members you pick can see it. Channels you move in follow it.</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+      <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-create-go data-loading="Creating…">Create category</button></footer>
+    </form>
+    <form class="dialog" role="dialog" aria-labelledby="dlg-cat2" onsubmit="return false">
+      <div class="dhead"><h4 id="dlg-cat2">Create category</h4><p>In Night Shift, under Voice</p><button type="button" class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+      <div class="field"><label for="catname2">Name</label><div class="input error"><i class="ph ph-folder-simple"></i><input id="catname2" placeholder="New category" autocomplete="off" aria-describedby="catname2-err" aria-invalid="true"></div><span class="err" id="catname2-err" role="alert"><i class="ph-fill ph-warning-circle"></i>Name the category to create it</span></div>
+      <button type="button" class="choice" data-toggle="switch" style="padding: 10px 0"><div><b><i class="ph ph-lock-simple" style="font-size: 16px; vertical-align: -2px; margin-right: 4px"></i>Private category</b><span>Only roles and members you pick can see it. Channels you move in follow it.</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+      <footer><button type="button" class="btn">Cancel</button><button class="btn btn--primary">Create category</button></footer>
     </form>
   </div>
+  <p class="note">Left: as it opens, from the server menu or the plus on a category. Right: after Create with an empty name; the field says so and takes focus, the switch keeps its state. Private works as for a channel: the button turns into "Next: who can see it" and the same audience page follows. Try it live.</p>
+
+  <h3>Forward a message</h3>
+  <div class="board row" style="gap: var(--space-6); align-items: flex-start">
+    <form class="dialog dialog--md" role="dialog" aria-labelledby="dlg-fw" data-live="dlg-forward" data-forward onsubmit="return false">
+      <div class="dhead"><h4 id="dlg-fw">Forward message</h4><p>Rosa's message from #clips</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="cm-quote"><span class="av" data-av="Rosa"></span><div class="head"><b>Rosa</b><time>Today at 8:12 PM</time></div><p>caught this on stream last night, the Hades boss skip actually works if you dash cancel twice</p></div>
+      <div class="picked" data-picked aria-label="Forwarding to"></div>
+      <div class="input"><i class="ph ph-magnifying-glass"></i><input aria-label="Search channels and people" placeholder="Search channels and people" data-pick-search></div>
+      <div class="picklist" role="group" aria-label="Places to forward to" data-picklist="forward">
+        <div class="pickgroup">Recent<span data-pick-count>2 of 5</span></div>
+        <button type="button" class="choice" data-toggle="check" data-chip="hash"><span class="icontile"><i class="ph ph-hash"></i></span><div><b>clips</b><span>Night Shift</span></div><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+        <button type="button" class="choice" data-toggle="check" data-chip="av"><span class="av" data-av="Mira"></span><div><b>Mira</b><span>Direct message</span></div><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+        <button type="button" class="choice" data-toggle="check" data-chip="hash"><span class="icontile"><i class="ph ph-hash"></i></span><div><b>hades-runs</b><span>Night Shift</span></div><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        <button type="button" class="choice" data-toggle="check" data-chip="group"><span class="icontile"><i class="ph ph-users-three"></i></span><div><b>Theo, Ana, Jun</b><span>Group · 4 people</span></div><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        <div class="pickgroup">Channels</div>
+        <button type="button" class="choice" data-toggle="check" data-chip="hash"><span class="icontile"><i class="ph ph-hash"></i></span><div><b>general</b><span>Clip Club</span></div><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        <button type="button" class="choice" aria-disabled="true"><span class="icontile"><i class="ph ph-megaphone-simple"></i></span><div><b>announcements</b><span>Night Shift · Only mods post here</span></div><span class="lockmark"><i class="ph ph-lock-simple"></i></span></button>
+        <button type="button" class="choice" aria-disabled="true"><span class="icontile"><i class="ph ph-hash"></i></span><div><b>route-notes</b><span>Hades speedruns · Slowmode, you can post in 4m</span></div><span class="lockmark"><i class="ph ph-timer"></i></span></button>
+        <button type="button" class="choice" data-toggle="check" data-chip="hash"><span class="icontile"><i class="ph ph-hash"></i></span><div><b>a-channel-with-a-very-long-name-for-late-night-chat</b><span>The Night Shift Late Night Edition</span></div><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        <div class="pickgroup">Direct messages</div>
+        <button type="button" class="choice" data-toggle="check" data-chip="av"><span class="av" data-av="Jun"></span><div><b>Jun</b><span>Direct message</span></div><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        <button type="button" class="choice" aria-disabled="true"><span class="av" data-av="Kai"></span><div><b>Kai</b><span>Only takes DMs from friends</span></div><span class="lockmark"><i class="ph ph-lock-simple"></i></span></button>
+        <button type="button" class="choice" data-toggle="check" data-chip="av"><span class="av" data-av="Bartholomew"></span><div><b>Bartholomew Featherstonehaugh-Wright</b><span>Direct message</span></div><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+      </div>
+      <p class="pickhint" data-pick-limit hidden><i class="ph-fill ph-warning"></i><span></span></p>
+      <textarea class="textarea dtext" rows="1" aria-label="Note" placeholder="Add a note (optional)">you two need to see this</textarea>
+      <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-loading="Forwarding…" data-forward-go>Forward to 2 places</button></footer>
+    </form>
+
+    <div class="stack" style="gap: var(--space-6); flex: 1 1 360px; min-width: 0; max-width: 480px">
+      <div class="dialog dialog--md" role="dialog" aria-labelledby="dlg-fw2" style="width: 100%">
+        <div class="dhead"><h4 id="dlg-fw2">Forward message</h4><p>Rosa's message from #clips</p><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <div class="picked" aria-label="Forwarding to">
+          <span class="pickchip"><i class="ph ph-hash"></i><span>clips</span><button aria-label="Remove #clips"><i class="ph-bold ph-x"></i></button></span>
+          <span class="pickchip"><span class="av" data-av="Mira"></span><span>Mira</span><button aria-label="Remove Mira"><i class="ph-bold ph-x"></i></button></span>
+          <span class="pickchip"><i class="ph ph-users-three"></i><span>Theo, Ana, Jun</span><button aria-label="Remove Theo, Ana, Jun"><i class="ph-bold ph-x"></i></button></span>
+          <span class="pickchip"><i class="ph ph-hash"></i><span>general</span><button aria-label="Remove #general"><i class="ph-bold ph-x"></i></button></span>
+          <span class="pickchip"><span class="av" data-av="Bartholomew"></span><span>Bartholomew Featherstonehaugh-Wright</span><button aria-label="Remove Bartholomew Featherstonehaugh-Wright"><i class="ph-bold ph-x"></i></button></span>
+        </div>
+        <div class="input"><i class="ph ph-magnifying-glass"></i><input aria-label="Search channels and people" value="ha"></div>
+        <div class="picklist" role="group" aria-label="Matches">
+          <div class="pickgroup">Channels<span>2 matches</span></div>
+          <button type="button" class="choice" aria-disabled="true"><span class="icontile"><i class="ph ph-hash"></i></span><div><b><mark>ha</mark>des-runs</b><span>Night Shift · Remove a place to add it</span></div><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+          <button type="button" class="choice" aria-disabled="true"><span class="icontile"><i class="ph ph-hash"></i></span><div><b>clip-<mark>ha</mark>ul</b><span>Clip Club · Remove a place to add it</span></div><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+        </div>
+        <p class="pickhint"><i class="ph-fill ph-warning"></i><span>5 places is the most one forward can go to.</span></p>
+        <footer><button class="btn">Cancel</button><button class="btn btn--primary">Forward to 5 places</button></footer>
+      </div>
+      <div class="dialog dialog--md" role="dialog" aria-labelledby="dlg-fw3" style="width: 100%">
+        <div class="dhead"><h4 id="dlg-fw3">Forward message</h4><p>Rosa's message from #clips</p><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <div class="picked" aria-label="Forwarding to"><span class="pickchip"><i class="ph ph-hash"></i><span>clips</span><button aria-label="Remove #clips"><i class="ph-bold ph-x"></i></button></span></div>
+        <div class="input"><i class="ph ph-magnifying-glass"></i><input aria-label="Search channels and people" value="zzq"></div>
+        <div class="empty" style="padding: var(--space-4) 0"><b style="font-size: var(--text-md)">Nothing called "zzq"</b><p>Search channels, DMs and group DMs by name. Your picks and note are kept.</p></div>
+        <footer><button class="btn">Cancel</button><button class="btn btn--primary">Forward to #clips</button></footer>
+      </div>
+      <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>Forwarded to 2 of 3 places<small>Couldn't post in #hades-runs: slowmode started while you picked. Try again in 4m.</small></p><button class="btn btn--sm" data-loading="Forwarding…">Try again</button></div>
+    </div>
+  </div>
+  <p class="note">Left, live: recent places first, then channels and DMs, each place once. Picks become chips above the search, so narrowing the list never hides what you chose. Places you can't post in stay listed with the reason and a lock (or a timer when it's only for now). The button names the one place, or counts several: "Forward to #clips", "Forward to 3 places". At 5 the rest lock with a reason (top right). A failed place retries alone; the ones that worked stay sent.</p>
+
   <h3>Large: invite people</h3>
   <div class="board">
     <div class="dialog dialog--lg" role="dialog" aria-labelledby="dlg4" data-live="dlg-invite">
@@ -452,6 +550,145 @@
   <p class="note" style="margin-top: var(--space-3)">The quick switcher (⌘K) lives with navigation: <a href="navigation.html#quick-switcher" style="color: var(--accent-ink)">Navigation, Quick switcher</a>.</p>
 </section>
 
+<section id="permissions">
+  <h2>Permission prompts</h2>
+  <p class="lede">macOS asks once per permission, in its own words. Wave speaks first, where the need comes up, so the system's dialog is never a surprise; if you say no, Wave names the exact setting and picks up the change without a restart.</p>
+  <h3>Microphone: the first time you join voice</h3>
+  <div class="board osflow">
+    <div>
+      <span class="note">1. Wave asks first, beside Join voice</span>
+      <div class="preprompt" role="dialog" aria-labelledby="pp-mic">
+        <h4 id="pp-mic"><span class="icontile"><i class="ph-fill ph-microphone"></i></span>Wave needs your microphone</h4>
+        <p>So people in Lounge can hear you. macOS asks next. You can join and listen without it.</p>
+        <div class="preprompt-acts"><button class="btn">Listen only</button><button class="btn btn--primary">Turn on microphone</button></div>
+      </div>
+    </div>
+    <div>
+      <span class="note">2. macOS asks</span>
+      <div class="osalert-frame">
+        <span class="osalert-label"><i class="ph-fill ph-apple-logo"></i>macOS system dialog, not Wave's</span>
+        <div class="osalert" role="alertdialog" aria-labelledby="os-mic" aria-describedby="os-mic-d">
+          <img src="/assets/brand/icons/glass.png" alt="">
+          <b id="os-mic">“Wave” would like to access the microphone.</b>
+          <p id="os-mic-d">Wave uses the microphone for voice calls and the mic test.</p>
+          <div class="osalert-acts"><button class="osbtn">Don't Allow</button><button class="osbtn osbtn--default">Allow</button></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <span class="note">3. If you choose Don't Allow</span>
+      <div class="preprompt" role="dialog" aria-labelledby="pp-mic-off">
+        <h4 id="pp-mic-off"><span class="icontile is-off"><i class="ph-fill ph-microphone-slash"></i></span>Microphone is off for Wave</h4>
+        <p>You're in Lounge and can hear everyone. To talk, turn Wave on here:</p>
+        <div class="ospath"><span>System Settings</span><i class="ph-bold ph-caret-right"></i><span>Privacy &amp; Security</span><i class="ph-bold ph-caret-right"></i><b>Microphone</b></div>
+        <div class="preprompt-acts"><button class="btn">Keep listening</button><button class="btn btn--primary">Open System Settings</button></div>
+      </div>
+    </div>
+  </div>
+  <h3>Screen recording: the first time you go live</h3>
+  <div class="board osflow">
+    <div>
+      <span class="note">1. Wave asks first, from Go live</span>
+      <div class="preprompt" role="dialog" aria-labelledby="pp-rec">
+        <h4 id="pp-rec"><span class="icontile"><i class="ph-fill ph-screencast"></i></span>Wave needs to record your screen</h4>
+        <p>To go live in Lounge, macOS sends you to System Settings to allow it. Wave then restarts and puts you back in Lounge with the picker open.</p>
+        <div class="preprompt-acts"><button class="btn">Not now</button><button class="btn btn--primary">Set up screen recording</button></div>
+      </div>
+    </div>
+    <div>
+      <span class="note">2. macOS asks</span>
+      <div class="osalert-frame">
+        <span class="osalert-label"><i class="ph-fill ph-apple-logo"></i>macOS system dialog, not Wave's</span>
+        <div class="osalert" role="alertdialog" aria-labelledby="os-rec" aria-describedby="os-rec-d">
+          <img src="/assets/brand/icons/glass.png" alt="">
+          <b id="os-rec">“Wave” would like to record this computer's screen and audio.</b>
+          <p id="os-rec-d">Grant access to this application in Privacy &amp; Security settings, located in System Settings.</p>
+          <div class="osalert-acts osalert-acts--stack"><button class="osbtn osbtn--default">Open System Settings</button><button class="osbtn">Deny</button></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <span class="note">3. Allowed in System Settings</span>
+      <div class="preprompt" role="dialog" aria-labelledby="pp-rec-done">
+        <h4 id="pp-rec-done"><span class="icontile"><i class="ph-bold ph-arrow-clockwise"></i></span>Restart Wave to finish</h4>
+        <p>macOS turns screen recording on after a restart. Wave reopens in Lounge with the Go live picker open, and your call reconnects on its own.</p>
+        <div class="preprompt-acts"><button class="btn">Later</button><button class="btn btn--primary" data-loading="Restarting…">Restart Wave</button></div>
+      </div>
+    </div>
+  </div>
+  <h3>Input monitoring: push to talk outside Wave</h3>
+  <div class="board osflow">
+    <div>
+      <span class="note">1. Wave asks first, in Keybinds</span>
+      <div class="preprompt" role="dialog" aria-labelledby="pp-keys">
+        <h4 id="pp-keys"><span class="icontile"><i class="ph-fill ph-keyboard"></i></span>Push to talk in every app</h4>
+        <p>Right now your push-to-talk key works only while Wave is in front. To hear it in games too, macOS has to let Wave watch the keyboard. Wave only acts on keys you bind.</p>
+        <div class="preprompt-acts"><button class="btn">Keep it in Wave</button><button class="btn btn--primary">Set up key monitoring</button></div>
+      </div>
+    </div>
+    <div>
+      <span class="note">2. macOS asks</span>
+      <div class="osalert-frame">
+        <span class="osalert-label"><i class="ph-fill ph-apple-logo"></i>macOS system dialog, not Wave's</span>
+        <div class="osalert" role="alertdialog" aria-labelledby="os-keys" aria-describedby="os-keys-d">
+          <img src="/assets/brand/icons/glass.png" alt="">
+          <b id="os-keys">“Wave” would like to receive keystrokes from any application.</b>
+          <p id="os-keys-d">Grant access to this application in Privacy &amp; Security settings, located in System Settings.</p>
+          <div class="osalert-acts osalert-acts--stack"><button class="osbtn osbtn--default">Open System Settings</button><button class="osbtn">Deny</button></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <span class="note">3. Waiting while you're in System Settings</span>
+      <div class="preprompt" role="dialog" aria-labelledby="pp-keys-wait">
+        <h4 id="pp-keys-wait"><span class="icontile"><i class="ph-fill ph-keyboard"></i></span>Turn Wave on in System Settings</h4>
+        <div class="ospath"><span>System Settings</span><i class="ph-bold ph-caret-right"></i><span>Privacy &amp; Security</span><i class="ph-bold ph-caret-right"></i><b>Input Monitoring</b></div>
+        <p class="preprompt-wait" role="status"><span class="bars"><i></i><i></i><i></i></span>Push to talk switches over as soon as Wave is on. No restart.</p>
+        <div class="preprompt-acts"><button class="btn">Cancel</button><button class="btn">Open System Settings again</button></div>
+      </div>
+    </div>
+  </div>
+  <h3>Live</h3>
+  <div class="board stack" style="gap: var(--space-4); --bg-ring: var(--bg-overlay)">
+    <div class="row" style="gap: var(--space-3)">
+      <button class="btn" id="os-join" popovertarget="os-pre" style="anchor-name: --os-join"><i class="ph-bold ph-speaker-high"></i>Join Lounge</button>
+      <span class="note" id="os-state" role="status">Not in voice. macOS hasn't asked yet.</span>
+    </div>
+    <p class="note">Join Lounge, then Turn on microphone. The system stand-in appears; either answer leads to its real outcome. Reload to start over.</p>
+  </div>
+  <div class="preprompt" popover id="os-pre" role="dialog" aria-labelledby="os-pre-h" style="--origin: top left; position-anchor: --os-join; top: anchor(bottom); left: anchor(left); margin-top: 6px; position-try-fallbacks: flip-block, flip-inline">
+    <h4 id="os-pre-h"><span class="icontile"><i class="ph-fill ph-microphone"></i></span><span data-os-title>Wave needs your microphone</span></h4>
+    <p data-os-body>So people in Lounge can hear you. macOS asks next. You can join and listen without it.</p>
+    <div class="ospath" data-os-path hidden><span>System Settings</span><i class="ph-bold ph-caret-right"></i><span>Privacy &amp; Security</span><i class="ph-bold ph-caret-right"></i><b>Microphone</b></div>
+    <p class="preprompt-wait" data-os-wait hidden><span class="bars"><i></i><i></i><i></i></span>Wave unmutes you as soon as it's on.</p>
+    <div class="preprompt-acts"><button class="btn" data-os-listen>Listen only</button><button class="btn btn--primary" data-os-ask>Turn on microphone</button></div>
+  </div>
+  <dialog class="real" id="os-sys" aria-labelledby="os-sys-h">
+    <div class="osalert-frame">
+      <span class="osalert-label" style="color: var(--text-strong)"><i class="ph-fill ph-apple-logo"></i>macOS system dialog, not Wave's</span>
+      <div class="osalert">
+        <img src="/assets/brand/icons/glass.png" alt="">
+        <b id="os-sys-h">“Wave” would like to access the microphone.</b>
+        <p>Wave uses the microphone for voice calls and the mic test.</p>
+        <div class="osalert-acts"><button class="osbtn" data-os-deny>Don't Allow</button><button class="osbtn osbtn--default" data-os-allow>Allow</button></div>
+      </div>
+    </div>
+  </dialog>
+  <p class="note">Anatomy: the pre-prompt is Wave's popover (radius 14, overlay surface, icon tile beside the title, one primary). The stand-in uses the app icon, no accent, neutral buttons and a dashed frame with the "macOS system dialog" label, so nobody mistakes it for Wave's UI or ports it as a component; the real one is drawn by macOS. Wave shows a pre-prompt only before the first system ask: once you've answered, macOS won't ask again and Wave goes straight to the off state with the settings path. Not verified: the system's exact wording and button labels for screen recording and input monitoring differ between macOS versions; check them on the oldest macOS Wave supports.</p>
+</section>
+
+<section id="better-than-discord">
+  <h2>Better than Discord</h2>
+  <p class="lede">Where these overlays differ from Discord's on purpose. Discord's side is as observed in its desktop client, not read from its code.</p>
+  <div class="btd">
+    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
+    <div><p>The macOS prompt appears the moment you join voice or go live, with no word from Discord first; after Don't Allow, voice shows a generic input error.</p><p><b><a href="#permissions">Permission prompts</a></b>A pre-prompt says what the permission is for and what happens next; a no names the exact System Settings pane and Wave picks up the change on its own.</p><p>A system dialog you didn't expect gets denied, and a denied permission is a dead end unless you know where macOS keeps it.</p></div>
+    <div><p>Places you can't post in are left out of the forward list, so a channel you expected just isn't there.</p><p><b><a href="#dialogs">Forward a message</a></b>They stay listed with a lock and the reason: read only, slowmode with the time left, DMs from friends only.</p><p>A missing row looks like a bug or a typo in your search; the reason tells you it's the channel.</p></div>
+    <div><p>A private channel's access step lists roles and members by name only.</p><p><b><a href="#dialogs">Create channel</a></b>Each role shows its member count, rows that always see it stay listed and locked with why, and the footer counts the people who'll see it.</p><p>"Mod" could be 6 people or 600; privacy decisions need the number.</p></div>
+  </div>
+  <p class="note">Not verified: the Discord column is from memory of its desktop client, not checked against the current build.</p>
+</section>
+
 </main>
 </div>
 <div class="tooltip floating" id="tip" role="tooltip"></div>
@@ -539,7 +776,7 @@ document.addEventListener("click", e => {
   const rd = e.target.closest(".mi[role=menuitemradio]");
   if (rd) for (const r of rd.parentElement.querySelectorAll("[role=menuitemradio]")) {
     r.setAttribute("aria-checked", r === rd);
-    r.querySelector(".radio").setAttribute("aria-checked", r === rd);
+    r.querySelector(".radio")?.setAttribute("aria-checked", r === rd);
   }
 });
 
@@ -609,6 +846,203 @@ function toast(kind) {
   };
 }
 for (const b of document.querySelectorAll("[data-toast]")) b.addEventListener("click", () => toast(b.dataset.toast));
+
+// Create channel and category: private on turns the primary into Next; the audience page is step two of the same dialog.
+const plural = new Intl.PluralRules("en");
+const audienceDemo = document.querySelector("[data-step2]");
+for (const id of ["dlg-create", "dlg-category"]) {
+  const step2 = audienceDemo.cloneNode(true);
+  step2.hidden = true;
+  for (const el of step2.querySelectorAll("[id]")) el.id += "-" + id;
+  step2.setAttribute("aria-labelledby", "dlg-who-" + id);
+  document.getElementById(id).append(step2);
+}
+const isPrivate = form => form.querySelector("[data-private] [role=switch]")?.getAttribute("aria-checked") === "true";
+function syncCreate(form) {
+  const go = form.querySelector("[data-create-go]");
+  go.textContent = isPrivate(form) ? "Next: who can see it" : form.dataset.createLabel;
+  if (isPrivate(form)) go.removeAttribute("data-loading");
+  else go.dataset.loading = "Creating…";
+}
+document.querySelectorAll("form:has([data-create-go])").forEach(syncCreate);
+
+function showError(input) {
+  const field = input.closest(".field"), box = input.closest(".input");
+  box.classList.add("error");
+  input.setAttribute("aria-invalid", "true");
+  let err = field.querySelector(".err");
+  if (!err) {
+    err = document.createElement("span");
+    err.className = "err";
+    err.id = input.id + "-err";
+    err.setAttribute("role", "alert");
+    err.innerHTML = `<i class="ph-fill ph-warning-circle"></i>${input.dataset.require}`;
+    field.append(err);
+    input.setAttribute("aria-describedby", err.id);
+  }
+  input.focus();
+}
+document.addEventListener("input", e => {
+  if (!e.target.matches("[data-require]") || !e.target.value.trim()) return;
+  e.target.closest(".input").classList.remove("error");
+  e.target.removeAttribute("aria-invalid");
+  e.target.closest(".field").querySelector(".err")?.remove();
+});
+
+function swapStep(from, to, cls) {
+  from.hidden = true;
+  to.hidden = false;
+  to.classList.remove("is-next", "is-back");
+  void to.offsetWidth;
+  to.classList.add(cls);
+  to.addEventListener("animationend", () => to.classList.remove(cls), { once: true });
+  to.querySelector("input")?.focus();
+}
+// Capture phase: validation and paging decide before site.js shows a loading state.
+document.addEventListener("click", e => {
+  const go = e.target.closest("[data-create-go]");
+  if (go) {
+    const form = go.closest("form"), name = form.querySelector("[data-require]");
+    if (!name.value.trim()) { e.stopPropagation(); return showError(name); }
+    const dlg = form.closest("dialog");
+    if (!isPrivate(form) || !dlg) return;
+    e.stopPropagation();
+    const step2 = dlg.querySelector("[data-step2]");
+    step2.querySelector("[data-step2-name]").textContent = form.dataset.targetPrefix + name.value.trim();
+    step2.querySelector("[data-step2-go]").textContent = form.dataset.createLabel;
+    swapStep(form, step2, "is-next");
+  }
+  const back = e.target.closest("[data-step-back]");
+  const dlg = back?.closest("dialog");
+  if (dlg) swapStep(dlg.querySelector("[data-step2]"), dlg.querySelector("form"), "is-back");
+  if (e.target.closest(".picklist .choice[aria-disabled=true]")) e.stopPropagation();
+}, true);
+for (const id of ["dlg-create", "dlg-category"]) document.getElementById(id).addEventListener("close", e => {
+  e.target.querySelector("[data-step2]").hidden = true;
+  e.target.querySelector("form").hidden = false;
+});
+
+// Audience count: people in the picked roles and members, plus the owner and admins who always see it.
+const ALWAYS = 3;
+function syncAudience(list) {
+  const n = ALWAYS + [...list.querySelectorAll(".choice[data-people]")].filter(r => r.querySelector(".check").getAttribute("aria-checked") === "true").reduce((sum, r) => sum + +r.dataset.people, 0);
+  list.closest(".dialog").querySelector("[data-audience]").textContent = `${n.toLocaleString()} ${plural.select(n) === "one" ? "person" : "people"} can see it`;
+}
+
+// Forward: picks become chips; the button names one place or counts several; five at most.
+const MAX_PLACES = 5;
+const placeName = row => (row.dataset.chip === "hash" ? "#" : "") + row.querySelector("b").textContent;
+function chipFor(row) {
+  const chip = document.createElement("span");
+  chip.className = "pickchip";
+  const lead = row.dataset.chip === "av" ? `<span class="av" data-av="${row.querySelector("b").textContent}"></span>` : `<i class="ph ${row.dataset.chip === "hash" ? "ph-hash" : "ph-users-three"}"></i>`;
+  chip.innerHTML = `${lead}<span>${row.querySelector("b").textContent}</span><button type="button" aria-label="Remove ${placeName(row)}"><i class="ph-bold ph-x"></i></button>`;
+  chip.querySelector("button").addEventListener("click", () => {
+    row.querySelector(".check").setAttribute("aria-checked", "false");
+    const form = row.closest("form");
+    syncForward(form);
+    form.querySelector("[data-pick-search]").focus();
+  });
+  return chip;
+}
+function syncForward(form) {
+  const rows = [...form.querySelectorAll(".choice[data-chip]")];
+  const picked = rows.filter(r => r.querySelector(".check").getAttribute("aria-checked") === "true");
+  const full = picked.length >= MAX_PLACES;
+  const tray = form.querySelector("[data-picked]");
+  tray.replaceChildren(...picked.map(chipFor));
+  tray.hidden = !picked.length;
+  paintAvatars(tray);
+  form.querySelector("[data-pick-count]").textContent = `${picked.length} of ${MAX_PLACES}`;
+  for (const r of rows) {
+    const sub = r.querySelector("div > span");
+    sub.dataset.where ??= sub.textContent;
+    const locked = full && !picked.includes(r);
+    if (locked) r.setAttribute("aria-disabled", "true");
+    else r.removeAttribute("aria-disabled");
+    sub.textContent = locked ? `${sub.dataset.where} · Remove a place to add it` : sub.dataset.where;
+  }
+  const hint = form.querySelector("[data-pick-limit]");
+  hint.hidden = !full;
+  hint.querySelector("span").textContent = `${MAX_PLACES} places is the most one forward can go to.`;
+  const go = form.querySelector("[data-forward-go]");
+  go.textContent = !picked.length ? "Forward" : picked.length === 1 ? `Forward to ${placeName(picked[0])}` : `Forward to ${picked.length} places`;
+  go.disabled = !picked.length;
+}
+document.querySelectorAll("[data-forward]").forEach(syncForward);
+
+// Pick lists: search narrows the rows and marks the match; groups with nothing left hide.
+function filterPicks(input) {
+  const list = input.closest(".dialog").querySelector(".picklist"), q = input.value.trim().toLowerCase();
+  let shown = 0;
+  for (const row of list.querySelectorAll(".choice")) {
+    const b = row.querySelector("b");
+    b.dataset.name ??= b.textContent;
+    const at = b.dataset.name.toLowerCase().indexOf(q);
+    row.hidden = !!q && at < 0;
+    if (!row.hidden) shown++;
+    b.innerHTML = q && at >= 0 ? `${b.dataset.name.slice(0, at)}<mark>${b.dataset.name.slice(at, at + q.length)}</mark>${b.dataset.name.slice(at + q.length)}` : b.dataset.name;
+  }
+  for (const g of list.querySelectorAll(".pickgroup")) {
+    let n = g.nextElementSibling, any = false;
+    while (n && !n.matches(".pickgroup")) { if (!n.hidden && n.matches(".choice")) any = true; n = n.nextElementSibling; }
+    g.hidden = !any;
+  }
+  let empty = list.querySelector(".empty");
+  if (!empty) {
+    empty = document.createElement("div");
+    empty.className = "empty";
+    empty.style.padding = "var(--space-4) 0";
+    list.append(empty);
+  }
+  empty.hidden = shown > 0;
+  empty.innerHTML = `<b style="font-size: var(--text-md)">Nothing called "${input.value.trim().replace(/[<>&"]/g, "")}"</b><p>Try part of a name. Your picks are kept.</p>`;
+}
+document.addEventListener("input", e => { if (e.target.matches("[data-pick-search]")) filterPicks(e.target); });
+document.addEventListener("click", e => {
+  const priv = e.target.closest("[data-private]");
+  if (priv) syncCreate(priv.closest("form"));
+  const pick = e.target.closest(".picklist .choice");
+  if (!pick) return;
+  if (pick.closest("[data-forward]")) syncForward(pick.closest("[data-forward]"));
+  if (pick.closest("[data-picklist=audience]")) syncAudience(pick.closest(".picklist"));
+});
+
+// Permission prompt, live: Wave's pre-prompt, then the system stand-in, then the real outcome of either answer.
+const osPre = document.getElementById("os-pre"), osSys = document.getElementById("os-sys"), osState = document.getElementById("os-state");
+const osSet = (sel, prop, v) => { osPre.querySelector(sel)[prop] = v; };
+let osDenied = false;
+osPre.querySelector("[data-os-ask]").addEventListener("click", () => {
+  if (osDenied) {
+    osSet("[data-os-wait]", "hidden", false);
+    setTimeout(() => { osPre.hidePopover(); osState.textContent = "In Lounge with your mic on. Wave noticed the change; no restart."; }, 2400);
+    return;
+  }
+  osPre.hidePopover();
+  osSys.showModal();
+});
+osPre.querySelector("[data-os-listen]").addEventListener("click", () => {
+  osPre.hidePopover();
+  osState.textContent = "In Lounge, listening only. Others see you as muted.";
+});
+osSys.querySelector("[data-os-allow]").addEventListener("click", () => {
+  osSys.close();
+  osState.textContent = "In Lounge with your mic on.";
+  document.getElementById("os-join").disabled = true;
+});
+osSys.querySelector("[data-os-deny]").addEventListener("click", () => {
+  osSys.close();
+  osDenied = true;
+  osState.textContent = "In Lounge, listening only. macOS won't ask again.";
+  osSet("[data-os-title]", "textContent", "Microphone is off for Wave");
+  osSet("[data-os-body]", "textContent", "You're in Lounge and can hear everyone. To talk, turn Wave on here:");
+  osSet("[data-os-path]", "hidden", false);
+  osSet("[data-os-listen]", "textContent", "Keep listening");
+  osSet("[data-os-ask]", "textContent", "Open System Settings");
+  osPre.querySelector(".icontile").classList.add("is-off");
+  osPre.querySelector(".icontile i").className = "ph-fill ph-microphone-slash";
+  osPre.showPopover();
+});
 </script>
 </body>
 </html>
