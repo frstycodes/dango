@@ -75,8 +75,7 @@ impl Rustcord {
         let surface = theme.sidebar;
         let nameplate = member.user.nameplate.as_ref().map(|plate| nameplate(plate, surface, true, theme.is_dark()));
         let owner = self.guild().is_some_and(|g| g.owner_id.as_ref() == Some(&member.user.id));
-        // --text-feedback-warning, Discord's owner crown (read from Discord web, 2026-11-14).
-        let crown: gpui_kit::Hsla = gpui_kit::rgb(if theme.is_dark() { 0xCE8100 } else { 0x945300 }).into();
+        let crown = theme.warning;
         div()
             .id(SharedString::from(format!("member-{}", member.user.id)))
             .relative()
