@@ -291,7 +291,6 @@ impl Rustcord {
             .gap(px(2.))
             .child(div().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child(format!("Go live in {channel}")))
             .child(div().text_color(palette::muted(cx)).child("Choose a screen, a window or a capture device."));
-        // PATCH(transform): open from scale 0.95 (@keyframes pop) as well as fading in.
         let dialog = div()
             .id("share-picker")
             .w(px(DIALOG_WIDTH))
@@ -312,7 +311,10 @@ impl Rustcord {
             .child(self.share_quality(window, cx))
             .child(self.share_audio(window, cx))
             .child(self.share_footer(cx))
-            .with_animation("share-open", Animation::new(ui::DUR_PANEL), |dialog, t| dialog.opacity(ease_out(t)));
+            .with_animation("share-open", Animation::new(ui::DUR_PANEL), |dialog, t| {
+                let t = ease_out(t);
+                dialog.opacity(t).scale(0.95 + 0.05 * t)
+            });
         let scrim = if cx.theme().is_dark() { Hsla::from(rgb(0x030102)).opacity(0.7) } else { Hsla::from(rgb(0x1D1217)).opacity(0.4) };
         Some(
             div()
@@ -337,7 +339,7 @@ impl Rustcord {
     // GAP: the underline doesn't slide between tabs; it moves in one step.
     fn share_tabs(&self, picker: &SharePicker, cx: &mut Context<Self>) -> impl IntoElement {
         let (strong, muted) = (palette::strong(cx), palette::muted(cx));
-        let tabs = [(ShareTab::Screens, Glyph::Screen, "Screens"), (ShareTab::Windows, Glyph::ShareScreen, "Windows"), (ShareTab::Devices, Glyph::Video, "Devices")].map(|(tab, glyph, label)| {
+        let tabs = [(ShareTab::Screens, Glyph::Screen, "Screens"), (ShareTab::Windows, Glyph::AppWindow, "Windows"), (ShareTab::Devices, Glyph::Usb, "Devices")].map(|(tab, glyph, label)| {
             let on = picker.tab == tab;
             div()
                 .id(SharedString::from(format!("share-tab-{label}")))
@@ -494,7 +496,7 @@ impl Rustcord {
     fn share_footer(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let ready = self.share_choice.is_some();
         let go = ui::button("go-live", ui::Tone::Primary, cx)
-            .child(Icon::new(Glyph::Stream).size(px(18.)))
+            .child(Icon::new(Glyph::StreamBold).size(px(18.)))
             .child("Go live")
             .when(!ready, |b| b.opacity(0.45).cursor(gpui_kit::CursorStyle::OperationNotAllowed))
             .when(ready, |b| b.on_click(cx.listener(|this, _, _, cx| this.go_live_from_picker(cx))));
@@ -527,7 +529,7 @@ fn source_key(source: ShareSource) -> String {
 fn glyph(source: ShareSource) -> Glyph {
     match source {
         ShareSource::Screen(_) => Glyph::Screen,
-        ShareSource::App(_) | ShareSource::Window(_) => Glyph::ShareScreen,
+        ShareSource::App(_) | ShareSource::Window(_) => Glyph::AppWindow,
     }
 }
 
@@ -551,7 +553,7 @@ fn ease_out(t: f32) -> f32 {
     1. - (1. - t).powi(3)
 }
 
-#[cfg(test)]#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
 

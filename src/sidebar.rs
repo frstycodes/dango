@@ -5,7 +5,7 @@ use gpui_kit::{
     Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, Radians, SharedString, Stateful, Window,
     base::{Transition as Tween, transition},
     component::{ActiveTheme, Icon, tooltip::Tooltip},
-    div, img, prelude::*, px, rgb,
+    div, img, point, prelude::*, px, relative, rgb,
 };
 use gpui_motion_kit::core::{Bezier, Easing, Motion, Target, Transition};
 
@@ -215,8 +215,9 @@ impl Rustcord {
             .flex_none()
             .cursor_pointer()
             .child(div().absolute().left_0().top(px((TILE - pill_height) / 2.)).w(px(4.)).h(px(pill_height)).rounded_r(px(4.)).bg(palette::strong(cx)))
-            // PATCH(transform): pressed tiles scale to 0.97 (.srv:active); muted ones desaturate to 35% (filter).
+            // GAP: muted tiles skip the design's saturate(0.35): gpui has no element filters.
             .child(div().absolute().left(px(TILE_X)).top_0().when(muted, |f| f.opacity(0.55)).child(face))
+            .active(|s| s.scale(0.97))
             .when(mentions > 0 && badge_scale > 0.01, |item| item.child(rail_count(mentions, badge_scale, rail)))
             .when(in_voice && mentions == 0, |item| item.child(voice_mark(rail, cx)))
             .children(drop_hint.map(drop_marker))
@@ -350,9 +351,9 @@ impl Rustcord {
             .text_size(px(14.))
             .child(thumb)
             .child(cap)
+            .transform_origin(point(relative(0.), relative(0.)))
             .with_animation(SharedString::from(format!("stream-card-open-{}", streamer.id)), Animation::new(Duration::from_millis(180)).with_easing(motion::back_out), |card, t| {
-                // PATCH(transform): scale from 0.96 at the row's edge instead of growing the width.
-                card.w(px(STREAM_CARD_WIDTH * (0.96 + 0.04 * t))).opacity((t / 0.6).clamp(0., 1.))
+                card.scale(0.96 + 0.04 * t).opacity((t / 0.6).clamp(0., 1.))
             })
     }
 
@@ -1149,9 +1150,8 @@ fn rail_action(id: &'static str, glyph: Nav, tooltip: &'static str, cx: &App) ->
 }
 
 // The mention count on a tile's corner, ringed in the rail so it reads apart from the art.
-// PATCH(transform): scale the badge itself; until then it shrinks by size, anchored at its corner.
 fn rail_count(count: u32, scale: f32, rail: Hsla) -> Div {
-    let ring = 3. * scale;
+    let ring = 3.;
     div()
         .absolute()
         .right(px(RAIL_WIDTH - TILE_X - TILE - 5. - ring))
@@ -1159,14 +1159,8 @@ fn rail_count(count: u32, scale: f32, rail: Hsla) -> Div {
         .p(px(ring))
         .rounded_full()
         .bg(rail)
-        .opacity(scale.clamp(0., 1.))
-        .child(
-            ui::count_badge(count)
-                .min_w(px(18. * scale))
-                .h(px(18. * scale))
-                .px(px(5. * scale))
-                .text_size(px(12. * scale)),
-        )
+        .scale(scale.max(0.))
+        .child(ui::count_badge(count).min_w(px(18.)).h(px(18.)).px(px(5.)).text_size(px(12.)))
 }
 
 // Connected to voice here: the still wave in a rail-coloured capsule on the corner.
