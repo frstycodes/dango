@@ -1,4 +1,4 @@
-// Discord sometimes answers a sign-in with "captcha-required" instead of a token. Rustcord has no web
+// Discord sometimes answers a sign-in with "captcha-required" instead of a token. Wave has no web
 // view, so the challenge is shown in the user's own browser: a one-shot server on 127.0.0.1 serves a
 // page with the hCaptcha widget, and the page posts the solved key back. The user solves it; nothing
 // here tries to answer it.
@@ -137,7 +137,7 @@ const PAGE: &str = r#"<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rustcord sign-in</title>
+<title>Wave sign-in</title>
 <style>
   :root { color-scheme: light dark; --bg: #f2f3f5; --card: #fff; --text: #060607; --muted: #4e5058; --accent: #db2b65; --ok: #23a55a; --bad: #da373c; }
   @media (prefers-color-scheme: dark) { :root { --bg: #1e1f22; --card: #2b2d31; --text: #f2f3f5; --muted: #b5bac1; } }
@@ -155,7 +155,7 @@ const PAGE: &str = r#"<!doctype html>
 <body>
 <main>
   <h1>One more step</h1>
-  <p>Discord wants a quick check before signing Rustcord in.</p>
+  <p>Discord wants a quick check before signing Wave in.</p>
   <div id="box"></div>
   <div id="status"></div>
 </main>
@@ -165,13 +165,13 @@ const PAGE: &str = r#"<!doctype html>
   const status = document.getElementById('status');
   function say(text, kind) { status.textContent = text; status.className = kind || ''; }
   async function solved(key) {
-    say('Sending to Rustcord…');
+    say('Sending to Wave…');
     try {
       const res = await fetch(location.pathname + '/done', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: key });
       if (!res.ok) throw new Error(res.status);
-      say('Done. You can close this tab and go back to Rustcord.', 'ok');
+      say('Done. You can close this tab and go back to Wave.', 'ok');
     } catch (e) {
-      say('Couldn’t reach Rustcord. Is it still open?', 'bad');
+      say('Couldn’t reach Wave. Is it still open?', 'bad');
     }
   }
   function ready() {
