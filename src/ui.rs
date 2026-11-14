@@ -39,12 +39,24 @@ pub use feedback::{meter, progress_indeterminate, progress_live, ring, skeleton,
 pub use field::{code_cell, drop_zone, field, field_error, field_hint, select, stepper, text_area, text_field};
 pub use tabs::{pill_tabs, segmented_live, tabs};
 
-// Radius tiers: tags and tooltips, rows and menu items, controls, cards and tiles, dialogs.
-pub const RADIUS_XS: f32 = 6.;
-pub const RADIUS_SM: f32 = 8.;
-pub const RADIUS_MD: f32 = 10.;
-pub const RADIUS_LG: f32 = 14.;
-pub const RADIUS_XL: f32 = 20.;
+// Radius tiers: tags and tooltips, rows and menu items, controls, cards and tiles, dialogs. Sized for the
+// squircle, whose curve hugs the corner tighter than a circular arc of the same radius.
+pub const RADIUS_XS: f32 = 8.;
+pub const RADIUS_SM: f32 = 11.;
+pub const RADIUS_MD: f32 = 14.;
+pub const RADIUS_LG: f32 = 20.;
+pub const RADIUS_XL: f32 = 28.;
+// CSS `corner-shape: superellipse(1.4)`. People, status marks and pills stay round.
+pub const SQUIRCLE: gpui_kit::CornerShape = gpui_kit::CornerShape::Superellipse(1.4);
+
+/// Rounds an element with the design's soft squircle.
+pub trait Squircle: Styled + Sized {
+    fn squircle(self, radius: f32) -> Self {
+        self.rounded(px(radius)).corner_shape(SQUIRCLE)
+    }
+}
+
+impl<T: Styled> Squircle for T {}
 // Padding a surface keeps between its rounded edge and its rows.
 pub const SURFACE_INSET: f32 = 6.;
 
