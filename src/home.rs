@@ -185,6 +185,7 @@ impl Rustcord {
             let active = tab == this_tab;
             div()
                 .id(id)
+                .occlude()
                 .h(px(28.))
                 .px_2()
                 .rounded(px(6.))
