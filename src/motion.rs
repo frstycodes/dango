@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use gpui_kit::base::{Easing as Curve, LinearStop};
 use gpui_motion_kit::core::{Bezier, Easing, Spring, Transition};
 
 // Critically damped and quick (Apple's damping 1.0, ~220ms): settles without wobble and retargets from
@@ -19,6 +20,34 @@ pub fn back_out(t: f32) -> f32 {
     1. + c3 * (t - 1.).powi(3) + c1 * (t - 1.).powi(2)
 }
 
+// The design's curves (design/tokens.css), for `gpui_kit::base::transition`: enter and exit, on-screen
+// movement, and the touch spring.
+pub fn ease_out() -> Curve {
+    Curve::cubic_bezier(0.23, 1., 0.32, 1.).expect("valid bezier")
+}
+
+pub fn ease_move() -> Curve {
+    Curve::cubic_bezier(0.77, 0., 0.175, 1.).expect("valid bezier")
+}
+
+// `--ease-spring` stop for stop: ~0.3 bounce that settles inside the duration it runs over.
+pub fn ease_spring() -> Curve {
+    thread_local! {
+        static SPRING: Curve = Curve::linear_stops([
+            LinearStop::new(0.),
+            LinearStop::at(0.42, 0.12),
+            LinearStop::at(0.82, 0.25),
+            LinearStop::at(1.06, 0.40),
+            LinearStop::at(1.1, 0.48),
+            LinearStop::at(1.04, 0.62),
+            LinearStop::at(0.99, 0.78),
+            LinearStop::new(1.),
+        ])
+        .expect("ordered stops");
+    }
+    SPRING.with(Clone::clone)
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -27,5 +56,12 @@ mod tests {
         assert!((super::back_out(1.) - 1.).abs() < 1e-6);
         let peak = (1..10).map(|i| super::back_out(i as f32 / 10.)).fold(0., f32::max);
         assert!(peak > 1.05 && peak < 1.15, "peak {peak}");
+    }
+
+    #[test]
+    fn touch_spring_peaks_at_the_design_stop_then_lands() {
+        let curve = super::ease_spring();
+        assert!((curve.sample(0.48) - 1.1).abs() < 1e-4);
+        assert!((curve.sample(1.) - 1.).abs() < 1e-6);
     }
 }
