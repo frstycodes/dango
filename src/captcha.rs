@@ -143,7 +143,8 @@ const PAGE: &str = r#"<!doctype html>
      raised, Graphite neutrals following the system theme. Values mirror src/palette.rs. */
   :root { color-scheme: light dark; --page: #eceef0; --card: #fdfdfe; --line: rgb(43 46 50 / .10); --line-strong: rgb(43 46 50 / .18); --strong: #14161a; --muted: #55585e; --faint: #5d6166; --logo: #e8326f; --ok: #00723b; --bad: #b71c0e; }
   @media (prefers-color-scheme: dark) { :root { --page: #111213; --card: #202224; --line: rgb(255 255 255 / .08); --line-strong: rgb(255 255 255 / .14); --strong: #f3f5f8; --muted: #a0a5ac; --faint: #8b8f97; --ok: #59d38c; --bad: #ff8068; } }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; corner-shape: superellipse(1.4); }
+  .mascot i, .bars i { corner-shape: round; }
   body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 32px 16px; background: var(--page); color: var(--muted); font: 400 14px/1.45 Gabarito, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
   main { width: 100%; max-width: 400px; display: grid; justify-items: center; gap: 12px; padding: 32px 24px; border-radius: 28px; background: var(--card); box-shadow: 0 0 0 1px var(--line); text-align: center; }
   h1 { margin: 0; color: var(--strong); font-size: 20px; font-weight: 700; line-height: 1.2; }
