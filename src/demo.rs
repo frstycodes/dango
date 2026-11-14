@@ -48,6 +48,13 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             chord.call_view = false;
             chord.voice_user_menu("8388608", gpui_kit::point(gpui_kit::px(300.), gpui_kit::px(160.)), cx);
         }
+        "server-menu" => chord.open_server_menu("1".into(), gpui_kit::point(gpui_kit::px(60.), gpui_kit::px(130.)), false, cx),
+        "channel-menu" => {
+            let general = chord.guild().and_then(|g| g.channels.iter().find(|c| c.id == "general").cloned());
+            if let Some(channel) = general {
+                chord.open_channel_menu(channel, "1".into(), gpui_kit::point(gpui_kit::px(200.), gpui_kit::px(170.)), cx);
+            }
+        }
         "message-menu" => {
             let message = chord.feeds.get("general").and_then(|f| f.messages.iter().find(|m| m.author.id == "8388608").cloned());
             if let Some(message) = message {

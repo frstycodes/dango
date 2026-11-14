@@ -41,14 +41,15 @@ pub struct Item {
     sub: Vec<Entry>,
     act: Option<Act>,
     disabled: bool,
+    brand: bool,
 }
 
 pub fn item(label: impl Into<SharedString>, act: impl Fn(&mut Rustcord, &mut Window, &mut Context<Rustcord>) + 'static) -> Item {
-    Item { label: label.into(), hint: None, danger: false, check: None, icon: None, sub: Vec::new(), act: Some(Rc::new(act)), disabled: false }
+    Item { label: label.into(), hint: None, danger: false, check: None, icon: None, sub: Vec::new(), act: Some(Rc::new(act)), disabled: false, brand: false }
 }
 
 pub fn submenu(label: impl Into<SharedString>, entries: Vec<Entry>) -> Item {
-    Item { label: label.into(), hint: None, danger: false, check: None, icon: None, sub: entries, act: None, disabled: false }
+    Item { label: label.into(), hint: None, danger: false, check: None, icon: None, sub: entries, act: None, disabled: false, brand: false }
 }
 
 pub fn slider(label: impl Into<SharedString>, key: impl Into<SharedString>, value: f32, on_set: impl Fn(&mut Rustcord, f32, &mut Context<Rustcord>) + 'static) -> Entry {
@@ -68,6 +69,12 @@ impl Item {
 
     pub fn checked(mut self, on: bool) -> Self {
         self.check = Some(on);
+        self
+    }
+
+    // Discord's accent-coloured item (its invite rows).
+    pub fn brand(mut self) -> Self {
+        self.brand = true;
         self
     }
 
@@ -324,7 +331,12 @@ impl Rustcord {
 
     fn menu_row(&self, item: &Item, path: Vec<usize>, sub_open: bool, theme: &gpui_kit::component::Theme, cx: &mut Context<Self>) -> impl IntoElement {
         let danger: Hsla = rgb(0xEB5F5E).into();
-        let ink = if item.danger { danger } else { palette::strong(cx) };
+        let ink = match (item.danger, item.brand) {
+            (true, _) => danger,
+            (_, true) if cx.theme().is_dark() => rgb(0x949CF7).into(),
+            (_, true) => palette::blurple(),
+            _ => palette::strong(cx),
+        };
         let hover_bg = if item.danger { danger.opacity(0.08) } else { wash(0.12) };
         let top_level = path.len() == 1;
         let index = path[0];
