@@ -755,7 +755,7 @@ fn with_message_menu(row: gpui_kit::Stateful<gpui_kit::Div>, message: &Message, 
 fn reply_preview(reply: &Message, target: Option<String>, ctx: &std::rc::Rc<RowContext>, cx: &App) -> AnyElement {
     let theme = cx.theme();
     let color = ctx.colors.get(&reply.author.id).copied().unwrap_or(theme.foreground);
-    let snippet = if reply.content.is_empty() { "Click to see attachment".to_string() } else { plain(&readable(&reply.content, ctx)) };
+    let snippet = if reply.content.is_empty() { "Click to see attachment".to_string() } else { plain(&readable_with(&reply.content, ctx, false)) };
     let this = ctx.this.clone();
     div()
         .id(SharedString::from(format!("reply-{}", reply.id)))
@@ -1224,8 +1224,13 @@ fn chip(label: &'static str, cx: &App) -> AnyElement {
 }
 
 /// Discord's wire syntax made readable: mentions become links the transcript styles and routes,
-/// custom emoji fall back to their `:name:`.
+/// custom emoji become inline images at Discord's 1.375em (animated ones play).
 fn readable(content: &str, ctx: &RowContext) -> String {
+    readable_with(content, ctx, true)
+}
+
+// `inline_emoji` false keeps custom emoji as `:name:`, for one-line plain text such as reply quotes.
+fn readable_with(content: &str, ctx: &RowContext, inline_emoji: bool) -> String {
     let mut out = String::with_capacity(content.len());
     let mut rest = content;
     while let Some(start) = rest.find('<') {
@@ -1245,7 +1250,10 @@ fn readable(content: &str, ctx: &RowContext) -> String {
         } else if let Some(stamp) = token.strip_prefix("t:") {
             discord_timestamp(stamp)
         } else if let Some(name) = token.strip_prefix("a:").or_else(|| token.strip_prefix(':')) {
-            name.split(':').next().map(|n| format!(":{n}:"))
+            match (inline_emoji, emoji_image(token)) {
+                (true, Some(html)) => Some(html),
+                _ => name.split(':').next().map(|n| format!(":{n}:")),
+            }
         } else {
             None
         };
@@ -1304,6 +1312,19 @@ fn relative(delta: chrono::TimeDelta) -> String {
     };
     let unit = if n == 1 { unit.to_string() } else { format!("{unit}s") };
     if future { format!("in {n} {unit}") } else { format!("{n} {unit} ago") }
+}
+
+// `a:name:id` or `:name:id` as an inline image the markdown view lays out in the text flow. Its
+// images carry element ids, so animated emoji play. 22px is Discord's 1.375em at 16px text.
+fn emoji_image(token: &str) -> Option<String> {
+    let animated = token.starts_with("a:");
+    let mut parts = token.trim_start_matches("a:").trim_start_matches(':').split(':');
+    let (name, id) = (parts.next()?, parts.next()?);
+    if parts.next().is_some() || name.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let url = Emoji { id: Some(id.to_owned()), name: name.to_owned(), animated }.url()?;
+    Some(format!(r#"<img src="{url}" alt=":{name}:" width="22" height="22" />"#))
 }
 
 fn custom_emoji(content: &str) -> Vec<Emoji> {
@@ -1487,6 +1508,10 @@ mod tests {
     #[test]
     fn jumbo_emoji_detection() {
         assert_eq!(custom_emoji("<:blob:1> <a:dance:2>").len(), 2);
+        let dance = emoji_image("a:dance:2").unwrap();
+        assert!(dance.contains("/emojis/2.gif") && dance.contains(r#"alt=":dance:""#) && dance.contains(r#"width="22""#));
+        assert!(emoji_image(":blob:1").unwrap().contains("/emojis/1.webp"));
+        assert_eq!(emoji_image(":bad:x1"), None);
         assert!(strip_emoji("<:blob:1> <a:dance:2>").trim().is_empty());
         assert_eq!(strip_emoji("hi <:blob:1> <@5>"), "hi  <@5>");
     }
