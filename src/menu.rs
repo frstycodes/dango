@@ -1,4 +1,4 @@
-// Discord's context menus, measured from Discord web (2026-11-14): Midnight popover, 8px radius,
+// Discord's context menus, measured from Discord web (2026-11-14): Midnight popover,
 // 20% wash border, 8px padding, 34px rows of 14/18 medium text, checkboxes on the right, red
 // destructive rows with a red-tinted hover, and submenus that fly out on hover. Every right-click
 // in Rustcord opens one of these, so the options can match Discord's exactly.
@@ -341,18 +341,11 @@ impl Rustcord {
                 }
             })
             .collect();
-        div()
+        crate::ui::surface(cx)
             .id(SharedString::from(format!("menu-{path:?}")))
             .absolute()
             .w(px(WIDTH))
             .p(px(PADDING))
-            .rounded(px(8.))
-            .border_1()
-            .border_color(wash(0.2))
-            .bg(theme.popover)
-            .shadow_lg()
-            .flex()
-            .flex_col()
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .children(rows)
     }
@@ -366,20 +359,7 @@ impl Rustcord {
         };
         let hover_bg = if item.danger { danger.opacity(0.08) } else { theme.list_hover };
         let has_sub = !item.sub.is_empty();
-        let checkbox = item.check.map(|on| {
-            div()
-                .size(px(20.))
-                .flex_none()
-                .rounded(px(4.))
-                .border_1()
-                .border_color(if on { wash(0.2) } else { wash(0.64) })
-                .bg(if on { palette::blurple() } else { gpui_kit::black().opacity(0.08) })
-                .text_color(gpui_kit::white())
-                .flex()
-                .items_center()
-                .justify_center()
-                .children(on.then(|| Icon::new(Glyph::Checkmark).size(px(14.))))
-        });
+        let checkbox = item.check.map(crate::ui::checkbox);
         let run_path = path.clone();
         div()
             .id(SharedString::from(format!("menu-item-{path:?}")))
@@ -430,7 +410,6 @@ impl Rustcord {
     pub(crate) fn render_dialog(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let dialog = self.dialog.as_ref()?;
         let theme = cx.theme().clone();
-        let fill = if dialog.danger { theme.danger } else { theme.primary };
         let submit = cx.listener(|this, _, window, cx| {
             let Some(dialog) = this.dialog.take() else { return };
             let value = this.dialog_input.read(cx).value().to_string();
@@ -467,16 +446,8 @@ impl Rustcord {
                     .justify_end()
                     .gap_2()
                     .child(
-                        div()
-                            .id("dialog-cancel")
+                        crate::ui::button("dialog-cancel", crate::ui::Tone::Secondary, cx)
                             .h(px(38.))
-                            .px_4()
-                            .rounded(px(8.))
-                            .flex()
-                            .items_center()
-                            .cursor_pointer()
-                            .font_weight(FontWeight::MEDIUM)
-                            .hover(|s| s.underline())
                             .child("Cancel")
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.dialog = None;
@@ -484,18 +455,8 @@ impl Rustcord {
                             })),
                     )
                     .child(
-                        div()
-                            .id("dialog-confirm")
+                        crate::ui::button("dialog-confirm", if dialog.danger { crate::ui::Tone::Danger } else { crate::ui::Tone::Primary }, cx)
                             .h(px(38.))
-                            .px_4()
-                            .rounded(px(8.))
-                            .flex()
-                            .items_center()
-                            .cursor_pointer()
-                            .bg(fill)
-                            .text_color(gpui_kit::white())
-                            .font_weight(FontWeight::MEDIUM)
-                            .hover(|s| s.opacity(0.9))
                             .child(dialog.confirm.clone())
                             .on_click(submit),
                     ),
@@ -598,7 +559,7 @@ impl Rustcord {
                 .right_0()
                 .flex()
                 .justify_center()
-                .child(div().max_w(px(480.)).px_4().py_2().rounded(px(8.)).bg(theme.popover).border_1().border_color(wash(0.2)).shadow_lg().text_size(px(14.)).text_color(theme.foreground).child(text))
+                .child(crate::ui::surface(cx).max_w(px(480.)).px_4().py_2().text_size(px(14.)).text_color(theme.foreground).child(text))
                 .into_any_element(),
         )
     }
