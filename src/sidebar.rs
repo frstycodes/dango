@@ -16,7 +16,7 @@ use crate::{
     layout::{RAIL_WIDTH, avatar_with_status},
     motion, palette,
     rail_drag::{Drop, RailDrag},
-    ui::{self, Tone},
+    ui,
 };
 
 // Rail geometry: 44px tiles 8px apart, centred in the 68px rail, so the state pill sits on its edge.
@@ -260,19 +260,79 @@ impl Rustcord {
             }))
     }
 
-    // Discord's hover card on someone live: the stream's thumbnail, what they share, who watches,
-    // and a way in. It grows toward its row from 96% with a fade, passing 100% before it settles.
+    // .preview, the hover card on someone live: the stream's thumbnail under LIVE, with a way in
+    // over it on hover, then what they share and how many watch. It grows toward its row from 96%
+    // with a fade, passing 100% before it settles.
     fn stream_card(&self, streamer: Streamer, channel: &Channel, stream_key: &str, connected: bool, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme().clone();
         // Only once the bytes are in, so the fade below shows the picture rather than an empty box.
         let preview = self.stream_preview(streamer.id).filter(|url| matches!(window.use_asset::<gpui_kit::ImgResourceLoader>(&gpui_kit::Resource::Uri(url.clone().into()), cx), Some(Ok(_))));
         let app = self.presences.get(streamer.id).and_then(|p| p.activity.as_ref()).filter(|a| matches!(a.kind, ActivityKind::Playing | ActivityKind::Streaming)).map(|a| a.text.as_str());
-        let meta = stream_meta(app, self.stream_live_since.get(stream_key).map(|at| at.elapsed()));
         let viewer_ids: Vec<&String> = self.stream_viewers.get(stream_key).into_iter().flatten().filter(|id| *id != streamer.id).collect();
         let viewer_names: Vec<String> = viewer_ids.iter().map(|id| self.user_name(id)).collect();
-        let viewer_avatars: Vec<String> = viewer_ids.iter().take(3).map(|id| self.user_avatar(id)).collect();
+        let watching = (!viewer_ids.is_empty()).then(|| format!("{} watching", viewer_ids.len()));
+        let live = stream_meta(None, self.stream_live_since.get(stream_key).map(|at| at.elapsed()));
+        let detail: Vec<String> = app.map(|_| streamer.name.to_owned()).into_iter().chain(watching).chain(live).collect();
+        let who: Option<SharedString> = viewer_line(&viewer_names).map(Into::into);
         let hover_key = stream_hover_key(streamer.id);
-        let (watch_id, watch_channel, join_channel) = (streamer.id.to_owned(), channel.clone(), channel.clone());
+        let (watch_id, watch_channel) = (streamer.id.to_owned(), channel.clone());
+        let overlay = palette::surface(palette::Level::Overlay, cx);
+        let thumb_group = SharedString::from(format!("stream-thumb-{}", streamer.id));
+        let thumb = div()
+            .id(SharedString::from(format!("stream-card-thumb-{}", streamer.id)))
+            .group(thumb_group.clone())
+            .relative()
+            .w_full()
+            .aspect_ratio(16. / 9.)
+            .cursor_pointer()
+            .child(crate::call::stream_fill(ui::RADIUS_MD).absolute().inset_0())
+            .children(preview.map(|url| {
+                ui::media(url, ui::all(ui::RADIUS_MD))
+                    .absolute()
+                    .size_full()
+                    .object_fit(gpui_kit::ObjectFit::Cover)
+                    .with_animation(SharedString::from(format!("stream-preview-{}", streamer.id)), Animation::new(ui::DUR_POP), |el, t| el.opacity(t))
+            }))
+            .child(ui::live_badge().absolute().top(px(8.)).left(px(8.)))
+            .child(
+                div()
+                    .absolute()
+                    .inset_0()
+                    .rounded(px(ui::RADIUS_MD))
+                    .bg(gpui_kit::black().opacity(0.45))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .opacity(0.)
+                    .group_hover(thumb_group, |s| s.opacity(1.))
+                    .child(crate::call::watch_button(if connected { "Watch stream" } else { "Join and watch" })),
+            )
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.stream_card_hover = None;
+                match connected {
+                    true => this.watch_stream(watch_id.clone(), cx),
+                    // Not in that call yet: join it, then watch once connected.
+                    false => this.watch_on_connect = Some(watch_id.clone()),
+                }
+                this.show_call(watch_channel.clone(), window, cx);
+            }));
+        let cap = div()
+            .id(SharedString::from(format!("stream-card-cap-{}", streamer.id)))
+            .px(px(6.))
+            .pt(px(2.))
+            .pb(px(4.))
+            .flex()
+            .items_center()
+            .gap(px(8.))
+            .min_w_0()
+            .child(ui::avatar(streamer.avatar.to_owned(), 24.))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .child(div().truncate().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(app.unwrap_or(streamer.name).to_owned()))
+                    .child(div().truncate().text_size(px(12.)).text_color(palette::faint(cx)).child(detail.join(" · "))),
+            )
+            .when_some(who, |d, who| d.tooltip(move |window, cx| Tooltip::new(who.clone()).build(window, cx)));
         div()
             .id(SharedString::from(format!("stream-card-{}", streamer.id)))
             .w(px(STREAM_CARD_WIDTH))
@@ -280,82 +340,18 @@ impl Rustcord {
                 this.stream_card_hover = hovered.then(|| hover_key.clone());
                 cx.notify();
             }))
-            .rounded(px(8.))
-            .overflow_hidden()
-            .border_1()
-            .border_color(theme.input)
-            .bg(theme.popover)
-            .shadow_lg()
+            .p(px(6.))
+            .rounded(px(ui::RADIUS_LG))
+            .bg(overlay)
+            .shadow(crate::call::pop_shadow(palette::line_strong(cx), cx))
             .flex()
             .flex_col()
-            .child(crate::ui::edge(
-                div()
-                    .relative()
-                    .w_full()
-                    .aspect_ratio(16. / 9.)
-                    .bg(gpui_kit::black())
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(div().text_size(px(14.)).text_color(gpui_kit::white().opacity(0.7)).child("Loading preview…"))
-                    .children(preview.map(|url| {
-                        crate::ui::media(url, crate::ui::top(crate::ui::RADIUS_LG))
-                            .absolute()
-                            .size_full()
-                            .object_fit(gpui_kit::ObjectFit::Cover)
-                            .with_animation(SharedString::from(format!("stream-preview-{}", streamer.id)), Animation::new(Duration::from_millis(200)), |el, t| el.opacity(t))
-                    }))
-                    .child(crate::ui::live_badge().absolute().top(px(8.)).left(px(8.)).h(px(20.)).px(px(6.)).text_size(px(12.))),
-                crate::ui::top(crate::ui::RADIUS_LG),
-            ))
-            .child(
-                div()
-                    .p_3()
-                    .flex()
-                    .flex_col()
-                    .gap_3()
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .child(crate::ui::avatar(streamer.avatar.to_owned(), 24.))
-                            .child(div().flex_1().min_w_0().truncate().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(theme.foreground).child(streamer.name.to_owned()))
-                            .children(meta.map(|meta| div().flex_none().max_w(px(150.)).truncate().text_size(px(12.)).text_color(theme.muted_foreground).child(meta))),
-                    )
-                    .children(viewer_line(&viewer_names).map(|line| {
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .child(crate::ui::avatar_stack(viewer_avatars, 22., theme.popover).flex_none())
-                            .child(div().flex_1().min_w_0().truncate().text_size(px(12.)).text_color(theme.muted_foreground).child(line))
-                    }))
-                    .child(
-                        div()
-                            .flex()
-                            .gap_2()
-                            .child(crate::ui::button("card-watch", Tone::Primary, cx).child(if connected { "Watch Stream" } else { "Join and Watch" }).flex_1().on_click(cx.listener(move |this, _, window, cx| {
-                                this.stream_card_hover = None;
-                                match connected {
-                                    true => this.watch_stream(watch_id.clone(), cx),
-                                    // Not in that call yet: join it, then watch once connected.
-                                    false => this.watch_on_connect = Some(watch_id.clone()),
-                                }
-                                this.show_call(watch_channel.clone(), window, cx);
-                            })))
-                            .when(!connected, |r| {
-                                r.child(crate::ui::button("card-join", Tone::Secondary, cx).child("Join").on_click(cx.listener(move |this, _, window, cx| {
-                                    this.stream_card_hover = None;
-                                    this.watch_on_connect = None;
-                                    this.show_call(join_channel.clone(), window, cx);
-                                })))
-                            }),
-                    ),
-            )
+            .gap(px(6.))
+            .text_size(px(14.))
+            .child(thumb)
+            .child(cap)
             .with_animation(SharedString::from(format!("stream-card-open-{}", streamer.id)), Animation::new(Duration::from_millis(180)).with_easing(motion::back_out), |card, t| {
-                // gpui has no transform, so the card scales by its width, anchored at the row's edge;
-                // the 16:9 preview follows it.
+                // PATCH(transform): scale from 0.96 at the row's edge instead of growing the width.
                 card.w(px(STREAM_CARD_WIDTH * (0.96 + 0.04 * t))).opacity((t / 0.6).clamp(0., 1.))
             })
     }
@@ -1281,7 +1277,7 @@ fn muted_line(text: &'static str, cx: &App) -> AnyElement {
     div().px_2().py_2().text_color(cx.theme().muted_foreground).child(text).into_any_element()
 }
 
-const STREAM_CARD_WIDTH: f32 = 288.;
+const STREAM_CARD_WIDTH: f32 = 260.;
 
 struct Streamer<'a> {
     id: &'a str,
