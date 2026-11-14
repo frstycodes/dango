@@ -97,11 +97,19 @@ pub struct Prefs {
     pub sensitivity_auto: bool,
     // -100..=0 dB.
     pub sensitivity_db: f32,
+    // Discord's "Advanced Voice Activity": a neural speech detector drives automatic sensitivity.
+    pub advanced_voice_activity: bool,
     pub noise_suppression: bool,
-    // Which suppressor while it's on: RNNoise (Discord's Krisp slot) or WebRTC's.
+    // Which suppressor while it's on: DeepFilterNet (Discord's Krisp slot) or WebRTC's.
     pub noise_mode: NoiseMode,
     pub echo_cancellation: bool,
     pub auto_gain: bool,
+    // Global Attenuation: percent other apps are lowered (0 = off), and when.
+    pub attenuation: u8,
+    pub attenuate_self: bool,
+    pub attenuate_others: bool,
+    pub silence_warning: bool,
+    pub qos: bool,
     pub push_to_talk: bool,
     pub ptt_release_ms: u32,
     pub silenced_cues: Vec<Cue>,
@@ -128,6 +136,7 @@ pub struct Prefs {
 }
 
 const KEYBINDS_VERSION: u32 = 1;
+const STUDIO_THRESHOLD_DB: f32 = -84.;
 
 impl Default for Prefs {
     fn default() -> Self {
@@ -141,10 +150,16 @@ impl Default for Prefs {
             input_profile: InputProfile::Custom,
             sensitivity_auto: true,
             sensitivity_db: -60.,
+            advanced_voice_activity: true,
             noise_suppression: true,
             noise_mode: NoiseMode::Advanced,
             echo_cancellation: true,
             auto_gain: true,
+            attenuation: 0,
+            attenuate_self: false,
+            attenuate_others: true,
+            silence_warning: true,
+            qos: false,
             push_to_talk: false,
             ptt_release_ms: 20,
             silenced_cues: Vec::new(),
@@ -198,15 +213,10 @@ impl Prefs {
         }
     }
 
-    // Discord's input profiles are presets over the processing switches.
+    // Discord's input profiles overlay the stored switches (MediaEngineStore `e7`) rather than
+    // overwrite them, so going back to Custom restores what was there.
     fn set_profile(&mut self, profile: InputProfile) {
         self.input_profile = profile;
-        let on = match profile {
-            InputProfile::VoiceIsolation => true,
-            InputProfile::Studio => false,
-            InputProfile::Custom => return,
-        };
-        (self.noise_suppression, self.echo_cancellation, self.auto_gain, self.sensitivity_auto) = (on, on, on, on);
     }
 }
 
@@ -218,25 +228,55 @@ impl Prefs {
             input_volume: self.input_volume,
             output_volume: self.output_volume,
             input_mode: self.input_mode(),
-            echo_cancellation: self.echo_cancellation,
+            echo_cancellation: self.echo_cancellation(),
             noise_suppression: self.noise(),
-            auto_gain: self.auto_gain,
+            auto_gain: self.auto_gain(),
+            attenuation: self.attenuation(),
+            qos: self.qos,
         }
     }
 
+    // Voice Isolation: Krisp-tier suppression, echo cancellation, AGC, automatic sensitivity with
+    // Advanced Voice Activity. Studio: everything off, voice activity at a fixed -84 dB.
     fn noise(&self) -> voice::NoiseSuppression {
-        match (self.noise_suppression, self.noise_mode) {
-            (false, _) => voice::NoiseSuppression::Off,
-            (true, NoiseMode::Advanced) => voice::NoiseSuppression::Advanced,
-            (true, NoiseMode::Standard) => voice::NoiseSuppression::Standard,
+        match (self.input_profile, self.noise_suppression, self.noise_mode) {
+            (InputProfile::VoiceIsolation, ..) => voice::NoiseSuppression::Advanced,
+            (InputProfile::Studio, ..) | (InputProfile::Custom, false, _) => voice::NoiseSuppression::Off,
+            (InputProfile::Custom, true, NoiseMode::Advanced) => voice::NoiseSuppression::Advanced,
+            (InputProfile::Custom, true, NoiseMode::Standard) => voice::NoiseSuppression::Standard,
+        }
+    }
+
+    fn echo_cancellation(&self) -> bool {
+        self.profile_switch(self.echo_cancellation)
+    }
+
+    fn auto_gain(&self) -> bool {
+        self.profile_switch(self.auto_gain)
+    }
+
+    fn profile_switch(&self, custom: bool) -> bool {
+        match self.input_profile {
+            InputProfile::VoiceIsolation => true,
+            InputProfile::Studio => false,
+            InputProfile::Custom => custom,
         }
     }
 
     fn input_mode(&self) -> voice::InputMode {
-        match self.push_to_talk {
-            true => voice::InputMode::PushToTalk { release_delay_ms: self.ptt_release_ms },
-            false => voice::InputMode::VoiceActivity { auto: self.sensitivity_auto, threshold_db: self.sensitivity_db },
+        let ptt = voice::InputMode::PushToTalk { release_delay_ms: self.ptt_release_ms };
+        match self.input_profile {
+            InputProfile::Studio => voice::InputMode::VoiceActivity { auto: false, threshold_db: STUDIO_THRESHOLD_DB, advanced: false },
+            _ if self.push_to_talk => ptt,
+            InputProfile::VoiceIsolation => voice::InputMode::VoiceActivity { auto: true, threshold_db: self.sensitivity_db, advanced: true },
+            InputProfile::Custom => {
+                voice::InputMode::VoiceActivity { auto: self.sensitivity_auto, threshold_db: self.sensitivity_db, advanced: self.advanced_voice_activity }
+            }
         }
+    }
+
+    fn attenuation(&self) -> voice::Attenuation {
+        voice::Attenuation { strength: self.attenuation.min(100), when_self_speaks: self.attenuate_self, when_others_speak: self.attenuate_others }
     }
 
     pub fn apply_to(&self, session: &voice::VoiceSession) {
@@ -245,9 +285,10 @@ impl Prefs {
         session.set_input_volume(self.input_volume);
         session.set_output_volume(self.output_volume);
         session.set_input_mode(self.input_mode());
-        session.set_echo_cancellation(self.echo_cancellation);
+        session.set_echo_cancellation(self.echo_cancellation());
         session.set_noise_suppression(self.noise());
-        session.set_auto_gain(self.auto_gain);
+        session.set_auto_gain(self.auto_gain());
+        session.set_attenuation(self.attenuation());
     }
 }
 
@@ -288,6 +329,7 @@ enum Slider {
     OutputVolume,
     Sensitivity,
     ReleaseDelay,
+    Attenuation,
 }
 
 impl Slider {
@@ -297,6 +339,7 @@ impl Slider {
             Slider::OutputVolume => prefs.output_volume / 2.,
             Slider::Sensitivity => (prefs.sensitivity_db + 100.) / 100.,
             Slider::ReleaseDelay => prefs.ptt_release_ms as f32 / 2000.,
+            Slider::Attenuation => f32::from(prefs.attenuation) / 100.,
         }
     }
 
@@ -307,6 +350,7 @@ impl Slider {
             Slider::OutputVolume => prefs.output_volume = f * 2.,
             Slider::Sensitivity => prefs.sensitivity_db = (f * 100. - 100.).round(),
             Slider::ReleaseDelay => prefs.ptt_release_ms = (f * 2000.).round() as u32,
+            Slider::Attenuation => prefs.attenuation = (f * 100.).round() as u8,
         }
     }
 }
@@ -339,6 +383,10 @@ pub struct SettingsView {
     advanced: bool,
     scroll: ScrollHandle,
     devices: Devices,
+    // From the running mic test: whether the voice-activity gate is open, and Discord's
+    // "isn't detecting any input" state.
+    mic_speaking: bool,
+    mic_input: Option<bool>,
 }
 
 #[derive(Default)]
@@ -372,6 +420,8 @@ impl SettingsView {
             advanced: false,
             scroll: ScrollHandle::new(),
             devices: Devices::list(),
+            mic_speaking: false,
+            mic_input: None,
         }
     }
 }
@@ -473,9 +523,12 @@ impl Rustcord {
         match voice::mic_test(None, &self.prefs.voice_settings()) {
             Ok((test, mut levels)) => {
                 let task = cx.spawn(async move |this, cx| {
-                    while let Some(db) = futures::StreamExt::next(&mut levels).await {
+                    while let Some(level) = futures::StreamExt::next(&mut levels).await {
                         if this.update(cx, |this, cx| {
-                            this.mic_level = db;
+                            this.mic_level = level.db;
+                            if let Some(view) = &mut this.settings {
+                                (view.mic_speaking, view.mic_input) = (level.speaking, level.input_detected);
+                            }
                             cx.notify();
                         })
                         .is_err()
@@ -779,28 +832,33 @@ impl Rustcord {
             .child(div().flex_1().flex().flex_col().gap_2().child(label("Microphone Volume", cx)).child(self.slider(Slider::InputVolume, None, cx)))
             .child(div().flex_1().flex().flex_col().gap_2().child(label("Speaker Volume", cx)).child(self.slider(Slider::OutputVolume, None, cx)));
         let level = self.mic_level;
+        let testing = self.mic_test.is_some();
+        // Discord's mic test notice, and in a call its "No Audio Detected" warning when that's on.
+        let in_call_silent = prefs.silence_warning && self.call.as_ref().is_some_and(|c| c.session.input_detected() == Some(false));
+        let no_input = if testing { view.mic_input == Some(false) } else { in_call_silent };
+        let speaking = if testing { view.mic_speaking } else { self.call.as_ref().is_some_and(|c| c.level.1) };
         let mic_test = div()
             .mt_6()
             .flex()
             .items_center()
             .gap_4()
-            .child(primary_button("mic-test", if self.mic_test.is_some() { "Stop Testing" } else { "Mic Test" }).on_click(cx.listener(|this, _, _, cx| this.toggle_mic_test(cx))))
+            .child(primary_button("mic-test", if testing { "Stop Testing" } else { "Mic Test" }).on_click(cx.listener(|this, _, _, cx| this.toggle_mic_test(cx))))
             .child(meter(level, cx));
+        let no_input_notice = no_input.then(|| {
+            div()
+                .mt_2()
+                .flex()
+                .flex_col()
+                .child(label("Rustcord isn\u{2019}t detecting any input from your mic.", cx))
+                .child(description("Please check that you\u{2019}ve selected the right input device.", cx))
+        });
         let profile = |id: &'static str, title: &'static str, detail: &'static str, value: InputProfile, cx: &mut Context<Self>| {
             radio_row(id, title, detail, prefs.input_profile == value, cx).on_click(cx.listener(move |this, _, _, cx| this.update_prefs(cx, |p| p.set_profile(value))))
         };
         let custom = prefs.input_profile == InputProfile::Custom;
-        let sensitivity = div()
-            .mt_6()
-            .flex()
-            .flex_col()
-            .gap_2()
-            .child(label("Input Sensitivity", cx))
-            .child(description("Controls how much sound Rustcord transmits from your mic.", cx))
-            .child(self.toggle_row("auto-sensitivity", "Automatically determine input sensitivity", None, prefs.sensitivity_auto, |p| &mut p.sensitivity_auto, cx))
-            .children((!prefs.sensitivity_auto).then(|| self.slider(Slider::Sensitivity, Some(level), cx)))
-            .children((!prefs.sensitivity_auto).then(|| description(&format!("{} dB", prefs.sensitivity_db as i32), cx)));
-        let ptt = prefs.push_to_talk.then(|| {
+        let studio = prefs.input_profile == InputProfile::Studio;
+        let sensitivity = self.sensitivity_section(speaking, level, cx);
+        let ptt = (prefs.push_to_talk && !studio).then(|| {
             div()
                 .flex()
                 .gap_4()
@@ -818,16 +876,7 @@ impl Rustcord {
                         .child(description(&format!("{} ms", prefs.ptt_release_ms), cx)),
                 )
         });
-        let advanced_rows = advanced.then(|| {
-            div().flex().flex_col().child(self.toggle_row(
-                "agc",
-                "Automatic Gain Control",
-                Some("Automatically adjust microphone volume to keep it clear and consistent."),
-                prefs.auto_gain,
-                |p| &mut p.auto_gain,
-                cx,
-            ))
-        });
+        let advanced_rows = advanced.then(|| self.advanced_voice_rows(custom, cx));
         let voice = div()
             .flex()
             .flex_col()
@@ -835,6 +884,7 @@ impl Rustcord {
             .child(devices)
             .child(volumes)
             .child(mic_test)
+            .children(no_input_notice)
             .child(divider(&theme))
             .child(label("Input Profile", cx))
             .child(
@@ -857,10 +907,10 @@ impl Rustcord {
                         d.child(self.noise_row(cx))
                             .child(self.toggle_row("echo", "Echo Cancellation", None, prefs.echo_cancellation, |p| &mut p.echo_cancellation, cx))
                     })
-                    .child(self.toggle_row("ptt", "Push to Talk", None, prefs.push_to_talk, |p| &mut p.push_to_talk, cx))
+                    .when(!studio, |d| d.child(self.toggle_row("ptt", "Push to Talk", None, prefs.push_to_talk, |p| &mut p.push_to_talk, cx)))
                     .children(ptt),
             )
-            .child(expander("voice-advanced", "Show Advanced Voice Settings", "Automatic Gain Control", advanced, &theme, cx).on_click(cx.listener(|this, _, _, cx| {
+            .child(expander("voice-advanced", if advanced { "Hide Advanced Voice Settings" } else { "Show Advanced Voice Settings" }, &advanced_summary(custom), advanced, &theme, cx).on_click(cx.listener(|this, _, _, cx| {
                 if let Some(s) = &mut this.settings {
                     s.advanced = !s.advanced;
                 }
@@ -1072,22 +1122,112 @@ impl Rustcord {
             )
     }
 
-    // Discord's Noise Suppression dropdown (Krisp / Standard / None); ours offers RNNoise, an
-    // open-source ML suppressor, in Krisp's place.
+    // Discord's input sensitivity: automatic shows a bar lit while the gate is open, manual a threshold
+    // slider over the live level. Both are disabled under push to talk.
+    fn sensitivity_section(&self, speaking: bool, level: f32, cx: &mut Context<Self>) -> Div {
+        let prefs = &self.prefs;
+        let (auto, enabled) = (prefs.sensitivity_auto, !prefs.push_to_talk);
+        let detail = if auto {
+            "Controls how much sound Rustcord transmits from your mic. Speak to test your mic \u{2013} if the meter is filled, Rustcord is transmitting your beautiful voice."
+        } else {
+            "Controls how much sound Rustcord transmits from your mic."
+        };
+        let control = if auto {
+            speaking_bar(speaking && enabled, cx).into_any_element()
+        } else {
+            div().flex().flex_col().gap_2().child(self.slider(Slider::Sensitivity, Some(level), cx)).child(description(&format!("{} dB", prefs.sensitivity_db as i32), cx)).into_any_element()
+        };
+        div()
+            .mt_6()
+            .flex()
+            .flex_col()
+            .gap_2()
+            .child(label("Input Sensitivity", cx))
+            .child(self.switch_row("auto-sensitivity", "Automatically Adjust Input Sensitivity", Some(detail), auto, enabled, |p| &mut p.sensitivity_auto, cx))
+            .child(div().when(!enabled, |d| d.opacity(0.5)).child(control))
+    }
+
+    // Discord's "Show Advanced Voice Settings" rows, in its order; the first two only under Custom.
+    fn advanced_voice_rows(&self, custom: bool, cx: &mut Context<Self>) -> Div {
+        let prefs = &self.prefs;
+        let vad_enabled = !prefs.push_to_talk && prefs.sensitivity_auto;
+        let attenuation = voice::ATTENUATION_SUPPORTED.then(|| {
+            div()
+                .py_3()
+                .flex()
+                .flex_col()
+                .gap_2()
+                .child(label("Global Attenuation", cx))
+                .child(description("Lower the volume of other applications by this percent when someone is speaking. Set to 0% to completely disable global attenuation.", cx))
+                .child(label("Attenuation Strength", cx))
+                .child(self.slider(Slider::Attenuation, None, cx))
+                .child(description(&format!("{}%", prefs.attenuation), cx))
+                .child(self.toggle_row("attenuate-self", "When I speak", None, prefs.attenuate_self, |p| &mut p.attenuate_self, cx))
+                .child(self.toggle_row("attenuate-others", "When others speak", None, prefs.attenuate_others, |p| &mut p.attenuate_others, cx))
+        });
+        div()
+            .flex()
+            .flex_col()
+            .when(custom, |d| {
+                d.child(self.toggle_row(
+                    "agc",
+                    "Automatic Gain Control",
+                    Some("Automatically adjust microphone volume to keep it clear and consistent."),
+                    prefs.auto_gain,
+                    |p| &mut p.auto_gain,
+                    cx,
+                ))
+                .child(self.switch_row(
+                    "advanced-vad",
+                    "Advanced Voice Activity",
+                    Some("Turning this off may help if your voice is not being detected by the automatic input sensitivity."),
+                    prefs.advanced_voice_activity,
+                    vad_enabled,
+                    |p| &mut p.advanced_voice_activity,
+                    cx,
+                ))
+            })
+            .child(self.toggle_row(
+                "silence-warning",
+                "No Audio Detected Warning",
+                Some("Show a warning when Rustcord is not detecting audio from your mic"),
+                prefs.silence_warning,
+                |p| &mut p.silence_warning,
+                cx,
+            ))
+            .children(attenuation)
+            .child(self.toggle_row(
+                "qos",
+                "Quality of Service",
+                Some("Hints to your router that the packets Rustcord is transmitting are high priority. Some routers or internet service providers may misbehave when this is set."),
+                prefs.qos,
+                |p| &mut p.qos,
+                cx,
+            ))
+    }
+
+    // Discord's Noise Suppression dropdown (Krisp / Standard / None). Krisp is licensed to Discord, so
+    // the first option is DeepFilterNet, an open neural suppressor, in its place.
     fn noise_row(&self, cx: &mut Context<Self>) -> AnyElement {
-        let options: Vec<(String, String)> = vec![("advanced".into(), "Advanced (RNNoise)".into()), ("standard".into(), "Standard".into()), ("off".into(), "None".into())];
+        let options: Vec<(String, String)> = vec![("advanced".into(), "Advanced".into()), ("standard".into(), "Standard".into()), ("off".into(), "None".into())];
         let chosen = match (self.prefs.noise_suppression, self.prefs.noise_mode) {
             (false, _) => "off",
             (true, NoiseMode::Advanced) => "advanced",
             (true, NoiseMode::Standard) => "standard",
         };
         let current = options.iter().find(|(id, _)| id == chosen).map(|(_, l)| l.clone()).unwrap_or_default();
+        let degraded = chosen == "advanced" && self.call.as_ref().is_some_and(|c| c.session.noise_suppression_degraded());
+        let detail = if degraded {
+            "Your computer couldn't run DeepFilterNet in real time, so this call uses a lighter suppressor."
+        } else {
+            "Reduces background noise from your mic. Powered by DeepFilterNet."
+        };
         div()
             .py_3()
             .flex()
             .items_center()
             .gap_4()
-            .child(div().flex_1().flex().flex_col().gap_1().child(label("Noise Suppression", cx)).child(description("Reduces background noise from your mic.", cx)))
+            .child(div().flex_1().flex().flex_col().gap_1().child(label("Noise Suppression", cx)).child(description(detail, cx)))
             .child(div().w(px(220.)).child(self.select_field(Select::Noise, &options, chosen, current.into(), cx)))
             .into_any_element()
     }
@@ -1134,22 +1274,40 @@ impl Rustcord {
         field: fn(&mut Prefs) -> &mut bool,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
+        self.switch_row(id, title, detail, on, true, field, cx)
+    }
+
+    // A toggle row that can be disabled (dimmed, not clickable), as Discord greys out settings that
+    // don't apply in the current mode.
+    #[allow(clippy::too_many_arguments)]
+    fn switch_row(
+        &self,
+        id: &'static str,
+        title: &'static str,
+        detail: Option<&'static str>,
+        on: bool,
+        enabled: bool,
+        field: fn(&mut Prefs) -> &mut bool,
+        cx: &mut Context<Self>,
+    ) -> Stateful<Div> {
         let theme = cx.theme().clone();
-        div()
+        let row = div()
             .id(id)
             .py_3()
             .flex()
             .items_center()
             .gap_4()
-            .cursor_pointer()
             .child(div().flex_1().flex().flex_col().gap_1().child(label(title, cx)).children(detail.map(|d| description(d, cx))))
-            .child(switch(on, &theme))
-            .on_click(cx.listener(move |this, _, _, cx| {
-                this.update_prefs(cx, |p| {
-                    let value = field(p);
-                    *value = !*value;
-                })
-            }))
+            .child(switch(on, &theme));
+        if !enabled {
+            return row.opacity(0.5);
+        }
+        row.cursor_pointer().on_click(cx.listener(move |this, _, _, cx| {
+            this.update_prefs(cx, |p| {
+                let value = field(p);
+                *value = !*value;
+            })
+        }))
     }
 
     fn device_select(&self, select: Select, devices: &[(String, String)], chosen: Option<&str>, cx: &mut Context<Self>) -> AnyElement {
@@ -1434,7 +1592,7 @@ fn radio_row(id: &'static str, title: &'static str, detail: &'static str, select
         .child(div().flex().flex_col().gap_1().child(div().text_size(px(16.)).child(title)).child(div().text_size(px(14.)).text_color(theme.muted_foreground).child(detail)))
 }
 
-fn expander(id: &'static str, title: &str, detail: &'static str, open: bool, theme: &gpui_kit::component::Theme, cx: &App) -> Stateful<Div> {
+fn expander(id: &'static str, title: &str, detail: &str, open: bool, theme: &gpui_kit::component::Theme, cx: &App) -> Stateful<Div> {
     div()
         .id(id)
         .py_3()
@@ -1443,7 +1601,7 @@ fn expander(id: &'static str, title: &str, detail: &'static str, open: bool, the
         .gap_4()
         .cursor_pointer()
         .child(div().flex_1().flex().flex_col().gap_1().child(div().text_size(px(16.)).font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(title.to_owned())).child(
-            div().text_size(px(14.)).text_color(theme.muted_foreground).child(detail),
+            div().text_size(px(14.)).text_color(theme.muted_foreground).child(detail.to_owned()),
         ))
         .child(
             div()
@@ -1508,6 +1666,19 @@ fn meter(level: f32, cx: &App) -> Div {
     }))
 }
 
+// Discord's automatic-sensitivity meter: a bar that fills green while you're transmitting.
+fn speaking_bar(speaking: bool, cx: &App) -> Div {
+    div().w_full().h(px(8.)).rounded(px(4.)).bg(if speaking { cx.theme().success } else { track(cx) })
+}
+
+// The collapsed accordion lists its first settings: three under Custom, two otherwise (Discord `tI`).
+fn advanced_summary(custom: bool) -> String {
+    let custom_only = ["Automatic Gain Control", "Advanced Voice Activity"];
+    let always = ["No Audio Detected Warning", "Global Attenuation", "Quality of Service"];
+    let shown = custom_only.iter().filter(|_| custom).chain(always.iter().filter(|t| **t != "Global Attenuation" || voice::ATTENUATION_SUPPORTED));
+    shown.take(if custom { 3 } else { 2 }).copied().collect::<Vec<_>>().join(", ")
+}
+
 fn key_caps(keys: &'static str, theme: &gpui_kit::component::Theme) -> Div {
     div().flex().items_center().gap_1().children(keys.split(" + ").map(|key| {
         div()
@@ -1531,11 +1702,18 @@ mod tests {
 
     #[test]
     fn prefs_round_trip_and_profiles() {
-        let mut prefs = Prefs::default();
+        let mut prefs = Prefs { push_to_talk: true, noise_mode: NoiseMode::Standard, ..Prefs::default() };
         prefs.set_profile(InputProfile::Studio);
-        assert!(!prefs.noise_suppression && !prefs.echo_cancellation && !prefs.auto_gain);
+        let studio = prefs.voice_settings();
+        assert_eq!(studio.noise_suppression, voice::NoiseSuppression::Off);
+        assert!(!studio.echo_cancellation && !studio.auto_gain);
+        assert_eq!(studio.input_mode, voice::InputMode::VoiceActivity { auto: false, threshold_db: -84., advanced: false }, "Studio forces voice activity");
+        prefs.set_profile(InputProfile::VoiceIsolation);
+        assert_eq!(prefs.voice_settings().noise_suppression, voice::NoiseSuppression::Advanced);
         prefs.set_profile(InputProfile::Custom);
-        assert!(!prefs.noise_suppression, "Custom keeps the last switches");
+        assert_eq!(prefs.voice_settings().noise_suppression, voice::NoiseSuppression::Standard, "Custom gets its own switches back");
+        assert!(matches!(prefs.voice_settings().input_mode, voice::InputMode::PushToTalk { .. }));
+        prefs.push_to_talk = false;
         let text = serde_json::to_string(&prefs).unwrap();
         assert_eq!(serde_json::from_str::<Prefs>(&text).unwrap(), prefs);
         let mut empty = serde_json::from_str::<Prefs>("{}").unwrap();
@@ -1544,6 +1722,34 @@ mod tests {
         Slider::Sensitivity.set(&mut prefs, 0.4);
         assert_eq!(prefs.sensitivity_db, -60.);
         assert!((Slider::Sensitivity.fraction(&prefs) - 0.4).abs() < 1e-6);
+    }
+
+    #[test]
+    fn defaults_match_discord_and_old_files_migrate() {
+        let settings = Prefs::default().voice_settings();
+        assert_eq!(settings.input_mode, voice::InputMode::VoiceActivity { auto: true, threshold_db: -60., advanced: true });
+        assert_eq!(settings.noise_suppression, voice::NoiseSuppression::Advanced);
+        assert!(settings.echo_cancellation && settings.auto_gain && !settings.qos);
+        assert_eq!(settings.attenuation, voice::Attenuation { strength: 0, when_self_speaks: false, when_others_speak: true });
+
+        // A settings file from before this change: no attenuation, VAD, warning or QoS fields.
+        let old = r#"{"theme":"Dark","input_profile":"Custom","sensitivity_auto":false,"sensitivity_db":-42.0,
+            "noise_suppression":true,"noise_mode":"Standard","echo_cancellation":false,"auto_gain":true,"push_to_talk":false}"#;
+        let prefs: Prefs = serde_json::from_str(old).unwrap();
+        assert_eq!((prefs.sensitivity_db, prefs.noise_mode, prefs.echo_cancellation), (-42., NoiseMode::Standard, false), "kept");
+        assert!(prefs.advanced_voice_activity && prefs.attenuate_others && prefs.silence_warning, "new fields take Discord's defaults");
+        assert_eq!((prefs.attenuation, prefs.attenuate_self, prefs.qos), (0, false, false));
+        assert_eq!(prefs.voice_settings().input_mode, voice::InputMode::VoiceActivity { auto: false, threshold_db: -42., advanced: true });
+        let mut p = prefs;
+        Slider::Attenuation.set(&mut p, 0.355);
+        assert_eq!(p.attenuation, 36);
+    }
+
+    #[test]
+    fn advanced_summary_lists_the_first_visible_settings() {
+        assert_eq!(advanced_summary(true), "Automatic Gain Control, Advanced Voice Activity, No Audio Detected Warning");
+        let second = if voice::ATTENUATION_SUPPORTED { "Global Attenuation" } else { "Quality of Service" };
+        assert_eq!(advanced_summary(false), format!("No Audio Detected Warning, {second}"));
     }
 
     #[test]
