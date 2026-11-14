@@ -2,8 +2,9 @@ use std::borrow::Cow;
 
 use gpui_kit::{AssetSource, Result, SharedString, assets::IconNamed};
 
-pub const CLYDE: &str = "brand/discord-symbol-blurple.svg";
-pub const CLYDE_WHITE: &str = "brand/discord-symbol-white.svg";
+// Rustcord's own mark, the voice wave, in its magenta and in white.
+pub const MARK: &str = "brand/rustcord-mark.svg";
+pub const MARK_WHITE: &str = "brand/rustcord-mark-white.svg";
 
 // Discord's own icons, extracted from its web app for the user's personal use (assets/discord/README.md:
 // never redistribute). Order matches `Glyph`.
@@ -77,10 +78,9 @@ const GLYPHS: [(&str, &[u8]); 67] = [
     ("icons/volume-off.svg", include_bytes!("../assets/discord/icons/volume-off.svg")),
 ];
 
-// Discord's symbol (Clyde) in its blurple and white versions, unmodified from discord.com/branding.
 const BRAND: [(&str, &[u8]); 2] = [
-    (CLYDE, include_bytes!("../assets/brand/discord-symbol-blurple.svg")),
-    (CLYDE_WHITE, include_bytes!("../assets/brand/discord-symbol-white.svg")),
+    (MARK, include_bytes!("../assets/brand/rustcord-mark.svg")),
+    (MARK_WHITE, include_bytes!("../assets/brand/rustcord-mark-white.svg")),
 ];
 
 #[derive(Clone, Copy)]
@@ -165,7 +165,7 @@ pub struct Assets;
 
 impl AssetSource for Assets {
     fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
-        match GLYPHS.iter().chain(BRAND.iter()).find(|(p, _)| *p == path) {
+        match GLYPHS.iter().chain(BRAND.iter()).chain(crate::app_icon::BRAND_ICONS.iter()).find(|(p, _)| *p == path) {
             Some((_, bytes)) => Ok(Some(Cow::Borrowed(bytes))),
             None => gpui_kit::assets::Assets.load(path),
         }
@@ -173,7 +173,7 @@ impl AssetSource for Assets {
 
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {
         let mut paths = gpui_kit::assets::Assets.list(path)?;
-        paths.extend(GLYPHS.iter().chain(BRAND.iter()).map(|(p, _)| *p).filter(|p| p.starts_with(path)).map(SharedString::from));
+        paths.extend(GLYPHS.iter().chain(BRAND.iter()).chain(crate::app_icon::BRAND_ICONS.iter()).map(|(p, _)| *p).filter(|p| p.starts_with(path)).map(SharedString::from));
         Ok(paths)
     }
 }

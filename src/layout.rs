@@ -168,7 +168,7 @@ impl Rustcord {
     /// A thin grab strip on a column's edge; dragging it resizes the column, as in Discord.
     pub(crate) fn resize_handle(&self, edge: Edge, cx: &mut Context<Self>) -> impl IntoElement {
         let active = self.drag.as_ref().is_some_and(|d| d.edge == edge);
-        let accent = palette::blurple();
+        let accent = palette::accent();
         div()
             .id(match edge {
                 Edge::Channels => "resize-channels",

@@ -22,7 +22,7 @@ use crate::{
     Rustcord, EmojiTarget, Feed, RightPanel,
     discord::{ChannelKind, Embed, Emoji, MediaKind, Message, SendState, User},
     icons::Glyph,
-    mascot::{Mood, clyde},
+    mascot::{Mood, mascot},
     motion,
 };
 
@@ -674,7 +674,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &std::rc::Rc<RowConte
         .flex()
         .flex_col()
         .when(highlighted, |r| r.bg(theme.warning.opacity(0.08)))
-        .when(flashing, |r| r.bg(crate::palette::blurple().opacity(0.14)))
+        .when(flashing, |r| r.bg(crate::palette::accent().opacity(0.14)))
         .hover(|s| s.bg(theme.foreground.opacity(0.03)))
         .child(actions(message, mine, ctx, &group, cx));
     if !starts_group {
@@ -1127,8 +1127,8 @@ fn reactions(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &App) -> Opti
             .rounded(px(8.))
             .border_1()
             .cursor_pointer()
-            .border_color(if r.me { crate::palette::blurple() } else { gpui_kit::transparent_black() })
-            .bg(if r.me { crate::palette::blurple().opacity(0.15) } else { theme.foreground.opacity(0.06) })
+            .border_color(if r.me { crate::palette::accent() } else { gpui_kit::transparent_black() })
+            .bg(if r.me { crate::palette::accent().opacity(0.15) } else { theme.foreground.opacity(0.06) })
             .hover(|s| s.border_color(theme.foreground.opacity(0.2)))
             .active(|s| s.opacity(0.7))
             .child(match r.emoji.url() {
@@ -1222,7 +1222,7 @@ fn chip(label: &'static str, cx: &App) -> AnyElement {
         .flex()
         .items_center()
         .rounded(px(4.))
-        .bg(crate::palette::blurple())
+        .bg(crate::palette::accent())
         .text_color(gpui_kit::white())
         .text_size(px(10.))
         .font_weight(FontWeight::BOLD)
@@ -1459,7 +1459,7 @@ pub fn empty_state(id: &'static str, mood: Mood, title: &'static str, detail: im
         .justify_center()
         .gap_3()
         .px_6()
-        .child(clyde(id, mood, cx))
+        .child(mascot(id, mood, cx))
         .child(div().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).child(title))
         .when(!detail.is_empty(), |s| s.child(div().max_w(px(360.)).text_center().text_color(cx.theme().muted_foreground).child(detail)))
         .into_any_element()

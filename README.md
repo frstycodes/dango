@@ -1,4 +1,6 @@
-# Rustcord
+# Wave
+
+A lightweight Discord client in Rust and gpui (repository and data folders still use its first name, Rustcord).
 
 A lightweight Discord desktop client in Rust and [gpui](https://www.gpui.rs): messaging, voice, video and Go Live.
 

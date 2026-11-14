@@ -641,7 +641,7 @@ impl VideoPlayer {
             .into_any_element()
     }
 
-    // A 4px track with a blurple fill; the knob springs in while the pointer is on it or dragging.
+    // A 4px track with a accent fill; the knob springs in while the pointer is on it or dragging.
     fn scrubber(&mut self, fraction_played: f32, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let active = self.hot == Some(Control::Scrubber) || self.scrub.is_some();
         let knob = self.motions.frame_one(Control::Knob, Motion::new(Target::default().width(if active { 12. } else { 0. })).transition(pop()), window, cx);
@@ -665,7 +665,7 @@ impl VideoPlayer {
                     .h(px(4.))
                     .rounded(px(2.))
                     .bg(gpui_kit::white().opacity(0.24))
-                    .child(div().h_full().w(played).rounded(px(2.)).bg(palette::blurple())),
+                    .child(div().h_full().w(played).rounded(px(2.)).bg(palette::accent())),
             )
             .child(div().absolute().top(px(8. - knob_side / 2.)).left(played).ml(px(-knob_side / 2.)).size(px(knob_side)).rounded_full().bg(gpui_kit::white()))
             .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
@@ -715,7 +715,7 @@ impl VideoPlayer {
                     .rounded(px(2.))
                     .bg(gpui_kit::white().opacity(0.24))
                     .child(canvas(move |bounds, _, _| record.set(bounds), |_, _, _, _| {}).absolute().size_full())
-                    .child(div().absolute().bottom_0().left_0().right_0().h(level).rounded(px(2.)).bg(palette::blurple()))
+                    .child(div().absolute().bottom_0().left_0().right_0().h(level).rounded(px(2.)).bg(palette::accent()))
                     .child(div().absolute().bottom(level).left(px(-4.)).mb(px(-6.)).size(px(12.)).rounded_full().bg(gpui_kit::white())),
             )
             .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &gpui_kit::MouseDownEvent, _, cx| {

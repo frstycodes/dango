@@ -139,7 +139,7 @@ const PAGE: &str = r#"<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rustcord sign-in</title>
 <style>
-  :root { color-scheme: light dark; --bg: #f2f3f5; --card: #fff; --text: #060607; --muted: #4e5058; --accent: #5865f2; --ok: #23a55a; --bad: #da373c; }
+  :root { color-scheme: light dark; --bg: #f2f3f5; --card: #fff; --text: #060607; --muted: #4e5058; --accent: #db2b65; --ok: #23a55a; --bad: #da373c; }
   @media (prefers-color-scheme: dark) { :root { --bg: #1e1f22; --card: #2b2d31; --text: #f2f3f5; --muted: #b5bac1; } }
   * { box-sizing: border-box; }
   body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 16px; }

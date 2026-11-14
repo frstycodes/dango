@@ -61,7 +61,7 @@ pub fn large(button: Stateful<Div>) -> Stateful<Div> {
 
 fn tone_colors(tone: Tone, cx: &App) -> (Hsla, Hsla, Hsla) {
     match tone {
-        Tone::Primary => (palette::blurple(), palette::blurple_hover(), gpui_kit::white()),
+        Tone::Primary => (palette::accent(), palette::accent_hover(), gpui_kit::white()),
         Tone::Secondary => (palette::wash(0.12), palette::wash(0.2), cx.theme().foreground),
         Tone::Danger => (palette::danger(), palette::danger_hover(), gpui_kit::white()),
         Tone::OnMedia => (gpui_kit::black().opacity(0.6), gpui_kit::black().opacity(0.8), gpui_kit::white()),
@@ -177,8 +177,8 @@ pub fn switch(on: bool, cx: &App) -> Div {
         .p(px(3.))
         .rounded_full()
         .border_1()
-        .border_color(if on { palette::blurple() } else { palette::wash(0.3) })
-        .bg(if on { palette::blurple() } else { off })
+        .border_color(if on { palette::accent() } else { palette::wash(0.3) })
+        .bg(if on { palette::accent() } else { off })
         .flex()
         .items_center()
         .when(on, |d| d.justify_end())
@@ -191,8 +191,8 @@ pub fn checkbox(on: bool) -> Div {
         .flex_none()
         .rounded(px(RADIUS_SM))
         .border_1()
-        .border_color(if on { palette::blurple() } else { palette::wash(0.64) })
-        .bg(if on { palette::blurple() } else { gpui_kit::transparent_black() })
+        .border_color(if on { palette::accent() } else { palette::wash(0.64) })
+        .bg(if on { palette::accent() } else { gpui_kit::transparent_black() })
         .text_color(gpui_kit::white())
         .flex()
         .items_center()
@@ -201,7 +201,7 @@ pub fn checkbox(on: bool) -> Div {
 }
 
 pub fn radio(on: bool, cx: &App) -> Div {
-    let ring = if on { palette::blurple() } else { cx.theme().muted_foreground };
+    let ring = if on { palette::accent() } else { cx.theme().muted_foreground };
     div()
         .size(px(18.))
         .flex_none()
@@ -212,7 +212,7 @@ pub fn radio(on: bool, cx: &App) -> Div {
         .items_center()
         .justify_center()
         .when(on, |d| d.child(div().size(px(8.)).rounded_full().bg(gpui_kit::white())))
-        .when(on, |d| d.bg(palette::blurple()))
+        .when(on, |d| d.bg(palette::accent()))
 }
 
 pub fn avatar(url: impl Into<SharedString>, size: f32) -> Img {
@@ -247,7 +247,7 @@ pub fn menu_row(id: impl Into<ElementId>, cx: &App) -> Stateful<Div> {
         .text_size(px(14.))
         .font_weight(FontWeight::MEDIUM)
         .text_color(ink)
-        .hover(|s| s.bg(palette::blurple()).text_color(gpui_kit::white()))
+        .hover(|s| s.bg(palette::accent()).text_color(gpui_kit::white()))
 }
 
 // A list row in a sidebar or panel: Discord's grey hover, a stronger fill when selected.

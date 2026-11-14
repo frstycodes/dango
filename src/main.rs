@@ -35,6 +35,7 @@ mod video;
 mod hotkeys;
 mod sounds;
 mod ui;
+mod app_icon;
 mod voice;
 mod window_controls;
 
@@ -82,11 +83,12 @@ fn main() {
             .expect("bundled gg sans");
         cx.set_http_client(std::sync::Arc::new(discord::Images::default()));
         cx.set_reduce_motion(material::system_reduce_motion());
-        material::set_app_icon();
+        settings::Prefs::load().app_icon.apply();
+
         let options = WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(1280.), px(820.)), cx))),
             window_min_size: Some(size(px(940.), px(520.))),
-            titlebar: Some(TitlebarOptions { title: Some("Rustcord".into()), appears_transparent: true, ..Default::default() }),
+            titlebar: Some(TitlebarOptions { title: Some("Wave".into()), appears_transparent: true, ..Default::default() }),
             window_background: material::window_background(),
             ..Default::default()
         };
@@ -160,8 +162,9 @@ struct Autocomplete {
     selected: usize,
 }
 
-// Where Rustcord keeps its files: Application Support on macOS, %APPDATA% on Windows,
-// $XDG_DATA_HOME (or ~/.local/share) elsewhere.
+// Where Wave keeps its files: Application Support on macOS, %APPDATA% on Windows,
+// $XDG_DATA_HOME (or ~/.local/share) elsewhere. The folders keep the app's first name, Rustcord, so
+// existing sign-ins and settings carry over.
 fn data_dir() -> Option<std::path::PathBuf> {
     let var = |name| std::env::var_os(name).map(std::path::PathBuf::from);
     let dir = if cfg!(target_os = "macos") {

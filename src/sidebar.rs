@@ -75,7 +75,7 @@ impl Rustcord {
     fn folder_item(&mut self, folder: Folder, guilds: Vec<Guild>, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme().clone();
         let open = self.open_folders.contains(&folder.id);
-        let tint: Hsla = folder.color.map(|c| rgb(c).into()).unwrap_or(palette::blurple());
+        let tint: Hsla = folder.color.map(|c| rgb(c).into()).unwrap_or(palette::accent());
         let (unread, mentions) = guilds.iter().map(|g| self.guild_badge(g)).fold((false, 0), |(u, m), (gu, gm)| (u || gu, m + gm));
         let has_selected = guilds.iter().any(|g| self.guild_id.as_ref() == Some(&g.id));
         let name: SharedString = folder.name.clone().unwrap_or_else(|| guilds.iter().map(|g| g.name.as_str()).take(3).collect::<Vec<_>>().join(", ")).into();
@@ -153,9 +153,9 @@ impl Rustcord {
                 .flex()
                 .items_center()
                 .justify_center()
-                .bg(if selected || hovered { palette::blurple() } else { theme.foreground.opacity(0.1) })
-                // White mark on blurple, blurple mark on the neutral tile: both official, never recoloured.
-                .child(img(if selected || hovered { crate::icons::CLYDE_WHITE } else { crate::icons::CLYDE }).w(px(24.)).h(px(18.)))
+                .bg(if selected || hovered { palette::accent() } else { theme.foreground.opacity(0.1) })
+                // Wave's mark: white on the accent tile when selected or hovered, magenta on the neutral tile.
+                .child(img(if selected || hovered { crate::icons::MARK_WHITE } else { crate::icons::MARK }).size(px(22.)))
                 .into_any_element(),
             Face::Folder { open: true, tint, .. } => div()
                 .size(px(side))

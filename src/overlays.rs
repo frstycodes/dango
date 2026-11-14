@@ -522,7 +522,7 @@ impl Rustcord {
             .items_center()
             .gap_3()
             .cursor_pointer()
-            .child(div().flex_1().min_w_0().text_size(px(14.)).child(if whole_screen { "Share all sound except Rustcord" } else { "Share this app's sound" }))
+            .child(div().flex_1().min_w_0().text_size(px(14.)).child(if whole_screen { "Share all sound except Wave" } else { "Share this app's sound" }))
             .child(crate::ui::switch(audio, cx))
             .on_click(cx.listener(|this, _, _, cx| this.update_prefs(cx, |p| p.stream_audio = !p.stream_audio)));
         let ready = self.share_choice.is_some();
@@ -711,7 +711,7 @@ impl Rustcord {
         let y = f32::from(card.at.y).clamp(TITLE_HEIGHT + 8., (f32::from(viewport.height) - height - 8.).max(TITLE_HEIGHT + 8.));
         let user = card.user.clone();
         let profile = card.profile.clone().unwrap_or_default();
-        let accent: Hsla = profile.accent.map(|c| rgb(c).into()).unwrap_or(palette::blurple());
+        let accent: Hsla = profile.accent.map(|c| rgb(c).into()).unwrap_or(palette::accent());
         let surface = theme.popover;
         let status = self.presences.get(&user.id).map(|p| p.status).or(self.me.as_ref().filter(|me| me.id == user.id).map(|_| self.my_status));
         let guild = card.guild_id.as_ref().and_then(|id| self.guilds.iter().find(|g| &g.id == id));
@@ -830,7 +830,7 @@ impl Rustcord {
                 .gap_2()
                 .cursor_pointer()
                 .when(selected, |r| r.bg(theme.foreground.opacity(0.06)))
-                .hover(|s| s.bg(palette::blurple()).text_color(gpui_kit::white()))
+                .hover(|s| s.bg(palette::accent()).text_color(gpui_kit::white()))
                 .child(div().pt(px(4.)).child(status_mark(status, 10., theme.popover)))
                 .child(div().flex_1().min_w_0().flex().flex_col().child(div().font_weight(FontWeight::MEDIUM).child(label)).children(hint.map(|h| div().text_size(px(12.)).opacity(0.75).child(h))))
                 .on_click(cx.listener(move |this, _, _, cx| this.set_status(status, cx)))
@@ -1039,10 +1039,10 @@ fn source_icon(icon: Option<Arc<RenderImage>>, glyph: Glyph, theme: &Theme) -> A
     }
 }
 
-// The selected tile's blurple outline: springs out from inside the thumbnail's edge to 3px past it,
+// The selected tile's accent outline: springs out from inside the thumbnail's edge to 3px past it,
 // overshooting a touch. Still when the selection wasn't the user's doing (the picker's preselection).
 fn selection_ring(key: &str, animate: bool) -> AnyElement {
-    let ring = div().absolute().border_2().border_color(palette::blurple());
+    let ring = div().absolute().border_2().border_color(palette::accent());
     if !animate {
         return place_ring(ring, 1., 1.).into_any_element();
     }
