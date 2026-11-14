@@ -32,7 +32,7 @@ use std::{
     ops::{Deref, DerefMut, Range},
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 
@@ -238,6 +238,7 @@ pub struct TextSystem {
     font_generation: Arc<AtomicUsize>,
     missing_glyph_reporter: Arc<MissingGlyphReporter>,
     missing_glyph_receiver: Mutex<Option<MissingGlyphReceiver>>,
+    font_smoothing: AtomicBool,
 }
 
 impl TextSystem {
@@ -247,6 +248,7 @@ impl TextSystem {
         let missing_glyph_generation = Arc::<AtomicUsize>::default();
         TextSystem {
             platform_text_system,
+            font_smoothing: AtomicBool::new(true),
             font_metrics: RwLock::default(),
             raster_bounds: RwLock::default(),
             font_ids_by_font: RwLock::default(),
@@ -582,7 +584,16 @@ impl TextSystem {
 
     /// Returns the dilation level to use for a glyph painted in the given color.
     pub(crate) fn glyph_dilation_for_color(&self, color: Hsla) -> u8 {
+        if !self.font_smoothing.load(Ordering::Relaxed) {
+            return 0;
+        }
         self.platform_text_system.glyph_dilation_for_color(color)
+    }
+
+    /// Turns the platform's stroke-thickening font smoothing on or off. Off draws glyphs at their
+    /// designed weight, like CSS `-webkit-font-smoothing: antialiased`. On by default.
+    pub fn set_font_smoothing(&self, enabled: bool) {
+        self.font_smoothing.store(enabled, Ordering::Relaxed);
     }
 
     /// Returns the text rendering mode recommended by the platform for the given font and size.

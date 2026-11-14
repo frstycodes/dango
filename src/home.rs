@@ -3,20 +3,22 @@
 use std::time::Duration;
 
 use gpui_kit::{
-    AnyElement, Context, Entity, FontWeight, SharedString, Window, WindowControlArea,
-    component::{
-        ActiveTheme, Icon,
-        input::InputEvent,
-        tooltip::Tooltip,
-    },
+    AnyElement, App, Context, Div, Entity, FontWeight, Hsla, SharedString, Stateful, Window, WindowControlArea,
+    component::{Icon, input::InputEvent, tooltip::Tooltip},
     div, prelude::*, px,
 };
+use reqwest::Method;
+use serde_json::json;
 
 use crate::{
     Rustcord, SearchState,
-    discord::{Relation, Status},
+    discord::{Relation, Relationship, Status},
     icons::Glyph,
     layout::avatar_with_status,
+    mascot::Mood,
+    palette,
+    sidebar::{Nav, RowState, channel_row},
+    ui::{self, Tone},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -24,6 +26,7 @@ pub enum FriendsTab {
     Online,
     All,
     Pending,
+    Blocked,
 }
 
 fn last_channel_file() -> Option<std::path::PathBuf> {
@@ -134,152 +137,219 @@ impl Rustcord {
         self.submit(window, cx);
     }
 
-    /// The Friends row at the top of the DM list.
+    /// The Friends row at the top of the DM list (.ch.navrow).
     pub(crate) fn friends_row(&self, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme().clone();
         let selected = self.guild_id.is_none() && self.channel.is_none();
         let pending = self.relationships.iter().filter(|r| r.kind == Relation::Incoming).count() as u32;
-        div()
-            .id("friends-row")
-            .h(px(42.))
-            .px_2()
-            .flex()
-            .items_center()
+        let state = RowState { selected, unread: false, muted: false, strong: false };
+        channel_row("friends-row".into(), "friends-row".into(), state, cx)
+            .h(px(40.))
             .gap_3()
-            .rounded(px(8.))
-            .cursor_pointer()
-            .font_weight(FontWeight::MEDIUM)
-            .text_color(if selected { crate::palette::strong(cx) } else { theme.muted_foreground })
-            .when(selected, |r| r.bg(theme.sidebar_accent))
-            .hover(|s| s.bg(theme.sidebar_accent.opacity(0.6)).text_color(theme.foreground))
-            .child(Icon::new(Glyph::Friends).size(px(24.)))
-            .child(div().flex_1().child("Friends"))
-            .when(pending > 0, |r| {
-                r.child(crate::ui::count_badge(pending))
-            })
+            .child(Icon::new(Glyph::Users).size(px(20.)).flex_none())
+            .child(div().flex_1().min_w_0().truncate().child("Friends"))
+            .when(pending > 0, |r| r.child(ui::count_badge(pending)))
             .on_click(cx.listener(|this, _, _, cx| this.open_home(cx)))
             .into_any_element()
     }
 
-    /// Discord's Friends page: a header with Online / All / Pending, then the people in that tab.
+    /// The Friends page: a header with the filter tabs, then the people in that tab.
     pub(crate) fn render_home(&self, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme().clone();
         let tab = self.friends_tab;
         let status_of = |id: &str| self.presences.get(id).map(|p| p.status).unwrap_or_default();
-        let people: Vec<_> = self
+        let people: Vec<Relationship> = self
             .relationships
             .iter()
             .filter(|r| match tab {
                 FriendsTab::Online => r.kind == Relation::Friend && status_of(&r.user.id) != Status::Offline,
                 FriendsTab::All => r.kind == Relation::Friend,
                 FriendsTab::Pending => matches!(r.kind, Relation::Incoming | Relation::Outgoing),
+                FriendsTab::Blocked => r.kind == Relation::Blocked,
             })
             .cloned()
             .collect();
-        let heading = match tab {
-            FriendsTab::Online => "Online",
-            FriendsTab::All => "All Friends",
-            FriendsTab::Pending => "Pending",
-        };
-        let tab_button = |id: &'static str, label: &'static str, this_tab: FriendsTab| {
-            let active = tab == this_tab;
-            div()
-                .id(id)
-                .occlude()
-                .h(px(28.))
-                .px_2()
-                .rounded(px(6.))
-                .flex()
-                .items_center()
-                .cursor_pointer()
-                .font_weight(FontWeight::MEDIUM)
-                .text_color(if active { crate::palette::strong(cx) } else { theme.muted_foreground })
-                .when(active, |b| b.bg(theme.sidebar_accent))
-                .hover(|s| s.bg(theme.sidebar_accent.opacity(0.6)).text_color(theme.foreground))
-                .child(label)
-                .on_click(cx.listener(move |this, _, _, cx| {
+        let pending = self.relationships.iter().filter(|r| r.kind == Relation::Incoming).count() as u32;
+        let tabs = [(FriendsTab::Online, "Online"), (FriendsTab::All, "All"), (FriendsTab::Pending, "Pending"), (FriendsTab::Blocked, "Blocked")];
+        let header = div()
+            .min_h(px(48.))
+            .flex_none()
+            .py(px(6.))
+            .pl_4()
+            .pr_3()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap_3()
+            .border_b_1()
+            .border_color(palette::line(cx))
+            .window_control_area(WindowControlArea::Drag)
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .pr_3()
+                    .border_r_1()
+                    .border_color(palette::line_strong(cx))
+                    .whitespace_nowrap()
+                    .text_size(px(16.))
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(palette::strong(cx))
+                    .child(Icon::new(Glyph::Users).size(px(20.)).text_color(palette::faint(cx)))
+                    .child("Friends"),
+            )
+            .child(div().flex().flex_wrap().gap_1().children(tabs.map(|(this_tab, label)| {
+                let count = (this_tab == FriendsTab::Pending && pending > 0).then_some(pending);
+                friends_tab(this_tab, label, tab == this_tab, count, cx).on_click(cx.listener(move |this, _, _, cx| {
                     this.friends_tab = this_tab;
                     cx.notify();
                 }))
+            })));
+        let heading = match tab {
+            FriendsTab::Online => "Online",
+            FriendsTab::All => "All friends",
+            FriendsTab::Pending => "Pending",
+            FriendsTab::Blocked => "Blocked",
         };
-        let header = div()
-            .h(px(48.))
-            .flex_none()
-            .px_4()
-            .flex()
-            .items_center()
-            .gap_4()
-            .border_b_1()
-            .border_color(theme.border)
-            .window_control_area(WindowControlArea::Drag)
-            .child(div().flex().items_center().gap_2().font_weight(FontWeight::MEDIUM).text_color(crate::palette::strong(cx)).child(Icon::new(Glyph::Friends).size(px(24.)).text_color(theme.muted_foreground)).child("Friends"))
-            .child(div().size(px(4.)).rounded_full().bg(theme.muted_foreground.opacity(0.5)))
-            .child(tab_button("tab-online", "Online", FriendsTab::Online))
-            .child(tab_button("tab-all", "All", FriendsTab::All))
-            .child(tab_button("tab-pending", "Pending", FriendsTab::Pending));
-        let rows = people.into_iter().map(|r| {
-            let presence = self.presences.get(&r.user.id).cloned().unwrap_or_default();
-            let subtitle = match r.kind {
-                Relation::Incoming => "Incoming Friend Request".to_string(),
-                Relation::Outgoing => "Outgoing Friend Request".to_string(),
-                _ => presence.activity.as_ref().map(|a| a.text.clone()).unwrap_or_else(|| if presence.status == Status::Offline { "Offline".into() } else { presence.status.label().into() }),
-            };
-            let user_id = r.user.id.clone();
-            div()
-                .id(SharedString::from(format!("friend-{}", r.user.id)))
-                .h(px(62.))
-                .mx_4()
-                .px_2()
-                .flex()
-                .items_center()
-                .gap_3()
-                .border_t_1()
-                .border_color(theme.border)
-                .rounded(px(8.))
-                .cursor_pointer()
-                .hover(|s| s.bg(theme.list_hover))
-                .child(avatar_with_status(&r.user.avatar, 32., Some(presence.status), theme.background))
-                .child(div().flex_1().min_w_0().flex().flex_col().child(div().truncate().font_weight(FontWeight::SEMIBOLD).text_color(crate::palette::strong(cx)).child(r.user.name.clone())).child(div().truncate().text_size(px(14.)).text_color(theme.muted_foreground).child(subtitle)))
-                .child(
-                    div()
-                        .size(px(36.))
-                        .rounded_full()
-                        .bg(theme.muted)
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .text_color(theme.muted_foreground)
-                        .child(Icon::new(Glyph::ChatRound).size(px(20.))),
-                )
-                .tooltip(|window, cx| Tooltip::new("Message").build(window, cx))
-                .on_click(cx.listener(move |this, _, window, cx| this.message_user(user_id.clone(), window, cx)))
-                .on_mouse_down(gpui_kit::MouseButton::Right, {
-                    let user = r.user.clone();
-                    cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_user_menu(user.clone(), None, crate::user_menu::Surface::Generic, e.position, cx))
-                })
-        });
-        let rows: Vec<_> = rows.collect();
-        let count = rows.len();
+        let body = match (people.is_empty(), tab) {
+            (true, FriendsTab::Online) => ui::empty_state("friends-empty", Mood::Idle, "No one's around right now", "Your friends are offline. Say hi anyway, they'll see it when they're back.", cx)
+                .child(ui::button("show-all-friends", Tone::Secondary, cx).mt_2().child("Show all friends").on_click(cx.listener(|this, _, _, cx| {
+                    this.friends_tab = FriendsTab::All;
+                    cx.notify();
+                })))
+                .into_any_element(),
+            (true, _) => ui::empty_state("friends-empty", Mood::Idle, format!("No one under {heading}"), "Friends, requests and blocks show up here as they happen.", cx).into_any_element(),
+            (false, _) => {
+                let label = div().pt_2().px_2().pb_1().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::faint(cx)).child(format!("{heading} · {}", people.len()));
+                let rows: Vec<AnyElement> = people.iter().map(|r| self.friend_row(r, cx)).collect();
+                div().flex().flex_col().gap(px(2.)).child(label).children(rows).into_any_element()
+            }
+        };
         div()
             .flex_1()
             .min_w_0()
             .h_full()
             .flex()
             .flex_col()
-            .bg(theme.background)
-            .border_l_1()
-            .border_color(theme.sidebar_border)
+            .bg(palette::surface(palette::Level::Page, cx))
+            .text_color(palette::text(cx))
+            .text_size(px(14.))
             .child(header)
-            .child(
-                div()
-                    .id("friends-list")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .pt_4()
-                    .child(div().px_6().pb_2().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(theme.muted_foreground).child(format!("{heading} — {count}")))
-                    .children(rows),
-            )
+            .child(div().id("friends-list").flex_1().min_h_0().overflow_y_scroll().pt_4().px_4().pb_6().child(body))
             .into_any_element()
     }
+
+    // A person in the list (.friend): who they are, what they're up to, and the actions that fit.
+    fn friend_row(&self, relation: &Relationship, cx: &mut Context<Self>) -> AnyElement {
+        let user = &relation.user;
+        let presence = self.presences.get(&user.id).cloned().unwrap_or_default();
+        let subtitle: String = match relation.kind {
+            Relation::Incoming => "Wants to be friends".into(),
+            Relation::Outgoing => "You sent a request".into(),
+            Relation::Blocked => "Blocked".into(),
+            Relation::Friend => presence.activity.as_ref().map(|a| a.text.clone()).unwrap_or_else(|| if presence.status == Status::Offline { "Offline".into() } else { presence.status.label().into() }),
+        };
+        let page = palette::surface(palette::Level::Page, cx);
+        let status = (relation.kind == Relation::Friend).then_some(presence.status);
+        let id = user.id.clone();
+        let acts: Vec<Stateful<Div>> = match relation.kind {
+            Relation::Friend => vec![
+                friend_action(("message", &id), Icon::new(Glyph::ChatRound), "Message", None, cx).on_click(cx.listener({
+                    let id = id.clone();
+                    move |this, _, window, cx| this.message_user(id.clone(), window, cx)
+                })),
+                friend_action(("more", &id), Nav::MoreVertical.icon(), "More", None, cx).on_mouse_down(gpui_kit::MouseButton::Left, {
+                    let user = user.clone();
+                    cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_user_menu(user.clone(), None, crate::user_menu::Surface::Generic, e.position, cx))
+                }),
+            ],
+            Relation::Incoming => vec![
+                friend_action(("accept", &id), Icon::new(Glyph::Checkmark), "Accept", Some(palette::positive_ink(cx)), cx).on_click(cx.listener({
+                    let user = user.clone();
+                    move |this, _, _, cx| this.relation_optimistic(&user.id, Some((user.clone(), Relation::Friend)), Method::PUT, Some(json!({})), cx)
+                })),
+                friend_action(("ignore", &id), Nav::Close.icon(), "Ignore", Some(palette::danger_ink(cx)), cx).on_click(cx.listener({
+                    let id = id.clone();
+                    move |this, _, _, cx| this.relation_optimistic(&id, None, Method::DELETE, None, cx)
+                })),
+            ],
+            Relation::Outgoing => vec![friend_action(("cancel", &id), Nav::Close.icon(), "Cancel request", Some(palette::danger_ink(cx)), cx).on_click(cx.listener({
+                let id = id.clone();
+                move |this, _, _, cx| this.relation_optimistic(&id, None, Method::DELETE, None, cx)
+            }))],
+            Relation::Blocked => vec![friend_action(("unblock", &id), Nav::Close.icon(), "Unblock", None, cx).on_click(cx.listener({
+                let id = id.clone();
+                move |this, _, _, cx| this.relation_optimistic(&id, None, Method::DELETE, None, cx)
+            }))],
+        };
+        let hover = palette::hover(cx);
+        div()
+            .id(SharedString::from(format!("friend-{}", user.id)))
+            .min_h(px(60.))
+            .px_2()
+            .flex()
+            .items_center()
+            .gap_3()
+            .rounded(px(ui::RADIUS_MD))
+            .hover(move |s| s.bg(hover))
+            .child(avatar_with_status(&user.avatar, 32., status, page))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .child(div().truncate().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(user.name.clone()))
+                    .child(div().truncate().text_size(px(12.)).text_color(palette::muted(cx)).child(subtitle)),
+            )
+            .child(div().flex_none().flex().gap_2().children(acts))
+            .on_mouse_down(gpui_kit::MouseButton::Right, {
+                let user = user.clone();
+                cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_user_menu(user.clone(), None, crate::user_menu::Surface::Generic, e.position, cx))
+            })
+            .into_any_element()
+    }
+}
+
+// A filter tab (.pills .tab): selected takes the fill, the rest hover to a lighter one.
+fn friends_tab(tab: FriendsTab, label: &'static str, selected: bool, count: Option<u32>, cx: &App) -> Stateful<Div> {
+    let (hover, strong) = (palette::hover(cx), palette::strong(cx));
+    div()
+        .id(("friends-tab", tab as usize))
+        .occlude()
+        .h(px(30.))
+        .px_3()
+        .rounded(px(ui::RADIUS_SM))
+        .flex()
+        .items_center()
+        .gap(px(6.))
+        .cursor_pointer()
+        .whitespace_nowrap()
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(if selected { strong } else { palette::muted(cx) })
+        .when(selected, |t| t.bg(palette::selected(cx)))
+        .when(!selected, |t| t.hover(move |s| s.bg(hover).text_color(strong)))
+        .child(label)
+        .children(count.map(ui::count_badge))
+}
+
+// A friend row's action (.friend .acts .iconbtn): a raised 36px tile with a hairline; `tone` is the
+// ink it hovers to (accept green, ignore coral).
+fn friend_action(id: (&'static str, &str), icon: Icon, tooltip: &'static str, tone: Option<Hsla>, cx: &App) -> Stateful<Div> {
+    let ink = tone.unwrap_or(palette::strong(cx));
+    div()
+        .id(SharedString::from(format!("{}-{}", id.0, id.1)))
+        .size(px(36.))
+        .flex_none()
+        .rounded(px(ui::RADIUS_MD))
+        .border_1()
+        .border_color(palette::line(cx))
+        .bg(palette::surface(palette::Level::Raised, cx))
+        .flex()
+        .items_center()
+        .justify_center()
+        .cursor_pointer()
+        .text_color(palette::muted(cx))
+        .hover(move |s| s.text_color(ink))
+        .child(icon.size(px(20.)))
+        .tooltip(move |window, cx| Tooltip::new(tooltip).build(window, cx))
 }
