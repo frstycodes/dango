@@ -361,6 +361,8 @@ pub struct Rustcord {
     share_choice_label: Option<String>,
     // Who watches each Go Live we've heard of, by stream key (STREAM_UPDATE).
     stream_viewers: HashMap<String, Vec<String>>,
+    // When we first saw each Go Live by stream key; Discord sends no start time.
+    stream_live_since: HashMap<String, Instant>,
     // When the pointer last moved over the call view; the bar and header fade out after a while.
     call_pointer_at: Instant,
     call_strip_hidden: bool,
@@ -528,6 +530,7 @@ impl Rustcord {
             share_choice: None,
             share_choice_label: None,
             stream_viewers: HashMap::new(),
+            stream_live_since: HashMap::new(),
             call_pointer_at: Instant::now(),
             call_strip_hidden: false,
             preview_generation: 0,
@@ -679,6 +682,14 @@ impl Rustcord {
                         let (voice, live) = (guild.voice_states.len(), guild.voice_states.iter().filter(|v| v.streaming).count());
                         if voice > 0 {
                             eprintln!("ready guild {}: {voice} in voice, {live} streaming", guild.id);
+                        }
+                    }
+                }
+                // Streams already live when we connect: their start is unknown, so count from now.
+                for guild in &ready.guilds {
+                    for state in guild.voice_states.iter().filter(|v| v.streaming) {
+                        if let Some(channel) = &state.channel_id {
+                            self.stream_live_since.entry(format!("guild:{}:{channel}:{}", guild.id, state.user_id)).or_insert_with(Instant::now);
                         }
                     }
                 }
@@ -847,6 +858,12 @@ impl Rustcord {
                     sounds::play(sounds::Cue::StreamStarted);
                 } else if was_live && !is_live && self.call.as_ref().is_some_and(|c| c.watched(&state.user_id).is_some()) {
                     sounds::play(sounds::Cue::StreamEnded);
+                }
+                let live_key = state.channel_id.as_ref().filter(|_| state.streaming).map(|c| format!("guild:{}:{c}:{}", guild.id, state.user_id));
+                let suffix = format!(":{}", state.user_id);
+                self.stream_live_since.retain(|key, _| !key.ends_with(&suffix) || Some(key) == live_key.as_ref());
+                if let Some(key) = live_key {
+                    self.stream_live_since.entry(key).or_insert_with(Instant::now);
                 }
                 guild.voice_states.retain(|v| v.user_id != state.user_id);
                 if state.channel_id.is_some() {
