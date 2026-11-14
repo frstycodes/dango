@@ -6,23 +6,24 @@ use crate::Inspector;
 use crate::profiler;
 use crate::{
     Action, AnyDrag, AnyElement, AnyImageCache, AnyTooltip, AnyView, App, AppContext, Arena, Asset,
-    AsyncWindowContext, AtlasTile, AvailableSpace, Background, BorderStyle, Bounds, BoxShadow,
-    Capslock, Context, Corners, CursorHideMode, CursorStyle, Decorations, DevicePixels,
-    DispatchActionListener, DispatchNodeId, DispatchTree, DisplayId, Edges, Effect, Entity,
-    EntityId, EventEmitter, FileDropEvent, FontId, Global, GlobalElementId, GlyphId, GpuSpecs,
-    Hsla, InputHandler, InputPreference, IsZero, KeyBinding, KeyContext, KeyDownEvent, KeyEvent,
-    Keystroke, KeystrokeEvent, LayoutId, LineLayoutIndex, Modifiers, ModifiersChangedEvent,
-    MonochromeSprite, MouseButton, MouseEvent, MouseMoveEvent, MouseUpEvent, Path, Pixels,
-    PlatformAtlas, PlatformDisplay, PlatformInput, PlatformInputHandler, PlatformWindow, Point,
-    PolychromeSprite, Priority, PromptButton, PromptLevel, Quad, Render, RenderGlyphParams,
-    RenderImage, RenderImageParams, RenderSvgParams, Replay, ResizeEdge, SMOOTH_SVG_SCALE_FACTOR,
-    SUBPIXEL_VARIANTS_X, SUBPIXEL_VARIANTS_Y, ScaledPixels, Scene, Shadow, SharedString, Size,
-    StrikethroughStyle, Style, SubpixelSprite, SubscriberSet, Subscription, SystemWindowTab,
-    SystemWindowTabController, TabStopMap, TaffyLayoutEngine, Task, TextInputConfiguration,
-    TextInputStateChange, TextRenderingMode, TextStyle, TextStyleRefinement, ThermalState,
-    TransformationMatrix, Underline, UnderlineStyle, WindowAppearance, WindowBackgroundAppearance,
-    WindowBounds, WindowControls, WindowDecorations, WindowOptions, WindowParams, WindowTextSystem,
-    WindowVisibility, point, prelude::*, px, rems, size, transparent_black,
+    AsyncWindowContext, AtlasTile, AvailableSpace, BackdropBlur, BackdropFilter, Background,
+    BorderStyle, Bounds, BoxShadow, Capslock, Context, Corners, CursorHideMode, CursorStyle,
+    Decorations, DevicePixels, DispatchActionListener, DispatchNodeId, DispatchTree, DisplayId,
+    Edges, Effect, Entity, EntityId, EventEmitter, FileDropEvent, FontId, Global, GlobalElementId,
+    GlyphId, GpuSpecs, Hsla, InputHandler, InputPreference, IsZero, KeyBinding, KeyContext,
+    KeyDownEvent, KeyEvent, Keystroke, KeystrokeEvent, LayoutId, LineLayoutIndex, Modifiers,
+    ModifiersChangedEvent, MonochromeSprite, MouseButton, MouseEvent, MouseMoveEvent, MouseUpEvent,
+    Path, Pixels, PlatformAtlas, PlatformDisplay, PlatformInput, PlatformInputHandler,
+    PlatformWindow, Point, PolychromeSprite, Priority, PromptButton, PromptLevel, Quad, Render,
+    RenderGlyphParams, RenderImage, RenderImageParams, RenderSvgParams, Replay, ResizeEdge,
+    SMOOTH_SVG_SCALE_FACTOR, SUBPIXEL_VARIANTS_X, SUBPIXEL_VARIANTS_Y, ScaledPixels, Scene, Shadow,
+    SharedString, Size, StrikethroughStyle, Style, SubpixelSprite, SubscriberSet, Subscription,
+    SystemWindowTab, SystemWindowTabController, TabStopMap, TaffyLayoutEngine, Task,
+    TextInputConfiguration, TextInputStateChange, TextRenderingMode, TextStyle,
+    TextStyleRefinement, ThermalState, TransformationMatrix, Underline, UnderlineStyle,
+    WindowAppearance, WindowBackgroundAppearance, WindowBounds, WindowControls, WindowDecorations,
+    WindowOptions, WindowParams, WindowTextSystem, WindowVisibility, point, prelude::*, px, rems,
+    size, transparent_black,
 };
 
 use crate::gestures::{GestureTuning, RecognizedTouchGesture, TouchGestureRecognizer};
@@ -4548,6 +4549,36 @@ impl Window {
         }
 
         result
+    }
+
+    /// Paint a backdrop filter into the scene at the current z-index: what was painted under
+    /// `bounds` before this call is blurred and saturated inside the rounded `bounds`, and
+    /// anything painted after it draws on top. Paint it before the element's shadows and
+    /// background, like CSS `backdrop-filter`.
+    ///
+    /// This method should only be called as part of the paint phase of element drawing.
+    pub fn paint_backdrop_filter(
+        &mut self,
+        bounds: Bounds<Pixels>,
+        corner_radii: Corners<Pixels>,
+        filter: BackdropFilter,
+    ) {
+        self.invalidator.debug_assert_paint();
+
+        let opacity = self.element_opacity();
+        if filter.is_identity() || opacity <= 0. {
+            return;
+        }
+        let scale_factor = self.scale_factor();
+        self.next_frame.scene.insert_primitive(BackdropBlur {
+            order: 0,
+            blur_radius: filter.blur_radius.max(Pixels::ZERO).scale(scale_factor),
+            bounds: self.snap_bounds(bounds),
+            content_mask: self.snapped_content_mask(),
+            corner_radii: corner_radii.scale(scale_factor),
+            saturation: filter.saturation.max(0.),
+            opacity,
+        });
     }
 
     /// Paint the drop (non-inset) shadows from `shadows` into the scene at the current
