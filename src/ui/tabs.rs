@@ -10,7 +10,7 @@ use gpui_kit::{
     div, prelude::FluentBuilder, px,
 };
 
-use super::{RADIUS_MD, RADIUS_SM, control::{TabKind, part, tab_option}, count_badge, seg_lift};
+use super::{RADIUS_MD, RADIUS_SM, Squircle, control::{TabKind, part, tab_option}, count_badge, seg_lift};
 use crate::{motion, palette};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -60,7 +60,7 @@ fn strip(id: ElementId, style: Style, items: &[(SharedString, Option<u32>)], sel
     let frame = match style {
         Style::Underline => div().flex().gap(px(16.)).border_b_1().border_color(palette::line(cx)),
         Style::Pills => div().flex().flex_wrap().gap(px(4.)),
-        Style::Segmented => div().flex().p(px(3.)).gap(px(2.)).rounded(px(RADIUS_MD)).bg(palette::seg_track(cx)),
+        Style::Segmented => div().flex().p(px(3.)).gap(px(2.)).squircle(RADIUS_MD).bg(palette::seg_track(cx)),
     };
     frame
         .relative()
@@ -96,9 +96,9 @@ fn slide(id: &ElementId, style: Style, measured: &Entity<Measured>, selected: us
     let h = channel("h", size.height.into(), window, cx);
     let base = div().absolute().left(px(x)).w(px(w));
     Some(match style {
-        Style::Underline => base.bottom_0().h(px(2.)).rounded(px(2.)).bg(palette::accent()),
-        Style::Pills => base.top(px(y)).h(px(h)).rounded(px(RADIUS_SM)).bg(palette::selected(cx)),
-        Style::Segmented => base.top(px(y)).h(px(h)).rounded(px(RADIUS_MD - 3.)).bg(palette::seg_thumb(cx)).shadow(seg_lift(cx)),
+        Style::Underline => base.bottom_0().h(px(2.)).squircle(2.).bg(palette::accent()),
+        Style::Pills => base.top(px(y)).h(px(h)).squircle(RADIUS_SM).bg(palette::selected(cx)),
+        Style::Segmented => base.top(px(y)).h(px(h)).squircle(RADIUS_MD - 3.).bg(palette::seg_thumb(cx)).shadow(seg_lift(cx)),
     })
 }
 

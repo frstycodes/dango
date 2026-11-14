@@ -10,7 +10,7 @@ use gpui_kit::{
     canvas, div, fill, point, prelude::FluentBuilder, px, size,
 };
 
-use super::{DUR_PANEL, DUR_PRESS, control::part};
+use super::{DUR_PANEL, DUR_PRESS, SQUIRCLE, Squircle, control::part, stretch};
 use crate::{motion, palette};
 
 // Progress: the done part, a 4px gap, then what's left.
@@ -31,7 +31,7 @@ pub fn progress_indeterminate(id: impl Into<ElementId>, cx: &App) -> AnyElement 
     let (accent, rest) = (palette::accent(), palette::line_strong(cx));
     let frame = move |t: f32| {
         let (from, to) = travel(t);
-        let piece = |grow: f32, color: Hsla| div().h(px(6.)).flex_basis(px(0.)).flex_grow(grow).rounded(px(2.)).bg(color);
+        let piece = |grow: f32, color: Hsla| div().h(px(6.)).flex_basis(px(0.)).flex_grow(grow).rounded(px(2.)).corner_shape(SQUIRCLE).bg(color);
         div()
             .w_full()
             .h(px(6.))
@@ -58,7 +58,7 @@ fn travel(t: f32) -> (f32, f32) {
 
 // Done and remaining as two flex pieces, ends facing the gap at `inner` radius.
 fn split_track(f: f32, height: f32, outer: f32, inner: f32, cx: &App) -> Div {
-    let piece = |grow: f32, color: Hsla| div().h(px(height)).flex_basis(px(0.)).flex_grow(grow).bg(color);
+    let piece = |grow: f32, color: Hsla| div().h(px(height)).flex_basis(px(0.)).flex_grow(grow).corner_shape(SQUIRCLE).bg(color);
     div()
         .w_full()
         .flex()
@@ -71,7 +71,7 @@ fn split_track(f: f32, height: f32, outer: f32, inner: f32, cx: &App) -> Div {
 struct Thumb {
     // 0 at rest, 1 hovered: the thumb grows 8% taller.
     hover: f32,
-    // 0 at rest, 1 held: the thumb narrows to two thirds.
+    // 0 at rest, 1 held: the thumb narrows to two thirds, and its press transform replaces the hover's.
     press: f32,
     ring: Option<Hsla>,
 }
@@ -82,13 +82,10 @@ pub fn slider_track(value: f32, cx: &App) -> Div {
 }
 
 fn thumb_track(f: f32, thumb: Thumb, cx: &App) -> Div {
-    let piece = |grow: f32, color: Hsla| div().h(px(8.)).flex_basis(px(0.)).flex_grow(grow).bg(color);
+    let piece = |grow: f32, color: Hsla| div().h(px(8.)).flex_basis(px(0.)).flex_grow(grow).corner_shape(SQUIRCLE).bg(color);
     let ring = |color: Hsla, spread: f32| BoxShadow { color, offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(spread), inset: false };
-    // The thumb keeps its 6px slot so the gaps never move; only the drawn bar narrows and grows.
-    let bar = div()
-        .w(px(6. - 2. * thumb.press))
-        .h(px(24. * (1. + 0.08 * thumb.hover)))
-        .rounded(px(3.))
+    let bar = stretch(div().w(px(6.)).h(px(24.)), 1. - 0.34 * thumb.press, 1. + 0.08 * thumb.hover * (1. - thumb.press))
+        .squircle(3.)
         .bg(palette::accent())
         .when_some(thumb.ring, |b, accent_ink| b.shadow(vec![ring(accent_ink, 4.), ring(palette::surface(palette::Level::Page, cx), 2.)]));
     div()
@@ -230,7 +227,7 @@ pub fn meter(level: f32, bars: usize, cx: &App) -> Div {
             true if i * 4 >= bars * 3 => idle,
             true => online,
         };
-        div().flex_1().min_w(px(3.)).h_full().rounded(px(9.)).bg(color)
+        div().flex_1().min_w(px(3.)).h_full().rounded_full().bg(color)
     }))
 }
 
@@ -293,11 +290,19 @@ fn paint_arc(window: &mut Window, centre: gpui_kit::Point<Pixels>, radius: f32, 
 }
 
 // A loading placeholder: the selected fill with a calm shimmer that sweeps across, then rests. Callers
-// size it; `radius` is its corner (a circle passes half its size). The sweep is painted in thin columns
-// clipped to the rounded shape, since gpui clips children to rectangles only.
+// size it; `radius` is its squircle corner. The sweep is painted in thin columns inset along a circular
+// arc of the same radius, which sits inside the squircle, since gpui clips children to rectangles only.
 pub fn skeleton(id: impl Into<ElementId>, radius: f32, cx: &App) -> Div {
+    sweeping(id.into(), radius, cx).corner_shape(SQUIRCLE)
+}
+
+// A round placeholder for an avatar of `size`.
+pub fn skeleton_circle(id: impl Into<ElementId>, size: f32, cx: &App) -> Div {
+    sweeping(id.into(), size / 2., cx).size(px(size)).flex_none()
+}
+
+fn sweeping(id: ElementId, radius: f32, cx: &App) -> Div {
     let shimmer = palette::shimmer(cx);
-    let id = id.into();
     div().relative().rounded(px(radius)).bg(palette::selected(cx)).child(
         div()
             .absolute()
