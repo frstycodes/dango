@@ -3,7 +3,7 @@
 use std::{sync::Arc, time::Duration};
 
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, App, ClipboardItem, Context, Entity, FontWeight, Hsla, KeyDownEvent, MouseButton, Pixels, Point, RenderImage, SharedString, Window,
+    Animation, AnimationExt, AnyElement, App, ClipboardItem, Context, Entity, FontWeight, HighlightStyle, Hsla, KeyDownEvent, MouseButton, Pixels, Point, RenderImage, ScrollHandle, SharedString, StyledText, Window,
     component::{
         ActiveTheme, Icon, Theme,
         input::{Input, InputEvent},
@@ -13,14 +13,14 @@ use gpui_kit::{
 
 use crate::{
     Channel, ChannelKind, Rustcord, EmojiTarget, ProfileCard, SearchState,
-    discord::{Emoji, Message, Status, User},
+    discord::{Activity, ActivityKind, Emoji, Message, Status, User},
     icons::Glyph,
-    layout::{TITLE_HEIGHT, avatar_with_status, status_mark},
-    motion, palette,
+    layout::{TITLE_HEIGHT, avatar_with_status},
+    menu, motion, palette,
     voice::ShareSource,
 };
 
-const CARD_WIDTH: f32 = 300.;
+const PROFILE_WIDTH: f32 = 320.;
 const PICKER_SIZE: (f32, f32) = (420., 440.);
 const SWITCHER_WIDTH: f32 = 560.;
 
@@ -700,37 +700,62 @@ impl Rustcord {
         )
     }
 
-    // Discord's profile popout: banner, avatar with status, names, pronouns, about me, roles, and a
-    // button to message them.
+    // The profile popout (overlays.css `.profile`): banner, an 80px avatar ringed in the card's colour,
+    // name and username, what they're up to, about me, roles, and a field to message them.
     fn profile_overlay(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let card = self.profile_card.as_ref()?;
-        let theme = cx.theme().clone();
         let viewport = window.viewport_size();
-        let height = 420.;
-        let x = f32::from(card.at.x).clamp(8., f32::from(viewport.width) - CARD_WIDTH - 8.);
-        let y = f32::from(card.at.y).clamp(TITLE_HEIGHT + 8., (f32::from(viewport.height) - height - 8.).max(TITLE_HEIGHT + 8.));
         let user = card.user.clone();
         let profile = card.profile.clone().unwrap_or_default();
-        let accent: Hsla = profile.accent.map(|c| rgb(c).into()).unwrap_or(palette::accent());
-        let surface = theme.popover;
-        let status = self.presences.get(&user.id).map(|p| p.status).or(self.me.as_ref().filter(|me| me.id == user.id).map(|_| self.my_status));
+        let overlay = palette::surface(palette::Level::Overlay, cx);
+        let presence = self.presences.get(&user.id);
+        let status = presence.map(|p| p.status).or(self.me.as_ref().filter(|me| me.id == user.id).map(|_| self.my_status));
         let guild = card.guild_id.as_ref().and_then(|id| self.guilds.iter().find(|g| &g.id == id));
         let roles: Vec<(String, Hsla)> = guild
             .map(|g| {
                 let mut roles: Vec<_> = g.roles.iter().filter(|r| profile.roles.contains(&r.id)).collect();
                 roles.sort_by_key(|r| std::cmp::Reverse(r.position));
-                roles.into_iter().map(|r| (r.name.clone(), if r.color == 0 { theme.muted_foreground } else { rgb(r.color).into() })).collect()
+                roles.into_iter().map(|r| (r.name.clone(), if r.color == 0 { palette::status_in(Status::Offline, cx) } else { rgb(r.color).into() })).collect()
             })
             .unwrap_or_default();
-        let name_color = self.role_color(card.guild_id.as_ref(), &user.id, Some(&profile.roles), theme.is_dark()).unwrap_or(theme.foreground);
         let is_me = self.me.as_ref().is_some_and(|me| me.id == user.id);
-        let (dm_user, mention) = (user.id.clone(), user.clone());
-        let banner = match &profile.banner {
-            Some(url) => crate::ui::media(url.clone(), crate::ui::top(crate::ui::RADIUS_XL)).w_full().h(px(106.)).object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
-            None => crate::ui::edge(div().w_full().h(px(106.)).bg(accent), crate::ui::top(crate::ui::RADIUS_XL)).into_any_element(),
+        let doing = presence.and_then(|p| p.activity.as_ref()).map(activity_line);
+        let handle = [Some(profile.username.clone()).filter(|u| !u.is_empty()), profile.pronouns.clone()].into_iter().flatten().collect::<Vec<_>>().join(" · ");
+        let height = 360. + if roles.is_empty() { 0. } else { 56. } + if profile.bio.is_some() { 64. } else { 0. };
+        let x = f32::from(card.at.x).clamp(8., f32::from(viewport.width) - PROFILE_WIDTH - 8.);
+        let y = f32::from(card.at.y).clamp(TITLE_HEIGHT + 8., (f32::from(viewport.height) - height - 8.).max(TITLE_HEIGHT + 8.));
+        let banner = match (&profile.banner, profile.accent) {
+            (Some(url), _) => crate::ui::media(url.clone(), crate::ui::top(crate::ui::RADIUS_LG)).w_full().h(px(64.)).object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
+            (None, Some(accent)) => {
+                let accent: Hsla = rgb(accent).into();
+                let deep = Hsla { l: accent.l * 0.78, ..accent };
+                crate::ui::edge(div().w_full().h(px(64.)).bg(gpui_kit::linear_gradient(135., gpui_kit::linear_color_stop(accent, 0.), gpui_kit::linear_color_stop(deep, 1.))), crate::ui::top(crate::ui::RADIUS_LG)).into_any_element()
+            }
+            // No banner colour: the neutral fill, as the design's worst case.
+            (None, None) => crate::ui::edge(div().w_full().h(px(64.)).bg(palette::selected(cx)), crate::ui::top(crate::ui::RADIUS_LG)).into_any_element(),
         };
-        let section = |title: &'static str| div().text_size(px(12.)).font_weight(FontWeight::BOLD).text_color(theme.foreground).child(title);
+        let who = div()
+            .px_4()
+            .mt(px(-40.))
+            .flex()
+            .items_end()
+            .justify_between()
+            .gap_2()
+            .child(div().p(px(5.)).rounded_full().bg(overlay).child(avatar_with_status(&user.avatar, 80., status, overlay)))
+            .when(is_me, |who| {
+                who.child(
+                    crate::ui::small(crate::ui::button("profile-edit", crate::ui::Tone::Secondary, cx))
+                        .child(Icon::new(Glyph::Pen).size(px(16.)))
+                        .child("Edit profile")
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.profile_card = None;
+                            this.open_settings(crate::settings::Page::Account, window, cx);
+                        })),
+                )
+            });
+        let block = |title: &'static str| div().flex().flex_col().gap(px(6.)).child(div().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::muted(cx)).child(title));
         let body = div()
+            .pt_3()
             .px_4()
             .pb_4()
             .flex()
@@ -740,53 +765,23 @@ impl Rustcord {
                 div()
                     .flex()
                     .flex_col()
-                    .child(div().text_size(px(20.)).font_weight(FontWeight::BOLD).text_color(name_color).child(user.name.clone()))
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_1()
-                            .text_size(px(14.))
-                            .text_color(theme.foreground.opacity(0.85))
-                            .child(profile.username.clone())
-                            .children(profile.pronouns.clone().map(|p| div().text_color(theme.muted_foreground).child(format!("• {p}"))))
-                            .children(user.tag.clone().map(|tag| div().h(px(18.)).px_1().ml_1().rounded(px(4.)).bg(theme.foreground.opacity(0.08)).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child(tag.text))),
-                    ),
+                    .gap(px(2.))
+                    .child(div().flex().items_center().gap_2().min_w_0().child(div().truncate().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child(user.name.clone())).children(
+                        user.tag.clone().map(|tag| crate::ui::badge(palette::selected(cx), palette::text(cx)).child(tag.text)),
+                    ))
+                    .when(!handle.is_empty(), |n| n.child(div().truncate().text_color(palette::muted(cx)).child(handle))),
             )
-            .children(profile.bio.clone().map(|bio| div().flex().flex_col().gap_1().child(section("About Me")).child(div().text_size(px(14.)).line_clamp(6).child(bio))))
-            .when(!roles.is_empty(), |b| {
-                b.child(
-                    div().flex().flex_col().gap_1().child(section("Roles")).child(div().flex().flex_wrap().gap_1().children(roles.into_iter().map(|(name, color)| {
-                        div()
-                            .h(px(22.))
-                            .px_2()
-                            .flex()
-                            .items_center()
-                            .gap_1()
-                            .rounded(px(4.))
-                            .bg(theme.foreground.opacity(0.06))
-                            .text_size(px(12.))
-                            .font_weight(FontWeight::MEDIUM)
-                            .child(div().size(px(10.)).rounded_full().bg(color))
-                            .child(name)
-                    }))),
-                )
-            })
+            .children(doing.map(|line| div().py(px(8.)).px(px(10.)).rounded(px(crate::ui::RADIUS_MD)).bg(palette::selected(cx)).text_color(palette::text(cx)).child(line)))
+            .children(profile.bio.clone().map(|bio| block("About me").child(div().text_color(palette::text(cx)).line_clamp(6).child(bio))))
+            .when(!roles.is_empty(), |b| b.child(block("Roles").child(div().flex().flex_wrap().gap_1().children(roles.into_iter().map(|(name, color)| role_chip(name, color, cx))))))
             .when(!is_me, |b| {
+                let dm_user = user.id.clone();
                 b.child(
-                    crate::ui::button("profile-message", crate::ui::Tone::Secondary, cx)
-                        .h(px(36.))
-                        .child(format!("Message @{}", user.name))
+                    menu::field_frame(cx)
+                        .id("profile-message")
+                        .cursor_text()
+                        .child(div().truncate().text_color(palette::faint(cx)).child(format!("Message @{}", user.name)))
                         .on_click(cx.listener(move |this, _, window, cx| this.message_user(dm_user.clone(), window, cx))),
-                )
-                .child(
-                    div()
-                        .id("profile-mention")
-                        .text_size(px(13.))
-                        .text_color(theme.link)
-                        .cursor_pointer()
-                        .child("Mention")
-                        .on_click(cx.listener(move |this, _, window, cx| this.mention_user(&mention, window, cx))),
                 )
             });
         let card_el = div()
@@ -794,74 +789,220 @@ impl Rustcord {
             .absolute()
             .left(px(x))
             .top(px(y))
-            .w(px(CARD_WIDTH))
-            .rounded(px(12.))
-            .overflow_hidden()
-            .bg(surface)
-            .border_1()
-            .border_color(theme.input)
-            .shadow_lg()
+            .w(px(PROFILE_WIDTH))
+            .rounded(px(crate::ui::RADIUS_LG))
+            .bg(overlay)
+            .shadow(menu::pop_shadow(cx))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(banner)
-            .child(div().px_4().mt(px(-44.)).child(div().p(px(5.)).rounded_full().bg(surface).w(px(90.)).child(avatar_with_status(&user.avatar, 80., status, surface))))
+            .child(who)
             .child(body);
-        Some(backdrop("profile-backdrop", cx).child(card_el).into_any_element())
+        Some(backdrop("profile-backdrop", cx).child(menu::rise(card_el, format!("profile-{}", user.id), Duration::ZERO)).into_any_element())
     }
 
+    // Your presence, as a menu of radio rows each led by its mark (auth.html's status menu).
     fn status_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         if !self.status_menu {
             return None;
         }
-        let theme = cx.theme().clone();
-        let options = [
-            (Status::Online, "Online", None),
-            (Status::Idle, "Idle", None),
-            (Status::Dnd, "Do Not Disturb", Some("You will not receive desktop notifications")),
-            (Status::Offline, "Invisible", Some("You will appear offline")),
-        ];
-        let rows = options.into_iter().map(|(status, label, hint)| {
-            let selected = self.my_status == status;
-            div()
-                .id(SharedString::from(format!("status-{label}")))
-                .px_2()
-                .py_1p5()
-                .rounded(px(6.))
-                .flex()
-                .gap_2()
-                .cursor_pointer()
-                .when(selected, |r| r.bg(theme.foreground.opacity(0.06)))
-                .hover(|s| s.bg(palette::accent()).text_color(gpui_kit::white()))
-                .child(div().pt(px(4.)).child(status_mark(status, 10., theme.popover)))
-                .child(div().flex_1().min_w_0().flex().flex_col().child(div().font_weight(FontWeight::MEDIUM).child(label)).children(hint.map(|h| div().text_size(px(12.)).opacity(0.75).child(h))))
-                .on_click(cx.listener(move |this, _, _, cx| this.set_status(status, cx)))
-        });
-        let rows: Vec<_> = rows.collect();
-        Some(
-            backdrop("status-backdrop", cx)
-                .child(
-                    crate::ui::surface(cx)
-                        .id("status-menu")
-                        .absolute()
-                        .left(px(16.))
-                        .bottom(px(self.panel_stack_height() + 16.))
-                        .w(px(300.))
-                        .gap(px(2.))
-                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .children(rows),
-                )
-                .into_any_element(),
-        )
+        let options = [(Status::Online, "Online"), (Status::Idle, "Idle"), (Status::Dnd, "Do not disturb"), (Status::Offline, "Invisible")];
+        let rows: Vec<_> = options
+            .into_iter()
+            .map(|(status, label)| {
+                let row = menu::item(label, |_, _, _| {}).radio(self.my_status == status).status(status);
+                menu::menu_item_row(SharedString::from(format!("status-{label}")), &row, false, true, cx).on_click(cx.listener(move |this, _, _, cx| this.set_status(status, cx)))
+            })
+            .collect();
+        let card = menu::menu_surface(menu::WIDTH, cx)
+            .id("status-menu")
+            .absolute()
+            .left(px(16.))
+            .bottom(px(self.panel_stack_height() + 16.))
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .children(rows);
+        Some(backdrop("status-backdrop", cx).child(menu::rise(card, "status-menu".into(), Duration::ZERO)).into_any_element())
     }
 
-    // Discord's emoji picker: search on top, the server's own emoji first, then Unicode by category.
+    // The emoji picker (messages.css `.picker`): search on top, categories down the left, the grid in
+    // the middle and the hovered emoji named at the foot. Recent first, then the server's own, then Unicode.
     fn emoji_overlay(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         self.emoji_picker.as_ref()?;
-        let theme = cx.theme().clone();
+        let sections = self.emoji_sections(cx);
+        let viewport = window.viewport_size();
+        let scroll = window.use_keyed_state("emoji-scroll-handle", cx, |_, _| ScrollHandle::new()).read(cx).clone();
+        let hovered = window.use_keyed_state("emoji-hovered", cx, |_, _| None::<(Emoji, SharedString)>);
+        let preview = hovered.read(cx).clone().or_else(|| sections.first().and_then(|s| Some((s.items.first()?.clone(), s.source.clone()))));
+        let in_view = scroll.top_item();
+        let rail = div()
+            .id("emoji-rail")
+            .w(px(48.))
+            .flex_none()
+            .px(px(6.))
+            .pb(px(6.))
+            .flex()
+            .flex_col()
+            .items_center()
+            .gap(px(2.))
+            .overflow_y_scroll()
+            .border_r_1()
+            .border_color(palette::line(cx))
+            .children(sections.iter().enumerate().map(|(i, section)| {
+                let (selected, hover) = (palette::selected(cx), palette::hover(cx));
+                let scroll = scroll.clone();
+                div()
+                    .id(("emoji-cat", i))
+                    .size(px(36.))
+                    .flex_none()
+                    .rounded(px(crate::ui::RADIUS_SM))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .cursor_pointer()
+                    .when(i == in_view, |d| d.bg(selected))
+                    .when(i != in_view, |d| d.hover(move |s| s.bg(hover)))
+                    .child(section.lead.render(cx))
+                    .on_click(cx.listener(move |_, _, _, cx| {
+                        scroll.scroll_to_top_of_item(i);
+                        cx.notify();
+                    }))
+            }));
+        let cell = |emoji: Emoji, source: SharedString, key: String| {
+            let face = match emoji.url() {
+                Some(url) => img(url).size(px(28.)).into_any_element(),
+                None => div().text_size(px(26.)).line_height(px(26.)).child(emoji.name.clone()).into_any_element(),
+            };
+            let (picked, shown) = (emoji.clone(), (emoji, source));
+            let hovered = hovered.clone();
+            div()
+                .id(SharedString::from(key))
+                .w(relative(1. / 9.))
+                .h(px(40.))
+                .rounded(px(crate::ui::RADIUS_SM))
+                .flex()
+                .items_center()
+                .justify_center()
+                .cursor_pointer()
+                .hover(|s| s.bg(palette::selected(cx)))
+                .child(face)
+                .on_hover(move |on: &bool, _, cx| {
+                    if *on {
+                        hovered.update(cx, |h, cx| {
+                            *h = Some(shown.clone());
+                            cx.notify();
+                        });
+                    }
+                })
+                .on_click(cx.listener(move |this, _, window, cx| this.pick_emoji(picked.clone(), window, cx)))
+        };
+        let grid = div()
+            .id("emoji-scroll")
+            .flex_1()
+            .min_w_0()
+            .h_full()
+            .overflow_y_scroll()
+            .track_scroll(&scroll)
+            .px(px(8.))
+            .pb(px(8.))
+            .children(sections.into_iter().map(|section| {
+                // GAP: the section label sticks to the top of the grid in the design; gpui has no sticky.
+                div()
+                    .flex()
+                    .flex_col()
+                    .mb(px(4.))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(6.))
+                            .py(px(6.))
+                            .px(px(4.))
+                            .text_size(px(12.))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(palette::muted(cx))
+                            .child(section.lead.small(cx))
+                            .child(section.name.clone()),
+                    )
+                    .child(div().flex().flex_wrap().children(section.items.into_iter().enumerate().map(|(i, e)| cell(e, section.source.clone(), format!("emoji-{}-{i}", section.name)))))
+            }));
+        let foot = div()
+            .min_h(px(52.))
+            .flex_none()
+            .py(px(6.))
+            .px(px(12.))
+            .flex()
+            .items_center()
+            .gap(px(10.))
+            .border_t_1()
+            .border_color(palette::line(cx))
+            .children(preview.map(|(emoji, source)| {
+                let face = match emoji.url() {
+                    Some(url) => img(url).size(px(28.)).into_any_element(),
+                    None => div().text_size(px(28.)).line_height(px(28.)).child(emoji.name.clone()).into_any_element(),
+                };
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(10.))
+                    .min_w_0()
+                    .child(div().w(px(32.)).flex_none().flex().justify_center().child(face))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .flex()
+                            .flex_col()
+                            .child(div().truncate().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(crate::message_menu::shortcode(&emoji)))
+                            .child(div().text_size(px(12.)).text_color(palette::muted(cx)).child(source)),
+                    )
+            }));
+        // GAP: the design's skin-tone button sits beside search; Wave has no skin tones yet.
+        let head = div().p(px(10.)).child(
+            div()
+                .h(px(36.))
+                .px(px(12.))
+                .rounded(px(crate::ui::RADIUS_MD))
+                .bg(palette::surface(palette::Level::Page, cx))
+                .flex()
+                .items_center()
+                .gap(px(8.))
+                .text_size(px(14.))
+                .text_color(palette::faint(cx))
+                .child(Icon::new(Glyph::Search).size(px(16.)))
+                .child(div().flex_1().min_w_0().child(Input::new(&self.emoji_search).appearance(false))),
+        );
+        let picker = div()
+            .id("emoji-picker")
+            .absolute()
+            .right(px(32.))
+            .top(px((f32::from(viewport.height) - PICKER_SIZE.1 - 90.).max(TITLE_HEIGHT + 8.)))
+            .w(px(PICKER_SIZE.0))
+            .h(px(PICKER_SIZE.1))
+            .rounded(px(crate::ui::RADIUS_LG))
+            .bg(palette::surface(palette::Level::Overlay, cx))
+            .shadow(menu::pop_shadow(cx))
+            .flex()
+            .flex_col()
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .child(head)
+            .child(div().flex_1().min_h_0().flex().child(rail).child(grid))
+            .child(foot);
+        Some(backdrop("emoji-backdrop", cx).child(menu::rise(picker, "emoji-picker".into(), Duration::ZERO)).into_any_element())
+    }
+
+    // What the picker lists for the current search: recent (only before you search), the server's own, then Unicode by group.
+    fn emoji_sections(&self, cx: &App) -> Vec<EmojiSection> {
         let query = self.emoji_search.read(cx).value().to_lowercase();
-        let custom: Vec<Emoji> = self.guild().map(|g| g.emojis.iter().filter(|e| query.is_empty() || e.name.to_lowercase().contains(&query)).cloned().collect()).unwrap_or_default();
-        let mut sections: Vec<(SharedString, Vec<Emoji>)> = Vec::new();
-        if !custom.is_empty() {
-            sections.push((self.guild().map(|g| g.name.clone()).unwrap_or_default().into(), custom));
+        let unicode: SharedString = "Unicode emoji".into();
+        let mut sections = Vec::new();
+        if query.is_empty() {
+            let recent = self.prefs.frequent_emojis(18, &crate::message_menu::QUICK_PAD);
+            sections.push(EmojiSection { lead: SectionLead::Emoji("🕘"), name: "Recently used".into(), source: unicode.clone(), items: recent });
+        }
+        if let Some(guild) = self.guild() {
+            let custom: Vec<Emoji> = guild.emojis.iter().filter(|e| query.is_empty() || e.name.to_lowercase().contains(&query)).cloned().collect();
+            if !custom.is_empty() {
+                let name: SharedString = guild.name.clone().into();
+                sections.push(EmojiSection { lead: SectionLead::Server { icon: guild.icon.clone(), name: guild.name.clone() }, name: name.clone(), source: name, items: custom });
+            }
         }
         for group in emojis::Group::iter() {
             let items: Vec<Emoji> = group
@@ -870,114 +1011,196 @@ impl Rustcord {
                 .map(|e| Emoji::unicode(e.as_str()))
                 .collect();
             if !items.is_empty() {
-                sections.push((group_name(group).into(), items));
+                let (name, face) = group_name(group);
+                sections.push(EmojiSection { lead: SectionLead::Emoji(face), name: name.into(), source: unicode.clone(), items });
             }
         }
-        let viewport = window.viewport_size();
-        let cell = |emoji: Emoji, key: String| {
-            let face = match emoji.url() {
-                Some(url) => img(url).size(px(32.)).into_any_element(),
-                None => div().text_size(px(28.)).child(emoji.name.clone()).into_any_element(),
-            };
-            div()
-                .id(SharedString::from(key))
-                .size(px(44.))
-                .rounded(px(6.))
-                .flex()
-                .items_center()
-                .justify_center()
-                .cursor_pointer()
-                .hover(|s| s.bg(theme.foreground.opacity(0.08)))
-                .child(face)
-                .on_click(cx.listener(move |this, _, window, cx| this.pick_emoji(emoji.clone(), window, cx)))
+        sections
+    }
+
+    // The quick switcher (navigation.css `.switcher`): a focused field, results grouped by kind with
+    // the match in bold, arrows to pick, Enter to go.
+    fn switcher_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let selected = self.switcher?;
+        let query = self.switcher_input.read(cx).value().to_string();
+        let results = self.switcher_results(cx);
+        let mut list: Vec<AnyElement> = Vec::new();
+        let mut last_group = None;
+        for (i, (guild_id, channel, place)) in results.into_iter().enumerate() {
+            let group = if channel.recipient.is_some() || channel.kind == ChannelKind::Dm { "People" } else { "Channels" };
+            if last_group != Some(group) {
+                list.push(div().pt(px(10.)).px(px(10.)).pb(px(4.)).text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::faint(cx)).child(group).into_any_element());
+                last_group = Some(group);
+            }
+            list.push(self.switcher_row(i == selected, guild_id, channel, place, &query, cx).into_any_element());
+        }
+        let is_empty = list.is_empty();
+        let field = div()
+            .h(px(52.))
+            .px(px(14.))
+            .flex_none()
+            .rounded(px(crate::ui::RADIUS_MD))
+            .bg(palette::surface(palette::Level::Page, cx))
+            .border_1()
+            .border_color(palette::accent())
+            .shadow(vec![gpui_kit::BoxShadow { color: palette::accent_soft(cx), offset: gpui_kit::point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(3.), inset: false }])
+            .flex()
+            .items_center()
+            .gap(px(10.))
+            .text_color(palette::faint(cx))
+            .text_size(px(20.))
+            .child(Icon::new(Glyph::Search).size(px(20.)))
+            .child(div().flex_1().min_w_0().text_color(palette::strong(cx)).child(Input::new(&self.switcher_input).appearance(false)));
+        let hint = |keys: Vec<AnyElement>, label: &'static str| div().flex().items_center().gap_1().children(keys).child(label);
+        let key = |glyph: Glyph| crate::ui::kbd("", cx).child(Icon::new(glyph).size(px(12.))).into_any_element();
+        let foot = div()
+            .pt(px(10.))
+            .px(px(10.))
+            .pb(px(4.))
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap_x_4()
+            .gap_y_2()
+            .border_t_1()
+            .border_color(palette::line(cx))
+            .text_size(px(12.))
+            .text_color(palette::muted(cx))
+            .when(!is_empty, |f| f.child(hint(vec![key(Glyph::ChevronUp), key(Glyph::ChevronDown)], "Move")).child(hint(vec![crate::ui::kbd("Enter", cx).into_any_element()], "Open")))
+            .child(hint(vec![crate::ui::kbd("Esc", cx).into_any_element()], "Close"));
+        let body: AnyElement = if is_empty {
+            crate::ui::empty_state("switcher-empty", crate::mascot::Mood::Waiting, format!("Nothing called “{query}”"), "Check the spelling, or search messages in a channel instead.", cx).into_any_element()
+        } else {
+            div().id("switcher-list").flex().flex_col().gap(px(2.)).max_h(px(380.)).overflow_y_scroll().children(list).into_any_element()
         };
-        let body = div().flex().flex_col().gap_2().children(sections.into_iter().map(|(name, items)| {
-            div()
-                .flex()
-                .flex_col()
-                .gap_1()
-                .child(div().px_1().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(theme.muted_foreground).child(name.clone()))
-                .child(div().flex().flex_wrap().children(items.into_iter().enumerate().map(|(i, e)| cell(e, format!("emoji-{name}-{i}")))))
-        }));
+        let card = div()
+            .id("switcher")
+            .w(px(SWITCHER_WIDTH))
+            .p(px(10.))
+            .rounded(px(crate::ui::RADIUS_XL))
+            .bg(palette::surface(palette::Level::Overlay, cx))
+            .shadow(menu::pop_shadow(cx))
+            .flex()
+            .flex_col()
+            .gap_2()
+            .capture_key_down(cx.listener(Self::on_switcher_key))
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .child(field)
+            .child(body)
+            .child(foot);
         Some(
-            backdrop("emoji-backdrop", cx)
-                .child(
-                    crate::ui::surface(cx)
-                        .id("emoji-picker")
-                        .absolute()
-                        .right(px(32.))
-                        .top(px((f32::from(viewport.height) - PICKER_SIZE.1 - 90.).max(TITLE_HEIGHT + 8.)))
-                        .w(px(PICKER_SIZE.0))
-                        .h(px(PICKER_SIZE.1))
-                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .child(div().p_2().child(div().h(px(34.)).px_2().rounded(px(6.)).bg(theme.background).flex().items_center().child(Input::new(&self.emoji_search).appearance(false))))
-                        .child(div().id("emoji-scroll").flex_1().min_h_0().overflow_y_scroll().px_2().pb_2().child(body)),
-                )
+            backdrop("switcher-backdrop", cx)
+                .bg(menu::scrim(cx))
+                .child(div().absolute().top(px(120.)).left_0().right_0().flex().justify_center().child(menu::rise(card, "switcher".into(), Duration::ZERO)))
                 .into_any_element(),
         )
     }
 
-    // Ctrl/Cmd+K: jump to any channel or DM by name, arrows to pick, Enter to go.
-    fn switcher_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let selected = self.switcher?;
-        let theme = cx.theme().clone();
-        let results = self.switcher_results(cx);
-        let rows = results.into_iter().enumerate().map(|(i, (guild_id, channel, place))| {
-            let active = i == selected;
-            let lead = match (&channel.recipient, channel.kind) {
-                (Some(user), _) => crate::ui::avatar(user.avatar.clone(), 20.).into_any_element(),
-                (None, ChannelKind::Dm) => Icon::new(Glyph::User).size(px(18.)).into_any_element(),
-                _ => Icon::new(Glyph::Hashtag).size(px(18.)).into_any_element(),
-            };
-            div()
-                .id(SharedString::from(format!("switch-{}", channel.id)))
-                .h(px(40.))
-                .px_3()
-                .rounded(px(6.))
-                .flex()
-                .items_center()
-                .gap_2()
-                .cursor_pointer()
-                .text_color(if active { theme.foreground } else { theme.foreground.opacity(0.8) })
-                .when(active, |r| r.bg(theme.foreground.opacity(0.08)))
-                .hover(|s| s.bg(theme.foreground.opacity(0.06)))
-                .child(lead)
-                .child(div().flex_1().truncate().font_weight(FontWeight::MEDIUM).child(channel.name.clone()))
-                .child(div().text_size(px(12.)).text_color(theme.muted_foreground).child(place))
-                .on_click(cx.listener(move |this, _, window, cx| {
-                    this.switcher = None;
-                    this.guild_id = guild_id.clone();
-                    this.open_channel(channel.clone(), window, cx);
-                }))
-        });
-        let rows: Vec<_> = rows.collect();
-        Some(
-            backdrop("switcher-backdrop", cx)
-                .bg(gpui_kit::black().opacity(0.6))
-                .child(
-                    div()
-                        .id("switcher")
-                        .absolute()
-                        .top(px(120.))
-                        .left_0()
-                        .right_0()
-                        .flex()
-                        .justify_center()
-                        .child(
-                            crate::ui::surface(cx)
-                                .w(px(SWITCHER_WIDTH))
-                                .p_4()
-                                .gap_3()
-                                .capture_key_down(cx.listener(Self::on_switcher_key))
-                                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                                .child(div().h(px(48.)).px_3().rounded(px(8.)).bg(theme.background).flex().items_center().text_size(px(18.)).child(Input::new(&self.switcher_input).appearance(false)))
-                                .child(div().flex().flex_col().gap(px(2.)).children(rows))
-                                .child(div().text_size(px(12.)).text_color(theme.muted_foreground).child("Use ↑↓ to navigate, Enter to go, Esc to close")),
-                        ),
-                )
-                .into_any_element(),
-        )
+    fn switcher_row(&self, active: bool, guild_id: Option<String>, channel: Channel, place: SharedString, query: &str, cx: &mut Context<Self>) -> impl IntoElement {
+        let lead = match (&channel.recipient, channel.kind) {
+            (Some(user), _) => {
+                let status = self.presences.get(&user.id).map(|p| p.status);
+                avatar_with_status(&user.avatar, 20., status, palette::surface(palette::Level::Overlay, cx))
+            }
+            (None, kind) => {
+                let glyph = match kind {
+                    ChannelKind::Dm => Glyph::User,
+                    ChannelKind::Voice => Glyph::VolumeHigh,
+                    _ if channel.private => Glyph::HashtagLock,
+                    _ => Glyph::Hashtag,
+                };
+                div().text_color(palette::faint(cx)).child(Icon::new(glyph).size(px(18.))).into_any_element()
+            }
+        };
+        let name: SharedString = channel.name.clone().into();
+        let strong = palette::strong(cx);
+        let mark = name.to_lowercase().find(&query.to_lowercase()).filter(|_| !query.is_empty()).map(|at| at..at + query.len()).filter(|r| name.is_char_boundary(r.start) && name.is_char_boundary(r.end));
+        let label = StyledText::new(name.clone()).with_highlights(mark.map(|r| (r, HighlightStyle { color: Some(strong), font_weight: Some(FontWeight::BOLD), ..Default::default() })));
+        let hover = palette::hover(cx);
+        div()
+            .id(SharedString::from(format!("switch-{}", channel.id)))
+            .h(px(36.))
+            .px(px(10.))
+            .flex_none()
+            .rounded(px(crate::ui::RADIUS_SM))
+            .flex()
+            .items_center()
+            .gap(px(10.))
+            .cursor_pointer()
+            .text_color(if active { strong } else { palette::text(cx) })
+            .when(active, |r| r.bg(palette::selected(cx)))
+            .when(!active, |r| r.hover(move |s| s.bg(hover)))
+            .child(lead)
+            .child(div().min_w_0().truncate().child(label))
+            .child(div().ml_auto().pl_3().flex_none().text_size(px(12.)).text_color(palette::faint(cx)).child(place))
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.switcher = None;
+                this.guild_id = guild_id.clone();
+                this.open_channel(channel.clone(), window, cx);
+            }))
     }
+}
+
+struct EmojiSection {
+    lead: SectionLead,
+    name: SharedString,
+    // What the foot says an emoji from here is.
+    source: SharedString,
+    items: Vec<Emoji>,
+}
+
+// GAP: the design marks Unicode groups with Phosphor icons (clock, leaf, hamburger…) that aren't in
+// `icons.rs` yet; each group shows its own first emoji instead.
+enum SectionLead {
+    Emoji(&'static str),
+    Server { icon: Option<String>, name: String },
+}
+
+impl SectionLead {
+    fn render(&self, cx: &App) -> AnyElement {
+        match self {
+            SectionLead::Emoji(face) => div().text_size(px(20.)).line_height(px(20.)).child(*face).into_any_element(),
+            SectionLead::Server { icon, name } => menu::server_icon(icon.as_deref(), name, 24., crate::ui::RADIUS_XS, cx),
+        }
+    }
+
+    fn small(&self, cx: &App) -> AnyElement {
+        match self {
+            SectionLead::Emoji(face) => div().text_size(px(14.)).line_height(px(14.)).child(*face).into_any_element(),
+            SectionLead::Server { icon, name } => menu::server_icon(icon.as_deref(), name, 16., 5., cx),
+        }
+    }
+}
+
+// What someone's up to, as the popout's status line says it.
+fn activity_line(activity: &Activity) -> String {
+    let text = &activity.text;
+    match activity.kind {
+        ActivityKind::Custom => text.clone(),
+        ActivityKind::Playing => format!("Playing {text}"),
+        ActivityKind::Streaming => format!("Streaming {text}"),
+        ActivityKind::Listening => format!("Listening to {text}"),
+        ActivityKind::Watching => format!("Watching {text}"),
+        ActivityKind::Competing => format!("Competing in {text}"),
+    }
+}
+
+// A role as a chip with its colour dot (primitives.css `.role`).
+// MOVE(ui): role_chip
+fn role_chip(name: String, color: Hsla, cx: &App) -> gpui_kit::Div {
+    div()
+        .h(px(24.))
+        .px_2()
+        .flex()
+        .items_center()
+        .gap(px(6.))
+        .rounded(px(crate::ui::RADIUS_XS))
+        .bg(palette::selected(cx))
+        .text_size(px(12.))
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(palette::text(cx))
+        .child(div().size(px(10.)).rounded_full().bg(color))
+        .child(name)
 }
 
 // A full-window catcher: clicking outside the floating surface closes it.
@@ -990,18 +1213,19 @@ fn backdrop(id: &'static str, cx: &mut Context<Rustcord>) -> gpui_kit::Stateful<
     )
 }
 
-fn group_name(group: emojis::Group) -> &'static str {
+// A Unicode group's name, and the emoji that stands for it in the picker's rail.
+fn group_name(group: emojis::Group) -> (&'static str, &'static str) {
     use emojis::Group::*;
     match group {
-        SmileysAndEmotion => "Smileys & Emotion",
-        PeopleAndBody => "People",
-        AnimalsAndNature => "Nature",
-        FoodAndDrink => "Food & Drink",
-        TravelAndPlaces => "Travel & Places",
-        Activities => "Activities",
-        Objects => "Objects",
-        Symbols => "Symbols",
-        Flags => "Flags",
+        SmileysAndEmotion => ("Smileys & Emotion", "😀"),
+        PeopleAndBody => ("People", "👋"),
+        AnimalsAndNature => ("Nature", "🌿"),
+        FoodAndDrink => ("Food & Drink", "🍔"),
+        TravelAndPlaces => ("Travel & Places", "✈️"),
+        Activities => ("Activities", "⚽"),
+        Objects => ("Objects", "💡"),
+        Symbols => ("Symbols", "❤️"),
+        Flags => ("Flags", "🏁"),
     }
 }
 

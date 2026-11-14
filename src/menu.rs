@@ -646,7 +646,7 @@ fn menu_header(lead: &HeadLead, title: SharedString, subtitle: Option<SharedStri
 }
 
 // A server's icon, or its initials on a tile until it has one.
-fn server_icon(icon: Option<&str>, name: &str, size: f32, radius: f32, cx: &App) -> AnyElement {
+pub(crate) fn server_icon(icon: Option<&str>, name: &str, size: f32, radius: f32, cx: &App) -> AnyElement {
     if let Some(url) = icon {
         return img(url.to_owned()).size(px(size)).rounded(px(radius)).into_any_element();
     }
