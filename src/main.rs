@@ -1,5 +1,6 @@
 mod auth;
 mod cache;
+mod captcha;
 mod call;
 mod channel_menu;
 mod chat;
@@ -30,6 +31,7 @@ mod user_menu;
 mod hotkeys;
 mod sounds;
 mod voice;
+mod window_controls;
 
 use std::{
     cell::RefCell,
@@ -570,6 +572,10 @@ impl Rustcord {
             }
             auth::AuthEvent::Qr(url) => Login::qr(&url),
             auth::AuthEvent::Scanned(user) => Login::Scanned(user),
+            auth::AuthEvent::Captcha(url) => {
+                cx.open_url(&url);
+                Login::Captcha(url.into())
+            }
             auth::AuthEvent::Failed(error) => Login::Failed(error.into()),
         };
         self.status = Status::SignedOut(login);
@@ -857,8 +863,9 @@ impl Rustcord {
     fn open_guild(&mut self, guild_id: Option<String>, window: &mut Window, cx: &mut Context<Self>) {
         self.guild_id = guild_id.clone();
         let remembered = self.last_channel.get(&guild_id).cloned();
+        // In sidebar order, and only channels we can open (Discord also lists hidden ones).
         let channels: Vec<Channel> = match &guild_id {
-            Some(_) => self.guild().map(|g| g.channels.clone()).unwrap_or_default(),
+            Some(_) => self.guild().map(|g| sidebar::channel_sections(g, self.my_id()).into_iter().flat_map(|(_, c)| c).collect()).unwrap_or_default(),
             None => self.dms.clone(),
         };
         let target = remembered
@@ -1425,7 +1432,7 @@ impl Rustcord {
     /// Alt+↑/↓: the previous or next text channel in the sidebar's order, as in Discord.
     fn step_channel(&mut self, delta: isize, window: &mut Window, cx: &mut Context<Self>) {
         let order: Vec<Channel> = match self.guild() {
-            Some(guild) => sidebar::channel_sections(guild).into_iter().flat_map(|(_, c)| c).filter(|c| c.kind == ChannelKind::Text).collect(),
+            Some(guild) => sidebar::channel_sections(guild, self.my_id()).into_iter().flat_map(|(_, c)| c).filter(|c| c.kind == ChannelKind::Text).collect(),
             None => self.dms.clone(),
         };
         let current = self.channel.as_ref().and_then(|c| order.iter().position(|o| o.id == c.id)).unwrap_or(0) as isize;
@@ -1605,6 +1612,11 @@ impl Rustcord {
         *last > read.last_read
     }
 
+    /// Our user id, or "" before READY.
+    pub(crate) fn my_id(&self) -> &str {
+        self.me.as_ref().map_or("", |m| m.id.as_str())
+    }
+
     fn mention_count(&self, channel_id: &str) -> u32 {
         self.read_states.get(channel_id).map_or(0, |r| r.mentions)
     }
@@ -1613,7 +1625,8 @@ impl Rustcord {
     fn guild_badge(&self, guild: &Guild) -> (bool, u32) {
         let settings = self.guild_settings.get(&guild.id);
         let server_muted = settings.is_some_and(|s| s.is_muted());
-        let text = guild.channels.iter().filter(|c| c.kind == ChannelKind::Text);
+        let me = self.my_id();
+        let text = guild.channels.iter().filter(|c| c.kind == ChannelKind::Text && guild.can_view(me, c));
         text.fold((false, 0), |(unread, mentions), c| {
             let muted = server_muted || settings.is_some_and(|s| s.channel_muted(&c.id) || c.parent_id.as_ref().is_some_and(|p| s.channel_muted(p)));
             (unread || (self.unread(&c.id) && !muted), mentions + self.mention_count(&c.id))

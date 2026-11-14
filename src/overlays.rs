@@ -199,7 +199,7 @@ impl Rustcord {
             results.push((None, dm.clone(), "Direct Messages".into()));
         }
         for guild in &self.guilds {
-            for channel in guild.channels.iter().filter(|c| c.kind == ChannelKind::Text) {
+            for channel in guild.channels.iter().filter(|c| c.kind == ChannelKind::Text && guild.can_view(self.my_id(), c)) {
                 results.push((Some(guild.id.clone()), channel.clone(), guild.name.clone().into()));
             }
         }

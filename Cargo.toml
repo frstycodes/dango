@@ -7,7 +7,7 @@ publish = false
 [dependencies]
 gpui-kit = { version = "=0.7.3", features = ["component", "assets"] }
 gpui-motion-kit = "0.5"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "fs"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "fs", "net", "io-util"] }
 tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
 futures = "0.3"
@@ -41,3 +41,18 @@ screencapturekit = { version = "11", features = ["macos_14_0"] }
 # RSA key generation takes seconds unoptimised; dependencies build optimised even in debug.
 [profile.dev.package."*"]
 opt-level = 2
+
+# Go Live on Windows: Windows.Graphics.Capture for video, WASAPI (process) loopback for audio, and the
+# Media Foundation H.264 encoder (hardware MFTs: NVENC, Quick Sync, AMF) with OpenH264 as fallback.
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-capture = "2.0"
+wasapi = "0.27"
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Media_MediaFoundation",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Ole",
+    "Win32_System_Variant",
+    "Win32_UI_Shell_PropertiesSystem",
+] }

@@ -21,6 +21,8 @@ pub enum Login {
     Preparing,
     Qr(Rc<Modules>),
     Scanned(User),
+    /// Waiting for the captcha the browser is showing; holds that page's URL.
+    Captcha(SharedString),
     Failed(SharedString),
 }
 
@@ -52,12 +54,22 @@ pub fn render(login: &Login, _: &mut Window, cx: &mut Context<Rustcord>) -> AnyE
             "In the Discord app on your phone, open Settings, choose Scan QR Code, and point the camera here.".into(),
         ),
         Login::Scanned(user) => ("scanned", Mood::Happy, format!("Hi, {}!", user.name).into(), "Approve the sign-in on your phone to finish.".into()),
+        Login::Captcha(_) => (
+            "captcha",
+            Mood::Waiting,
+            "One more step".into(),
+            "Discord wants a quick check. Solve the captcha in your browser and Rustcord will finish signing in.".into(),
+        ),
         Login::Failed(error) => ("failed", Mood::Idle, "Sign-in didn't finish".into(), error.clone()),
     };
     let card = match login {
         Login::Preparing => div().size(px(232.)).rounded(px(24.)).bg(theme.muted).into_any_element(),
         Login::Qr(modules) => qr_card(modules.clone()),
         Login::Scanned(user) => avatar_pop(user),
+        Login::Captcha(url) => {
+            let url = url.clone();
+            Button::new("open-captcha").primary().label("Open captcha again").on_click(move |_, _, cx| cx.open_url(&url)).into_any_element()
+        }
         Login::Failed(_) => Button::new("retry")
             .primary()
             .label("Try again")

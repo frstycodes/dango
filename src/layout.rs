@@ -52,7 +52,11 @@ impl Render for Rustcord {
         self.restore_last_channel(window, cx);
         if let Status::SignedOut(login) = &self.status {
             let login = login.clone();
-            return root.bg(theme.background).child(login::render(&login, window, cx)).into_any_element();
+            return root
+                .bg(theme.background)
+                .child(login::render(&login, window, cx))
+                .children(crate::window_controls::render(window, cx))
+                .into_any_element();
         }
         let body = div()
             .relative()
@@ -82,6 +86,7 @@ impl Render for Rustcord {
             .children(self.render_dialog(cx))
             .children(self.viewer_overlay(window, cx))
             .children(self.render_settings(window, cx))
+            .children(crate::window_controls::render(window, cx))
             .into_any_element()
     }
 }
@@ -210,7 +215,7 @@ impl Rustcord {
             .child(
                 div()
                     .absolute()
-                    .right(px(12.))
+                    .right(px(12. + crate::window_controls::WIDTH))
                     .flex()
                     .gap_1()
                     .child(arrow("inbox", Glyph::Inbox, true, "Inbox").on_click(cx.listener(|this, _, _, cx| this.open_inbox(cx))))

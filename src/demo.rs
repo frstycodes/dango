@@ -148,6 +148,7 @@ fn channel(id: &str, name: &str, kind: ChannelKind, parent: Option<&str>) -> Cha
         recipient: None,
         thread: None,
         raw_type: 0,
+        overwrites: Vec::new(),
     }
 }
 
