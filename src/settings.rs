@@ -76,6 +76,13 @@ pub enum InputProfile {
     Custom,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub enum NoiseMode {
+    #[default]
+    Advanced,
+    Standard,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Prefs {
@@ -91,6 +98,8 @@ pub struct Prefs {
     // -100..=0 dB.
     pub sensitivity_db: f32,
     pub noise_suppression: bool,
+    // Which suppressor while it's on: RNNoise (Discord's Krisp slot) or WebRTC's.
+    pub noise_mode: NoiseMode,
     pub echo_cancellation: bool,
     pub auto_gain: bool,
     pub push_to_talk: bool,
@@ -124,6 +133,7 @@ impl Default for Prefs {
             sensitivity_auto: true,
             sensitivity_db: -60.,
             noise_suppression: true,
+            noise_mode: NoiseMode::Advanced,
             echo_cancellation: true,
             auto_gain: true,
             push_to_talk: false,
@@ -178,8 +188,16 @@ impl Prefs {
             output_volume: self.output_volume,
             input_mode: self.input_mode(),
             echo_cancellation: self.echo_cancellation,
-            noise_suppression: self.noise_suppression,
+            noise_suppression: self.noise(),
             auto_gain: self.auto_gain,
+        }
+    }
+
+    fn noise(&self) -> voice::NoiseSuppression {
+        match (self.noise_suppression, self.noise_mode) {
+            (false, _) => voice::NoiseSuppression::Off,
+            (true, NoiseMode::Advanced) => voice::NoiseSuppression::Advanced,
+            (true, NoiseMode::Standard) => voice::NoiseSuppression::Standard,
         }
     }
 
@@ -197,7 +215,7 @@ impl Prefs {
         session.set_output_volume(self.output_volume);
         session.set_input_mode(self.input_mode());
         session.set_echo_cancellation(self.echo_cancellation);
-        session.set_noise_suppression(self.noise_suppression);
+        session.set_noise_suppression(self.noise());
         session.set_auto_gain(self.auto_gain);
     }
 }
@@ -267,6 +285,7 @@ enum Select {
     Microphone,
     Speaker,
     Camera,
+    Noise,
     Action(usize),
 }
 
@@ -803,7 +822,7 @@ impl Rustcord {
                     .flex()
                     .flex_col()
                     .when(custom, |d| {
-                        d.child(self.toggle_row("noise", "Noise Suppression", Some("Reduces background noise from your mic."), prefs.noise_suppression, |p| &mut p.noise_suppression, cx))
+                        d.child(self.noise_row(cx))
                             .child(self.toggle_row("echo", "Echo Cancellation", None, prefs.echo_cancellation, |p| &mut p.echo_cancellation, cx))
                     })
                     .child(self.toggle_row("ptt", "Push to Talk", None, prefs.push_to_talk, |p| &mut p.push_to_talk, cx))
@@ -832,6 +851,8 @@ impl Rustcord {
             ("User Leave", Cue::UserLeave),
             ("Stream Started", Cue::StreamStarted),
             ("Stream Stopped", Cue::StreamEnded),
+            ("Viewer Join", Cue::StreamUserJoined),
+            ("Viewer Leave", Cue::StreamUserLeft),
         ];
         let sounds_section = div()
             .flex()
@@ -1019,6 +1040,26 @@ impl Rustcord {
             )
     }
 
+    // Discord's Noise Suppression dropdown (Krisp / Standard / None); ours offers RNNoise, an
+    // open-source ML suppressor, in Krisp's place.
+    fn noise_row(&self, cx: &mut Context<Self>) -> AnyElement {
+        let options: Vec<(String, String)> = vec![("advanced".into(), "Advanced (RNNoise)".into()), ("standard".into(), "Standard".into()), ("off".into(), "None".into())];
+        let chosen = match (self.prefs.noise_suppression, self.prefs.noise_mode) {
+            (false, _) => "off",
+            (true, NoiseMode::Advanced) => "advanced",
+            (true, NoiseMode::Standard) => "standard",
+        };
+        let current = options.iter().find(|(id, _)| id == chosen).map(|(_, l)| l.clone()).unwrap_or_default();
+        div()
+            .py_3()
+            .flex()
+            .items_center()
+            .gap_4()
+            .child(div().flex_1().flex().flex_col().gap_1().child(label("Noise Suppression", cx)).child(description("Reduces background noise from your mic.", cx)))
+            .child(div().w(px(220.)).child(self.select_field(Select::Noise, &options, chosen, current.into(), cx)))
+            .into_any_element()
+    }
+
     fn cue_row(&self, title: &'static str, cue: Cue, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme().clone();
         let on = !self.prefs.silenced_cues.contains(&cue);
@@ -1163,6 +1204,11 @@ impl Rustcord {
             Select::Microphone => p.input_device = device,
             Select::Speaker => p.output_device = device,
             Select::Camera => p.camera = device,
+            Select::Noise => match id {
+                "off" => p.noise_suppression = false,
+                "standard" => (p.noise_suppression, p.noise_mode) = (true, NoiseMode::Standard),
+                _ => (p.noise_suppression, p.noise_mode) = (true, NoiseMode::Advanced),
+            },
             Select::Action(index) => {
                 let action = Action::ALL.into_iter().find(|a| format!("{a:?}") == id).unwrap_or(Action::Unassigned);
                 if let Some(bind) = p.keybinds.get_mut(index) {

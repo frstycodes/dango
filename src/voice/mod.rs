@@ -37,6 +37,7 @@ use tokio_tungstenite::tungstenite::Message as WsMessage;
 
 pub use audio::{Device, input_devices, output_devices};
 pub use camera::cameras;
+pub use dsp::NoiseSuppression;
 pub use video::VideoFrame;
 
 const SERVER_TIMEOUT: Duration = Duration::from_secs(10);
@@ -113,7 +114,7 @@ pub struct VoiceSettings {
     pub output_volume: f32,
     pub input_mode: InputMode,
     pub echo_cancellation: bool,
-    pub noise_suppression: bool,
+    pub noise_suppression: NoiseSuppression,
     pub auto_gain: bool,
 }
 
@@ -126,7 +127,7 @@ impl Default for VoiceSettings {
             output_volume: 1.0,
             input_mode: InputMode::VoiceActivity { auto: true, threshold_db: -60.0 },
             echo_cancellation: true,
-            noise_suppression: true,
+            noise_suppression: NoiseSuppression::Advanced,
             auto_gain: true,
         }
     }
@@ -183,7 +184,8 @@ impl Role {
 // system audio except Rustcord's own; an app or window sends only that app's sound.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShareSource {
-    Screen,
+    // One display, by `ShareableScreen::id`.
+    Screen(u32),
     // Every window of the app with this process id.
     App(i32),
     // One window, by `ShareableWindow::id`.
@@ -199,12 +201,58 @@ pub struct ShareableWindow {
     pub pid: i32,
 }
 
+#[derive(Clone, Debug)]
+pub struct ShareableScreen {
+    pub id: u32,
+    // "Screen 1", "Screen 2", … in the system's display order (main display first).
+    pub name: String,
+    // Points, not pixels.
+    pub width: u32,
+    pub height: u32,
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+const NO_CAPTURE: &str = "Screen sharing is only implemented on macOS and Windows";
+
 // Visible, titled windows of other apps (macOS and Windows); Err elsewhere.
 pub fn shareable_windows() -> Result<Vec<ShareableWindow>, String> {
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     return capture::shareable_windows();
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    Err("Screen sharing is only implemented on macOS and Windows".into())
+    Err(NO_CAPTURE.into())
+}
+
+pub fn screens() -> Result<Vec<ShareableScreen>, String> {
+    #[cfg(target_os = "macos")]
+    return capture::screens();
+    // ponytail: Windows capture shares the primary monitor whatever the id; list the rest once it can pick one.
+    #[cfg(target_os = "windows")]
+    return Ok(vec![ShareableScreen { id: 0, name: "Screen 1".into(), width: 0, height: 0 }]);
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    Err(NO_CAPTURE.into())
+}
+
+// One still of `source`, BGRA, scaled to fit `max_width` (and never upscaled). Takes tens of
+// milliseconds, so call it off the UI thread.
+pub fn thumbnail(source: ShareSource, max_width: u32) -> Result<VideoFrame, String> {
+    #[cfg(target_os = "macos")]
+    return capture::thumbnail(source, max_width);
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (source, max_width);
+        Err("No thumbnails on this platform yet".into())
+    }
+}
+
+// The icon of the app with process id `pid`, as a `size` x `size` BGRA square (premultiplied alpha).
+pub fn app_icon(pid: i32, size: u32) -> Option<VideoFrame> {
+    #[cfg(target_os = "macos")]
+    return capture::app_icon(pid, size);
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (pid, size);
+        None
+    }
 }
 
 // The voice module's view of the main gateway. `src/discord.rs` writes every string from the
@@ -410,8 +458,8 @@ impl VoiceSession {
         self.shared.audio.processor.set(Some(on), None, None);
     }
 
-    pub fn set_noise_suppression(&self, on: bool) {
-        self.shared.audio.processor.set(None, Some(on), None);
+    pub fn set_noise_suppression(&self, mode: NoiseSuppression) {
+        self.shared.audio.processor.set(None, Some(mode), None);
     }
 
     pub fn set_auto_gain(&self, on: bool) {
@@ -441,7 +489,8 @@ impl VoiceSession {
 
     // Share the main display (macOS) at 720p30 with sound. Our own `StreamEnded` reports when it stops.
     pub fn go_live(&self) -> Result<GoLive, String> {
-        self.go_live_with_options(ShareSource::Screen, GoLiveOptions::default())
+        let main = screens()?.first().map(|s| s.id).ok_or("No display to share")?;
+        self.go_live_with_options(ShareSource::Screen(main), GoLiveOptions::default())
     }
 
     // Share one app or window, with only its audio; see `shareable_windows` for the choices.

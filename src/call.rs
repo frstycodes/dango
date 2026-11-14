@@ -94,7 +94,11 @@ impl Rustcord {
             self.stream_previews.insert(user_id.clone(), (old, std::time::Instant::now()));
             let client = client.clone();
             cx.spawn(async move |this, cx| {
-                let Ok(body) = client.call(reqwest::Method::GET, format!("/streams/{key}/preview"), None).await else { return };
+                let result = client.call(reqwest::Method::GET, format!("/streams/{key}/preview"), None).await;
+                if cfg!(debug_assertions) && std::env::var_os("RUSTCORD_STREAM_DEBUG").is_some() {
+                    eprintln!("stream preview {key}: {:?}", result.as_ref().map(|b| b.to_string()));
+                }
+                let Ok(body) = result else { return };
                 let Some(url) = body["url"].as_str().map(str::to_owned) else { return };
                 this.update(cx, |this, cx| {
                     this.stream_previews.insert(user_id, (url, std::time::Instant::now()));

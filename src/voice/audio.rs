@@ -399,7 +399,7 @@ mod tests {
 
     #[test]
     fn mic_chain_applies_volume_and_reports_level() {
-        let settings = AudioSettings::new(None, None, 0.5, 1.0, Processor::new(false, false, false));
+        let settings = AudioSettings::new(None, None, 0.5, 1.0, Processor::new(false, crate::voice::NoiseSuppression::Off, false));
         let mut frame = vec![0.2; FRAME_LEN];
         let db = settings.process_mic(&mut frame);
         assert!(frame.iter().all(|&s| (s - 0.1).abs() < 1e-6));

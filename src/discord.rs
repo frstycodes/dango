@@ -562,6 +562,8 @@ pub struct Ready {
 
 pub enum Event {
     Ready(Box<Ready>),
+    // Who is watching a Go Live stream, by its key.
+    StreamViewers { key: String, viewers: Vec<String> },
     // A channel or thread created or changed in a server.
     ChannelUpsert { guild_id: String, channel: Channel },
     ChannelDelete { guild_id: String, id: String },
@@ -1043,6 +1045,7 @@ fn dispatch(kind: &str, d: &Value) -> Option<Event> {
         }),
         "MESSAGE_ACK" => Some(Event::Ack { channel_id: s(&d["channel_id"]), message_id: snowflake(&d["message_id"]) }),
         "VOICE_STATE_UPDATE" => Some(Event::VoiceState(parse_voice_state(d))),
+        "STREAM_UPDATE" => Some(Event::StreamViewers { key: s(&d["stream_key"]), viewers: strings(&d["viewer_ids"]) }),
         "VOICE_SERVER_UPDATE" => Some(Event::VoiceServer(d.clone())),
         _ => None,
     }

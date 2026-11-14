@@ -1,16 +1,19 @@
 // Screen and system-audio capture for Go Live: ScreenCaptureKit on macOS, delivering packed BGRA
 // frames and interleaved 48 kHz stereo audio. Rustcord's own output (voice chat) is excluded so
 // viewers don't hear the call echoed. Needs the Screen Recording permission; macOS asks the first time.
-// ponytail: main display only for `ShareSource::Screen`; add a display choice for multi-monitor setups.
 
 use std::sync::{
     Arc,
     mpsc::{Receiver, Sender, SyncSender, channel, sync_channel},
 };
 
-use screencapturekit::{cv::CVPixelBufferLockFlags, prelude::*};
+use screencapturekit::{cv::CVPixelBufferLockFlags, prelude::*, screenshot_manager::SCScreenshotManager};
 
-use super::{ShareSource, ShareableWindow, video::VideoFrame};
+use objc2::AllocAnyThread;
+use objc2_app_kit::{NSBitmapImageRep, NSDeviceRGBColorSpace, NSGraphicsContext, NSRunningApplication};
+use objc2_foundation::{NSPoint, NSRect, NSSize};
+
+use super::{ShareSource, ShareableScreen, ShareableWindow, video::VideoFrame};
 
 // Stops capturing when dropped.
 pub struct Capture {
@@ -69,13 +72,18 @@ fn shareable_content() -> Result<SCShareableContent, String> {
 // Audio capture follows the filter: a whole-display filter hears every app, an app or window
 // filter only that app. Rustcord's own audio is excluded separately in the stream configuration.
 fn content_filter(content: &SCShareableContent, source: ShareSource) -> Result<SCContentFilter, String> {
-    let display = content.displays().into_iter().next().ok_or("No display to capture")?;
+    let displays = content.displays();
     let builder = SCContentFilter::create();
     let builder = match source {
-        ShareSource::Screen => builder.with_display(&display).with_excluding_windows(&[]),
+        ShareSource::Screen(id) => {
+            let display = displays.iter().find(|d| d.display_id() == id).ok_or("That screen is no longer connected")?;
+            builder.with_display(display).with_excluding_windows(&[])
+        }
         ShareSource::App(pid) => {
+            // ponytail: an app filter needs a display; apps spread over several screens show the first.
+            let display = displays.first().ok_or("No display to capture")?;
             let app = content.applications().into_iter().find(|a| a.process_id() == pid).ok_or("That app is no longer running")?;
-            builder.with_display(&display).with_including_applications(&[&app], &[])
+            builder.with_display(display).with_including_applications(&[&app], &[])
         }
         ShareSource::Window(id) => {
             let window = content.windows().into_iter().find(|w| w.window_id() == id).ok_or("That window is gone")?;
@@ -94,6 +102,60 @@ pub fn shareable_windows() -> Result<Vec<ShareableWindow>, String> {
         normal.then(|| ShareableWindow { id: w.window_id(), title, app_name: app.application_name(), pid: app.process_id() })
     });
     Ok(windows.collect())
+}
+
+pub fn screens() -> Result<Vec<ShareableScreen>, String> {
+    let displays = shareable_content()?.displays();
+    let screens = displays.iter().enumerate().map(|(i, d)| ShareableScreen { id: d.display_id(), name: format!("Screen {}", i + 1), width: d.width(), height: d.height() });
+    Ok(screens.collect())
+}
+
+pub fn thumbnail(source: ShareSource, max_width: u32) -> Result<VideoFrame, String> {
+    let filter = content_filter(&shareable_content()?, source)?;
+    let rect = filter.content_rect();
+    let scale = filter.point_pixel_scale() as f64;
+    let (width, height) = fit((rect.size.width * scale) as u32, (rect.size.height * scale) as u32, max_width, u32::MAX);
+    let config = SCStreamConfiguration::new().with_width(width).with_height(height).with_pixel_format(PixelFormat::BGRA).with_shows_cursor(false);
+    let sample = SCScreenshotManager::capture_sample_buffer(&filter, &config).map_err(|e| e.to_string())?;
+    sample.pixel_buffer().and_then(|buffer| copy_bgra(&buffer)).ok_or_else(|| "Screenshot had no image".into())
+}
+
+// Draws NSRunningApplication's icon into a BGRA bitmap we own.
+pub fn app_icon(pid: i32, size: u32) -> Option<VideoFrame> {
+    let icon = NSRunningApplication::runningApplicationWithProcessIdentifier(pid)?.icon()?;
+    let side = size.max(1) as isize;
+    // SAFETY: null planes make AppKit allocate the buffer; the sizes describe 8-bit RGBA rows.
+    let bitmap = unsafe {
+        NSBitmapImageRep::initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel(
+            NSBitmapImageRep::alloc(),
+            std::ptr::null_mut(),
+            side,
+            side,
+            8,
+            4,
+            true,
+            false,
+            NSDeviceRGBColorSpace,
+            side * 4,
+            32,
+        )
+    }?;
+    let context = NSGraphicsContext::graphicsContextWithBitmapImageRep(&bitmap)?;
+    NSGraphicsContext::saveGraphicsState_class();
+    NSGraphicsContext::setCurrentContext(Some(&context));
+    icon.drawInRect(NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(side as f64, side as f64)));
+    context.flushGraphics();
+    NSGraphicsContext::restoreGraphicsState_class();
+
+    let (stride, len) = (bitmap.bytesPerRow() as usize, side as usize * 4);
+    let data = bitmap.bitmapData();
+    if data.is_null() {
+        return None;
+    }
+    // SAFETY: AppKit owns `stride * side` bytes at `data` for as long as `bitmap` lives.
+    let pixels = unsafe { std::slice::from_raw_parts(data, stride * side as usize) };
+    let bgra = pixels.chunks(stride).flat_map(|row| row[..len].as_chunks::<4>().0.iter().flat_map(|&[r, g, b, a]| [b, g, r, a])).collect();
+    Some(VideoFrame { width: side as u32, height: side as u32, bgra })
 }
 
 // ScreenCaptureKit hands over float32 audio, usually one buffer per channel.
@@ -145,7 +207,24 @@ fn fit(width: u32, height: u32, max_width: u32, max_height: u32) -> (u32, u32) {
 
 #[cfg(test)]
 mod tests {
-    use super::fit;
+    use super::*;
+
+    // Needs the Screen Recording permission for the terminal running it.
+    #[test]
+    #[ignore]
+    fn thumbnails_and_icons() {
+        for screen in screens().expect("screens") {
+            let thumb = thumbnail(ShareSource::Screen(screen.id), 400).expect("screen thumbnail");
+            assert!(thumb.width <= 400 && thumb.bgra.len() == (thumb.width * thumb.height * 4) as usize, "{screen:?}");
+            assert!(thumb.bgra.as_chunks::<4>().0.iter().any(|px| px[..3] != [0, 0, 0]), "{} is not all black", screen.name);
+        }
+        let window = shareable_windows().expect("windows").into_iter().next().expect("some window open");
+        let thumb = thumbnail(ShareSource::Window(window.id), 400).expect("window thumbnail");
+        assert!(thumb.width <= 400);
+        let icon = app_icon(window.pid, 32).expect("app icon");
+        assert_eq!((icon.width, icon.height, icon.bgra.len()), (32, 32, 32 * 32 * 4));
+        assert!(icon.bgra.as_chunks::<4>().0.iter().any(|px| px[3] > 0), "{} icon has visible pixels", window.app_name);
+    }
 
     #[test]
     fn fits_inside_bounds_keeping_aspect() {

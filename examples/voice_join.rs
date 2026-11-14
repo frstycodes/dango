@@ -89,8 +89,11 @@ fn main() -> Result<(), String> {
                     "cam off" => {
                         let _ = session.set_camera(None);
                     }
-                    "l" => match voice::shareable_windows() {
-                        Ok(windows) => windows.iter().for_each(|w| println!("  window {} pid {} {} — {}", w.id, w.pid, w.app_name, w.title)),
+                    "l" => match voice::screens().and_then(|s| Ok((s, voice::shareable_windows()?))) {
+                        Ok((screens, windows)) => {
+                            screens.iter().for_each(|s| println!("  screen {} {} {}x{}", s.id, s.name, s.width, s.height));
+                            windows.iter().for_each(|w| println!("  window {} pid {} {} — {}", w.id, w.pid, w.app_name, w.title));
+                        }
                         Err(e) => println!("list failed: {e}"),
                     },
                     _ => {
@@ -104,7 +107,8 @@ fn main() -> Result<(), String> {
                         if let Some(rest) = key.strip_prefix("glo ") {
                             let mut parts = rest.split_whitespace().filter_map(|p| p.parse().ok());
                             let options = voice::GoLiveOptions { resolution: parts.next().unwrap_or(720), fps: parts.next().unwrap_or(30), audio: true };
-                            live = session.go_live_with_options(voice::ShareSource::Screen, options).map_err(|e| println!("go live failed: {e}")).ok();
+                            let main = voice::screens().ok().and_then(|s| s.first().map(|s| s.id)).unwrap_or_default();
+                            live = session.go_live_with_options(voice::ShareSource::Screen(main), options).map_err(|e| println!("go live failed: {e}")).ok();
                         } else if let Some(id) = key.strip_prefix("cam ") {
                             if let Err(e) = session.set_camera(Some(id.trim().to_owned())) {
                                 println!("camera failed: {e}");
