@@ -5,18 +5,20 @@
 use std::collections::HashMap;
 
 use gpui_kit::{
-    AnyElement, Context, FontWeight, SharedString, Window,
-    component::{ActiveTheme, Icon},
-    div, img, prelude::*, px,
+    AnyElement, Context, FontWeight, HighlightStyle, SharedString, StyledText, Window,
+    component::Icon,
+    div, prelude::*, px,
 };
 use reqwest::Method;
 use serde_json::{Value, json};
 
 use crate::{
     Rustcord,
-    discord::{Channel, Message, parse_message, parse_thread},
+    discord::{Channel, MediaKind, Message, parse_message, parse_thread},
     icons::Glyph,
-    palette,
+    mascot::Mood,
+    palette::{self, Level},
+    ui,
 };
 
 #[derive(Default)]
@@ -128,136 +130,135 @@ impl Rustcord {
         }, window, cx);
     }
 
+    // design/panels.css's forum: the channel header, then New post and the posts in one 880px column.
+    // GAP: the design's post search and tag filter chips have nothing behind them yet (no post search
+    // state, tags aren't parsed), so the bar holds New post alone.
     pub(crate) fn render_forum(&mut self, forum: Channel, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme().clone();
         let posts = self.forum_posts(&forum.id);
         let state = self.forums.get(&forum.id);
+        let (strong, faint) = (palette::strong(cx), palette::faint(cx));
         let header = div()
             .h(px(48.))
             .flex_none()
-            .px_4()
+            .pl(px(12.))
+            .pr(px(8.))
             .flex()
             .items_center()
-            .gap_2()
+            .gap(px(8.))
             .border_b_1()
-            .border_color(theme.sidebar_border)
-            .child(Icon::new(Glyph::Forum).text_color(theme.muted_foreground))
-            .child(div().flex_none().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(forum.name.clone()))
-            .children(forum.topic.clone().map(|t| div().flex_1().min_w_0().truncate().text_size(px(14.)).text_color(theme.muted_foreground).child(t)))
-            .when(forum.topic.is_none(), |h| h.child(div().flex_1()));
+            .border_color(palette::line(cx))
+            .child(
+                div()
+                    .h(px(32.))
+                    .px(px(6.))
+                    .flex_none()
+                    .max_w(gpui_kit::relative(0.6))
+                    .min_w_0()
+                    .flex()
+                    .items_center()
+                    .gap(px(6.))
+                    .text_size(px(16.))
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(strong)
+                    .child(Icon::new(Glyph::Forum).size(px(20.)).text_color(faint))
+                    .child(div().min_w_0().truncate().child(forum.name.clone())),
+            )
+            .children(forum.topic.clone().map(|t| div().flex_1().min_w_0().pl(px(12.)).border_l_1().border_color(palette::line_strong(cx)).truncate().text_size(px(14.)).text_color(faint).child(t)));
         let forum_id = forum.id.clone();
-        let new_post = div()
-            .id("forum-new-post")
-            .h(px(36.))
-            .px_4()
-            .rounded(px(8.))
-            .flex()
-            .items_center()
-            .gap_2()
-            .cursor_pointer()
-            .bg(palette::accent())
-            .text_color(gpui_kit::white())
-            .font_weight(FontWeight::MEDIUM)
-            .hover(|s| s.opacity(0.9))
-            .child(Icon::new(Glyph::Plus).size(px(18.)))
-            .child("New Post")
+        let new_post = ui::button("forum-new-post", ui::Tone::Primary, cx)
+            .child(Icon::new(Glyph::Plus).size(px(16.)))
+            .child("New post")
             .on_click(cx.listener(move |this, _, window, cx| this.new_post(forum_id.clone(), window, cx)));
         let cards: Vec<AnyElement> = posts.iter().map(|post| self.post_card(post, state.and_then(|s| s.previews.get(&post.id)), cx)).collect();
         let empty = posts.is_empty() && state.is_some_and(|s| !s.loading);
         let more = state.filter(|s| s.has_more && !s.loading).map(|_| {
             let id = forum.id.clone();
-            div()
-                .id("forum-more")
-                .py_3()
-                .flex()
-                .justify_center()
-                .cursor_pointer()
-                .text_color(theme.link)
-                .child("Load more posts")
-                .on_click(cx.listener(move |this, _, _, cx| this.load_forum(id.clone(), cx)))
+            ui::button("forum-more", ui::Tone::Ghost, cx).child("Load more posts").on_click(cx.listener(move |this, _, _, cx| this.load_forum(id.clone(), cx)))
         });
+        let error = state.and_then(|s| s.error.clone()).map(|e| div().text_size(px(14.)).text_color(palette::danger_ink(cx)).child(e));
         div()
             .flex_1()
             .min_w_0()
             .h_full()
             .flex()
             .flex_col()
+            .bg(palette::surface(Level::Page, cx))
             .child(header)
             .child(
-                div()
-                    .id("forum-scroll")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .child(
-                        div()
-                            .max_w(px(900.))
-                            .mx_auto()
-                            .px_4()
-                            .py_4()
-                            .flex()
-                            .flex_col()
-                            .gap_2()
-                            .child(div().flex().justify_end().pb_2().child(new_post))
-                            .children(state.and_then(|s| s.error.clone()).map(|e| div().text_color(theme.danger).child(e)))
-                            .when(empty, |d| d.child(div().py_8().flex().justify_center().text_color(theme.muted_foreground).child("No posts yet. Start one!")))
-                            .children(cards)
-                            .children(more),
-                    ),
+                div().id("forum-scroll").flex_1().min_h_0().overflow_y_scroll().child(
+                    div()
+                        .w_full()
+                        .max_w(px(880.))
+                        .mx_auto()
+                        .p(px(16.))
+                        .flex()
+                        .flex_col()
+                        .gap(px(12.))
+                        .when(!empty, |d| d.child(div().flex().justify_end().child(new_post)))
+                        .children(error)
+                        .when(empty, |d| d.child(ui::empty_state("forum-empty", Mood::Idle, "No posts yet", "Start the first one. Each post gets its own thread.", cx)))
+                        .child(div().flex().flex_col().gap(px(8.)).children(cards))
+                        .children(more.map(|m| div().flex().justify_center().child(m))),
+                ),
             )
             .into_any_element()
     }
 
-    // A post card: title, the opening message (author and text), its image, and reply count.
+    // A post: its title, the opening message, who started it and how many replies, and its image.
     fn post_card(&self, post: &Channel, first: Option<&Message>, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme().clone();
         let replies = post.thread.as_ref().map_or(0, |t| t.message_count);
+        let archived = post.thread.as_ref().is_some_and(|t| t.archived);
+        let (strong, text, muted, faint) = (palette::strong(cx), palette::text(cx), palette::muted(cx), palette::faint(cx));
+        let sidebar = palette::surface(Level::Sidebar, cx);
+        let (edge, lifted) = (palette::line_strong(cx), crate::chat::mix(sidebar, strong, 0.03));
         let thumb = first.and_then(|m| m.media.first()).map(|m| match &m.kind {
-            crate::discord::MediaKind::Image => m.url.clone(),
-            crate::discord::MediaKind::Video { poster } | crate::discord::MediaKind::Gif { poster } => poster.clone(),
+            MediaKind::Image => m.url.clone(),
+            MediaKind::Video { poster } | MediaKind::Gif { poster } => poster.clone(),
         });
-        let preview = first.map(|m| {
-            div()
-                .flex()
-                .gap_1()
-                .text_size(px(14.))
-                .child(div().flex_none().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(format!("{}:", m.author.name)))
-                .child(div().min_w_0().line_clamp(2).text_color(theme.muted_foreground).child(m.content.clone()))
+        let excerpt = first.map(|m| {
+            let name = format!("{}: ", m.author.name);
+            let highlight = HighlightStyle { color: Some(text), font_weight: Some(FontWeight::SEMIBOLD), ..Default::default() };
+            div().line_clamp(2).text_size(px(14.)).text_color(muted).child(StyledText::new(format!("{name}{}", m.content)).with_highlights([(0..name.len(), highlight)]))
         });
+        let starter = first.map(|m| div().flex().items_center().gap(px(4.)).child(ui::avatar(m.author.avatar.clone(), 20.)).child(div().max_w(px(140.)).truncate().font_weight(FontWeight::MEDIUM).text_color(muted).child(m.author.name.clone())));
         let open = post.clone();
         let (menu_post, guild_id) = (post.clone(), self.guild_id.clone().unwrap_or_default());
+        // PATCH(transform): press scales the card to 0.99.
         div()
             .id(SharedString::from(format!("post-{}", post.id)))
-            .p_4()
-            .rounded(px(8.))
-            .border_1()
-            .border_color(theme.border)
-            .bg(theme.popover)
+            .py(px(14.))
+            .px(px(16.))
             .flex()
-            .gap_4()
+            .gap(px(16.))
+            .rounded(px(ui::RADIUS_LG))
+            .bg(sidebar)
+            .border_1()
+            .border_color(palette::line(cx))
             .cursor_pointer()
-            .hover(|s| s.bg(theme.list_hover))
+            .hover(move |s| s.bg(lifted).border_color(edge))
             .child(
                 div()
                     .flex_1()
                     .min_w_0()
                     .flex()
                     .flex_col()
-                    .gap_2()
-                    .child(div().truncate().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(post.name.clone()))
-                    .children(preview)
+                    .gap(px(6.))
+                    .child(div().truncate().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).text_color(if archived { muted } else { strong }).child(post.name.clone()))
+                    .children(excerpt)
                     .child(
                         div()
                             .flex()
+                            .flex_wrap()
                             .items_center()
-                            .gap_1()
-                            .text_size(px(14.))
-                            .text_color(theme.muted_foreground)
-                            .child(Icon::new(Glyph::ChatRound).size(px(16.)))
-                            .child(replies.to_string()),
+                            .gap_x(px(12.))
+                            .gap_y(px(4.))
+                            .text_size(px(12.))
+                            .text_color(faint)
+                            .children(starter)
+                            .child(div().flex().items_center().gap(px(4.)).child(Icon::new(Glyph::ChatRound).size(px(14.))).child(replies.to_string())),
                     ),
             )
-            .children(thumb.map(|url| img(url).size(px(88.)).flex_none().rounded(px(8.)).object_fit(gpui_kit::ObjectFit::Cover)))
+            .children(thumb.map(|url| ui::media(url, ui::all(ui::RADIUS_MD)).size(px(88.)).flex_none().object_fit(gpui_kit::ObjectFit::Cover)))
             .on_click(cx.listener(move |this, _, window, cx| this.open_channel(open.clone(), window, cx)))
             .on_mouse_down(gpui_kit::MouseButton::Right, cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_thread_menu(menu_post.clone(), guild_id.clone(), e.position, cx)))
             .into_any_element()
