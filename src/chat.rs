@@ -388,7 +388,7 @@ impl Rustcord {
                     .gap_1()
                     .child(
                         div().flex_1().min_h_0().rounded(px(4.)).overflow_hidden().flex().items_center().justify_center().child(if is_image {
-                            img(path.clone()).size_full().object_fit(gpui_kit::ObjectFit::Contain).into_any_element()
+                            crate::ui::media(path.clone(), crate::ui::all(4.)).size_full().object_fit(gpui_kit::ObjectFit::Contain).into_any_element()
                         } else {
                             Icon::new(Glyph::Copy).size(px(40.)).text_color(theme.muted_foreground).into_any_element()
                         }),
@@ -572,7 +572,7 @@ impl Rustcord {
                 .when(selected, |r| r.bg(theme.foreground.opacity(0.08)))
                 .hover(|r| r.bg(theme.foreground.opacity(0.06)))
                 .child(match &item.avatar {
-                    Some(url) => img(url.clone()).size(px(24.)).rounded_full().into_any_element(),
+                    Some(url) => crate::ui::avatar(url.clone(), 24.).into_any_element(),
                     None => Icon::new(Glyph::Hashtag).text_color(theme.muted_foreground).into_any_element(),
                 })
                 .child(div().truncate().child(item.label.clone()))
@@ -584,19 +584,11 @@ impl Rustcord {
                 }))
         });
         Some(
-            div()
+            crate::ui::surface(cx)
                 .absolute()
                 .left(px(16.))
                 .right(px(16.))
                 .bottom(px(70.))
-                .p_2()
-                .rounded(px(12.))
-                .bg(theme.popover)
-                .border_1()
-                .border_color(theme.border)
-                .shadow_lg()
-                .flex()
-                .flex_col()
                 .gap(px(2.))
                 .child(div().px_2().pb_1().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(theme.muted_foreground).child(heading))
                 .children(rows)
@@ -769,7 +761,7 @@ fn reply_preview(reply: &Message, target: Option<String>, ctx: &std::rc::Rc<RowC
         .text_size(px(13.))
         .text_color(theme.muted_foreground)
         .child(div().w(px(32.)).h(px(10.)).mt(px(8.)).flex_none().border_l_2().border_t_2().border_color(theme.muted_foreground.opacity(0.4)).rounded_tl(px(6.)))
-        .child(img(reply.author.avatar.clone()).size(px(16.)).rounded_full())
+        .child(crate::ui::avatar(reply.author.avatar.clone(), 16.))
         .child(div().flex_none().font_weight(FontWeight::SEMIBOLD).text_color(color).child(format!("@{}", reply.author.name)))
         .child(div().truncate().hover(|s| s.text_color(theme.foreground)).child(snippet))
         .on_click(move |_, _, cx| {
@@ -990,7 +982,7 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
             .flex()
             .items_center()
             .gap_2()
-            .children(embed.author_icon.clone().map(|icon| img(icon).size(px(24.)).rounded_full().flex_none()))
+            .children(embed.author_icon.clone().map(|icon| crate::ui::avatar(icon, 24.)))
             .child(div().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(strong).when(url.is_some(), |d| d.cursor_pointer().hover(|s| s.underline())).child(name))
             .when_some(url, |d, url| d.on_click(move |_, _, cx| cx.open_url(&url)))
     });
@@ -1001,7 +993,7 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
             .flex()
             .items_center()
             .gap_2()
-            .children(embed.footer_icon.clone().map(|icon| img(icon).size(px(20.)).rounded_full().flex_none()))
+            .children(embed.footer_icon.clone().map(|icon| crate::ui::avatar(icon, 20.)))
             .child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(theme.foreground).child(footer_text.join(" • ")))
     });
     let text = div()
@@ -1039,7 +1031,7 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
         .border_1()
         .border_color(theme.border)
         .bg(fill)
-        .child(div().w(px(4.)).flex_none().bg(bar))
+        .child(div().w(px(4.)).flex_none().bg(bar).rounded_l(px(4.)))
         .child(div().flex_1().min_w_0().pt(px(2.)).pr_4().pb_4().pl_3().flex().gap_4().child(text).children(small.map(|m| img(m.url.clone()).size(px(80.)).rounded(px(4.)).flex_none().mt_2())))
         .into_any_element()
 }

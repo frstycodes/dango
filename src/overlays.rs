@@ -298,7 +298,7 @@ impl Rustcord {
                         .flex_col()
                         .gap_1()
                         .child(div().text_size(px(12.)).text_color(theme.muted_foreground).child(place))
-                        .child(div().flex().items_center().gap_2().child(img(m.author.avatar.clone()).size(px(24.)).rounded_full()).child(div().font_weight(FontWeight::MEDIUM).child(m.author.name.clone())))
+                        .child(div().flex().items_center().gap_2().child(crate::ui::avatar(m.author.avatar.clone(), 24.)).child(div().font_weight(FontWeight::MEDIUM).child(m.author.name.clone())))
                         .child(div().text_size(px(14.)).line_clamp(3).child(m.content.clone()))
                         .on_click(cx.listener(move |this, _, window, cx| {
                             this.inbox = None;
@@ -315,20 +315,13 @@ impl Rustcord {
         Some(
             backdrop("inbox-backdrop", cx)
                 .child(
-                    div()
+                    crate::ui::surface(cx)
                         .id("inbox")
                         .absolute()
                         .top(px(TITLE_HEIGHT + 4.))
                         .right(px(12.))
                         .w(px(480.))
                         .max_h(px(600.))
-                        .rounded(px(10.))
-                        .bg(theme.popover)
-                        .border_1()
-                        .border_color(theme.input)
-                        .shadow_lg()
-                        .flex()
-                        .flex_col()
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .child(div().px_4().py_3().flex().items_center().gap_2().border_b_1().border_color(theme.border).child(Icon::new(Glyph::Inbox).size(px(20.))).child(div().font_weight(FontWeight::SEMIBOLD).child("Inbox")).child(div().text_color(theme.muted_foreground).child("· Mentions")))
                         .child(div().id("inbox-list").flex_1().min_h_0().overflow_y_scroll().p_3().child(body)),
@@ -370,7 +363,7 @@ impl Rustcord {
         Some(
             backdrop("gif-backdrop", cx)
                 .child(
-                    div()
+                    crate::ui::surface(cx)
                         .id("gif-picker")
                         .absolute()
                         .right(px(32.))
@@ -378,13 +371,6 @@ impl Rustcord {
                         .top(px(viewport_top.max(120.)))
                         .w(px(PICKER_SIZE.0))
                         .max_h(px(PICKER_SIZE.1 + 80.))
-                        .rounded(px(10.))
-                        .bg(theme.popover)
-                        .border_1()
-                        .border_color(theme.input)
-                        .shadow_lg()
-                        .flex()
-                        .flex_col()
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .child(div().p_2().child(div().h(px(34.)).px_2().rounded(px(6.)).bg(theme.background).flex().items_center().child(Input::new(&self.gif_search).appearance(false))))
                         .child(div().id("gif-scroll").flex_1().min_h_0().overflow_y_scroll().px_2().pb_2().child(body)),
@@ -498,7 +484,7 @@ impl Rustcord {
                     .relative()
                     .w_full()
                     .aspect_ratio(16. / 9.)
-                    .child(div().size_full().rounded(px(8.)).overflow_hidden().bg(gpui_kit::black()).child(source_still(picker.thumb(source), glyph(source), 32., &theme)))
+                    .child(div().size_full().rounded(px(8.)).overflow_hidden().bg(gpui_kit::black()).child(crate::ui::edge(source_still(picker.thumb(source), glyph(source), 32., &theme), crate::ui::all(8.))))
                     .children(selected.then(|| selection_ring(&key, picker.picked))),
             )
             .child(
@@ -521,10 +507,10 @@ impl Rustcord {
         let theme = cx.theme().clone();
         let (resolution, fps, audio) = (self.prefs.stream_resolution, self.prefs.stream_fps, self.prefs.stream_audio);
         let resolutions = [(720, "720p"), (1080, "1080p"), (1440, "1440p"), (0, "Source")].map(|(value, label)| {
-            segment(format!("res-{value}"), label, resolution == value, cx).on_click(cx.listener(move |this, _, _, cx| this.update_prefs(cx, |p| p.stream_resolution = value))).into_any_element()
+            crate::ui::segment(format!("res-{value}"), label, resolution == value, cx).on_click(cx.listener(move |this, _, _, cx| this.update_prefs(cx, |p| p.stream_resolution = value))).into_any_element()
         });
         let rates = [(15, "15"), (30, "30"), (60, "60")].map(|(value, label)| {
-            segment(format!("fps-{value}"), label, fps == value, cx).on_click(cx.listener(move |this, _, _, cx| this.update_prefs(cx, |p| p.stream_fps = value))).into_any_element()
+            crate::ui::segment(format!("fps-{value}"), label, fps == value, cx).on_click(cx.listener(move |this, _, _, cx| this.update_prefs(cx, |p| p.stream_fps = value))).into_any_element()
         });
         let whole_screen = match self.share_choice {
             Some(source) => matches!(source, ShareSource::Screen(_)),
@@ -537,7 +523,7 @@ impl Rustcord {
             .gap_3()
             .cursor_pointer()
             .child(div().flex_1().min_w_0().text_size(px(14.)).child(if whole_screen { "Share all sound except Rustcord" } else { "Share this app's sound" }))
-            .child(crate::settings::switch(audio, &theme))
+            .child(crate::ui::switch(audio, cx))
             .on_click(cx.listener(|this, _, _, cx| this.update_prefs(cx, |p| p.stream_audio = !p.stream_audio)));
         let ready = self.share_choice.is_some();
         let go = div()
@@ -576,7 +562,7 @@ impl Rustcord {
     fn share_preview(&self, picker: &SharePicker, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
         let choice = self.share_choice;
-        let still = |source: ShareSource| source_still(picker.thumb(source), glyph(source), 40., &theme);
+        let still = |source: ShareSource| crate::ui::edge(source_still(picker.thumb(source), glyph(source), 40., &theme), crate::ui::all(8.));
         let current = choice.map(|source| {
             if !picker.picked {
                 return still(source).into_any_element();
@@ -599,7 +585,7 @@ impl Rustcord {
                     .rounded(px(8.))
                     .overflow_hidden()
                     .bg(gpui_kit::black())
-                    .when(choice.is_none(), |box_| box_.child(source_still(None, Glyph::ShareScreen, 40., &theme)))
+                    .when(choice.is_none(), |box_| box_.child(crate::ui::edge(source_still(None, Glyph::ShareScreen, 40., &theme), crate::ui::all(8.))))
                     .children(picker.previous.filter(|_| picker.picked).map(still))
                     .children(current),
             )
@@ -671,7 +657,7 @@ impl Rustcord {
                         .border_color(theme.border)
                         .flex()
                         .gap_3()
-                        .child(img(m.author.avatar.clone()).size(px(32.)).rounded_full().flex_none())
+                        .child(crate::ui::avatar(m.author.avatar.clone(), 32.))
                         .child(
                             div()
                                 .flex_1()
@@ -699,20 +685,13 @@ impl Rustcord {
         Some(
             backdrop("pins-backdrop", cx)
                 .child(
-                    div()
+                    crate::ui::surface(cx)
                         .id("pins")
                         .absolute()
                         .top(px(TITLE_HEIGHT + 52.))
                         .right(px(self.panel_width + 16.))
                         .w(px(420.))
                         .max_h(px(560.))
-                        .rounded(px(10.))
-                        .bg(theme.popover)
-                        .border_1()
-                        .border_color(theme.input)
-                        .shadow_lg()
-                        .flex()
-                        .flex_col()
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .child(div().px_4().py_3().flex().items_center().gap_2().border_b_1().border_color(theme.border).child(Icon::new(Glyph::Pin).size(px(20.))).child(div().font_weight(FontWeight::SEMIBOLD).child("Pinned Messages")))
                         .child(div().id("pins-list").flex_1().min_h_0().overflow_y_scroll().p_3().child(body)),
@@ -747,8 +726,8 @@ impl Rustcord {
         let is_me = self.me.as_ref().is_some_and(|me| me.id == user.id);
         let (dm_user, mention) = (user.id.clone(), user.clone());
         let banner = match &profile.banner {
-            Some(url) => img(url.clone()).w_full().h(px(106.)).object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
-            None => div().w_full().h(px(106.)).bg(accent).into_any_element(),
+            Some(url) => crate::ui::media(url.clone(), crate::ui::top(crate::ui::RADIUS_XL)).w_full().h(px(106.)).object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
+            None => crate::ui::edge(div().w_full().h(px(106.)).bg(accent), crate::ui::top(crate::ui::RADIUS_XL)).into_any_element(),
         };
         let section = |title: &'static str| div().text_size(px(12.)).font_weight(FontWeight::BOLD).text_color(theme.foreground).child(title);
         let body = div()
@@ -795,19 +774,8 @@ impl Rustcord {
             })
             .when(!is_me, |b| {
                 b.child(
-                    div()
-                        .id("profile-message")
+                    crate::ui::button("profile-message", crate::ui::Tone::Secondary, cx)
                         .h(px(36.))
-                        .px_3()
-                        .rounded(px(8.))
-                        .flex()
-                        .items_center()
-                        .cursor_pointer()
-                        .border_1()
-                        .border_color(theme.input)
-                        .bg(theme.background)
-                        .text_color(theme.muted_foreground)
-                        .hover(|s| s.border_color(theme.foreground.opacity(0.3)))
                         .child(format!("Message @{}", user.name))
                         .on_click(cx.listener(move |this, _, window, cx| this.message_user(dm_user.clone(), window, cx))),
                 )
@@ -871,20 +839,12 @@ impl Rustcord {
         Some(
             backdrop("status-backdrop", cx)
                 .child(
-                    div()
+                    crate::ui::surface(cx)
                         .id("status-menu")
                         .absolute()
                         .left(px(16.))
                         .bottom(px(self.panel_stack_height() + 16.))
                         .w(px(300.))
-                        .p_2()
-                        .rounded(px(10.))
-                        .bg(theme.popover)
-                        .border_1()
-                        .border_color(theme.input)
-                        .shadow_lg()
-                        .flex()
-                        .flex_col()
                         .gap(px(2.))
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .children(rows),
@@ -942,20 +902,13 @@ impl Rustcord {
         Some(
             backdrop("emoji-backdrop", cx)
                 .child(
-                    div()
+                    crate::ui::surface(cx)
                         .id("emoji-picker")
                         .absolute()
                         .right(px(32.))
                         .top(px((f32::from(viewport.height) - PICKER_SIZE.1 - 90.).max(TITLE_HEIGHT + 8.)))
                         .w(px(PICKER_SIZE.0))
                         .h(px(PICKER_SIZE.1))
-                        .rounded(px(10.))
-                        .bg(theme.popover)
-                        .border_1()
-                        .border_color(theme.input)
-                        .shadow_lg()
-                        .flex()
-                        .flex_col()
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .child(div().p_2().child(div().h(px(34.)).px_2().rounded(px(6.)).bg(theme.background).flex().items_center().child(Input::new(&self.emoji_search).appearance(false))))
                         .child(div().id("emoji-scroll").flex_1().min_h_0().overflow_y_scroll().px_2().pb_2().child(body)),
@@ -972,7 +925,7 @@ impl Rustcord {
         let rows = results.into_iter().enumerate().map(|(i, (guild_id, channel, place))| {
             let active = i == selected;
             let lead = match (&channel.recipient, channel.kind) {
-                (Some(user), _) => img(user.avatar.clone()).size(px(20.)).rounded_full().into_any_element(),
+                (Some(user), _) => crate::ui::avatar(user.avatar.clone(), 20.).into_any_element(),
                 (None, ChannelKind::Dm) => Icon::new(Glyph::User).size(px(18.)).into_any_element(),
                 _ => Icon::new(Glyph::Hashtag).size(px(18.)).into_any_element(),
             };
@@ -1011,16 +964,9 @@ impl Rustcord {
                         .flex()
                         .justify_center()
                         .child(
-                            div()
+                            crate::ui::surface(cx)
                                 .w(px(SWITCHER_WIDTH))
                                 .p_4()
-                                .rounded(px(12.))
-                                .bg(theme.popover)
-                                .border_1()
-                                .border_color(theme.input)
-                                .shadow_lg()
-                                .flex()
-                                .flex_col()
                                 .gap_3()
                                 .capture_key_down(cx.listener(Self::on_switcher_key))
                                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
@@ -1117,29 +1063,7 @@ fn quality(title: &'static str, segments: impl IntoIterator<Item = AnyElement>, 
         .flex_col()
         .gap_2()
         .child(div().text_size(px(14.)).font_weight(FontWeight::MEDIUM).text_color(theme.muted_foreground).child(title))
-        .child(div().p(px(2.)).rounded(px(8.)).bg(theme.foreground.opacity(0.06)).flex().children(segments))
-}
-
-fn segment(id: String, label: &'static str, on: bool, cx: &App) -> gpui_kit::Stateful<gpui_kit::Div> {
-    let theme = cx.theme();
-    let (hover, strong) = (theme.foreground, palette::strong(cx));
-    div()
-        .id(SharedString::from(id))
-        .flex_1()
-        .min_w_0()
-        .h(px(30.))
-        .rounded(px(6.))
-        .flex()
-        .items_center()
-        .justify_center()
-        .cursor_pointer()
-        .text_size(px(14.))
-        .font_weight(FontWeight::MEDIUM)
-        .border_1()
-        .border_color(if on { theme.foreground.opacity(0.2) } else { gpui_kit::transparent_black() })
-        .when(on, |s| s.bg(theme.foreground.opacity(0.12)).text_color(strong))
-        .when(!on, |s| s.text_color(theme.muted_foreground).hover(move |s| s.text_color(hover)))
-        .child(label)
+        .child(crate::ui::segmented().children(segments))
 }
 
 // Ease-out cubic, for fades that should land softly beside a spring.
