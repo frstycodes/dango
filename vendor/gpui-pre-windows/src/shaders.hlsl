@@ -1266,3 +1266,115 @@ float4 polychrome_sprite_fragment(PolychromeSpriteFragmentInput input): SV_Targe
     color.a *= sprite.opacity * saturate(0.5 - distance);
     return color;
 }
+
+/*
+**
+**              Backdrop blur
+**
+*/
+
+// A dual Kawase blur. Level passes downsample the backdrop region copied out of the render
+// target by halves, then upsample back to half resolution; the composite upsamples into the
+// render target inside the element. `BackdropBlurPlan` picks the level count and tap offset.
+
+struct BackdropBlurPass {
+    Bounds bounds;
+    Bounds clip_bounds;
+    Corners corner_radii;
+    float2 target_size;
+    float2 region_origin;
+    float2 source_size;
+    float2 source_texture_size;
+    float coordinate_scale;
+    float tap_offset;
+    float saturation;
+    float opacity;
+};
+
+struct BackdropBlurVertexOutput {
+    nointerpolation uint pass_id: TEXCOORD0;
+    float4 position: SV_Position;
+};
+
+StructuredBuffer<BackdropBlurPass> backdrop_blur_passes: register(t1);
+
+BackdropBlurVertexOutput backdrop_blur_vertex(uint vertex_id, uint instance_id) {
+    float2 unit_vertex = float2(float(vertex_id & 1u), 0.5 * float(vertex_id & 2u));
+    uint pass_id = batch_start_index + instance_id;
+    BackdropBlurPass blur_pass = backdrop_blur_passes[pass_id];
+    float2 position = unit_vertex * blur_pass.clip_bounds.size + blur_pass.clip_bounds.origin;
+    float2 device_position = position / blur_pass.target_size * float2(2.0, -2.0) + float2(-1.0, 1.0);
+
+    BackdropBlurVertexOutput output;
+    output.pass_id = pass_id;
+    output.position = float4(device_position, 0.0, 1.0);
+    return output;
+}
+
+// Samples the source at `position`, in texels of its region. Positions outside the region
+// mirror back into it, like CSS backdrop-filter's mirror edge mode, and stay half a texel
+// inside so bilinear filtering never reads past the region.
+float4 sample_backdrop(BackdropBlurPass blur_pass, float2 position) {
+    float2 mirrored = blur_pass.source_size - abs(blur_pass.source_size - abs(position));
+    float2 clamped = clamp(mirrored, 0.5, max(blur_pass.source_size - 0.5, 0.5));
+    return t_sprite.SampleLevel(s_sprite, clamped / blur_pass.source_texture_size, 0.0);
+}
+
+float2 backdrop_source_position(BackdropBlurPass blur_pass, float2 target_position) {
+    return (target_position - blur_pass.region_origin) * blur_pass.coordinate_scale;
+}
+
+float4 backdrop_upsample(BackdropBlurPass blur_pass, float2 center) {
+    float offset = blur_pass.tap_offset;
+    float4 sum = sample_backdrop(blur_pass, center + float2(-2.0 * offset, 0.0)) +
+                 sample_backdrop(blur_pass, center + float2(2.0 * offset, 0.0)) +
+                 sample_backdrop(blur_pass, center + float2(0.0, -2.0 * offset)) +
+                 sample_backdrop(blur_pass, center + float2(0.0, 2.0 * offset));
+    sum += 2.0 * (sample_backdrop(blur_pass, center + float2(-offset, -offset)) +
+                  sample_backdrop(blur_pass, center + float2(offset, -offset)) +
+                  sample_backdrop(blur_pass, center + float2(-offset, offset)) +
+                  sample_backdrop(blur_pass, center + float2(offset, offset)));
+    return sum / 12.0;
+}
+
+BackdropBlurVertexOutput backdrop_blur_down_vertex(uint vertex_id: SV_VertexID, uint instance_id: SV_InstanceID) {
+    return backdrop_blur_vertex(vertex_id, instance_id);
+}
+
+float4 backdrop_blur_down_fragment(BackdropBlurVertexOutput input): SV_Target {
+    BackdropBlurPass blur_pass = backdrop_blur_passes[input.pass_id];
+    float2 center = backdrop_source_position(blur_pass, input.position.xy);
+    float offset = blur_pass.tap_offset;
+    float4 sum = 4.0 * sample_backdrop(blur_pass, center);
+    sum += sample_backdrop(blur_pass, center + float2(-offset, -offset));
+    sum += sample_backdrop(blur_pass, center + float2(offset, -offset));
+    sum += sample_backdrop(blur_pass, center + float2(-offset, offset));
+    sum += sample_backdrop(blur_pass, center + float2(offset, offset));
+    return sum / 8.0;
+}
+
+BackdropBlurVertexOutput backdrop_blur_up_vertex(uint vertex_id: SV_VertexID, uint instance_id: SV_InstanceID) {
+    return backdrop_blur_vertex(vertex_id, instance_id);
+}
+
+float4 backdrop_blur_up_fragment(BackdropBlurVertexOutput input): SV_Target {
+    BackdropBlurPass blur_pass = backdrop_blur_passes[input.pass_id];
+    return backdrop_upsample(blur_pass, backdrop_source_position(blur_pass, input.position.xy));
+}
+
+BackdropBlurVertexOutput backdrop_blur_composite_vertex(uint vertex_id: SV_VertexID, uint instance_id: SV_InstanceID) {
+    return backdrop_blur_vertex(vertex_id, instance_id);
+}
+
+float4 backdrop_blur_composite_fragment(BackdropBlurVertexOutput input): SV_Target {
+    BackdropBlurPass blur_pass = backdrop_blur_passes[input.pass_id];
+    float4 color = backdrop_upsample(blur_pass, backdrop_source_position(blur_pass, input.position.xy));
+
+    // CSS saturate(): mixes each color with its luminance, by the filter's Rec. 709 weights.
+    float luminance = dot(color.rgb, float3(0.213, 0.715, 0.072));
+    float3 saturated = saturate(lerp(float3(luminance, luminance, luminance), color.rgb, blur_pass.saturation));
+
+    float distance = quad_sdf(input.position.xy, blur_pass.bounds, blur_pass.corner_radii);
+    float coverage = saturate(0.5 - distance) * blur_pass.opacity;
+    return float4(saturated, coverage);
+}
