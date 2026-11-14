@@ -11,6 +11,7 @@ use gpui_kit::{
 
 use crate::{
     Rustcord,
+    ui::{self, Tone},
     menu::{Entry, item, submenu},
     discord::{self, User, VoiceState},
     icons::Glyph,
@@ -270,7 +271,7 @@ impl Rustcord {
                             .child(div().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(theme.danger).child("Voice Disconnected"))
                             .child(div().truncate().text_size(px(12.)).text_color(theme.muted_foreground).child(error)),
                     )
-                    .child(panel_button("dismiss-voice", Glyph::X, "Dismiss", cx).on_click(cx.listener(|this, _, _, cx| {
+                    .child(ui::icon_button("dismiss-voice", Glyph::X, "Dismiss", cx).on_click(cx.listener(|this, _, _, cx| {
                         this.voice_error = None;
                         cx.notify();
                     })))
@@ -345,7 +346,7 @@ impl Rustcord {
             .child(ping_tile)
             .child(status)
             .child(
-                panel_button("noise", Glyph::Waveform, if noise { "Disable Noise Suppression" } else { "Enable Noise Suppression" }, cx)
+                ui::icon_button("noise", Glyph::Waveform, if noise { "Disable Noise Suppression" } else { "Enable Noise Suppression" }, cx)
                     .when(noise, |b| b.text_color(theme.foreground))
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_noise_suppression(cx))),
             )
@@ -397,7 +398,7 @@ impl Rustcord {
                 .border_b_1()
                 .border_color(palette::wash(0.16))
                 .hover(|s| s.bg(palette::wash(0.12)))
-                .child(div().relative().w(px(64.)).h(px(36.)).flex_none().rounded(px(4.)).overflow_hidden().child(thumb).child(div().absolute().left(px(3.)).top(px(3.)).child(live_badge().h(px(12.)).text_size(px(8.)))))
+                .child(div().relative().w(px(64.)).h(px(36.)).flex_none().rounded(px(4.)).overflow_hidden().child(thumb).child(div().absolute().left(px(3.)).top(px(3.)).child(ui::live_badge().h(px(12.)).text_size(px(8.)))))
                 .child(
                     div()
                         .flex_1()
@@ -595,7 +596,7 @@ impl Rustcord {
                     .border_color(theme.sidebar_border)
                     .child(Icon::new(Glyph::VolumeHigh).size(px(20.)).text_color(theme.muted_foreground))
                     .child(div().flex_1().min_w_0().truncate().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(channel.name.clone()))
-                    .child(panel_button("call-chat-close", Glyph::X, "Close Chat", cx).on_click(cx.listener(|this, _, _, cx| {
+                    .child(ui::icon_button("call-chat-close", Glyph::X, "Close Chat", cx).on_click(cx.listener(|this, _, _, cx| {
                         this.call_chat = false;
                         cx.notify();
                     }))),
@@ -750,7 +751,7 @@ impl Rustcord {
                         .text_size(px(12.))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(gpui_kit::white())
-                        .child(live_badge())
+                        .child(ui::live_badge())
                         .child("Your stream")
                         .child(div().flex_1())
                         .when(viewers > 0, |d| d.child(div().px_1().rounded(px(6.)).bg(gpui_kit::black().opacity(0.56)).child(format!("{viewers} watching")))),
@@ -872,33 +873,18 @@ impl Rustcord {
         };
         let layout = call.stream_layout;
         let segment = |id: &'static str, text: &'static str, value: StreamLayout| {
-            let on = layout == value;
-            div()
-                .id(id)
-                .h(px(28.))
-                .px_3()
-                .rounded(px(6.))
-                .flex()
-                .items_center()
-                .cursor_pointer()
-                .text_size(px(13.))
-                .font_weight(FontWeight::SEMIBOLD)
-                .text_color(if on { gpui_kit::black() } else { gpui_kit::white() })
-                .when(on, |d| d.bg(gpui_kit::white()))
-                .when(!on, |d| d.hover(|s| s.bg(gpui_kit::white().opacity(0.12))))
-                .child(text)
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    if let Some(call) = &mut this.call {
-                        call.stream_layout = value;
-                    }
-                    cx.notify();
-                }))
+            ui::segment(id, text, layout == value, cx).on_click(cx.listener(move |this, _, _, cx| {
+                if let Some(call) = &mut this.call {
+                    call.stream_layout = value;
+                }
+                cx.notify();
+            }))
         };
         bar.child(Icon::new(Glyph::Screen).size(px(20.)).text_color(gpui_kit::white().opacity(0.7)))
             .child(div().font_weight(FontWeight::SEMIBOLD).truncate().child(title))
             .when(!several, |b| {
-                b.children(quality.map(|q| div().h(px(18.)).px_1().rounded(px(4.)).bg(gpui_kit::white().opacity(0.16)).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child(q)))
-                    .child(live_badge())
+                b.children(quality.map(|q| ui::badge(gpui_kit::white().opacity(0.16), gpui_kit::white()).child(q)))
+                    .child(ui::live_badge())
                     .when(!watching.arrivals.is_empty(), |b| b.child({
                         let (health, fps) = stream_health(&watching.arrivals, Instant::now());
                         let (label, color): (&str, Hsla) = match health {
@@ -922,8 +908,8 @@ impl Rustcord {
                     })
             })
             .child(div().flex_1())
-            .when(several, |b| b.child(div().p(px(2.)).rounded(px(8.)).bg(gpui_kit::white().opacity(0.1)).flex().child(segment("layout-focus", "Focus", StreamLayout::Focus)).child(segment("layout-split", "Side by Side", StreamLayout::Split))))
-            .child(pill_button("stop-watching", if several { "Stop All" } else { "Stop Watching" }).on_click(cx.listener(|this, _, _, cx| this.stop_watching(cx))))
+            .when(several, |b| b.child(ui::segmented().w(px(220.)).child(segment("layout-focus", "Focus", StreamLayout::Focus)).child(segment("layout-split", "Side by Side", StreamLayout::Split))))
+            .child(ui::button("stop-watching", Tone::OnMedia, cx).child(if several { "Stop All" } else { "Stop Watching" }).on_click(cx.listener(|this, _, _, cx| this.stop_watching(cx))))
             .into_any_element()
     }
 
@@ -1017,13 +1003,13 @@ impl Rustcord {
             }))
             .child(div().flex_1())
             .child(
-                round_button_small(SharedString::from(format!("volume-{id}")), Glyph::VolumeHigh, "Stream Volume")
+                ui::round_button(SharedString::from(format!("volume-{id}")), Glyph::VolumeHigh, "Stream Volume", 28.)
                     .on_mouse_down(MouseButton::Left, cx.listener(move |this, e: &MouseDownEvent, _, cx| this.open_stream_volume(volume_id.clone(), e.position, cx))),
             )
             .when(several && call.stream_layout == StreamLayout::Split, |d| {
-                d.child(pill_button(SharedString::from(format!("focus-{id}")), "Focus").on_click(cx.listener(move |this, _, _, cx| this.focus_stream(&focus_id, cx))))
+                d.child(ui::button(SharedString::from(format!("focus-{id}")), Tone::OnMedia, cx).child("Focus").on_click(cx.listener(move |this, _, _, cx| this.focus_stream(&focus_id, cx))))
             })
-            .child(pill_button(SharedString::from(format!("unwatch-{id}")), "Stop Watching").on_click(cx.listener(move |this, _, _, cx| this.unwatch_stream(&stop_id, cx))));
+            .child(ui::button(SharedString::from(format!("unwatch-{id}")), Tone::OnMedia, cx).child("Stop Watching").on_click(cx.listener(move |this, _, _, cx| this.unwatch_stream(&stop_id, cx))));
         let swap_id = id.clone();
         div()
             .id(SharedString::from(format!("stream-video-{id}-{small}")))
@@ -1036,7 +1022,7 @@ impl Rustcord {
             .overflow_hidden()
             .bg(gpui_kit::black())
             .child(body)
-            .when(several, |d| d.child(div().absolute().left(px(8.)).top(px(8.)).flex().gap_1().child(live_badge()).child(div().h(px(18.)).px_1().rounded(px(4.)).bg(gpui_kit::black().opacity(0.56)).text_size(px(11.)).font_weight(FontWeight::BOLD).text_color(gpui_kit::white()).flex().items_center().child(name.clone()))))
+            .when(several, |d| d.child(div().absolute().left(px(8.)).top(px(8.)).flex().gap_1().child(ui::live_badge()).child(ui::badge(gpui_kit::black().opacity(0.56), gpui_kit::white()).child(name.clone()))))
             .when(!small, |d| d.child(overlay))
             .when(small, |d| {
                 d.cursor_pointer()
@@ -1096,7 +1082,7 @@ impl Rustcord {
             .justify_center()
             .gap_3()
             .child(div().text_size(px(18.)).font_weight(FontWeight::BOLD).text_color(gpui_kit::white()).child(title))
-            .child(pill_button("ended-back", "Back to Call").on_click(cx.listener(|this, _, _, cx| {
+            .child(ui::button("ended-back", Tone::OnMedia, cx).child("Back to Call").on_click(cx.listener(|this, _, _, cx| {
                 if let Some(call) = &mut this.call {
                     call.ended = None;
                 }
@@ -1185,7 +1171,7 @@ impl Rustcord {
             .rounded(px(TILE_RADIUS))
             .overflow_hidden()
             .child(face)
-            .when(is_stream, |d| d.child(div().absolute().top(px(8.)).right(px(8.)).child(live_badge())))
+            .when(is_stream, |d| d.child(div().absolute().top(px(8.)).right(px(8.)).child(ui::live_badge())))
             .when(watchable, |d| {
                 d.child(
                     div()
@@ -1194,7 +1180,7 @@ impl Rustcord {
                         .flex()
                         .items_center()
                         .justify_center()
-                        .child(pill_button(SharedString::from(format!("watch-{streamer}")), if call.watching.is_empty() { "Watch Stream" } else { "Watch Too" }).on_click(cx.listener(move |this, _, _, cx| this.watch_stream(streamer.clone(), cx)))),
+                        .child(ui::button(SharedString::from(format!("watch-{streamer}")), Tone::OnMedia, cx).child(if call.watching.is_empty() { "Watch Stream" } else { "Watch Too" }).on_click(cx.listener(move |this, _, _, cx| this.watch_stream(streamer.clone(), cx)))),
                 )
             })
             .child(label)
@@ -1214,11 +1200,11 @@ impl Rustcord {
         let fullscreen = self.call_fullscreen;
         let invite = call.guild_id.clone().map(|guild| {
             let channel = call.channel.id.clone();
-            round_button("call-invite", Glyph::GroupPlus, "Invite to Voice").on_click(cx.listener(move |this, _, window, cx| this.show_invite(guild.clone(), channel.clone(), window, cx)))
+            ui::round_button("call-invite", Glyph::GroupPlus, "Invite to Voice", 40.).on_click(cx.listener(move |this, _, window, cx| this.show_invite(guild.clone(), channel.clone(), window, cx)))
         });
         let strip_toggle = (!call.watching.is_empty()).then(|| {
             let hidden = self.call_strip_hidden;
-            round_button("call-strip", if hidden { Glyph::ChevronUp } else { Glyph::ChevronDown }, if hidden { "Show Members" } else { "Hide Members" }).on_click(cx.listener(|this, _, _, cx| {
+            ui::round_button("call-strip", if hidden { Glyph::ChevronUp } else { Glyph::ChevronDown }, if hidden { "Show Members" } else { "Hide Members" }, 40.).on_click(cx.listener(|this, _, _, cx| {
                 this.call_strip_hidden = !this.call_strip_hidden;
                 cx.notify();
             }))
@@ -1303,13 +1289,13 @@ impl Rustcord {
                     .gap_2()
                     .child({
                         let open = self.call_chat;
-                        round_button("call-chat", Glyph::ChatRound, if open { "Hide Chat" } else { "Show Chat" })
+                        ui::round_button("call-chat", Glyph::ChatRound, if open { "Hide Chat" } else { "Show Chat" }, 40.)
                             .when(open, |b| b.bg(gpui_kit::white()).text_color(gpui_kit::black()))
                             .on_click(cx.listener(|this, _, window, cx| this.toggle_call_chat(window, cx)))
                     })
                     .children(strip_toggle)
                     .child(
-                        round_button("call-fullscreen", if fullscreen { Glyph::FullscreenExit } else { Glyph::Fullscreen }, if fullscreen { "Exit Full Screen" } else { "Full Screen" })
+                        ui::round_button("call-fullscreen", if fullscreen { Glyph::FullscreenExit } else { Glyph::Fullscreen }, if fullscreen { "Exit Full Screen" } else { "Full Screen" }, 40.)
                             .on_click(cx.listener(move |this, _, window, cx| this.set_call_fullscreen(!fullscreen, window, cx))),
                     ),
             )
@@ -1544,10 +1530,6 @@ fn call_backdrop(id: &'static str, cx: &mut Context<Rustcord>) -> Stateful<Div> 
     )
 }
 
-fn panel_button(id: &'static str, glyph: Glyph, label: &'static str, cx: &mut Context<Rustcord>) -> Stateful<Div> {
-    panel_button_tinted(id, glyph, label, None, cx)
-}
-
 // `hover_ink` recolours the icon on hover, as the hang-up button turns red.
 fn panel_button_tinted(id: &'static str, glyph: Glyph, label: &'static str, hover_ink: Option<Hsla>, cx: &mut Context<Rustcord>) -> Stateful<Div> {
     let theme = cx.theme().clone();
@@ -1629,78 +1611,8 @@ fn chevron(id: &'static str, _cx: &mut Context<Rustcord>) -> Stateful<Div> {
         .child(Icon::new(Glyph::ChevronDown).size(px(16.)))
 }
 
-fn pill_button(id: impl Into<SharedString>, text: &'static str) -> Stateful<Div> {
-    div()
-        .id(gpui_kit::ElementId::Name(id.into()))
-        .h(px(32.))
-        .px_3()
-        .rounded(px(8.))
-        .flex()
-        .items_center()
-        .cursor_pointer()
-        .bg(gpui_kit::black().opacity(0.6))
-        .text_color(gpui_kit::white())
-        .text_size(px(14.))
-        .font_weight(FontWeight::MEDIUM)
-        .hover(|s| s.bg(gpui_kit::black().opacity(0.8)))
-        .child(text)
-}
-
 fn menu_row(id: impl Into<SharedString>, label: String, checked: bool, cx: &mut Context<Rustcord>) -> Stateful<Div> {
-    let theme = cx.theme().clone();
-    div()
-        .id(gpui_kit::ElementId::Name(id.into()))
-        .h(px(32.))
-        .px_2()
-        .rounded(px(4.))
-        .flex()
-        .items_center()
-        .justify_between()
-        .gap_2()
-        .cursor_pointer()
-        .text_size(px(14.))
-        .font_weight(FontWeight::MEDIUM)
-        .hover(|s| s.bg(palette::blurple()).text_color(gpui_kit::white()))
-        .child(div().flex_1().min_w_0().truncate().child(label))
-        .when(checked, |d| d.child(Icon::new(Glyph::Checkmark).size(px(16.)).text_color(theme.foreground)))
-}
-
-// A 28px round button over a stream's hover overlay.
-fn round_button_small(id: SharedString, glyph: Glyph, label: &'static str) -> Stateful<Div> {
-    div()
-        .id(id)
-        .size(px(28.))
-        .rounded_full()
-        .flex()
-        .items_center()
-        .justify_center()
-        .cursor_pointer()
-        .bg(gpui_kit::white().opacity(0.14))
-        .text_color(gpui_kit::white())
-        .hover(|s| s.bg(gpui_kit::white().opacity(0.24)))
-        .child(Icon::new(glyph).size(px(16.)))
-        .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
-}
-
-// A secondary call bar button: a 40px circle, white icon on a dark wash.
-fn round_button(id: &'static str, glyph: Glyph, label: &'static str) -> Stateful<Div> {
-    div()
-        .id(id)
-        .size(px(40.))
-        .rounded_full()
-        .flex()
-        .items_center()
-        .justify_center()
-        .cursor_pointer()
-        .bg(gpui_kit::white().opacity(0.1))
-        .text_color(gpui_kit::white())
-        .hover(|s| s.bg(gpui_kit::white().opacity(0.16)))
-        .child(Icon::new(glyph).size(px(20.)))
-        .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
-}
-
-fn live_badge() -> Div {
-    div().h(px(18.)).px_1().rounded(px(4.)).bg(palette::live()).text_color(gpui_kit::white()).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child("LIVE")
+    ui::menu_row(gpui_kit::ElementId::Name(id.into()), cx).child(div().flex_1().min_w_0().truncate().child(label)).when(checked, |d| d.child(Icon::new(Glyph::Checkmark).size(px(16.))))
 }
 
 // A BGRA frame as the data URL Discord's preview upload takes.
