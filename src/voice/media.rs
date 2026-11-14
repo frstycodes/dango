@@ -537,7 +537,7 @@ struct ScreenFeed {
     sound: Option<Receiver<Vec<f32>>>,
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn start_capture(source: ShareSource, options: GoLiveOptions) -> Result<ScreenFeed, String> {
     let (width, height) = go_live_size(options.resolution);
     let captured = super::capture::start(source, options.fps, width, height, options.audio)?;
@@ -545,9 +545,9 @@ fn start_capture(source: ShareSource, options: GoLiveOptions) -> Result<ScreenFe
     Ok(ScreenFeed { capture: Box::new(captured.capture), frames: captured.frames, sound })
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn start_capture(_source: ShareSource, _options: GoLiveOptions) -> Result<ScreenFeed, String> {
-    Err("Screen sharing is only implemented on macOS".into())
+    Err("Screen sharing is only implemented on macOS and Windows".into())
 }
 
 // The stream's sound: always on (not gated by mic mute or voice detection), music-tuned Opus.
