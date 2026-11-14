@@ -38,7 +38,6 @@ const PIP_DECELERATION: f32 = 0.995;
 const PIP_SNAP: Duration = Duration::from_millis(320);
 const HEADER_HEIGHT: f32 = 48.;
 const CONTROLS_HEIGHT: f32 = 96.;
-const TILE_BG: gpui_kit::Rgba = gpui_kit::Rgba { r: 0x1E as f32 / 255., g: 0x1F as f32 / 255., b: 0x22 as f32 / 255., a: 1. };
 
 // How several watched streams share the stage: one large with the rest small, or an even grid.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -300,7 +299,7 @@ impl Rustcord {
             .rounded(px(8.))
             .bg(quality.opacity(0.08))
             .border_1()
-            .border_color(Hsla::from(rgb(0x97979F)).opacity(0.16))
+            .border_color(palette::wash(0.16))
             .flex()
             .items_center()
             .justify_center()
@@ -350,7 +349,7 @@ impl Rustcord {
                     .when(noise, |b| b.text_color(theme.foreground))
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_noise_suppression(cx))),
             )
-            .child(panel_button_tinted("hang-up", Glyph::CallEnd, "Disconnect", Some(rgb(0xDA3E44).into()), cx).on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx))));
+            .child(panel_button_tinted("hang-up", Glyph::CallEnd, "Disconnect", Some(palette::danger().into()), cx).on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx))));
         let sharing = call.sharing.is_some();
         let actions = div()
             .flex()
@@ -362,7 +361,7 @@ impl Rustcord {
             })
             .child(wide_button("panel-activities", Glyph::Activities, "Start an Activity", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities aren't in Rustcord yet", cx))))
             .child(wide_button("panel-soundboard", Glyph::Soundboard, "Open Soundboard", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.show_toast("The soundboard isn't in Rustcord yet", cx))));
-        let voice = div().h(px(VOICE_HEIGHT)).p_2().flex().flex_col().gap(px(12.)).border_b_1().border_color(Hsla::from(rgb(0x97979F)).opacity(0.16)).child(header).child(actions);
+        let voice = div().h(px(VOICE_HEIGHT)).p_2().flex().flex_col().gap(px(12.)).border_b_1().border_color(palette::wash(0.16)).child(header).child(actions);
         Some(div().flex().flex_col().children(self.go_live_panel(cx)).child(voice).into_any_element())
     }
 
@@ -396,8 +395,8 @@ impl Rustcord {
                 .gap_3()
                 .cursor_pointer()
                 .border_b_1()
-                .border_color(Hsla::from(rgb(0x97979F)).opacity(0.16))
-                .hover(|s| s.bg(Hsla::from(rgb(0x97979F)).opacity(0.12)))
+                .border_color(palette::wash(0.16))
+                .hover(|s| s.bg(palette::wash(0.12)))
                 .child(div().relative().w(px(64.)).h(px(36.)).flex_none().rounded(px(4.)).overflow_hidden().child(thumb).child(div().absolute().left(px(3.)).top(px(3.)).child(live_badge().h(px(12.)).text_size(px(8.)))))
                 .child(
                     div()
@@ -719,7 +718,7 @@ impl Rustcord {
         };
         let frame: AnyElement = match &call.self_view {
             Some((frame, _)) => img(ImageSource::Render(frame.clone())).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
-            None => div().size_full().bg(TILE_BG).into_any_element(),
+            None => div().size_full().bg(palette::call_tile()).into_any_element(),
         };
         let viewers = self.own_viewers();
         let dragging = self.pip_drag.is_some();
@@ -994,7 +993,7 @@ impl Rustcord {
         let several = call.watching.len() > 1;
         let body: AnyElement = match &watch.frame {
             Some(frame) => img(ImageSource::Render(frame.clone())).size_full().into_any_element(),
-            None => div().size_full().bg(TILE_BG).flex().items_center().justify_center().text_color(gpui_kit::white().opacity(0.7)).child(format!("Joining {name}'s stream…")).into_any_element(),
+            None => div().size_full().bg(palette::call_tile()).flex().items_center().justify_center().text_color(gpui_kit::white().opacity(0.7)).child(format!("Joining {name}'s stream…")).into_any_element(),
         };
         let group = SharedString::from(format!("stream-{id}"));
         let app = self.activity_name(&id);
@@ -1129,13 +1128,13 @@ impl Rustcord {
         let face: AnyElement = match (is_stream, call.cameras.get(&state.user_id)) {
             (true, _) => div()
                 .size_full()
-                .bg(TILE_BG)
+                .bg(palette::call_tile())
                 .children(self.stream_preview(&state.user_id).map(|url| img(url).size_full().object_fit(gpui_kit::ObjectFit::Cover).opacity(0.15)))
                 .into_any_element(),
             (false, Some(frame)) => img(ImageSource::Render(frame.clone())).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
             (false, None) => div()
                 .size_full()
-                .bg(self.avatar_colors.get(&state.user_id).copied().flatten().unwrap_or(TILE_BG.into()))
+                .bg(self.avatar_colors.get(&state.user_id).copied().flatten().unwrap_or(palette::call_tile()))
                 .flex()
                 .items_center()
                 .justify_center()
@@ -1281,9 +1280,9 @@ impl Rustcord {
                     .items_center()
                     .justify_center()
                     .cursor_pointer()
-                    .bg(rgb(0xDA3E44))
+                    .bg(palette::danger())
                     .text_color(gpui_kit::white())
-                    .hover(|s| s.bg(rgb(0xA2212B)))
+                    .hover(|s| s.bg(palette::danger_hover()))
                     .child(Icon::new(Glyph::CallEnd).size(px(24.)))
                     .tooltip(|window, cx| Tooltip::new("Disconnect").build(window, cx))
                     .on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx))),
@@ -1571,7 +1570,7 @@ fn panel_button_tinted(id: &'static str, glyph: Glyph, label: &'static str, hove
 // The panel's row of equal-width call buttons, from Discord's stylesheet: 32px, 8px radius, a 12%
 // wash with a 16% border; while on (sharing, camera), green at 12% with a green icon.
 fn wide_button(id: &'static str, glyph: Glyph, label: &'static str, on: bool, enabled: bool, _cx: &mut Context<Rustcord>) -> Stateful<Div> {
-    let wash = |a: f32| Hsla::from(rgb(0x97979F)).opacity(a);
+    let wash = |a: f32| palette::wash(a);
     let green = |a: f32| Hsla::from(rgb(0x008545)).opacity(a);
     div()
         .id(id)
@@ -1701,7 +1700,7 @@ fn round_button(id: &'static str, glyph: Glyph, label: &'static str) -> Stateful
 }
 
 fn live_badge() -> Div {
-    div().h(px(18.)).px_1().rounded(px(4.)).bg(rgb(0xED4245)).text_color(gpui_kit::white()).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child("LIVE")
+    div().h(px(18.)).px_1().rounded(px(4.)).bg(palette::live()).text_color(gpui_kit::white()).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child("LIVE")
 }
 
 // A BGRA frame as the data URL Discord's preview upload takes.
