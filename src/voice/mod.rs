@@ -239,11 +239,8 @@ pub fn shareable_windows() -> Result<Vec<ShareableWindow>, String> {
 }
 
 pub fn screens() -> Result<Vec<ShareableScreen>, String> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     return capture::screens();
-    // ponytail: Windows capture shares the primary monitor whatever the id; list the rest once it can pick one.
-    #[cfg(target_os = "windows")]
-    return Ok(vec![ShareableScreen { id: 0, name: "Screen 1".into(), width: 0, height: 0 }]);
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     Err(NO_CAPTURE.into())
 }
@@ -251,9 +248,9 @@ pub fn screens() -> Result<Vec<ShareableScreen>, String> {
 // One still of `source`, BGRA, scaled to fit `max_width` (and never upscaled). Takes tens of
 // milliseconds, so call it off the UI thread.
 pub fn thumbnail(source: ShareSource, max_width: u32) -> Result<VideoFrame, String> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     return capture::thumbnail(source, max_width);
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = (source, max_width);
         Err("No thumbnails on this platform yet".into())
