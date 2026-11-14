@@ -494,7 +494,7 @@ pub struct Rustcord {
     // A short notice at the bottom, e.g. why a moderation action failed.
     toast: Option<SharedString>,
     // The Go Live picker: None closed, Some(None) loading, Some(Some(..)) listed.
-    share_picker: Option<overlays::SharePicker>,
+    share_picker: Option<go_live::SharePicker>,
     // The source picked in the Go Live window, waiting for "Go Live".
     share_choice: Option<voice::ShareSource>,
     share_choice_label: Option<String>,
