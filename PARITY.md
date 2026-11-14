@@ -42,7 +42,8 @@ Order: features first (most used at the top), then polish. `[x]` done, `[~]` par
 - [x] Threads: thread chips under messages, joined threads nested under their channel, a Threads popout in the header, Create Thread, Discord's thread menu (join, close, lock, mute, notifications, delete, leave)
 - [ ] Threads open in the main view with a breadcrumb; Discord opens them in a split pane beside the channel
 - [ ] Threads popout lists active threads only; Discord also searches older and archived ones
-- [ ] Forum channels (post list)
+- [x] Forum and media channels: post list (active from the gateway, older via THREAD_SEARCH), previews via post-data, New Post, open a post as a thread (not yet checked against a live forum)
+- [ ] Forum tags, sort and layout options, and the grid view of media channels
 - [x] Friends page (Online, All, Pending) as the Direct Messages home
 - [x] System notifications for DMs and mentions (Discord's rules: DND, muted servers and channels, notification levels, suppressed @everyone and roles), plus a Dock badge (macOS; Windows taskbar badge open)
 - [x] Server dropdown (header chevron): mark as read, notification settings, leave server
