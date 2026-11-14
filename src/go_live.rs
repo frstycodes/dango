@@ -4,9 +4,9 @@
 use std::sync::Arc;
 
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, AppContext, BoxShadow, Context, Div, FontWeight, Hsla, MouseButton, RenderImage, SharedString, Window,
+    Animation, AnimationExt, AnyElement, AppContext, Context, Div, FontWeight, Hsla, MouseButton, RenderImage, SharedString, Window,
     component::{ActiveTheme, Icon},
-    div, img, point, prelude::*, px, relative, rgb,
+    div, img, prelude::*, px, relative, rgb,
 };
 use serde::{Deserialize, Serialize};
 
@@ -299,7 +299,7 @@ impl Rustcord {
             .p(px(24.))
             .rounded(px(ui::RADIUS_XL))
             .bg(palette::surface(palette::Level::Raised, cx))
-            .shadow(pop_shadow(cx))
+            .shadow(crate::call::pop_shadow(palette::line_strong(cx), cx))
             .flex()
             .flex_col()
             .gap(px(16.))
@@ -544,16 +544,6 @@ fn selection_ring(key: &str, animate: bool, gap: Hsla) -> AnyElement {
 fn place_ring(ring: Div, grow: f32, alpha: f32) -> Div {
     let offset = 1. - 5. * grow;
     ring.top(px(offset)).left(px(offset)).right(px(offset)).bottom(px(offset)).rounded(px(ui::RADIUS_MD - offset)).opacity(alpha)
-}
-
-// --shadow-pop.
-// MOVE(ui): pop shadow, shared with call.rs's.
-fn pop_shadow(cx: &gpui_kit::App) -> Vec<BoxShadow> {
-    let drop = if cx.theme().is_dark() { gpui_kit::black().opacity(0.45) } else { Hsla::from(rgb(0x3D2A22)).opacity(0.16) };
-    vec![
-        BoxShadow { color: drop, offset: point(px(0.), px(12.)), blur_radius: px(32.), spread_radius: px(0.), inset: false },
-        BoxShadow { color: palette::line_strong(cx), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false },
-    ]
 }
 
 // --ease-out, near enough: cubic, landing softly.

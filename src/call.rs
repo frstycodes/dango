@@ -1888,6 +1888,7 @@ impl Inks {
 }
 
 // --shadow-pop: a soft drop plus a 1px ring in the strong line colour.
+// MOVE(ui): pop shadow, also used by the Go live picker and the stream card.
 pub(crate) fn pop_shadow(ring: Hsla, cx: &App) -> Vec<BoxShadow> {
     let drop = if cx.theme().is_dark() { gpui_kit::black().opacity(0.45) } else { Hsla::from(rgb(0x3D2A22)).opacity(0.16) };
     vec![
