@@ -132,11 +132,12 @@ button.cat:hover, .cat.is-hover { background: var(--hover); color: var(--text-st
 .ch.thread { height: 28px; padding-left: 34px; }
 /* Thread tree: each thread draws its branch from the row above (bridging the list gap) down to its
    middle; a thread with another below also draws the trunk on through its own row, so the line never breaks. */
-.ch.thread { --tree-gap: 2px; }
+/* Opaque so the trunk and a branch overlapping where it curves away never show as a doubled line. */
+.ch.thread { --tree-gap: 2px; --tree-line: color-mix(in oklch, var(--text-faint) 50%, var(--bg-sidebar)); }
 /* The first thread's line starts just below its parent, never touching the parent row's fill. */
 .ch:not(.thread) + .ch.thread { --tree-gap: -4px; }
-.ch.thread::after { content: ""; position: absolute; left: 16px; top: calc(-1 * var(--tree-gap)); width: 12px; height: calc(50% + var(--tree-gap)); border-left: 1.5px solid var(--line-strong); border-bottom: 1.5px solid var(--line-strong); border-bottom-left-radius: 8px; pointer-events: none; }
-.ch.thread:has(+ .ch.thread) .nm::before { content: ""; position: absolute; left: 16px; top: calc(50% - 8px); bottom: 0; border-left: 1.5px solid var(--line-strong); pointer-events: none; }
+.ch.thread::after { content: ""; position: absolute; left: 16px; top: calc(-1 * var(--tree-gap)); width: 12px; height: calc(50% + var(--tree-gap)); border-left: 1.5px solid var(--tree-line); border-bottom: 1.5px solid var(--tree-line); border-bottom-left-radius: 8px; pointer-events: none; }
+.ch.thread:has(+ .ch.thread) .nm::before { content: ""; position: absolute; left: 16px; top: calc(50% - 8px); bottom: 0; border-left: 1.5px solid var(--tree-line); pointer-events: none; }
 
 /* Voice occupants */
 .vp { display: flex; align-items: center; gap: var(--space-2); width: 100%; height: 30px; padding: 0 var(--space-2) 0 32px; border-radius: var(--radius-sm); color: var(--text-muted); font-weight: var(--weight-medium); text-align: left; transition: background var(--dur-hover), color var(--dur-hover); }
