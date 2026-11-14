@@ -1360,3 +1360,105 @@ fn fs_surface(input: SurfaceVarying) -> @location(0) vec4<f32> {
 
     return ycbcr_to_RGB * y_cb_cr;
 }
+
+// --- backdrop blur --- //
+
+// A dual Kawase blur. Level passes downsample the backdrop region copied out of the frame by
+// halves, then upsample back to half resolution; the composite upsamples into the frame inside
+// the element. `BackdropBlurPlan` picks the level count and tap offset.
+
+struct BackdropBlurPass {
+    bounds: Bounds,
+    clip_bounds: Bounds,
+    corner_radii: Corners,
+    target_size: vec2<f32>,
+    region_origin: vec2<f32>,
+    source_size: vec2<f32>,
+    source_texture_size: vec2<f32>,
+    coordinate_scale: f32,
+    tap_offset: f32,
+    saturation: f32,
+    opacity: f32,
+}
+
+@group(1) @binding(0) var<uniform> backdrop_blur_pass: BackdropBlurPass;
+@group(1) @binding(1) var t_backdrop: texture_2d<f32>;
+@group(1) @binding(2) var s_backdrop: sampler;
+
+struct BackdropBlurVarying {
+    @builtin(position) position: vec4<f32>,
+}
+
+@vertex
+fn vs_backdrop_blur(@builtin(vertex_index) vertex_id: u32) -> BackdropBlurVarying {
+    let unit_vertex = vec2<f32>(f32(vertex_id & 1u), 0.5 * f32(vertex_id & 2u));
+    let clip_bounds = backdrop_blur_pass.clip_bounds;
+    let position = unit_vertex * clip_bounds.size + clip_bounds.origin;
+    let device_position =
+        position / backdrop_blur_pass.target_size * vec2<f32>(2.0, -2.0) + vec2<f32>(-1.0, 1.0);
+
+    var out = BackdropBlurVarying();
+    out.position = vec4<f32>(device_position, 0.0, 1.0);
+    return out;
+}
+
+// Samples the source at `position`, in texels of its region. Positions outside the region
+// mirror back into it, like CSS backdrop-filter's mirror edge mode, and stay half a texel
+// inside so bilinear filtering never reads past the region.
+fn sample_backdrop(position: vec2<f32>) -> vec4<f32> {
+    let size = backdrop_blur_pass.source_size;
+    let mirrored = size - abs(size - abs(position));
+    let clamped = clamp(mirrored, vec2<f32>(0.5), max(size - 0.5, vec2<f32>(0.5)));
+    return textureSampleLevel(
+        t_backdrop,
+        s_backdrop,
+        clamped / backdrop_blur_pass.source_texture_size,
+        0.0,
+    );
+}
+
+fn backdrop_source_position(target_position: vec2<f32>) -> vec2<f32> {
+    return (target_position - backdrop_blur_pass.region_origin) * backdrop_blur_pass.coordinate_scale;
+}
+
+fn backdrop_upsample(center: vec2<f32>) -> vec4<f32> {
+    let offset = backdrop_blur_pass.tap_offset;
+    var sum = sample_backdrop(center + vec2<f32>(-2.0 * offset, 0.0)) +
+        sample_backdrop(center + vec2<f32>(2.0 * offset, 0.0)) +
+        sample_backdrop(center + vec2<f32>(0.0, -2.0 * offset)) +
+        sample_backdrop(center + vec2<f32>(0.0, 2.0 * offset));
+    sum += 2.0 * (sample_backdrop(center + vec2<f32>(-offset, -offset)) +
+        sample_backdrop(center + vec2<f32>(offset, -offset)) +
+        sample_backdrop(center + vec2<f32>(-offset, offset)) +
+        sample_backdrop(center + vec2<f32>(offset, offset)));
+    return sum / 12.0;
+}
+
+@fragment
+fn fs_backdrop_blur_down(input: BackdropBlurVarying) -> @location(0) vec4<f32> {
+    let center = backdrop_source_position(input.position.xy);
+    let offset = backdrop_blur_pass.tap_offset;
+    var sum = 4.0 * sample_backdrop(center);
+    sum += sample_backdrop(center + vec2<f32>(-offset, -offset));
+    sum += sample_backdrop(center + vec2<f32>(offset, -offset));
+    sum += sample_backdrop(center + vec2<f32>(-offset, offset));
+    sum += sample_backdrop(center + vec2<f32>(offset, offset));
+    return sum / 8.0;
+}
+
+@fragment
+fn fs_backdrop_blur_up(input: BackdropBlurVarying) -> @location(0) vec4<f32> {
+    return backdrop_upsample(backdrop_source_position(input.position.xy));
+}
+
+@fragment
+fn fs_backdrop_blur_composite(input: BackdropBlurVarying) -> @location(0) vec4<f32> {
+    let color = backdrop_upsample(backdrop_source_position(input.position.xy));
+
+    // CSS saturate(): mixes each color with its luminance, by the filter's Rec. 709 weights.
+    let luminance = dot(color.rgb, vec3<f32>(0.213, 0.715, 0.072));
+    let saturated = saturate(mix(vec3<f32>(luminance), color.rgb, backdrop_blur_pass.saturation));
+
+    let distance = quad_sdf(input.position.xy, backdrop_blur_pass.bounds, backdrop_blur_pass.corner_radii);
+    return blend_color(vec4<f32>(saturated, 1.0), saturate(0.5 - distance) * backdrop_blur_pass.opacity);
+}
