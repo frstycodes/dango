@@ -1,10 +1,11 @@
-// Go Live's memory: the last source we shared, found again next time even when its window is gone.
-use gpui_kit::Context;
+// Go Live's memory: the last source we shared, found again next time even when its window is gone,
+// and what the Toggle Screen Share keybind does with it.
+use gpui_kit::{AppContext, Context};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     Rustcord,
-    voice::{ShareSource, ShareableScreen, ShareableWindow},
+    voice::{self, ShareSource, ShareableScreen, ShareableWindow},
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -56,7 +57,60 @@ fn window_choice(window: &ShareableWindow) -> (ShareSource, String) {
     (ShareSource::Window(window.id), window.title.clone())
 }
 
+#[derive(Debug, PartialEq)]
+pub enum KeybindMove {
+    Nothing,
+    Stop,
+    // Go live again with the remembered source, if it can still be found.
+    Resume,
+    Pick,
+}
+
+pub fn keybind_move(in_call: bool, live: bool, remembered: bool) -> KeybindMove {
+    if !in_call {
+        return KeybindMove::Nothing;
+    }
+    match (live, remembered) {
+        (true, _) => KeybindMove::Stop,
+        (false, true) => KeybindMove::Resume,
+        (false, false) => KeybindMove::Pick,
+    }
+}
+
 impl Rustcord {
+    pub(crate) fn toggle_share_keybind(&mut self, cx: &mut Context<Self>) {
+        let in_call = self.call.as_ref().is_some_and(|c| c.connected);
+        let live = self.call.as_ref().is_some_and(|c| c.sharing.is_some());
+        match keybind_move(in_call, live, self.prefs.last_share.is_some()) {
+            KeybindMove::Nothing => {}
+            KeybindMove::Stop => self.toggle_screen_share(cx),
+            KeybindMove::Resume => self.resume_share(cx),
+            KeybindMove::Pick => self.open_share_picker(cx),
+        }
+    }
+
+    // Listing windows takes tens of milliseconds, so it runs off the UI thread; the call may have
+    // changed by the time it's back.
+    fn resume_share(&mut self, cx: &mut Context<Self>) {
+        let Some(last) = self.prefs.last_share.clone() else { return };
+        let listing = cx.background_spawn(async { (voice::shareable_windows().unwrap_or_default(), voice::screens().unwrap_or_default()) });
+        cx.spawn(async move |this, cx| {
+            let (windows, screens) = listing.await;
+            this.update(cx, |this, cx| {
+                let ready = this.call.as_ref().is_some_and(|c| c.connected && c.sharing.is_none());
+                if !ready {
+                    return;
+                }
+                match last.find(&windows, &screens) {
+                    Some((source, label)) => this.share_and_remember(source, label, &windows, cx),
+                    None => this.open_share_picker(cx),
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+
     // Goes live through `start_share`, then remembers the source once the stream is really up.
     pub(crate) fn share_and_remember(&mut self, source: ShareSource, label: String, windows: &[ShareableWindow], cx: &mut Context<Self>) {
         let last = LastShare::of(source, windows);
@@ -105,5 +159,14 @@ mod tests {
         assert_eq!(preselect(None, &windows, &screens()).map(|(s, _)| s), Some(ShareSource::Screen(7)));
         assert_eq!(preselect(None, &windows, &[]), None);
         assert_eq!(LastShare::of(ShareSource::Window(10), &windows), Some(LastShare::Window { id: 10, pid: 100, app_name: "Figma".into() }));
+    }
+
+    #[test]
+    fn keybind_stops_resumes_or_asks() {
+        assert_eq!(keybind_move(false, false, true), KeybindMove::Nothing);
+        assert_eq!(keybind_move(false, true, true), KeybindMove::Nothing);
+        assert_eq!(keybind_move(true, true, false), KeybindMove::Stop);
+        assert_eq!(keybind_move(true, false, true), KeybindMove::Resume);
+        assert_eq!(keybind_move(true, false, false), KeybindMove::Pick);
     }
 }
