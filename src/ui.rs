@@ -6,7 +6,7 @@
 // match, or sit inset by the surface's padding. `surface` insets its content; `media` and `edge`
 // round theirs.
 use gpui_kit::{
-    App, Corners, Div, ElementId, FontWeight, Hsla, ImageSource, Img, InteractiveElement, ParentElement, Pixels, SharedString, Stateful, StatefulInteractiveElement, Styled, StyledImage, Window,
+    App, Corners, Div, ElementId, FontWeight, Hsla, ImageSource, Img, InteractiveElement, ParentElement, Pixels, SharedString, Stateful, StatefulInteractiveElement, Styled, Window,
     component::{ActiveTheme, Icon, tooltip::Tooltip},
     div, img, prelude::FluentBuilder, px,
 };
