@@ -14,7 +14,7 @@
 @keyframes ripple { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.42); } }
 @keyframes speak { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.35); } }
 /* Buttons */
-.btn { --bg: var(--selected); --fg: var(--text-strong); --bg-h: var(--press); display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); height: 36px; padding: 0 14px; border-radius: var(--radius-md); background: var(--bg); color: var(--fg); font-size: var(--text-sm); font-weight: var(--weight-semibold); white-space: nowrap; transition: background var(--dur-hover) var(--ease-out), transform var(--dur-press) var(--ease-out); }
+.btn { --bg: var(--selected); --fg: var(--text-strong); --bg-h: var(--press); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); height: 36px; padding: 0 14px; border-radius: var(--radius-md); background: var(--bg); color: var(--fg); font-size: var(--text-sm); font-weight: var(--weight-semibold); white-space: nowrap; transition: background var(--dur-hover) var(--ease-out), transform var(--dur-press) var(--ease-out); }
 .btn:hover { background: var(--bg-h); }
 .btn:active { transform: scale(0.97); }
 .btn--primary { --bg: var(--accent); --bg-h: var(--accent-hover); --fg: var(--on-accent); }
@@ -39,7 +39,7 @@
 .bars.still i { animation: none; }
 
 /* Inputs */
-.field { display: grid; gap: 6px; min-width: 0; }
+.field { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; }
 .field label { font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--text-muted); }
 .input { display: flex; align-items: center; gap: var(--space-2); height: 40px; padding: 0 12px; border-radius: var(--radius-md); background: var(--bg-page); border: 1px solid var(--line-strong); color: var(--text-faint); transition: border-color var(--dur-hover), box-shadow var(--dur-hover); }
 .input input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--text-strong); font-size: var(--text-md); }
