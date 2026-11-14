@@ -1,6 +1,8 @@
 // The server rail and the channel list.
+use std::time::Duration;
+
 use gpui_kit::{
-    AnyElement, App, Context, Div, FontWeight, Hsla, Radians, SharedString, Window,
+    Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, Radians, SharedString, Window,
     component::{ActiveTheme, Icon, tooltip::Tooltip},
     div, hsla, img, linear_color_stop, linear_gradient, prelude::*, px, rgb,
 };
@@ -8,7 +10,7 @@ use gpui_motion_kit::core::{Motion, Target};
 
 use crate::{
     Rustcord, Edge, Part, RailEntry, Status,
-    discord::{Channel, ChannelKind, Folder, Guild, Status as Status_},
+    discord::{ActivityKind, Channel, ChannelKind, Folder, Guild, Status as Status_},
     icons::Glyph,
     layout::{RAIL_WIDTH, avatar_with_status},
     motion, palette,
@@ -260,15 +262,22 @@ impl Rustcord {
             }))
     }
 
-    // Discord's hover card on someone live: the stream's thumbnail and a way in.
-    fn stream_card(&self, user_id: &str, name: &str, connected: bool, channel: &Channel, key: &str, cx: &mut Context<Self>) -> impl IntoElement {
+    // Discord's hover card on someone live: the stream's thumbnail, what they share, who watches,
+    // and a way in. It grows toward its row from 96% with a fade, passing 100% before it settles.
+    fn stream_card(&self, streamer: Streamer, channel: &Channel, stream_key: &str, connected: bool, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
-        let preview = self.stream_preview(user_id);
-        let streamer = user_id.to_owned();
-        let (join, hover_key) = (channel.clone(), key.to_owned());
+        // Only once the bytes are in, so the fade below shows the picture rather than an empty box.
+        let preview = self.stream_preview(streamer.id).filter(|url| matches!(window.use_asset::<gpui_kit::ImgResourceLoader>(&gpui_kit::Resource::Uri(url.clone().into()), cx), Some(Ok(_))));
+        let app = self.presences.get(streamer.id).and_then(|p| p.activity.as_ref()).filter(|a| matches!(a.kind, ActivityKind::Playing | ActivityKind::Streaming)).map(|a| a.text.as_str());
+        let meta = stream_meta(app, self.stream_live_since.get(stream_key).map(|at| at.elapsed()));
+        let viewer_ids: Vec<&String> = self.stream_viewers.get(stream_key).into_iter().flatten().filter(|id| *id != streamer.id).collect();
+        let viewer_names: Vec<String> = viewer_ids.iter().map(|id| self.user_name(id)).collect();
+        let viewer_avatars: Vec<String> = viewer_ids.iter().take(3).map(|id| self.user_avatar(id)).collect();
+        let hover_key = stream_hover_key(streamer.id);
+        let (watch_id, watch_channel, join_channel) = (streamer.id.to_owned(), channel.clone(), channel.clone());
         div()
-            .id(SharedString::from(format!("stream-card-{user_id}")))
-            .w(px(288.))
+            .id(SharedString::from(format!("stream-card-{}", streamer.id)))
+            .w(px(STREAM_CARD_WIDTH))
             .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
                 this.stream_card_hover = hovered.then(|| hover_key.clone());
                 cx.notify();
@@ -282,51 +291,77 @@ impl Rustcord {
             .flex()
             .flex_col()
             .child(
-                div().w_full().h(px(162.)).bg(gpui_kit::black()).flex().items_center().justify_center().child(match preview {
-                    Some(url) => img(url).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
-                    None => div().text_size(px(14.)).text_color(theme.muted_foreground).child("Loading preview…").into_any_element(),
-                }),
+                div()
+                    .relative()
+                    .w_full()
+                    .aspect_ratio(16. / 9.)
+                    .bg(gpui_kit::black())
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(div().text_size(px(14.)).text_color(theme.muted_foreground).child("Loading preview…"))
+                    .children(preview.map(|url| {
+                        img(url)
+                            .absolute()
+                            .size_full()
+                            .object_fit(gpui_kit::ObjectFit::Cover)
+                            .with_animation(SharedString::from(format!("stream-preview-{}", streamer.id)), Animation::new(Duration::from_millis(200)), |el, t| el.opacity(t))
+                    }))
+                    .child(live_pill(cx).absolute().top(px(8.)).left(px(8.)).h(px(20.)).px(px(6.)).text_size(px(12.))),
             )
             .child(
                 div()
                     .p_3()
                     .flex()
-                    .items_center()
-                    .gap_2()
-                    .child(div().flex_1().min_w_0().truncate().text_size(px(14.)).font_weight(FontWeight::MEDIUM).child(format!("{name} is streaming")))
-                    .child({
-                        let d = div();
-                        d.child(
-                            div()
-                                .id("card-watch")
-                                .h(px(32.))
-                                .px_3()
-                                .rounded(px(8.))
-                                .flex()
-                                .items_center()
-                                .cursor_pointer()
-                                .bg(palette::blurple())
-                                .text_color(gpui_kit::white())
-                                .text_size(px(14.))
-                                .font_weight(FontWeight::MEDIUM)
-                                .child("Watch Stream")
-                                .on_click(cx.listener(move |this, _, window, cx| {
+                    .flex_col()
+                    .gap_3()
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .child(img(streamer.avatar.to_owned()).size(px(24.)).flex_none().rounded_full())
+                            .child(div().flex_1().min_w_0().truncate().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(theme.foreground).child(streamer.name.to_owned()))
+                            .children(meta.map(|meta| div().flex_none().max_w(px(150.)).truncate().text_size(px(12.)).text_color(theme.muted_foreground).child(meta))),
+                    )
+                    .children(viewer_line(&viewer_names).map(|line| {
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .child(div().flex().flex_none().children(viewer_avatars.into_iter().enumerate().map(|(i, avatar)| {
+                                // A ring in the card's own colour cuts each face out of the one beneath.
+                                div().size(px(22.)).rounded_full().border_2().border_color(theme.popover).bg(theme.popover).when(i > 0, |a| a.ml(px(-8.))).child(img(avatar).size_full().rounded_full())
+                            })))
+                            .child(div().flex_1().min_w_0().truncate().text_size(px(12.)).text_color(theme.muted_foreground).child(line))
+                    }))
+                    .child(
+                        div()
+                            .flex()
+                            .gap_2()
+                            .child(card_button("card-watch", if connected { "Watch Stream" } else { "Join and Watch" }, true, cx).flex_1().on_click(cx.listener(move |this, _, window, cx| {
+                                this.stream_card_hover = None;
+                                match connected {
+                                    true => this.watch_stream(watch_id.clone(), cx),
+                                    // Not in that call yet: join it, then watch once connected.
+                                    false => this.watch_on_connect = Some(watch_id.clone()),
+                                }
+                                this.show_call(watch_channel.clone(), window, cx);
+                            })))
+                            .when(!connected, |r| {
+                                r.child(card_button("card-join", "Join", false, cx).on_click(cx.listener(move |this, _, window, cx| {
                                     this.stream_card_hover = None;
-                                    match connected {
-                                        true => {
-                                            this.watch_stream(streamer.clone(), cx);
-                                            this.show_call(join.clone(), window, cx);
-                                        }
-                                        // Not in that call yet: join it, then watch once connected.
-                                        false => {
-                                            this.watch_on_connect = Some(streamer.clone());
-                                            this.show_call(join.clone(), window, cx);
-                                        }
-                                    }
-                                })),
-                        )
-                    }),
+                                    this.watch_on_connect = None;
+                                    this.show_call(join_channel.clone(), window, cx);
+                                })))
+                            }),
+                    ),
             )
+            .with_animation(SharedString::from(format!("stream-card-open-{}", streamer.id)), Animation::new(Duration::from_millis(180)).with_easing(motion::back_out), |card, t| {
+                // gpui has no transform, so the card scales by its width, anchored at the row's edge;
+                // the 16:9 preview follows it.
+                card.w(px(STREAM_CARD_WIDTH * (0.96 + 0.04 * t))).opacity((t / 0.6).clamp(0., 1.))
+            })
     }
 
     pub fn render_channels(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -341,7 +376,7 @@ impl Rustcord {
             (_, Some(guild)) => {
                 let me = self.my_id().to_owned();
                 for (category, channels) in channel_sections(&guild, &me) {
-                    let rows_for = channels.iter().flat_map(|c| self.channel_rows(c, &guild, cx)).collect();
+                    let rows_for = channels.iter().flat_map(|c| self.channel_rows(c, &guild, window, cx)).collect();
                     match category {
                         Some(category) => rows.push(self.section(category, rows_for, window, cx)),
                         None => rows.extend(rows_for),
@@ -494,7 +529,7 @@ impl Rustcord {
         div().flex().flex_col().gap(px(ROW_GAP)).child(label).child(body).into_any_element()
     }
 
-    fn channel_rows(&self, channel: &Channel, guild: &Guild, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn channel_rows(&self, channel: &Channel, guild: &Guild, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let theme = cx.theme().clone();
         let selected = self.channel.as_ref().is_some_and(|c| c.id == channel.id);
         let settings = self.guild_settings.get(&guild.id);
@@ -589,11 +624,14 @@ impl Rustcord {
                 let talking = speaking.contains(&state.user_id);
                 let streamer = state.user_id.clone();
                 let is_watched = watching.as_ref() == Some(&state.user_id);
-                let stream_key = format!("stream-{}", state.user_id);
+                let hover_key = stream_hover_key(&state.user_id);
                 // Open while the row or the card itself is hovered, so the card's button can be reached.
-                let card_open = self.hovered.as_deref() == Some(stream_key.as_str()) || self.stream_card_hover.as_deref() == Some(stream_key.as_str());
-                let stream_card = (state.streaming && card_open).then(|| self.stream_card(&state.user_id, &name, connected, channel, &stream_key, cx).into_any_element());
-                let stream_hover = cx.listener(move |this, hovered: &bool, _, cx| this.set_hovered(&stream_key, *hovered, cx));
+                let card_open = self.hovered.as_deref() == Some(hover_key.as_str()) || self.stream_card_hover.as_deref() == Some(hover_key.as_str());
+                let stream_card = (state.streaming && card_open).then(|| {
+                    let stream_key = format!("guild:{}:{}:{}", guild.id, channel.id, state.user_id);
+                    self.stream_card(Streamer { id: &state.user_id, name: &name, avatar: &avatar }, channel, &stream_key, connected, window, cx).into_any_element()
+                });
+                let stream_hover = cx.listener(move |this, hovered: &bool, _, cx| this.set_hovered(&hover_key, *hovered, cx));
                 rows.push(
                     div()
                         .id(SharedString::from(format!("voice-{}", state.user_id)))
@@ -618,7 +656,7 @@ impl Rustcord {
                         .when(state.muted, |r| r.child(Icon::new(Glyph::MicOff).size(px(16.))))
                         .when(state.deafened, |r| r.child(Icon::new(Glyph::HeadphonesOff).size(px(16.))))
                         .when(state.streaming, |r| {
-                            r.child(div().h(px(16.)).px_1().rounded(px(4.)).bg(theme.danger).text_color(gpui_kit::white()).text_size(px(10.)).font_weight(FontWeight::BOLD).flex().items_center().child("LIVE"))
+                            r.child(live_pill(cx).h(px(16.)).px_1().text_size(px(10.)))
                         })
                         .on_mouse_down(gpui_kit::MouseButton::Right, {
                             let user_id = state.user_id.clone();
@@ -849,4 +887,106 @@ fn identity_hue(id: &str) -> f32 {
 
 fn muted_line(text: &'static str, cx: &App) -> AnyElement {
     div().px_2().py_2().text_color(cx.theme().muted_foreground).child(text).into_any_element()
+}
+
+const STREAM_CARD_WIDTH: f32 = 288.;
+
+struct Streamer<'a> {
+    id: &'a str,
+    name: &'a str,
+    avatar: &'a str,
+}
+
+// The row and its card share one hover key, so moving from one onto the other keeps the card open.
+fn stream_hover_key(user_id: &str) -> String {
+    format!("stream-{user_id}")
+}
+
+// Sized by the caller: small on a voice row, larger over a preview.
+fn live_pill(cx: &App) -> Div {
+    div().rounded(px(4.)).bg(cx.theme().danger).text_color(gpui_kit::white()).font_weight(FontWeight::BOLD).flex().items_center().child("LIVE")
+}
+
+// --control-primary-background (default, hover) or --control-secondary-background, a grey wash.
+fn card_button(id: &'static str, label: &'static str, primary: bool, cx: &App) -> gpui_kit::Stateful<Div> {
+    let wash = |alpha| hsla(240. / 360., 0.04, 0.608, alpha);
+    let (fill, hover, ink): (Hsla, Hsla, Hsla) = match primary {
+        true => (palette::blurple(), rgb(0x4752C4).into(), gpui_kit::white()),
+        false => (wash(0.12), wash(0.2), cx.theme().foreground),
+    };
+    div()
+        .id(id)
+        .h(px(32.))
+        .px_4()
+        .flex_none()
+        .rounded(px(8.))
+        .flex()
+        .items_center()
+        .justify_center()
+        .cursor_pointer()
+        .bg(fill)
+        .hover(move |s| s.bg(hover))
+        .text_color(ink)
+        .text_size(px(14.))
+        .font_weight(FontWeight::MEDIUM)
+        .child(label)
+}
+
+// "Theo watching", "Theo and Ivy watching", "Theo, Ivy and Sam watching", "Theo, Ivy and 2 others watching".
+fn viewer_line(names: &[String]) -> Option<String> {
+    let who = match names {
+        [] => return None,
+        [one] => one.clone(),
+        [a, b] => format!("{a} and {b}"),
+        [a, b, c] => format!("{a}, {b} and {c}"),
+        [a, b, rest @ ..] => format!("{a}, {b} and {} others", rest.len()),
+    };
+    Some(format!("{who} watching"))
+}
+
+// The shared app and how long it's been live, "Blender · 24 min"; either half may be missing.
+fn stream_meta(app: Option<&str>, live: Option<Duration>) -> Option<String> {
+    let parts: Vec<String> = app.map(str::to_owned).into_iter().chain(live.map(live_for)).collect();
+    (!parts.is_empty()).then(|| parts.join(" · "))
+}
+
+fn live_for(live: Duration) -> String {
+    let minutes = live.as_secs() / 60;
+    match (minutes / 60, minutes % 60) {
+        (0, 0) => "Just started".into(),
+        (0, m) => format!("{m} min"),
+        (h, 0) => format!("{h} hr"),
+        (h, m) => format!("{h} hr {m} min"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn viewer_line_names_two_then_counts() {
+        let names = |n: &[&str]| n.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(viewer_line(&[]), None);
+        assert_eq!(viewer_line(&names(&["Theo"])).as_deref(), Some("Theo watching"));
+        assert_eq!(viewer_line(&names(&["Theo", "Ivy"])).as_deref(), Some("Theo and Ivy watching"));
+        assert_eq!(viewer_line(&names(&["Theo", "Ivy", "Sam"])).as_deref(), Some("Theo, Ivy and Sam watching"));
+        assert_eq!(viewer_line(&names(&["Theo", "Ivy", "Sam", "Ada"])).as_deref(), Some("Theo, Ivy and 2 others watching"));
+    }
+
+    #[test]
+    fn live_for_drops_zero_units() {
+        assert_eq!(live_for(Duration::from_secs(59)), "Just started");
+        assert_eq!(live_for(Duration::from_secs(24 * 60 + 59)), "24 min");
+        assert_eq!(live_for(Duration::from_secs(2 * 3600)), "2 hr");
+        assert_eq!(live_for(Duration::from_secs(3600 + 5 * 60)), "1 hr 5 min");
+    }
+
+    #[test]
+    fn stream_meta_joins_what_it_has() {
+        assert_eq!(stream_meta(Some("Blender"), Some(Duration::from_secs(24 * 60))).as_deref(), Some("Blender · 24 min"));
+        assert_eq!(stream_meta(None, Some(Duration::from_secs(24 * 60))).as_deref(), Some("24 min"));
+        assert_eq!(stream_meta(Some("Blender"), None).as_deref(), Some("Blender"));
+        assert_eq!(stream_meta(None, None), None);
+    }
 }

@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | gallery | profile | emoji | switcher | status | unread | login | scanned | failed | empty.
+// CHORD_DEMO=chat | gallery | profile | emoji | switcher | status | unread | stream-card | login | scanned | failed | empty.
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -49,6 +49,15 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         }
         "appearance" => chord.open_settings(crate::settings::Page::Appearance, window, cx),
         "unread" => chord.unread_marker = Some(103),
+        "stream-card" => {
+            let key = "guild:1:lounge:12582912".to_owned();
+            let blender = Activity { kind: ActivityKind::Playing, text: "Blender".into(), more: 0 };
+            chord.presences.insert("12582912".into(), Presence { status: Presence_::Online, activity: Some(blender) });
+            let since = std::time::Instant::now().checked_sub(std::time::Duration::from_secs(24 * 60)).unwrap_or_else(std::time::Instant::now);
+            chord.stream_live_since.insert(key.clone(), since);
+            chord.on_event(Event::StreamViewers { key, viewers: vec!["8388608".into(), "16777216".into(), "20971520".into(), "4194304".into()] }, cx);
+            chord.stream_card_hover = Some("stream-12582912".into());
+        }
         "user-menu" => {
             demo_call(chord);
             chord.call_view = false;
