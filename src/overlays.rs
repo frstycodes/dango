@@ -1063,7 +1063,7 @@ fn quality(title: &'static str, segments: impl IntoIterator<Item = AnyElement>, 
         .flex_col()
         .gap_2()
         .child(div().text_size(px(14.)).font_weight(FontWeight::MEDIUM).text_color(theme.muted_foreground).child(title))
-        .child(crate::ui::segmented().children(segments))
+        .child(crate::ui::segmented(cx).children(segments))
 }
 
 // Ease-out cubic, for fades that should land softly beside a spring.

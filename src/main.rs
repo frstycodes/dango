@@ -41,6 +41,7 @@ mod sounds;
 mod tray;
 mod ui;
 mod splash;
+mod design_system;
 mod app_icon;
 mod voice;
 mod window_controls;
@@ -87,21 +88,26 @@ fn main() {
         cx.text_system()
             .add_fonts(
                 [
-                    include_bytes!("../assets/discord/fonts/gg-sans-Regular.ttf").as_slice(),
-                    include_bytes!("../assets/discord/fonts/gg-sans-Medium.ttf"),
-                    include_bytes!("../assets/discord/fonts/gg-sans-SemiBold.ttf"),
-                    include_bytes!("../assets/discord/fonts/gg-sans-Bold.ttf"),
-                    include_bytes!("../assets/discord/fonts/gg-sans-ExtraBold.ttf"),
+                    include_bytes!("../assets/fonts/Gabarito-Regular.ttf").as_slice(),
+                    include_bytes!("../assets/fonts/Gabarito-Medium.ttf"),
+                    include_bytes!("../assets/fonts/Gabarito-SemiBold.ttf"),
+                    include_bytes!("../assets/fonts/Gabarito-Bold.ttf"),
+                    include_bytes!("../assets/fonts/Gabarito-ExtraBold.ttf"),
                     include_bytes!("../assets/discord/fonts/gg-mono-Regular.ttf"),
                     include_bytes!("../assets/discord/fonts/gg-mono-Bold.ttf"),
                 ]
                 .map(std::borrow::Cow::Borrowed)
                 .to_vec(),
             )
-            .expect("bundled gg sans");
+            .expect("bundled fonts");
         cx.set_http_client(std::sync::Arc::new(discord::Images::default()));
         cx.set_reduce_motion(material::system_reduce_motion());
         settings::Prefs::load().app_icon.apply();
+        // WAVE_DESIGN=1 opens only the design system gallery, no sign-in needed.
+        if std::env::var_os("WAVE_DESIGN").is_some() {
+            design_system::open(cx);
+            return;
+        }
 
         // Signed in: a small splash window shows while the main window loads hidden behind it.
         let signed_in = std::env::var("DISCORD_TOKEN").is_ok_and(|t| !t.trim().is_empty()) || auth::stored_token().is_some();
