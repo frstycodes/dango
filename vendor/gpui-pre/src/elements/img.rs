@@ -492,16 +492,18 @@ impl Element for Img {
                         .object_fit
                         .get_bounds(bounds, data.size(layout_state.frame_index));
                     let corner_radii = style.corner_radii.to_pixels(window.rem_size());
-                    window
-                        .paint_image(
-                            bounds,
-                            new_bounds,
-                            corner_radii,
-                            data,
-                            layout_state.frame_index,
-                            self.style.grayscale,
-                        )
-                        .log_err();
+                    window.with_corner_shape(style.corner_shape, |window| {
+                        window
+                            .paint_image(
+                                bounds,
+                                new_bounds,
+                                corner_radii,
+                                data,
+                                layout_state.frame_index,
+                                self.style.grayscale,
+                            )
+                            .log_err();
+                    });
                 } else if let Some(replacement) = &mut layout_state.replacement {
                     replacement.paint(window, cx);
                 }
