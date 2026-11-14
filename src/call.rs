@@ -1634,7 +1634,7 @@ impl Rustcord {
             };
             let level = (kind == DeviceKind::Input).then(|| self.call.as_ref().map(|c| c.level.0)).flatten();
             body.push(
-                self.menu_slider(SharedString::from(key), label, value / 2., &ink, move |this, f, cx| {
+                self.call_menu_slider(SharedString::from(key), label, value / 2., &ink, move |this, f, cx| {
                     this.update_prefs(cx, |p| match kind {
                         DeviceKind::Output => p.output_volume = f.clamp(0., 1.) * 2.,
                         _ => p.input_volume = f.clamp(0., 1.) * 2.,
@@ -1690,7 +1690,7 @@ impl Rustcord {
     }
 
     // .mslider: the label and its percentage over the slider; click or drag anywhere on it.
-    fn menu_slider(&self, key: SharedString, label: &'static str, fraction: f32, ink: &Inks, on_set: impl Fn(&mut Rustcord, f32, &mut Context<Rustcord>) + Clone + 'static, cx: &mut Context<Self>) -> Div {
+    fn call_menu_slider(&self, key: SharedString, label: &'static str, fraction: f32, ink: &Inks, on_set: impl Fn(&mut Rustcord, f32, &mut Context<Rustcord>) + Clone + 'static, cx: &mut Context<Self>) -> Div {
         let bounds = self.slider_bounds.clone();
         let record = bounds.clone();
         let (down_key, move_key, record_key) = (key.clone(), key.clone(), key.clone());
