@@ -37,8 +37,1066 @@
   <h1>Media and drag</h1>
   <p class="lede">The video player, file drops, and everything you can drag.</p>
 </section>
+
+<section id="video-player">
+  <h2>Video player</h2>
+  <p class="lede">Plays clips in place, inside the message's 432px column, and fills the window on request. One video plays at a time; it pauses when it scrolls out of view.</p>
+
+  <h3>Live, inline in chat</h3>
+  <div class="board" style="padding: var(--space-3) 0 var(--space-4); background: var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="time">Today at 10:25 PM</span></div>
+      <div class="body">final lap from last night, watch the shortcut at 0:30</div>
+      <div class="vid" id="live-vid" tabindex="0" aria-label="Video: night-run-finale.mp4" data-vid="poster" data-h="250"></div>
+    </div></div>
+    <div class="row" style="padding: var(--space-4) var(--space-4) 0 72px; gap: var(--space-2)">
+      <span class="note">Try it with</span>
+      <button class="chip" id="vid-slow" aria-pressed="false"><i class="ph ph-gauge"></i>Slow network</button>
+      <button class="chip" id="vid-bad" aria-pressed="false"><i class="ph ph-file-x"></i>Unsupported file</button>
+    </div>
+  </div>
+  <div class="vid-keys" style="margin-top: 12px" aria-label="Keyboard shortcuts while the video has focus">
+    <span><span class="keys"><kbd class="kbd">Space</kbd><kbd class="kbd">K</kbd></span>Play or pause</span>
+    <span><span class="keys"><kbd class="kbd">←</kbd><kbd class="kbd">→</kbd></span>Back or ahead 5 seconds</span>
+    <span><span class="keys"><kbd class="kbd">J</kbd><kbd class="kbd">L</kbd></span>Same, one hand</span>
+    <span><kbd class="kbd">M</kbd>Mute</span>
+    <span><span class="keys"><kbd class="kbd">&lt;</kbd><kbd class="kbd">&gt;</kbd></span>Slower or faster</span>
+    <span><kbd class="kbd">P</kbd>Picture in picture</span>
+    <span><kbd class="kbd">F</kbd>Full screen</span>
+    <span><kbd class="kbd">Esc</kbd>Leave full screen</span>
+  </div>
+
+  <h3>States</h3>
+  <div class="vid-states">
+    <figure><div class="vid" data-vid="poster" data-h="30"></div><figcaption class="note">Poster: the first frame, a round play button, the length in the corner</figcaption></figure>
+    <figure><div class="vid" data-vid="loading" data-h="30"></div><figcaption class="note">Loading: the wave over the poster, never a spinner</figcaption></figure>
+    <figure><div class="vid" data-vid="playing" data-h="80" data-t="12" data-b="0.62" data-hp="0.71" data-hover="scrub"></div><figcaption class="note">Playing, bar shown: pointer on the scrubber shows where you'd land</figcaption></figure>
+    <figure><div class="vid" data-vid="playing" data-h="110" data-t="21" data-b="0.8" data-bar="hidden"></div><figcaption class="note">Playing, bar hidden: 2s after the pointer rests; the cursor hides too</figcaption></figure>
+    <figure><div class="vid" data-vid="paused" data-h="140" data-t="26" data-b="1" data-hover="vol" data-vol="0.45"></div><figcaption class="note">Paused, volume raised: the bar stays while paused</figcaption></figure>
+    <figure><div class="vid is-stalled" data-vid="playing" data-h="170" data-t="30" data-b="0.72"></div><figcaption class="note">Buffering: the wave over the last frame; controls still answer</figcaption></figure>
+    <figure><div class="vid" data-vid="paused" data-h="200" data-t="8" data-b="0.4" data-hover="speed" data-speed="1.5" style="--arh: 12"></div><figcaption class="note">Speed menu open: the current speed filled and checked</figcaption></figure>
+    <figure><div class="vid" data-vid="ended" data-h="230" data-t="42" data-b="1"></div><figcaption class="note">Ended: holds the last frame with Play again</figcaption></figure>
+    <figure><div class="vid" data-vid="failed" data-h="20"></div><figcaption class="note">Failed: says why and opens it elsewhere instead</figcaption></figure>
+  </div>
+  <p class="note" style="margin-top: 8px">Bar: 32px buttons (40 full screen) on a soft shade, 6px scrubber track that grows from 4 on hover, white playhead 4 × 18 with a 3px gap either side, buffered at 44% white. Time is 12px semibold tabular. Volume and speed popovers rise 200ms from their button. Ported from <code>src/video.rs</code>; speed, picture in picture, the buffered range, the hover time and the wave loader are new.</p>
+
+  <h3>Full screen</h3>
+  <div class="board" style="padding: var(--space-4)">
+    <div class="vid vid--full" data-vid="playing" data-h="290" data-t="17" data-b="0.55" data-hover="scrub" data-hp="0.33"></div>
+  </div>
+  <p class="note" style="margin-top: 8px">The player travels from its place in the chat to fill the window (no crossfade), and back. A title strip names the file and sender; both strips hide together when the pointer rests. The picture letterboxes on the stage colour.</p>
+</section>
+
+<section id="audio-player">
+  <h2>Audio player</h2>
+  <p class="lede">Audio files play inside their file card. The base player and voice messages live on <a href="messages.html#attachments" style="color: var(--accent-ink)">Messages, attachments</a>; these are the states it was missing.</p>
+  <div class="board" style="padding: var(--space-3) 0; background: var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Ana"></span><div><div class="head"><span class="name">Ana</span><span class="time">Today at 10:30 PM</span></div>
+      <div class="filecard"><i class="ph ph-file-audio fic"></i><div class="meta"><a class="fname" href="#">late-night-mix.mp3</a><span class="fsize">6.8 MB</span></div><div class="acts"><button class="iconbtn" aria-label="Download late-night-mix.mp3"><i class="ph ph-download-simple"></i></button></div>
+        <div class="player wide"><button class="iconbtn" aria-label="Loading audio" disabled><span class="bars"><i></i><i></i><i></i></span></button><span class="ptime">0:00 / 3:48</span><input class="range" type="range" value="0" aria-label="Seek" disabled><button class="iconbtn" aria-label="Mute"><i class="ph ph-speaker-high"></i></button></div></div>
+      <div class="filecard"><i class="ph ph-file-audio fic"></i><div class="meta"><a class="fname" href="#">late-night-mix.mp3</a><span class="fsize">6.8 MB</span></div><div class="acts"><button class="iconbtn" aria-label="Download late-night-mix.mp3"><i class="ph ph-download-simple"></i></button></div>
+        <div class="player wide"><button class="iconbtn" aria-label="Pause"><i class="ph-fill ph-pause"></i></button><span class="ptime">2:31 / 3:48</span><input class="range" type="range" value="66" aria-label="Seek"><button class="iconbtn" aria-label="Unmute"><i class="ph ph-speaker-x"></i></button></div></div>
+      <div class="filecard"><i class="ph ph-file-audio fic bad"></i><div class="meta"><a class="fname" href="#">field-recording-2026-11-14-rooftop-rain-and-trains-at-night.flac</a><span class="fsize">48.2 MB</span></div><div class="acts"><button class="iconbtn" aria-label="Download field-recording-2026-11-14-rooftop-rain-and-trains-at-night.flac"><i class="ph ph-download-simple"></i></button></div>
+        <div class="player wide is-failed" role="alert"><i class="ph ph-warning-circle"></i>Can't play FLAC here. Download it to listen.</div></div>
+    </div></div>
+  </div>
+  <p class="note" style="margin-top: 8px">Loading: the mini wave takes the play button's place and the scrubber waits, disabled. Muted: the speaker shows its slash. Failed: one line in place of the controls says why and what to do; the card's download stays.</p>
+</section>
+
+<section id="image-viewer">
+  <h2>Image viewer</h2>
+  <p class="lede">Zoom, pan and paging for the full-screen viewer on <a href="overlays.html#dialogs" style="color: var(--accent-ink)">Overlays</a>. Arrows page through the message's images; zoom anchors at the pointer.</p>
+  <h3>Live</h3>
+  <div class="board" style="padding: 0; overflow: hidden">
+    <figure class="viewer vw" id="live-viewer" tabindex="0" aria-label="Image viewer" data-state="ready">
+      <div class="vbar"><div><b class="vw-name">riso.png</b><span class="vw-meta">Mira · 184 KB · 1024 × 1024</span></div><span class="vw-count" aria-live="polite">2 of 5</span><a class="vlink" href="#" target="_blank" rel="noopener"><i class="ph-bold ph-arrow-square-out"></i>Open original</a><button class="iconbtn" aria-label="Download"><i class="ph ph-download-simple"></i></button><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+      <div class="vw-stage">
+        <img class="vw-img" src="/assets/brand/icons/riso.png" alt="" draggable="false">
+        <div class="vw-wait" role="status"><span class="pic" style="--h: 330"></span><div><span class="mascot waiting"><i></i><i></i><i></i><i></i><i></i></span>Loading <span class="vw-wname">pixel.png</span>…</div></div>
+        <div class="vw-fail" role="alert"><i class="ph ph-image-broken"></i><b>Couldn't load this image</b><p>The link to it expired. Try again, or open the original in your browser.</p><div class="row"><button class="btn btn--primary vw-retry"><i class="ph-bold ph-arrow-clockwise"></i>Try again</button><a class="btn" href="#"><i class="ph-bold ph-arrow-square-out"></i>Open original</a></div></div>
+        <button class="vw-nav prev" aria-label="Previous image"><i class="ph-bold ph-caret-left"></i></button>
+        <button class="vw-nav next" aria-label="Next image"><i class="ph-bold ph-caret-right"></i></button>
+        <div class="vw-hud" role="status"><output>100%</output><button class="btn btn--sm vw-reset">Reset</button></div>
+      </div>
+      <div class="vw-tools"><button class="iconbtn vw-out" aria-label="Zoom out"><i class="ph ph-magnifying-glass-minus"></i></button><button class="iconbtn vw-in" aria-label="Zoom in"><i class="ph ph-magnifying-glass-plus"></i></button></div>
+      <figcaption>new icon test prints, the riso one is my favourite</figcaption>
+    </figure>
+  </div>
+  <div class="vid-keys" style="margin-top: 12px">
+    <span><span class="keys"><kbd class="kbd">←</kbd><kbd class="kbd">→</kbd></span>Previous or next</span>
+    <span><span class="keys"><kbd class="kbd">+</kbd><kbd class="kbd">−</kbd></span>Zoom</span>
+    <span><kbd class="kbd">0</kbd>Fit to window</span>
+    <span><kbd class="kbd">⌘</kbd>Scroll or pinch to zoom at the pointer</span>
+    <span>Click to zoom to 200% there, drag to pan, double-click to fit</span>
+  </div>
+  <h3>Zoomed, loading, failed</h3>
+  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr))">
+    <figure class="viewer vw" data-state="ready" style="min-height: 360px"><div class="vbar"><div><b>glass.png</b><span>Mira · 212 KB</span></div><span class="vw-count">1 of 5</span><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+      <div class="vw-stage is-zoomed" style="padding: 16px 56px"><img class="vw-img" src="/assets/brand/icons/glass.png" alt="" style="--z: 1.5; --x: 30px; --y: 10px; max-height: 220px"><button class="vw-nav prev" aria-label="Previous image" disabled><i class="ph-bold ph-caret-left"></i></button><button class="vw-nav next" aria-label="Next image"><i class="ph-bold ph-caret-right"></i></button><div class="vw-hud is-shown" role="status"><output>150%</output><button class="btn btn--sm">Reset</button></div></div></figure>
+    <figure class="viewer vw" data-state="loading" style="min-height: 360px"><div class="vbar"><div><b>pixel.png</b><span>Mira · 96 KB</span></div><span class="vw-count">5 of 5</span><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+      <div class="vw-stage" style="padding: 16px 56px"><div class="vw-wait" role="status" style="width: 220px"><span class="pic" style="--h: 330"></span><div><span class="mascot waiting"><i></i><i></i><i></i><i></i><i></i></span>Loading pixel.png…</div></div><button class="vw-nav prev" aria-label="Previous image"><i class="ph-bold ph-caret-left"></i></button><button class="vw-nav next" aria-label="Next image" disabled><i class="ph-bold ph-caret-right"></i></button></div></figure>
+    <figure class="viewer vw" data-state="failed" style="min-height: 360px"><div class="vbar"><div><b>blueprint.png</b><span>Mira</span></div><span class="vw-count">3 of 5</span><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+      <div class="vw-stage" style="padding: 16px 56px"><div class="vw-fail" role="alert"><i class="ph ph-image-broken"></i><b>Couldn't load this image</b><p>The link to it expired. Try again, or open the original in your browser.</p><div class="row"><button class="btn btn--primary"><i class="ph-bold ph-arrow-clockwise"></i>Try again</button></div></div><button class="vw-nav prev" aria-label="Previous image"><i class="ph-bold ph-caret-left"></i></button><button class="vw-nav next" aria-label="Next image"><i class="ph-bold ph-caret-right"></i></button></div></figure>
+  </div>
+  <p class="note" style="margin-top: 8px">Zoom runs 100 to 400%; the HUD shows the level for 2s after each change (longer while hovered) with Reset. Paging slides 24px in the direction you went. Loading blurs the chat thumbnail up behind the wave so the picture never jumps in from black. In the app this replaces the 140ms fade in <code>viewer_overlay</code>.</p>
+</section>
+
+<section id="file-drop">
+  <h2>File drop</h2>
+  <p class="lede">Files dragged over a channel cover it with a drop zone that names where they'll go. Too-large files are called out before you let go, by name and size.</p>
+  <h3>Live: drag files from your desktop onto the channel</h3>
+  <div class="board stack" style="gap: var(--space-3)">
+    <div class="seg" role="group" aria-label="Show drop state" id="drop-seg"><button aria-pressed="true" data-v="">Nothing dragged</button><button aria-pressed="false" data-v="accept">Two images</button><button aria-pressed="false" data-v="reject">A 312 MB video</button><button aria-pressed="false" data-v="mixed">Both</button></div>
+    <div class="mx-frame mx-chan" id="drop-live">
+      <header><i class="ph ph-hash"></i>general</header>
+      <div class="feed">
+        <div class="msg first"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">Today at 9:41 PM</span></div><div class="body">post the screenshots from last night?</div></div></div>
+        <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="time">Today at 9:43 PM</span></div><div class="body">on it, give me a sec</div></div></div>
+      </div>
+      <div class="fdrop" aria-hidden="true"></div>
+    </div>
+  </div>
+  <h3>States</h3>
+  <div class="mx-drops">
+    <figure class="mx-spec"><div class="mx-frame mx-chan" style="height: 280px"><header><i class="ph ph-hash"></i>general</header><div class="feed"></div><div class="fdrop is-over" data-drop="accept"></div></div><figcaption class="note">Accept: where they go, the limits, how to skip the preview</figcaption></figure>
+    <figure class="mx-spec"><div class="mx-frame mx-chan" style="height: 280px"><header><i class="ph ph-hash"></i>general</header><div class="feed"></div><div class="fdrop is-over is-reject" data-drop="reject"></div></div><figcaption class="note">Reject: names the file, its size and the limit, and a way out</figcaption></figure>
+    <figure class="mx-spec"><div class="mx-frame mx-chan" style="height: 280px"><header><i class="ph ph-hash"></i>general</header><div class="feed"></div><div class="fdrop is-over is-mixed" data-drop="mixed"></div></div><figcaption class="note">Mixed: the rest still upload; the one that can't is listed</figcaption></figure>
+  </div>
+  <p class="note" style="margin-top: 8px">Overlay: page colour at 82% with a 3px blur, a 2px dashed squircle inset 12px, tinted 7% of its tone. In the app, gpui's <code>ExternalPaths</code> carries paths during the drag, so sizes are known before the drop; browsers only give sizes on drop, so the live demo checks then. Replaces the silent <code>on_drop</code> in <code>src/chat.rs</code>.</p>
+</section>
+
+<section id="upload-preview">
+  <h2>Upload preview</h2>
+  <p class="lede">Opens on drop or paste, before anything sends. Every file is in one list: rename it, mark it as a spoiler, or remove it, then add a comment and upload. Hold Shift while dropping to skip it.</p>
+  <div class="board" style="display: grid; justify-items: center">
+    <div class="dialog upl" id="upl-demo" role="dialog" aria-labelledby="upl-demo-title"></div>
+  </div>
+  <p class="note" style="margin-top: 8px">64px thumbnails at 11 radius; the name field keeps the extension as a fixed suffix so a rename can't break the file. Spoiler blurs the thumbnail here as it will in chat. A file over the limit stays listed with why, and is left out of the count on the Upload button. Removing the last file closes the dialog.</p>
+  <dialog class="real" id="dlg-upload"><div class="dialog upl" role="dialog" aria-labelledby="dlg-upload-title"></div></dialog>
+</section>
+
+<section id="voice-drag">
+  <h2>Moving people between voice channels</h2>
+  <p class="lede">With Move Members, drag anyone in a voice channel onto another. A pill carries them, the target channel lights up, and a line shows where they'll land.</p>
+  <h3>Live: drag a person to another channel</h3>
+  <div class="mx-cols">
+    <div class="mx-frame mx-side mx-drag-live" id="voice-live">
+      <div class="side"><div class="chlist">
+        <div class="catgroup">
+          <div class="cathead"><button class="cat" aria-expanded="true"><i class="ph-bold ph-caret-down"></i>Voice</button></div>
+          <div class="ch is-static" data-chan="Lounge"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div>
+          <button class="vp speaking"><span class="av" data-av="Mira"></span><span class="nm">Mira</span><span class="end"><span class="bars" aria-label="Speaking"><i></i><i></i><i></i></span></span></button>
+          <button class="vp"><span class="av" data-av="Theo"></span><span class="nm">Theo</span></button>
+          <button class="vp"><span class="av" data-av="You"></span><span class="nm">You</span><span class="end"><i class="ph-fill ph-microphone-slash" aria-label="Muted"></i></span></button>
+          <div class="ch is-static" data-chan="Ranked"><i class="ph ph-speaker-high"></i><span class="nm">Ranked</span></div>
+          <button class="vp"><span class="av" data-av="Ana"></span><span class="nm">Ana</span></button>
+          <div class="ch is-static" data-chan="Duo" data-limit="2"><i class="ph ph-speaker-high"></i><span class="nm">Duo</span><span class="limit">2/2</span></div>
+          <button class="vp"><span class="av" data-av="Kai"></span><span class="nm">Kai</span></button>
+          <button class="vp"><span class="av" data-av="Lee"></span><span class="nm">Lee</span></button>
+          <div class="ch is-static" data-chan="AFK"><i class="ph ph-moon"></i><span class="nm">AFK</span></div>
+        </div>
+        <span class="drop-line" hidden></span>
+      </div></div>
+      <div class="mx-status" role="status">Drag someone onto another channel</div>
+    </div>
+    <div class="mx-spec" style="flex: 1; min-width: min(100%, 260px)">
+      <div class="mx-frame mx-side" style="width: 100%; max-width: 280px"><div class="side"><div class="chlist">
+        <div class="ch"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div>
+        <button class="vp"><span class="av" data-av="Mira"></span><span class="nm">Mira</span></button>
+        <button class="vp is-drag-origin"><span class="av" data-av="Theo"></span><span class="nm">Theo</span></button>
+        <div class="ch is-drop-target"><i class="ph ph-speaker-high"></i><span class="nm">Ranked</span></div>
+        <button class="vp"><span class="av" data-av="Ana"></span><span class="nm">Ana</span></button>
+        <div style="position: relative; height: 0"><span class="drop-line" style="--y: 1px"></span></div>
+        <div class="ch"><i class="ph ph-moon"></i><span class="nm">AFK</span></div>
+        <span class="dragpill" style="position: absolute; left: 96px; top: 120px; z-index: 5"><span class="av" data-av="Theo"></span>Theo</span>
+      </div></div><div class="mx-status">Release to move Theo to Ranked</div></div>
+      <span class="note">Over a channel: it fills with the accent wash, the line sits under its last person, the status line says what release does</span>
+      <div class="mx-frame mx-side" style="width: 100%; max-width: 280px; margin-top: var(--space-4)"><div class="side"><div class="chlist">
+        <div class="ch is-drop-blocked"><i class="ph ph-speaker-high"></i><span class="nm">Duo</span><span class="limit">2/2</span></div>
+        <button class="vp"><span class="av" data-av="Kai"></span><span class="nm">Kai</span></button>
+        <button class="vp"><span class="av" data-av="Lee"></span><span class="nm">Lee</span></button>
+        <span class="dragpill is-blocked" style="position: absolute; left: 90px; top: 14px; z-index: 5"><span class="av" data-av="Theo"></span>Theo<i class="ph-bold ph-prohibit dragpill-no" aria-hidden="true"></i></span>
+      </div></div><div class="mx-status">Duo is full (2 of 2)</div></div>
+      <span class="note">Full channel: no wash, the pill straightens and shows the stop mark, the limit turns danger and the status says why</span>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Pill: 32px, 11 radius, overlay surface with the pop shadow, 24px avatar, tilted 3°; it lifts with the spring as the drag starts (4px threshold). The person's own row stays at 40% so you can see where they came from. The move applies at once and rolls back if Discord refuses; Undo sits in the status line for 6s. Without Move Members, rows don't drag at all. Esc cancels.</p>
+</section>
+
+<section id="reorder">
+  <h2>Reordering channels and categories</h2>
+  <p class="lede">With Manage Channels, drag a channel to a new place or into another category, and drag a category by its header. Server rail reordering and the combine-into-folder ring are on <a href="navigation.html#server-rail" style="color: var(--accent-ink)">Navigation, server rail</a>.</p>
+  <h3>Live: drag a channel or a category header</h3>
+  <div class="mx-cols">
+    <div class="mx-frame mx-side mx-drag-live" id="reorder-live">
+      <div class="side"><div class="chlist">
+        <div class="catgroup">
+          <div class="cathead"><button class="cat" aria-expanded="true"><i class="ph-bold ph-caret-down"></i>Information</button></div>
+          <div class="ch"><i class="ph ph-book-open-text"></i><span class="nm">rules</span></div>
+          <div class="ch"><i class="ph ph-megaphone"></i><span class="nm">announcements</span></div>
+        </div>
+        <div class="catgroup">
+          <div class="cathead"><button class="cat" aria-expanded="true"><i class="ph-bold ph-caret-down"></i>Text</button></div>
+          <div class="ch sel"><i class="ph ph-hash"></i><span class="nm">general</span></div>
+          <div class="ch"><i class="ph ph-hash"></i><span class="nm">clips</span></div>
+          <div class="ch"><i class="ph ph-images"></i><span class="nm">screenshots</span></div>
+          <div class="ch"><i class="ph ph-hash"></i><span class="nm">memes</span></div>
+        </div>
+        <div class="catgroup">
+          <div class="cathead"><button class="cat" aria-expanded="true"><i class="ph-bold ph-caret-down"></i>Voice</button></div>
+          <div class="ch"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div>
+          <div class="ch"><i class="ph ph-speaker-high"></i><span class="nm">Ranked</span></div>
+        </div>
+        <span class="drop-line" hidden></span>
+      </div></div>
+      <div class="mx-status" role="status">Drag a channel or a category</div>
+    </div>
+    <div class="mx-spec" style="flex: 1; min-width: min(100%, 260px)">
+      <div class="mx-frame mx-side" style="width: 100%; max-width: 280px"><div class="side"><div class="chlist">
+        <div class="cathead"><button class="cat" aria-expanded="true"><i class="ph-bold ph-caret-down"></i>Text</button></div>
+        <div class="ch"><i class="ph ph-hash"></i><span class="nm">general</span></div>
+        <div class="ch is-drag-origin"><i class="ph ph-hash"></i><span class="nm">clips</span></div>
+        <div class="ch"><i class="ph ph-images"></i><span class="nm">screenshots</span></div>
+        <div style="position: relative; height: 0"><span class="drop-line" style="--y: 1px"></span></div>
+        <div class="ch"><i class="ph ph-hash"></i><span class="nm">memes</span></div>
+        <span class="dragpill dragpill--channel" style="position: absolute; left: 70px; top: 104px; z-index: 5"><i class="ph ph-hash"></i>clips</span>
+      </div></div></div>
+      <span class="note">Between channels: the line sits in the gap, before or after the row by which half the pointer is in</span>
+      <div class="mx-frame mx-side" style="width: 100%; max-width: 280px; margin-top: var(--space-4)"><div class="side"><div class="chlist">
+        <div class="cathead is-drop-into"><button class="cat" aria-expanded="true"><i class="ph-bold ph-caret-down"></i>Voice</button></div>
+        <div style="position: relative; height: 0"><span class="drop-line" style="--y: 1px"></span></div>
+        <div class="ch"><i class="ph ph-speaker-high"></i><span class="nm">Lounge</span></div>
+        <span class="dragpill dragpill--channel" style="position: absolute; left: 60px; top: 10px; z-index: 5"><i class="ph ph-hash"></i>clips</span>
+      </div></div></div>
+      <span class="note">Into a category: the header fills and the line sits first under it</span>
+      <div class="mx-frame mx-side" style="width: 100%; max-width: 280px; margin-top: var(--space-4)"><div class="side"><div class="chlist">
+        <div class="catgroup is-drag-origin"><div class="cathead"><button class="cat" aria-expanded="false"><i class="ph-bold ph-caret-down"></i>Information</button></div></div>
+        <div class="catgroup"><div class="cathead"><button class="cat" aria-expanded="true"><i class="ph-bold ph-caret-down"></i>Text</button></div><div class="ch"><i class="ph ph-hash"></i><span class="nm">general</span></div></div>
+        <div style="position: relative; height: 12px"><span class="drop-line" style="--y: 6px"></span></div>
+        <div class="catgroup"><div class="cathead"><button class="cat" aria-expanded="true"><i class="ph-bold ph-caret-down"></i>Voice</button></div></div>
+        <span class="dragpill dragpill--channel" style="position: absolute; left: 70px; top: 70px; z-index: 5"><i class="ph ph-stack"></i>Information</span>
+      </div></div></div>
+      <span class="note">A category: it folds while carried, and the line sits between categories</span>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Line: 2px accent capsule inset 6px with an open ring at its start, travelling 120ms between gaps. A channel pill carries its type icon; a category pill carries the stack icon. Ported from <code>drop_channel</code> and <code>place_at</code> in <code>src/drag.rs</code> (the app's green line becomes the accent). Moves apply at once, roll back on refusal, and the rest of the list travels to its new place.</p>
+</section>
+
+<section id="resize">
+  <h2>Resize handles</h2>
+  <p class="lede">The channel list and the member list resize from their inner edge. The handle is invisible until you reach for it.</p>
+  <h3>Live: drag an edge, or focus it and use the arrow keys</h3>
+  <div class="mx-frame mx-app" id="rsz-live">
+    <div class="col-side" style="--cw: 220px"><span class="skeleton line" style="width: 60%"></span><span class="skeleton line" style="width: 80%"></span><span class="skeleton line" style="width: 70%"></span><span class="skeleton line" style="width: 50%"></span>
+      <span class="rsz rsz--end" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Resize channel list" data-min="160" data-max="300" data-def="220" data-var="--cw"><span class="tooltip">220 px</span></span></div>
+    <div class="col-chat"><span class="skeleton line" style="width: 70%"></span><span class="skeleton line" style="width: 45%"></span><span class="skeleton line" style="width: 60%"></span></div>
+    <div class="col-mem" style="--mw: 170px"><span class="skeleton line" style="width: 70%"></span><span class="skeleton line" style="width: 55%"></span><span class="skeleton line" style="width: 65%"></span>
+      <span class="rsz rsz--start" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Resize member list" data-min="140" data-max="240" data-def="170" data-var="--mw" data-grow="left"><span class="tooltip">170 px</span></span></div>
+  </div>
+  <h3>States</h3>
+  <div class="rsz-specs">
+    <figure class="mx-spec"><div class="rsz-spec"><div><span class="rsz rsz--end"></span></div><div></div></div><figcaption class="note">Idle: only the hairline between the columns</figcaption></figure>
+    <figure class="mx-spec"><div class="rsz-spec"><div><span class="rsz rsz--end is-hover"></span></div><div></div><i class="ph ph-arrows-out-line-horizontal rsz-cursor" aria-hidden="true"></i></div><figcaption class="note">Hover, after 150ms: a 2px line and a grip; cursor col-resize</figcaption></figure>
+    <figure class="mx-spec"><div class="rsz-spec"><div><span class="rsz rsz--end is-dragging"><span class="tooltip">264 px</span></span></div><div></div></div><figcaption class="note">Dragging or focused: accent line and grip, width readout</figcaption></figure>
+    <figure class="mx-spec"><div class="rsz-spec"><div style="width: 34%"><span class="rsz rsz--end is-hover is-min"></span></div><div></div><i class="ph ph-arrow-line-right rsz-cursor" aria-hidden="true" style="left: calc(34% + 4px)"></i></div><figcaption class="note">At a limit: the cursor points the only way it can still go</figcaption></figure>
+  </div>
+  <p class="note" style="margin-top: 8px">Hit strip 12px, straddling the edge; it never covers a scrollbar. App ranges: channel list 200 to 440 (default 264), member list 200 to 380 (default 264); the demo is scaled down. Double-click or Enter resets to the default; ←/→ step 8px, with Shift 32. Widths persist per window. Ported from <code>resize_handle</code> in <code>src/layout.rs</code>, whose hover line was accent at 60%: the accent now waits for the drag.</p>
+</section>
+
+<section id="decorations">
+  <h2>Avatar decorations and profile effects</h2>
+  <p class="lede">A decoration frames the avatar at 1.2× its size, under the status mark. A profile effect plays once over the profile card as it opens. Both are the user's own content, so they never take the accent.</p>
+  <h3>Decorations at each size</h3>
+  <div class="board" style="overflow-x: auto">
+    <div class="deco-grid" id="deco-grid">
+      <span></span><b>None</b><b>Wave ring</b><b>Wave ring, animated</b><b>Halo</b>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">80 in profiles, 40 in chat, 32 in the member list and DMs. Wave ring: the logo's five-bar rhythm repeated around the avatar in the user's chosen hue, 30 bars at 64px and up, 15 thicker bars below. Animated decorations hold still until hovered (and always with reduced motion). In the app: <code>decorated_avatar</code> in <code>src/layout.rs</code>, which already draws at 1.2×.</p>
+  <h3>Profile effect</h3>
+  <div class="row" style="align-items: flex-start; gap: var(--space-6)">
+    <div class="pop profile fx-card" id="fx-card" style="--banner: 200">
+      <div class="banner"></div>
+      <div class="who"><span class="deco" id="fx-deco" style="--size: 80px; --deco-h: 200"></span></div>
+      <div class="body"><div class="name"><b>Ana</b><span>ana.wav</span></div><div class="cstatus"><span>replaying the finale clip on loop</span></div></div>
+      <div class="fx" id="fx" aria-hidden="true" style="--fx-h: 200"></div>
+    </div>
+    <div class="stack" style="max-width: 320px">
+      <button class="btn" id="fx-replay"><i class="ph-bold ph-arrow-counter-clockwise"></i>Replay effect</button>
+      <p class="note">Rising bars: ten soft bars drift up through the card over 2.4s on the enter curve, then rest faintly behind the text on their last frame. Plays once each time the card opens; with reduced motion only the resting frame shows. Effects sit above the banner and below nothing interactive: they never take pointer events.</p>
+    </div>
+  </div>
+</section>
+
+<section id="stickers">
+  <h2>Stickers</h2>
+  <p class="lede">Stickers share the GIF picker's frame and tabs. Click one to send it on its own; it shows at 160px in chat.</p>
+  <div class="row" style="align-items: flex-start; gap: var(--space-6)">
+    <div class="picker" role="dialog" aria-label="Stickers" style="grid-template-rows: auto auto minmax(0, 1fr) auto" id="stk-picker">
+      <div class="gp-tabs"><div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="false">GIFs</button><button class="tab" role="tab" aria-selected="true">Stickers</button><button class="tab" role="tab" aria-selected="false">Emoji</button></div></div>
+      <div class="picker-head"><label class="input"><i class="ph ph-magnifying-glass"></i><input placeholder="Search stickers" aria-label="Search stickers"></label></div>
+      <div class="ep-body">
+        <div class="ep-rail" role="tablist" aria-orientation="vertical" aria-label="Sticker packs">
+          <button class="ep-cat" role="tab" aria-selected="true" aria-label="Recently used"><i class="ph ph-clock-counter-clockwise"></i></button>
+          <button class="ep-cat" role="tab" aria-selected="false" aria-label="Night owls"><span class="srv-tile" style="--hue: 300">N</span></button>
+          <button class="ep-cat" role="tab" aria-selected="false" aria-label="Pixel Club"><span class="srv-tile" style="--hue: 140">P</span></button>
+          <span class="sep"></span>
+          <button class="ep-cat" role="tab" aria-selected="false" aria-label="Wave pack"><span class="stk-mascot"><span class="mascot"><i></i><i></i><i></i><i></i><i></i></span></span></button>
+        </div>
+        <div class="ep-scroll">
+          <div class="ep-sec"><i class="ph ph-clock-counter-clockwise"></i>Recently used</div>
+          <div class="stk-grid" data-stickers="heart:Night owls,fire:Night owls:anim,gg:Pixel Club"></div>
+          <div class="ep-sec"><span class="srv-tile" style="--hue: 300; width: 16px; height: 16px; border-radius: 5px; font-size: 11px">N</span>Night owls</div>
+          <div class="stk-grid" data-stickers="heart:Night owls,fire:Night owls:anim,moon:Night owls,ghost:Night owls:anim"></div>
+          <div class="ep-sec"><span class="stk-mascot" style="width: 16px; height: 16px; border-radius: 5px"><span class="mascot" style="--s: 0.18"><i></i><i></i><i></i><i></i><i></i></span></span>Wave pack</div>
+          <div class="stk-grid" data-stickers="hi:Wave pack:anim,lol:Wave pack,mug:Wave pack,gg:Pixel Club"></div>
+        </div>
+      </div>
+      <div class="stk-foot"><span class="stk-prev"></span><div><b>:fire:</b><small>Night owls · Animated</small></div></div>
+    </div>
+    <div style="flex: 1; min-width: min(100%, 320px)">
+      <div class="board" style="padding: var(--space-3) 0; background: var(--bg-page)">
+        <div class="msg first"><span class="av" data-av="Rosa"></span><div><div class="head"><span class="name">Rosa</span><span class="time">Today at 10:40 PM</span></div><div class="stk-msg" data-sticker="heart" role="img" aria-label="Sticker: heart"></div></div></div>
+        <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="time">Today at 10:41 PM</span></div><div class="stk-msg is-playing" data-sticker="fire" data-anim role="img" aria-label="Animated sticker: fire"></div></div></div>
+        <div class="msg"><span class="gutter">10:41</span><div><div class="stk-msg" data-sticker="hi" data-anim role="img" aria-label="Animated sticker: hi, paused"><span class="media-tag"><i class="ph-fill ph-play"></i>Animated</span></div></div></div>
+        <div class="msg"><span class="gutter">10:42</span><div><div class="stk-msg is-missing" role="img" aria-label="Sticker unavailable"><i class="ph ph-sticker"></i><span>Couldn't load :gg:</span></div></div></div>
+      </div>
+      <p class="note" style="margin-top: 8px">In chat: a static sticker shows bare. An animated one loops while the window has focus; when it's held still (reduced motion, window in the background) it shows the Animated tag and plays on hover. In the picker, animated stickers carry a small play mark and play on hover. A sticker that can't load keeps its name in a dashed outline.</p>
+    </div>
+  </div>
+</section>
+
+<section id="poll-creator">
+  <h2>Poll creator</h2>
+  <p class="lede">Opened from the composer's plus menu. A question, two to ten answers each with an optional emoji, how long it runs, and whether people can pick more than one.</p>
+  <h3>Live</h3>
+  <div class="board" style="display: grid; justify-items: center">
+    <div class="dialog pollc" id="pollc" role="dialog" aria-labelledby="pollc-title">
+      <div class="pollc-form" style="display: grid; gap: var(--space-4)">
+        <div class="dhead"><h4 id="pollc-title">Create a poll</h4><p>Posts to #general</p><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <div class="field"><label for="pollc-q">Question</label><div class="input"><input id="pollc-q" maxlength="300" placeholder="What do you want to ask?" aria-describedby="pollc-q-hint"></div><span class="hint" id="pollc-q-hint"><span class="err" hidden><i class="ph ph-warning-circle"></i>Add a question to post the poll</span><span class="pollc-qcount" style="margin-left: auto">0 / 300</span></span></div>
+        <div class="field"><label id="pollc-a-label">Answers</label>
+          <div class="pollc-answers" role="group" aria-labelledby="pollc-a-label"></div>
+          <span class="err" id="pollc-a-err" hidden><i class="ph ph-warning-circle"></i>Fill in at least two answers</span>
+          <div class="pollc-addrow"><button class="btn btn--ghost btn--sm pollc-add"><i class="ph-bold ph-plus"></i>Add answer</button><span class="hint pollc-count">2 of 10</span></div>
+        </div>
+        <div class="pollc-opts">
+          <div class="field pollc-dur"><label id="pollc-dur-label">Runs for</label><button class="dropdown" aria-haspopup="menu" aria-expanded="false" aria-labelledby="pollc-dur-label"><i class="ph ph-timer" style="color: var(--text-muted)"></i><span>24 hours</span><i class="ph-bold ph-caret-down"></i></button>
+            <div class="menu" role="menu" aria-label="Poll duration"></div></div>
+          <button class="choice" data-toggle="switch"><div><b>Allow multiple answers</b></div><span class="switch" role="switch" aria-checked="false" aria-label="Allow multiple answers"></span></button>
+        </div>
+        <footer><button class="btn btn--ghost">Cancel</button><button class="btn btn--primary pollc-post"><i class="ph-bold ph-chart-bar-horizontal"></i>Post poll</button></footer>
+      </div>
+      <div class="pollc-done empty" role="status"><span class="mascot happy"><i></i><i></i><i></i><i></i><i></i></span><b>Poll posted</b><p class="pollc-done-q">It's in #general.</p><button class="btn pollc-again"><i class="ph-bold ph-plus"></i>Create another poll</button></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Enter in an answer moves to the next one, or adds one after the last. The answer count is always visible; at ten, Add answer turns off and says why. The emoji button cycles demo emoji here; in the app it opens the emoji picker. Post poll stays enabled and checks on press, naming what's missing under its field. The posted poll renders as on <a href="messages.html#embeds" style="color: var(--accent-ink)">Messages</a>.</p>
+  <h3>At the limit</h3>
+  <div class="board" style="display: grid; justify-items: center">
+    <div class="dialog pollc" role="dialog" aria-label="Create a poll, ten answers" style="gap: var(--space-3)">
+      <div class="pollc-answers">
+        <div class="pollc-ans" style="animation: none"><button class="pollc-emoji" aria-label="Emoji for answer 9">🌵</button><div class="input"><input value="Glass Desert, the one with the sandstorms that last forever" aria-label="Answer 9"></div><button class="iconbtn" aria-label="Remove answer 9"><i class="ph ph-trash"></i></button></div>
+        <div class="pollc-ans" style="animation: none"><button class="pollc-emoji" aria-label="Emoji for answer 10"><i class="ph ph-smiley"></i></button><div class="input"><input value="Skip tonight" aria-label="Answer 10"></div><button class="iconbtn" aria-label="Remove answer 10"><i class="ph ph-trash"></i></button></div>
+      </div>
+      <div class="pollc-addrow"><button class="btn btn--ghost btn--sm" disabled><i class="ph-bold ph-plus"></i>Add answer</button><span class="hint">10 of 10, the most a poll can have</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="better-than-discord">
+  <h2>Better than Discord</h2>
+  <p class="lede">Where Discord's media and drag handling is weak, Wave does this instead. Discord's side is described from its current desktop app.</p>
+  <div class="btd">
+    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
+    <div><p>A video that won't decode shows a generic error or a player that does nothing.</p><p><b><a href="#video-player">Failed video</a></b>Says it can't play here and why, with Open it instead in place.</p><p>An error should say what happened and what to do next, where it happened.</p></div>
+    <div><p>The scrubber gives no hint of where a click lands; buffering covers the frame with a spinner.</p><p><b><a href="#video-player">Scrubber and buffering</a></b>Hover time, a hover marker and the buffered range; buffering shows the wave over the last frame with controls still live.</p><p>Seek without guessing; waiting should never hide what you were watching.</p></div>
+    <div><p>The inline player has no playback speed or picture in picture.</p><p><b><a href="#video-player">Speed and picture in picture</a></b>Both in the bar, with keys for each.</p><p>Clips of guides and long recordings are watched at speed, or alongside the chat.</p></div>
+    <div><p>The image viewer zooms with a click, with no level shown and no quick way back.</p><p><b><a href="#image-viewer">Zoom HUD</a></b>Zoom anchored at the pointer, a level readout with Reset, drag to pan, a counter for the message's images.</p><p>You always know how far in you are and how to get back.</p></div>
+    <div><p>A too-large file is accepted on drop, then refused in a modal after the fact.</p><p><b><a href="#file-drop">Drop zone that checks first</a></b>The overlay names the file, its size and the limit before you let go, and the rest still upload.</p><p>Tell people before they commit, and don't throw away the files that were fine.</p></div>
+    <div><p>Renaming or spoilering an upload means opening each file's own modal from the tray.</p><p><b><a href="#upload-preview">One upload preview</a></b>Every file in one list, renamed, spoilered or removed in place, with the comment and Upload below.</p><p>One surface for one decision; no modal per file.</p></div>
+    <div><p>Moving someone between voice channels gives a faint highlight and no confirmation or undo.</p><p><b><a href="#voice-drag">Voice drag</a></b>A pill with their avatar, the target channel lit, a line where they land, a status line saying what release does, Undo after, and a reason when a channel is full.</p><p>A move that affects someone else should be clear before and reversible after.</p></div>
+    <div><p>Dropping between channels and dropping into a category look the same.</p><p><b><a href="#reorder">Reorder</a></b>A line for between, a filled header for into, the origin kept at 40%, the list travelling to its new order.</p><p>Two different outcomes get two different marks.</p></div>
+    <div><p>The channel list and member list are fixed widths.</p><p><b><a href="#resize">Resize handles</a></b>Both edges resize, by pointer or keyboard, with a width readout, a double-click reset and a cursor that shows the only way left at a limit.</p><p>Long channel names and wide screens deserve the room; nothing should be pointer-only.</p></div>
+    <div><p>Nothing marks a sticker as animated until it plays, and a held-still one looks static.</p><p><b><a href="#stickers">Animated sticker marks</a></b>A play mark in the picker and an Animated tag on any sticker held still.</p><p>State shown, not discovered by accident.</p></div>
+    <div><p>The poll creator hides the answer limit until you hit it.</p><p><b><a href="#poll-creator">Poll creator</a></b>A running "3 of 10", Enter for the next answer, and Add answer explaining itself at ten.</p><p>Limits stated up front never surprise anyone.</p></div>
+  </div>
+</section>
 </main>
 </div>
+<div class="toasts" id="toasts" style="position: fixed; left: 0; right: 0; bottom: 24px; z-index: 500; pointer-events: none"></div>
 <script src="site.js"></script>
+<script>
+// Page demos: the fake video player, viewer zoom, file drop, upload preview, drags, resize, decorations, stickers, polls.
+const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+const plural = new Intl.PluralRules("en");
+const files = n => `${n} ${plural.select(n) === "one" ? "file" : "files"}`;
+const mb = new Intl.NumberFormat("en", { maximumFractionDigits: 1 });
+const size = bytes => bytes >= 1e6 ? `${mb.format(bytes / 1e6)} MB` : `${Math.max(1, Math.round(bytes / 1e3))} KB`;
+const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const esc = t => t.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+// Travels an element from its old box to its new one (FLIP), unless motion is reduced.
+function travel(el, from, ms = 260) {
+  if (reduced.matches) return;
+  const to = el.getBoundingClientRect();
+  const dx = from.left - to.left, dy = from.top - to.top;
+  if (!dx && !dy && from.width === to.width) return;
+  el.animate([{ transformOrigin: "top left", transform: `translate(${dx}px, ${dy}px) scale(${from.width / to.width}, ${from.height / to.height})` }, { transformOrigin: "top left", transform: "none" }], { duration: ms, easing: "cubic-bezier(0.32, 0.72, 0, 1)" });
+}
+function toast(text, action) {
+  const box = document.getElementById("toasts");
+  const t = document.createElement("div");
+  t.className = "toast"; t.dataset.tone = "undo"; t.style.pointerEvents = "auto";
+  t.innerHTML = `<i class="ph-fill ph-check-circle"></i><p>${text}</p>`;
+  if (action) { const b = document.createElement("button"); b.className = "btn btn--sm"; b.textContent = action.label; b.onclick = () => { action.run(); t.remove(); }; t.append(b); }
+  box.replaceChildren(t);
+  setTimeout(() => { t.classList.add("out"); setTimeout(() => t.remove(), 200); }, 6000);
+}
+
+// VIDEO
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const speedLabel = s => s === 1 ? "Normal" : `${s}×`;
+function videoMarkup(h) {
+  return `<div class="pic vid-pic" style="--h: ${h}"></div>
+  <button class="play" aria-label="Play video"><i class="ph-fill ph-play"></i></button><span class="media-tag br">0:42</span>
+  <div class="vid-wait" role="status" aria-label="Loading video"><span class="mascot waiting"><i></i><i></i><i></i><i></i><i></i></span></div>
+  <button class="vid-again"><i class="ph-bold ph-arrow-counter-clockwise"></i>Play again</button>
+  <div class="vid-fail" role="alert"><i class="ph ph-video-camera-slash"></i><b>Can't play this here</b><p>Wave can't decode HEVC video yet.</p><a class="btn btn--sm" href="#" onclick="return false"><i class="ph-bold ph-arrow-square-out"></i>Open it instead</a></div>
+  <div class="vid-pipnote"><i class="ph ph-picture-in-picture"></i>Playing in picture in picture<button class="btn btn--sm vid-pipback">Bring it back</button></div>
+  <div class="vid-top"><div><b>night-run-finale.mp4</b><span>Theo · Today at 10:25 PM</span></div><button class="vid-btn vid-exit" aria-label="Exit full screen"><i class="ph ph-x"></i></button></div>
+  <div class="vid-bar">
+    <button class="vid-btn vid-play" aria-label="Play"><i class="ph-fill ph-play"></i></button>
+    <span class="vid-time"><output>0:00</output><span> / 0:42</span></span>
+    <div class="vid-scrub" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="42"><span class="vid-buf"></span><span class="vid-hover"></span><span class="vid-knob"></span><span class="tooltip" data-side="top">0:00</span></div>
+    <div class="vid-vol"><button class="vid-btn vid-mute" aria-label="Mute"><i class="ph-fill ph-speaker-high"></i></button>
+      <div class="vid-volpop"><div class="vid-vslider" role="slider" tabindex="0" aria-label="Volume" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100"><span class="vid-vknob"></span></div></div></div>
+    <div class="vid-speedwrap"><button class="vid-btn vid-speed" aria-label="Playback speed" aria-haspopup="menu" aria-expanded="false">1×</button>
+      <div class="menu vid-pop" role="menu" aria-label="Playback speed">${SPEEDS.map(s => `<button class="mi" role="menuitemradio" aria-checked="false" data-speed="${s}"><div>${speedLabel(s)}</div><i class="ph-bold ph-check"></i></button>`).join("")}</div></div>
+    <button class="vid-btn vid-pipbtn" aria-label="Picture in picture"><i class="ph ph-picture-in-picture"></i></button>
+    <button class="vid-btn vid-fullbtn" aria-label="Full screen"><i class="ph ph-corners-out"></i></button>
+  </div>`;
+}
+function paintVideo(el, s) {
+  el.dataset.state = s.state;
+  el.dataset.bar = s.bar;
+  const p = s.t / s.dur, $ = q => el.querySelector(q);
+  const scrub = $(".vid-scrub");
+  scrub.style.setProperty("--p", p);
+  scrub.style.setProperty("--b", Math.max(s.b, p));
+  scrub.setAttribute("aria-valuenow", Math.round(s.t));
+  scrub.setAttribute("aria-valuetext", `${clock(s.t)} of ${clock(s.dur)}`);
+  $(".vid-time output").textContent = clock(s.t);
+  const playing = s.state === "playing";
+  $(".vid-play").setAttribute("aria-label", playing ? "Pause" : "Play");
+  $(".vid-play i").className = `ph-fill ${playing ? "ph-pause" : "ph-play"}`;
+  const heard = s.muted ? 0 : s.vol;
+  $(".vid-mute").setAttribute("aria-label", s.muted ? "Unmute" : "Mute");
+  $(".vid-mute i").className = `ph-fill ${heard === 0 ? "ph-speaker-x" : heard < 0.5 ? "ph-speaker-low" : "ph-speaker-high"}`;
+  $(".vid-vslider").style.setProperty("--v", heard);
+  $(".vid-vslider").setAttribute("aria-valuenow", Math.round(heard * 100));
+  $(".vid-speed").textContent = `${s.speed}×`;
+  for (const mi of el.querySelectorAll(".vid-pop .mi")) mi.setAttribute("aria-checked", +mi.dataset.speed === s.speed);
+  $(".vid-pic").style.setProperty("--h", s.h + s.t * 5);
+  $(".vid-fullbtn").setAttribute("aria-label", el.classList.contains("is-full") ? "Exit full screen" : "Full screen");
+  $(".vid-fullbtn i").className = `ph ${el.classList.contains("is-full") ? "ph-corners-in" : "ph-corners-out"}`;
+}
+// Static states.
+for (const el of document.querySelectorAll(".vid[data-vid]:not(#live-vid)")) {
+  const d = el.dataset;
+  el.innerHTML = videoMarkup(+d.h);
+  const s = { state: d.vid, bar: d.bar || "shown", t: +(d.t || 0), dur: 42, b: +(d.b || 0), speed: +(d.speed || 1), vol: +(d.vol || 0.7), muted: false, h: +d.h };
+  paintVideo(el, s);
+  for (const b of el.querySelectorAll("button, [tabindex]")) b.tabIndex = -1;
+  const scrub = el.querySelector(".vid-scrub");
+  if (d.hp) { scrub.style.setProperty("--hp", d.hp); scrub.querySelector(".tooltip").textContent = clock(+d.hp * 42); }
+  if (d.hover === "scrub") scrub.classList.add("is-hover");
+  if (d.hover === "vol") el.querySelector(".vid-vol").classList.add("is-open");
+  if (d.hover === "speed") { el.querySelector(".vid-pop").classList.add("is-open"); el.querySelector(".vid-speed").setAttribute("aria-expanded", "true"); }
+}
+
+// The live player: a timer stands in for decoding; buffering runs ahead of the playhead.
+(function liveVideo() {
+  const el = document.getElementById("live-vid");
+  el.innerHTML = videoMarkup(+el.dataset.h);
+  const s = { state: "poster", bar: "shown", t: 0, dur: 42, b: 0, speed: 1, vol: 0.7, muted: false, h: +el.dataset.h };
+  const $ = q => el.querySelector(q);
+  const slow = () => document.getElementById("vid-slow").getAttribute("aria-pressed") === "true";
+  const bad = () => document.getElementById("vid-bad").getAttribute("aria-pressed") === "true";
+  let lastMove = 0, hovered = false, busy = false, stalled = false, timer;
+  const paint = () => paintVideo(el, s);
+  function start() {
+    if (s.state === "poster" || s.state === "failed") {
+      s.state = "loading"; paint();
+      setTimeout(() => {
+        if (bad()) { s.state = "failed"; return paint(); }
+        s.state = "playing"; s.b = 0.12; lastMove = Date.now(); paint(); run();
+      }, slow() ? 2200 : 900);
+      return;
+    }
+    if (s.state === "ended") s.t = 0;
+    s.state = "playing"; lastMove = Date.now(); paint(); run();
+  }
+  const pause = () => { s.state = "paused"; paint(); };
+  const toggle = () => s.state === "playing" ? pause() : s.state !== "loading" && start();
+  function run() {
+    clearInterval(timer);
+    timer = setInterval(() => {
+      if (s.state !== "playing" && s.state !== "paused") return clearInterval(timer);
+      s.b = Math.min(1, s.b + (slow() ? 0.0035 : 0.012));
+      if (s.state === "playing") {
+        const p = s.t / s.dur;
+        if (!stalled && s.b < 1 && p >= s.b - 0.004) stalled = true;
+        if (stalled && (s.b - p > 0.06 || s.b === 1)) stalled = false;
+        el.classList.toggle("is-stalled", stalled);
+        if (!stalled) s.t = Math.min(s.dur, s.t + 0.1 * s.speed);
+        if (s.t >= s.dur) { s.state = "ended"; stalled = false; el.classList.remove("is-stalled"); }
+      }
+      const resting = Date.now() - lastMove > 2000 || (!hovered && !el.classList.contains("is-full"));
+      s.bar = s.state === "playing" && !stalled && !busy && resting && !el.contains(document.activeElement?.closest(".vid-bar")) ? "hidden" : "shown";
+      paint();
+    }, 100);
+  }
+  function seekTo(t) { s.t = clamp(t, 0, s.dur); if (s.state === "ended" && s.t < s.dur) s.state = "paused"; if (s.t / s.dur > s.b) s.b = Math.min(1, s.t / s.dur + 0.04); paint(); }
+  function setFull(on) {
+    if (on === el.classList.contains("is-full")) return;
+    const from = el.getBoundingClientRect();
+    if (on) { const hold = document.createElement("div"); hold.className = "vid-hold"; hold.style.cssText = `width:${from.width}px;height:${from.height}px;margin-top:8px`; el.after(hold); }
+    else el.nextElementSibling?.classList.contains("vid-hold") && el.nextElementSibling.remove();
+    el.classList.toggle("is-full", on);
+    travel(el, from);
+    paint(); el.focus();
+  }
+  const setSpeed = v => { s.speed = v; paint(); };
+  const closeMenus = () => { $(".vid-pop").classList.remove("is-open"); $(".vid-speed").setAttribute("aria-expanded", "false"); };
+
+  el.addEventListener("pointermove", () => { lastMove = Date.now(); if (s.bar === "hidden") { s.bar = "shown"; paint(); } });
+  el.addEventListener("pointerenter", () => { hovered = true; lastMove = Date.now(); });
+  el.addEventListener("pointerleave", () => { hovered = false; });
+  el.addEventListener("click", e => {
+    const t = e.target;
+    if (t.closest(".vid-fail a")) return;
+    if (t.closest(".play, .vid-again, .vid-play")) return toggle();
+    if (t.closest(".vid-pipback, .vid-pipbtn")) { el.classList.toggle("is-pip"); return; }
+    if (t.closest(".vid-fullbtn")) return setFull(!el.classList.contains("is-full"));
+    if (t.closest(".vid-exit")) return setFull(false);
+    if (t.closest(".vid-mute")) { s.muted = !s.muted; if (!s.muted && s.vol === 0) s.vol = 0.5; return paint(); }
+    if (t.closest(".vid-speed")) { const open = !$(".vid-pop").classList.contains("is-open"); $(".vid-pop").classList.toggle("is-open", open); $(".vid-speed").setAttribute("aria-expanded", open); return; }
+    const mi = t.closest(".vid-pop .mi");
+    if (mi) { setSpeed(+mi.dataset.speed); return closeMenus(); }
+    if (t.closest(".vid-bar, .vid-fail, .vid-pipnote")) return;
+    toggle();
+  });
+  document.addEventListener("click", e => { if (!e.target.closest(".vid-speedwrap")) closeMenus(); });
+
+  const scrub = $(".vid-scrub");
+  const at = e => { const r = scrub.getBoundingClientRect(); return clamp((e.clientX - r.left) / r.width, 0, 1); };
+  scrub.addEventListener("pointermove", e => { const f = at(e); scrub.style.setProperty("--hp", f); scrub.querySelector(".tooltip").textContent = clock(f * s.dur); if (busy) seekTo(f * s.dur); });
+  scrub.addEventListener("pointerdown", e => { busy = true; scrub.setPointerCapture(e.pointerId); scrub.classList.add("is-dragging"); const f = at(e); scrub.style.setProperty("--hp", f); seekTo(f * s.dur); });
+  scrub.addEventListener("pointerup", () => { busy = false; scrub.classList.remove("is-dragging"); });
+  scrub.addEventListener("keydown", e => {
+    const step = { ArrowLeft: -5, ArrowRight: 5, ArrowDown: -5, ArrowUp: 5, Home: -s.dur, End: s.dur }[e.key];
+    if (step === undefined) return;
+    e.preventDefault(); e.stopPropagation(); seekTo(s.t + step);
+  });
+  const vs = $(".vid-vslider");
+  const vat = e => { const r = vs.getBoundingClientRect(); return clamp((r.bottom - e.clientY) / r.height, 0, 1); };
+  vs.addEventListener("pointerdown", e => { busy = true; vs.setPointerCapture(e.pointerId); $(".vid-vol").classList.add("is-open"); s.vol = vat(e); s.muted = s.vol === 0; paint(); });
+  vs.addEventListener("pointermove", e => { if (!vs.hasPointerCapture(e.pointerId)) return; s.vol = vat(e); s.muted = s.vol === 0; paint(); });
+  vs.addEventListener("pointerup", () => { busy = false; $(".vid-vol").classList.remove("is-open"); });
+  vs.addEventListener("keydown", e => {
+    const step = { ArrowUp: 0.1, ArrowRight: 0.1, ArrowDown: -0.1, ArrowLeft: -0.1 }[e.key];
+    if (step === undefined) return;
+    e.preventDefault(); e.stopPropagation(); s.vol = clamp((s.muted ? 0 : s.vol) + step, 0, 1); s.muted = s.vol === 0; paint();
+  });
+  el.addEventListener("keydown", e => {
+    if (e.target.closest(".vid-pop")) return;
+    const k = e.key.toLowerCase();
+    const i = SPEEDS.indexOf(s.speed);
+    const act = {
+      " ": toggle, k: toggle,
+      arrowleft: () => seekTo(s.t - 5), j: () => seekTo(s.t - 5),
+      arrowright: () => seekTo(s.t + 5), l: () => seekTo(s.t + 5),
+      m: () => { s.muted = !s.muted; paint(); },
+      f: () => setFull(!el.classList.contains("is-full")),
+      escape: () => { closeMenus(); setFull(false); },
+      p: () => el.classList.toggle("is-pip"),
+      "<": () => setSpeed(SPEEDS[Math.max(0, i - 1)]), ">": () => setSpeed(SPEEDS[Math.min(SPEEDS.length - 1, i + 1)]),
+    }[k];
+    if (!act || (k === " " && e.target.closest("button"))) return;
+    e.preventDefault(); lastMove = Date.now(); act();
+  });
+  // Pause when it scrolls out of view, as in the app.
+  new IntersectionObserver(([en]) => { if (!en.isIntersecting && s.state === "playing" && !el.classList.contains("is-full")) pause(); }).observe(el);
+  paint();
+})();
+
+// IMAGE VIEWER
+(function liveViewer() {
+  const v = document.getElementById("live-viewer");
+  const IMAGES = [["glass.png", "212 KB"], ["riso.png", "184 KB"], ["blueprint.png", "205 KB"], ["paper.png", "198 KB"], ["pixel.png", "96 KB"]];
+  const seen = new Set([1]);
+  let i = 1, z = 1, x = 0, y = 0, hudTimer, failedOnce = false;
+  const stage = v.querySelector(".vw-stage"), img = v.querySelector(".vw-img"), hud = v.querySelector(".vw-hud");
+  const apply = () => {
+    img.style.setProperty("--z", z); img.style.setProperty("--x", x + "px"); img.style.setProperty("--y", y + "px");
+    stage.classList.toggle("is-zoomed", z > 1);
+    hud.querySelector("output").textContent = Math.round(z * 100) + "%";
+    v.querySelector(".vw-out").disabled = z <= 1;
+    v.querySelector(".vw-in").disabled = z >= 4;
+  };
+  const showHud = () => {
+    hud.classList.add("is-shown");
+    clearTimeout(hudTimer);
+    const hide = () => { hudTimer = setTimeout(() => hud.matches(":hover") ? hide() : hud.classList.remove("is-shown"), 2000); };
+    hide();
+  };
+  const limit = () => { const w = img.offsetWidth, h = img.offsetHeight; return [w * (z - 1) / 2, h * (z - 1) / 2]; };
+  function zoomTo(nz, px = 0, py = 0) {
+    nz = clamp(nz, 1, 4);
+    x = px - (px - x) * nz / z; y = py - (py - y) * nz / z; z = nz;
+    const [lx, ly] = limit(); x = clamp(x, -lx, lx); y = clamp(y, -ly, ly);
+    if (z === 1) x = y = 0;
+    apply(); showHud();
+  }
+  const fromCenter = e => { const r = stage.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2]; };
+  function show(n, dir) {
+    if (n < 0 || n >= IMAGES.length) return;
+    i = n; z = 1; x = y = 0; apply(); hud.classList.remove("is-shown");
+    const [name, kb] = IMAGES[i];
+    v.querySelector(".vw-name").textContent = name;
+    v.querySelector(".vw-meta").textContent = `Mira · ${kb} · 1024 × 1024`;
+    v.querySelector(".vw-count").textContent = `${i + 1} of ${IMAGES.length}`;
+    v.querySelector(".vw-nav.prev").disabled = i === 0;
+    v.querySelector(".vw-nav.next").disabled = i === IMAGES.length - 1;
+    v.querySelector(".vw-wname").textContent = name;
+    const reveal = () => {
+      v.dataset.state = "ready";
+      img.src = `/assets/brand/icons/${name}`;
+      img.classList.remove("is-enter-next", "is-enter-prev"); void img.offsetWidth;
+      if (dir) img.classList.add(dir > 0 ? "is-enter-next" : "is-enter-prev");
+    };
+    if (name === "pixel.png" && !failedOnce) { v.dataset.state = "loading"; setTimeout(() => { failedOnce = true; v.dataset.state = "failed"; }, 900); return; }
+    if (!seen.has(i)) { seen.add(i); v.dataset.state = "loading"; setTimeout(reveal, 700); return; }
+    reveal();
+  }
+  v.querySelector(".vw-retry").addEventListener("click", () => { v.dataset.state = "loading"; setTimeout(() => show(i), 700); });
+  v.querySelector(".vw-nav.prev").addEventListener("click", () => show(i - 1, -1));
+  v.querySelector(".vw-nav.next").addEventListener("click", () => show(i + 1, 1));
+  v.querySelector(".vw-in").addEventListener("click", () => zoomTo(z * 1.5));
+  v.querySelector(".vw-out").addEventListener("click", () => zoomTo(z / 1.5));
+  v.querySelector(".vw-reset").addEventListener("click", () => zoomTo(1));
+  let drag = null;
+  img.addEventListener("pointerdown", e => { drag = { sx: e.clientX, sy: e.clientY, x, y, moved: false }; img.setPointerCapture(e.pointerId); });
+  img.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+    drag.moved = true;
+    if (z === 1) return;
+    stage.classList.add("is-panning");
+    const [lx, ly] = limit();
+    x = clamp(drag.x + dx, -lx, lx); y = clamp(drag.y + dy, -ly, ly); apply();
+  });
+  img.addEventListener("pointerup", e => {
+    stage.classList.remove("is-panning");
+    if (drag && !drag.moved && z === 1) zoomTo(2, ...fromCenter(e));
+    drag = null;
+  });
+  img.addEventListener("dblclick", () => zoomTo(1));
+  stage.addEventListener("wheel", e => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); zoomTo(z * Math.exp(-e.deltaY / 200), ...fromCenter(e)); }, { passive: false });
+  v.addEventListener("keydown", e => {
+    const act = { ArrowLeft: () => show(i - 1, -1), ArrowRight: () => show(i + 1, 1), "+": () => zoomTo(z * 1.5), "=": () => zoomTo(z * 1.5), "-": () => zoomTo(z / 1.5), "0": () => zoomTo(1) }[e.key];
+    if (!act || e.target.closest("button, a")) return;
+    e.preventDefault(); act();
+  });
+  apply();
+})();
+
+// FILE DROP
+const LIMIT = 25e6;
+const DROPS = {
+  accept: [{ name: "night-market.jpg", size: 2.4e6, kind: "image", h: 40 }, { name: "rooftop-crew.png", size: 3.7e6, kind: "image", h: 250 }],
+  reject: [{ name: "night-run-4k.mov", size: 312e6, kind: "video" }],
+  mixed: [{ name: "night-market.jpg", size: 2.4e6, kind: "image", h: 40 }, { name: "rooftop-crew.png", size: 3.7e6, kind: "image", h: 250 }, { name: "night-run-4k.mov", size: 312e6, kind: "video" }],
+};
+function dropMarkup(kind, list = DROPS[kind]) {
+  const bad = list.filter(f => f.size > LIMIT), ok = list.length - bad.length;
+  const chips = bad.map(f => `<span class="is-bad"><i class="ph ph-file-x"></i><em>${esc(f.name)}</em><small>${size(f.size)}</small></span>`).join("");
+  if (kind === "accept") return `<div class="fdrop-box"><span class="icontile"><i class="ph-bold ph-upload-simple"></i></span><b>Drop to upload to #general</b><p>${list.length ? files(list.length) + " · " : ""}up to 10 files, 25 MB each. Hold <kbd class="kbd">⇧ Shift</kbd> to send without the preview.</p></div>`;
+  if (kind === "reject") return `<div class="fdrop-box"><span class="icontile"><i class="ph-bold ph-file-x"></i></span><b>${bad.length === 1 ? `${esc(bad[0].name)} is too large` : `${files(bad.length)} are too large`}</b><p>Files can be up to 25 MB here. Compress it, or share a link to it instead.</p><div class="fdrop-files">${chips}</div></div>`;
+  return `<div class="fdrop-box"><span class="icontile"><i class="ph-bold ph-warning"></i></span><b>${ok} of ${files(list.length)} will upload</b><p>${bad.length === 1 ? "This one is" : "These are"} over the 25 MB limit and will be left out.</p><div class="fdrop-files">${chips}</div></div>`;
+}
+for (const d of document.querySelectorAll(".fdrop[data-drop]")) d.innerHTML = dropMarkup(d.dataset.drop);
+(function liveDrop() {
+  const frame = document.getElementById("drop-live"), overlay = frame.querySelector(".fdrop"), seg = document.getElementById("drop-seg");
+  const showState = kind => {
+    overlay.classList.remove("is-reject", "is-mixed");
+    if (!kind) return overlay.classList.remove("is-over");
+    overlay.innerHTML = dropMarkup(kind);
+    overlay.classList.add("is-over");
+    if (kind !== "accept") overlay.classList.add("is-" + kind);
+  };
+  seg.addEventListener("click", e => { const b = e.target.closest("button"); if (b) showState(b.dataset.v); });
+  let depth = 0;
+  const isFiles = e => [...(e.dataTransfer?.types || [])].includes("Files");
+  frame.addEventListener("dragenter", e => { if (!isFiles(e)) return; e.preventDefault(); if (depth++ === 0) { overlay.innerHTML = dropMarkup("accept", []); overlay.classList.remove("is-reject", "is-mixed"); overlay.classList.add("is-over"); } });
+  frame.addEventListener("dragover", e => { if (isFiles(e)) e.preventDefault(); });
+  frame.addEventListener("dragleave", () => { if (--depth <= 0) { depth = 0; overlay.classList.remove("is-over"); } });
+  frame.addEventListener("drop", e => {
+    e.preventDefault(); depth = 0;
+    const list = [...e.dataTransfer.files].map(f => ({ name: f.name, size: f.size, kind: f.type.startsWith("image/") ? "image" : f.type.startsWith("video/") ? "video" : "file", url: f.type.startsWith("image/") ? URL.createObjectURL(f) : null }));
+    const bad = list.filter(f => f.size > LIMIT);
+    if (bad.length === list.length) { overlay.innerHTML = dropMarkup("reject", list); overlay.classList.add("is-reject"); setTimeout(() => overlay.classList.remove("is-over", "is-reject"), 2600); return; }
+    overlay.classList.remove("is-over");
+    if (e.shiftKey) return toast(`Sent ${files(list.length - bad.length)} to #general`);
+    const dlg = document.getElementById("dlg-upload");
+    mountUpload(dlg.querySelector(".upl"), list, "dlg-upload-title");
+    dlg.showModal();
+  });
+})();
+
+// UPLOAD PREVIEW
+const ICONS = { video: "ph-file-video", file: "ph-file", image: "ph-file-image" };
+function uploadRow(f) {
+  const dot = f.name.lastIndexOf(".");
+  const base = dot > 0 ? f.name.slice(0, dot) : f.name, ext = dot > 0 ? f.name.slice(dot) : "";
+  const bad = f.size > LIMIT;
+  const thumb = f.url ? `<span class="upl-thumb"><img src="${f.url}" alt="" style="width: 100%; height: 100%; object-fit: cover"><span class="upl-veil"><i class="ph-bold ph-eye-slash"></i></span></span>`
+    : f.kind === "image" ? `<span class="upl-thumb pic" style="--h: ${f.h ?? 200}"><span class="upl-veil"><i class="ph-bold ph-eye-slash"></i></span></span>`
+    : `<span class="upl-thumb"><span class="icontile"><i class="ph ${bad ? "ph-file-x" : ICONS[f.kind]}"></i></span><span class="upl-veil"><i class="ph-bold ph-eye-slash"></i></span></span>`;
+  const meta = bad ? `<small class="is-bad">${size(f.size)}, over the 25 MB limit. It won't upload; remove it or compress it first.</small>` : `<small>${size(f.size)}${f.kind === "image" && !f.url ? " · 4032 × 3024" : ""}</small>`;
+  return `<div class="upl-file${bad ? " is-bad" : ""}" data-size="${f.size}">${thumb}
+    <div class="upl-meta"><label class="input"><input value="${esc(base)}" aria-label="File name for ${esc(f.name)}" ${bad ? "disabled" : ""}><span class="affix">${esc(ext)}</span></label>${meta}</div>
+    <div class="upl-acts">${bad ? "" : `<button class="chip upl-spoil" aria-pressed="false"><i class="ph ph-eye-slash"></i>Spoiler</button>`}<button class="iconbtn upl-remove" aria-label="Remove ${esc(f.name)}"><i class="ph ph-trash"></i></button></div></div>`;
+}
+function mountUpload(box, list, titleId) {
+  const real = box.closest("dialog");
+  box.innerHTML = `<div class="dhead"><h4 id="${titleId}">Upload to #general</h4><p class="upl-sum"></p><button class="iconbtn" aria-label="Close" ${real ? "data-close" : ""}><i class="ph ph-x"></i></button></div>
+    <div class="upl-list">${list.map(uploadRow).join("")}</div>
+    <button class="btn btn--ghost btn--sm upl-more"><i class="ph-bold ph-plus"></i>Add files</button>
+    <div class="field"><label for="${titleId}-c">Comment</label><textarea class="textarea" id="${titleId}-c" rows="2" placeholder="Add a comment (optional)" style="min-height: 64px"></textarea></div>
+    <footer><span class="note"><kbd class="kbd">⇧ Shift</kbd> as you drop skips this</span><button class="btn btn--ghost" ${real ? "data-close" : ""}>Cancel</button><button class="btn btn--primary upl-go"></button></footer>`;
+  const sum = () => {
+    const rows = [...box.querySelectorAll(".upl-file:not(.is-leaving)")];
+    const ok = rows.filter(r => !r.classList.contains("is-bad")), bad = rows.length - ok.length;
+    const bytes = ok.reduce((a, r) => a + +r.dataset.size, 0);
+    box.querySelector(".upl-sum").textContent = `${files(ok.length)} · ${size(bytes)}${bad ? ` · ${bad} too large` : ""}`;
+    const go = box.querySelector(".upl-go");
+    go.innerHTML = `<i class="ph-bold ph-upload-simple"></i>Upload ${files(ok.length)}`;
+    go.disabled = !ok.length;
+    return rows.length;
+  };
+  box.onclick = e => {
+    const rm = e.target.closest(".upl-remove");
+    if (rm) {
+      const row = rm.closest(".upl-file");
+      row.classList.add("is-leaving");
+      const left = sum();
+      setTimeout(() => {
+        const above = [...box.querySelectorAll(".upl-file")].filter(r => r !== row).map(r => [r, r.getBoundingClientRect()]);
+        row.remove();
+        for (const [r, from] of above) travel(r, from, 200);
+        if (!left) real ? real.close() : mountUpload(box, DROPS.mixed, titleId);
+      }, 200);
+    }
+    const go = e.target.closest(".upl-go");
+    if (go && !go.dataset.busy) {
+      go.dataset.busy = 1; const n = box.querySelectorAll(".upl-file:not(.is-bad)").length;
+      go.innerHTML = `<span class="bars" style="--c: currentColor"><i></i><i></i><i></i></span>Uploading…`;
+      setTimeout(() => { delete go.dataset.busy; sum(); real?.close(); toast(`Uploaded ${files(n)} to #general`); }, 1200);
+    }
+    if (e.target.closest(".upl-more")) toast("Opens the system file picker");
+  };
+  sum();
+}
+mountUpload(document.getElementById("upl-demo"), DROPS.mixed, "upl-demo-title");
+
+// DRAGGING: one pointer drag helper, with a pill that follows and a 4px start threshold.
+function pointerDrag(e, { pill, start, move, drop, cancel }) {
+  const sx = e.clientX, sy = e.clientY;
+  let live = false, el;
+  const place = ev => { el.style.setProperty("--px", ev.clientX + 12 + "px"); el.style.setProperty("--py", ev.clientY - 16 + "px"); };
+  const onMove = ev => {
+    if (!live) {
+      if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 4) return;
+      live = true; el = pill(); el.classList.add("is-floating"); document.body.append(el); document.body.classList.add("is-grabbing"); start();
+    }
+    place(ev);
+    const blocked = move(ev);
+    el.classList.toggle("is-blocked", !!blocked);
+    document.body.classList.toggle("is-blocked", !!blocked);
+    if (!!blocked !== !!el.querySelector(".dragpill-no")) blocked ? el.insertAdjacentHTML("beforeend", `<i class="ph-bold ph-prohibit dragpill-no" aria-hidden="true"></i>`) : el.querySelector(".dragpill-no").remove();
+  };
+  const end = ok => {
+    removeEventListener("pointermove", onMove); removeEventListener("pointerup", onUp); removeEventListener("keydown", onKey);
+    if (!live) return;
+    el.remove(); document.body.classList.remove("is-grabbing", "is-blocked");
+    ok ? drop() : cancel();
+  };
+  const onUp = () => end(true);
+  const onKey = ev => { if (ev.key === "Escape") end(false); };
+  addEventListener("pointermove", onMove); addEventListener("pointerup", onUp); addEventListener("keydown", onKey);
+}
+const under = (ev, sel) => document.elementFromPoint(ev.clientX, ev.clientY)?.closest(sel);
+// Places the list's insertion line in the gap above (or below) a row.
+function lineAt(line, list, row, after) {
+  const lr = list.getBoundingClientRect(), r = row.getBoundingClientRect();
+  line.hidden = false;
+  line.style.setProperty("--y", (after ? r.bottom + 1 : r.top - 1) - lr.top + list.scrollTop + "px");
+}
+const pillFor = (row, channel) => {
+  const p = document.createElement("span");
+  p.className = "dragpill" + (channel ? " dragpill--channel" : "");
+  const av = row.querySelector(".av");
+  p.innerHTML = channel ? `<i class="ph ${channel}"></i>${row.querySelector(".nm, .cat").textContent.trim()}` : `${av.outerHTML}${row.querySelector(".nm").textContent}`;
+  return p;
+};
+// Moves rows to their new order, letting each travel from where it was.
+function reflow(list, mutate) {
+  const items = [...list.querySelectorAll(".ch, .vp, .cathead")].map(r => [r, r.getBoundingClientRect()]);
+  mutate();
+  for (const [r, from] of items) travel(r, from, 220);
+}
+
+(function voiceDrag() {
+  const root = document.getElementById("voice-live"), list = root.querySelector(".chlist"), line = list.querySelector(".drop-line"), status = root.querySelector(".mx-status");
+  const channelOf = row => { let n = row; while (n && !n.matches(".ch")) n = n.previousElementSibling; return n; };
+  const lastOf = ch => { let n = ch; while (n.nextElementSibling?.matches(".vp")) n = n.nextElementSibling; return n; };
+  const count = ch => { let k = 0, n = ch.nextElementSibling; while (n?.matches(".vp")) { k++; n = n.nextElementSibling; } return k; };
+  const say = (text, undo) => { status.innerHTML = text; if (undo) { const b = document.createElement("button"); b.className = "btn btn--sm"; b.textContent = "Undo"; b.onclick = undo; status.append(b); } };
+  list.addEventListener("pointerdown", e => {
+    const row = e.target.closest(".vp"); if (!row || e.button) return;
+    const from = channelOf(row), name = row.querySelector(".nm").textContent;
+    let target = null;
+    const clear = () => { root.querySelectorAll(".is-drop-target, .is-drop-blocked").forEach(c => c.classList.remove("is-drop-target", "is-drop-blocked")); line.hidden = true; };
+    pointerDrag(e, {
+      pill: () => pillFor(row),
+      start: () => { row.classList.add("is-drag-origin"); say("Drag onto another voice channel"); },
+      move: ev => {
+        clear(); target = null;
+        const hit = under(ev, "#voice-live .ch, #voice-live .vp");
+        const ch = hit && channelOf(hit);
+        if (!ch || ch === from) { say(`Drag ${name} onto another voice channel`); return false; }
+        const full = ch.dataset.limit && count(ch) >= +ch.dataset.limit;
+        if (full) { ch.classList.add("is-drop-blocked"); say(`${ch.dataset.chan} is full (${count(ch)} of ${ch.dataset.limit})`); return true; }
+        target = ch; ch.classList.add("is-drop-target"); lineAt(line, list, lastOf(ch), true);
+        say(`Release to move ${name} to ${ch.dataset.chan}`);
+        return false;
+      },
+      drop: () => {
+        clear(); row.classList.remove("is-drag-origin");
+        if (!target) return say("Drag someone onto another channel");
+        const back = row.previousElementSibling, to = target;
+        reflow(list, () => lastOf(to).after(row));
+        say(`Moved ${name} to ${to.dataset.chan}`, () => { reflow(list, () => back.after(row)); say(`Moved ${name} back to ${from.dataset.chan}`); });
+      },
+      cancel: () => { clear(); row.classList.remove("is-drag-origin"); say("Drag someone onto another channel"); },
+    });
+  });
+})();
+
+(function reorder() {
+  const root = document.getElementById("reorder-live"), list = root.querySelector(".chlist"), line = list.querySelector(".drop-line"), status = root.querySelector(".mx-status");
+  list.addEventListener("pointerdown", e => {
+    if (e.button) return;
+    const cat = e.target.closest(".cathead");
+    const row = cat ? cat.parentElement : e.target.closest(".ch");
+    if (!row) return;
+    const name = (cat ? cat.querySelector(".cat") : row.querySelector(".nm")).textContent.trim();
+    let spot = null;
+    const clear = () => { root.querySelectorAll(".is-drop-into").forEach(c => c.classList.remove("is-drop-into")); line.hidden = true; };
+    pointerDrag(e, {
+      pill: () => pillFor(cat || row, cat ? "ph-stack" : row.querySelector("i").className.split(" ").pop()),
+      start: () => { row.classList.add("is-drag-origin"); if (cat) row.querySelectorAll(".ch").forEach(c => c.style.display = "none"); },
+      move: ev => {
+        clear(); spot = null;
+        if (cat) {
+          const g = under(ev, "#reorder-live .catgroup");
+          if (!g || g === row) { status.textContent = `Drag ${name} between categories`; return false; }
+          const r = g.getBoundingClientRect(), after = ev.clientY > r.top + r.height / 2;
+          spot = { ref: g, after };
+          const lr = list.getBoundingClientRect();
+          line.hidden = false; line.style.setProperty("--y", (after ? r.bottom + 8 : r.top - 8) - lr.top + "px");
+          status.textContent = `Release to put ${name} ${after ? "after" : "before"} ${g.querySelector(".cat").textContent.trim()}`;
+          return false;
+        }
+        const head = under(ev, "#reorder-live .cathead");
+        if (head) {
+          head.classList.add("is-drop-into"); spot = { ref: head, after: true };
+          lineAt(line, list, head, true);
+          status.textContent = `Release to move #${name} to the top of ${head.textContent.trim()}`;
+          return false;
+        }
+        const ch = under(ev, "#reorder-live .ch");
+        if (!ch || ch === row) { status.textContent = `Drag #${name} to a new place`; return false; }
+        const r = ch.getBoundingClientRect(), after = ev.clientY > r.top + r.height / 2;
+        spot = { ref: ch, after };
+        lineAt(line, list, ch, after);
+        status.textContent = `Release to move #${name} ${after ? "below" : "above"} #${ch.querySelector(".nm").textContent}`;
+        return false;
+      },
+      drop: () => {
+        clear(); row.classList.remove("is-drag-origin");
+        if (cat) row.querySelectorAll(".ch").forEach(c => c.style.display = "");
+        if (!spot) return status.textContent = "Drag a channel or a category";
+        reflow(list, () => spot.after ? spot.ref.after(row) : spot.ref.before(row));
+        status.textContent = cat ? `Moved ${name}` : `Moved #${name}`;
+      },
+      cancel: () => { clear(); row.classList.remove("is-drag-origin"); if (cat) row.querySelectorAll(".ch").forEach(c => c.style.display = ""); status.textContent = "Drag a channel or a category"; },
+    });
+  });
+})();
+
+// RESIZE
+for (const h of document.querySelectorAll("#rsz-live .rsz")) {
+  const col = h.parentElement, d = h.dataset, min = +d.min, max = +d.max, sign = d.grow === "left" ? -1 : 1;
+  const get = () => parseFloat(getComputedStyle(col).getPropertyValue(d.var));
+  const set = w => {
+    w = Math.round(clamp(w, min, max));
+    col.style.setProperty(d.var, w + "px");
+    h.querySelector(".tooltip").textContent = `${w} px`;
+    h.setAttribute("aria-valuenow", w);
+    h.classList.toggle("is-min", w === min); h.classList.toggle("is-max", w === max);
+  };
+  h.setAttribute("aria-valuemin", min); h.setAttribute("aria-valuemax", max);
+  h.addEventListener("pointerdown", e => {
+    const sx = e.clientX, sw = get();
+    h.setPointerCapture(e.pointerId); h.classList.add("is-dragging");
+    const mv = ev => set(sw + sign * (ev.clientX - sx));
+    h.addEventListener("pointermove", mv);
+    h.addEventListener("pointerup", () => { h.removeEventListener("pointermove", mv); h.classList.remove("is-dragging"); }, { once: true });
+  });
+  h.addEventListener("dblclick", () => set(+d.def));
+  h.addEventListener("keydown", e => {
+    const step = e.shiftKey ? 32 : 8;
+    const act = { ArrowLeft: () => set(get() - sign * step), ArrowRight: () => set(get() + sign * step), Home: () => set(min), End: () => set(max), Enter: () => set(+d.def) }[e.key];
+    if (act) { e.preventDefault(); act(); }
+  });
+  set(get());
+}
+
+// DECORATIONS: the wave ring repeats the logo's five-bar rhythm around the avatar.
+const MOTIF = [0.37, 0.7, 1, 0.6, 0.34];
+function waveRing(px, hue) {
+  const small = px < 64, n = small ? 15 : 30, w = small ? 9 : 5, k = small ? 12 : 11;
+  const bars = Array.from({ length: n }, (_, i) => { const len = 2 + k * MOTIF[i % 5]; return `<g transform="rotate(${i * 360 / n})"><rect style="--i: ${i}" x="${-w / 2}" y="${-51 - len}" width="${w}" height="${len}" rx="${w / 2}"/></g>`; }).join("");
+  return `<svg class="deco-art" viewBox="-60 -60 120 120" aria-hidden="true"><g fill="oklch(0.78 0.13 ${hue})">${bars}</g></svg>`;
+}
+function deco(px, kind, name, status, hue) {
+  const art = kind === "ring" || kind === "anim" ? waveRing(px, hue) : kind === "halo" ? `<span class="deco-halo" style="--deco-h: ${hue}"></span>` : "";
+  return `<span class="deco${kind === "anim" ? " is-animated" : ""}" style="--size: ${px}px; --deco-h: ${hue}">${art}<span class="av" data-av="${name}"><span class="status ${status}"></span></span></span>`;
+}
+(function decorations() {
+  const grid = document.getElementById("deco-grid");
+  const ROWS = [[80, "Profile, 80"], [40, "Chat, 40"], [32, "Lists, 32"]];
+  for (const [px, label] of ROWS) grid.insertAdjacentHTML("beforeend", `<span class="note">${label}</span>` + [["none", "Ana", "online", 200], ["ring", "Mira", "idle", 170], ["anim", "Theo", "dnd", 80], ["halo", "Rosa", "offline", 280]].map(([k, n, s, h]) => deco(px, k, n, s, h)).join(""));
+  const fxd = document.getElementById("fx-deco");
+  fxd.outerHTML = deco(80, "ring", "Ana", "online", 200);
+  paintAvatars(grid); paintAvatars(document.getElementById("fx-card"));
+  const fx = document.getElementById("fx");
+  fx.innerHTML = Array.from({ length: 10 }, (_, i) => `<i style="--x: ${6 + i * 9.5}%; --h: ${28 + MOTIF[i % 5] * 56}px; --d: ${(i * 137) % 600}ms; --rest: ${120 + MOTIF[(i + 2) % 5] * 120}px"></i>`).join("");
+  const play = () => { fx.classList.remove("is-playing", "is-rest"); void fx.offsetWidth; fx.classList.add("is-playing"); setTimeout(() => { fx.classList.remove("is-playing"); fx.classList.add("is-rest"); }, 3100); };
+  document.getElementById("fx-replay").addEventListener("click", play);
+  new IntersectionObserver(([en], ob) => { if (en.isIntersecting) { play(); ob.disconnect(); } }, { threshold: 0.6 }).observe(fx);
+  fx.classList.add("is-rest");
+})();
+
+// STICKERS: simple drawn stand-ins, each with the white die-cut edge.
+const face = (x = 50, y = 52) => `<circle cx="${x - 10}" cy="${y}" r="4" fill="#2a1a22"/><circle cx="${x + 10}" cy="${y}" r="4" fill="#2a1a22"/><path d="M${x - 8} ${y + 10}q8 7 16 0" stroke="#2a1a22" stroke-width="3.5" fill="none" stroke-linecap="round"/>`;
+// Each sticker: [silhouette, which gets the white die-cut edge; details drawn on top].
+const STICKERS = {
+  heart: [`<path d="M50 88C20 68 8 50 14 33 20 17 40 15 50 31 60 15 80 17 86 33 92 50 80 68 50 88Z" fill="#ff7a8a"/>`, face()],
+  fire: [`<path d="M50 92C27 92 16 76 20 59 24 45 37 40 35 20 50 29 55 40 53 51 59 47 62 40 62 33 77 46 84 61 80 74 76 86 65 92 50 92Z" fill="#ff9a3c"/>`, `<path d="M50 90C40 90 34 82 36 73 38 66 45 63 46 54 54 60 57 66 56 72 60 70 62 66 63 63 68 70 69 77 66 83 62 88 56 90 50 90Z" fill="#ffd166"/>`],
+  gg: [`<path d="M50 8 61 36 91 37 67 55 76 85 50 67 24 85 33 55 9 37 39 36Z" fill="#ffd166"/>`, `<text x="50" y="60" text-anchor="middle" font-family="Gabarito, system-ui, sans-serif" font-weight="800" font-size="20" fill="#7a4b00">GG</text>`],
+  moon: [`<path d="M64 12A40 40 0 1 0 90 66 32 32 0 1 1 64 12Z" fill="#c9b8ff"/>`, `<circle cx="44" cy="54" r="3.5" fill="#2a1a22"/><path d="M34 64q6 5 12 0" stroke="#2a1a22" stroke-width="3" fill="none" stroke-linecap="round"/><text x="72" y="30" font-family="Gabarito, system-ui, sans-serif" font-weight="800" font-size="16" fill="#6a58c4">z</text>`],
+  ghost: [`<path d="M22 90V46a28 28 0 0 1 56 0v44l-9-8-10 8-9-8-9 8-10-8Z" fill="#eef0ff"/>`, face(50, 50)],
+  hi: [`<rect x="8" y="14" width="84" height="64" rx="22" fill="#fff4f7"/><path d="M30 76 24 92 44 78Z" fill="#fff4f7"/>`, `<g fill="#e8326f"><rect x="22" y="38" width="7" height="16" rx="3.5"/><rect x="33" y="31" width="7" height="30" rx="3.5"/><rect x="44" y="26" width="7" height="40" rx="3.5"/><rect x="55" y="33" width="7" height="26" rx="3.5"/><rect x="66" y="39" width="7" height="14" rx="3.5"/></g>`],
+  lol: [`<rect x="8" y="16" width="84" height="58" rx="20" fill="#9fe3c4"/><path d="M66 72 76 90 56 74Z" fill="#9fe3c4"/>`, `<text x="50" y="56" text-anchor="middle" font-family="Gabarito, system-ui, sans-serif" font-weight="800" font-size="28" fill="#145c3e">lol</text>`],
+  mug: [`<path d="M68 42h8a12 12 0 0 1 0 24h-8" stroke="#c98b5a" stroke-width="7" fill="none"/><rect x="18" y="30" width="54" height="56" rx="12" fill="#e8a46f"/>`, `<path d="M34 22q4-8 0-14M50 22q4-8 0-14" stroke="#b89a84" stroke-width="4" fill="none" stroke-linecap="round"/>${face(45, 54)}`],
+};
+const stickerSvg = (kind, anim) => `<svg class="stk-art${anim ? " is-anim" : ""}" viewBox="0 0 100 100" aria-hidden="true"><g class="stk-move" style="filter: drop-shadow(0 2px 3px oklch(0 0 0 / 0.25))"><g stroke="#fff" stroke-width="10" stroke-linejoin="round" paint-order="stroke">${STICKERS[kind][0]}</g>${STICKERS[kind][1]}</g></svg>`;
+for (const m of document.querySelectorAll(".stk-msg[data-sticker]")) m.insertAdjacentHTML("afterbegin", stickerSvg(m.dataset.sticker, "anim" in m.dataset));
+for (const g of document.querySelectorAll(".stk-grid")) {
+  g.innerHTML = g.dataset.stickers.split(",").map(s => { const [k, pack, anim] = s.split(":"); return `<button class="stk-cell" aria-label="Send :${k}:${anim ? ", animated" : ""}" data-k="${k}" data-pack="${pack}"${anim ? " data-anim" : ""}>${stickerSvg(k, anim)}${anim ? `<span class="stk-anim"><i class="ph-fill ph-play"></i></span>` : ""}</button>`; }).join("");
+}
+(function stickerPreview() {
+  const picker = document.getElementById("stk-picker"), foot = picker.querySelector(".stk-foot");
+  const preview = cell => {
+    picker.querySelectorAll(".stk-cell.is-hover").forEach(c => c.classList.remove("is-hover"));
+    cell.classList.add("is-hover");
+    foot.querySelector(".stk-prev").innerHTML = stickerSvg(cell.dataset.k, "anim" in cell.dataset);
+    foot.querySelector("b").textContent = `:${cell.dataset.k}:`;
+    foot.querySelector("small").textContent = cell.dataset.pack + ("anim" in cell.dataset ? " · Animated" : "");
+  };
+  picker.addEventListener("mouseover", e => { const c = e.target.closest(".stk-cell"); if (c) preview(c); });
+  picker.addEventListener("click", e => { const c = e.target.closest(".stk-cell"); if (c) toast(`Sent :${c.dataset.k}: to #general`); });
+  preview(picker.querySelectorAll(".stk-cell")[1]);
+})();
+for (const m of document.querySelectorAll(".stk-msg[data-anim]:not(.is-playing)")) {
+  m.addEventListener("mouseenter", () => m.classList.add("is-playing"));
+  m.addEventListener("mouseleave", () => m.classList.remove("is-playing"));
+}
+
+// POLL CREATOR
+(function poll() {
+  const box = document.getElementById("pollc"), answers = box.querySelector(".pollc-answers"), add = box.querySelector(".pollc-add"), count = box.querySelector(".pollc-count");
+  const q = box.querySelector("#pollc-q"), qcount = box.querySelector(".pollc-qcount");
+  const EMOJI = ["🏔️", "🌊", "🌵", "🌋", "🏙️", "🌲"];
+  const MAX = 10;
+  const renumber = () => [...answers.children].forEach((a, i) => {
+    a.querySelector("input").setAttribute("aria-label", `Answer ${i + 1}`); a.querySelector("input").placeholder = `Answer ${i + 1}`;
+    a.querySelector(".pollc-emoji").setAttribute("aria-label", `Emoji for answer ${i + 1}`); a.querySelector(".iconbtn").setAttribute("aria-label", `Remove answer ${i + 1}`);
+  });
+  const update = () => {
+    const n = answers.children.length;
+    count.textContent = n >= MAX ? `${n} of ${MAX}, the most a poll can have` : `${n} of ${MAX}`;
+    add.disabled = n >= MAX; renumber();
+  };
+  const addAnswer = (focus = true) => {
+    if (answers.children.length >= MAX) return;
+    answers.insertAdjacentHTML("beforeend", `<div class="pollc-ans"><button class="pollc-emoji"><i class="ph ph-smiley"></i></button><div class="input"><input maxlength="55"></div><button class="iconbtn"><i class="ph ph-trash"></i></button></div>`);
+    update();
+    if (focus) answers.lastElementChild.querySelector("input").focus();
+  };
+  addAnswer(false); addAnswer(false);
+  add.addEventListener("click", () => addAnswer());
+  answers.addEventListener("click", e => {
+    const em = e.target.closest(".pollc-emoji");
+    if (em) { const i = (+em.dataset.i + 1 || 0) % (EMOJI.length + 1); em.dataset.i = i; em.innerHTML = i === EMOJI.length ? `<i class="ph ph-smiley"></i>` : EMOJI[i]; }
+    const rm = e.target.closest(".iconbtn");
+    if (rm && answers.children.length > 2) { rm.closest(".pollc-ans").remove(); update(); }
+  });
+  answers.addEventListener("keydown", e => {
+    if (e.key !== "Enter" || e.target.tagName !== "INPUT") return;
+    e.preventDefault();
+    const next = e.target.closest(".pollc-ans").nextElementSibling;
+    next ? next.querySelector("input").focus() : addAnswer();
+  });
+  answers.addEventListener("input", () => box.querySelector("#pollc-a-err").hidden = true);
+  q.addEventListener("input", () => { qcount.textContent = `${q.value.length} / 300`; q.parentElement.classList.remove("error"); box.querySelector("#pollc-q-hint .err").hidden = true; });
+  const dur = box.querySelector(".pollc-dur"), dd = dur.querySelector(".dropdown"), menu = dur.querySelector(".menu");
+  menu.innerHTML = ["1 hour", "4 hours", "8 hours", "24 hours", "3 days", "1 week", "2 weeks"].map(t => `<button class="mi" role="menuitemradio" aria-checked="${t === "24 hours"}"><div>${t}</div></button>`).join("");
+  dd.addEventListener("click", () => { const open = !menu.classList.contains("is-open"); menu.classList.toggle("is-open", open); dd.setAttribute("aria-expanded", open); });
+  menu.addEventListener("click", e => {
+    const mi = e.target.closest(".mi"); if (!mi) return;
+    menu.querySelectorAll(".mi").forEach(m => m.setAttribute("aria-checked", m === mi));
+    dd.querySelector("span").textContent = mi.textContent; menu.classList.remove("is-open"); dd.setAttribute("aria-expanded", "false"); dd.focus();
+  });
+  document.addEventListener("click", e => { if (!e.target.closest(".pollc-dur")) { menu.classList.remove("is-open"); dd.setAttribute("aria-expanded", "false"); } });
+  box.querySelector(".pollc-post").addEventListener("click", () => {
+    const noQ = !q.value.trim(), filled = [...answers.querySelectorAll("input")].filter(i => i.value.trim()).length;
+    q.parentElement.classList.toggle("error", noQ); box.querySelector("#pollc-q-hint .err").hidden = !noQ;
+    box.querySelector("#pollc-a-err").hidden = filled >= 2;
+    if (noQ) return q.focus();
+    if (filled < 2) return [...answers.querySelectorAll("input")].find(i => !i.value.trim())?.focus();
+    box.querySelector(".pollc-done-q").textContent = `"${q.value.trim()}" is in #general, open for ${dd.querySelector("span").textContent}.`;
+    box.classList.add("is-posted");
+  });
+  box.querySelector(".pollc-again").addEventListener("click", () => {
+    box.classList.remove("is-posted"); q.value = ""; qcount.textContent = "0 / 300";
+    answers.innerHTML = ""; addAnswer(false); addAnswer(false); q.focus();
+  });
+})();
+</script>
 </body>
 </html>
