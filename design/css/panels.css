@@ -21,7 +21,6 @@
 .panel .dstate { padding: var(--space-8) var(--space-3); }
 .panel .dstate p { color: var(--text-muted); }
 /* Hidden wins over every display rule here: panel bodies, rows turned into an undo record, the composer. */
-:is(.panel-body, .newpost, .post, .ib-row, .ib-chan, .pinrow, .inbox-filters, .fprof-panel, .inbox-body)[hidden] { display: none; }
 /* A wait names what it waits on, beside the mini wave. */
 .pwait { display: flex; align-items: center; gap: var(--space-2); min-height: 32px; padding: 0 var(--space-2); color: var(--text-muted); font-size: var(--text-sm); font-weight: var(--weight-medium); }
 .pwait .bars { --c: currentColor; }

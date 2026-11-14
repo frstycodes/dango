@@ -5,6 +5,8 @@
 @font-face { font-family: "gg sans"; src: url(/assets/discord/fonts/gg-sans-Bold.ttf); font-weight: 700; }
 
 * { box-sizing: border-box; margin: 0; }
+/* hidden always wins over a component's own display. */
+[hidden] { display: none !important; }
 html { -webkit-font-smoothing: antialiased; }
 body { background: var(--bg-page); color: var(--text); font: var(--weight-regular) var(--text-sm)/var(--leading-body) var(--font-ui); }
 button, input, select, textarea, output { font: inherit; color: inherit; }
