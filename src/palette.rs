@@ -18,10 +18,6 @@ const DANGER_HOVER: u32 = 0xB71C0E;
 const SUCCESS: u32 = 0x00753E;
 const DND: u32 = 0xF05136;
 const OFFLINE: u32 = 0x83868C;
-// The call stage stays dark in both themes, so streams read like a screen.
-const CALL_TILE: u32 = 0x05070B;
-// The translucent grey older surfaces build hairlines and washes from.
-const NEUTRAL: u32 = 0x97979F;
 
 // One theme's colours by role.
 struct Tokens {
@@ -229,6 +225,15 @@ pub fn shade(cx: &App) -> Hsla {
     hex(tokens(cx).shade)
 }
 
+// What dims the app behind a dialog (tokens.css --scrim): a deep plum veil on dark, a lighter one on light.
+#[expect(dead_code, reason = "promoted from menu.rs, which switches over after the merge")]
+pub fn scrim(cx: &App) -> Hsla {
+    if cx.theme().is_dark() {
+        return oklch(0.08, 0.01, 350.).opacity(0.7);
+    }
+    oklch(0.2, 0.02, 350.).opacity(0.4)
+}
+
 // The skeleton's sweep.
 pub fn shimmer(cx: &App) -> Hsla {
     let (c, a) = tokens(cx).shimmer;
@@ -251,15 +256,6 @@ pub fn danger_hover() -> Hsla {
 // LIVE asks for you, so it takes the accent.
 pub fn live() -> Hsla {
     accent()
-}
-
-pub fn call_tile() -> Hsla {
-    hex(CALL_TILE)
-}
-
-// The neutral grey at `alpha`, for older edges and washes without a theme role of their own.
-pub fn wash(alpha: f32) -> Hsla {
-    hex(NEUTRAL).opacity(alpha)
 }
 
 // The surface ramp, deepest first.
@@ -358,10 +354,6 @@ pub fn info_ink(cx: &App) -> Hsla {
 
 pub fn warning_ink(cx: &App) -> Hsla {
     hex(tokens(cx).warning_ink)
-}
-
-pub fn success() -> Hsla {
-    hex(SUCCESS)
 }
 
 // Presence colours. Status is never colour alone: `ui::status` gives each its shape.
@@ -471,7 +463,6 @@ mod tests {
         for fill in [ACCENT, DANGER, SUCCESS] {
             assert!(contrast(0xFFFFFF, fill) >= 4.5, "white on {fill:06X}");
         }
-        assert!(contrast(DARK.text, CALL_TILE) >= 4.5);
     }
 
     #[test]
