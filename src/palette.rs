@@ -13,7 +13,6 @@ use gpui_kit::{
 const ACCENT: u32 = 0xDB2B65;
 const ACCENT_HOVER: u32 = 0xC2215A;
 const ACCENT_PRESS: u32 = 0xA81C4E;
-const ACCENT_SOFT: u32 = 0xF33D7D;
 const DANGER: u32 = 0xCC2A1B;
 const DANGER_HOVER: u32 = 0xB71C0E;
 const SUCCESS: u32 = 0x00753E;
@@ -52,7 +51,10 @@ struct Tokens {
     selected: f32,
     line: f32,
     line_strong: f32,
-    accent_soft: f32,
+    // The accent tint, a touch deeper on light so it still reads on white.
+    accent_soft: (u32, f32),
+    shade: u32,
+    shimmer: (u32, f32),
     seg_track: (u32, f32),
     seg_thumb: (u32, f32),
 }
@@ -81,7 +83,9 @@ const DARK: Tokens = Tokens {
     selected: 0.08,
     line: 0.08,
     line_strong: 0.14,
-    accent_soft: 0.14,
+    accent_soft: (0xF33D7D, 0.14),
+    shade: 0x000000,
+    shimmer: (0xFFFFFF, 0.06),
     seg_track: (0x000000, 0.3),
     seg_thumb: (0xFFFFFF, 0.15),
 };
@@ -110,7 +114,9 @@ const LIGHT: Tokens = Tokens {
     selected: 0.09,
     line: 0.1,
     line_strong: 0.18,
-    accent_soft: 0.1,
+    accent_soft: (0xE1276E, 0.1),
+    shade: 0x3B2922,
+    shimmer: (0xFFFFFF, 0.6),
     seg_track: (0x2B2E32, 0.1),
     seg_thumb: (0xFFFFFF, 1.),
 };
@@ -195,9 +201,43 @@ pub fn accent_press() -> Hsla {
     hex(ACCENT_PRESS)
 }
 
-// The accent as a tint: mention rows, your own reactions, selected chips.
+// The accent as a tint: mention rows, your own reactions, selected chips, the focus ring.
 pub fn accent_soft(cx: &App) -> Hsla {
-    hex(ACCENT_SOFT).opacity(tokens(cx).accent_soft)
+    let t = tokens(cx);
+    hex(t.accent_soft.0).opacity(t.accent_soft.1)
+}
+
+// The tint behind a callout of each tone (design/css/primitives.css, `.callout--*`). Same in both themes.
+pub fn info_tint() -> Hsla {
+    hex(0x3D98D1).opacity(0.12)
+}
+
+pub fn warning_tint() -> Hsla {
+    hex(0xF2B036).opacity(0.13)
+}
+
+pub fn danger_tint() -> Hsla {
+    hex(0xDE3E2D).opacity(0.12)
+}
+
+pub fn success_tint() -> Hsla {
+    hex(0x3BB974).opacity(0.12)
+}
+
+// What drop shadows are made of, at full strength: black on dark, a warm near-black on light.
+pub fn shade(cx: &App) -> Hsla {
+    hex(tokens(cx).shade)
+}
+
+// The skeleton's sweep.
+pub fn shimmer(cx: &App) -> Hsla {
+    let (c, a) = tokens(cx).shimmer;
+    hex(c).opacity(a)
+}
+
+// An OKLCH colour (hue in degrees), for colours the design computes: avatar gradients, role dots, swatches.
+pub fn oklch(l: f32, c: f32, hue: f32) -> Hsla {
+    hex(from_oklch(l, c, hue.to_radians()))
 }
 
 pub fn danger() -> Hsla {
