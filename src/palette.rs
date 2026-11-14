@@ -347,6 +347,44 @@ pub fn status(status: crate::discord::Status) -> Hsla {
     })
 }
 
+// A role's colour as a name colour: same hue, lightness clamped per theme (0.72–0.92 on dark,
+// 0.30–0.45 on light, as design/css/navigation.css's .role-ink) and chroma capped at 0.16, so even a
+// pure yellow or blue role reads at 4.5:1.
+pub fn role_ink(color: u32, dark: bool) -> Hsla {
+    let (l, c, h) = to_oklch(color);
+    let l = if dark { l.clamp(0.72, 0.92) } else { l.clamp(0.30, 0.45) };
+    hex(from_oklch(l, c.min(0.16), h))
+}
+
+fn to_oklch(color: u32) -> (f32, f32, f32) {
+    let lin = |shift: u32| {
+        let c = ((color >> shift) & 0xFF) as f32 / 255.;
+        if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+    };
+    let (r, g, b) = (lin(16), lin(8), lin(0));
+    let l = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b).cbrt();
+    let m = (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b).cbrt();
+    let s = (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b).cbrt();
+    let (lab_l, a, bb) = (0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s, 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s);
+    (lab_l, a.hypot(bb), bb.atan2(a))
+}
+
+fn from_oklch(l: f32, c: f32, h: f32) -> u32 {
+    let (a, b) = (c * h.cos(), c * h.sin());
+    let l_ = (l + 0.3963377774 * a + 0.2158037573 * b).powi(3);
+    let m_ = (l - 0.1055613458 * a - 0.0638541728 * b).powi(3);
+    let s_ = (l - 0.0894841775 * a - 1.2914855480 * b).powi(3);
+    let channel = |v: f32| {
+        let v = v.clamp(0., 1.);
+        let srgb = if v <= 0.0031308 { 12.92 * v } else { 1.055 * v.powf(1. / 2.4) - 0.055 };
+        (srgb * 255.).round() as u32
+    };
+    let r = channel(4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_);
+    let g = channel(-1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_);
+    let b = channel(-0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_);
+    (r << 16) | (g << 8) | b
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -394,5 +432,22 @@ mod tests {
             assert!(contrast(0xFFFFFF, fill) >= 4.5, "white on {fill:06X}");
         }
         assert!(contrast(DARK.text, CALL_TILE) >= 4.5);
+    }
+
+    #[test]
+    fn role_colours_stay_readable_in_both_themes() {
+        for role in [0xFFFF00, 0x0000FF, 0xE67E22, 0x1ABC9C, 0xFFFFFF, 0x000001] {
+            let ink = |dark| {
+                let (l, c, h) = to_oklch(role);
+                let l = if dark { l.clamp(0.72, 0.92) } else { l.clamp(0.30, 0.45) };
+                from_oklch(l, c.min(0.16), h)
+            };
+            for surface in [DARK.page, DARK.sidebar] {
+                assert!(contrast(ink(true), surface) >= 4.5, "role {role:06X} on dark {surface:06X}");
+            }
+            for surface in [LIGHT.page, LIGHT.sidebar] {
+                assert!(contrast(ink(false), surface) >= 4.5, "role {role:06X} on light {surface:06X}");
+            }
+        }
     }
 }

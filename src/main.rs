@@ -61,7 +61,7 @@ use gpui_kit::{
     AppContext, Bounds, Context, Entity, FocusHandle, Hsla, RenderImage, ListAlignment, ListOffset, ListState, SharedString, Task, TitlebarOptions, Window, WindowBounds,
     WindowOptions,
     component::input::{InputEvent, InputState as SearchState, TextareaState},
-    px, rgb, size,
+    px, size,
 };
 use gpui_motion_kit::Motions;
 use icons::Assets;
@@ -1955,11 +1955,11 @@ impl Rustcord {
         mine.is_some_and(|roles| message.mention_roles.iter().any(|r| roles.contains(r)))
     }
 
-    /// The colour of the user's highest coloured role, as Discord paints their name.
-    fn role_color(&self, guild_id: Option<&String>, user_id: &str, hint: Option<&Vec<String>>) -> Option<Hsla> {
+    /// The colour of the user's highest coloured role, clamped so the name stays readable in this theme.
+    fn role_color(&self, guild_id: Option<&String>, user_id: &str, hint: Option<&Vec<String>>, dark: bool) -> Option<Hsla> {
         let guild = self.guilds.iter().find(|g| Some(&g.id) == guild_id)?;
         let roles = hint.or_else(|| self.member_roles.get(&guild.id)?.get(user_id))?;
-        guild.roles.iter().filter(|r| r.color != 0 && roles.contains(&r.id)).max_by_key(|r| r.position).map(|r| rgb(r.color).into())
+        guild.roles.iter().filter(|r| r.color != 0 && roles.contains(&r.id)).max_by_key(|r| r.position).map(|r| palette::role_ink(r.color, dark))
     }
 
     fn unread(&self, channel_id: &str) -> bool {

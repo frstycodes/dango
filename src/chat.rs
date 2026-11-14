@@ -249,7 +249,7 @@ impl Rustcord {
                 .chain(self.me.iter())
                 .map(|u| (u.id.clone(), u.name.clone()))
                 .collect(),
-            colors: messages.iter().filter_map(|m| Some((m.author.id.clone(), self.role_color(m.guild_id.as_ref().or(self.guild_id.as_ref()), &m.author.id, m.roles.as_ref())?))).collect(),
+            colors: messages.iter().filter_map(|m| Some((m.author.id.clone(), self.role_color(m.guild_id.as_ref().or(self.guild_id.as_ref()), &m.author.id, m.roles.as_ref(), cx.theme().is_dark())?))).collect(),
             mentions_me: messages.iter().filter(|m| self.mentions_me(m)).map(|m| m.id.clone()).collect(),
             channel_names: self.guild().map(|g| g.channels.iter().map(|c| (c.id.clone(), c.name.clone())).collect()).unwrap_or_default(),
             role_names: self.guild().map(|g| g.roles.iter().map(|r| (r.id.clone(), r.name.clone())).collect()).unwrap_or_default(),
