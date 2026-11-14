@@ -15,7 +15,6 @@
   .pf-aside { position: static; justify-items: center; }
   .pf-aside > b { justify-self: start; }
 }
-.pf-form[hidden] { display: none; }
 .set-card.pf-fields { padding: var(--space-4); gap: var(--space-4); }
 .pf-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: var(--space-4); }
 .field .hint .pf-count { font-variant-numeric: tabular-nums; margin-left: auto; white-space: nowrap; }
@@ -337,7 +336,6 @@
 .dhead .pf-back { grid-column: 1; justify-self: start; margin: -4px 0 4px -8px; }
 
 /* Live flows: one dialog that steps through the board's panels */
-.pf-stepper > .dialog[hidden] { display: none; }
 dialog.real.pf-stepper[open] > .dialog.is-stepped { animation: pf-step var(--dur-pop) var(--ease-out); }
 dialog.real.pf-stepper[open] > .dialog.is-stepped.is-back { animation-name: pf-step-back; }
 @keyframes pf-step { from { opacity: 0; transform: translateX(12px); } }
