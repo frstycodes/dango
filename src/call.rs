@@ -349,7 +349,7 @@ impl Rustcord {
                     .when(noise, |b| b.text_color(theme.foreground))
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_noise_suppression(cx))),
             )
-            .child(panel_button_tinted("hang-up", Glyph::CallEnd, "Disconnect", Some(palette::danger().into()), cx).on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx))));
+            .child(panel_button_tinted("hang-up", Glyph::CallEnd, "Disconnect", Some(palette::danger()), cx).on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx))));
         let sharing = call.sharing.is_some();
         let actions = div()
             .flex()
