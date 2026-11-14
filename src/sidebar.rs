@@ -4,7 +4,6 @@ use gpui_kit::{
     component::{ActiveTheme, Icon, tooltip::Tooltip},
     div, hsla, img, linear_color_stop, linear_gradient, prelude::*, px, rgb,
 };
-use gpui_kit::component::menu::{ContextMenuExt, PopupMenuItem};
 use gpui_motion_kit::core::{Motion, Target};
 
 use crate::{
@@ -87,7 +86,12 @@ impl Rustcord {
             window,
             cx,
         );
-        let header = div().id(SharedString::from(format!("folder-hit-{id}"))).child(header).on_click(cx.listener(move |this, _, _, cx| {
+        let menu_id = id.clone();
+        let header = div()
+            .id(SharedString::from(format!("folder-hit-{id}")))
+            .child(header)
+            .on_mouse_down(gpui_kit::MouseButton::Right, cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_folder_menu(menu_id.clone(), e.position, cx)))
+            .on_click(cx.listener(move |this, _, _, cx| {
             if !this.open_folders.remove(&id) {
                 this.open_folders.insert(id.clone());
             }
@@ -227,18 +231,8 @@ impl Rustcord {
             _ => self.rail_draggable(item, key.clone(), drag_icon, name, cx),
         };
         let Some(guild_id) = guild_id else { return item.into_any_element() };
-        let this = cx.weak_entity();
-        item.context_menu(move |menu, _, _| {
-            let (read, copy, g1, g2) = (this.clone(), this.clone(), guild_id.clone(), guild_id.clone());
-            menu.item(PopupMenuItem::new("Mark As Read").on_click(move |_, _, cx| {
-                read.update(cx, |this, cx| this.mark_guild_read(&g1, cx)).ok();
-            }))
-            .separator()
-            .item(PopupMenuItem::new("Copy Server ID").on_click(move |_, _, cx| {
-                copy.update(cx, |this, cx| this.copy_text(g2.clone(), cx)).ok();
-            }))
-        })
-        .into_any_element()
+        item.on_mouse_down(gpui_kit::MouseButton::Right, cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_server_menu(guild_id.clone(), e.position, false, cx)))
+            .into_any_element()
     }
 
     fn rail_draggable(&self, item: gpui_kit::Stateful<Div>, key: String, icon: Option<String>, label: SharedString, cx: &mut Context<Self>) -> gpui_kit::Stateful<Div> {
@@ -399,9 +393,10 @@ impl Rustcord {
                     .when(self.guild_id.is_some(), |h| h.child(Icon::new(Glyph::ChevronDown).size(px(16.))))
                     .id("server-header")
                     .when(self.guild_id.is_some(), |h| {
-                        h.cursor_pointer().hover(|s| s.bg(theme.foreground.opacity(0.04))).on_click(cx.listener(|this, _, _, cx| {
-                            this.server_menu = !this.server_menu;
-                            cx.notify();
+                        h.cursor_pointer().hover(|s| s.bg(theme.foreground.opacity(0.04))).on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(|this, e: &gpui_kit::MouseDownEvent, _, cx| {
+                            let Some(guild_id) = this.guild_id.clone() else { return };
+                            let at = gpui_kit::point(e.position.x.min(px(RAIL_WIDTH + 16.)), px(crate::layout::TITLE_HEIGHT + 52.));
+                            this.open_server_menu(guild_id, at, true, cx);
                         }))
                     }),
             )
@@ -438,6 +433,7 @@ impl Rustcord {
         let degrees = chevron.target().x_px();
         let muted = cx.theme().muted_foreground;
         let id = category.id.clone();
+        let category_for_menu = category.clone();
         let label = div()
             .id(SharedString::from(format!("section-{}", category.id)))
             .h(px(24.))
@@ -458,7 +454,14 @@ impl Rustcord {
                     this.folded.insert(id.clone());
                 }
                 cx.notify();
-            }));
+            }))
+            .on_mouse_down(gpui_kit::MouseButton::Right, {
+                let category = category_for_menu;
+                cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| {
+                    let Some(guild_id) = this.guild_id.clone() else { return };
+                    this.open_channel_menu(category.clone(), guild_id, e.position, cx);
+                })
+            });
         let alpha = fold.target().alpha();
         // Folded categories keep their unread and selected channels visible, as Discord does.
         let body = div().flex().flex_col().gap(px(ROW_GAP)).opacity(alpha).when(!folded || alpha > 0.05, |b| b.children(rows));
@@ -468,7 +471,13 @@ impl Rustcord {
     fn channel_rows(&self, channel: &Channel, guild: &Guild, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let theme = cx.theme().clone();
         let selected = self.channel.as_ref().is_some_and(|c| c.id == channel.id);
-        let unread = self.unread(&channel.id);
+        let settings = self.guild_settings.get(&guild.id);
+        let muted = settings.is_some_and(|s| s.channel_muted(&channel.id) || channel.parent_id.as_ref().is_some_and(|p| s.channel_muted(p)));
+        // Discord's "Hide Muted Channels" keeps the open channel visible.
+        if muted && !selected && settings.is_some_and(|s| s.hide_muted) {
+            return Vec::new();
+        }
+        let unread = self.unread(&channel.id) && !muted;
         let mentions = self.mention_count(&channel.id);
         let glyph = match (channel.kind, channel.private) {
             (ChannelKind::Voice, _) => Glyph::VolumeHigh,
@@ -495,7 +504,12 @@ impl Rustcord {
             .cursor_pointer()
             .font_weight(FontWeight::MEDIUM)
             // --channels-default for read channels, --interactive-text-active for unread and selected.
-            .text_color(if selected || unread { crate::palette::strong(cx) } else { gpui_kit::rgb(0x7A7B83).into() })
+            .text_color(match (selected, unread, muted) {
+                (true, _, _) | (_, true, _) => crate::palette::strong(cx),
+                // --text-muted at 50%, Discord's muted channel.
+                (_, _, true) => Hsla::from(gpui_kit::rgb(0x81828A)).opacity(0.5),
+                _ => gpui_kit::rgb(0x7A7B83).into(),
+            })
             .child(lead)
             .child(div().flex_1().truncate().child(channel.name.clone()))
             .children(elapsed)
@@ -509,12 +523,33 @@ impl Rustcord {
             rows.push(
                 row.when(in_call, |r| r.text_color(theme.foreground))
                     .on_click(cx.listener(move |this, _, window, cx| this.show_call(join.clone(), window, cx)))
+                    .on_mouse_down(gpui_kit::MouseButton::Right, {
+                        let (channel, guild_id) = (channel.clone(), guild.id.clone());
+                        cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_channel_menu(channel.clone(), guild_id.clone(), e.position, cx))
+                    })
                     .into_any_element(),
             );
             let speaking = self.call.as_ref().filter(|_| in_call).map(|c| c.speaking.clone()).unwrap_or_default();
             let watching = self.call.as_ref().and_then(|c| c.watching.as_ref()).map(|w| w.streamer_id.clone());
             let connected = self.call.as_ref().is_some_and(|c| c.connected && in_call);
-            for state in guild.voice_states.iter().filter(|v| v.channel_id.as_ref() == Some(&channel.id)) {
+            let present: Vec<&crate::discord::VoiceState> = guild.voice_states.iter().filter(|v| v.channel_id.as_ref() == Some(&channel.id)).collect();
+            if self.hidden_voice_names.contains(&channel.id) && !present.is_empty() {
+                rows.push(
+                    div()
+                        .h(px(32.))
+                        .pl(px(30.))
+                        .flex()
+                        .items_center()
+                        .gap_1()
+                        .children(present.iter().map(|v| {
+                            let avatar = v.user.as_ref().map(|u| u.avatar.clone()).unwrap_or_else(|| crate::discord::avatar_url(&v.user_id, None));
+                            img(avatar).size(px(24.)).rounded_full()
+                        }))
+                        .into_any_element(),
+                );
+                return rows;
+            }
+            for state in present {
                 let user = state.user.clone();
                 let name = user.as_ref().map(|u| u.name.clone()).unwrap_or_else(|| self.user_name(&state.user_id));
                 let avatar = user.map(|u| u.avatar).unwrap_or_else(|| crate::discord::avatar_url(&state.user_id, None));
@@ -573,22 +608,9 @@ impl Rustcord {
                 }
             }))
             .on_click(cx.listener(move |this, _, window, cx| this.open_channel(open.clone(), window, cx)))
-            .context_menu({
-                let (this, channel_id, guild_id) = (cx.weak_entity(), channel.id.clone(), guild.id.clone());
-                move |menu, _, _| {
-                    let (read, link, copy) = (this.clone(), this.clone(), this.clone());
-                    let (c1, c2, c3, g) = (channel_id.clone(), channel_id.clone(), channel_id.clone(), guild_id.clone());
-                    menu.item(PopupMenuItem::new("Mark As Read").on_click(move |_, _, cx| {
-                        read.update(cx, |this, cx| this.mark_channel_read(&c1, cx)).ok();
-                    }))
-                    .separator()
-                    .item(PopupMenuItem::new("Copy Link").on_click(move |_, _, cx| {
-                        link.update(cx, |this, cx| this.copy_text(format!("https://discord.com/channels/{g}/{c2}"), cx)).ok();
-                    }))
-                    .item(PopupMenuItem::new("Copy Channel ID").on_click(move |_, _, cx| {
-                        copy.update(cx, |this, cx| this.copy_text(c3.clone(), cx)).ok();
-                    }))
-                }
+            .on_mouse_down(gpui_kit::MouseButton::Right, {
+                let (channel, guild_id) = (channel.clone(), guild.id.clone());
+                cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_channel_menu(channel.clone(), guild_id.clone(), e.position, cx))
             })
             .into_any_element(),
         );

@@ -1,5 +1,6 @@
 mod auth;
 mod call;
+mod channel_menu;
 mod chat;
 #[cfg(debug_assertions)]
 mod demo;
@@ -292,6 +293,8 @@ pub struct Rustcord {
     ignored: HashSet<String>,
     // A DM call we started: ring them once the call connects.
     ring_on_connect: Option<String>,
+    // Voice channels whose member list is collapsed (Discord's "Hide Names").
+    hidden_voice_names: HashSet<String>,
     // Shift held: Discord's hover bar shows Delete instead of More.
     shift_held: bool,
     dialog: Option<menu::Dialog>,
@@ -303,7 +306,6 @@ pub struct Rustcord {
     // The source picked in the Go Live window, waiting for "Go Live".
     share_choice: Option<voice::ShareSource>,
     pins: Option<Option<Result<Vec<Message>, SharedString>>>,
-    server_menu: bool,
     // Messages whose spoilers were clicked open.
     revealed: Rc<RefCell<HashSet<String>>>,
     relationships: Vec<Relationship>,
@@ -428,6 +430,7 @@ impl Rustcord {
             guild_settings: HashMap::new(),
             ignored: HashSet::new(),
             ring_on_connect: None,
+            hidden_voice_names: HashSet::new(),
             shift_held: false,
             dialog: None,
             dialog_input,
@@ -435,7 +438,6 @@ impl Rustcord {
             share_picker: None,
             share_choice: None,
             pins: None,
-            server_menu: false,
             revealed: Rc::default(),
             relationships: Vec::new(),
             friends_tab: home::FriendsTab::Online,
@@ -1446,9 +1448,15 @@ impl Rustcord {
         self.read_states.get(channel_id).map_or(0, |r| r.mentions)
     }
 
+    // A muted server, or muted channel, keeps its mention count but drops its unread pill, as in Discord.
     fn guild_badge(&self, guild: &Guild) -> (bool, u32) {
+        let settings = self.guild_settings.get(&guild.id);
+        let server_muted = settings.is_some_and(|s| s.is_muted());
         let text = guild.channels.iter().filter(|c| c.kind == ChannelKind::Text);
-        text.fold((false, 0), |(unread, mentions), c| (unread || self.unread(&c.id), mentions + self.mention_count(&c.id)))
+        text.fold((false, 0), |(unread, mentions), c| {
+            let muted = server_muted || settings.is_some_and(|s| s.channel_muted(&c.id) || c.parent_id.as_ref().is_some_and(|p| s.channel_muted(p)));
+            (unread || (self.unread(&c.id) && !muted), mentions + self.mention_count(&c.id))
+        })
     }
 
     fn typers(&self) -> Vec<Typer> {

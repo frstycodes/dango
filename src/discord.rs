@@ -203,6 +203,7 @@ pub fn parse_guild_settings(g: &Value) -> (String, GuildSettings) {
 // Discord's permission bits used by the menus.
 pub mod perm {
     pub const CREATE_INSTANT_INVITE: u64 = 1;
+    pub const MANAGE_CHANNELS: u64 = 1 << 4;
     pub const KICK_MEMBERS: u64 = 1 << 1;
     pub const BAN_MEMBERS: u64 = 1 << 2;
     pub const ADMINISTRATOR: u64 = 1 << 3;

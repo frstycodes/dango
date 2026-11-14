@@ -244,7 +244,6 @@ impl Rustcord {
             | self.switcher.take().is_some()
             | self.share_picker.take().is_some()
             | self.pins.take().is_some()
-            | std::mem::take(&mut self.server_menu)
             | self.inbox.take().is_some()
             | self.gif_picker.take().is_some()
             | self.dismiss_call_menus()
@@ -263,7 +262,6 @@ impl Rustcord {
         out.extend(self.switcher_overlay(cx));
         out.extend(self.share_overlay(cx));
         out.extend(self.pins_overlay(cx));
-        out.extend(self.server_menu_overlay(cx));
         out.extend(self.inbox_overlay(cx));
         out.extend(self.gif_overlay(cx));
         out
@@ -614,61 +612,6 @@ impl Rustcord {
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .child(div().px_4().py_3().flex().items_center().gap_2().border_b_1().border_color(theme.border).child(Icon::new(Glyph::Pin).size(px(20.))).child(div().font_weight(FontWeight::SEMIBOLD).child("Pinned Messages")))
                         .child(div().id("pins-list").flex_1().min_h_0().overflow_y_scroll().p_3().child(body)),
-                )
-                .into_any_element(),
-        )
-    }
-
-    // The server name's dropdown, trimmed to what Rustcord can do.
-    fn server_menu_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        if !self.server_menu {
-            return None;
-        }
-        let guild_id = self.guild_id.clone()?;
-        let theme = cx.theme().clone();
-        let item = |id: &'static str, label: &'static str| {
-            div()
-                .id(id)
-                .h(px(32.))
-                .px_2()
-                .rounded(px(4.))
-                .flex()
-                .items_center()
-                .cursor_pointer()
-                .text_size(px(14.))
-                .font_weight(FontWeight::MEDIUM)
-                .hover(|s| s.bg(palette::blurple()).text_color(gpui_kit::white()))
-                .child(label)
-        };
-        let (read, copy) = (guild_id.clone(), guild_id);
-        Some(
-            backdrop("server-menu-backdrop", cx)
-                .child(
-                    div()
-                        .id("server-menu")
-                        .absolute()
-                        .top(px(TITLE_HEIGHT + 52.))
-                        .left(px(crate::layout::RAIL_WIDTH + 10.))
-                        .w(px(self.channels_width - 20.))
-                        .p_2()
-                        .rounded(px(8.))
-                        .bg(theme.popover)
-                        .border_1()
-                        .border_color(theme.input)
-                        .shadow_lg()
-                        .flex()
-                        .flex_col()
-                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .child(item("server-mark-read", "Mark As Read").on_click(cx.listener(move |this, _, _, cx| {
-                            this.server_menu = false;
-                            this.mark_guild_read(&read, cx);
-                        })))
-                        .child(div().my_1().h(px(1.)).bg(theme.border))
-                        .child(item("server-copy-id", "Copy Server ID").on_click(cx.listener(move |this, _, _, cx| {
-                            this.server_menu = false;
-                            this.copy_text(copy.clone(), cx);
-                            cx.notify();
-                        }))),
                 )
                 .into_any_element(),
         )

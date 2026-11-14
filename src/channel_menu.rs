@@ -1,0 +1,534 @@
+// Discord's channel, category, server, folder and server-dropdown menus, item-for-item from its
+// menu code (docs/discord-menus-channel-server.md, read from Discord web 2026-11-14). Favorites,
+// stages, events, apps and the full server-settings screens aren't built, so their items are left out.
+use gpui_kit::{Context, Pixels, Point, Window};
+use reqwest::Method;
+use serde_json::{Value, json};
+
+use crate::{
+    Rustcord,
+    discord::{Channel, ChannelKind, GuildSettings, parse_guild_settings, perm},
+    icons::Glyph,
+    menu::{Entry, item, submenu},
+};
+
+// Discord's mute lengths (seconds; -1 is "until I turn it back on").
+const MUTE_FOR: [(&str, i64); 6] =
+    [("For 15 Minutes", 900), ("For 1 Hour", 3600), ("For 3 Hours", 10_800), ("For 8 Hours", 28_800), ("For 24 Hours", 86_400), ("Until I turn it back on", -1)];
+
+// Discord's channel types for creating channels.
+const TEXT: u64 = 0;
+const VOICE: u64 = 2;
+const CATEGORY: u64 = 4;
+
+impl Rustcord {
+    fn settings_for(&self, guild_key: &str) -> GuildSettings {
+        self.guild_settings.get(guild_key).cloned().unwrap_or_default()
+    }
+
+    fn can_guild(&self, guild_id: &str, bit: u64) -> bool {
+        let (Some(me), Some(guild)) = (self.me.as_ref(), self.guilds.iter().find(|g| g.id == guild_id)) else { return false };
+        guild.can(&me.id, bit)
+    }
+
+    // Saves part of our notification settings for a server ("@me" for DMs) and keeps Discord's answer.
+    pub(crate) fn patch_guild_settings(&mut self, guild_key: String, body: Value, cx: &mut Context<Self>) {
+        let Some(client) = self.client.clone() else { return };
+        cx.spawn(async move |this, cx| {
+            let result = client.call(Method::PATCH, format!("/users/@me/guilds/{guild_key}/settings"), Some(body)).await;
+            this.update(cx, |this, cx| {
+                match result {
+                    Ok(updated) => {
+                        let (key, settings) = parse_guild_settings(&updated);
+                        this.guild_settings.insert(key, settings);
+                    }
+                    Err(error) => this.show_toast(error, cx),
+                }
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    // Mute and its six lengths, or Unmute with when it ends: the same shape for channels and servers.
+    fn mute_entry(&self, label: &str, unmute: &str, muted: bool, end: Option<&str>, apply: impl Fn(&mut Rustcord, Value, &mut Context<Rustcord>) + Clone + 'static) -> Entry {
+        if muted {
+            let hint = end.and_then(|e| chrono::DateTime::parse_from_rfc3339(e).ok()).map(|e| format!("Muted until {}", e.with_timezone(&chrono::Local).format("%-m/%-d/%Y, %-I:%M %p")));
+            let apply = apply.clone();
+            let row = item(unmute.to_owned(), move |this, _, cx| apply(this, json!({ "muted": false }), cx));
+            return match hint {
+                Some(hint) => row.hint(hint),
+                None => row,
+            }
+            .entry();
+        }
+        let lengths: Vec<Entry> = MUTE_FOR
+            .iter()
+            .map(|&(text, seconds)| {
+                let apply = apply.clone();
+                item(text, move |this, _, cx| {
+                    let end = (seconds > 0).then(|| (chrono::Utc::now() + chrono::Duration::seconds(seconds)).to_rfc3339());
+                    apply(this, json!({ "muted": true, "mute_config": { "selected_time_window": seconds, "end_time": end } }), cx);
+                })
+                .entry()
+            })
+            .collect();
+        submenu(label.to_owned(), lengths).entry()
+    }
+
+    fn notification_radios(&self, current: u8, inherited: Option<(&'static str, u8)>, apply: impl Fn(&mut Rustcord, u8, &mut Context<Rustcord>) + Clone + 'static) -> Vec<Entry> {
+        let mut options: Vec<(String, u8)> = Vec::new();
+        if let Some((label, value)) = inherited {
+            options.push((format!("{label} ({})", notification_label(value)), 3));
+        }
+        options.extend([("All Messages".to_owned(), 0), ("Only @mentions".to_owned(), 1), ("Nothing".to_owned(), 2)]);
+        options
+            .into_iter()
+            .map(|(label, value)| {
+                let apply = apply.clone();
+                item(label, move |this, _, cx| apply(this, value, cx)).checked(current == value).entry()
+            })
+            .collect()
+    }
+
+    pub(crate) fn open_channel_menu(&mut self, channel: Channel, guild_id: String, at: Point<Pixels>, cx: &mut Context<Self>) {
+        let entries = match channel.kind {
+            ChannelKind::Category => self.category_menu(&channel, &guild_id),
+            _ => self.channel_menu(&channel, &guild_id),
+        };
+        self.open_menu(at, entries, cx);
+    }
+
+    fn channel_menu(&self, channel: &Channel, guild_id: &str) -> Vec<Entry> {
+        let voice = channel.kind == ChannelKind::Voice;
+        let settings = self.settings_for(guild_id);
+        let overrides = settings.channels.get(&channel.id).cloned().unwrap_or_default();
+        let manage = self.can_guild(guild_id, perm::MANAGE_CHANNELS);
+        let mut out = Vec::new();
+
+        let id = channel.id.clone();
+        let read = item("Mark As Read", move |this, _, cx| this.mark_channel_read(&id, cx));
+        out.push(if self.unread(&channel.id) { read } else { read.disabled() }.entry());
+        out.push(Entry::Separator);
+
+        let (gid, cid) = (guild_id.to_owned(), channel.id.clone());
+        out.push(item(if voice { "Invite to Voice" } else { "Invite to Channel" }, move |this, window, cx| this.show_invite(gid.clone(), cid.clone(), window, cx)).brand().entry());
+        let link = format!("https://discord.com/channels/{guild_id}/{}", channel.id);
+        out.push(item("Copy Link", move |this, _, cx| this.copy_text(link.clone(), cx)).entry());
+        out.push(Entry::Separator);
+
+        if voice {
+            let open = channel.clone();
+            out.push(item("Open Chat", move |this, window, cx| this.open_channel(open.clone(), window, cx)).entry());
+            let id = channel.id.clone();
+            out.push(item("Hide Names", move |this, _, cx| {
+                if !this.hidden_voice_names.remove(&id) {
+                    this.hidden_voice_names.insert(id.clone());
+                }
+                cx.notify();
+            })
+            .checked(self.hidden_voice_names.contains(&channel.id))
+            .entry());
+            out.push(Entry::Separator);
+        }
+
+        let (gid, cid) = (guild_id.to_owned(), channel.id.clone());
+        out.push(self.mute_entry("Mute Channel", "Unmute Channel", settings.channel_muted(&channel.id), overrides.mute_end.as_deref(), move |this, mut body, cx| {
+            body["channel_id"] = json!(cid);
+            let mut overrides = serde_json::Map::new();
+            overrides.insert(cid.clone(), body);
+            this.patch_guild_settings(gid.clone(), json!({ "channel_overrides": overrides }), cx);
+        }));
+        // Discord has no notification levels for voice channels.
+        if !voice {
+            let inherited = if channel.parent_id.is_some() { "Use Category Default" } else { "Use Server Default" };
+            let (gid, cid) = (guild_id.to_owned(), channel.id.clone());
+            let radios = self.notification_radios(overrides.notifications, Some((inherited, settings.notifications)), move |this, level, cx| {
+                let mut overrides = serde_json::Map::new();
+                overrides.insert(cid.clone(), json!({ "message_notifications": level }));
+                this.patch_guild_settings(gid.clone(), json!({ "channel_overrides": overrides }), cx);
+            });
+            out.push(submenu("Notification Settings", radios).hint(notification_label(effective(overrides.notifications, settings.notifications))).entry());
+        }
+        out.push(Entry::Separator);
+
+        if manage {
+            out.push(self.move_to_category(channel, guild_id));
+            out.push(Entry::Separator);
+            let (gid, ch) = (guild_id.to_owned(), channel.clone());
+            out.push(item("Edit Channel", move |this, window, cx| this.rename_channel(ch.clone(), window, cx)).entry());
+            let (gid2, ch2) = (gid.clone(), channel.clone());
+            out.push(item("Duplicate Channel", move |this, _, cx| {
+                let body = json!({ "name": ch2.name, "type": if ch2.kind == ChannelKind::Voice { VOICE } else { TEXT }, "parent_id": ch2.parent_id, "topic": ch2.topic });
+                this.rest(Method::POST, format!("/guilds/{gid2}/channels"), Some(body), |_, _| {}, cx);
+            })
+            .entry());
+            let (gid3, parent, kind) = (gid.clone(), channel.parent_id.clone(), if voice { VOICE } else { TEXT });
+            out.push(item(if voice { "Create Voice Channel" } else { "Create Text Channel" }, move |this, window, cx| this.create_channel(gid3.clone(), kind, parent.clone(), window, cx)).entry());
+            out.push(self.delete_channel_entry(channel, "Delete Channel"));
+            out.push(Entry::Separator);
+        }
+
+        if self.developer_mode {
+            let id = channel.id.clone();
+            out.push(item("Copy Channel ID", move |this, _, cx| this.copy_text(id.clone(), cx)).icon(Glyph::Id).entry());
+        }
+        out
+    }
+
+    fn category_menu(&self, category: &Channel, guild_id: &str) -> Vec<Entry> {
+        let settings = self.settings_for(guild_id);
+        let overrides = settings.channels.get(&category.id).cloned().unwrap_or_default();
+        let children: Vec<String> = self.guilds.iter().find(|g| g.id == guild_id).map(|g| g.channels.iter().filter(|c| c.parent_id.as_ref() == Some(&category.id)).map(|c| c.id.clone()).collect()).unwrap_or_default();
+        let mut out = Vec::new();
+
+        let unread = children.iter().any(|c| self.unread(c));
+        let ids = children.clone();
+        let read = item("Mark As Read", move |this, _, cx| {
+            for id in &ids {
+                this.mark_channel_read(id, cx);
+            }
+        });
+        out.push(if unread { read } else { read.disabled() }.entry());
+        out.push(Entry::Separator);
+
+        let id = category.id.clone();
+        out.push(item("Collapse Category", move |this, _, cx| {
+            if !this.folded.remove(&id) {
+                this.folded.insert(id.clone());
+            }
+            cx.notify();
+        })
+        .checked(self.folded.contains(&category.id))
+        .entry());
+        let categories: Vec<String> = self.guilds.iter().find(|g| g.id == guild_id).map(|g| g.channels.iter().filter(|c| c.kind == ChannelKind::Category).map(|c| c.id.clone()).collect()).unwrap_or_default();
+        if categories.iter().any(|c| !self.folded.contains(c)) {
+            out.push(item("Collapse All Categories", move |this, _, cx| {
+                this.folded.extend(categories.iter().cloned());
+                cx.notify();
+            })
+            .entry());
+        }
+        out.push(Entry::Separator);
+
+        let (gid, cid) = (guild_id.to_owned(), category.id.clone());
+        out.push(self.mute_entry("Mute Category", "Unmute Category", settings.channel_muted(&category.id), overrides.mute_end.as_deref(), move |this, body, cx| {
+            let mut overrides = serde_json::Map::new();
+            overrides.insert(cid.clone(), body);
+            this.patch_guild_settings(gid.clone(), json!({ "channel_overrides": overrides }), cx);
+        }));
+        let (gid, cid) = (guild_id.to_owned(), category.id.clone());
+        let radios = self.notification_radios(overrides.notifications, Some(("Use Server Default", settings.notifications)), move |this, level, cx| {
+            let mut overrides = serde_json::Map::new();
+            overrides.insert(cid.clone(), json!({ "message_notifications": level }));
+            this.patch_guild_settings(gid.clone(), json!({ "channel_overrides": overrides }), cx);
+        });
+        out.push(submenu("Notification Settings", radios).hint(notification_label(effective(overrides.notifications, settings.notifications))).entry());
+        out.push(Entry::Separator);
+
+        if self.can_guild(guild_id, perm::MANAGE_CHANNELS) {
+            let ch = category.clone();
+            out.push(item("Edit Category", move |this, window, cx| this.rename_channel(ch.clone(), window, cx)).entry());
+            out.push(self.delete_channel_entry(category, "Delete Category"));
+            out.push(Entry::Separator);
+        }
+        if self.developer_mode {
+            let id = category.id.clone();
+            out.push(item("Copy Category ID", move |this, _, cx| this.copy_text(id.clone(), cx)).icon(Glyph::Id).entry());
+        }
+        out
+    }
+
+    fn move_to_category(&self, channel: &Channel, guild_id: &str) -> Entry {
+        let categories: Vec<Entry> = self
+            .guilds
+            .iter()
+            .find(|g| g.id == guild_id)
+            .map(|g| {
+                g.channels
+                    .iter()
+                    .filter(|c| c.kind == ChannelKind::Category)
+                    .map(|c| {
+                        let (id, parent) = (channel.id.clone(), c.id.clone());
+                        let row = item(c.name.clone(), move |this, _, cx| this.rest(Method::PATCH, format!("/channels/{id}"), Some(json!({ "parent_id": parent })), |_, _| {}, cx));
+                        if channel.parent_id.as_ref() == Some(&c.id) { row.disabled() } else { row }.entry()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let id = channel.id.clone();
+        let none = item("No Category", move |this, _, cx| this.rest(Method::PATCH, format!("/channels/{id}"), Some(json!({ "parent_id": null })), |_, _| {}, cx));
+        let mut rows = vec![if channel.parent_id.is_none() { none.disabled() } else { none }.entry(), Entry::Separator];
+        rows.extend(categories);
+        submenu("Move to...", vec![submenu("Category", rows).entry()]).entry()
+    }
+
+    fn delete_channel_entry(&self, channel: &Channel, label: &'static str) -> Entry {
+        let (id, name) = (channel.id.clone(), channel.name.clone());
+        item(label, move |this, _, cx| {
+            let id = id.clone();
+            this.confirm(label, format!("Are you sure you want to delete #{name}? This cannot be undone."), label, move |this, _, cx| {
+                this.rest(Method::DELETE, format!("/channels/{id}"), None, |_, _| {}, cx);
+            }, cx);
+        })
+        .danger()
+        .entry()
+    }
+
+    // ponytail: Discord's Edit Channel opens the full channel settings; this edits the name only.
+    fn rename_channel(&mut self, channel: Channel, window: &mut Window, cx: &mut Context<Self>) {
+        let id = channel.id.clone();
+        self.prompt("Edit Channel", "Channel name", &channel.name, "Save", move |this, name, _, cx| {
+            if !name.trim().is_empty() {
+                this.rest(Method::PATCH, format!("/channels/{id}"), Some(json!({ "name": name.trim() })), |_, _| {}, cx);
+            }
+        }, window, cx);
+    }
+
+    fn create_channel(&mut self, guild_id: String, kind: u64, parent: Option<String>, window: &mut Window, cx: &mut Context<Self>) {
+        let title = match kind {
+            VOICE => "Create Voice Channel",
+            CATEGORY => "Create Category",
+            _ => "Create Text Channel",
+        };
+        self.prompt(title, if kind == CATEGORY { "Category name" } else { "Channel name" }, "", "Create", move |this, name, _, cx| {
+            if !name.trim().is_empty() {
+                let body = json!({ "name": name.trim(), "type": kind, "parent_id": parent });
+                this.rest(Method::POST, format!("/guilds/{guild_id}/channels"), Some(body), |_, _| {}, cx);
+            }
+        }, window, cx);
+    }
+
+    // Discord's invite modal, simplified: a week-long invite link to copy.
+    pub(crate) fn show_invite(&mut self, guild_id: String, channel_id: String, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(client) = self.client.clone() else { return };
+        let name = self.guilds.iter().find(|g| g.id == guild_id).map(|g| g.name.clone()).unwrap_or_default();
+        cx.spawn_in(window, async move |this, cx| {
+            let invite = client.call(Method::POST, format!("/channels/{channel_id}/invites"), Some(json!({ "max_age": 604_800, "max_uses": 0 }))).await;
+            this.update_in(cx, |this, window, cx| match invite.ok().and_then(|i| i["code"].as_str().map(|c| format!("https://discord.gg/{c}"))) {
+                Some(link) => this.prompt(format!("Invite friends to {name}"), "Send this link to a friend. It expires in 7 days.", &link, "Copy", |this, link, _, cx| this.copy_text(link, cx), window, cx),
+                None => this.show_toast("You don't have permission to create invites here", cx),
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    pub(crate) fn open_server_menu(&mut self, guild_id: String, at: Point<Pixels>, dropdown: bool, cx: &mut Context<Self>) {
+        let entries = self.server_menu(&guild_id, dropdown);
+        self.open_menu(at, entries, cx);
+    }
+
+    // The server icon's menu, or (with `dropdown`) the server name dropdown, which orders the same
+    // items Discord's way and drops Mark As Read and the submenus.
+    fn server_menu(&self, guild_id: &str, dropdown: bool) -> Vec<Entry> {
+        let Some(guild) = self.guilds.iter().find(|g| g.id == guild_id) else { return Vec::new() };
+        let Some(me) = self.me.clone() else { return Vec::new() };
+        let settings = self.settings_for(guild_id);
+        let owner = guild.owner_id.as_deref() == Some(me.id.as_str());
+        let manage_channels = guild.can(&me.id, perm::MANAGE_CHANNELS);
+        let invite_channel = guild.channels.iter().find(|c| c.kind == ChannelKind::Text).map(|c| c.id.clone());
+        let mut out = Vec::new();
+
+        if !dropdown {
+            let gid = guild_id.to_owned();
+            let unread = guild.channels.iter().any(|c| self.unread(&c.id) && !settings.channel_muted(&c.id));
+            let read = item("Mark As Read", move |this, _, cx| this.mark_guild_read(&gid, cx));
+            out.push(if unread { read } else { read.disabled() }.entry());
+            out.push(Entry::Separator);
+        }
+        if let Some(channel) = invite_channel.clone() {
+            let gid = guild_id.to_owned();
+            out.push(item("Invite to Server", move |this, window, cx| this.show_invite(gid.clone(), channel.clone(), window, cx)).brand().icon(Glyph::Plus).entry());
+        }
+        if dropdown && manage_channels {
+            let gid = guild_id.to_owned();
+            out.push(item("Create Channel", move |this, window, cx| this.create_channel(gid.clone(), TEXT, None, window, cx)).icon(Glyph::Plus).entry());
+            let gid = guild_id.to_owned();
+            out.push(item("Create Category", move |this, window, cx| this.create_channel(gid.clone(), CATEGORY, None, window, cx)).icon(Glyph::Folder).entry());
+        }
+        out.push(Entry::Separator);
+
+        let gid = guild_id.to_owned();
+        out.push(self.mute_entry("Mute Server", "Unmute Server", settings.is_muted(), settings.mute_end.as_deref(), move |this, body, cx| this.patch_guild_settings(gid.clone(), body, cx)));
+        let gid = guild_id.to_owned();
+        let mut notifications = self.notification_radios(settings.notifications, None, move |this, level, cx| this.patch_guild_settings(gid.clone(), json!({ "message_notifications": level }), cx));
+        notifications.push(Entry::Separator);
+        for (label, field, on) in [("Suppress @everyone and @here", "suppress_everyone", settings.suppress_everyone), ("Suppress All Role @mentions", "suppress_roles", settings.suppress_roles)] {
+            let gid = guild_id.to_owned();
+            notifications.push(item(label, move |this, _, cx| this.patch_guild_settings(gid.clone(), json!({ field: !on }), cx)).checked(on).entry());
+        }
+        out.push(submenu("Notification Settings", notifications).hint(notification_label(settings.notifications)).icon(Glyph::Bell).entry());
+        let gid = guild_id.to_owned();
+        let hide = settings.hide_muted;
+        out.push(item("Hide Muted Channels", move |this, _, cx| this.patch_guild_settings(gid.clone(), json!({ "hide_muted_channels": !hide }), cx)).checked(hide).entry());
+        out.push(Entry::Separator);
+
+        let gid = guild_id.to_owned();
+        let current = self.members.get(guild_id).and_then(|m| m.get(&me.id)).map(|u| u.name.clone()).unwrap_or_else(|| me.name.clone());
+        out.push(item("Edit Per-server Profile", move |this, window, cx| this.edit_own_nickname(gid.clone(), current.clone(), window, cx)).icon(Glyph::Pen).entry());
+        if !dropdown && manage_channels {
+            let gid = guild_id.to_owned();
+            out.push(Entry::Separator);
+            out.push(item("Create Channel", move |this, window, cx| this.create_channel(gid.clone(), TEXT, None, window, cx)).entry());
+            let gid = guild_id.to_owned();
+            out.push(item("Create Category", move |this, window, cx| this.create_channel(gid.clone(), CATEGORY, None, window, cx)).entry());
+        }
+        out.push(Entry::Separator);
+
+        if !dropdown {
+            out.push(self.move_server(guild_id));
+            out.push(Entry::Separator);
+        }
+        if !owner {
+            let (gid, name) = (guild_id.to_owned(), guild.name.clone());
+            out.push(
+                item("Leave Server", move |this, _, cx| {
+                    let gid = gid.clone();
+                    this.confirm(format!("Leave '{name}'"), format!("Are you sure you want to leave {name}? You won't be able to rejoin this server unless you are re-invited."), "Leave Server", move |this, _, cx| {
+                        this.rest(Method::DELETE, format!("/users/@me/guilds/{gid}"), Some(json!({ "lurking": false })), |_, _| {}, cx);
+                    }, cx);
+                })
+                .danger()
+                .icon(Glyph::DoorExit)
+                .entry(),
+            );
+            out.push(Entry::Separator);
+        }
+        if self.developer_mode {
+            let id = guild_id.to_owned();
+            out.push(item("Copy Server ID", move |this, _, cx| this.copy_text(id.clone(), cx)).icon(Glyph::Id).entry());
+        }
+        out
+    }
+
+    fn edit_own_nickname(&mut self, guild_id: String, current: String, window: &mut Window, cx: &mut Context<Self>) {
+        self.prompt("Change Nickname", "Everyone in this server sees this name.", &current, "Save", move |this, nick, _, cx| {
+            let nick = (!nick.trim().is_empty()).then(|| nick.trim().to_owned());
+            this.rest(Method::PATCH, format!("/guilds/{guild_id}/members/@me"), Some(json!({ "nick": nick })), |_, _| {}, cx);
+        }, window, cx);
+    }
+
+    // Discord's "Move to..." for a server: into a folder, out of one, or to either end of the rail.
+    fn move_server(&self, guild_id: &str) -> Entry {
+        let entries = self.rail_entries();
+        let in_folder = self.folders.iter().any(|f| !f.id.is_empty() && f.id != "0" && f.guild_ids.iter().any(|g| g == guild_id));
+        let folders: Vec<Entry> = self
+            .folders
+            .iter()
+            .filter(|f| !f.id.is_empty() && f.id != "0")
+            .map(|f| {
+                let (gid, target) = (guild_id.to_owned(), format!("folder-{}", f.id));
+                let name = f.name.clone().unwrap_or_else(|| "Folder".into());
+                item(name, move |this, _, cx| this.drop_on_rail(&gid, &target, crate::rail_drag::Drop::Into, cx)).entry()
+            })
+            .collect();
+        let first = entries.first().map(rail_key);
+        let last = entries.last().map(rail_key);
+        let (gid, gid2, gid3) = (guild_id.to_owned(), guild_id.to_owned(), guild_id.to_owned());
+        let last_loose = last.clone();
+        let no_folder = item("No Folder", move |this, _, cx| {
+            if let Some(target) = &last_loose {
+                this.drop_on_rail(&gid3, target, crate::rail_drag::Drop::After, cx);
+            }
+        });
+        let mut folder_rows = vec![if in_folder { no_folder } else { no_folder.disabled() }.entry()];
+        folder_rows.extend(folders);
+        let first_item = item("First in List", move |this, _, cx| {
+            if let Some(target) = &first {
+                this.drop_on_rail(&gid, target, crate::rail_drag::Drop::Before, cx);
+            }
+        });
+        let last_item = item("Last in List", move |this, _, cx| {
+            if let Some(target) = &last {
+                this.drop_on_rail(&gid2, target, crate::rail_drag::Drop::After, cx);
+            }
+        });
+        submenu("Move to...", vec![submenu("Folder", folder_rows).entry(), Entry::Separator, first_item.entry(), last_item.entry()]).entry()
+    }
+
+    pub(crate) fn open_folder_menu(&mut self, folder_id: String, at: Point<Pixels>, cx: &mut Context<Self>) {
+        let Some(folder) = self.folders.iter().find(|f| f.id == folder_id).cloned() else { return };
+        let mut entries = Vec::new();
+        let unread = folder.guild_ids.iter().any(|g| self.guilds.iter().find(|x| &x.id == g).is_some_and(|x| x.channels.iter().any(|c| self.unread(&c.id))));
+        let ids = folder.guild_ids.clone();
+        let read = item("Mark Folder As Read", move |this, _, cx| {
+            for id in &ids {
+                this.mark_guild_read(id, cx);
+            }
+        });
+        entries.push(if unread { read } else { read.disabled() }.entry());
+        entries.push(Entry::Separator);
+        let rail = self.rail_entries();
+        let (first, last) = (rail.first().map(rail_key), rail.last().map(rail_key));
+        let key = format!("folder-{folder_id}");
+        let (k1, k2) = (key.clone(), key.clone());
+        entries.push(
+            submenu(
+                "Move to...",
+                vec![
+                    item("First in List", move |this, _, cx| {
+                        if let Some(t) = &first {
+                            this.drop_on_rail(&k1, t, crate::rail_drag::Drop::Before, cx);
+                        }
+                    })
+                    .entry(),
+                    item("Last in List", move |this, _, cx| {
+                        if let Some(t) = &last {
+                            this.drop_on_rail(&k2, t, crate::rail_drag::Drop::After, cx);
+                        }
+                    })
+                    .entry(),
+                ],
+            )
+            .entry(),
+        );
+        entries.push(Entry::Separator);
+        let (fid, name) = (folder_id.clone(), folder.name.clone().unwrap_or_default());
+        entries.push(item("Folder Settings", move |this, window, cx| this.rename_folder(fid.clone(), name.clone(), window, cx)).entry());
+        if !self.open_folders.is_empty() {
+            entries.push(item("Close All Folders", |this, _, cx| {
+                this.open_folders.clear();
+                cx.notify();
+            })
+            .entry());
+        }
+        self.open_menu(at, entries, cx);
+    }
+
+    // ponytail: Discord's Folder Settings also picks a colour; this renames only.
+    fn rename_folder(&mut self, folder_id: String, current: String, window: &mut Window, cx: &mut Context<Self>) {
+        self.prompt("Folder Settings", "Folder name", &current, "Done", move |this, name, _, cx| {
+            if let Some(folder) = this.folders.iter_mut().find(|f| f.id == folder_id) {
+                folder.name = (!name.trim().is_empty()).then(|| name.trim().to_owned());
+            }
+            let folders = this.folders.clone();
+            if let Some(client) = this.client.clone() {
+                crate::discord::runtime().spawn(async move { client.set_guild_folders(folders).await });
+            }
+            cx.notify();
+        }, window, cx);
+    }
+}
+
+fn rail_key(entry: &crate::RailEntry) -> String {
+    match entry {
+        crate::RailEntry::Guild(g) => g.id.clone(),
+        crate::RailEntry::Folder(f, _) => format!("folder-{}", f.id),
+    }
+}
+
+// What a "use the default" level resolves to.
+fn effective(level: u8, inherited: u8) -> u8 {
+    if level == 3 { inherited } else { level }
+}
+
+fn notification_label(level: u8) -> &'static str {
+    match level {
+        0 => "All Messages",
+        1 => "Only @mentions",
+        2 => "Nothing",
+        _ => "Use Default",
+    }
+}
