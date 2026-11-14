@@ -235,7 +235,8 @@ impl Rustcord {
     pub(crate) fn render_messages(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let Some(channel) = &self.channel else { return div().into_any_element() };
         let Some(feed) = self.feeds.get(&channel.id) else { return div().into_any_element() };
-        let messages: std::rc::Rc<Vec<Message>> = std::rc::Rc::new(feed.messages.clone());
+        // A pointer copy: the feed is copy-on-write, so this frame shares it rather than cloning every message.
+        let messages = feed.messages.clone();
         let ctx = std::rc::Rc::new(RowContext {
             me: self.me.clone(),
             names: self

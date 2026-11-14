@@ -122,7 +122,9 @@ enum Status {
 // One channel's messages, kept after you leave it so coming back is instant.
 #[derive(Default)]
 struct Feed {
-    messages: Vec<Message>,
+    // Shared, copied on write: each render hands the list a cheap clone of the pointer, and a
+    // change copies the messages only if the last frame still holds them.
+    messages: Arc<Vec<Message>>,
     loaded: bool,
     fetching: bool,
     has_more: bool,
@@ -977,7 +979,7 @@ impl Rustcord {
         let Some(feed) = self.feeds.get_mut(&channel_id) else { return };
         // Our own optimistic copy, sent with this nonce: swap in the real one in place.
         let nonce = message.nonce.clone();
-        if let Some(pending) = feed.messages.iter_mut().find(|m| m.state != SendState::Sent && m.nonce.is_some() && m.nonce == nonce) {
+        if let Some(pending) = Arc::make_mut(&mut feed.messages).iter_mut().find(|m| m.state != SendState::Sent && m.nonce.is_some() && m.nonce == nonce) {
             *pending = message;
             return;
         }
@@ -985,7 +987,7 @@ impl Rustcord {
             return;
         }
         let at = feed.messages.len();
-        feed.messages.push(message.clone());
+        Arc::make_mut(&mut feed.messages).push(message.clone());
         if is_open {
             self.arrivals.borrow_mut().fresh.insert(message.id);
             self.list.splice(at..at, 1);
@@ -1073,7 +1075,7 @@ impl Rustcord {
         if !self.feeds.contains_key(&id)
             && let Some(messages) = cache::load(&id)
         {
-            self.feeds.insert(id.clone(), Feed { messages, loaded: true, has_more: true, ..Default::default() });
+            self.feeds.insert(id.clone(), Feed { messages: Arc::new(messages), loaded: true, has_more: true, ..Default::default() });
         }
         self.channel = Some(channel);
         self.replying = None;
@@ -1131,10 +1133,10 @@ impl Rustcord {
             }
         };
         let newest = fetched.last().map(|m| order(&m.id)).unwrap_or(0);
-        let kept: Vec<Message> = feed.messages.drain(..).filter(|m| m.state != SendState::Sent || order(&m.id) > newest).collect();
+        let kept: Vec<Message> = feed.messages.iter().filter(|m| m.state != SendState::Sent || order(&m.id) > newest).cloned().collect();
         let unchanged = kept.is_empty() && feed.loaded && feed.messages.len() == fetched.len();
         feed.has_more = fetched.len() == 50;
-        feed.messages = fetched.into_iter().chain(kept).collect();
+        feed.messages = Arc::new(fetched.into_iter().chain(kept).collect());
         feed.loaded = true;
         feed.error = None;
         cache::save(channel_id, &feed.messages);
@@ -1165,7 +1167,7 @@ impl Rustcord {
                 feed.has_more = older.len() == 50;
                 let added = older.len();
                 let authors: Vec<String> = older.iter().map(|m| m.author.id.clone()).collect();
-                feed.messages.splice(0..0, older);
+                Arc::make_mut(&mut feed.messages).splice(0..0, older);
                 if is_open && added > 0 {
                     // Keep the same message under the reader's eye while history grows above it.
                     let top = this.list.logical_scroll_top();
@@ -1185,11 +1187,13 @@ impl Rustcord {
     // them as the server does (nickname and server avatar).
     fn apply_members(&mut self, guild_id: &str) {
         let Some(known) = self.members.get(guild_id) else { return };
-        for message in self.feeds.values_mut().flat_map(|f| f.messages.iter_mut()).filter(|m| m.guild_id.as_deref() == Some(guild_id)) {
-            let author = &mut message.author;
-            if let Some(member) = known.get(&author.id) {
-                author.name.clone_from(&member.name);
-                author.avatar.clone_from(&member.avatar);
+        let stale = |m: &Message| m.guild_id.as_deref() == Some(guild_id) && known.get(&m.author.id).is_some_and(|k| k.name != m.author.name || k.avatar != m.author.avatar);
+        // Member lists update often: only a feed that actually changes is copied for writing.
+        for feed in self.feeds.values_mut().filter(|f| f.messages.iter().any(stale)) {
+            for message in Arc::make_mut(&mut feed.messages).iter_mut().filter(|m| stale(m)) {
+                let member = &known[&message.author.id];
+                message.author.name.clone_from(&member.name);
+                message.author.avatar.clone_from(&member.avatar);
             }
         }
     }
@@ -1237,7 +1241,7 @@ impl Rustcord {
             let Ok(around) = client.messages(&channel.id, None, Some(&message_id)).await else { return };
             this.update(cx, |this, cx| {
                 let feed = this.feeds.entry(channel.id.clone()).or_default();
-                feed.messages = around;
+                feed.messages = Arc::new(around);
                 feed.has_more = true;
                 this.list.reset(feed.messages.len());
                 this.jump_to(message_id, cx);
@@ -1378,7 +1382,7 @@ impl Rustcord {
         let feed = self.feeds.entry(message.channel_id.clone()).or_default();
         let at = feed.messages.len();
         self.arrivals.borrow_mut().fresh.insert(message.id.clone());
-        feed.messages.push(message);
+        Arc::make_mut(&mut feed.messages).push(message);
         if is_open {
             self.list.splice(at..at, 1);
             self.list.scroll_to_end();
@@ -1388,7 +1392,7 @@ impl Rustcord {
 
     // The REST reply and the gateway echo race; whichever lands first replaces the pending copy.
     fn settle(&mut self, channel_id: &str, nonce: &str, result: Result<Message, String>, cx: &mut Context<Self>) {
-        let pending = self.feeds.get_mut(channel_id).and_then(|f| f.messages.iter_mut().find(|m| m.nonce.as_deref() == Some(nonce) && m.state != SendState::Sent));
+        let pending = self.feeds.get_mut(channel_id).and_then(|f| Arc::make_mut(&mut f.messages).iter_mut().find(|m| m.nonce.as_deref() == Some(nonce) && m.state != SendState::Sent));
         let Some(pending) = pending else { return };
         match result {
             Ok(sent) => *pending = sent,
@@ -1738,14 +1742,14 @@ impl Rustcord {
         if open {
             self.list.remeasure_items(ix..ix + 1);
         }
-        feed.messages.get_mut(ix)
+        Arc::make_mut(&mut feed.messages).get_mut(ix)
     }
 
     fn remove_message(&mut self, channel_id: &str, id: &str) {
         let is_open = self.channel.as_ref().is_some_and(|c| c.id == channel_id);
         let Some(feed) = self.feeds.get_mut(channel_id) else { return };
         let Some(ix) = feed.messages.iter().position(|m| m.id == id) else { return };
-        feed.messages.remove(ix);
+        Arc::make_mut(&mut feed.messages).remove(ix);
         if is_open {
             self.list.splice(ix..ix + 1, 0);
         }
