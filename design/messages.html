@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wave Messages</title>
+<meta name="description" content="Message rows, attachments, embeds and the composer.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<link rel="stylesheet" href="css/navigation.css">
+<link rel="stylesheet" href="css/messages.css">
+<link rel="stylesheet" href="css/voice.css">
+<link rel="stylesheet" href="css/overlays.css">
+<link rel="stylesheet" href="css/settings.css">
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+<section id="messages">
+  <h2>Messages</h2>
+  <p class="lede">A mention tints the whole row, with no stripe. Reactions you added carry the accent. Embeds lead with the site, never a coloured bar.</p>
+  <div class="board" style="padding: var(--space-3) 0; background: var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Rosa"></span><div><div class="head"><span class="name">Rosa</span><span class="time">Yesterday at 11:02 PM</span></div><div class="body">caught this on stream last night</div><div class="media"></div></div></div>
+    <div class="msg"><span class="gutter">11:03</span><div class="body">the timing on that dodge 😭</div><div class="reacts" style="grid-column:2"><button class="react"><span class="e">😭</span>6</button><button class="react mine"><span class="e">👏</span>3</button></div></div>
+    <div class="msg first mention"><span class="av" data-av="Jun"></span><div><div class="head"><span class="name">Jun</span><span class="time">Yesterday at 11:10 PM</span></div><div class="body"><span class="at">@you</span> send me the clip? I want it for the montage. Code block next:</div><div class="body mono" style="font-size:14px; margin-top:6px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--bg-sidebar); border: 1px solid var(--line)">ffmpeg -ss 00:41 -t 12 -i clip.mp4 out.gif</div></div></div>
+  </div>
+</section>
+</main>
+</div>
+<script src="site.js"></script>
+</body>
+</html>

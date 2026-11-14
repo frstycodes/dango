@@ -1,0 +1,44 @@
+/* Messages: the feed, message rows, reactions, embeds, composer. */
+.chat { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.chat header { height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--line); }
+.chat header b { color: var(--text-strong); font-weight: var(--weight-bold); font-size: 15px; }
+.chat header .topic { color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 10px; margin-left: 2px; border-left: 1px solid var(--line-strong); }
+.chat header .acts { margin-left: auto; display: flex; gap: 2px; }
+.feed { flex: 1; overflow: auto; padding: 12px 0 4px; display: flex; flex-direction: column; }
+.day { display: flex; align-items: center; gap: 10px; margin: 8px 16px; color: var(--text-faint); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.day::before, .day::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.msg { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 14px; padding: 4px 16px; margin: 0 8px; border-radius: var(--radius-md); position: relative; transition: background var(--dur-hover); }
+.msg:hover { background: var(--hover); }
+.msg.first { margin-top: 12px; }
+.msg .av { --size: 40px; margin-top: 2px; }
+.msg .head { display: flex; align-items: baseline; gap: 8px; }
+.msg .name { color: var(--text-strong); font-weight: var(--weight-semibold); font-size: 15px; }
+.msg .time { color: var(--text-faint); font-size: var(--text-xs); }
+.msg .gutter { font-size: 11px; color: var(--text-faint); opacity: 0; text-align: right; padding-top: 3px; }
+.msg:hover .gutter { opacity: 1; }
+.msg .body { color: var(--text); font-size: var(--text-md); line-height: 1.45; overflow-wrap: anywhere; }
+.msg.mention { background: var(--accent-soft); }
+.msg.mention:hover { background: color-mix(in oklch, var(--accent-soft), var(--accent) 6%); }
+.at { color: var(--accent-ink); background: var(--accent-soft); padding: 0 3px; border-radius: 4px; font-weight: var(--weight-medium); }
+.reply { grid-column: 2; display: flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--text-faint); margin-bottom: 2px; min-width: 0; }
+.reply i { font-size: 14px; }
+.reply .av { --size: 16px; font-size: 0; margin: 0; }
+.reply b { color: var(--text-muted); font-weight: var(--weight-semibold); }
+.reply span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.reacts { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.react { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border-radius: var(--radius-sm); background: var(--selected); border: 1px solid transparent; font-weight: var(--weight-semibold); color: var(--text-muted); font-variant-numeric: tabular-nums; transition: transform var(--dur-press) var(--ease-spring), background var(--dur-hover); }
+.react:hover { border-color: var(--line-strong); }
+.react:active { transform: scale(0.92); }
+.react.mine { background: var(--accent-soft); border-color: color-mix(in oklch, var(--accent) 55%, transparent); color: var(--accent-ink); }
+.react .e { font-size: 15px; }
+.embed { margin-top: 8px; max-width: 432px; padding: 12px 14px; border-radius: var(--radius-lg); background: var(--bg-sidebar); border: 1px solid var(--line); display: grid; gap: 6px; }
+.embed .site { display: flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--text-faint); font-weight: var(--weight-medium); }
+.embed .site span { width: 14px; height: 14px; border-radius: 4px; background: oklch(0.6 0.15 250); }
+.embed a { color: var(--accent-ink); font-weight: var(--weight-semibold); text-decoration: none; }
+.embed a:hover { text-decoration: underline; }
+.embed p { color: var(--text-muted); font-size: var(--text-sm); }
+.typing { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 24px; font-size: var(--text-xs); color: var(--text-muted); }
+.typing b { color: var(--text-strong); font-weight: var(--weight-semibold); }
+.composer { margin: 0 16px; display: flex; align-items: center; gap: 4px; min-height: 48px; padding: 0 6px; border-radius: var(--radius-lg); background: var(--bg-raised); border: 1px solid var(--line); }
+.composer input { flex: 1; min-width: 0; height: 46px; background: none; border: 0; outline: 0; font-size: var(--text-md); color: var(--text-strong); padding: 0 6px; }
+.composer input::placeholder { color: var(--text-faint); }

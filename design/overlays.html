@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wave Overlays</title>
+<meta name="description" content="Tooltips, menus, popovers, toasts and dialogs.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<link rel="stylesheet" href="css/navigation.css">
+<link rel="stylesheet" href="css/messages.css">
+<link rel="stylesheet" href="css/voice.css">
+<link rel="stylesheet" href="css/overlays.css">
+<link rel="stylesheet" href="css/settings.css">
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+<section id="overlays">
+  <h2>Overlays</h2>
+  <p class="lede">Menus and popovers rise from their trigger; dialogs scale from the centre over a scrim. Descriptions sit under their titles.</p>
+  <div class="board" style="display:flex; gap: var(--space-8); flex-wrap: wrap; align-items: flex-start">
+    <div class="menu" role="menu">
+      <button class="mi" role="menuitem"><i class="ph ph-arrow-bend-up-left"></i><div>Reply</div><kbd>R</kbd></button>
+      <button class="mi" role="menuitem"><i class="ph ph-smiley"></i><div>Add reaction</div></button>
+      <button class="mi" role="menuitem"><i class="ph ph-chats-circle"></i><div>Create thread<small>Keep the side chat out of #general</small></div></button>
+      <button class="mi" role="menuitem"><i class="ph ph-copy"></i><div>Copy text</div><kbd>⌘C</kbd></button>
+      <hr>
+      <button class="mi danger" role="menuitem"><i class="ph ph-trash"></i><div>Delete message</div></button>
+    </div>
+    <div class="stack" style="gap: var(--space-6); align-items: flex-start">
+      <span class="tooltip">Mute<kbd>= Backspace</kbd></span>
+      <div class="toast"><i class="ph-fill ph-check-circle"></i><p>Message deleted</p><button class="btn btn--sm btn--ghost">Undo</button></div>
+      <button class="btn" data-open="dialog">Open dialog</button>
+    </div>
+    <div class="dialog" role="dialog" aria-labelledby="dlg1"><h4 id="dlg1"><i class="ph-fill ph-warning"></i>Delete #clips?</h4><p>Everyone loses the channel and its 1,204 messages. This can't be undone.</p><footer><button class="btn btn--ghost">Keep channel</button><button class="btn btn--danger">Delete channel</button></footer></div>
+  </div>
+  <dialog class="real" id="dialog"><div class="dialog"><h4><i class="ph-fill ph-warning"></i>Leave Night Shift?</h4><p>You can rejoin with a new invite.</p><footer><button class="btn btn--ghost" data-close>Stay</button><button class="btn btn--danger" data-close>Leave server</button></footer></div></dialog>
+</section>
+</main>
+</div>
+<script src="site.js"></script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wave Foundations</title>
+<meta name="description" content="Colour, type, space, shape, motion and icons.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<link rel="stylesheet" href="css/navigation.css">
+<link rel="stylesheet" href="css/messages.css">
+<link rel="stylesheet" href="css/voice.css">
+<link rel="stylesheet" href="css/overlays.css">
+<link rel="stylesheet" href="css/settings.css">
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+<section id="colour">
+  <h2>Colour</h2>
+  <p class="lede">Restrained: warm neutrals plus one magenta. Depth in the dark theme comes from lighter surfaces, never shadows. Contrast figures are measured live against the page.</p>
+  <h3>Surfaces, deepest to highest</h3>
+  <div class="ramp" id="surfaces"></div>
+  <h3>Text</h3>
+  <div class="textramp board" id="texts" style="padding: var(--space-3)"></div>
+  <h3>Accent and status</h3>
+  <div class="grid" id="accents"></div>
+</section>
+<section id="type">
+  <h2>Type</h2>
+  <p class="lede">One family for the interface, a mono for code. Switch the typeface at the top to compare; Gabarito is the proposal: geometric and friendly like the bars, and nobody else's.</p>
+  <div class="board" id="specimens">
+    <div class="specimen"><span class="note">28 · bold · 1.2</span><span style="font-size:28px;font-weight:700;color:var(--text-strong);line-height:1.2;letter-spacing:-0.01em">Welcome to Night Shift</span></div>
+    <div class="specimen"><span class="note">20 · bold · 1.2</span><span style="font-size:20px;font-weight:700;color:var(--text-strong)">Voice and video</span></div>
+    <div class="specimen"><span class="note">16 · regular · 1.45</span><span style="font-size:16px;line-height:1.45">anyone up for a few rounds after dinner? bringing snacks this time, promise</span></div>
+    <div class="specimen"><span class="note">14 · medium</span><span style="font-weight:500">general · looking-for-group · Lounge</span></div>
+    <div class="specimen"><span class="note">12 · semibold</span><span style="font-size:12px;font-weight:600;color:var(--text-faint)">Today at 9:41 PM · Online · 3</span></div>
+    <div class="specimen"><span class="note">mono 14</span><span class="mono">cargo run --release</span></div>
+  </div>
+</section>
+<section id="space">
+  <h2>Space and shape</h2>
+  <p class="lede">A 4px scale. Controls 10, surfaces 14, dialogs 20; nested corners stay concentric.</p>
+  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr))">
+    <div class="board spaces" id="spaces"></div>
+    <div class="board"><div class="radii" id="radii"></div></div>
+  </div>
+</section>
+<section id="motion">
+  <h2>Motion</h2>
+  <p class="lede">Quick and a little springy. Things you touch overshoot slightly and settle inside 250ms; nothing that happens a hundred times a day animates more than a fade. Click a card to play it.</p>
+  <div class="motion" id="motions"></div>
+</section>
+<section id="icons">
+  <h2>Icons</h2>
+  <p class="lede">Phosphor, regular for rows and chrome, bold for buttons, fill for state (on, live, playing). Rounded joins match the bars.</p>
+  <div class="board"><div class="row" id="iconset" style="gap: var(--space-4); font-size: 22px; color: var(--text)"></div></div>
+</section>
+</main>
+</div>
+<script src="site.js"></script>
+<script>
+// Colour: swatches plus live WCAG contrast.
+const surfaces = [["--bg-rail", "Rail"], ["--bg-sidebar", "Sidebar"], ["--bg-page", "Page"], ["--bg-raised", "Raised"], ["--bg-overlay", "Overlay"]];
+$("#surfaces").innerHTML = surfaces.map(([v, n]) => `<div style="background:var(${v})"><b>${n}</b>${v}</div>`).join("");
+const texts = [["--text-strong", "Strong", "Names, titles, selected rows"], ["--text", "Default", "Message body"], ["--text-muted", "Muted", "Channel rows, descriptions"], ["--text-faint", "Faint", "Timestamps, placeholders"], ["--accent-ink", "Accent ink", "Links, mentions"], ["--danger-ink", "Danger ink", "Errors, destructive rows"]];
+$("#texts").innerHTML = texts.map(([v, n, use]) => `<div><span style="color:var(${v}); font-weight:600">${n} <span class="faint" style="font-weight:400">· ${use}</span></span><span class="pass" data-fg="${v}" data-bg="--bg-page"></span></div>`).join("");
+const accents = [["--accent", "Accent", "Primary buttons, counts, live", "#fff"], ["--accent-hover", "Accent hover", "", "#fff"], ["--logo", "Logo", "The mark only", "#fff"], ["--danger", "Danger", "Leave, delete", "#fff"], ["--online", "Online", "Dot, voice connected", ""], ["--idle", "Idle", "Moon", ""], ["--dnd", "Do not disturb", "Bar", ""], ["--offline", "Offline", "Ring", ""]];
+$("#accents").innerHTML = accents.map(([v, n, use, on]) => `<div class="swatch"><div class="chip" style="background:var(${v}); color:${on || "transparent"}">${on ? `<span class="pass" style="color:#fff" data-fg="#fff" data-raw-bg="${v}"></span>` : ""}</div><div class="meta"><b>${v}</b><span>${n}${use ? " · " + use : ""}</span></div></div>`).join("");
+
+const probe = document.createElement("i"); document.body.append(probe);
+const ctx = Object.assign(document.createElement("canvas"), { width: 1, height: 1 }).getContext("2d", { willReadFrequently: true });
+function rgb(color) {
+  probe.style.color = color;
+  ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = getComputedStyle(probe).color; ctx.fillRect(0, 0, 1, 1);
+  return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3);
+}
+const lum = c => { const [r, g, b] = c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+function measure() {
+  requestAnimationFrame(() => {
+    for (const el of $$("[data-fg]")) {
+      const fg = el.dataset.fg.startsWith("--") ? `var(${el.dataset.fg})` : el.dataset.fg;
+      const bg = `var(${el.dataset.bg || el.dataset.rawBg})`;
+      const r = ratio(rgb(fg), rgb(bg));
+      el.textContent = `${r.toFixed(2)}:1 ${r >= 4.5 ? "AA" : r >= 3 ? "AA large" : "fails"}`;
+    }
+  });
+}
+measure();
+document.addEventListener("wave:prefs", measure);
+
+// Space and radius.
+$("#spaces").innerHTML = [4, 8, 12, 16, 24, 32, 48].map(n => `<div>${n}px<span style="width:${n * 3}px"></span></div>`).join("");
+$("#radii").innerHTML = [["xs", 6, "Tags, tooltips"], ["sm", 8, "Rows, menu items"], ["md", 10, "Buttons, inputs"], ["lg", 14, "Cards, tiles, servers"], ["xl", 20, "Dialogs"]]
+  .map(([n, r, use]) => `<figure><div style="border-radius:${r}px"></div><b class="strong mono" style="font-size:12px">${n} · ${r}</b><span>${use}</span></figure>`).join("");
+
+// Motion cards.
+const motions = [["Press", "120ms · ease-out · scale 0.97", "var(--dur-press)", "var(--ease-out)"], ["Hover", "150ms · ease-out · colour only", "var(--dur-hover)", "var(--ease-out)"], ["Pop", "200ms · ease-out · from 0.95", "var(--dur-pop)", "var(--ease-out)"], ["Spring", "250ms · touch-driven, ~0.3 bounce", "250ms", "var(--ease-spring)"], ["Panel", "260ms · drawer curve", "var(--dur-panel)", "var(--ease-drawer)"], ["Move", "on-screen movement", "400ms", "var(--ease-move)"]];
+$("#motions").innerHTML = motions.map(([n, d, dur, e]) => `<button class="board" style="text-align:left"><b class="strong">${n}</b><span class="note">${d}</span><div class="track" style="--d:${dur}; --e:${e}"><span class="dot"></span></div></button>`).join("");
+for (const card of $$("#motions .board")) card.addEventListener("click", () => {
+  const t = $(".track", card); t.style.setProperty("--w", t.clientWidth + "px"); t.classList.toggle("go");
+});
+
+// Icons.
+$("#iconset").innerHTML = ["hash", "speaker-high", "microphone", "microphone-slash", "headphones", "screencast", "video-camera", "broadcast", "phone-x", "users", "chats-circle", "push-pin", "magnifying-glass", "gear-six", "smiley", "gif", "sticker", "plus-circle", "arrow-bend-up-left", "trash", "bell", "game-controller", "crown-simple", "eye"]
+  .map(n => `<i class="ph ph-${n}" title="${n}"></i>`).join("");
+
+</script>
+</body>
+</html>
