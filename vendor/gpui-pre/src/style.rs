@@ -291,6 +291,10 @@ pub struct Style {
     /// Box shadow of the element
     pub box_shadow: Vec<BoxShadow>,
 
+    /// The filter applied to what is painted behind this element
+    #[refineable]
+    pub backdrop_filter: BackdropFilter,
+
     /// The text style of this element
     #[refineable]
     pub text: TextStyleRefinement,
@@ -389,6 +393,33 @@ impl BoxShadow {
     pub fn inset(mut self) -> Self {
         self.inset = true;
         self
+    }
+}
+
+/// The filter applied to what is painted behind an element, like CSS `backdrop-filter`. Only
+/// the element's rounded bounds show the result.
+#[derive(Refineable, Copy, Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[refineable(Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct BackdropFilter {
+    /// The standard deviation of the gaussian blur, like CSS `blur()`.
+    pub blur_radius: Pixels,
+    /// Applied after the blur, like CSS `saturate()`: 0 is grayscale and 1 leaves colors unchanged.
+    pub saturation: f32,
+}
+
+impl BackdropFilter {
+    /// Whether the filter leaves the backdrop unchanged.
+    pub fn is_identity(&self) -> bool {
+        self.blur_radius <= Pixels::ZERO && self.saturation == 1.
+    }
+}
+
+impl Default for BackdropFilter {
+    fn default() -> Self {
+        Self {
+            blur_radius: Pixels::ZERO,
+            saturation: 1.,
+        }
     }
 }
 
@@ -708,6 +739,7 @@ impl Style {
             .to_pixels(rem_size)
             .clamp_radii_for_quad_size(bounds.size);
 
+        window.paint_backdrop_filter(bounds, corner_radii, self.backdrop_filter);
         window.paint_drop_shadows(bounds, corner_radii, &self.box_shadow);
 
         let background_color = self.background.as_ref().and_then(Fill::color);
@@ -806,6 +838,7 @@ impl Default for Style {
             border_style: BorderStyle::default(),
             corner_radii: Corners::default(),
             box_shadow: Default::default(),
+            backdrop_filter: BackdropFilter::default(),
             text: TextStyleRefinement::default(),
             mouse_cursor: None,
             opacity: None,
