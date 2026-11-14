@@ -10,6 +10,8 @@ pub enum Cue {
     Disconnect,
     StreamStarted,
     StreamEnded,
+    StreamUserJoined,
+    StreamUserLeft,
     Message,
     Mention,
     PttStart,
@@ -28,6 +30,8 @@ impl Cue {
             Cue::Disconnect => include_bytes!("../assets/discord/sounds/disconnect.mp3"),
             Cue::StreamStarted => include_bytes!("../assets/discord/sounds/stream_started.mp3"),
             Cue::StreamEnded => include_bytes!("../assets/discord/sounds/stream_ended.mp3"),
+            Cue::StreamUserJoined => include_bytes!("../assets/discord/sounds/stream_user_joined.mp3"),
+            Cue::StreamUserLeft => include_bytes!("../assets/discord/sounds/stream_user_left.mp3"),
             Cue::Message => include_bytes!("../assets/discord/sounds/message1.mp3"),
             Cue::Mention => include_bytes!("../assets/discord/sounds/mention1.mp3"),
             Cue::PttStart => include_bytes!("../assets/discord/sounds/ptt_start.mp3"),
@@ -52,44 +56,21 @@ pub fn play(cue: Cue) {
     preview(cue);
 }
 
-#[cfg(target_os = "macos")]
+// One audio thread owns the output device for the life of the app; cues are queued to it.
 pub fn preview(cue: Cue) {
-    use std::{cell::RefCell, collections::HashMap};
-
-    use objc2::{
-        msg_send,
-        runtime::{AnyClass, AnyObject},
-    };
-
-    // One NSSound per cue, created on first use and kept: replaying restarts it instead of leaking a copy.
-    thread_local! {
-        static PLAYERS: RefCell<HashMap<Cue, usize>> = RefCell::new(HashMap::new());
-    }
-    PLAYERS.with(|players| {
-        let mut players = players.borrow_mut();
-        let sound = *players.entry(cue).or_insert_with(|| {
-            let bytes = cue.bytes();
-            // SAFETY: plain AppKit messages; the NSData copies the bytes, and a nil NSSound is checked below.
-            unsafe {
-                let (Some(data_class), Some(sound_class)) = (AnyClass::get(c"NSData"), AnyClass::get(c"NSSound")) else { return 0 };
-                let data: *mut AnyObject = msg_send![data_class, dataWithBytes: bytes.as_ptr() as *const std::ffi::c_void, length: bytes.len()];
-                let sound: *mut AnyObject = msg_send![sound_class, alloc];
-                let sound: *mut AnyObject = msg_send![sound, initWithData: data];
-                sound as usize
+    static PLAYER: std::sync::OnceLock<std::sync::mpsc::Sender<Cue>> = std::sync::OnceLock::new();
+    let player = PLAYER.get_or_init(|| {
+        let (send, receive) = std::sync::mpsc::channel::<Cue>();
+        std::thread::spawn(move || {
+            let Ok(mut sink) = rodio::DeviceSinkBuilder::open_default_sink() else { return };
+            sink.log_on_drop(false);
+            for cue in receive {
+                if let Ok(sound) = rodio::Decoder::try_from(std::io::Cursor::new(cue.bytes())) {
+                    sink.mixer().add(sound);
+                }
             }
         });
-        if sound == 0 {
-            return;
-        }
-        // SAFETY: `sound` is a live NSSound retained for the life of the process.
-        unsafe {
-            let sound = sound as *mut AnyObject;
-            let _: bool = msg_send![sound, stop];
-            let _: bool = msg_send![sound, play];
-        }
+        send
     });
+    let _ = player.send(cue);
 }
-
-// ponytail: cues are macOS-only for now; rodio is the upgrade for Windows and Linux.
-#[cfg(not(target_os = "macos"))]
-pub fn preview(_: Cue) {}

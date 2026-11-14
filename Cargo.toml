@@ -33,9 +33,13 @@ mp4 = "0.14"
 notify-rust = "4"
 sonora = "0.3"
 nokhwa = { version = "0.10", features = ["input-native", "output-threaded"] }
+nnnoiseless = { version = "0.5.2", default-features = false }
+rodio = { version = "0.23.0", default-features = false, features = ["playback", "mp3"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSRunningApplication", "NSImage", "NSImageRep", "NSBitmapImageRep", "NSGraphicsContext", "NSGraphics", "objc2-core-foundation"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSGeometry"] }
 screencapturekit = { version = "11", features = ["macos_14_0"] }
 
 # RSA key generation takes seconds unoptimised; dependencies build optimised even in debug.

@@ -261,13 +261,18 @@ impl Rustcord {
     }
 
     // Discord's hover card on someone live: the stream's thumbnail and a way in.
-    fn stream_card(&self, user_id: &str, name: &str, connected: bool, cx: &mut Context<Self>) -> impl IntoElement {
+    fn stream_card(&self, user_id: &str, name: &str, connected: bool, channel: &Channel, key: &str, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
         let preview = self.stream_preview(user_id);
         let streamer = user_id.to_owned();
+        let (join, hover_key) = (channel.clone(), key.to_owned());
         div()
-            .ml_2()
+            .id(SharedString::from(format!("stream-card-{user_id}")))
             .w(px(288.))
+            .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
+                this.stream_card_hover = hovered.then(|| hover_key.clone());
+                cx.notify();
+            }))
             .rounded(px(8.))
             .overflow_hidden()
             .border_1()
@@ -289,7 +294,8 @@ impl Rustcord {
                     .items_center()
                     .gap_2()
                     .child(div().flex_1().min_w_0().truncate().text_size(px(14.)).font_weight(FontWeight::MEDIUM).child(format!("{name} is streaming")))
-                    .when(connected, |d| {
+                    .child({
+                        let d = div();
                         d.child(
                             div()
                                 .id("card-watch")
@@ -304,7 +310,17 @@ impl Rustcord {
                                 .text_size(px(14.))
                                 .font_weight(FontWeight::MEDIUM)
                                 .child("Watch Stream")
-                                .on_click(cx.listener(move |this, _, _, cx| this.watch_stream(streamer.clone(), cx))),
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.stream_card_hover = None;
+                                    match connected {
+                                        true => this.watch_stream(streamer.clone(), cx),
+                                        // Not in that call yet: join it, then watch once connected.
+                                        false => {
+                                            this.watch_on_connect = Some(streamer.clone());
+                                            this.show_call(join.clone(), window, cx);
+                                        }
+                                    }
+                                })),
                         )
                     }),
             )
@@ -572,7 +588,9 @@ impl Rustcord {
                 let streamer = state.user_id.clone();
                 let is_watched = watching.as_ref() == Some(&state.user_id);
                 let stream_key = format!("stream-{}", state.user_id);
-                let stream_card = (state.streaming && self.hovered.as_deref() == Some(stream_key.as_str())).then(|| self.stream_card(&state.user_id, &name, connected, cx).into_any_element());
+                // Open while the row or the card itself is hovered, so the card's button can be reached.
+                let card_open = self.hovered.as_deref() == Some(stream_key.as_str()) || self.stream_card_hover.as_deref() == Some(stream_key.as_str());
+                let stream_card = (state.streaming && card_open).then(|| self.stream_card(&state.user_id, &name, connected, channel, &stream_key, cx).into_any_element());
                 let stream_hover = cx.listener(move |this, hovered: &bool, _, cx| this.set_hovered(&stream_key, *hovered, cx));
                 rows.push(
                     div()
@@ -605,7 +623,7 @@ impl Rustcord {
                             cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.voice_user_menu(&user_id, e.position, cx))
                         })
                         .when(state.streaming, |r| {
-                            r.on_hover(stream_hover).children(stream_card.map(|card| div().absolute().top_0().right(px(-8.)).child(gpui_kit::deferred(gpui_kit::anchored().snap_to_window_with_margin(px(8.)).child(card)))))
+                            r.on_hover(stream_hover).children(stream_card.map(|card| div().absolute().top_0().right(px(4.)).child(gpui_kit::deferred(gpui_kit::anchored().snap_to_window_with_margin(px(8.)).child(card)))))
                         })
                         .when(state.streaming && connected, |r| {
                             r.cursor_pointer()

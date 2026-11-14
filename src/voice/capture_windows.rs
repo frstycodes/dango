@@ -66,7 +66,7 @@ pub fn start(source: ShareSource, fps: u32, max_width: u32, max_height: u32, wit
     let flags = FrameFlags { tx, max_width, max_height };
     let interval = MinimumUpdateIntervalSettings::Custom(Duration::from_micros(1_000_000 / u64::from(fps.max(1))));
     let (control, audio_pid) = match source {
-        ShareSource::Screen => {
+        ShareSource::Screen(_) => {
             let monitor = Monitor::primary().map_err(|e| format!("No display to capture: {e}"))?;
             (FrameHandler::start_free_threaded(settings(monitor, interval, flags)), AudioTarget::AllExcept(std::process::id()))
         }
@@ -288,7 +288,7 @@ mod tests {
     #[test]
     #[ignore]
     fn captures_primary_monitor_and_lists_windows() {
-        let captured = start(ShareSource::Screen, 30, 1280, 720, true).unwrap();
+        let captured = start(ShareSource::Screen(0), 30, 1280, 720, true).unwrap();
         let frame = captured.frames.recv_timeout(Duration::from_secs(5)).expect("a frame within 5 s");
         assert!(frame.width <= 1280 && frame.height <= 720 && frame.width % 2 == 0);
         assert_eq!(frame.bgra.len(), (frame.width * frame.height * 4) as usize);
