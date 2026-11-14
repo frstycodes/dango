@@ -106,7 +106,29 @@ document.addEventListener("click", e => {
 document.addEventListener("input", e => {
   if (!e.target.matches(".range")) return;
   const r = e.target, p = (r.value - (r.min || 0)) / ((r.max || 100) - (r.min || 0));
-  r.style.setProperty("--p", p);
-  r.style.setProperty("--v", p * 100 + "%");
+  for (const el of [r, r.parentElement]) { el.style.setProperty("--p", p); el.style.setProperty("--v", p * 100 + "%"); }
 });
-for (const r of $$(".range")) r.dispatchEvent(new Event("input", { bubbles: true }));
+// Each slider draws its two segments around the native thumb. Settings' sensitivity slider draws its own level track.
+for (const r of $$(".range")) {
+  if (!r.closest(".set-sens") && !r.parentElement.classList.contains("slider")) {
+    const wrap = document.createElement("span");
+    wrap.className = "slider";
+    r.replaceWith(wrap);
+    wrap.append(r);
+  }
+  r.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+// Segmented controls: one thumb slides to the pressed option.
+function placeSeg(seg) {
+  const on = $('[aria-pressed="true"]', seg);
+  if (!on) return;
+  seg.style.setProperty("--x", on.offsetLeft + "px");
+  seg.style.setProperty("--w", on.offsetWidth + "px");
+  if (!seg.classList.contains("is-placed")) { seg.classList.add("is-placed"); requestAnimationFrame(() => seg.classList.add("is-sliding")); }
+}
+const placeAll = () => $$(".seg").forEach(placeSeg);
+placeAll();
+document.fonts?.ready.then(placeAll);
+document.addEventListener("wave:prefs", () => requestAnimationFrame(placeAll));
+document.addEventListener("click", e => { const seg = e.target.closest(".seg"); if (seg) placeSeg(seg); });

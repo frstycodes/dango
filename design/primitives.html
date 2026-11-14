@@ -84,7 +84,7 @@
     </div>
     <div class="stack" style="gap: var(--space-4)">
       <div class="seg" role="group" aria-label="Quality"><button aria-pressed="false">720p</button><button aria-pressed="true">1080p</button><button aria-pressed="false">Source</button></div>
-      <div class="field"><label for="vol">Mira's volume</label><div class="row" style="flex-wrap:nowrap"><input id="vol" class="range" type="range" min="0" max="200" value="100" oninput="this.nextElementSibling.value=this.value+'%'"><output class="strong" style="min-width:44px;text-align:right;font-variant-numeric:tabular-nums">100%</output></div></div>
+      <div class="field"><label for="vol">Mira's volume</label><div class="row" style="flex-wrap:nowrap"><input id="vol" class="range" type="range" min="0" max="200" value="100" oninput="this.closest('.row').querySelector('output').value=this.value+'%'"><output class="strong" style="min-width:44px;text-align:right;font-variant-numeric:tabular-nums">100%</output></div></div>
       <div class="row"><button class="chip" aria-pressed="true"><i class="ph ph-image"></i>Images</button><button class="chip" aria-pressed="false"><i class="ph ph-link"></i>Links</button><button class="chip" aria-pressed="false"><i class="ph ph-file"></i>Files</button></div>
     </div>
   </div>
@@ -133,7 +133,7 @@
       <div class="stack"><span class="row" style="justify-content:space-between"><b class="strong" style="font-weight:600">clip.mp4</b><span class="faint" style="font-variant-numeric: tabular-nums">12.4 / 31 MB</span></span><div class="progress" style="--v: 40%"><span></span></div></div>
       <div class="stack"><span class="strong" style="font-weight:600">Connecting to Lounge…</span><div class="progress progress--indeterminate"><span></span></div></div>
       <div class="stack"><span class="strong" style="font-weight:600">Mic level</span><div class="meter" id="meter" aria-label="Mic level"></div></div>
-      <div class="row"><span class="ring" style="--v:0.72"></span><span class="muted">18 of 25 uploaded</span></div>
+      <div class="row"><svg class="ring" viewBox="0 0 40 40" style="--v:0.72" role="img" aria-label="72%"><circle class="rest" cx="20" cy="20" r="18" pathLength="100"/><circle class="fill" cx="20" cy="20" r="18" pathLength="100"/></svg><span class="muted">18 of 25 uploaded</span></div>
     </div>
     <div class="stack" style="gap: var(--space-3)">
       <div class="row" style="flex-wrap:nowrap"><span class="skeleton circle" style="width:40px;height:40px;flex:none"></span><div class="stack" style="flex:1"><span class="skeleton line" style="width:120px"></span><span class="skeleton line" style="width:72%"></span></div></div>
