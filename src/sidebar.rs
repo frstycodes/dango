@@ -781,8 +781,18 @@ impl Rustcord {
             (false, None) => None,
         };
         let state = RowState { selected, unread, muted: false, strong: false };
-        let (open, hover_id) = (channel.clone(), channel.id.clone());
-        channel_row(SharedString::from(channel.id.clone()), format!("dm-{}", channel.id).into(), state, cx)
+        let (open, hover_id, close_id) = (channel.clone(), channel.id.clone(), channel.id.clone());
+        let group: SharedString = format!("dm-{}", channel.id).into();
+        // Hovered, the close button takes the count's place.
+        let close = row_action(SharedString::from(format!("dm-close-{}", channel.id)), Nav::Close.icon(), "Close", cx)
+            .flex_none()
+            .hidden()
+            .group_hover(group.clone(), |s| s.flex())
+            .on_click(cx.listener(move |this, _, _, cx| {
+                cx.stop_propagation();
+                this.close_dm(&close_id, cx);
+            }));
+        channel_row(SharedString::from(channel.id.clone()), group.clone(), state, cx)
             .h(px(44.))
             .gap(px(10.))
             .font_weight(FontWeight::NORMAL)
@@ -796,7 +806,8 @@ impl Rustcord {
                     .child(div().truncate().font_weight(if unread { FontWeight::SEMIBOLD } else { FontWeight::MEDIUM }).child(channel.name.clone()))
                     .children(line.map(|l| l.flex().items_center().gap_1().min_w_0().text_size(px(12.)).text_color(faint))),
             )
-            .when(mentions > 0, |r| r.child(ui::count_badge(mentions)))
+            .when(mentions > 0, |r| r.child(div().group_hover(group, |s| s.hidden()).child(ui::count_badge(mentions))))
+            .child(close)
             .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
                 if *hovered {
                     this.prefetch(&hover_id, cx);
