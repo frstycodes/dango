@@ -34,6 +34,7 @@ mod user_menu;
 mod video;
 mod hotkeys;
 mod sounds;
+mod ui;
 mod voice;
 mod window_controls;
 
