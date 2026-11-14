@@ -247,7 +247,8 @@ impl Rustcord {
             | std::mem::take(&mut self.server_menu)
             | self.inbox.take().is_some()
             | self.gif_picker.take().is_some()
-            | self.dismiss_call_menus();
+            | self.dismiss_call_menus()
+            | self.close_menu();
         if open {
             cx.notify();
         }

@@ -252,6 +252,10 @@ impl Rustcord {
                 )
                 .tooltip(|window, cx| Tooltip::new("Message").build(window, cx))
                 .on_click(cx.listener(move |this, _, window, cx| this.message_user(user_id.clone(), window, cx)))
+                .on_mouse_down(gpui_kit::MouseButton::Right, {
+                    let user = r.user.clone();
+                    cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_user_menu(user.clone(), None, crate::user_menu::Surface::Generic, e.position, cx))
+                })
         });
         let rows: Vec<_> = rows.collect();
         let count = rows.len();

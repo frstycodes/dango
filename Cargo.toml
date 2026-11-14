@@ -29,6 +29,7 @@ cpal = "0.18"
 aes-gcm = "0.10"
 chacha20poly1305 = "0.10"
 openh264 = "0.9"
+mp4 = "0.14"
 sonora = "0.3"
 nokhwa = { version = "0.10", features = ["input-native", "output-threaded"] }
 

@@ -18,6 +18,18 @@ use crate::{
 };
 
 pub const VOICE_HEIGHT: f32 = 92.;
+const PREVIEW_AGE: std::time::Duration = std::time::Duration::from_secs(60);
+// Discord's call tiles (read from Discord web, 2026-11-14).
+const TILE_RADIUS: f32 = 8.;
+const TILE_GAP: f32 = 8.;
+const STRIP_HEIGHT: f32 = 112.;
+const STRIP_LIMIT: usize = 12;
+const RECENT_SPEAKER: std::time::Duration = std::time::Duration::from_secs(10);
+
+enum Tile {
+    User(VoiceState),
+    Stream(VoiceState),
+}
 const ERROR_HEIGHT: f32 = 56.;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -59,6 +71,43 @@ fn signal(ping: Option<u32>) -> (Glyph, Hsla) {
 }
 
 impl Rustcord {
+    // Discord's stream thumbnails (GET /streams/{key}/preview) for everyone live in the open server
+    // and our call, refetched when older than a minute.
+    pub(crate) fn refresh_stream_previews(&mut self, cx: &mut Context<Self>) {
+        let Some(client) = self.client.clone() else { return };
+        let wanted: Vec<String> = [self.guild_id.clone(), self.call.as_ref().and_then(|c| c.guild_id.clone())].into_iter().flatten().collect();
+        let mut keys: Vec<(String, String)> = Vec::new();
+        for guild in self.guilds.iter().filter(|g| wanted.contains(&g.id)) {
+            for state in guild.voice_states.iter().filter(|v| v.streaming) {
+                let Some(channel) = &state.channel_id else { continue };
+                let fresh = self.stream_previews.get(&state.user_id).is_some_and(|(_, at)| at.elapsed() < PREVIEW_AGE);
+                if !fresh {
+                    keys.push((state.user_id.clone(), format!("guild:{}:{channel}:{}", guild.id, state.user_id)));
+                }
+            }
+        }
+        for (user_id, key) in keys {
+            // Marked fetched now so a burst of events doesn't fire duplicate requests.
+            let old = self.stream_previews.get(&user_id).map(|(url, _)| url.clone()).unwrap_or_default();
+            self.stream_previews.insert(user_id.clone(), (old, std::time::Instant::now()));
+            let client = client.clone();
+            cx.spawn(async move |this, cx| {
+                let Ok(body) = client.call(reqwest::Method::GET, format!("/streams/{key}/preview"), None).await else { return };
+                let Some(url) = body["url"].as_str().map(str::to_owned) else { return };
+                this.update(cx, |this, cx| {
+                    this.stream_previews.insert(user_id, (url, std::time::Instant::now()));
+                    cx.notify();
+                })
+                .ok();
+            })
+            .detach();
+        }
+    }
+
+    pub(crate) fn stream_preview(&self, user_id: &str) -> Option<String> {
+        self.stream_previews.get(user_id).map(|(url, _)| url.clone()).filter(|url| !url.is_empty())
+    }
+
     pub(crate) fn voice_panel_height(&self) -> f32 {
         match (&self.call, &self.voice_error) {
             (Some(_), _) => VOICE_HEIGHT,
@@ -68,7 +117,7 @@ impl Rustcord {
     }
 
     pub(crate) fn dismiss_call_menus(&mut self) -> bool {
-        std::mem::take(&mut self.connection_info) | self.participant_menu.take().is_some() | self.device_menu.take().is_some()
+        std::mem::take(&mut self.connection_info) | self.device_menu.take().is_some()
     }
 
     // "Voice Connected" (or the stage it's at), the channel and server, the hang-up button, then
@@ -221,7 +270,7 @@ impl Rustcord {
         if states.is_empty()
             && let Some(me) = &self.me
         {
-            return vec![VoiceState { guild_id: None, channel_id: Some(call.channel.id.clone()), user_id: me.id.clone(), user: Some(me.clone()), muted: self.muted, deafened: self.deafened, streaming: false, camera: false }];
+            return vec![VoiceState { guild_id: None, channel_id: Some(call.channel.id.clone()), user_id: me.id.clone(), user: Some(me.clone()), muted: self.muted, deafened: self.deafened, server_muted: false, server_deafened: false, streaming: false, camera: false }];
         }
         states
     }
@@ -234,15 +283,42 @@ impl Rustcord {
         }
     }
 
-    // The call view: a grid of tiles, or the watched stream large with everyone in a strip below,
-    // then Discord's control bar.
+    // Discord's order (its participant sort, read from Discord web 2026-11-14): streams first, then
+    // whoever is speaking, then anyone who spoke in the last ten seconds, then cameras, then the rest
+    // by most recently spoken and name.
+    fn ordered_tiles(&self) -> Vec<Tile> {
+        let Some(call) = &self.call else { return Vec::new() };
+        let people = self.participants();
+        let mut tiles: Vec<(String, Tile)> = Vec::new();
+        for state in people.iter().filter(|s| s.streaming) {
+            let name = state.user.as_ref().map(|u| u.name.clone()).unwrap_or_default();
+            tiles.push((format!("\x02{name}"), Tile::Stream(state.clone())));
+        }
+        for state in people {
+            let name = state.user.as_ref().map(|u| u.name.clone()).unwrap_or_default();
+            let since = call.last_spoke.get(&state.user_id).map(|t| t.elapsed());
+            let rank = match () {
+                _ if self.speaking(&state.user_id) => 3,
+                _ if since.is_some_and(|d| d < RECENT_SPEAKER) => 4,
+                _ if state.camera => 5,
+                _ => 6,
+            };
+            let ago = since.map_or(u64::MAX, |d| d.as_millis() as u64);
+            tiles.push((format!("{}{ago:020}{name}", rank as u8 as char), Tile::User(state)));
+        }
+        tiles.sort_by(|a, b| a.0.cmp(&b.0));
+        tiles.into_iter().map(|(_, tile)| tile).collect()
+    }
+
+    // The call view: a grid of 16:9 tiles, or the watched stream large with everyone in a strip of
+    // 112px tiles below; Discord's control bar underneath.
     pub(crate) fn render_call(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let call = self.call.as_ref()?;
-        let theme = cx.theme().clone();
-        let people = self.participants();
+        let tiles = self.ordered_tiles();
         let viewport = window.viewport_size();
-        let width = f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - 48.;
-        let height = f32::from(viewport.height) - 32. - 48. - 96.;
+        let width = f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - 32.;
+        let height = f32::from(viewport.height) - 32. - 48. - 96. - 16.;
+        let people = tiles.iter().filter(|t| matches!(t, Tile::User(_))).count();
         let header = div()
             .h(px(48.))
             .flex_none()
@@ -253,25 +329,30 @@ impl Rustcord {
             .text_color(gpui_kit::white())
             .child(Icon::new(Glyph::VolumeHigh).size(px(20.)).text_color(gpui_kit::white().opacity(0.7)))
             .child(div().font_weight(FontWeight::SEMIBOLD).child(call.channel.name.clone()))
-            .child(div().text_size(px(14.)).text_color(gpui_kit::white().opacity(0.6)).child(format!("{} in voice", people.len())));
+            .child(div().text_size(px(14.)).text_color(gpui_kit::white().opacity(0.6)).child(format!("{people} in voice")));
         let stage: AnyElement = match &call.watching {
             Some(watching) => {
-                let strip_h = 120.;
-                let main_h = (height - strip_h - 16.).max(120.);
+                let main_h = (height - STRIP_HEIGHT - TILE_GAP).max(120.);
                 let main = match &watching.frame {
                     Some(frame) => {
                         let (w, h) = (frame.size(0).width.0 as f32, frame.size(0).height.0 as f32);
                         let scale = (width / w).min(main_h / h);
-                        img(ImageSource::Render(frame.clone())).w(px(w * scale)).h(px(h * scale)).rounded(px(8.)).into_any_element()
+                        img(ImageSource::Render(frame.clone())).w(px(w * scale)).h(px(h * scale)).rounded(px(TILE_RADIUS)).into_any_element()
                     }
                     None => div().text_color(gpui_kit::white().opacity(0.7)).child(format!("Joining {}'s stream…", self.user_name(&watching.streamer_id))).into_any_element(),
                 };
-                let tiles: Vec<AnyElement> = people.iter().map(|p| self.tile(p, strip_h * 16. / 9., strip_h, cx)).collect();
+                let strip_w = STRIP_HEIGHT * 16. / 9.;
+                let strip: Vec<AnyElement> = tiles
+                    .iter()
+                    .filter(|t| !matches!(t, Tile::Stream(s) if s.user_id == watching.streamer_id))
+                    .take(STRIP_LIMIT)
+                    .map(|t| self.tile(t, strip_w, STRIP_HEIGHT, true, cx))
+                    .collect();
                 div()
                     .size_full()
                     .flex()
                     .flex_col()
-                    .gap_4()
+                    .gap(px(TILE_GAP))
                     .child(
                         div()
                             .relative()
@@ -283,17 +364,21 @@ impl Rustcord {
                             .child(main)
                             .child(div().absolute().top_2().right_2().child(pill_button("stop-watching", "Stop Watching").on_click(cx.listener(|this, _, _, cx| this.stop_watching(cx))))),
                     )
-                    .child(div().flex_none().flex().justify_center().gap_2().children(tiles))
+                    .child(div().flex_none().flex().justify_center().gap(px(TILE_GAP)).children(strip))
                     .into_any_element()
             }
             None => {
-                let n = people.len().max(1);
-                let cols = (n as f32).sqrt().ceil() as usize;
-                let rows = n.div_ceil(cols);
-                let gap = 8.;
-                let tile_w = ((width - gap * (cols as f32 - 1.)) / cols as f32).min((height - gap * (rows as f32 - 1.)) / rows as f32 * 16. / 9.).max(160.);
-                let tiles: Vec<AnyElement> = people.iter().map(|p| self.tile(p, tile_w, tile_w * 9. / 16., cx)).collect();
-                div().size_full().flex().flex_wrap().items_center().justify_center().content_center().gap(px(gap)).children(tiles).into_any_element()
+                let n = tiles.len().max(1);
+                // The column count that makes the biggest 16:9 tiles fit the stage.
+                let size = |cols: usize| {
+                    let rows = n.div_ceil(cols) as f32;
+                    let w = (width - TILE_GAP * (cols as f32 - 1.)) / cols as f32;
+                    w.min((height - TILE_GAP * (rows - 1.)) / rows * 16. / 9.)
+                };
+                let cols = (1..=n).max_by(|a, b| size(*a).total_cmp(&size(*b))).unwrap_or(1);
+                let tile_w = size(cols).max(124.);
+                let rendered: Vec<AnyElement> = tiles.iter().map(|t| self.tile(t, tile_w, tile_w * 9. / 16., false, cx)).collect();
+                div().size_full().flex().flex_wrap().items_center().justify_center().content_center().gap(px(TILE_GAP)).children(rendered).into_any_element()
             }
         };
         Some(
@@ -304,18 +389,17 @@ impl Rustcord {
                 .flex()
                 .flex_col()
                 .child(header)
-                .child(div().flex_1().min_h_0().px_6().child(stage))
+                .child(div().flex_1().min_h_0().px_4().child(stage))
                 .child(self.call_controls(cx))
-                .when(!theme.is_dark(), |d| d.border_t_1().border_color(theme.border))
                 .into_any_element(),
         )
     }
 
-    // A participant: camera if it's on, otherwise their avatar on a dark tile; green ring while
-    // speaking; name and mute state bottom left; a LIVE tile action when they stream.
-    fn tile(&self, state: &VoiceState, w: f32, h: f32, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme().clone();
+    // A participant (camera or avatar, green ring while speaking, name and mute state in Discord's
+    // overlay pill) or someone's Go Live (their preview dimmed, with Watch Stream).
+    fn tile(&self, tile: &Tile, w: f32, h: f32, compact: bool, cx: &mut Context<Self>) -> AnyElement {
         let call = self.call.as_ref().expect("in a call");
+        let (Tile::User(state) | Tile::Stream(state)) = tile;
         let user = state.user.clone().unwrap_or_else(|| User {
             id: state.user_id.clone(),
             name: self.user_name(&state.user_id),
@@ -327,49 +411,64 @@ impl Rustcord {
         });
         let me = self.me.as_ref().is_some_and(|m| m.id == state.user_id);
         let (muted, deafened) = if me { (self.muted || self.deafened, self.deafened) } else { (state.muted, state.deafened) };
-        let talking = self.speaking(&state.user_id);
-        let face: AnyElement = match call.cameras.get(&state.user_id) {
-            Some(frame) => img(ImageSource::Render(frame.clone())).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
-            None => img(user.avatar.clone()).size(px((h * 0.4).clamp(40., 96.))).rounded_full().into_any_element(),
+        let is_stream = matches!(tile, Tile::Stream(_));
+        let talking = !is_stream && self.speaking(&state.user_id);
+        let margin = if compact { 4. } else { 12. };
+        let face: AnyElement = match (is_stream, call.cameras.get(&state.user_id)) {
+            (true, _) => div()
+                .size_full()
+                .bg(rgb(0x1E1F22))
+                .children(self.stream_preview(&state.user_id).map(|url| img(url).size_full().object_fit(gpui_kit::ObjectFit::Cover).opacity(0.15)))
+                .into_any_element(),
+            (false, Some(frame)) => img(ImageSource::Render(frame.clone())).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
+            (false, None) => div().size_full().bg(rgb(0x1E1F22)).flex().items_center().justify_center().child(img(user.avatar.clone()).size(px((h * 0.4).clamp(32., 96.))).rounded_full()).into_any_element(),
         };
-        let watchable = state.streaming && !me && call.watching.as_ref().is_none_or(|w| w.streamer_id != state.user_id);
+        let watching = call.watching.as_ref().is_some_and(|w| w.streamer_id == state.user_id);
+        let watchable = is_stream && !me && !watching;
+        let status = |glyph: Glyph| {
+            let pad = if compact { 4. } else { 6. };
+            div().size(px(20. + pad * 2.)).p(px(pad)).flex_none().rounded_full().bg(gpui_kit::black().opacity(0.56)).text_color(gpui_kit::white()).child(Icon::new(glyph).size_full())
+        };
+        let label = div()
+            .absolute()
+            .left(px(margin))
+            .bottom(px(margin))
+            .max_w(px(w - margin * 2.))
+            .flex()
+            .items_center()
+            .gap_1()
+            .child(
+                div()
+                    .min_w_0()
+                    .px(px(12.))
+                    .py(px(6.))
+                    .rounded(px(TILE_RADIUS))
+                    .bg(gpui_kit::black().opacity(0.56))
+                    .text_color(gpui_kit::white())
+                    .text_size(px(14.))
+                    .font_weight(FontWeight::MEDIUM)
+                    .flex()
+                    .items_center()
+                    .gap_1()
+                    .when(is_stream, |d| d.child(Icon::new(Glyph::ShareScreen).size(px(16.)).flex_none()))
+                    .child(div().truncate().child(user.name.clone())),
+            )
+            .when(!is_stream && muted, |d| d.child(status(Glyph::MicOff)))
+            .when(!is_stream && deafened, |d| d.child(status(Glyph::HeadphonesOff)));
         let streamer = state.user_id.clone();
         let menu_user = state.user_id.clone();
         div()
-            .id(SharedString::from(format!("tile-{}", state.user_id)))
-            .group("tile")
+            .id(SharedString::from(format!("tile-{}-{is_stream}", state.user_id)))
             .relative()
             .w(px(w))
             .h(px(h))
             .flex_none()
-            .rounded(px(8.))
+            .rounded(px(TILE_RADIUS))
             .overflow_hidden()
-            .bg(rgb(0x1A1A1E))
-            .flex()
-            .items_center()
-            .justify_center()
             .child(face)
-            .child(div().absolute().inset_0().rounded(px(8.)).border_2().border_color(if talking { palette::status(discord::Status::Online) } else { gpui_kit::transparent_black() }))
-            .child(
-                div()
-                    .absolute()
-                    .left_2()
-                    .bottom_2()
-                    .max_w(px(w - 16.))
-                    .h(px(24.))
-                    .px_2()
-                    .rounded(px(4.))
-                    .bg(gpui_kit::black().opacity(0.5))
-                    .text_color(gpui_kit::white())
-                    .text_size(px(14.))
-                    .flex()
-                    .items_center()
-                    .gap_1()
-                    .when(muted, |d| d.child(Icon::new(Glyph::MicOff).size(px(14.)).text_color(theme.danger)))
-                    .when(deafened, |d| d.child(Icon::new(Glyph::HeadphonesOff).size(px(14.)).text_color(theme.danger)))
-                    .child(div().truncate().child(user.name.clone())),
-            )
-            .when(state.streaming, |d| d.child(div().absolute().top_2().left_2().h(px(18.)).px_1().rounded(px(4.)).bg(rgb(0xED4245)).text_color(gpui_kit::white()).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child("LIVE")))
+            .when(is_stream, |d| {
+                d.child(div().absolute().top(px(8.)).right(px(8.)).h(px(18.)).px_1().rounded(px(4.)).bg(rgb(0xED4245)).text_color(gpui_kit::white()).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child("LIVE"))
+            })
             .when(watchable, |d| {
                 d.child(
                     div()
@@ -378,15 +477,13 @@ impl Rustcord {
                         .flex()
                         .items_center()
                         .justify_center()
-                        .invisible()
-                        .group_hover("tile", |s| s.visible())
                         .child(pill_button(SharedString::from(format!("watch-{streamer}")), "Watch Stream").on_click(cx.listener(move |this, _, _, cx| this.watch_stream(streamer.clone(), cx)))),
                 )
             })
-            .on_mouse_down(MouseButton::Right, cx.listener(move |this, e: &MouseDownEvent, _, cx| {
-                this.participant_menu = Some((menu_user.clone(), e.position));
-                cx.notify();
-            }))
+            .child(label)
+            // Speaking: a 2px green ring inside the tile edge, as Discord draws its tile border.
+            .child(div().absolute().inset_0().rounded(px(TILE_RADIUS)).border_2().border_color(if talking { rgb(0x3D9E60).into() } else { gpui_kit::transparent_black() }))
+            .on_mouse_down(MouseButton::Right, cx.listener(move |this, e: &MouseDownEvent, _, cx| this.voice_user_menu(&menu_user, e.position, cx)))
             .into_any_element()
     }
 
@@ -474,7 +571,6 @@ impl Rustcord {
         let mut out = Vec::new();
         out.extend(self.connection_overlay(cx));
         out.extend(self.device_overlay(window, cx));
-        out.extend(self.participant_overlay(window, cx));
         out
     }
 
@@ -622,72 +718,24 @@ impl Rustcord {
         Some(call_backdrop("device-backdrop", cx).child(card).into_any_element())
     }
 
-    // Right-click on someone in the call: profile, mention, message, their volume, local mute.
-    fn participant_overlay(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let (user_id, at) = self.participant_menu.clone()?;
-        let theme = cx.theme().clone();
-        let me = self.me.as_ref().is_some_and(|m| m.id == user_id);
-        let user = self.guilds.iter().flat_map(|g| g.voice_states.iter()).chain(self.participants().iter()).find(|p| p.user_id == user_id).and_then(|p| p.user.clone());
-        let volume = self.prefs.user_volumes.get(&user_id).copied().unwrap_or(1.);
-        let locally_muted = self.prefs.local_mutes.contains(&user_id);
-        let (vol_id, mute_id, dm_id, copy_id) = (user_id.clone(), user_id.clone(), user_id.clone(), user_id.clone());
-        let profile_user = user.clone();
-        let mention_user = user.clone();
-        let viewport = window.viewport_size();
-        let card = div()
-            .id("participant-menu")
-            .absolute()
-            .left(px(f32::from(at.x).min(f32::from(viewport.width) - 236.)))
-            .top(px(f32::from(at.y).min(f32::from(viewport.height) - 320.)))
-            .w(px(220.))
-            .p_2()
-            .rounded(px(8.))
-            .bg(theme.popover)
-            .border_1()
-            .border_color(theme.input)
-            .shadow_lg()
-            .flex()
-            .flex_col()
-            .gap_1()
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .children(profile_user.map(|user| {
-                menu_row("participant-profile", "Profile".into(), false, cx).on_click(cx.listener(move |this, e: &gpui_kit::ClickEvent, _, cx| {
-                    this.participant_menu = None;
-                    this.open_profile(user.clone(), e.position(), cx);
-                }))
-            }))
-            .children(mention_user.map(|user| {
-                menu_row("participant-mention", "Mention".into(), false, cx).on_click(cx.listener(move |this, _, window, cx| {
-                    this.participant_menu = None;
-                    this.mention_user(&user, window, cx);
-                }))
-            }))
-            .when(!me, |d| {
-                d.child(menu_row("participant-message", "Message".into(), false, cx).on_click(cx.listener(move |this, _, window, cx| {
-                    this.participant_menu = None;
-                    this.message_user(dm_id.clone(), window, cx);
-                })))
-                .child(div().my_1().h(px(1.)).bg(theme.border))
-                .child(
-                    div()
-                        .px_2()
-                        .flex()
-                        .flex_col()
-                        .gap_1()
-                        .child(div().flex().justify_between().text_size(px(12.)).font_weight(FontWeight::BOLD).text_color(theme.muted_foreground).child("User Volume").child(format!("{:.0}%", volume * 100.)))
-                        .child(self.range(SharedString::from(format!("user-volume-{vol_id}")), volume / 2., Fill::Accent, move |this, f, cx| this.set_user_volume(&vol_id, f.clamp(0., 1.) * 2., cx), cx)),
-                )
-                .child(menu_row("participant-mute", "Mute".into(), locally_muted, cx).on_click(cx.listener(move |this, _, _, cx| this.toggle_local_mute(&mute_id, cx))))
-            })
-            .child(div().my_1().h(px(1.)).bg(theme.border))
-            .child(menu_row("participant-copy", "Copy User ID".into(), false, cx).on_click(cx.listener(move |this, _, _, cx| {
-                this.participant_menu = None;
-                this.copy_text(copy_id.clone(), cx);
-            })));
-        Some(call_backdrop("participant-backdrop", cx).child(card).into_any_element())
+    // Right-click on anyone in voice opens Discord's server user menu with its voice items.
+    pub(crate) fn voice_user_menu(&mut self, user_id: &str, at: Point<Pixels>, cx: &mut Context<Self>) {
+        let found = self.guilds.iter().find_map(|g| g.voice_states.iter().find(|v| v.user_id == user_id).map(|v| (g.id.clone(), v.user.clone())));
+        let guild_id = found.as_ref().map(|(g, _)| g.clone()).or_else(|| self.call.as_ref().and_then(|c| c.guild_id.clone()));
+        let user = found.and_then(|(_, u)| u).unwrap_or_else(|| User {
+            id: user_id.to_owned(),
+            name: self.user_name(user_id),
+            avatar: discord::avatar_url(user_id, None),
+            bot: false,
+            tag: None,
+            nameplate: None,
+            decoration: None,
+        });
+        let surface = if guild_id.is_some() { crate::user_menu::Surface::ServerVoice } else { crate::user_menu::Surface::Dm };
+        self.open_user_menu(user, guild_id, surface, at, cx);
     }
 
-    fn set_user_volume(&mut self, user_id: &str, volume: f32, cx: &mut Context<Self>) {
+    pub(crate) fn set_user_volume(&mut self, user_id: &str, volume: f32, cx: &mut Context<Self>) {
         if let Some(call) = &self.call {
             call.session.set_user_volume(user_id, volume);
         }
@@ -697,7 +745,7 @@ impl Rustcord {
         });
     }
 
-    fn toggle_local_mute(&mut self, user_id: &str, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_local_mute(&mut self, user_id: &str, cx: &mut Context<Self>) {
         let muted = !self.prefs.local_mutes.iter().any(|u| u == user_id);
         if let Some(call) = &self.call {
             call.session.set_user_muted(user_id, muted);

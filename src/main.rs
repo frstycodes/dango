@@ -9,14 +9,18 @@ mod layout;
 mod login;
 mod mascot;
 mod material;
+mod gif;
 mod home;
 mod overlays;
+mod menu;
+mod message_menu;
 mod motion;
 mod palette;
 mod panel;
 mod rail_drag;
 mod sidebar;
 mod settings;
+mod user_menu;
 mod hotkeys;
 mod sounds;
 mod voice;
@@ -162,6 +166,8 @@ struct Call {
     // Our processed mic level and whether the voice gate is open.
     level: (f32, bool),
     speaking: HashSet<String>,
+    // When each person last stopped talking, for Discord's tile order.
+    last_spoke: HashMap<String, Instant>,
     // Latest camera frame per user, ours included.
     cameras: HashMap<String, Arc<RenderImage>>,
     camera_on: bool,
@@ -233,6 +239,8 @@ pub struct Rustcord {
     folders: Vec<Folder>,
     open_folders: HashSet<String>,
     rail_drop: Option<(String, rail_drag::Drop)>,
+    // Every user seen as their server shows them, keyed by guild then user, for voice rows and tiles.
+    members: HashMap<String, HashMap<String, User>>,
     dms: Vec<Channel>,
     // None shows direct messages.
     guild_id: Option<String>,
@@ -274,8 +282,22 @@ pub struct Rustcord {
     // The open voice channel's call view replaces the chat.
     call_view: bool,
     connection_info: bool,
-    participant_menu: Option<(String, gpui_kit::Point<gpui_kit::Pixels>)>,
     device_menu: Option<call::DeviceMenu>,
+    menu: Option<menu::OpenMenu>,
+    // Go Live thumbnails by streamer: the CDN url and when it was fetched.
+    stream_previews: HashMap<String, (String, Instant)>,
+    developer_mode: bool,
+    // Notification settings per server, "@me" for DMs.
+    guild_settings: HashMap<String, discord::GuildSettings>,
+    ignored: HashSet<String>,
+    // A DM call we started: ring them once the call connects.
+    ring_on_connect: Option<String>,
+    // Shift held: Discord's hover bar shows Delete instead of More.
+    shift_held: bool,
+    dialog: Option<menu::Dialog>,
+    dialog_input: Entity<SearchState>,
+    // A short notice at the bottom, e.g. why a moderation action failed.
+    toast: Option<SharedString>,
     // The Go Live picker: None closed, Some(None) loading, Some(Some(..)) listed.
     share_picker: Option<Option<Result<Vec<voice::ShareableWindow>, SharedString>>>,
     // The source picked in the Go Live window, waiting for "Go Live".
@@ -350,6 +372,7 @@ impl Rustcord {
         cx.subscribe_in(&gif_search, window, Self::on_gif_search).detach();
         cx.subscribe_in(&switcher_input, window, Self::on_switcher_input).detach();
         let settings_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search"));
+        let dialog_input = cx.new(|cx| SearchState::new(window, cx));
         cx.subscribe(&settings_search, |_, _, _: &InputEvent, cx| cx.notify()).detach();
         #[allow(unused_mut)]
         let mut chord = Self {
@@ -363,6 +386,7 @@ impl Rustcord {
             folders: Vec::new(),
             open_folders: HashSet::new(),
             rail_drop: None,
+            members: HashMap::new(),
             dms: Vec::new(),
             guild_id: None,
             channel: None,
@@ -397,8 +421,17 @@ impl Rustcord {
             slider_bounds: Rc::default(),
             call_view: false,
             connection_info: false,
-            participant_menu: None,
             device_menu: None,
+            menu: None,
+            stream_previews: HashMap::new(),
+            developer_mode: false,
+            guild_settings: HashMap::new(),
+            ignored: HashSet::new(),
+            ring_on_connect: None,
+            shift_held: false,
+            dialog: None,
+            dialog_input,
+            toast: None,
             share_picker: None,
             share_choice: None,
             pins: None,
@@ -536,8 +569,14 @@ impl Rustcord {
                 self.dms.sort_by_key(|c| std::cmp::Reverse(self.last_message.get(&c.id).copied().unwrap_or(0)));
                 self.read_states = ready.read_states.into_iter().collect();
                 self.relationships = ready.relationships;
+                self.developer_mode = ready.developer_mode;
+                self.guild_settings = ready.guild_settings.into_iter().collect();
+                self.ignored = ready.ignored.into_iter().collect();
                 self.presences = ready.presences.into_iter().collect();
                 self.status = Status::Online;
+            }
+            Event::GuildSettings((key, settings)) => {
+                self.guild_settings.insert(key, settings);
             }
             Event::GuildCreate(guild) => match self.guilds.iter_mut().find(|g| g.id == guild.id) {
                 Some(existing) => *existing = guild,
@@ -569,19 +608,25 @@ impl Rustcord {
                 for op in ops {
                     apply_list_op(list, op);
                 }
-                let roles = self.member_roles.entry(guild_id).or_default();
+                let roles = self.member_roles.entry(guild_id.clone()).or_default();
+                let known = self.members.entry(guild_id.clone()).or_default();
                 for item in list.iter() {
                     if let ListItem::Member(m) = item {
+                        known.insert(m.user.id.clone(), m.user.clone());
                         roles.insert(m.user.id.clone(), m.roles.clone());
                         self.presences.insert(m.user.id.clone(), m.presence.clone());
                     }
                 }
+                self.apply_members(&guild_id);
             }
             Event::MembersChunk { guild_id, members } => {
-                let roles = self.member_roles.entry(guild_id).or_default();
+                let roles = self.member_roles.entry(guild_id.clone()).or_default();
+                let known = self.members.entry(guild_id.clone()).or_default();
                 for (user, member_roles) in members {
-                    roles.insert(user.id, member_roles);
+                    roles.insert(user.id.clone(), member_roles);
+                    known.insert(user.id.clone(), user);
                 }
+                self.apply_members(&guild_id);
             }
             Event::Ack { channel_id, message_id } => {
                 let read = self.read_states.entry(channel_id).or_default();
@@ -609,7 +654,35 @@ impl Rustcord {
                 return self.sign_in(cx);
             }
         }
+        self.resolve_voice_users();
+        self.refresh_stream_previews(cx);
         cx.notify();
+    }
+
+    // READY's voice states carry only user ids: fill them from members we know, and ask the
+    // gateway once for the rest so every voice row and tile shows the real name and avatar.
+    fn resolve_voice_users(&mut self) {
+        let mut missing: Vec<(String, String)> = Vec::new();
+        for guild in &mut self.guilds {
+            let known = self.members.get(&guild.id);
+            for state in guild.voice_states.iter_mut().filter(|v| v.user.is_none()) {
+                match known.and_then(|k| k.get(&state.user_id)) {
+                    Some(user) => state.user = Some(user.clone()),
+                    None if self.requested_members.insert((guild.id.clone(), state.user_id.clone())) => missing.push((guild.id.clone(), state.user_id.clone())),
+                    None => {}
+                }
+            }
+        }
+        let Some(client) = &self.client else { return };
+        let mut by_guild: HashMap<String, Vec<String>> = HashMap::new();
+        for (guild_id, user_id) in missing {
+            by_guild.entry(guild_id).or_default().push(user_id);
+        }
+        for (guild_id, ids) in by_guild {
+            for chunk in ids.chunks(100) {
+                client.request_members(&guild_id, chunk.to_vec());
+            }
+        }
     }
 
     fn on_message(&mut self, message: Message, cx: &mut Context<Self>) {
@@ -823,7 +896,23 @@ impl Rustcord {
     }
 
     // History from REST carries no member roles; ask the gateway for the authors we can't colour yet.
+    // History from REST names authors by their account; once their member entries arrive, show
+    // them as the server does (nickname and server avatar).
+    fn apply_members(&mut self, guild_id: &str) {
+        let Some(known) = self.members.get(guild_id) else { return };
+        for message in self.feeds.values_mut().flat_map(|f| f.messages.iter_mut()).filter(|m| m.guild_id.as_deref() == Some(guild_id)) {
+            let author = &mut message.author;
+            if let Some(member) = known.get(&author.id) {
+                author.name.clone_from(&member.name);
+                author.avatar.clone_from(&member.avatar);
+            }
+        }
+    }
+
     fn request_missing_roles(&mut self, authors: Vec<String>) {
+        if let Some(guild_id) = self.guild_id.clone() {
+            self.apply_members(&guild_id);
+        }
         let (Some(client), Some(guild_id)) = (&self.client, &self.guild_id) else { return };
         let known = self.member_roles.get(guild_id);
         let mut missing: Vec<String> = Vec::new();
@@ -1003,7 +1092,7 @@ impl Rustcord {
         cx.notify();
     }
 
-    fn retry(&mut self, message: Message, cx: &mut Context<Self>) {
+    pub(crate) fn retry(&mut self, message: Message, cx: &mut Context<Self>) {
         let Some(client) = self.client.clone() else { return };
         let Some(nonce) = message.nonce.clone() else { return };
         if let Some(m) = self.message_mut(&message.channel_id, &message.id) {
@@ -1041,7 +1130,7 @@ impl Rustcord {
         cx.notify();
     }
 
-    fn delete(&mut self, message: Message, cx: &mut Context<Self>) {
+    pub(crate) fn delete(&mut self, message: Message, cx: &mut Context<Self>) {
         let Some(client) = self.client.clone() else { return };
         self.remove_message(&message.channel_id, &message.id);
         cx.notify();
@@ -1064,6 +1153,9 @@ impl Rustcord {
     fn toggle_reaction(&mut self, message: &Message, emoji: Emoji, cx: &mut Context<Self>) {
         let Some(client) = self.client.clone() else { return };
         let add = !message.reactions.iter().any(|r| r.emoji == emoji && r.me);
+        if add {
+            self.update_prefs(cx, |p| p.record_emoji(&emoji));
+        }
         let (channel_id, message_id) = (message.channel_id.clone(), message.id.clone());
         if let Some(m) = self.message_mut(&channel_id, &message_id) {
             adjust_reaction(m, &emoji, add, true, false);
@@ -1310,7 +1402,7 @@ impl Rustcord {
         self.known_users().into_iter().find(|u| u.id == user_id).map(|u| u.name).unwrap_or_else(|| "Someone".into())
     }
 
-    fn message_mut(&mut self, channel_id: &str, id: &str) -> Option<&mut Message> {
+    pub(crate) fn message_mut(&mut self, channel_id: &str, id: &str) -> Option<&mut Message> {
         self.feeds.get_mut(channel_id)?.messages.iter_mut().find(|m| m.id == id)
     }
 
@@ -1406,7 +1498,7 @@ impl Rustcord {
             }
         })
         .detach();
-        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), cameras: HashMap::new(), camera_on: false, watching: None, sharing: None, joined_at: Instant::now(), _events: task });
+        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: None, sharing: None, joined_at: Instant::now(), _events: task });
         cx.notify();
     }
 
@@ -1426,6 +1518,15 @@ impl Rustcord {
         let Some(call) = &mut self.call else { return };
         match event {
             voice::VoiceEvent::Connected => {
+                if self.ring_on_connect.as_ref() == Some(&call.channel.id)
+                    && let Some(client) = self.client.clone()
+                {
+                    let channel = self.ring_on_connect.take().unwrap_or_default();
+                    crate::discord::runtime().spawn(async move {
+                        let _ = client.call(reqwest::Method::POST, format!("/channels/{channel}/call/ring"), Some(serde_json::json!({ "recipients": null }))).await;
+                    });
+                }
+                let Some(call) = &mut self.call else { return };
                 call.connected = true;
                 call.stage = voice::Stage::Connected;
                 sounds::play(sounds::Cue::UserJoin);
@@ -1443,6 +1544,7 @@ impl Rustcord {
             }
             voice::VoiceEvent::Speaking { user_id, speaking: false } => {
                 call.speaking.remove(&user_id);
+                call.last_spoke.insert(user_id, Instant::now());
             }
             voice::VoiceEvent::VideoState { user_id, streaming, camera } => {
                 let guild_id = call.guild_id.clone();
