@@ -60,6 +60,10 @@
 .check { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--line-strong); display: grid; place-items: center; color: transparent; transition: background var(--dur-hover), border-color var(--dur-hover), transform var(--dur-press); flex: none; }
 .check i { font-size: 13px; opacity: 0; transform: scale(0.5); transition: opacity var(--dur-hover), transform var(--dur-pop) var(--ease-spring); }
 .check[aria-checked="true"] i { opacity: 1; transform: none; }
+/* Mixed (some of a group chosen): a minus bar in place of the tick, so markup needs no second icon. */
+.check[aria-checked="mixed"] { background: var(--accent); border-color: var(--accent); }
+.check[aria-checked="mixed"] i { display: none; }
+.check[aria-checked="mixed"]::after { content: ""; width: 10px; height: 2px; border-radius: 1px; background: #fff; }
 .check[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .check:active { transform: scale(0.9); }
 .radio { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--line-strong); transition: border-width var(--dur-pop) var(--ease-spring), border-color var(--dur-hover); flex: none; }

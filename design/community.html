@@ -25,7 +25,6 @@
 <link rel="stylesheet" href="css/profile.css">
 <link rel="stylesheet" href="css/community.css">
 <link rel="stylesheet" href="css/server-settings.css">
-<link rel="stylesheet" href="css/flows.css">
 <script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 </head>
 <body>
@@ -33,12 +32,972 @@
 <div class="layout">
 <nav class="toc" id="toc" aria-label="Design system"></nav>
 <main>
+<style>
+  /* Page-only demo scaffolding. Art stands in for uploaded icons, banners and covers. */
+  .a1 { background: linear-gradient(135deg, oklch(0.58 0.17 20), oklch(0.44 0.17 350)); }
+  .a2 { background: linear-gradient(135deg, oklch(0.55 0.12 220), oklch(0.42 0.13 250)); }
+  .a3 { background: linear-gradient(135deg, oklch(0.56 0.13 140), oklch(0.42 0.12 165)); }
+  .a4 { background: linear-gradient(135deg, oklch(0.58 0.14 55), oklch(0.46 0.15 35)); }
+  .a5 { background: radial-gradient(circle at 34% 30%, oklch(0.92 0.08 90) 0 20%, transparent 21%), linear-gradient(160deg, oklch(0.55 0.14 270), oklch(0.32 0.1 300)); }
+  .art1 { --art: radial-gradient(120% 90% at 20% 10%, oklch(0.78 0.12 60), transparent 60%), radial-gradient(120% 100% at 90% 100%, oklch(0.55 0.18 330), transparent 60%), oklch(0.4 0.08 280); }
+  .art2 { --art: radial-gradient(90% 120% at 10% 0%, oklch(0.62 0.14 200), transparent 55%), radial-gradient(100% 100% at 100% 100%, oklch(0.5 0.16 270), transparent 60%), oklch(0.3 0.05 250); }
+  .art3 { --art: radial-gradient(70% 90% at 80% 10%, oklch(0.75 0.12 80), transparent 60%), radial-gradient(90% 100% at 0% 100%, oklch(0.45 0.12 150), transparent 60%), oklch(0.32 0.04 120); }
+  .art4 { --art: radial-gradient(circle at 70% 35%, oklch(0.92 0.08 90) 0 9%, transparent 10%), linear-gradient(160deg, oklch(0.5 0.14 270), oklch(0.28 0.1 300)); }
+  .art5 { --art: radial-gradient(60% 80% at 70% 30%, oklch(0.7 0.15 30), transparent 60%), oklch(0.28 0.06 20); }
+  .art6 { --art: repeating-linear-gradient(135deg, oklch(0.52 0.1 195) 0 10px, oklch(0.46 0.09 210) 10px 20px); }
+  .cm-frame { border: 1px solid var(--line-strong); border-radius: var(--radius-lg); overflow: hidden; min-width: 0; }
+  .cm-frame > .side { height: 100%; }
+  .cm-row { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; }
+  .cm-legal a, .cm-btd a { color: var(--accent-ink); font-weight: var(--weight-semibold); text-decoration: none; }
+  .cm-legal a:hover, .cm-btd a:hover { text-decoration: underline; }
+  .mi.cm-sel { background: var(--selected); color: var(--text-strong); }
+  .cm-reqrow .btn.sent { --bg: transparent; --bg-h: transparent; --fg: var(--online-ink); cursor: default; }
+  .cm-dangerlink { --fg: var(--danger-ink); }
+  /* Better than Discord table */
+  .cm-btd { display: grid; gap: 2px; }
+  .cm-btd-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr) 104px; gap: var(--space-4); padding: 12px 14px; border-radius: var(--radius-md); background: var(--bg-sidebar); align-items: start; }
+  .cm-btd-row.is-head { background: none; padding-block: 4px; color: var(--text-faint); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+  .cm-btd-row > span { color: var(--text-muted); }
+  .cm-btd-row > b { color: var(--text-strong); font-weight: var(--weight-semibold); }
+  .cm-btd-row > p { color: var(--text-muted); }
+  @media (max-width: 860px) {
+    .cm-btd-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+    .cm-btd-row.is-head { display: none; }
+    .cm-btd-row > [data-k]::before { content: attr(data-k); display: block; color: var(--text-faint); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+  }
+</style>
+
 <section id="intro">
   <h1>Servers and invites</h1>
-  <p class="lede">Creating, joining, discovering and onboarding into servers.</p>
+  <p class="lede">Creating, joining, discovering and onboarding into servers, plus events, stage channels and leaving. The rail, sidebar, dialogs and call stage come from Navigation, Overlays and Voice; only the new parts are styled here, under the <code>cm-</code> prefix in <code>css/community.css</code>.</p>
 </section>
+
+<!-- Create a server -->
+<section id="create-server">
+  <h2>Create a server</h2>
+  <p class="lede">Opened from the plus at the foot of the rail. Three short steps, then you land in the new server with a checklist. Each template says which channels it makes before you pick it.</p>
+  <div class="board cm-flow">
+    <div class="cm-step"><span class="note">1 · Start</span>
+      <div class="dialog" role="dialog" aria-labelledby="cs1">
+        <div class="dhead"><h4 id="cs1">Create a server</h4><p>Your server is where you and your friends hang out. Start from scratch or from a template.</p><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <div class="cm-opts">
+          <button class="cm-opt"><span class="icontile"><i class="ph-bold ph-plus"></i></span><div><b>Create my own</b><span>#general and one voice channel</span></div><i class="ph ph-caret-right"></i></button>
+        </div>
+        <div class="divider">Start from a template</div>
+        <div class="cm-opts">
+          <button class="cm-opt"><span class="srv-tile" style="--hue: 290"><i class="ph-fill ph-game-controller"></i></span><div><b>Gaming</b><span>#clips, #looking-for-group, Lounge, Gaming</span></div><i class="ph ph-caret-right"></i></button>
+          <button class="cm-opt is-hover"><span class="srv-tile" style="--hue: 15"><i class="ph-fill ph-heart"></i></span><div><b>Friends</b><span>#memes, #plans, Hangout</span></div><i class="ph ph-caret-right"></i></button>
+          <button class="cm-opt"><span class="srv-tile" style="--hue: 150"><i class="ph-fill ph-books"></i></span><div><b>Study group</b><span>#homework-help, #resources, Study room</span></div><i class="ph ph-caret-right"></i></button>
+          <button class="cm-opt"><span class="srv-tile" style="--hue: 60"><i class="ph-fill ph-flag-banner"></i></span><div><b>Club</b><span>#announcements, #events, Meeting room</span></div><i class="ph ph-caret-right"></i></button>
+        </div>
+        <div class="cm-foot-ask"><span>Have an invite already?</span><button class="btn btn--block">Join a server</button></div>
+      </div>
+      <span class="note">Friends shows the hover fill.</span>
+    </div>
+
+    <div class="cm-step"><span class="note">2 · Who it's for</span>
+      <div class="dialog" role="dialog" aria-labelledby="cs2">
+        <div class="dhead"><button class="iconbtn cm-back" aria-label="Back to templates"><i class="ph ph-arrow-left"></i></button><h4 id="cs2">Who is it for?</h4><p>Wave suggests settings that fit. Not sure yet? Skip it.</p><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <div class="cm-opts">
+          <button class="cm-opt"><span class="icontile"><i class="ph ph-users-three"></i></span><div><b>For me and my friends</b><span>Small and invite-only</span></div><i class="ph ph-caret-right"></i></button>
+          <button class="cm-opt"><span class="icontile"><i class="ph ph-globe-hemisphere-west"></i></span><div><b>For a club or community</b><span>Rules, roles and a welcome screen, ready for new people</span></div><i class="ph ph-caret-right"></i></button>
+        </div>
+        <div class="cm-foot-ask"><button class="btn btn--ghost">Skip question</button></div>
+      </div>
+    </div>
+
+    <div class="cm-step"><span class="note">3 · Customise</span>
+      <form class="dialog" role="dialog" aria-labelledby="cs3" onsubmit="return false">
+        <div class="dhead"><button type="button" class="iconbtn cm-back" aria-label="Back to who it's for"><i class="ph ph-arrow-left"></i></button><h4 id="cs3">Customise your server</h4><p>Give it a name and an icon. You can change both any time.</p><button type="button" class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <div class="cm-iconpick"><button type="button" class="cm-upload" aria-label="Upload a server icon"><i class="ph ph-camera"></i>Upload<span class="cm-badge" aria-hidden="true"><i class="ph-bold ph-plus"></i></span></button></div>
+        <div class="field"><label for="cs-name">Server name</label><div class="input"><input id="cs-name" value="Mira's server" autocomplete="off" maxlength="100"></div></div>
+        <p class="cm-legal">By creating a server, you agree to Discord's <a href="#">Community Guidelines</a>.</p>
+        <footer><button class="btn btn--primary" data-loading="Creating…">Create server</button></footer>
+      </form>
+    </div>
+
+    <div class="cm-step"><span class="note">4 · Creating</span>
+      <div class="dialog" role="dialog" aria-label="Creating your server" aria-busy="true">
+        <div class="dstate" role="status"><div class="mascot waiting" style="--s: 0.7" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Creating Mira's server…</b><p>Setting up #general and Lounge.</p></div>
+      </div>
+      <span class="note">The mascot ripples while it waits; no spinner.</span>
+    </div>
+  </div>
+
+  <h3>Icon and name states</h3>
+  <div class="board cm-states" style="--bg-raised: var(--bg-sidebar)">
+    <figure><button class="cm-upload" aria-label="Upload a server icon"><i class="ph ph-camera"></i>Upload<span class="cm-badge" aria-hidden="true"><i class="ph-bold ph-plus"></i></span></button><figcaption class="note">Empty</figcaption></figure>
+    <figure><button class="cm-upload is-hover" aria-label="Upload a server icon"><i class="ph ph-camera"></i>Upload<span class="cm-badge" aria-hidden="true"><i class="ph-bold ph-plus"></i></span></button><figcaption class="note">Hover</figcaption></figure>
+    <figure><div class="cm-upload is-over" aria-label="Drop to upload"><i class="ph ph-download-simple"></i>Drop it</div><figcaption class="note">Dragging a file over</figcaption></figure>
+    <figure><button class="cm-upload is-set is-busy a5" aria-label="Uploading icon" style="opacity: 0.7"><span class="bars" style="--c: #fff"><i></i><i></i><i></i></span></button><figcaption class="note">Uploading</figcaption></figure>
+    <figure><button class="cm-upload is-set a5" aria-label="Change server icon"><span class="cm-badge" aria-hidden="true"><i class="ph-bold ph-pencil-simple"></i></span></button><figcaption class="note">Set: pencil to change</figcaption></figure>
+    <figure class="cm-iconpick"><button class="cm-upload is-error" aria-label="Upload a server icon" aria-describedby="up-err"><i class="ph ph-camera"></i>Upload</button><span class="err" id="up-err">Icons can be up to 10 MB. This one is 14 MB.</span></figure>
+    <div class="stack" style="flex: 1; min-width: min(100%, 260px); gap: var(--space-4)">
+      <div class="field"><label for="cs-empty">Server name</label><div class="input error"><input id="cs-empty" value="" aria-describedby="cs-empty-err" autocomplete="off"></div><span class="err" id="cs-empty-err"><i class="ph-fill ph-warning-circle"></i>Give your server a name to create it.</span></div>
+      <div class="field"><label for="cs-long">Server name, worst case</label><div class="input"><input id="cs-long" value="The Extremely Long Server Name Society of Late Night Gamers and Friends" autocomplete="off"></div><span class="hint"><span>Shown in full here, truncated in the sidebar.</span><span>71 / 100</span></span></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Name is prefilled with your first name, so Create works without typing. The error only appears after you clear the field and press Create, and focus returns to it.</p>
+
+  <h3>Done: you land in the new server</h3>
+  <div class="shellwrap">
+    <div class="cm-app">
+      <nav class="rail" aria-label="Servers">
+        <button class="srv home" aria-label="Direct messages"><svg width="22" height="22" viewBox="0 0 64 66" aria-hidden="true"><g fill="#e8326f"><rect x="2" y="21" width="8" height="24" rx="4"/><rect x="15" y="10.5" width="8" height="45" rx="4"/><rect x="28" y="1" width="8" height="64" rx="4"/><rect x="41" y="13.5" width="8" height="39" rx="4"/><rect x="54" y="22" width="8" height="22" rx="4"/></g></svg></button>
+        <hr>
+        <button class="srv a1" aria-label="Night Shift">NS</button>
+        <button class="srv a2" aria-label="Pixel Club">PC</button>
+        <button class="srv a5 sel" aria-label="Mira's server" aria-current="page"></button>
+        <hr>
+        <button class="srv add" aria-label="Add a server"><i class="ph-bold ph-plus"></i></button>
+        <button class="srv add" aria-label="Discover servers"><i class="ph-bold ph-compass"></i></button>
+      </nav>
+      <aside class="side" aria-label="Mira's server channels">
+        <header class="srvhead"><button aria-expanded="false" aria-haspopup="menu"><span>Mira's server</span><i class="ph-bold ph-caret-down"></i></button></header>
+        <div class="chlist">
+          <div class="catgroup">
+            <div class="cathead"><button class="cat" aria-expanded="true"><i class="ph-bold ph-caret-down"></i>Text channels</button><button class="cat-add" aria-label="Create channel in Text channels"><i class="ph-bold ph-plus"></i></button></div>
+            <div class="ch sel"><i class="ph ph-hash"></i><a class="nm" href="#" aria-current="page">general</a></div>
+          </div>
+          <div class="catgroup">
+            <div class="cathead"><button class="cat" aria-expanded="true"><i class="ph-bold ph-caret-down"></i>Voice channels</button><button class="cat-add" aria-label="Create channel in Voice channels"><i class="ph-bold ph-plus"></i></button></div>
+            <div class="ch"><i class="ph ph-speaker-high"></i><a class="nm" href="#">Lounge</a></div>
+          </div>
+        </div>
+      </aside>
+      <div class="cm-pane">
+        <div class="chanbar"><div class="chanbar-in"><div class="crumbs"><span class="crumb here"><i class="ph ph-hash"></i><span>general</span></span></div></div></div>
+        <div class="cm-scroll">
+          <div class="cm-hello"><h4>Welcome to Mira's server</h4><p>It's yours. Three things make it feel lived in:</p></div>
+          <div class="cm-todo">
+            <div class="cm-todo-head"><span>1 of 3 done</span><div class="progress" style="--v: 33%" role="progressbar" aria-valuenow="1" aria-valuemin="0" aria-valuemax="3" aria-label="Setup progress"><span></span></div></div>
+            <button class="cm-todo-item"><span class="icontile"><i class="ph ph-user-plus"></i></span><span>Invite your friends</span><i class="ph ph-caret-right"></i></button>
+            <div class="cm-todo-item is-done"><span class="icontile"><i class="ph-fill ph-check-circle"></i></span><span>Give your server an icon</span><span class="cm-done">Done</span></div>
+            <button class="cm-todo-item"><span class="icontile"><i class="ph ph-chat-circle-dots"></i></span><span>Send your first message</span><i class="ph ph-caret-right"></i></button>
+          </div>
+        </div>
+        <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><textarea rows="1" placeholder="Message #general" aria-label="Message #general"></textarea><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">The new server takes the selected pill at the end of the rail. Uploading an icon in step 3 ticks its item before you arrive. Done items stay visible as done; the checklist folds away once all three are.</p>
+</section>
+
+<!-- Join a server -->
+<section id="join-server">
+  <h2>Join a server</h2>
+  <p class="lede">Paste an invite and Wave looks it up as you type, so you see the server before you join. Every way an invite can fail says what happened and what to do next.</p>
+  <h3>Paste, look up, preview</h3>
+  <div class="board cm-flow">
+    <div class="cm-step"><span class="note">Live: paste, type, or pick an example</span>
+      <div class="dialog" role="dialog" aria-labelledby="js1">
+        <div class="dhead"><h4 id="js1">Join a server</h4><p>Paste an invite from a friend or a link you found.</p><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <div class="field"><label for="join-live">Invite link or code</label><div class="input" id="join-box"><i class="ph ph-link-simple"></i><input id="join-live" placeholder="wave.gg/hTKzmak" autocomplete="off" spellcheck="false" aria-describedby="join-msg"></div><span id="join-msg" class="err" hidden></span></div>
+        <div class="cm-egs" id="join-egs"><span>Invites look like</span><div><button class="cm-eg" data-eg="hTKzmak">hTKzmak</button><button class="cm-eg" data-eg="wave.gg/nightowls">wave.gg/nightowls</button><button class="cm-eg" data-eg="https://wave.gg/cool-people">https://wave.gg/cool-people</button></div></div>
+        <div id="join-out" aria-live="polite"></div>
+        <footer><button class="btn btn--primary" data-loading="Joining…">Join server</button></footer>
+      </div>
+      <span class="note">Try <b>nightowlz</b> for the not-found state.</span>
+    </div>
+
+    <div class="cm-step"><span class="note">Looking up</span>
+      <div class="dialog" role="dialog" aria-label="Join a server" aria-busy="true">
+        <div class="field"><label for="js-a">Invite link or code</label><div class="input"><i class="ph ph-link-simple"></i><input id="js-a" value="wave.gg/nightowls" autocomplete="off"></div></div>
+        <div class="cm-lookup" role="status"><span class="bars"><i></i><i></i><i></i></span>Looking up invite…</div>
+        <div class="cm-invcard" aria-hidden="true"><div class="cm-invhead"><span class="skeleton" style="width: 56px; height: 56px; border-radius: var(--radius-lg)"></span><div><span class="skeleton line" style="width: 46%"></span><span class="skeleton line" style="width: 64%; margin-top: 6px"></span></div></div></div>
+        <footer><button class="btn btn--primary">Join server</button></footer>
+      </div>
+    </div>
+
+    <div class="cm-step"><span class="note">Preview</span>
+      <div class="dialog" role="dialog" aria-label="Join a server">
+        <div class="field"><label for="js-b">Invite link or code</label><div class="input"><i class="ph ph-link-simple"></i><input id="js-b" value="wave.gg/nightowls" autocomplete="off"></div></div>
+        <div class="cm-invcard">
+          <div class="cm-invhead"><span class="srv-tile" style="--hue: 300">N</span><div><span class="cm-name"><span>Night owls</span><i class="ph-fill ph-seal-check" role="img" aria-label="Verified"></i></span><span class="cm-counts"><span>1,204 online</span><span class="all">8,930 members</span></span></div></div>
+          <div class="cm-friends"><span class="stackav"><span class="av" data-av="Mira"></span><span class="av" data-av="Theo"></span></span>Mira and Theo are members</div>
+        </div>
+        <footer><button class="btn btn--primary" data-loading="Joining…">Join server</button></footer>
+      </div>
+    </div>
+
+    <div class="cm-step"><span class="note">Joining</span>
+      <div class="dialog" role="dialog" aria-label="Join a server" aria-busy="true">
+        <div class="field"><label for="js-c">Invite link or code</label><div class="input"><i class="ph ph-link-simple"></i><input id="js-c" value="wave.gg/nightowls" autocomplete="off" disabled></div></div>
+        <div class="cm-invcard">
+          <div class="cm-invhead"><span class="srv-tile" style="--hue: 300">N</span><div><span class="cm-name"><span>Night owls</span><i class="ph-fill ph-seal-check" role="img" aria-label="Verified"></i></span><span class="cm-counts"><span>1,204 online</span><span class="all">8,930 members</span></span></div></div>
+        </div>
+        <footer><button class="btn btn--primary" aria-disabled="true"><span class="bars" style="--c: currentColor"><i></i><i></i><i></i></span>Joining…</button></footer>
+      </div>
+      <span class="note">Lands in the server's welcome screen or rules, if it has them.</span>
+    </div>
+  </div>
+
+  <h3>When it can't join</h3>
+  <div class="board cm-flow">
+    <div class="cm-step"><span class="note">Not found</span>
+      <div class="dialog" role="dialog" aria-label="Join a server">
+        <div class="field"><label for="je1">Invite link or code</label><div class="input error"><i class="ph ph-link-simple"></i><input id="je1" value="wave.gg/nightowlz" autocomplete="off" aria-describedby="je1-err" aria-invalid="true"></div><span class="err" id="je1-err"><i class="ph-fill ph-warning-circle"></i>No server uses that invite. Check the spelling, or ask for a new link.</span></div>
+        <footer><button class="btn btn--primary">Join server</button></footer>
+      </div>
+    </div>
+
+    <div class="cm-step"><span class="note">Expired</span>
+      <div class="dialog" role="dialog" aria-label="Join a server">
+        <div class="cm-invcard is-dead">
+          <div class="cm-invhead"><span class="srv-tile dead"><i class="ph ph-link-break"></i></span><div class="cm-why"><b>This invite expired</b><span>Theo's invite to Night owls ran out 2 days ago. Ask him for a new one.</span></div></div>
+        </div>
+        <footer><button class="btn">Try another invite</button><button class="btn btn--primary">Message Theo</button></footer>
+      </div>
+      <span class="note">GAP: Discord answers an expired invite like an unknown one. Wave can only say "expired" when it saw the invite earlier (in chat) with its expiry; otherwise it shows Not found.</span>
+    </div>
+
+    <div class="cm-step"><span class="note">Banned</span>
+      <div class="dialog" role="dialog" aria-label="Join a server">
+        <div class="cm-invcard">
+          <div class="cm-invhead"><span class="srv-tile" style="--hue: 300">N</span><div class="cm-why"><b>You're banned from Night owls</b><span>A moderator banned this account, so no invite lets you in. Only they can lift it.</span></div></div>
+        </div>
+        <footer><button class="btn">Try another invite</button></footer>
+      </div>
+    </div>
+
+    <div class="cm-step"><span class="note">Server full</span>
+      <div class="dialog" role="dialog" aria-label="Join a server">
+        <div class="cm-invcard">
+          <div class="cm-invhead"><span class="srv-tile a5"></span><div class="cm-why"><b>Moonbase is full</b><span>It has hit its member limit. Try again later, or ask a moderator to make room.</span></div></div>
+        </div>
+        <footer><button class="btn">Try another invite</button></footer>
+      </div>
+    </div>
+
+    <div class="cm-step"><span class="note">You're in too many servers</span>
+      <div class="dialog" role="dialog" aria-label="Join a server">
+        <div class="cm-invcard">
+          <div class="cm-invhead"><span class="srv-tile" style="--hue: 300">N</span><div class="cm-why"><b>You're in 100 servers already</b><span>That's the most an account can join. Leave one to make room for Night owls.</span></div></div>
+        </div>
+        <footer><button class="btn btn--primary">Choose a server to leave</button></footer>
+      </div>
+    </div>
+
+    <div class="cm-step"><span class="note">Already a member</span>
+      <div class="dialog" role="dialog" aria-label="Join a server">
+        <div class="cm-invcard">
+          <div class="cm-invhead"><span class="srv-tile" style="--hue: 300">N</span><div><span class="cm-name"><span>Night owls</span><i class="ph-fill ph-seal-check" role="img" aria-label="Verified"></i></span><span class="cm-counts"><span>1,204 online</span><span class="all">8,930 members</span></span></div></div>
+          <div class="cm-why"><span>You're already in this server.</span></div>
+        </div>
+        <footer><button class="btn btn--primary">Go to server</button></footer>
+      </div>
+    </div>
+
+    <div class="cm-step"><span class="note">Needs a verified email</span>
+      <div class="dialog" role="dialog" aria-label="Join a server">
+        <div class="cm-invcard">
+          <div class="cm-invhead"><span class="srv-tile" style="--hue: 300">N</span><div><span class="cm-name"><span>Night owls</span></span><span class="cm-counts"><span>1,204 online</span><span class="all">8,930 members</span></span></div></div>
+        </div>
+        <div class="callout callout--warning"><i class="ph-fill ph-envelope-simple"></i><div><b>Verify your email to join</b>Night owls only lets in accounts with a verified email. We sent a link to m•••@hey.com.</div></div>
+        <footer><button class="btn" data-loading="Sending…">Resend link</button><button class="btn btn--primary">Join server</button></footer>
+      </div>
+      <span class="note">Join stays pressable: once you've clicked the link it just works. Phone: "Verify your phone to join", with Add phone number in place of Resend link.</span>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">The invite card in chat is in <a href="messages.html#embeds" style="color: var(--accent-ink)">Messages, Embeds</a> and carries the same states.</p>
+</section>
+
+<!-- Invite people -->
+<section id="invite-people">
+  <h2>Invite people</h2>
+  <p class="lede"><a href="overlays.html#dialogs" style="color: var(--accent-ink)">Overlays</a> has the basic dialog. This is its full depth: pick where people land, invite friends one by one, and tune the link in place rather than in a second dialog.</p>
+  <div class="board cm-flow" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr))">
+    <div class="cm-step"><span class="note">Default: one invite sent, link copied, settings closed</span>
+      <div class="dialog dialog--lg" role="dialog" aria-labelledby="ip1">
+        <div class="dhead"><h4 id="ip1">Invite friends to Night Shift</h4><p>They land in <button class="cm-dest" aria-haspopup="menu" aria-expanded="false"><i class="ph ph-hash"></i>general<i class="ph-bold ph-caret-down"></i></button></p><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <div class="input"><i class="ph ph-magnifying-glass"></i><input aria-label="Search friends" placeholder="Search friends"></div>
+        <div class="dscroll stack cm-fade" style="gap: 2px; max-height: 220px">
+          <div class="friendrow"><span class="av" data-av="Mira"><span class="status online" style="--bg-ring: var(--bg-raised)"></span></span><div><b>Mira</b><span>mira.wav</span></div><button class="btn btn--sm" data-invite>Invite</button></div>
+          <div class="friendrow"><span class="av" data-av="Theo"><span class="status dnd" style="--bg-ring: var(--bg-raised)"></span></span><div><b>Theo</b><span>theo_</span></div><button class="btn btn--sm sent" aria-disabled="true"><i class="ph-bold ph-check"></i>Sent</button></div>
+          <div class="friendrow"><span class="av" data-av="Ana"><span class="status idle" style="--bg-ring: var(--bg-raised)"></span></span><div><b>Ana</b><span>ana.k</span></div><button class="btn btn--sm" data-invite>Invite</button></div>
+          <div class="friendrow"><span class="av" data-av="Bartholomew"><span class="status offline" style="--bg-ring: var(--bg-raised)"></span></span><div><b>Bartholomew Featherstonehaugh-Wright</b><span>bartholomew.featherstonehaugh.wright</span></div><button class="btn btn--sm" data-invite>Invite</button></div>
+          <div class="friendrow"><span class="av" data-av="Jun"><span class="status offline" style="--bg-ring: var(--bg-raised)"></span></span><div><b>Jun</b><span>jun</span></div><button class="btn btn--sm" data-invite>Invite</button></div>
+        </div>
+        <div class="divider">Or send an invite link</div>
+        <div class="linkrow"><div class="input"><input aria-label="Invite link" value="wave.gg/nightshift-7Kq2" readonly></div><button class="btn btn--primary copied" data-copy><i class="ph-bold ph-check"></i>Copied</button></div>
+        <div>
+          <button class="cm-disclose" aria-expanded="false" aria-controls="ip1-set">Link settings<span>Expires in 7 days · no use limit</span><i class="ph-bold ph-caret-right"></i></button>
+          <div class="cm-fold" id="ip1-set"><div><div class="cm-linkset">
+            <div class="field"><label>Expire after</label><button class="dropdown" aria-haspopup="listbox"><span>7 days</span><i class="ph-bold ph-caret-down"></i></button></div>
+            <div class="field"><label>Max uses</label><button class="dropdown" aria-haspopup="listbox"><span>No limit</span><i class="ph-bold ph-caret-down"></i></button></div>
+            <button class="choice" data-toggle="switch"><div><b>Temporary membership</b><span>People leave when they go offline, unless you give them a role</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+          </div></div></div>
+        </div>
+      </div>
+      <span class="note">Live: Invite turns to Sent, Copy turns to Copied for 2s, Link settings folds open.</span>
+    </div>
+
+    <div class="cm-step"><span class="note">Settings open, new link being made, no friend matches</span>
+      <div class="dialog dialog--lg" role="dialog" aria-labelledby="ip2">
+        <div class="dhead"><h4 id="ip2">Invite friends to Night Shift</h4><p>They land in <button class="cm-dest" aria-haspopup="menu" aria-expanded="false"><i class="ph ph-speaker-high"></i>Lounge<i class="ph-bold ph-caret-down"></i></button></p><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <div class="input"><i class="ph ph-magnifying-glass"></i><input aria-label="Search friends" value="zz"><button class="iconbtn" aria-label="Clear search"><i class="ph ph-x-circle"></i></button></div>
+        <div class="cm-none"><b>No friends match "zz"</b><span>Send them the link below instead.</span></div>
+        <div class="divider">Or send an invite link</div>
+        <div class="linkrow"><div class="input is-busy"><span class="bars" style="--c: var(--text-faint)"><i></i><i></i><i></i></span><input aria-label="Invite link" value="Making a new link…" readonly></div><button class="btn btn--primary" disabled>Copy</button></div>
+        <div>
+          <button class="cm-disclose" aria-expanded="true" aria-controls="ip2-set">Link settings<span>Expires in 1 day · 10 uses</span><i class="ph-bold ph-caret-right"></i></button>
+          <div class="cm-fold" id="ip2-set"><div><div class="cm-linkset">
+            <div class="field"><label>Expire after</label><button class="dropdown" aria-haspopup="listbox"><span>1 day</span><i class="ph-bold ph-caret-down"></i></button></div>
+            <div class="field"><label>Max uses</label><button class="dropdown" aria-haspopup="listbox"><span>10 uses</span><i class="ph-bold ph-caret-down"></i></button></div>
+            <button class="choice" data-toggle="switch"><div><b>Temporary membership</b><span>People leave when they go offline, unless you give them a role</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <p class="note">Changes make a new link straight away. Links you already sent keep their old settings.</p>
+          </div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cm-step"><span class="note">Pickers: where they land, how long it lasts</span>
+      <div class="cm-row" style="gap: var(--space-4)">
+        <div class="menu" role="menu" aria-label="Where invited people land" style="--menu-w: 232px">
+          <div class="mlabel">Text</div>
+          <button class="mi cm-sel" role="menuitemradio" aria-checked="true"><i class="ph ph-hash"></i><div>general</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-hash"></i><div>clips</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-hash"></i><div>looking-for-group-in-every-timezone</div></button>
+          <div class="mlabel">Voice and stage</div>
+          <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-speaker-high"></i><div>Lounge</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-microphone-stage"></i><div>Friday stage</div></button>
+        </div>
+        <div class="menu" role="menu" aria-label="Expire after" style="--menu-w: 180px">
+          <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-timer"></i><div>30 minutes</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-timer"></i><div>1 hour</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-clock"></i><div>12 hours</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-sun"></i><div>1 day</div></button>
+          <button class="mi cm-sel" role="menuitemradio" aria-checked="true"><i class="ph ph-calendar-blank"></i><div>7 days</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-infinity"></i><div>Never</div></button>
+        </div>
+      </div>
+      <span class="note">The picked option is its fill, no check. Voice and stage channels can be destinations too.</span>
+    </div>
+  </div>
+
+  <h3>Invite opened in a browser</h3>
+  <div class="cm-flow" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr))">
+    <div class="cm-step">
+      <div class="cm-browser">
+        <div class="cm-urlbar"><span class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></span><span class="cm-url"><i class="ph-bold ph-lock-simple"></i>wave.gg/nightshift-7Kq2</span></div>
+        <div class="cm-landing art1">
+          <div class="cm-accept">
+            <div class="cm-inviter"><span class="av" data-av="Mira"></span><span><b>Mira</b> invited you to join</span></div>
+            <span class="srv-tile a1">NS</span>
+            <span class="cm-name"><span>Night Shift</span></span>
+            <span class="cm-counts"><span>86 online</span><span class="all">412 members</span></span>
+            <button class="btn btn--primary btn--lg btn--block" data-loading="Opening Wave…">Accept invite</button>
+            <p class="note">Opens Wave with the server ready to join.</p>
+          </div>
+        </div>
+      </div>
+      <span class="note">Default</span>
+    </div>
+    <div class="cm-step">
+      <div class="cm-browser">
+        <div class="cm-urlbar"><span class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></span><span class="cm-url"><i class="ph-bold ph-lock-simple"></i>wave.gg/nightshift-0000</span></div>
+        <div class="cm-landing">
+          <div class="cm-accept">
+            <span class="srv-tile dead"><i class="ph ph-link-break"></i></span>
+            <span class="cm-name"><span>This invite doesn't work</span></span>
+            <p class="muted">It may have expired, or the link is mistyped. Ask whoever sent it for a new one.</p>
+            <button class="btn btn--lg btn--block">Open Wave</button>
+          </div>
+        </div>
+      </div>
+      <span class="note">Invalid or expired</span>
+    </div>
+  </div>
+</section>
+
+<!-- Discovery -->
+<section id="discovery">
+  <h2>Server discovery</h2>
+  <p class="lede">Search first, then browse. Categories filter in place, featured servers scroll on native snap, and every card shows who's there before you open it.</p>
+  <div class="cm-disc">
+    <div class="cm-disc-head">
+      <h4>Find your people</h4>
+      <div class="input"><i class="ph ph-magnifying-glass"></i><input aria-label="Search servers" placeholder="Search servers, games and topics"></div>
+    </div>
+    <div class="cm-chips" role="group" aria-label="Category" data-single>
+      <button class="chip" aria-pressed="true">All</button>
+      <button class="chip" aria-pressed="false"><i class="ph ph-game-controller"></i>Gaming</button>
+      <button class="chip" aria-pressed="false"><i class="ph ph-music-notes"></i>Music</button>
+      <button class="chip" aria-pressed="false"><i class="ph ph-film-strip"></i>Entertainment</button>
+      <button class="chip" aria-pressed="false"><i class="ph ph-code"></i>Science and tech</button>
+      <button class="chip" aria-pressed="false"><i class="ph ph-student"></i>Education</button>
+      <button class="chip" aria-pressed="false"><i class="ph ph-palette"></i>Art</button>
+    </div>
+    <div class="stack" style="gap: var(--space-3)">
+      <div class="cm-rowhead"><h5>Featured</h5><button class="iconbtn" aria-label="Previous featured server" data-car="-1" disabled><i class="ph-bold ph-caret-left"></i></button><button class="iconbtn" aria-label="Next featured server" data-car="1"><i class="ph-bold ph-caret-right"></i></button></div>
+      <div class="cm-carousel" id="carousel" tabindex="0" aria-label="Featured servers">
+        <button class="cm-feature art1"><span class="srv-tile" style="--hue: 300">N</span><b>Night owls<i class="ph-fill ph-seal-check" role="img" aria-label="Verified"></i></b><p>Late-night gaming, chill voice rooms and a movie every Friday.</p><span class="cm-counts"><span>1,204 online</span><span class="all">8,930 members</span></span></button>
+        <button class="cm-feature art2"><span class="srv-tile a2">PC</span><b>Pixel Club</b><p>Weekly pixel art challenges, feedback threads and a friendly critique stage.</p><span class="cm-counts"><span>312 online</span><span class="all">4,108 members</span></span></button>
+        <button class="cm-feature art3"><span class="srv-tile a3">G</span><b>Garden</b><p>Seed swaps, sad tomatoes and a channel that's just photos of moss.</p><span class="cm-counts"><span>88 online</span><span class="all">1,950 members</span></span></button>
+        <button class="cm-feature art4"><span class="srv-tile a5"></span><b>Moonbase<i class="ph-fill ph-seal-check" role="img" aria-label="Verified"></i></b><p>Telescopes, launches and very patient people explaining orbits.</p><span class="cm-counts"><span>2,031 online</span><span class="all">19,400 members</span></span></button>
+      </div>
+      <div class="cm-pager" id="pager" aria-hidden="true"><span aria-current="true"></span><span></span><span></span><span></span></div>
+    </div>
+    <div class="stack" style="gap: var(--space-3)">
+      <div class="cm-rowhead"><h5>Popular right now</h5><span class="note">2,480 servers</span></div>
+      <div class="cm-cards">
+        <button class="cm-scard art1"><span class="cm-banner"></span><span class="srv-tile" style="--hue: 300">N</span><span class="cm-scard-body"><span class="cm-name"><span>Night owls</span><i class="ph-fill ph-seal-check" role="img" aria-label="Verified"></i></span><p>Late-night gaming, chill voice rooms and a movie every Friday.</p><span class="cm-counts"><span>1,204 online</span><span class="all">8,930 members</span></span><span class="cm-tags"><span class="cm-tag">Gaming</span><span class="cm-tag">Movies</span></span></span></button>
+        <button class="cm-scard art2 is-hover"><span class="cm-banner"></span><span class="srv-tile a2">PC</span><span class="cm-scard-body"><span class="cm-name"><span>Pixel Club</span></span><p>Weekly pixel art challenges, feedback threads and a friendly critique stage.</p><span class="cm-counts"><span>312 online</span><span class="all">4,108 members</span></span><span class="cm-tags"><span class="cm-tag">Art</span><span class="cm-tag">Pixel art</span><span class="cm-tag">Feedback</span></span></span></button>
+        <button class="cm-scard art6"><span class="cm-banner"></span><span class="srv-tile" style="--hue: 150">SH</span><span class="cm-scard-body"><span class="cm-name"><span>Study hall</span><i class="ph-fill ph-seal-check" role="img" aria-label="Verified"></i></span><p>Silent study rooms around the clock, pomodoro bots and exam-season survival threads for every subject.</p><span class="cm-counts"><span>48,211 online</span><span class="all">312,950 members</span></span><span class="cm-tags"><span class="cm-tag">Education</span><span class="cm-tag">Study</span></span></span></button>
+        <button class="cm-scard"><span class="cm-banner"></span><span class="srv-tile" style="--hue: 40">T</span><span class="cm-scard-body"><span class="cm-name"><span>The Extremely Long Server Name Society of Late Night Gamers and Friends</span></span><p class="is-missing">No description yet.</p><span class="cm-counts"><span>3 online</span><span class="all">12 members</span></span><span class="cm-tags"><span class="cm-tag">Gaming</span></span></span></button>
+      </div>
+      <p class="note">Second card: hover. Third: 300,000+ members and a three-line description clamped to two. Fourth: worst case with no banner, no description, a long name and one tag. Only verified gets a badge; Wave shows no partner badge.</p>
+    </div>
+  </div>
+
+  <h3>Loading and no results</h3>
+  <div class="cm-row">
+    <div class="cm-disc" style="flex: 2 1 480px" aria-busy="true" aria-label="Loading servers">
+      <div class="cm-cards">
+        <div class="cm-scard is-skel"><span class="cm-banner skeleton" style="border-radius: 0"></span><span class="skeleton cm-icon"></span><span class="cm-scard-body"><span class="skeleton line" style="width: 55%; height: 14px"></span><span class="skeleton line" style="width: 92%"></span><span class="skeleton line" style="width: 70%"></span><span class="skeleton line" style="width: 40%"></span></span></div>
+        <div class="cm-scard is-skel"><span class="cm-banner skeleton" style="border-radius: 0"></span><span class="skeleton cm-icon"></span><span class="cm-scard-body"><span class="skeleton line" style="width: 40%; height: 14px"></span><span class="skeleton line" style="width: 86%"></span><span class="skeleton line" style="width: 62%"></span><span class="skeleton line" style="width: 46%"></span></span></div>
+      </div>
+      <p class="note row" style="gap: 6px"><span class="bars"><i></i><i></i><i></i></span>Loading servers…</p>
+    </div>
+    <div class="cm-disc" style="flex: 1 1 300px">
+      <div class="empty"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>No servers found</b><p>Nothing matches "underwater chess". Try a broader word, or another category.</p><button class="btn">Clear search</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- Onboarding -->
+<section id="onboarding">
+  <h2>Onboarding into a community</h2>
+  <p class="lede">What a community asks before you talk: its rules, a few questions that pick your roles and channels, then a channel browser you can come back to any time.</p>
+  <h3>Rules</h3>
+  <div class="board cm-flow">
+    <div class="cm-step"><span class="note">Live: press Accept rules without ticking</span>
+      <div class="dialog" role="dialog" aria-labelledby="ob1">
+        <div class="dhead"><h4 id="ob1">Before you talk in Night owls</h4><p>You can look around while you read.</p><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <ol class="cm-rules">
+          <li><b>Be kind</b><span>No harassment, slurs or dogpiling. Disagree with ideas, not people.</span></li>
+          <li><b>Keep it in the right channel</b><span>Clips in #clips, looking for a group in #looking-for-group.</span></li>
+          <li><b>No spoilers outside #spoilers</b><span>Use spoiler tags for anything from the last two weeks.</span></li>
+          <li><b>No self-promotion</b><span>Ask a moderator before posting your stream or server.</span></li>
+        </ol>
+        <button class="choice cm-agree" data-toggle="check" id="rules-check" aria-describedby="rules-err"><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span><div><b>I've read and agree to the rules</b></div></button>
+        <span class="cm-agree-err" id="rules-err" hidden><i class="ph-fill ph-warning-circle"></i>Tick the box to confirm you've read the rules.</span>
+        <footer><button class="btn btn--ghost">Look around first</button><button class="btn btn--primary" id="rules-go">Accept rules</button></footer>
+      </div>
+    </div>
+    <div class="cm-step"><span class="note">Pressed without ticking</span>
+      <div class="dialog" role="dialog" aria-label="Rules, error">
+        <button class="choice cm-agree is-error" aria-describedby="ob2-err"><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span><div><b>I've read and agree to the rules</b></div></button>
+        <span class="cm-agree-err" id="ob2-err"><i class="ph-fill ph-warning-circle"></i>Tick the box to confirm you've read the rules.</span>
+        <footer><button class="btn btn--ghost">Look around first</button><button class="btn btn--primary">Accept rules</button></footer>
+      </div>
+      <span class="note" style="margin-top: var(--space-4)">While you look around, the composer holds the ask:</span>
+      <div class="composer locked" style="margin: 0"><i class="ph ph-book-open-text"></i><span>Accept <b>Night owls</b>' rules to start chatting.</span><button class="btn btn--sm btn--primary">Read rules</button></div>
+    </div>
+  </div>
+
+  <h3>Questions</h3>
+  <div class="board cm-flow">
+    <div class="cm-step"><span class="note">Single choice, required</span>
+      <div class="dialog" role="dialog" aria-labelledby="oq1">
+        <div class="cm-progress"><span class="cm-dots" aria-hidden="true"><span aria-current="step"></span><span></span><span></span></span><span>Question 1 of 3</span><span class="cm-req">· Required</span></div>
+        <div class="dhead"><h4 id="oq1">What brings you to Night owls?</h4><p>Pick one.</p></div>
+        <div class="cm-answers" role="radiogroup" aria-labelledby="oq1" data-single>
+          <button class="chip" aria-pressed="true"><i class="ph ph-trophy"></i>Ranked</button>
+          <button class="chip" aria-pressed="false"><i class="ph ph-film-strip"></i>Making clips</button>
+          <button class="chip" aria-pressed="false"><i class="ph ph-chat-circle-dots"></i>Hanging out</button>
+          <button class="chip" aria-pressed="false"><i class="ph ph-users-three"></i>Finding a group</button>
+        </div>
+        <p class="cm-gets"><i class="ph ph-sparkle"></i>Adds <b>#ranked-lfg</b> and the <b>Ranked</b> role</p>
+        <footer><button class="btn btn--primary">Next question</button></footer>
+      </div>
+    </div>
+    <div class="cm-step"><span class="note">Many choices, optional</span>
+      <div class="dialog" role="dialog" aria-labelledby="oq2">
+        <div class="cm-progress"><span class="cm-dots" aria-hidden="true"><span class="is-done"></span><span aria-current="step"></span><span></span></span><span>Question 2 of 3</span></div>
+        <div class="dhead"><h4 id="oq2">Which games do you play?</h4><p>Pick as many as you like.</p></div>
+        <div class="cm-answers" role="group" aria-labelledby="oq2">
+          <button class="chip" aria-pressed="true">Hades II</button>
+          <button class="chip" aria-pressed="true">Rift</button>
+          <button class="chip" aria-pressed="false">Ashen Peaks</button>
+          <button class="chip" aria-pressed="false">Glass Desert</button>
+          <button class="chip" aria-pressed="false">Drowned Harbor</button>
+          <button class="chip" aria-pressed="false">Something else</button>
+        </div>
+        <p class="cm-gets"><i class="ph ph-sparkle"></i>Adds <b>#hades</b> and <b>#rift</b></p>
+        <footer><button class="btn btn--ghost cm-skip">Skip question</button><button class="btn">Back</button><button class="btn btn--primary">Next question</button></footer>
+      </div>
+      <span class="note">The last question's button reads Finish setup. Answers can be changed later from the server menu.</span>
+    </div>
+  </div>
+
+  <h3>Customise your channels</h3>
+  <div class="cm-browse" id="browse">
+    <div class="cm-browse-head">
+      <div><h4>Channels</h4><p>Pick what shows in your sidebar. Change it any time from the server menu.</p></div>
+      <div class="input"><i class="ph ph-magnifying-glass"></i><input aria-label="Search channels" placeholder="Search channels"></div>
+    </div>
+    <div class="row" style="justify-content: space-between">
+      <div class="pills" role="tablist" aria-label="Show"><button class="tab" role="tab" aria-selected="true">All</button><button class="tab" role="tab" aria-selected="false">In your sidebar</button></div>
+      <span class="cm-tally" id="tally" aria-live="polite">You see 6 of 10 channels</span>
+    </div>
+    <div class="cm-chgroup">
+      <div class="cm-chgroup-head"><span>Information</span></div>
+      <div class="choice cm-chrow is-locked" title="Everyone sees this channel"><i class="ph ph-book-open-text"></i><div><b>rules</b><span>Read these first</span></div><span class="cm-act">Everyone sees this</span><span class="switch" role="switch" aria-checked="true" aria-disabled="true" aria-label="Show #rules"></span></div>
+      <button class="choice cm-chrow" data-toggle="switch"><i class="ph ph-megaphone"></i><div><b>announcements</b><span>Patch notes and server news</span></div><span class="cm-act">2 posts a week</span><span class="switch" role="switch" aria-checked="true" aria-label="Show #announcements"></span></button>
+    </div>
+    <div class="cm-chgroup">
+      <div class="cm-chgroup-head"><span>Games</span><button class="check" role="checkbox" aria-checked="mixed" aria-label="Show every channel in Games"><i class="ph-bold ph-minus"></i></button></div>
+      <button class="choice cm-chrow" data-toggle="switch"><i class="ph ph-hash"></i><div><b>hades</b><span>Builds, boons and bad luck</span></div><span class="cm-act">48 active today</span><span class="switch" role="switch" aria-checked="true" aria-label="Show #hades"></span></button>
+      <button class="choice cm-chrow" data-toggle="switch"><i class="ph ph-hash"></i><div><b>rift</b><span>Ranked talk, tier lists, patch takes</span></div><span class="cm-act">120 active today</span><span class="switch" role="switch" aria-checked="true" aria-label="Show #rift"></span></button>
+      <button class="choice cm-chrow" data-toggle="switch"><i class="ph ph-hash"></i><div><b>ashen-peaks</b><span>Routes, speedruns and the day-night cycle</span></div><span class="cm-act">9 active today</span><span class="switch" role="switch" aria-checked="false" aria-label="Show #ashen-peaks"></span></button>
+      <button class="choice cm-chrow" data-toggle="switch"><i class="ph ph-hash"></i><div><b>glass-desert-sandstorm-survivors-support-group</b><span>For the ones who stayed for the sandstorms that last forever</span></div><span class="cm-act">Quiet</span><span class="switch" role="switch" aria-checked="false" aria-label="Show #glass-desert-sandstorm-survivors-support-group"></span></button>
+      <button class="choice cm-chrow" data-toggle="switch"><i class="ph ph-hash"></i><div><b>drowned-harbor</b><span>Boats, mostly</span></div><span class="cm-act">3 active today</span><span class="switch" role="switch" aria-checked="false" aria-label="Show #drowned-harbor"></span></button>
+    </div>
+    <div class="cm-chgroup">
+      <div class="cm-chgroup-head"><span>Voice</span><button class="check" role="checkbox" aria-checked="true" aria-label="Show every channel in Voice"><i class="ph-bold ph-check"></i></button></div>
+      <button class="choice cm-chrow" data-toggle="switch"><i class="ph ph-speaker-high"></i><div><b>Lounge</b><span>Drop in, hang out</span></div><span class="cm-act">6 in voice</span><span class="switch" role="switch" aria-checked="true" aria-label="Show Lounge"></span></button>
+      <button class="choice cm-chrow" data-toggle="switch"><i class="ph ph-microphone-stage"></i><div><b>Friday stage</b><span>Talks and patch reviews</span></div><span class="cm-act">Live now</span><span class="switch" role="switch" aria-checked="false" aria-label="Show Friday stage"></span></button>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Rows are the whole hit area. A channel the server shows to everyone keeps its switch but can't be turned off, and says why. The category box selects all; mixed means some.</p>
+
+  <h3>Server welcome screen</h3>
+  <div class="board">
+    <div class="dialog cm-welcome" role="dialog" aria-labelledby="ow1">
+      <span class="srv-tile" style="--hue: 300">N</span>
+      <div class="dhead" style="justify-items: center; grid-template-columns: minmax(0, 1fr)"><h4 id="ow1">Welcome to Night owls</h4><p>Late-night gaming, chill voice rooms and a movie every Friday.</p></div>
+      <span class="cm-label">Popular channels</span>
+      <div class="cm-opts">
+        <button class="cm-opt"><span class="cm-emoji">👋</span><div><b>#introductions</b><span>Say hi and tell us what you play</span></div><i class="ph ph-caret-right"></i></button>
+        <button class="cm-opt"><span class="cm-emoji">🎮</span><div><b>#looking-for-group</b><span>Find a squad for tonight</span></div><i class="ph ph-caret-right"></i></button>
+        <button class="cm-opt"><span class="cm-emoji">🍿</span><div><b>Movie room</b><span>Fridays at 10 PM, bring snacks</span></div><i class="ph ph-caret-right"></i></button>
+      </div>
+      <button class="btn btn--ghost">Explore on my own</button>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">The emoji are the server's own, set by its moderators. Any row opens that channel and closes the welcome.</p>
+</section>
+
+<!-- Events -->
+<section id="events">
+  <h2>Server events</h2>
+  <p class="lede">Scheduled things to show up for. A live one takes the top of the channel list; the rest sit behind one Events row, each card leading with when, then what and where.</p>
+  <h3>In the sidebar</h3>
+  <div class="board cm-row">
+    <div class="cm-frame" style="width: 240px; flex: none; height: 460px">
+      <aside class="side" aria-label="Night owls channels">
+        <header class="srvhead"><button aria-expanded="false" aria-haspopup="menu"><span>Night owls</span><i class="ph-bold ph-caret-down"></i></button></header>
+        <div class="chlist">
+          <div class="cm-livebar">
+            <div><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><b>Patch review</b></div>
+            <span><i class="ph ph-microphone-stage"></i>Friday stage · 41 listening</span>
+            <button class="btn btn--primary btn--sm">Join stage</button>
+          </div>
+          <div class="ch cm-evrow"><i class="ph ph-calendar-blank"></i><a class="nm" href="#">Events</a><span class="meta"><span class="limit" aria-label="3 events">3</span></span></div>
+          <div class="ch"><i class="ph ph-list-magnifying-glass"></i><a class="nm" href="#">Channels</a></div>
+          <div class="catgroup">
+            <div class="cathead"><button class="cat" aria-expanded="true"><i class="ph-bold ph-caret-down"></i>Text</button><button class="cat-add" aria-label="Create channel in Text"><i class="ph-bold ph-plus"></i></button></div>
+            <div class="ch sel"><i class="ph ph-hash"></i><a class="nm" href="#" aria-current="page">general</a></div>
+            <div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">looking-for-group</a></div>
+          </div>
+          <div class="catgroup">
+            <div class="cathead"><button class="cat" aria-expanded="true"><i class="ph-bold ph-caret-down"></i>Voice</button><button class="cat-add" aria-label="Create channel in Voice"><i class="ph-bold ph-plus"></i></button></div>
+            <div class="ch"><i class="ph ph-microphone-stage"></i><a class="nm" href="#">Friday stage</a></div>
+            <div class="ch"><i class="ph ph-speaker-high"></i><a class="nm" href="#">Movie room</a></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="pop" style="width: min(100%, 360px); --bg-sidebar: var(--bg-raised)">
+      <div class="cm-rowhead"><h5>Events</h5><button class="btn btn--sm"><i class="ph-bold ph-plus"></i>Create event</button></div>
+      <div class="cm-evlist">
+        <div class="cm-evcard">
+          <div class="cm-when"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span>Started 20 minutes ago</div>
+          <h5>Patch review</h5>
+          <div class="cm-where"><i class="ph ph-microphone-stage"></i><span>Friday stage</span></div>
+          <div class="cm-evfoot"><span class="cm-interest">38 interested</span><button class="btn btn--primary btn--sm">Join stage</button></div>
+        </div>
+        <div class="cm-evcard art5">
+          <div class="cm-cover"></div>
+          <div class="cm-when is-soon"><i class="ph ph-clock"></i>In 2 hours · 10:00 PM</div>
+          <h5>Movie night: The Long Night</h5>
+          <div class="cm-where"><i class="ph ph-speaker-high"></i><span>Movie room</span></div>
+          <div class="cm-evfoot"><span class="cm-interest"><span class="stackav"><span class="av" data-av="Mira"></span><span class="av" data-av="Ana"></span><span class="av" data-av="Jun"></span></span>24 interested</span><button class="btn btn--sm" aria-pressed="true"><i class="ph-fill ph-bell-ringing"></i>Interested</button><button class="iconbtn" aria-label="Share event"><i class="ph ph-share-network"></i></button></div>
+        </div>
+        <div class="cm-evcard">
+          <div class="cm-when"><i class="ph ph-calendar-blank"></i>Sat, Nov 22 · 7:00 PM</div>
+          <h5>Ashen Peaks community cup, round two of the autumn bracket</h5>
+          <div class="cm-where"><i class="ph ph-map-pin"></i><span>twitch.tv/nightowls-community-cup-autumn-bracket</span></div>
+          <div class="cm-evfoot"><span class="cm-interest">1,112 interested</span><button class="btn btn--sm" aria-pressed="false"><i class="ph ph-bell"></i>Interested</button><button class="iconbtn" aria-label="Share event"><i class="ph ph-share-network"></i></button></div>
+        </div>
+        <div class="cm-evcard is-ended">
+          <div class="cm-when"><i class="ph ph-check-circle"></i>Ended 2 days ago</div>
+          <h5>Snack rota planning</h5>
+          <div class="cm-where"><i class="ph ph-speaker-high"></i><span>Lounge</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Interested is a toggle (fill when on) and sets a reminder 15 minutes before. Long titles wrap; external links truncate to one line. Ended events stay a day, faded, then go.</p>
+
+  <h3>Event details</h3>
+  <div class="board">
+    <div class="dialog dialog--md cm-evdlg" role="dialog" aria-labelledby="ev1">
+      <div class="cm-cover art5"><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+      <div class="cm-evdlg-body">
+        <div class="cm-when is-soon"><i class="ph ph-clock"></i>Today · in 2 hours</div>
+        <h4 id="ev1">Movie night: The Long Night</h4>
+        <p>We're watching the director's cut. Bring snacks, keep spoilers in the thread, and stay for the vote on next week's pick.</p>
+        <div class="cm-facts">
+          <div class="cm-fact"><i class="ph ph-calendar-blank"></i><div>Sat, Nov 15, 10:00 PM – 12:30 AM<small>Your time, CET</small></div></div>
+          <div class="cm-fact"><i class="ph ph-speaker-high"></i><div>Movie room<small>Voice channel in Night owls</small></div></div>
+          <div class="cm-fact"><span class="av" data-av="Theo"></span><div>Hosted by Theo</div></div>
+          <div class="cm-fact"><i class="ph ph-users-three"></i><div>24 interested<small>Mira, Ana and 22 others</small></div></div>
+        </div>
+        <footer><button class="btn" aria-pressed="true"><i class="ph-fill ph-bell-ringing"></i>Interested</button><button class="btn"><i class="ph-bold ph-share-network"></i>Share</button><span class="sp"></span><button class="iconbtn" aria-label="More event options" title="Add to calendar, copy link, report"><i class="ph-bold ph-dots-three-vertical"></i></button></footer>
+      </div>
+    </div>
+  </div>
+
+  <h3>Create an event</h3>
+  <div class="board cm-flow">
+    <div class="cm-step"><span class="note">1 · Where</span>
+      <div class="dialog" role="dialog" aria-labelledby="ce1">
+        <div class="dhead"><h4 id="ce1">Create event</h4><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <ol class="cm-stepper"><li aria-current="step"><span class="n">1</span>Where</li><li><span class="n">2</span>Details</li><li><span class="n">3</span>Review</li></ol>
+        <div class="typechoice" role="radiogroup" aria-label="Where it happens">
+          <button class="choice" data-toggle="radio"><span class="icontile"><i class="ph ph-microphone-stage"></i></span><div><b>Stage channel</b><span>Talks with speakers and an audience</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+          <button class="choice" data-toggle="radio"><span class="icontile"><i class="ph ph-speaker-high"></i></span><div><b>Voice channel</b><span>Hang out with voice, video and screen share</span></div><span class="radio" role="radio" aria-checked="true"></span></button>
+          <button class="choice" data-toggle="radio"><span class="icontile"><i class="ph ph-map-pin"></i></span><div><b>Somewhere else</b><span>A link or a place outside Discord</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+        </div>
+        <div class="field"><label>Channel</label><button class="dropdown" aria-haspopup="listbox"><i class="ph ph-speaker-high" style="color: var(--text-faint)"></i><span>Movie room</span><i class="ph-bold ph-caret-down"></i></button></div>
+        <footer><button class="btn" data-close>Cancel</button><button class="btn btn--primary">Add details</button></footer>
+      </div>
+      <span class="note">Somewhere else swaps the channel picker for a Link or address field.</span>
+    </div>
+    <div class="cm-step"><span class="note">2 · Details, with a cover image</span>
+      <div class="dialog" role="dialog" aria-labelledby="ce2">
+        <div class="dhead"><h4 id="ce2">Create event</h4><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <ol class="cm-stepper"><li class="is-done"><span class="n"><i class="ph-bold ph-check"></i></span>Where</li><li aria-current="step"><span class="n">2</span>Details</li><li><span class="n">3</span>Review</li></ol>
+        <div class="field"><label for="ce-topic">Topic</label><div class="input"><input id="ce-topic" value="Movie night: The Long Night" autocomplete="off"></div></div>
+        <div class="cm-2col">
+          <div class="field"><label>Starts</label><button class="dropdown" aria-haspopup="dialog"><i class="ph ph-calendar-blank" style="color: var(--text-faint)"></i><span>Sat, Nov 15</span><i class="ph-bold ph-caret-down"></i></button></div>
+          <div class="field"><label>At</label><button class="dropdown" aria-haspopup="listbox"><i class="ph ph-clock" style="color: var(--text-faint)"></i><span>10:00 PM</span><i class="ph-bold ph-caret-down"></i></button></div>
+        </div>
+        <div class="field"><label for="ce-desc">Description</label><textarea class="textarea" id="ce-desc" rows="2" placeholder="What should people know?">We're watching the director's cut. Bring snacks.</textarea></div>
+        <div class="field"><label>Cover image</label>
+          <div class="cm-coverset art5"><button class="btn btn--sm"><i class="ph-bold ph-image-square"></i>Change cover</button></div>
+        </div>
+        <footer><button class="btn">Back</button><button class="btn btn--primary">Review event</button></footer>
+      </div>
+    </div>
+    <div class="cm-step"><span class="note">Cover image, empty</span>
+      <div class="drop cm-coverdrop"><i class="ph ph-image-square"></i><b>Add a cover image</b><span>Drop one here or <button class="btn btn--link">browse</button>. 1600 × 540 fits best.</span></div>
+      <span class="note">Optional; the card shows no cover strip without one.</span>
+    </div>
+    <div class="cm-step"><span class="note">3 · Review</span>
+      <div class="dialog" role="dialog" aria-labelledby="ce3">
+        <div class="dhead"><h4 id="ce3">Create event</h4><p>This is how it shows in Night owls.</p><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <ol class="cm-stepper"><li class="is-done"><span class="n"><i class="ph-bold ph-check"></i></span>Where</li><li class="is-done"><span class="n"><i class="ph-bold ph-check"></i></span>Details</li><li aria-current="step"><span class="n">3</span>Review</li></ol>
+        <div class="cm-evcard art5" style="--bg-sidebar: var(--bg-page); background: var(--bg-page)">
+          <div class="cm-cover"></div>
+          <div class="cm-when"><i class="ph ph-calendar-blank"></i>Sat, Nov 15 · 10:00 PM</div>
+          <h5>Movie night: The Long Night</h5>
+          <div class="cm-where"><i class="ph ph-speaker-high"></i><span>Movie room</span></div>
+        </div>
+        <button class="choice" data-toggle="switch" style="padding: 6px 0"><div><b>Ping everyone when it starts</b><span>Interested people get a reminder either way</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+        <footer><button class="btn">Back</button><button class="btn btn--primary" data-loading="Creating…">Create event</button></footer>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Stage -->
+<section id="stage">
+  <h2>Stage channel</h2>
+  <p class="lede">A room with speakers and an audience. It uses the call stage from Voice, dark in both themes; what's new is the topic header, the speakers grid, raised hands and the moderator's request list.</p>
+  <div class="call cm-stage">
+    <div class="callhead">
+      <i class="ph ph-microphone-stage"></i>
+      <div class="cm-topic"><b>Season 7 patch review: every change, ranked</b><span>Friday stage · Night owls</span></div>
+      <span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span>
+      <button class="people" aria-label="132 people on stage" title="132 people"><span class="stackav"><span class="av" data-av="Mira"></span><span class="av" data-av="Theo"></span><span class="av" data-av="Ana"></span></span>132</button>
+      <span class="sep"></span>
+      <button class="iconbtn" aria-label="Edit topic" title="Edit topic"><i class="ph ph-pencil-simple"></i></button>
+      <button class="iconbtn has-dot" aria-label="Requests to speak, 3 waiting" title="Requests to speak"><i class="ph ph-hand"></i></button>
+      <button class="iconbtn" aria-pressed="false" aria-label="Chat" title="Chat: show the channel's messages"><i class="ph ph-chat-circle-text"></i></button>
+    </div>
+    <div class="stack" style="gap: var(--space-3)">
+      <span class="cm-slabel"><i class="ph ph-microphone"></i>Speakers · 4</span>
+      <div class="cm-speakers">
+        <div class="cm-spk"><span class="av speaking" data-av="Mira"></span><span class="who"><span>Mira</span><i class="ph-fill ph-shield-star" role="img" aria-label="Stage moderator"></i></span><span class="bars" aria-label="Speaking"><i></i><i></i><i></i></span></div>
+        <div class="cm-spk is-hover"><span class="av" data-av="Theo"></span><span class="who"><span>Theo</span><i class="ph-fill ph-shield-star" role="img" aria-label="Stage moderator"></i><i class="ph-fill ph-microphone-slash" role="img" aria-label="Muted"></i></span></div>
+        <div class="cm-spk"><span class="av" data-av="Ana"></span><span class="who"><span>Ana</span></span></div>
+        <div class="cm-spk"><span class="av" data-av="Bartholomew"></span><span class="who"><span>Bartholomew Featherstonehaugh-Wright</span></span></div>
+      </div>
+    </div>
+    <div class="stack" style="gap: var(--space-3)">
+      <span class="cm-slabel"><i class="ph ph-users-three"></i>Audience · 128 · 3 hands raised</span>
+      <div class="cm-aud">
+        <div><span class="av" data-av="Jun"><span class="cm-hand" role="img" aria-label="Hand raised"><i class="ph-fill ph-hand"></i></span></span><span>Jun</span></div>
+        <div><span class="av" data-av="Rosa"></span><span>Rosa</span></div>
+        <div><span class="av" data-av="Lea"><span class="cm-hand" role="img" aria-label="Hand raised"><i class="ph-fill ph-hand"></i></span></span><span>Lea</span></div>
+        <div><span class="av" data-av="Omar"></span><span>Omar</span></div>
+        <div><span class="av" data-av="Pia"></span><span>Pia</span></div>
+        <div><span class="av" data-av="Kai"><span class="cm-hand" role="img" aria-label="Hand raised"><i class="ph-fill ph-hand"></i></span></span><span>Kai</span></div>
+        <div><span class="av" data-av="Noor"></span><span>Noor</span></div>
+        <div><span class="av" data-av="Eli"></span><span>Eli</span></div>
+        <div><span class="is-more">+120</span><span>more</span></div>
+      </div>
+    </div>
+    <div class="cm-stagebar">
+      <div class="cm-say"><b>You're in the audience</b>Raise your hand to ask to speak.</div>
+      <button class="cbtn cm-handbtn" aria-pressed="false" aria-label="Request to speak" title="Request to speak"><i class="ph-fill ph-hand"></i></button>
+      <button class="cbtn leave" aria-label="Leave quietly" title="Leave quietly"><i class="ph-fill ph-phone-x"></i></button>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Speakers ring in accent and show the wave while talking; the shield marks stage moderators. Hands sit on the avatar's corner in accent, because they ask for a moderator. Press the hand: it fills and the line above changes.</p>
+
+  <h3>Request to speak, as a listener</h3>
+  <div class="onstage stack" style="gap: var(--space-4)">
+    <div class="cm-stagebar"><div class="cm-say"><b>You're in the audience</b>Raise your hand to ask to speak.</div><button class="cbtn cm-handbtn" aria-pressed="false" aria-label="Request to speak"><i class="ph-fill ph-hand"></i></button><button class="cbtn leave" aria-label="Leave quietly"><i class="ph-fill ph-phone-x"></i></button></div>
+    <div class="cm-stagebar"><div class="cm-say"><b>Hand raised</b>Moderators can see your request. Press again to lower it.</div><button class="cbtn cm-handbtn" aria-pressed="true" aria-label="Lower hand"><i class="ph-fill ph-hand"></i></button><button class="cbtn leave" aria-label="Leave quietly"><i class="ph-fill ph-phone-x"></i></button></div>
+    <div class="cm-ask" role="alertdialog" aria-labelledby="ask1"><span class="av" data-av="Mira"></span><div><b id="ask1">Mira invited you to speak</b><span>Everyone on stage will hear you. You start muted.</span></div><button class="btn btn--sm">Stay in audience</button><button class="btn btn--sm btn--primary">Join speakers</button></div>
+    <div class="cm-stagebar"><div class="cm-say"><b>You're a speaker</b>You're muted. Unmute when it's your turn.</div><div class="csplit off"><button class="cbtn" aria-label="Unmute"><i class="ph-fill ph-microphone-slash"></i></button><button class="cbtn chev" aria-label="Microphone options"><i class="ph-bold ph-caret-up"></i></button></div><button class="cbtn" aria-label="Move to audience" title="Move to audience"><i class="ph-bold ph-arrow-line-down"></i></button><button class="cbtn leave" aria-label="Leave stage"><i class="ph-fill ph-phone-x"></i></button></div>
+    <div class="cm-stagebar"><div class="cm-say"><b>Requests are off</b>The moderators turned off raised hands for now.</div><button class="cbtn cm-handbtn" disabled aria-label="Request to speak, turned off by moderators"><i class="ph-fill ph-hand"></i></button><button class="cbtn leave" aria-label="Leave quietly"><i class="ph-fill ph-phone-x"></i></button></div>
+  </div>
+
+  <h3>Moderator controls</h3>
+  <div class="onstage cm-row" style="gap: var(--space-4)">
+    <div class="cm-reqs" role="dialog" aria-labelledby="rq1">
+      <header><span id="rq1">Requests to speak</span><span class="count" style="flex: none">3</span></header>
+      <button class="choice" data-toggle="switch"><div><b>Let the audience raise hands</b><span>Turn off to stop new requests</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+      <hr>
+      <div class="cm-reqrow"><span class="av" data-av="Jun"></span><div><b>Jun</b><span>Raised 2 minutes ago</span></div><button class="btn btn--sm" data-invite-speak>Invite to speak</button><button class="iconbtn" aria-label="Dismiss Jun's request"><i class="ph ph-x"></i></button></div>
+      <div class="cm-reqrow"><span class="av" data-av="Lea"></span><div><b>Lea</b><span>Raised 40 seconds ago</span></div><button class="btn btn--sm sent" aria-disabled="true"><i class="ph-bold ph-check"></i>Invited</button><button class="iconbtn" aria-label="Dismiss Lea's request"><i class="ph ph-x"></i></button></div>
+      <div class="cm-reqrow"><span class="av" data-av="Kai"></span><div><b>Kai</b><span>Raised just now</span></div><button class="btn btn--sm" data-invite-speak>Invite to speak</button><button class="iconbtn" aria-label="Dismiss Kai's request"><i class="ph ph-x"></i></button></div>
+    </div>
+    <div class="menu" role="menu" aria-label="Theo">
+      <div class="mhead"><span class="av" data-av="Theo" style="--size: 32px"></span><div><b>Theo</b><span>Speaker · stage moderator</span></div></div>
+      <button class="mi" role="menuitem"><i class="ph ph-user"></i><div>View profile</div></button>
+      <button class="mi" role="menuitem"><i class="ph ph-microphone-slash"></i><div>Mute on stage</div></button>
+      <button class="mi" role="menuitem"><i class="ph ph-arrow-line-down"></i><div>Move to audience</div></button>
+      <hr>
+      <button class="mi danger" role="menuitem"><i class="ph ph-sign-out"></i><div>Disconnect from stage</div></button>
+    </div>
+    <div class="menu" role="menu" aria-label="Jun">
+      <div class="mhead"><span class="av" data-av="Jun" style="--size: 32px"></span><div><b>Jun</b><span>Audience · hand raised</span></div></div>
+      <button class="mi" role="menuitem"><i class="ph ph-microphone-stage"></i><div>Invite to speak</div></button>
+      <button class="mi" role="menuitem"><i class="ph ph-user"></i><div>View profile</div></button>
+      <hr>
+      <button class="mi danger" role="menuitem"><i class="ph ph-sign-out"></i><div>Disconnect from stage</div></button>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Right-click on any person opens the same menu as their row. Invite turns to Invited until they answer; declining puts them back in the list with their hand down.</p>
+</section>
+
+<!-- Leaving and server states -->
+<section id="leaving">
+  <h2>Leaving and server states</h2>
+  <p class="lede">How a server leaves your rail: by your choice, by a moderator's, or for a while because Discord can't reach it. Each says what happened.</p>
+  <h3>Leave a server</h3>
+  <div class="board cm-flow">
+    <div class="cm-step"><span class="note">After the confirm, an undo</span>
+      <div class="toast" data-tone="undo"><i class="ph-fill ph-sign-out"></i><p>Left Night owls<small>It's public, so you can rejoin right away.</small></p><button class="btn btn--sm">Undo</button></div>
+      <div class="toast" data-tone="info" style="margin-top: var(--space-3)"><i class="ph-fill ph-sign-out"></i><p>Left Night Shift<small>It's invite-only. Coming back needs a new invite.</small></p></div>
+      <span class="note">The confirm itself is in <a href="overlays.html#dialogs" style="color: var(--accent-ink)">Overlays, Dialogs</a>. GAP: Undo shows only where Wave can rejoin without an invite (public, discoverable servers); roles don't come back.</span>
+    </div>
+    <div class="cm-step"><span class="note">You own it: hand it on first</span>
+      <div class="dialog dialog--md" role="dialog" aria-labelledby="lv1">
+        <div class="dhead"><h4 id="lv1">You own Mira's server</h4><p>Pick a new owner to leave. They get full control, including deleting the server, and you can't take it back.</p><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <div class="input"><i class="ph ph-magnifying-glass"></i><input aria-label="Search members" placeholder="Search 18 members"></div>
+        <div class="cm-pick" role="radiogroup" aria-label="New owner">
+          <button class="choice" data-toggle="radio"><span class="av" data-av="Theo"></span><div><b>Theo</b><span>Admin</span></div><span class="radio" role="radio" aria-checked="true"></span></button>
+          <button class="choice" data-toggle="radio"><span class="av" data-av="Ana"></span><div><b>Ana</b><span>Moderator</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+          <button class="choice" data-toggle="radio"><span class="av" data-av="Jun"></span><div><b>Jun</b><span>Member</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+          <button class="choice" data-toggle="radio"><span class="av" data-av="Bartholomew"></span><div><b>Bartholomew Featherstonehaugh-Wright</b><span>Member</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+        </div>
+        <footer><button class="btn btn--ghost cm-skip cm-dangerlink">Delete server instead</button><button class="btn" data-close>Stay owner</button><button class="btn btn--danger" data-loading="Transferring…">Transfer to Theo and leave</button></footer>
+      </div>
+    </div>
+    <div class="cm-step"><span class="note">You own it and nobody else is in it</span>
+      <div class="dialog" role="dialog" aria-labelledby="lv2">
+        <h4 id="lv2"><i class="ph-fill ph-warning"></i>You're the only member</h4>
+        <p>Nobody can take over Mira's server, so leaving deletes it: its 4 channels and 212 messages go for good. This can't be undone.</p>
+        <footer><button class="btn" data-close>Keep server</button><button class="btn btn--danger">Delete server</button></footer>
+      </div>
+    </div>
+  </div>
+
+  <h3>Server unavailable</h3>
+  <div class="board cm-row" style="align-items: stretch">
+    <div class="cm-railfig">
+      <nav class="rail" aria-label="Servers" style="padding-block: 12px">
+        <button class="srv home" aria-label="Direct messages"><svg width="22" height="22" viewBox="0 0 64 66" aria-hidden="true"><g fill="#e8326f"><rect x="2" y="21" width="8" height="24" rx="4"/><rect x="15" y="10.5" width="8" height="45" rx="4"/><rect x="28" y="1" width="8" height="64" rx="4"/><rect x="41" y="13.5" width="8" height="39" rx="4"/><rect x="54" y="22" width="8" height="22" rx="4"/></g></svg></button>
+        <hr>
+        <button class="srv a1 cm-down sel" aria-label="Night Shift, unavailable" aria-current="page">NS<span class="cm-downmark" aria-hidden="true"><i class="ph-fill ph-warning"></i></span></button>
+        <button class="srv a2" aria-label="Pixel Club">PC</button>
+        <button class="srv a3" aria-label="Garden">G</button>
+      </nav>
+    </div>
+    <div class="stack" style="justify-content: center; gap: var(--space-2); margin-left: calc(-1 * var(--space-4))">
+      <span class="tooltip rail-tip" role="tooltip" style="margin-top: 0">Night Shift is unavailable<small>Discord can't reach it right now. It comes back on its own.</small></span>
+    </div>
+    <div class="cm-frame" style="flex: 1 1 320px; background: var(--bg-page); display: grid; place-items: center">
+      <div class="empty" role="status"><div class="mascot waiting" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Night Shift is unavailable</b><p>Discord is having trouble with this server. Your messages are safe, and Wave reconnects as soon as it's back.</p><a class="btn" href="#" style="text-decoration: none">Check Discord status<i class="ph-bold ph-arrow-square-out"></i></a></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">The icon greys out but keeps its place and its pill; a warning mark replaces its counts. It never disappears, so nothing in your rail moves.</p>
+
+  <h3>Removed from a server</h3>
+  <div class="board cm-row">
+    <div class="cm-railfig cm-kickdemo">
+      <nav class="rail" aria-label="Servers" id="kick-rail">
+        <button class="srv a1" aria-label="Night Shift">NS</button>
+        <button class="srv a2" aria-label="Pixel Club" id="kick-target">PC</button>
+        <button class="srv a3" aria-label="Garden">G</button>
+        <button class="srv a4" aria-label="Lowkey">L</button>
+        <hr>
+        <button class="srv add" aria-label="Add a server"><i class="ph-bold ph-plus"></i></button>
+      </nav>
+      <button class="btn btn--sm" id="kick-play"><i class="ph-bold ph-play"></i>Play removal</button>
+    </div>
+    <div class="cm-railfig"><nav class="rail" aria-hidden="true"><button class="srv a1" tabindex="-1">NS</button><button class="srv a2 cm-leaving" tabindex="-1">PC</button><button class="srv a3" tabindex="-1">G</button><button class="srv a4" tabindex="-1">L</button></nav><span class="note">Leaving: fade, 0.97, slight blur</span></div>
+    <div class="cm-railfig"><nav class="rail" aria-hidden="true"><button class="srv a1" tabindex="-1">NS</button><button class="srv a3" tabindex="-1">G</button><button class="srv a4" tabindex="-1">L</button><span class="srv cm-ghost"></span></nav><span class="note">Gone: the rest slide up</span></div>
+    <div class="stack" style="flex: 1 1 300px; gap: var(--space-3)">
+      <div class="toast" data-tone="info"><i class="ph-fill ph-sign-out"></i><p>You were removed from Pixel Club<small>A moderator kicked you. A new invite brings you back.</small></p><button class="iconbtn" aria-label="Dismiss"><i class="ph ph-x"></i></button></div>
+      <p class="note">If you were in it, Wave takes you to Home first, then the icon leaves. Banned reads "You were banned from Pixel Club" with no way back mentioned.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Better than Discord -->
+<section id="better-than-discord">
+  <h2>Better than Discord</h2>
+  <p class="lede">Where this page departs from Discord on purpose. Discord's side is described from how its client behaves today and may have drifted.</p>
+  <div class="cm-btd" role="table" aria-label="Changes from Discord">
+    <div class="cm-btd-row is-head" role="row"><span role="columnheader">Discord does</span><span role="columnheader">Wave does</span><span role="columnheader">Why</span><span role="columnheader">Demo</span></div>
+    <div class="cm-btd-row" role="row"><span data-k="Discord does" role="cell">Lists templates by name only.</span><b data-k="Wave does" role="cell">Each template names the channels it makes.</b><p data-k="Why" role="cell">You pick knowing the result, instead of deleting channels after.</p><a data-k="Demo" role="cell" href="#create-server">Create</a></div>
+    <div class="cm-btd-row" role="row"><span data-k="Discord does" role="cell">The new-server checklist includes downloading the app.</span><b data-k="Wave does" role="cell">Three steps that matter, with a 1 of 3 count; done steps stay visible as done.</b><p data-k="Why" role="cell">You're already in the app; progress shows at a glance.</p><a data-k="Demo" role="cell" href="#create-server">Checklist</a></div>
+    <div class="cm-btd-row" role="row"><span data-k="Discord does" role="cell">Joins first, then shows the server; failures share one "invalid or expired" line.</span><b data-k="Wave does" role="cell">Previews the server as you paste and names each failure: not found, expired, banned, full, too many servers, already in.</b><p data-k="Why" role="cell">Errors say what happened and the next step, often as the one button.</p><a data-k="Demo" role="cell" href="#join-server">Join</a></div>
+    <div class="cm-btd-row" role="row"><span data-k="Discord does" role="cell">Link settings replace the invite dialog with a second one.</span><b data-k="Wave does" role="cell">Settings fold open inside the same dialog, with a one-line summary when closed.</b><p data-k="Why" role="cell">No modal on a modal; you see the link change as you edit.</p><a data-k="Demo" role="cell" href="#invite-people">Invite</a></div>
+    <div class="cm-btd-row" role="row"><span data-k="Discord does" role="cell">The invite targets the channel you opened it from.</span><b data-k="Wave does" role="cell">"They land in" is a picker right in the title line.</b><p data-k="Why" role="cell">Changing the destination doesn't mean closing and reopening elsewhere.</p><a data-k="Demo" role="cell" href="#invite-people">Picker</a></div>
+    <div class="cm-btd-row" role="row"><span data-k="Discord does" role="cell">Onboarding answers don't say what they give you.</span><b data-k="Wave does" role="cell">Each pick shows the channels and role it adds before you move on.</b><p data-k="Why" role="cell">You choose with the consequence in view.</p><a data-k="Demo" role="cell" href="#onboarding">Questions</a></div>
+    <div class="cm-btd-row" role="row"><span data-k="Discord does" role="cell">Rules gating greys the composer and points to a separate banner.</span><b data-k="Wave does" role="cell">The composer itself holds the ask; pressing Accept without ticking says what's missing.</b><p data-k="Why" role="cell">The ask sits where you tried to act; no disabled button with no reason.</p><a data-k="Demo" role="cell" href="#onboarding">Rules</a></div>
+    <div class="cm-btd-row" role="row"><span data-k="Discord does" role="cell">Channel browsing toggles one channel at a time.</span><b data-k="Wave does" role="cell">Per-category select-all, a live "You see 6 of 10" count, and locked channels say why.</b><p data-k="Why" role="cell">An all-at-once path beside the per-item one.</p><a data-k="Demo" role="cell" href="#onboarding">Channels</a></div>
+    <div class="cm-btd-row" role="row"><span data-k="Discord does" role="cell">A raised hand is only an icon state; requests live in a separate tab.</span><b data-k="Wave does" role="cell">The listener bar says your state in words; moderators get requests, a stop switch and Invited state in one popover.</b><p data-k="Why" role="cell">Status never by icon alone; the moderator's queue is where they act.</p><a data-k="Demo" role="cell" href="#stage">Stage</a></div>
+    <div class="cm-btd-row" role="row"><span data-k="Discord does" role="cell">Owners don't get Leave; transfer lives deep in member settings.</span><b data-k="Wave does" role="cell">Leave opens a transfer picker, or a delete when you're alone.</b><p data-k="Why" role="cell">The blocker resolves in the dialog that names it.</p><a data-k="Demo" role="cell" href="#leaving">Ownership</a></div>
+    <div class="cm-btd-row" role="row"><span data-k="Discord does" role="cell">Leaving is final.</span><b data-k="Wave does" role="cell">An Undo toast where rejoining needs no invite.</b><p data-k="Why" role="cell">Undo beats a confirm for recoverable actions.</p><a data-k="Demo" role="cell" href="#leaving">Undo</a></div>
+    <div class="cm-btd-row" role="row"><span data-k="Discord does" role="cell">A kicked server silently vanishes; an unavailable one just greys.</span><b data-k="Wave does" role="cell">Kicked: it fades, the rail closes up, a toast says why. Unavailable: a mark, a tooltip and a pane that say it'll come back.</b><p data-k="Why" role="cell">Things don't change without a reason you can read.</p><a data-k="Demo" role="cell" href="#leaving">States</a></div>
+  </div>
+</section>
+
+<template id="tpl-lookup"><div class="cm-lookup" role="status"><span class="bars"><i></i><i></i><i></i></span>Looking up invite…</div></template>
+<template id="tpl-preview"><div class="cm-invcard"><div class="cm-invhead"><span class="srv-tile" style="--hue: 300">N</span><div><span class="cm-name"><span>Night owls</span><i class="ph-fill ph-seal-check" role="img" aria-label="Verified"></i></span><span class="cm-counts"><span>1,204 online</span><span class="all">8,930 members</span></span></div></div><div class="cm-friends"><span class="stackav"><span class="av" data-av="Mira"></span><span class="av" data-av="Theo"></span></span>Mira and Theo are members</div></div></template>
 </main>
 </div>
 <script src="site.js"></script>
+<script>
+// Page demos. $ and $$ come from site.js.
+const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+
+document.addEventListener("click", e => {
+  const copy = e.target.closest("[data-copy]");
+  if (copy && !copy.dataset.label) {
+    copy.dataset.label = copy.innerHTML;
+    copy.classList.add("copied");
+    copy.innerHTML = '<i class="ph-bold ph-check"></i>Copied';
+    setTimeout(() => { copy.innerHTML = copy.dataset.label; copy.classList.remove("copied"); delete copy.dataset.label; }, 2000);
+  }
+  const invite = e.target.closest("[data-invite], [data-invite-speak]");
+  if (invite) {
+    const sent = invite.hasAttribute("data-invite") ? "Sent" : "Invited";
+    invite.classList.add("sent");
+    invite.setAttribute("aria-disabled", "true");
+    invite.removeAttribute("data-invite");
+    invite.removeAttribute("data-invite-speak");
+    invite.innerHTML = `<i class="ph-bold ph-check"></i>${sent}`;
+  }
+  const fold = e.target.closest(".cm-disclose");
+  if (fold) fold.setAttribute("aria-expanded", fold.getAttribute("aria-expanded") !== "true");
+  // Single-choice chip groups: site.js has toggled the clicked chip; keep it on and clear the rest.
+  const single = e.target.closest("[data-single] [aria-pressed]");
+  if (single) for (const c of $$("[aria-pressed]", single.closest("[data-single]"))) c.setAttribute("aria-pressed", c === single);
+  const eg = e.target.closest("[data-eg]");
+  if (eg) { const input = $("#join-live"); input.value = eg.dataset.eg; input.dispatchEvent(new Event("input")); input.focus(); }
+});
+
+// Join: look the invite up as it's typed.
+{
+  const input = $("#join-live"), out = $("#join-out"), msg = $("#join-msg"), box = $("#join-box");
+  const CODE = /^(https?:\/\/)?(wave\.gg\/)?[A-Za-z0-9-]{2,32}\/?$/;
+  let timer;
+  const show = tpl => { out.replaceChildren($("#" + tpl).content.cloneNode(true)); paintAvatars(out); };
+  const fail = text => { out.replaceChildren(); msg.innerHTML = `<i class="ph-fill ph-warning-circle"></i>${text}`; msg.hidden = false; box.classList.add("error"); input.setAttribute("aria-invalid", "true"); };
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    msg.hidden = true; box.classList.remove("error"); input.removeAttribute("aria-invalid");
+    const v = input.value.trim();
+    $("#join-egs").hidden = !!v;
+    if (!v) return out.replaceChildren();
+    if (!CODE.test(v)) return fail("That doesn't look like an invite. Paste a wave.gg link or the code after it.");
+    show("tpl-lookup");
+    timer = setTimeout(() => /nightowlz/i.test(v) ? fail("No server uses that invite. Check the spelling, or ask for a new link.") : show("tpl-preview"), 800);
+  });
+}
+
+// Rules: Accept without the tick says what's missing.
+{
+  const check = $("#rules-check"), err = $("#rules-err");
+  const ticked = () => $(".check", check).getAttribute("aria-checked") === "true";
+  $("#rules-go").addEventListener("click", () => { err.hidden = ticked(); check.classList.toggle("is-error", !ticked()); });
+  check.addEventListener("click", () => requestAnimationFrame(() => { if (ticked()) { err.hidden = true; check.classList.remove("is-error"); } }));
+}
+
+// Featured carousel: native scroll snap; buttons step one card, the pager follows the offset.
+{
+  const car = $("#carousel"), dots = $$("#pager span"), prev = $('[data-car="-1"]'), next = $('[data-car="1"]');
+  for (const b of [prev, next]) b.addEventListener("click", () => car.scrollBy({ left: +b.dataset.car * car.firstElementChild.offsetWidth, behavior: reduced.matches ? "auto" : "smooth" }));
+  const sync = () => {
+    const max = car.scrollWidth - car.clientWidth;
+    prev.disabled = car.scrollLeft < 4;
+    next.disabled = car.scrollLeft > max - 4;
+    const i = Math.round(car.scrollLeft / (car.firstElementChild.offsetWidth + 12));
+    dots.forEach((d, n) => d.setAttribute("aria-current", n === Math.min(i, dots.length - 1)));
+  };
+  car.addEventListener("scroll", sync, { passive: true });
+  addEventListener("resize", sync);
+  sync();
+}
+
+// Channel browser: live count of what you'll see.
+{
+  const browse = $("#browse"), tally = $("#tally");
+  browse.addEventListener("click", () => requestAnimationFrame(() => {
+    const all = $$(".switch", browse), on = all.filter(s => s.getAttribute("aria-checked") === "true");
+    tally.textContent = `You see ${on.length} of ${all.length} channels`;
+  }));
+}
+
+// Removal: the icon fades out, then the servers below travel up into the gap (FLIP).
+{
+  const rail = $("#kick-rail"), btn = $("#kick-play");
+  let target = $("#kick-target");
+  btn.addEventListener("click", async () => {
+    if (!target.isConnected) { target.style.cssText = ""; rail.insertBefore(target, rail.children[1]); return btn.innerHTML = '<i class="ph-bold ph-play"></i>Play removal'; }
+    btn.disabled = true;
+    const below = [...rail.children].slice([...rail.children].indexOf(target) + 1);
+    if (!reduced.matches) await target.animate([{ opacity: 1, transform: "none", filter: "none" }, { opacity: 0, transform: "scale(0.97)", filter: "blur(2px)" }], { duration: 160, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "forwards" }).finished;
+    const before = below.map(el => el.getBoundingClientRect().top);
+    target.getAnimations().forEach(a => a.cancel());
+    target.remove();
+    if (!reduced.matches) below.forEach((el, i) => el.animate([{ transform: `translateY(${before[i] - el.getBoundingClientRect().top}px)` }, { transform: "none" }], { duration: 220, easing: "cubic-bezier(0.77, 0, 0.175, 1)" }));
+    btn.innerHTML = '<i class="ph-bold ph-arrow-counter-clockwise"></i>Put it back';
+    btn.disabled = false;
+  });
+}
+</script>
 </body>
 </html>
