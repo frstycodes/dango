@@ -54,7 +54,7 @@ impl DesignSystem {
 }
 
 impl Render for DesignSystem {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let dark = cx.theme().is_dark();
         div()
             .id("design-system")
@@ -73,12 +73,12 @@ impl Render for DesignSystem {
                     .flex()
                     .flex_col()
                     .gap(px(40.))
-                    .child(self.header(dark, cx))
+                    .child(self.header(dark, window, cx))
                     .when(self.shows("colour"), |d| d.child(colours(cx)))
                     .when(self.shows("type"), |d| d.child(type_scale(cx)))
                     .when(self.shows("shape"), |d| d.child(shape(cx)))
                     .when(self.shows("buttons"), |d| d.child(buttons(cx)))
-                    .when(self.shows("choices"), |d| d.child(self.choices(cx)))
+                    .when(self.shows("choices"), |d| d.child(self.choices(window, cx)))
                     .when(self.shows("badges"), |d| d.child(badges(cx)))
                     .when(self.shows("people"), |d| d.child(people(cx)))
                     .when(self.shows("feedback"), |d| d.child(feedback(cx)))
@@ -88,7 +88,7 @@ impl Render for DesignSystem {
 }
 
 impl DesignSystem {
-    fn header(&self, dark: bool, cx: &mut Context<Self>) -> impl IntoElement {
+    fn header(&self, dark: bool, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .flex()
             .items_center()
@@ -96,15 +96,30 @@ impl DesignSystem {
             .child(svg().path(MARK).size(px(28.)).text_color(gpui_kit::rgb(0xE8326F)))
             .child(div().flex().flex_col().child(div().text_size(px(28.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child("Wave")).child(div().text_color(palette::muted(cx)).child("Design system, ported from design/")))
             .child(div().flex_1())
-            .child(
-                ui::segmented(cx)
-                    .w(px(180.))
-                    .child(ui::segment("theme-light", "Light", !dark, cx).on_click(cx.listener(|this, _, window, cx| this.set_theme(false, window, cx))))
-                    .child(ui::segment("theme-dark", "Dark", dark, cx).on_click(cx.listener(|this, _, window, cx| this.set_theme(true, window, cx)))),
-            )
+            .child({
+                let this = cx.entity().downgrade();
+                ui::segmented_live("theme", &["Light", "Dark"], dark as usize, move |i, window, cx| {
+                    this.update(cx, |this, cx| this.set_theme(i == 1, window, cx)).ok();
+                }, window, cx)
+                .w(px(180.))
+            })
     }
 
-    fn choices(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn choices(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let quality = ["720p", "1080p", "Source"];
+        // Live controls keep spring state in the window, so they're built before the rows borrow `cx`.
+        let noise = ui::switch_live("sw-noise", self.noise, window, cx);
+        let echo = ui::switch_live("sw-echo", self.echo, window, cx);
+        let quality_seg = {
+            let this = cx.entity().downgrade();
+            ui::segmented_live("quality", &quality, self.quality, move |i, _, cx| {
+                this.update(cx, |this, cx| {
+                    this.quality = i;
+                    cx.notify();
+                })
+                .ok();
+            }, window, cx)
+        };
         let row = |id: &'static str, title: &'static str, desc: &'static str| {
             div().id(id).flex().items_center().gap(px(12.)).p(px(10.)).rounded(px(ui::RADIUS_MD)).cursor_pointer().hover(|s| s.bg(palette::hover(cx))).child(
                 div().flex_1().min_w_0().flex().flex_col().child(div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(title)).when(!desc.is_empty(), |d| {
@@ -112,7 +127,6 @@ impl DesignSystem {
                 }),
             )
         };
-        let quality = ["720p", "1080p", "Source"];
         section("Choices", "Switches apply at once; checkboxes pick many; radios pick one; segmented controls switch a value in place; chips filter.", cx).child(
             board(cx).child(
                 div()
@@ -121,11 +135,11 @@ impl DesignSystem {
                     .flex_wrap()
                     .child(
                         column()
-                            .child(row("c-noise", "Noise suppression", "Removes background sound from your mic").child(ui::switch(self.noise, cx)).on_click(cx.listener(|this, _, _, cx| {
+                            .child(row("c-noise", "Noise suppression", "Removes background sound from your mic").child(noise).on_click(cx.listener(|this, _, _, cx| {
                                 this.noise = !this.noise;
                                 cx.notify();
                             })))
-                            .child(row("c-echo", "Echo cancellation", "Stops others hearing themselves").child(ui::switch(self.echo, cx)).on_click(cx.listener(|this, _, _, cx| {
+                            .child(row("c-echo", "Echo cancellation", "Stops others hearing themselves").child(echo).on_click(cx.listener(|this, _, _, cx| {
                                 this.echo = !this.echo;
                                 cx.notify();
                             }))),
@@ -156,12 +170,7 @@ impl DesignSystem {
                     .child(
                         column()
                             .gap(px(16.))
-                            .child(ui::segmented(cx).children(quality.iter().enumerate().map(|(i, label)| {
-                                ui::segment(SharedString::from(format!("q-{i}")), *label, self.quality == i, cx).on_click(cx.listener(move |this, _, _, cx| {
-                                    this.quality = i;
-                                    cx.notify();
-                                }))
-                            })))
+                            .child(quality_seg)
                             .child(
                                 div()
                                     .flex()
