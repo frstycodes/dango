@@ -52,29 +52,43 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Frame>, String> {
         header.extend_from_slice(set);
     }
     let mut decoder = Decoder::new().map_err(|e| e.to_string())?;
-    let mut frames = Vec::new();
+    // The decoder can hold pictures back (reordered frames), so whatever it still holds is flushed
+    // at the end. It can't decode B-frames (High-profile clips have them): those are skipped, and
+    // the clip's full length is spread over the frames that did decode, so it plays at true speed.
+    let mut total: u64 = 0;
+    let mut pictures = Vec::new();
     for sample_id in 1..=count.min(MAX_FRAMES) {
         let Some(sample) = reader.read_sample(id, sample_id).map_err(err)? else { continue };
+        total += u64::from(sample.duration);
         let mut unit = if sample_id == 1 { header.clone() } else { Vec::new() };
         unit.extend(annex_b(&sample.bytes));
-        let Ok(Some(yuv)) = decoder.decode(&unit) else { continue };
-        let (w, h) = yuv.dimensions();
-        let mut pixels = vec![0u8; yuv.rgba8_len()];
-        yuv.write_rgba8(&mut pixels);
-        let Some(mut picture) = RgbaImage::from_raw(w as u32, h as u32, pixels) else { continue };
-        if picture.width() > MAX_WIDTH {
-            let height = picture.height() * MAX_WIDTH / picture.width();
-            picture = image::imageops::resize(&picture, MAX_WIDTH, height.max(1), FilterType::Triangle);
+        if let Ok(Some(yuv)) = decoder.decode(&unit) {
+            pictures.extend(picture(&yuv));
         }
-        // gpui draws RenderImage pixels as BGRA.
-        picture.pixels_mut().for_each(|p| p.0.swap(0, 2));
-        let ms = (u64::from(sample.duration) * 1000 / u64::from(timescale)).clamp(20, 1000) as u32;
-        frames.push(Frame::from_parts(picture, 0, 0, Delay::from_numer_denom_ms(ms, 1)));
     }
+    for yuv in decoder.flush_remaining().unwrap_or_default() {
+        pictures.extend(picture(&yuv));
+    }
+    let ms = (total * 1000 / u64::from(timescale) / pictures.len().max(1) as u64).clamp(20, 1000) as u32;
+    let frames: Vec<Frame> = pictures.into_iter().map(|p| Frame::from_parts(p, 0, 0, Delay::from_numer_denom_ms(ms, 1))).collect();
     if frames.is_empty() {
         return Err("no frames decoded".into());
     }
     Ok(frames)
+}
+
+fn picture(yuv: &openh264::decoder::DecodedYUV) -> Option<RgbaImage> {
+    let (w, h) = yuv.dimensions();
+    let mut pixels = vec![0u8; yuv.rgba8_len()];
+    yuv.write_rgba8(&mut pixels);
+    let mut picture = RgbaImage::from_raw(w as u32, h as u32, pixels)?;
+    if picture.width() > MAX_WIDTH {
+        let height = picture.height() * MAX_WIDTH / picture.width();
+        picture = image::imageops::resize(&picture, MAX_WIDTH, height.max(1), FilterType::Triangle);
+    }
+    // gpui draws RenderImage pixels as BGRA.
+    picture.pixels_mut().for_each(|p| p.0.swap(0, 2));
+    Some(picture)
 }
 
 // MP4 stores NAL units behind 4-byte big-endian lengths; the decoder wants start codes.
@@ -93,6 +107,24 @@ fn annex_b(mut avcc: &[u8]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // A Discord-style GIF: H.264 in MP4, 480 wide, 15 frames over one second.
+    #[test]
+    fn decodes_mp4_into_scaled_frames() {
+        let frames = decode(include_bytes!("../testdata/gifv.mp4")).expect("decodes");
+        assert_eq!(frames.len(), 15);
+        assert_eq!((frames[0].buffer().width(), frames[0].buffer().height()), (400, 225));
+        assert_eq!(frames[0].delay().numer_denom_ms(), (66, 1));
+    }
+
+    // With B-frames only some frames decode, but the clip still lasts its full second.
+    #[test]
+    fn b_frame_clips_keep_their_length() {
+        let frames = decode(include_bytes!("../testdata/gifv-bframes.mp4")).expect("decodes");
+        assert!(frames.len() >= 8, "{}", frames.len());
+        let total: u32 = frames.iter().map(|f| f.delay().numer_denom_ms().0).sum();
+        assert!((900..=1100).contains(&total), "{total} ms");
+    }
 
     #[test]
     fn avcc_to_annex_b() {
