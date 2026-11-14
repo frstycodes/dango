@@ -1,12 +1,14 @@
 // Floating surfaces over the app: profile popout, status menu, emoji picker, quick switcher, and the
 // actions the right-click menus run.
+use std::{sync::Arc, time::Duration};
+
 use gpui_kit::{
-    AnyElement, ClipboardItem, Context, Entity, FontWeight, Hsla, KeyDownEvent, MouseButton, Pixels, Point, SharedString, Window,
+    Animation, AnimationExt, AnyElement, App, ClipboardItem, Context, Entity, FontWeight, Hsla, KeyDownEvent, MouseButton, Pixels, Point, RenderImage, SharedString, Window,
     component::{
-        ActiveTheme, Icon,
+        ActiveTheme, Icon, Theme,
         input::{Input, InputEvent},
     },
-    div, img, prelude::*, px, rgb,
+    div, img, prelude::*, px, relative, rgb,
 };
 
 use crate::{
@@ -14,7 +16,8 @@ use crate::{
     discord::{Emoji, Message, Status, User},
     icons::Glyph,
     layout::{TITLE_HEIGHT, avatar_with_status, status_mark},
-    palette,
+    motion, palette,
+    voice::ShareSource,
 };
 
 const CARD_WIDTH: f32 = 300.;
@@ -390,12 +393,42 @@ impl Rustcord {
         )
     }
 
-    // Discord's Go Live picker: tabs for apps, whole screens and capture devices, each a grid of live
-    // thumbnails; pick one, set the quality, then Go Live.
+    // Discord's Go Live picker: what to share on the left, tabs over a grid of live thumbnails; on the
+    // right a preview of the pick, the stream's quality and sound, and Go Live.
     fn share_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let picker = self.share_picker.as_ref()?;
         let theme = cx.theme().clone();
-        let choice = self.share_choice;
+        // gpui has no transform on a div, so the open's scale is the dialog's own size; the grid and
+        // panel are sized relative to it and scale along.
+        let dialog = div()
+            .id("share-picker")
+            .max_h(relative(0.92))
+            .rounded(px(12.))
+            .bg(theme.popover)
+            .border_1()
+            .border_color(theme.input)
+            .shadow_lg()
+            .flex()
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .child(self.share_sources(picker, cx))
+            .child(self.share_panel(picker, cx))
+            .with_animation("share-open", Animation::new(Duration::from_millis(200)), |dialog, t| {
+                let scale = 0.96 + 0.04 * motion::back_out(t);
+                dialog.w(px(SHARE_DIALOG.0 * scale)).h(px(SHARE_DIALOG.1 * scale)).opacity(ease_out((t / 0.6).min(1.)))
+            });
+        Some(
+            backdrop("share-backdrop", cx)
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(dialog)
+                .with_animation("share-dim", Animation::new(Duration::from_millis(150)), |backdrop, t| backdrop.bg(gpui_kit::black().opacity(0.6 * t)))
+                .into_any_element(),
+        )
+    }
+
+    fn share_sources(&self, picker: &SharePicker, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme().clone();
         let tab = picker.tab;
         let tabs = [(ShareTab::Applications, "Applications"), (ShareTab::Screen, "Entire Screen"), (ShareTab::Devices, "Devices")].map(|(id, text)| {
             let on = tab == id;
@@ -419,184 +452,195 @@ impl Rustcord {
                     cx.notify();
                 }))
         });
-        let tile = |source: crate::voice::ShareSource, name: String, glyph: Glyph, pid: Option<i32>| {
-            let selected = choice == Some(source);
-            let icon = pid.and_then(|pid| picker.icons.iter().find(|(p, _)| *p == pid)).map(|(_, image)| image.clone());
-            let thumb = picker.thumbs.iter().find(|(s, _)| *s == source).map(|(_, image)| image.clone());
-            let id = match source {
-                crate::voice::ShareSource::Screen(id) => format!("share-screen-{id}"),
-                crate::voice::ShareSource::App(pid) => format!("share-app-{pid}"),
-                crate::voice::ShareSource::Window(id) => format!("share-window-{id}"),
-            };
-            let label = name.clone();
-            div()
-                .id(SharedString::from(id))
-                .min_w_0()
-                .flex()
-                .flex_col()
-                .gap_2()
-                .cursor_pointer()
-                .child(
-                    div()
-                        .w_full()
-                        .aspect_ratio(16. / 9.)
-                        .rounded(px(8.))
-                        .overflow_hidden()
-                        .border_2()
-                        .border_color(if selected { palette::blurple() } else { gpui_kit::transparent_black() })
-                        .bg(gpui_kit::black())
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .child(match thumb {
-                            Some(image) => img(image).size_full().object_fit(gpui_kit::ObjectFit::Contain).into_any_element(),
-                            None => Icon::new(glyph).size(px(32.)).text_color(theme.muted_foreground).into_any_element(),
-                        }),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap_2()
-                        .text_size(px(14.))
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(if selected { palette::strong(cx) } else { theme.foreground })
-                        .child(match icon {
-                            Some(image) => img(image).size(px(20.)).flex_none().into_any_element(),
-                            None => Icon::new(glyph).size(px(20.)).flex_none().text_color(theme.muted_foreground).into_any_element(),
-                        })
-                        .child(div().min_w_0().truncate().child(name)),
-                )
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    this.share_choice = Some(source);
-                    this.share_choice_label = Some(label.clone());
-                    cx.notify();
-                }))
-                .into_any_element()
-        };
         let note = |text: SharedString, color| div().py_8().flex().justify_center().text_color(color).child(text).into_any_element();
         let body: AnyElement = match tab {
             ShareTab::Applications => match &picker.windows {
                 None => note("Finding windows…".into(), theme.muted_foreground),
                 Some(Err(error)) => note(error.clone(), theme.danger),
                 Some(Ok(windows)) if windows.is_empty() => note("No windows to share".into(), theme.muted_foreground),
-                Some(Ok(windows)) => grid(windows.iter().map(|w| tile(crate::voice::ShareSource::Window(w.id), w.title.clone(), Glyph::ShareScreen, Some(w.pid))).collect()),
+                Some(Ok(windows)) => grid(windows.iter().map(|w| self.share_tile(picker, ShareSource::Window(w.id), w.title.clone(), cx)).collect()),
             },
             ShareTab::Screen => match &picker.screens {
                 None => note("Finding screens…".into(), theme.muted_foreground),
                 Some(Err(error)) => note(error.clone(), theme.danger),
-                Some(Ok(screens)) => grid(screens.iter().map(|s| tile(crate::voice::ShareSource::Screen(s.id), s.name.clone(), Glyph::Screen, None)).collect()),
+                Some(Ok(screens)) => grid(screens.iter().map(|s| self.share_tile(picker, ShareSource::Screen(s.id), s.name.clone(), cx)).collect()),
             },
             // GAP: capture cards aren't supported by the voice engine yet.
             ShareTab::Devices => note("No capture devices found".into(), theme.muted_foreground),
         };
-        let (resolution, fps, audio) = (self.prefs.stream_resolution, self.prefs.stream_fps, self.prefs.stream_audio);
-        let segment = |id: String, label: String, on: bool| {
-            div()
-                .id(SharedString::from(id))
-                .h(px(32.))
-                .px_3()
-                .rounded(px(8.))
-                .flex()
-                .items_center()
-                .cursor_pointer()
-                .text_size(px(14.))
-                .font_weight(FontWeight::MEDIUM)
-                .border_1()
-                .border_color(if on { palette::blurple() } else { theme.input })
-                .bg(if on { palette::blurple().opacity(0.16) } else { gpui_kit::transparent_black() })
-                .hover(|s| s.bg(theme.foreground.opacity(0.08)))
-                .child(label)
-        };
-        let resolutions = [(480, "480p"), (720, "720p"), (1080, "1080p"), (0, "Source")].map(|(value, label)| {
-            segment(format!("res-{value}"), label.into(), resolution == value).on_click(cx.listener(move |this, _, _, cx| this.update_prefs(cx, |p| p.stream_resolution = value))).into_any_element()
-        });
-        let rates = [15, 30, 60].map(|value| {
-            segment(format!("fps-{value}"), format!("{value} FPS"), fps == value).on_click(cx.listener(move |this, _, _, cx| this.update_prefs(cx, |p| p.stream_fps = value))).into_any_element()
-        });
-        let quality = div()
-            .pt_3()
-            .border_t_1()
-            .border_color(theme.border)
+        div()
+            .flex_1()
+            .min_w_0()
+            .p_4()
+            .flex()
+            .flex_col()
+            .gap_3()
+            .child(div().text_size(px(20.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child("Screen Share"))
+            .child(div().flex().gap_1().children(tabs))
+            // Bled 4px past the column so the selection ring outside a tile isn't clipped by the scroller.
+            .child(div().id("share-list").flex_1().min_h_0().mx(px(-4.)).overflow_y_scroll().child(div().p(px(4.)).child(body)))
+    }
+
+    fn share_tile(&self, picker: &SharePicker, source: ShareSource, name: String, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme().clone();
+        let selected = self.share_choice == Some(source);
+        let key = source_key(source);
+        let label = name.clone();
+        div()
+            .id(SharedString::from(format!("share-{key}")))
+            .min_w_0()
             .flex()
             .flex_col()
             .gap_2()
-            .child(div().text_size(px(12.)).font_weight(FontWeight::BOLD).text_color(theme.muted_foreground).child("STREAM QUALITY"))
-            .child(div().flex().items_center().gap_2().child(div().w(px(90.)).text_size(px(14.)).child("Resolution")).children(resolutions))
-            .child(div().flex().items_center().gap_2().child(div().w(px(90.)).text_size(px(14.)).child("Frame Rate")).children(rates))
+            .cursor_pointer()
             .child(
                 div()
-                    .id("stream-audio")
+                    .relative()
+                    .w_full()
+                    .aspect_ratio(16. / 9.)
+                    .child(div().size_full().rounded(px(8.)).overflow_hidden().bg(gpui_kit::black()).child(source_still(picker.thumb(source), glyph(source), 32., &theme)))
+                    .children(selected.then(|| selection_ring(&key, picker.picked))),
+            )
+            .child(
+                div()
                     .flex()
                     .items_center()
                     .gap_2()
-                    .cursor_pointer()
                     .text_size(px(14.))
-                    .child(
-                        div()
-                            .size(px(20.))
-                            .rounded(px(4.))
-                            .border_1()
-                            .border_color(if audio { palette::blurple() } else { theme.muted_foreground })
-                            .bg(if audio { palette::blurple() } else { gpui_kit::transparent_black() })
-                            .text_color(gpui_kit::white())
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .children(audio.then(|| Icon::new(Glyph::Checkmark).size(px(14.)))),
-                    )
-                    .child("Stream with sound")
-                    .on_click(cx.listener(|this, _, _, cx| this.update_prefs(cx, |p| p.stream_audio = !p.stream_audio))),
-            );
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(if selected { palette::strong(cx) } else { theme.foreground })
+                    .child(source_icon(picker.icon(source), glyph(source), &theme))
+                    .child(div().min_w_0().truncate().child(name)),
+            )
+            .on_click(cx.listener(move |this, _, _, cx| this.pick_share(source, label.clone(), cx)))
+            .into_any_element()
+    }
+
+    // The darker side: the pick, large; quality as joined segments; the sound switch; Go Live at the foot.
+    fn share_panel(&self, picker: &SharePicker, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme().clone();
+        let (resolution, fps, audio) = (self.prefs.stream_resolution, self.prefs.stream_fps, self.prefs.stream_audio);
+        let resolutions = [(720, "720p"), (1080, "1080p"), (1440, "1440p"), (0, "Source")].map(|(value, label)| {
+            segment(format!("res-{value}"), label, resolution == value, cx).on_click(cx.listener(move |this, _, _, cx| this.update_prefs(cx, |p| p.stream_resolution = value))).into_any_element()
+        });
+        let rates = [(15, "15"), (30, "30"), (60, "60")].map(|(value, label)| {
+            segment(format!("fps-{value}"), label, fps == value, cx).on_click(cx.listener(move |this, _, _, cx| this.update_prefs(cx, |p| p.stream_fps = value))).into_any_element()
+        });
+        let whole_screen = match self.share_choice {
+            Some(source) => matches!(source, ShareSource::Screen(_)),
+            None => picker.tab == ShareTab::Screen,
+        };
+        let sound = div()
+            .id("stream-audio")
+            .flex()
+            .items_center()
+            .gap_3()
+            .cursor_pointer()
+            .child(div().flex_1().min_w_0().text_size(px(14.)).child(if whole_screen { "Share all sound except Rustcord" } else { "Share this app's sound" }))
+            .child(crate::settings::switch(audio, &theme))
+            .on_click(cx.listener(|this, _, _, cx| this.update_prefs(cx, |p| p.stream_audio = !p.stream_audio)));
+        let ready = self.share_choice.is_some();
         let go = div()
             .id("go-live")
-            .h(px(38.))
-            .px_4()
+            .h(px(40.))
             .rounded(px(8.))
             .flex()
             .items_center()
             .justify_center()
-            .cursor_pointer()
-            .bg(palette::blurple())
-            .text_color(gpui_kit::white())
-            .font_weight(FontWeight::MEDIUM)
-            .hover(|s| s.opacity(0.9))
-            .when(choice.is_none(), |b| b.opacity(0.5))
+            .bg(theme.primary)
+            .text_color(theme.primary_foreground)
+            .font_weight(FontWeight::SEMIBOLD)
+            .when(ready, |b| b.cursor_pointer().hover(|s| s.bg(theme.primary_hover)).active(|s| s.bg(theme.primary_active)))
+            .when(!ready, |b| b.opacity(0.5))
             .child("Go Live")
-            .on_click(cx.listener(|this, _, _, cx| {
-                if let Some(source) = this.share_choice.take() {
-                    this.start_share(source, cx);
-                }
-            }));
-        Some(
-            backdrop("share-backdrop", cx)
-                .bg(gpui_kit::black().opacity(0.6))
-                .flex()
-                .items_center()
-                .justify_center()
-                .child(
-                    div()
-                        .id("share-picker")
-                        .w(px(560.))
-                        .h(px(640.))
-                        .p_4()
-                        .rounded(px(12.))
-                        .bg(theme.popover)
-                        .border_1()
-                        .border_color(theme.input)
-                        .shadow_lg()
-                        .flex()
-                        .flex_col()
-                        .gap_3()
-                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .child(div().text_size(px(20.)).font_weight(FontWeight::BOLD).child("Screen Share"))
-                        .child(div().flex().gap_1().children(tabs))
-                        .child(div().id("share-list").flex_1().min_h_0().overflow_y_scroll().child(body))
-                        .child(quality)
-                        .child(div().flex().justify_end().child(go)),
-                )
-                .into_any_element(),
-        )
+            .on_click(cx.listener(|this, _, _, cx| this.go_live_from_picker(cx)));
+        div()
+            .w(relative(SHARE_PANEL))
+            .flex_none()
+            .p_4()
+            .rounded_r(px(11.))
+            .bg(gpui_kit::black().opacity(if theme.is_dark() { 0.32 } else { 0.05 }))
+            .flex()
+            .flex_col()
+            .gap_4()
+            .child(self.share_preview(picker, cx))
+            .child(quality("Resolution", resolutions, cx))
+            .child(quality("Frame rate", rates, cx))
+            .child(sound)
+            .child(div().flex_1())
+            .child(div().text_size(px(14.)).text_color(theme.muted_foreground).child(self.share_hint()))
+            .child(go)
+    }
+
+    // The pick, large, with its icon and name. A new pick fades in over the last one.
+    fn share_preview(&self, picker: &SharePicker, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme().clone();
+        let choice = self.share_choice;
+        let still = |source: ShareSource| source_still(picker.thumb(source), glyph(source), 40., &theme);
+        let current = choice.map(|source| {
+            if !picker.picked {
+                return still(source).into_any_element();
+            }
+            still(source).with_animation(SharedString::from(format!("preview-{}", source_key(source))), Animation::new(Duration::from_millis(160)), |layer, t| layer.opacity(ease_out(t))).into_any_element()
+        });
+        let name: SharedString = match (choice, &self.share_choice_label) {
+            (Some(_), Some(label)) => label.clone().into(),
+            _ => "Choose what to share".into(),
+        };
+        div()
+            .flex()
+            .flex_col()
+            .gap_3()
+            .child(
+                div()
+                    .relative()
+                    .w_full()
+                    .aspect_ratio(16. / 9.)
+                    .rounded(px(8.))
+                    .overflow_hidden()
+                    .bg(gpui_kit::black())
+                    .when(choice.is_none(), |box_| box_.child(source_still(None, Glyph::ShareScreen, 40., &theme)))
+                    .children(picker.previous.filter(|_| picker.picked).map(still))
+                    .children(current),
+            )
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .min_w_0()
+                    .text_size(px(14.))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(if choice.is_some() { palette::strong(cx) } else { theme.muted_foreground })
+                    .children(choice.map(|source| source_icon(picker.icon(source), glyph(source), &theme)))
+                    .child(div().min_w_0().truncate().child(name)),
+            )
+    }
+
+    fn share_hint(&self) -> String {
+        match &self.call {
+            Some(call) => format!("Everyone in {} can watch.", call.channel.name),
+            None => "Everyone in the voice channel can watch.".into(),
+        }
+    }
+
+    fn pick_share(&mut self, source: ShareSource, label: String, cx: &mut Context<Self>) {
+        if self.share_choice == Some(source) {
+            return;
+        }
+        let Some(picker) = &mut self.share_picker else { return };
+        picker.previous = self.share_choice;
+        picker.picked = true;
+        self.share_choice = Some(source);
+        self.share_choice_label = Some(label);
+        cx.notify();
+    }
+
+    fn go_live_from_picker(&mut self, cx: &mut Context<Self>) {
+        let Some(source) = self.share_choice.take() else { return };
+        let label = self.share_choice_label.take().unwrap_or_default();
+        let windows = self.share_picker.as_ref().and_then(|p| p.windows.as_ref()?.as_ref().ok().cloned()).unwrap_or_default();
+        self.share_and_remember(source, label, &windows, cx);
     }
 
     // The pins popover under the header's pin button: newest first, each with a Jump link.
@@ -1014,6 +1058,94 @@ fn grid(tiles: Vec<AnyElement>) -> AnyElement {
     div().grid().grid_cols(2).gap_4().children(tiles).into_any_element()
 }
 
+fn source_key(source: ShareSource) -> String {
+    match source {
+        ShareSource::Screen(id) => format!("screen-{id}"),
+        ShareSource::App(pid) => format!("app-{pid}"),
+        ShareSource::Window(id) => format!("window-{id}"),
+    }
+}
+
+fn glyph(source: ShareSource) -> Glyph {
+    match source {
+        ShareSource::Screen(_) => Glyph::Screen,
+        ShareSource::App(_) | ShareSource::Window(_) => Glyph::ShareScreen,
+    }
+}
+
+// A source's live still filling its box, or its glyph until the still arrives.
+fn source_still(thumb: Option<Arc<RenderImage>>, glyph: Glyph, glyph_size: f32, theme: &Theme) -> gpui_kit::Div {
+    div().absolute().inset_0().flex().items_center().justify_center().bg(gpui_kit::black()).child(match thumb {
+        Some(image) => img(image).size_full().object_fit(gpui_kit::ObjectFit::Contain).into_any_element(),
+        None => Icon::new(glyph).size(px(glyph_size)).text_color(theme.muted_foreground).into_any_element(),
+    })
+}
+
+fn source_icon(icon: Option<Arc<RenderImage>>, glyph: Glyph, theme: &Theme) -> AnyElement {
+    match icon {
+        Some(image) => img(image).size(px(20.)).flex_none().into_any_element(),
+        None => Icon::new(glyph).size(px(20.)).flex_none().text_color(theme.muted_foreground).into_any_element(),
+    }
+}
+
+// The selected tile's blurple outline: springs out from inside the thumbnail's edge to 3px past it,
+// overshooting a touch. Still when the selection wasn't the user's doing (the picker's preselection).
+fn selection_ring(key: &str, animate: bool) -> AnyElement {
+    let ring = div().absolute().border_2().border_color(palette::blurple());
+    if !animate {
+        return place_ring(ring, 1., 1.).into_any_element();
+    }
+    ring.with_animation(SharedString::from(format!("ring-{key}")), Animation::new(Duration::from_millis(220)), |ring, t| place_ring(ring, motion::back_out(t), (t / 0.4).min(1.)))
+        .into_any_element()
+}
+
+fn place_ring(ring: gpui_kit::Div, grow: f32, alpha: f32) -> gpui_kit::Div {
+    let offset = 2. - 5. * grow;
+    ring.top(px(offset)).left(px(offset)).right(px(offset)).bottom(px(offset)).rounded(px(8. - offset)).opacity(alpha)
+}
+
+// One labelled row of joined segments; the chosen one reads as chosen, not as a primary button.
+fn quality(title: &'static str, segments: impl IntoIterator<Item = AnyElement>, cx: &App) -> impl IntoElement {
+    let theme = cx.theme();
+    div()
+        .flex()
+        .flex_col()
+        .gap_2()
+        .child(div().text_size(px(14.)).font_weight(FontWeight::MEDIUM).text_color(theme.muted_foreground).child(title))
+        .child(div().p(px(2.)).rounded(px(8.)).bg(theme.foreground.opacity(0.06)).flex().children(segments))
+}
+
+fn segment(id: String, label: &'static str, on: bool, cx: &App) -> gpui_kit::Stateful<gpui_kit::Div> {
+    let theme = cx.theme();
+    let (hover, strong) = (theme.foreground, palette::strong(cx));
+    div()
+        .id(SharedString::from(id))
+        .flex_1()
+        .min_w_0()
+        .h(px(30.))
+        .rounded(px(6.))
+        .flex()
+        .items_center()
+        .justify_center()
+        .cursor_pointer()
+        .text_size(px(14.))
+        .font_weight(FontWeight::MEDIUM)
+        .border_1()
+        .border_color(if on { theme.foreground.opacity(0.2) } else { gpui_kit::transparent_black() })
+        .when(on, |s| s.bg(theme.foreground.opacity(0.12)).text_color(strong))
+        .when(!on, |s| s.text_color(theme.muted_foreground).hover(move |s| s.text_color(hover)))
+        .child(label)
+}
+
+// Ease-out cubic, for fades that should land softly beside a spring.
+fn ease_out(t: f32) -> f32 {
+    1. - (1. - t).powi(3)
+}
+
+const SHARE_DIALOG: (f32, f32) = (720., 560.);
+// The side panel's share of the dialog's width (~250px of 720), so it scales with the open.
+const SHARE_PANEL: f32 = 250. / 720.;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ShareTab {
     Applications,
@@ -1025,37 +1157,44 @@ pub struct SharePicker {
     tab: ShareTab,
     windows: Option<Result<Vec<crate::voice::ShareableWindow>, SharedString>>,
     screens: Option<Result<Vec<crate::voice::ShareableScreen>, SharedString>>,
-    thumbs: Vec<(crate::voice::ShareSource, std::sync::Arc<gpui_kit::RenderImage>)>,
-    icons: Vec<(i32, std::sync::Arc<gpui_kit::RenderImage>)>,
+    thumbs: Vec<(ShareSource, Arc<RenderImage>)>,
+    icons: Vec<(i32, Arc<RenderImage>)>,
+    // The pick before the current one, which the preview fades from.
+    previous: Option<ShareSource>,
+    // Whether the user has picked; the preselection lands without motion.
+    picked: bool,
+}
+
+impl SharePicker {
+    fn thumb(&self, source: ShareSource) -> Option<Arc<RenderImage>> {
+        self.thumbs.iter().find(|(s, _)| *s == source).map(|(_, image)| image.clone())
+    }
+
+    fn icon(&self, source: ShareSource) -> Option<Arc<RenderImage>> {
+        let pid = match source {
+            ShareSource::Screen(_) => return None,
+            ShareSource::App(pid) => pid,
+            ShareSource::Window(id) => self.windows.as_ref()?.as_ref().ok()?.iter().find(|w| w.id == id)?.pid,
+        };
+        self.icons.iter().find(|(p, _)| *p == pid).map(|(_, image)| image.clone())
+    }
 }
 
 impl Rustcord {
-    // Opens the picker, lists what can be shared, then fills in thumbnails one by one, off the UI thread.
+    // Opens the picker, lists what can be shared, preselects the last source (or Screen 1), then fills
+    // in icons and thumbnails off the UI thread, the preselected source's first.
     pub(crate) fn open_share_picker(&mut self, cx: &mut Context<Self>) {
-        self.close_share_picker(cx);
-        self.share_picker = Some(SharePicker { tab: ShareTab::Applications, windows: None, screens: None, thumbs: Vec::new(), icons: Vec::new() });
-        self.share_choice = None;
-        self.share_choice_label = None;
-        cx.notify();
+        self.empty_share_picker(cx);
         let listing = cx.background_spawn(async { (crate::voice::shareable_windows(), crate::voice::screens()) });
         cx.spawn(async move |this, cx| {
             let (windows, screens) = listing.await;
             let mut pids: Vec<i32> = windows.iter().flatten().map(|w| w.pid).collect();
             pids.sort_unstable();
             pids.dedup();
-            let sources: Vec<crate::voice::ShareSource> = screens.iter().flatten().map(|s| crate::voice::ShareSource::Screen(s.id)).chain(windows.iter().flatten().map(|w| crate::voice::ShareSource::Window(w.id))).collect();
-            let open = this
-                .update(cx, |this, cx| {
-                    let Some(picker) = &mut this.share_picker else { return false };
-                    picker.windows = Some(windows.map_err(Into::into));
-                    picker.screens = Some(screens.map_err(Into::into));
-                    cx.notify();
-                    true
-                })
-                .unwrap_or(false);
-            if !open {
-                return;
-            }
+            let mut sources: Vec<ShareSource> = screens.iter().flatten().map(|s| ShareSource::Screen(s.id)).chain(windows.iter().flatten().map(|w| ShareSource::Window(w.id))).collect();
+            let open = this.update(cx, |this, cx| this.list_shareables(windows, screens, cx)).ok().flatten();
+            let Some(first) = open else { return };
+            sources.sort_by_key(|s| Some(*s) != first);
             let icons = cx.background_spawn(async move { pids.into_iter().filter_map(|pid| Some((pid, crate::voice::app_icon(pid, 40)?))).collect::<Vec<_>>() }).await;
             let icons: Vec<_> = icons.iter().filter_map(|(pid, frame)| Some((*pid, crate::render_image(frame)?))).collect();
             let kept = this.update(cx, |this, cx| {
@@ -1084,6 +1223,36 @@ impl Rustcord {
             }
         })
         .detach();
+    }
+
+    pub(crate) fn empty_share_picker(&mut self, cx: &mut Context<Self>) {
+        self.close_share_picker(cx);
+        self.share_picker = Some(SharePicker { tab: ShareTab::Applications, windows: None, screens: None, thumbs: Vec::new(), icons: Vec::new(), previous: None, picked: false });
+        self.share_choice = None;
+        self.share_choice_label = None;
+        cx.notify();
+    }
+
+    // Fills the open picker's lists and preselects; the selection, or None once the picker has closed.
+    pub(crate) fn list_shareables(
+        &mut self,
+        windows: Result<Vec<crate::voice::ShareableWindow>, String>,
+        screens: Result<Vec<crate::voice::ShareableScreen>, String>,
+        cx: &mut Context<Self>,
+    ) -> Option<Option<ShareSource>> {
+        let preselected = crate::go_live::preselect(self.prefs.last_share.as_ref(), windows.as_deref().unwrap_or_default(), screens.as_deref().unwrap_or_default());
+        let picker = self.share_picker.as_mut()?;
+        picker.windows = Some(windows.map_err(Into::into));
+        picker.screens = Some(screens.map_err(Into::into));
+        if self.share_choice.is_none()
+            && let Some((source, label)) = preselected
+        {
+            picker.tab = if matches!(source, ShareSource::Screen(_)) { ShareTab::Screen } else { ShareTab::Applications };
+            self.share_choice = Some(source);
+            self.share_choice_label = Some(label);
+        }
+        cx.notify();
+        Some(self.share_choice)
     }
 
     // Closes the picker and frees its thumbnails; true when it was open.

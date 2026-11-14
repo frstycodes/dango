@@ -15,6 +15,7 @@ mod mascot;
 mod material;
 mod forum;
 mod gif;
+mod go_live;
 mod home;
 mod overlays;
 mod menu;
