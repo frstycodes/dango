@@ -21,7 +21,7 @@ rand = "0.8"
 base64 = "0.22"
 qrcode = { version = "0.14", default-features = false }
 emojis = "0.6"
-image = { version = "0.25", default-features = false, features = ["png"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
 davey = "0.2"
 opus = "0.4"

@@ -593,6 +593,11 @@ fn video_send_loop(link: &Link, frames: Receiver<Arc<VideoFrame>>, fps: u32, bit
         // ScreenCaptureKit only delivers frames when the screen changes; repeating the last one
         // keeps the stream alive and lets keyframe requests be answered on a still screen.
         let frame = match frames.recv_timeout(POLL) {
+            // Our own Go Live comes back to the UI as its self-view, as the camera's does.
+            Ok(frame) if matches!(link.role, Role::Broadcast(..)) => {
+                let _ = link.events.unbounded_send(VoiceEvent::StreamFrame { user_id: link.my_id.clone(), source: VideoSource::GoLive, frame: frame.clone() });
+                frame
+            }
             Ok(frame) => frame,
             Err(RecvTimeoutError::Timeout) => match last.take() {
                 Some((frame, at)) if at.elapsed() >= IDLE_REPEAT || link.keyframe.load(Ordering::Relaxed) => frame,
