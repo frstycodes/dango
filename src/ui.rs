@@ -448,9 +448,14 @@ pub fn avatar_stack(urls: impl IntoIterator<Item = String>, size: f32, ring: Hsl
 }
 
 // Avatars of one `size` (photos, monograms, a "+3"), overlapped 6px and ringed in the surface's colour.
+// Placed absolutely in a box sized to the overlap: a flex row with negative margins laid out one avatar
+// wide, so text after it overlapped the stack (cause in gpui's layout not traced).
 pub fn stacked(avatars: impl IntoIterator<Item = AnyElement>, size: f32, ring: Hsla) -> Div {
-    div().flex().items_center().children(avatars.into_iter().enumerate().map(move |(i, avatar)| {
-        div().size(px(size)).flex_none().rounded_full().when(i > 0, |d| d.ml(px(-6.))).shadow(vec![shadow(ring, 0., 0., 0., 2., false)]).child(avatar)
+    let avatars: Vec<AnyElement> = avatars.into_iter().collect();
+    let step = size - 6.;
+    let width = size + step * avatars.len().saturating_sub(1) as f32;
+    div().relative().flex_none().w(px(width)).h(px(size)).children(avatars.into_iter().enumerate().map(move |(i, avatar)| {
+        div().absolute().top_0().left(px(step * i as f32)).size(px(size)).rounded_full().shadow(vec![shadow(ring, 0., 0., 0., 2., false)]).child(avatar)
     }))
 }
 
