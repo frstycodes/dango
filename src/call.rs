@@ -11,6 +11,7 @@ use gpui_kit::{
 
 use crate::{
     Rustcord,
+    menu::{Entry, item, submenu},
     discord::{self, User, VoiceState},
     icons::Glyph,
     layout::RAIL_WIDTH,
@@ -30,9 +31,60 @@ const STRIP_HEIGHT: f32 = 112.;
 const STRIP_LIMIT: usize = 12;
 const RECENT_SPEAKER: std::time::Duration = std::time::Duration::from_secs(10);
 const CONTROLS_IDLE: Duration = Duration::from_secs(3);
+const PIP_WIDTH: f32 = 240.;
+const PIP_INSET: f32 = 16.;
+const PIP_DECELERATION: f32 = 0.995;
+const PIP_SNAP: Duration = Duration::from_millis(320);
 const HEADER_HEIGHT: f32 = 48.;
 const CONTROLS_HEIGHT: f32 = 96.;
 const TILE_BG: gpui_kit::Rgba = gpui_kit::Rgba { r: 0x1E as f32 / 255., g: 0x1F as f32 / 255., b: 0x22 as f32 / 255., a: 1. };
+
+// Which corner of the call stage our stream's self-view sits in.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Corner {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
+impl Corner {
+    // The corner a released self-view heads for: where its centre would coast to at its release
+    // velocity (px/s) under scroll-like deceleration, so a flick throws it across the stage.
+    pub fn thrown(center: (f32, f32), velocity: (f32, f32), stage: (f32, f32)) -> Corner {
+        let coast = |v: f32| v / 1000. * PIP_DECELERATION / (1. - PIP_DECELERATION);
+        let (x, y) = (center.0 + coast(velocity.0), center.1 + coast(velocity.1));
+        match (y < stage.1 / 2., x < stage.0 / 2.) {
+            (true, true) => Corner::TopLeft,
+            (true, false) => Corner::TopRight,
+            (false, true) => Corner::BottomLeft,
+            (false, false) => Corner::BottomRight,
+        }
+    }
+
+    // Top-left of a self-view sitting in this corner of a stage of `stage` size.
+    fn spot(self, stage: (f32, f32)) -> (f32, f32) {
+        let left = PIP_INSET;
+        let right = stage.0 - PIP_WIDTH - PIP_INSET;
+        let top = HEADER_HEIGHT + 8.;
+        let bottom = stage.1 - CONTROLS_HEIGHT - PIP_WIDTH * 9. / 16. - 8.;
+        match self {
+            Corner::TopLeft => (left, top),
+            Corner::TopRight => (right, top),
+            Corner::BottomLeft => (left, bottom),
+            Corner::BottomRight => (right, bottom),
+        }
+    }
+}
+
+// A self-view being dragged: where the pointer and view started, and recent pointer samples for
+// the release velocity.
+pub struct PipDrag {
+    start_mouse: Point<Pixels>,
+    start: (f32, f32),
+    pos: (f32, f32),
+    samples: Vec<(Point<Pixels>, Instant)>,
+}
 
 enum Tile {
     User(VoiceState),
@@ -296,75 +348,116 @@ impl Rustcord {
             .flex()
             .gap_2()
             .child(wide_button("panel-camera", if call.camera_on { Glyph::Video } else { Glyph::VideoOff }, if call.camera_on { "Turn Off Camera" } else { "Turn On Camera" }, call.camera_on, connected, cx).on_click(cx.listener(|this, _, _, cx| this.toggle_camera(cx))))
-            .child(wide_button("panel-share", if sharing { Glyph::ScreenOff } else { Glyph::ShareScreen }, if sharing { "Stop Streaming" } else { "Share Your Screen" }, sharing, connected, cx).on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx))))
+            .child(match sharing {
+                true => wide_button("panel-share", Glyph::ShareScreen, "Stream Options", true, connected, cx).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stream_menu(e.position, cx))),
+                false => wide_button("panel-share", Glyph::ShareScreen, "Share Your Screen", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx))),
+            })
             .child(wide_button("panel-activities", Glyph::Activities, "Start an Activity", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities aren't in Rustcord yet", cx))))
             .child(wide_button("panel-soundboard", Glyph::Soundboard, "Open Soundboard", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.show_toast("The soundboard isn't in Rustcord yet", cx))));
         let voice = div().h(px(VOICE_HEIGHT)).p_2().flex().flex_col().gap(px(12.)).border_b_1().border_color(Hsla::from(rgb(0x97979F)).opacity(0.16)).child(header).child(actions);
         Some(div().flex().flex_col().children(self.go_live_panel(cx)).child(voice).into_any_element())
     }
 
-    // Discord's Go Live panel above the voice panel while we share: the source, its quality, and
-    // a button to stop.
+    // Above the voice panel while we share: our stream's live thumbnail, what it is, its quality,
+    // who's watching and for how long. Clicking it opens the stream menu.
     fn go_live_panel(&self, cx: &mut Context<Self>) -> Option<impl IntoElement> {
         let call = self.call.as_ref()?;
         call.sharing.as_ref()?;
         let theme = cx.theme().clone();
         let label = call.share_label.clone().unwrap_or_else(|| "Screen".into());
-        let initial: String = label.chars().next().map(|c| c.to_uppercase().collect()).unwrap_or_default();
-        let resolution = match self.prefs.stream_resolution {
-            0 => "Source".to_owned(),
-            r => format!("{r}p"),
-        };
         // Discord colours quality above its free tier (720p 30fps) in Nitro pink.
         let boosted = self.prefs.stream_resolution == 0 || self.prefs.stream_resolution > 720 || self.prefs.stream_fps > 30;
-        let quality: Hsla = if boosted { rgb(0xFF73FA).into() } else { theme.muted_foreground };
+        let quality_ink: Hsla = if boosted { rgb(0xFF73FA).into() } else { theme.muted_foreground };
+        let viewers = self.own_viewers();
+        let since = call.live_since.map(|t| clock(t.elapsed().as_secs())).unwrap_or_default();
+        let thumb = match &call.self_view {
+            Some((frame, _)) => img(ImageSource::Render(frame.clone())).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
+            None => div().size_full().bg(rgb(0x45A796)).into_any_element(),
+        };
+        let watching = match viewers {
+            0 => String::new(),
+            n => format!(" · {n} watching"),
+        };
         Some(
             div()
+                .id("go-live-card")
                 .h(px(GO_LIVE_HEIGHT))
                 .px_2()
                 .flex()
                 .items_center()
                 .gap_3()
+                .cursor_pointer()
                 .border_b_1()
                 .border_color(Hsla::from(rgb(0x97979F)).opacity(0.16))
-                .child(
-                    div()
-                        .relative()
-                        .size(px(40.))
-                        .flex_none()
-                        .rounded(px(8.))
-                        .bg(rgb(0x45A796))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .text_color(gpui_kit::white())
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .child(initial)
-                        .child(
-                            div()
-                                .absolute()
-                                .right(px(-4.))
-                                .bottom(px(-4.))
-                                .size(px(20.))
-                                .rounded(px(6.))
-                                .bg(theme.popover)
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .child(Icon::new(Glyph::Video).size(px(14.)).text_color(gpui_kit::white())),
-                        ),
-                )
+                .hover(|s| s.bg(Hsla::from(rgb(0x97979F)).opacity(0.12)))
+                .child(div().relative().w(px(64.)).h(px(36.)).flex_none().rounded(px(4.)).overflow_hidden().child(thumb).child(div().absolute().left(px(3.)).top(px(3.)).child(live_badge().h(px(12.)).text_size(px(8.)))))
                 .child(
                     div()
                         .flex_1()
                         .min_w_0()
                         .flex()
                         .flex_col()
-                        .child(div().truncate().text_size(px(16.)).font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(label))
-                        .child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(quality).child(format!("{resolution} {}FPS", self.prefs.stream_fps))),
+                        .child(div().truncate().text_size(px(14.)).font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(label))
+                        .child(
+                            div()
+                                .truncate()
+                                .text_size(px(12.))
+                                .text_color(theme.muted_foreground)
+                                .child(gpui_kit::StyledText::new(format!("{}{watching} · {since}", quality_label(self.prefs.stream_resolution, self.prefs.stream_fps))).with_highlights([(0..quality_label(self.prefs.stream_resolution, self.prefs.stream_fps).len(), gpui_kit::HighlightStyle { color: Some(quality_ink), ..Default::default() })])),
+                        ),
                 )
-                .child(panel_button("stop-streaming", Glyph::ScreenOff, "Stop Streaming", cx).on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx)))),
+                .child(Icon::new(Glyph::ChevronRight).size(px(16.)).text_color(theme.muted_foreground))
+                .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stream_menu(e.position, cx)))
+                .with_animation("go-live-card-in", Animation::new(Duration::from_millis(220)), |d, t| d.opacity(t.min(1.)).mt(px((1. - crate::motion::back_out(t)) * 8.))),
         )
+    }
+
+    fn own_viewers(&self) -> usize {
+        let Some(me) = &self.me else { return 0 };
+        let suffix = format!(":{}", me.id);
+        self.stream_viewers.iter().find(|(key, _)| key.ends_with(&suffix)).map_or(0, |(_, v)| v.iter().filter(|id| **id != me.id).count())
+    }
+
+    // Discord's stream menu, opened from the share button or the Go Live card while we're live.
+    pub(crate) fn open_stream_menu(&mut self, at: Point<Pixels>, cx: &mut Context<Self>) {
+        cx.stop_propagation();
+        self.open_live_menu(at, |this| this.stream_menu(), cx);
+    }
+
+    fn stream_menu(&self) -> Vec<Entry> {
+        let (res, fps, audio) = (self.prefs.stream_resolution, self.prefs.stream_fps, self.prefs.stream_audio);
+        let mut quality: Vec<Entry> = [(720, "720p"), (1080, "1080p"), (1440, "1440p"), (0, "Source")]
+            .into_iter()
+            .map(|(value, label)| item(label, move |this, _, cx| this.set_stream_quality(Some(value), None, cx)).checked(res == value).entry())
+            .collect();
+        quality.push(Entry::Separator);
+        quality.extend([15, 30, 60].into_iter().map(|value| item(format!("{value} FPS"), move |this, _, cx| this.set_stream_quality(None, Some(value), cx)).checked(fps == value).entry()));
+        vec![
+            item("Change Stream", |this, _, cx| this.open_share_picker(cx)).hint("Pick another window or screen").icon(Glyph::ShareScreen).entry(),
+            submenu("Stream Quality", quality).hint(quality_label(res, fps)).entry(),
+            item("Share Stream Audio", |this, _, cx| {
+                this.update_prefs(cx, |p| p.stream_audio = !p.stream_audio);
+                this.restart_share(cx);
+            })
+            .checked(audio)
+            .entry(),
+            item("Show My Stream", |this, _, cx| {
+                this.pip_shown = !this.pip_shown;
+                cx.notify();
+            })
+            .checked(self.pip_shown)
+            .entry(),
+            Entry::Separator,
+            item("Stop Streaming", |this, _, cx| this.toggle_screen_share(cx)).icon(Glyph::ScreenOff).danger().entry(),
+        ]
+    }
+
+    fn set_stream_quality(&mut self, resolution: Option<u32>, fps: Option<u32>, cx: &mut Context<Self>) {
+        self.update_prefs(cx, |p| {
+            p.stream_resolution = resolution.unwrap_or(p.stream_resolution);
+            p.stream_fps = fps.unwrap_or(p.stream_fps);
+        });
+        self.restart_share(cx);
     }
 
     pub(crate) fn toggle_noise_suppression(&mut self, cx: &mut Context<Self>) {
@@ -472,6 +565,10 @@ impl Rustcord {
             false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - 32., f32::from(viewport.height) - 32. - 16.),
         };
         let chrome = !self.call_idle();
+        let stage_size = match self.call_fullscreen {
+            true => (f32::from(viewport.width), f32::from(viewport.height)),
+            false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width, f32::from(viewport.height) - crate::layout::TITLE_HEIGHT - 1.),
+        };
         let stage: AnyElement = match &call.watching {
             Some(watching) => {
                 let strip_shown = !self.call_strip_hidden && tiles.len() > 1;
@@ -536,18 +633,150 @@ impl Rustcord {
                 .relative()
                 .size_full()
                 .bg(gpui_kit::black())
-                .on_mouse_move(cx.listener(|this, _, _, cx| {
+                .on_mouse_move(cx.listener(|this, e: &gpui_kit::MouseMoveEvent, _, cx| {
                     let was_idle = this.call_idle();
                     this.call_pointer_at = Instant::now();
-                    if was_idle {
+                    if this.drag_pip(e.position) || was_idle {
                         cx.notify();
                     }
                 }))
+                .on_mouse_up(MouseButton::Left, cx.listener(move |this, e: &gpui_kit::MouseUpEvent, _, cx| this.drop_pip(e.position, stage_size, cx)))
+                .on_mouse_up_out(MouseButton::Left, cx.listener(move |this, e: &gpui_kit::MouseUpEvent, _, cx| this.drop_pip(e.position, stage_size, cx)))
                 .child(div().size_full().px_4().child(stage))
+                .children(self.self_view(stage_size, window, cx))
                 .child(div().absolute().top_0().left_0().right_0().child(fade("call-header", self.call_header(cx))))
                 .child(div().absolute().bottom_0().left_0().right_0().child(fade("call-controls", self.call_controls(cx).into_any_element())))
                 .into_any_element(),
         )
+    }
+
+    // Our own stream in a corner of the stage, straight from the capture: it hangs from the pointer
+    // while dragged and glides into the corner it's thrown toward. Clicking it watches it full size.
+    fn self_view(&self, stage: (f32, f32), window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let call = self.call.as_ref()?;
+        call.sharing.as_ref()?;
+        let watching_self = self.me.as_ref().is_some_and(|m| call.watching.as_ref().is_some_and(|w| w.streamer_id == m.id));
+        if !self.pip_shown || watching_self {
+            return None;
+        }
+        let target = self.pip_corner.spot(stage);
+        let (x, y) = match (&self.pip_drag, self.pip_snap) {
+            (Some(drag), _) => drag.pos,
+            (None, Some((from, at))) if at.elapsed() < PIP_SNAP => {
+                window.request_animation_frame();
+                let t = crate::motion::back_out((at.elapsed().as_secs_f32() / PIP_SNAP.as_secs_f32()).min(1.));
+                (from.0 + (target.0 - from.0) * t, from.1 + (target.1 - from.1) * t)
+            }
+            _ => target,
+        };
+        let frame: AnyElement = match &call.self_view {
+            Some((frame, _)) => img(ImageSource::Render(frame.clone())).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
+            None => div().size_full().bg(TILE_BG).into_any_element(),
+        };
+        let viewers = self.own_viewers();
+        let dragging = self.pip_drag.is_some();
+        Some(
+            div()
+                .id("self-view")
+                .group("self-view")
+                .absolute()
+                .left(px(x))
+                .top(px(y))
+                .w(px(PIP_WIDTH))
+                .h(px(PIP_WIDTH * 9. / 16.))
+                .rounded(px(10.))
+                .overflow_hidden()
+                .border_1()
+                .border_color(gpui_kit::white().opacity(0.12))
+                .shadow_lg()
+                .cursor(if dragging { gpui_kit::CursorStyle::ClosedHand } else { gpui_kit::CursorStyle::OpenHand })
+                .child(frame)
+                .child(
+                    div()
+                        .absolute()
+                        .left(px(8.))
+                        .right(px(8.))
+                        .bottom(px(8.))
+                        .flex()
+                        .items_center()
+                        .gap_1()
+                        .text_size(px(12.))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(gpui_kit::white())
+                        .child(live_badge())
+                        .child("Your stream")
+                        .child(div().flex_1())
+                        .when(viewers > 0, |d| d.child(div().px_1().rounded(px(6.)).bg(gpui_kit::black().opacity(0.56)).child(format!("{viewers} watching")))),
+                )
+                .child(
+                    div()
+                        .id("self-view-close")
+                        .absolute()
+                        .top(px(6.))
+                        .right(px(6.))
+                        .size(px(24.))
+                        .rounded_full()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .bg(gpui_kit::black().opacity(0.6))
+                        .text_color(gpui_kit::white())
+                        .opacity(0.)
+                        .group_hover("self-view", |s| s.opacity(1.))
+                        .hover(|s| s.bg(gpui_kit::black().opacity(0.85)))
+                        .child(Icon::new(Glyph::X).size(px(14.)))
+                        .tooltip(|window, cx| Tooltip::new("Hide Self-View").build(window, cx))
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.pip_shown = false;
+                            cx.notify();
+                        })),
+                )
+                .on_mouse_down(MouseButton::Left, cx.listener(move |this, e: &MouseDownEvent, _, cx| {
+                    cx.stop_propagation();
+                    this.pip_snap = None;
+                    this.pip_drag = Some(PipDrag { start_mouse: e.position, start: (x, y), pos: (x, y), samples: vec![(e.position, Instant::now())] });
+                    cx.notify();
+                }))
+                .with_animation("self-view-in", Animation::new(Duration::from_millis(220)), |d, t| d.opacity(t.min(1.)))
+                .into_any_element(),
+        )
+    }
+
+    // Moves a dragged self-view with the pointer; false when nothing is being dragged.
+    fn drag_pip(&mut self, mouse: Point<Pixels>) -> bool {
+        let Some(drag) = &mut self.pip_drag else { return false };
+        drag.pos = (drag.start.0 + f32::from(mouse.x - drag.start_mouse.x), drag.start.1 + f32::from(mouse.y - drag.start_mouse.y));
+        drag.samples.push((mouse, Instant::now()));
+        if drag.samples.len() > 6 {
+            drag.samples.remove(0);
+        }
+        true
+    }
+
+    // Lets go of the self-view: a click (barely moved) watches our stream full size; a drag glides
+    // to the corner it was thrown toward.
+    fn drop_pip(&mut self, mouse: Point<Pixels>, stage: (f32, f32), cx: &mut Context<Self>) {
+        let Some(drag) = self.pip_drag.take() else { return };
+        let moved = f32::from(mouse.x - drag.start_mouse.x).hypot(f32::from(mouse.y - drag.start_mouse.y));
+        if moved < 4. {
+            if let Some(me) = self.me.as_ref().map(|m| m.id.clone()) {
+                self.watch_stream(me, cx);
+            }
+            return cx.notify();
+        }
+        let (first, last) = (drag.samples.first().copied(), drag.samples.last().copied());
+        let velocity = match (first, last) {
+            (Some((a, ta)), Some((b, tb))) if tb > ta => {
+                let dt = (tb - ta).as_secs_f32();
+                (f32::from(b.x - a.x) / dt, f32::from(b.y - a.y) / dt)
+            }
+            _ => (0., 0.),
+        };
+        let center = (drag.pos.0 + PIP_WIDTH / 2., drag.pos.1 + PIP_WIDTH * 9. / 32.);
+        self.pip_corner = Corner::thrown(center, velocity, stage);
+        self.pip_snap = Some((drag.pos, Instant::now()));
+        cx.notify();
     }
 
     // Discord's full screen shows the call alone: no servers, channels or user panel.
@@ -740,13 +969,17 @@ impl Rustcord {
                     )
                     .child(chevron("call-camera-devices", cx).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(DeviceKind::Camera, e.position, cx)))),
             )
-            .child(
-                split_button("call-share", if sharing { Glyph::ScreenOff } else { Glyph::ShareScreen }, if sharing { "Stop Streaming" } else { "Share Your Screen" }, false, cx)
+            .child(match sharing {
+                true => split_button("call-share", Glyph::ShareScreen, "Stream Options", false, cx)
                     .rounded(px(12.))
-                    .when(sharing, |b| b.bg(Hsla::from(rgb(0x008545)).opacity(0.24)).text_color(rgb(0x62B77C)))
+                    .bg(Hsla::from(rgb(0x008545)).opacity(0.24))
+                    .text_color(rgb(0x62B77C))
+                    .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stream_menu(e.position, cx))),
+                false => split_button("call-share", Glyph::ShareScreen, "Share Your Screen", false, cx)
+                    .rounded(px(12.))
                     .when(!connected, |b| b.opacity(0.5))
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx))),
-            )
+            })
             .child(
                 split_button("call-activities", Glyph::Activities, "Start an Activity", false, cx)
                     .rounded(px(12.))
@@ -1221,5 +1454,43 @@ mod tests {
         assert_eq!(small_png("https://cdn.discordapp.com/embed/avatars/3.png"), "https://cdn.discordapp.com/embed/avatars/3.png?size=32");
         let frame = voice::VideoFrame { width: 2, height: 1, bgra: vec![0, 0, 255, 255, 255, 0, 0, 255] };
         assert!(jpeg_data_url(&frame).is_some_and(|url| url.starts_with("data:image/jpeg;base64,/9j/")));
+    }
+}
+
+// "1080p 60" or "Source 30", how Rustcord names a stream's quality.
+fn quality_label(resolution: u32, fps: u32) -> String {
+    match resolution {
+        0 => format!("Source {fps}"),
+        r => format!("{r}p {fps}"),
+    }
+}
+
+// A running time: "4:05", or "1:02:09" past an hour.
+pub(crate) fn clock(secs: u64) -> String {
+    match secs / 3600 {
+        0 => format!("{}:{:02}", secs / 60, secs % 60),
+        h => format!("{h}:{:02}:{:02}", secs / 60 % 60, secs % 60),
+    }
+}
+
+#[cfg(test)]
+mod pip_tests {
+    use super::*;
+
+    #[test]
+    fn thrown_corner_follows_the_flick() {
+        let stage = (1000., 600.);
+        assert_eq!(Corner::thrown((900., 100.), (0., 0.), stage), Corner::TopRight);
+        // Released on the right but flicked hard left: it coasts across.
+        assert_eq!(Corner::thrown((700., 100.), (-3000., 0.), stage), Corner::TopLeft);
+        assert_eq!(Corner::thrown((100., 280.), (0., 400.), stage), Corner::BottomLeft);
+    }
+
+    #[test]
+    fn clocks_and_quality() {
+        assert_eq!(clock(245), "4:05");
+        assert_eq!(clock(3729), "1:02:09");
+        assert_eq!(quality_label(1080, 60), "1080p 60");
+        assert_eq!(quality_label(0, 30), "Source 30");
     }
 }
