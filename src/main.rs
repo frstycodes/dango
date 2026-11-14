@@ -100,6 +100,8 @@ fn main() {
                 .to_vec(),
             )
             .expect("bundled fonts");
+        // The design is drawn with `-webkit-font-smoothing: antialiased`; macOS smoothing would thicken every stroke.
+        cx.text_system().set_font_smoothing(false);
         cx.set_http_client(std::sync::Arc::new(discord::Images::default()));
         cx.set_reduce_motion(material::system_reduce_motion());
         settings::Prefs::load().app_icon.apply();
@@ -118,7 +120,8 @@ fn main() {
             focus: splash.is_none(),
             window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(1280.), px(820.)), cx))),
             window_min_size: Some(size(px(940.), px(520.))),
-            titlebar: Some(TitlebarOptions { title: Some("Wave".into()), appears_transparent: true, ..Default::default() }),
+            // The traffic lights centre in the 36px title bar, leaving the first 72px to them.
+            titlebar: Some(TitlebarOptions { title: Some("Wave".into()), appears_transparent: true, traffic_light_position: Some(gpui_kit::point(px(12.), px(12.))) }),
             window_background: material::window_background(),
             ..Default::default()
         };
@@ -331,6 +334,8 @@ struct Call {
     // The source behind `sharing`, kept so a quality change can restart the same stream.
     share_source: Option<voice::ShareSource>,
     live_since: Option<Instant>,
+    // When we joined, for the call header's timer.
+    joined: Instant,
     // Our own Go Live from its local frames, for the panel thumbnail and the self-view.
     self_view: Option<(Arc<RenderImage>, Instant)>,
     _events: Task<()>,
@@ -492,7 +497,7 @@ pub struct Rustcord {
     // A short notice at the bottom, e.g. why a moderation action failed.
     toast: Option<SharedString>,
     // The Go Live picker: None closed, Some(None) loading, Some(Some(..)) listed.
-    share_picker: Option<overlays::SharePicker>,
+    share_picker: Option<go_live::SharePicker>,
     // The source picked in the Go Live window, waiting for "Go Live".
     share_choice: Option<voice::ShareSource>,
     share_choice_label: Option<String>,
@@ -2035,7 +2040,7 @@ impl Rustcord {
             }
         })
         .detach();
-        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: Vec::new(), focus: None, stream_layout: crate::call::StreamLayout::Focus, ended: None, sharing: None, share_label: None, share_source: None, live_since: None, self_view: None, _events: task });
+        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: Vec::new(), focus: None, stream_layout: crate::call::StreamLayout::Focus, ended: None, sharing: None, share_label: None, share_source: None, live_since: None, self_view: None, joined: Instant::now(), _events: task });
         cx.notify();
     }
 

@@ -18,7 +18,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use gpui_kit::{AnyElement, App, Bounds, Context, Entity, Global, ImageSource, ObjectFit, Pixels, Render, RenderImage, Window, canvas, div, img, prelude::*};
+use gpui_kit::{AnyElement, App, Bounds, Context, Corners, Entity, Global, ImageSource, ObjectFit, Pixels, Render, RenderImage, Window, canvas, div, prelude::*};
 
 use crate::h264::{Track, bgra};
 
@@ -51,11 +51,16 @@ impl Global for Gifs {}
 // The GIF for `url`, playing while it's on screen; `key` must be unique to where it's shown. Shows
 // `poster` until the first picture is ready, and for good if the clip can't be played.
 pub fn tile(key: String, url: &str, poster: &str, cx: &mut App) -> AnyElement {
+    rounded_tile(key, url, poster, Corners::default(), cx)
+}
+
+// A tile that rounds its own pictures to `corners`, since gpui can't clip them to a rounded parent.
+pub fn rounded_tile(key: String, url: &str, poster: &str, corners: Corners<Pixels>, cx: &mut App) -> AnyElement {
     if let Some(player) = cx.try_global::<Gifs>().and_then(|g| g.players.get(&key)).cloned() {
         return player.into_any_element();
     }
     let (url, poster) = (url.to_owned(), poster.to_owned());
-    let player = cx.new(|_| GifPlayer { url, poster, state: State::Idle, frame: None, unpainted_since: Rc::default(), bounds: Rc::default(), ticking: false });
+    let player = cx.new(|_| GifPlayer { url, poster, corners, state: State::Idle, frame: None, unpainted_since: Rc::default(), bounds: Rc::default(), ticking: false });
     cx.default_global::<Gifs>().players.insert(key, player.clone());
     player.into_any_element()
 }
@@ -63,6 +68,7 @@ pub fn tile(key: String, url: &str, poster: &str, cx: &mut App) -> AnyElement {
 pub struct GifPlayer {
     url: String,
     poster: String,
+    corners: Corners<Pixels>,
     state: State,
     frame: Option<Arc<RenderImage>>,
     // Set when the ticker asks for a render, cleared when the player paints: still set a while later
@@ -246,10 +252,11 @@ impl Render for GifPlayer {
         if matches!(self.state, State::Idle) && self.wanted() {
             self.start(cx);
         }
-        let picture = match &self.frame {
-            Some(frame) => img(ImageSource::Render(frame.clone())),
-            None => img(self.poster.clone()),
+        let source = match &self.frame {
+            Some(frame) => ImageSource::Render(frame.clone()),
+            None => self.poster.clone().into(),
         };
+        let picture = crate::ui::media(source, self.corners);
         let (painted, at) = (self.unpainted_since.clone(), self.bounds.clone());
         div()
             .relative()
