@@ -3,10 +3,10 @@
 // about itself, checkboxes on the right, radio rows that take a fill instead of a dot, one accent row
 // and red danger rows that fill solid on hover, and submenus that fly out beside their row. Every
 // right-click in Wave opens one of these.
-use std::{rc::Rc, time::Duration};
+use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, App, BoxShadow, Context, Div, FontWeight, Hsla, MouseButton, Pixels, Point, SharedString, Stateful, Window,
+    Animation, AnimationExt, AnyElement, App, BoxShadow, Context, Div, FocusHandle, FontWeight, Hsla, KeyDownEvent, MouseButton, Pixels, Point, SharedString, Stateful, Window,
     component::{ActiveTheme, Icon, input::Input},
     div, img, point, prelude::*, px,
 };
@@ -216,6 +216,35 @@ fn card_height(entries: &[Entry]) -> f32 {
     offset(entries, entries.len()) - GAP + 2. * SURFACE_INSET
 }
 
+// The entries of the card a submenu path opens; the top level when the path no longer fits.
+fn level_at<'a>(top: &'a [Entry], path: &[usize]) -> &'a [Entry] {
+    let mut level = top;
+    for &i in path {
+        match level.get(i) {
+            Some(Entry::Item(item)) if !item.sub.is_empty() => level = &item.sub,
+            _ => return top,
+        }
+    }
+    level
+}
+
+// The next row the keyboard can land on, wrapping; disabled rows and non-rows are skipped.
+fn step(entries: &[Entry], from: Option<usize>, down: bool) -> Option<usize> {
+    let rows: Vec<usize> = entries.iter().enumerate().filter(|(_, e)| matches!(e, Entry::Item(item) if !item.disabled)).map(|(i, _)| i).collect();
+    let at = from.and_then(|f| rows.iter().position(|&r| r == f));
+    let n = rows.len();
+    if n == 0 {
+        return None;
+    }
+    let next = match (at, down) {
+        (None, true) => 0,
+        (None, false) => n - 1,
+        (Some(at), true) => (at + 1) % n,
+        (Some(at), false) => (at + n - 1) % n,
+    };
+    Some(rows[next])
+}
+
 // Drops separators that would sit at the top, bottom or next to another, so menus can be built
 // from optional groups without stray lines.
 pub fn tidy(entries: Vec<Entry>) -> Vec<Entry> {
@@ -240,6 +269,11 @@ pub struct OpenMenu {
     build: Build,
     // The open submenu at each level, as indexes from the top-level entries down.
     sub: Vec<usize>,
+    // The keyboard's row in the deepest open card; the pointer clears it.
+    cursor: Option<usize>,
+    focus: FocusHandle,
+    // Whatever had the keyboard before the menu took it, to hand it back on close.
+    restore: RefCell<Option<FocusHandle>>,
 }
 
 // A one-field dialog (nickname, note) or a confirmation (kick, ban, remove friend).
@@ -259,7 +293,7 @@ impl Rustcord {
 
     // A menu built from state each time it's drawn, e.g. one whose checkboxes change.
     pub(crate) fn open_live_menu(&mut self, at: Point<Pixels>, build: impl Fn(&Rustcord) -> Vec<Entry> + 'static, cx: &mut Context<Self>) {
-        self.menu = Some(OpenMenu { at, build: Rc::new(move |this| tidy(build(this))), sub: Vec::new() });
+        self.menu = Some(OpenMenu { at, build: Rc::new(move |this| tidy(build(this))), sub: Vec::new(), cursor: None, focus: cx.focus_handle(), restore: RefCell::new(None) });
         cx.notify();
     }
 
@@ -269,6 +303,15 @@ impl Rustcord {
         if let Some(menu) = &mut self.menu {
             menu.sub = path;
         }
+    }
+
+    // Closes the menu and gives the keyboard back to what had it.
+    fn shut_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(menu) = self.menu.take() else { return };
+        if let Some(previous) = menu.restore.take() {
+            window.focus(&previous, cx);
+        }
+        cx.notify();
     }
 
     pub(crate) fn close_menu(&mut self) -> bool {
@@ -332,14 +375,54 @@ impl Rustcord {
         // Checkbox and radio rows stay open so several can be flipped.
         let keep_open = item.mark.is_some();
         if !keep_open {
-            self.menu = None;
+            self.shut_menu(window, cx);
         }
         act(self, window, cx);
         cx.notify();
     }
 
+    // Arrows move through the deepest open card, Right or Enter opens a submenu, Left closes it,
+    // Enter or Space runs a row, Escape closes the menu.
+    fn on_menu_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(menu) = &self.menu else { return };
+        let top = (menu.build)(self);
+        let (mut sub, cursor) = (menu.sub.clone(), menu.cursor);
+        let level = level_at(&top, &sub);
+        let has_sub = |i: usize| matches!(level.get(i), Some(Entry::Item(item)) if !item.sub.is_empty() && !item.disabled);
+        let next_cursor = match (event.keystroke.key.as_str(), cursor) {
+            ("down", _) => step(level, cursor, true),
+            ("up", _) => step(level, cursor, false),
+            ("right" | "enter" | "space", Some(i)) if has_sub(i) => {
+                sub.push(i);
+                step(level_at(&top, &sub), None, true)
+            }
+            ("left", _) if !sub.is_empty() => sub.pop(),
+            ("enter" | "space", Some(i)) => {
+                sub.push(i);
+                cx.stop_propagation();
+                return self.run_menu_item(&sub, window, cx);
+            }
+            ("escape", _) => {
+                cx.stop_propagation();
+                return self.shut_menu(window, cx);
+            }
+            _ => return,
+        };
+        if let Some(menu) = &mut self.menu {
+            menu.sub = sub;
+            menu.cursor = next_cursor;
+        }
+        cx.stop_propagation();
+        cx.notify();
+    }
+
     pub(crate) fn render_menu(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let menu = self.menu.as_ref()?;
+        // The menu takes the keyboard while it's open.
+        if !menu.focus.is_focused(window) {
+            *menu.restore.borrow_mut() = window.focused(cx);
+            window.focus(&menu.focus, cx);
+        }
         let entries = (menu.build)(self);
         let viewport = window.viewport_size();
         let (vw, vh) = (f32::from(viewport.width), f32::from(viewport.height));
@@ -347,7 +430,7 @@ impl Rustcord {
         let y = f32::from(menu.at.y).min(vh - card_height(&entries) - 8.).max(8.);
         // Keyed by where it opened, so a fresh right-click replays the rise.
         let open_key = format!("{:.0}-{:.0}", f32::from(menu.at.x), f32::from(menu.at.y));
-        let top = self.menu_card(&entries, &[], menu.sub.first().copied(), WIDTH, cx).left(px(x)).top(px(y)).max_h(px(vh - 16.)).overflow_y_scroll();
+        let top = self.menu_card(&entries, &[], menu.sub.first().copied(), menu.cursor.filter(|_| menu.sub.is_empty()), WIDTH, cx).left(px(x)).top(px(y)).max_h(px(vh - 16.)).overflow_y_scroll();
         let mut cards = vec![rise(top, format!("menu-rise-{open_key}"), Duration::ZERO).into_any_element()];
         // One flyout per open level beside its parent row, its first row level with that row; it
         // flips to the left at the window's edge.
@@ -362,7 +445,8 @@ impl Rustcord {
             card_y = (card_y + offset(level, i)).min(vh - card_height(&item.sub) - 8.).max(8.);
             card_w = sub_w;
             let path = &menu.sub[..=depth];
-            let card = self.menu_card(&item.sub, path, menu.sub.get(depth + 1).copied(), sub_w, cx).left(px(card_x)).top(px(card_y));
+            let cursor = menu.cursor.filter(|_| depth + 1 == menu.sub.len());
+            let card = self.menu_card(&item.sub, path, menu.sub.get(depth + 1).copied(), cursor, sub_w, cx).left(px(card_x)).top(px(card_y));
             cards.push(rise(card, format!("menu-rise-{open_key}-{path:?}"), SUB_DELAY).into_any_element());
             level = &item.sub;
         }
@@ -372,20 +456,16 @@ impl Rustcord {
                 .absolute()
                 .inset_0()
                 .occlude()
-                .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
-                    this.menu = None;
-                    cx.notify();
-                }))
-                .on_mouse_down(MouseButton::Right, cx.listener(|this, _, _, cx| {
-                    this.menu = None;
-                    cx.notify();
-                }))
+                .track_focus(&menu.focus)
+                .on_key_down(cx.listener(Self::on_menu_key))
+                .on_mouse_down(MouseButton::Left, cx.listener(|this, _, window, cx| this.shut_menu(window, cx)))
+                .on_mouse_down(MouseButton::Right, cx.listener(|this, _, window, cx| this.shut_menu(window, cx)))
                 .children(cards)
                 .into_any_element(),
         )
     }
 
-    fn menu_card(&self, entries: &[Entry], path: &[usize], open_sub: Option<usize>, width: f32, cx: &mut Context<Self>) -> Stateful<Div> {
+    fn menu_card(&self, entries: &[Entry], path: &[usize], open_sub: Option<usize>, cursor: Option<usize>, width: f32, cx: &mut Context<Self>) -> Stateful<Div> {
         // Rows line their labels up: when any row has a leading icon, the others keep its slot.
         let lead_slot = entries.iter().any(Entry::has_lead);
         let rows: Vec<AnyElement> = entries
@@ -399,7 +479,7 @@ impl Rustcord {
                 Entry::Item(item) => {
                     let mut item_path = path.to_vec();
                     item_path.push(i);
-                    self.menu_row(item, item_path, open_sub == Some(i), lead_slot, cx).into_any_element()
+                    self.menu_row(item, item_path, open_sub == Some(i), cursor == Some(i), lead_slot, cx).into_any_element()
                 }
             })
             .collect();
@@ -429,10 +509,13 @@ impl Rustcord {
             .child(self.range(key, value, Fill::Accent, move |this, f, cx| on_set(this, f.clamp(0., 1.), cx), cx))
     }
 
-    fn menu_row(&self, item: &Item, path: Vec<usize>, sub_open: bool, lead_slot: bool, cx: &mut Context<Self>) -> Stateful<Div> {
+    fn menu_row(&self, item: &Item, path: Vec<usize>, sub_open: bool, keyboard: bool, lead_slot: bool, cx: &mut Context<Self>) -> Stateful<Div> {
         let has_sub = !item.sub.is_empty();
         let run_path = path.clone();
-        menu_item_row(SharedString::from(format!("menu-item-{path:?}")), item, sub_open, lead_slot, cx)
+        // Keyboard focus: the hover fill and a 2px accent ring inside the row.
+        let ring = BoxShadow { color: palette::accent_ink(cx), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(2.), inset: true };
+        menu_item_row(SharedString::from(format!("menu-item-{path:?}")), item, sub_open || keyboard, lead_slot, cx)
+            .when(keyboard, |row| row.shadow(vec![ring]))
             // Hovering a row opens its submenu and closes any deeper one from a sibling.
             .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
                 let Some(menu) = &mut this.menu else { return };
@@ -440,8 +523,9 @@ impl Rustcord {
                     return;
                 }
                 let next = if has_sub { path.clone() } else { path[..path.len() - 1].to_vec() };
-                if menu.sub != next {
+                if menu.sub != next || menu.cursor.is_some() {
                     menu.sub = next;
+                    menu.cursor = None;
                     cx.notify();
                 }
             }))
@@ -684,17 +768,15 @@ fn quick_reactions(quick: &[(Emoji, Act)], more: Act, cx: &mut Context<Rustcord>
         let act = act.clone();
         // PATCH(transform): the button presses to scale 0.97.
         cell(SharedString::from(format!("menu-emoji-{j}")), strong).child(emoji_face(emoji, 20.)).on_click(cx.listener(move |this, _, window, cx| {
-            this.menu = None;
+            this.shut_menu(window, cx);
             act(this, window, cx);
-            cx.notify();
         }))
     });
     let picker = cell("menu-emoji-more".into(), strong)
         .child(Icon::new(Glyph::Emoji).size(px(18.)))
         .on_click(cx.listener(move |this, _, window, cx| {
-            this.menu = None;
+            this.shut_menu(window, cx);
             more(this, window, cx);
-            cx.notify();
         }));
     div().h(px(EMOJI_ROW)).flex_none().pt(px(2.)).px(px(2.)).pb(px(4.)).flex().gap(px(4.)).children(faces).child(picker)
 }
@@ -874,6 +956,17 @@ impl Rustcord {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn keyboard_steps_over_separators_and_disabled_rows_and_wraps() {
+        let noop = |_: &mut Rustcord, _: &mut Window, _: &mut Context<Rustcord>| {};
+        let entries = vec![item("a", noop).entry(), Entry::Separator, item("b", noop).disabled().entry(), item("c", noop).entry()];
+        assert_eq!(step(&entries, None, true), Some(0));
+        assert_eq!(step(&entries, Some(0), true), Some(3));
+        assert_eq!(step(&entries, Some(3), true), Some(0));
+        assert_eq!(step(&entries, None, false), Some(3));
+        assert_eq!(step(&[Entry::Separator], None, true), None);
+    }
 
     #[test]
     fn tidy_drops_stray_separators() {
