@@ -49,7 +49,7 @@ Order: features first (most used at the top), then polish. `[x]` done, `[~]` par
 - [ ] Notification bell in the channel header: per-channel notification level
 - [x] Mark channel read with Esc; Alt+↑/↓ to move between channels
 - [ ] Message search filters (from:, in:, has:)
-- [ ] Persist the message cache to disk so a cold start shows the last messages instantly
+- [x] Persist the message cache to disk so a cold start shows the last messages instantly (newest 50 per channel)
 
 ### Rare (skip unless asked)
 - Server boosts, events, discovery, creating servers or channels, invites, Nitro, shop, app directory.

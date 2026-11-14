@@ -14,7 +14,7 @@ const VIEW_CHANNEL: u64 = 1 << 10;
 // The user-account gateway and several fields below (nameplates, guild tags, member list ops,
 // read states) are undocumented; shapes are from memory of the official client. Not verified live.
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct User {
     pub id: String,
     pub name: String,
@@ -26,7 +26,7 @@ pub struct User {
     pub decoration: Option<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Nameplate {
     pub art: String,
     // The tint Discord paints under the art: (dark theme, light theme), from the nameplate's palette.
@@ -51,7 +51,7 @@ fn palette_tint(name: &str) -> (u32, u32) {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct GuildTag {
     pub text: String,
     pub badge: Option<String>,
@@ -259,7 +259,7 @@ pub struct VoiceState {
     pub camera: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Channel {
     pub id: String,
     pub name: String,
@@ -275,7 +275,7 @@ pub struct Channel {
     pub thread: Option<ThreadMeta>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ChannelKind {
     Text,
     Voice,
@@ -286,7 +286,7 @@ pub enum ChannelKind {
     Other,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ThreadMeta {
     pub archived: bool,
     pub locked: bool,
@@ -296,7 +296,7 @@ pub struct ThreadMeta {
     pub owner_id: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Media {
     pub url: String,
     pub width: f32,
@@ -304,7 +304,7 @@ pub struct Media {
     pub kind: MediaKind,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum MediaKind {
     Image,
     // `poster` is a still frame to show; the video itself plays outside the app for now.
@@ -313,7 +313,7 @@ pub enum MediaKind {
     Gif { poster: String },
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct Embed {
     pub url: Option<String>,
     pub color: Option<u32>,
@@ -339,7 +339,7 @@ pub struct Folder {
     pub guild_ids: Vec<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct File {
     pub name: String,
     pub url: String,
@@ -381,14 +381,14 @@ impl Emoji {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Reaction {
     pub emoji: Emoji,
     pub count: u32,
     pub me: bool,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SendState {
     #[default]
     Sent,
@@ -396,7 +396,7 @@ pub enum SendState {
     Failed,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct Message {
     pub id: String,
     pub channel_id: String,

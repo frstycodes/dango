@@ -1,4 +1,5 @@
 mod auth;
+mod cache;
 mod call;
 mod channel_menu;
 mod chat;
@@ -849,6 +850,17 @@ impl Rustcord {
         if let (Some(client), Some(guild_id)) = (&self.client, &self.guild_id) {
             client.request_member_list(guild_id, &id);
         }
+        // The channel we're leaving keeps what arrived while it was open.
+        if let Some(previous) = self.channel.as_ref().filter(|c| c.id != id).and_then(|c| self.feeds.get(&c.id).map(|f| (c.id.clone(), f)))
+            && previous.1.loaded
+        {
+            cache::save(&previous.0, &previous.1.messages);
+        }
+        if !self.feeds.contains_key(&id)
+            && let Some(messages) = cache::load(&id)
+        {
+            self.feeds.insert(id.clone(), Feed { messages, loaded: true, has_more: true, ..Default::default() });
+        }
         self.channel = Some(channel);
         self.replying = None;
         self.editing = None;
@@ -905,6 +917,7 @@ impl Rustcord {
         feed.messages = fetched.into_iter().chain(kept).collect();
         feed.loaded = true;
         feed.error = None;
+        cache::save(channel_id, &feed.messages);
         let count = feed.messages.len();
         let authors: Vec<String> = feed.messages.iter().map(|m| m.author.id.clone()).collect();
         if is_open && !unchanged {
