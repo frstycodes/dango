@@ -25,12 +25,553 @@
 <div class="layout">
 <nav class="toc" id="toc" aria-label="Design system"></nav>
 <main>
+<style>
+  /* Page-only demo scaffolding. Server art stands in for uploaded icons and banners. */
+  .a1 { background: linear-gradient(135deg, oklch(0.58 0.17 20), oklch(0.44 0.17 350)); }
+  .a2 { background: linear-gradient(135deg, oklch(0.55 0.12 220), oklch(0.42 0.13 250)); }
+  .a3 { background: linear-gradient(135deg, oklch(0.56 0.13 140), oklch(0.42 0.12 165)); }
+  .a4 { background: linear-gradient(135deg, oklch(0.58 0.14 55), oklch(0.46 0.15 35)); }
+  .a5 { background: radial-gradient(circle at 34% 30%, oklch(0.92 0.08 90) 0 20%, transparent 21%), linear-gradient(160deg, oklch(0.55 0.14 270), oklch(0.32 0.1 300)); }
+  .a6 { background: repeating-linear-gradient(135deg, oklch(0.52 0.1 195) 0 6px, oklch(0.42 0.09 210) 6px 12px); }
+  .banner-art { --art: radial-gradient(120% 90% at 20% 10%, oklch(0.78 0.12 60), transparent 60%), radial-gradient(120% 100% at 90% 100%, oklch(0.55 0.18 330), transparent 60%), oklch(0.4 0.08 280); }
+  .nd-frame { border: 1px solid var(--line-strong); border-radius: var(--radius-lg); overflow: hidden; min-width: 0; }
+  .nd-frame > .side, .nd-frame > .members { height: 100%; }
+  .nd-cols { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; }
+  .nd-col { display: grid; gap: var(--space-2); width: 240px; max-width: 100%; }
+  .nd-specs { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-3); flex: 1; min-width: 0; align-content: start; }
+  .nd-spec { display: grid; justify-items: center; gap: var(--space-2); width: 84px; text-align: center; }
+  .nd-well { position: relative; width: 68px; height: 68px; display: grid; place-items: center; background: var(--bg-rail); border-radius: var(--radius-lg); --bg-ring: var(--bg-rail); }
+  .nd-states { display: grid; grid-template-columns: minmax(0, 240px) minmax(0, 1fr); gap: 2px var(--space-4); align-items: center; padding: var(--space-2); background: var(--bg-sidebar); }
+  .nd-states > .note { line-height: 1.3; }
+  .nd-tipwell { display: flex; align-items: center; gap: var(--space-3); padding: 12px; border-radius: var(--radius-lg); background: var(--bg-rail); --bg-ring: var(--bg-rail); flex-wrap: wrap; }
+  @media (max-width: 860px) { .nd-states { grid-template-columns: minmax(0, 1fr); } .nd-states > .note { margin: 0 0 var(--space-2) var(--space-2); } }
+</style>
+
 <section id="intro">
   <h1>Navigation</h1>
   <p class="lede">Server rail, channel sidebar, direct messages and member list.</p>
 </section>
+
+<!-- Title bar -->
+<section id="title-bar">
+  <h2>Title bar</h2>
+  <p class="lede">The window's own chrome, drawn by Wave on every platform. History arrows lead, the current place sits centred, inbox and help close the bar. The whole bar drags the window.</p>
+  <h3>macOS</h3>
+  <div class="nd-frame"><div class="titlebar">
+    <div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div>
+    <button class="iconbtn" aria-label="Back" title="Back"><i class="ph ph-arrow-left"></i></button>
+    <button class="iconbtn" aria-label="Forward" title="Forward: nothing to go forward to" disabled><i class="ph ph-arrow-right"></i></button>
+    <div class="tb-title"><span class="srv-mini a1"></span><span>Night Shift</span></div>
+    <div class="tb-end">
+      <button class="iconbtn has-dot" aria-label="Inbox, 3 unread mentions" title="Inbox" aria-pressed="false"><i class="ph ph-tray"></i></button>
+      <button class="iconbtn tb-help" aria-label="Help" title="Help"><i class="ph ph-question"></i></button>
+    </div>
+  </div></div>
+  <p class="note" style="margin-top: 8px">36px, --bg-rail. The first 72px stay empty for the system's traffic lights (placeholders here), so the rail lines up under them.</p>
+
+  <h3>Windows</h3>
+  <div class="nd-frame"><div class="titlebar">
+    <span class="tb-brand"><svg width="18" height="18" viewBox="0 0 64 66" aria-hidden="true"><g fill="#e8326f"><rect x="2" y="21" width="8" height="24" rx="4"/><rect x="15" y="10.5" width="8" height="45" rx="4"/><rect x="28" y="1" width="8" height="64" rx="4"/><rect x="41" y="13.5" width="8" height="39" rx="4"/><rect x="54" y="22" width="8" height="22" rx="4"/></g></svg><span>Wave</span></span>
+    <button class="iconbtn" aria-label="Back" title="Back"><i class="ph ph-arrow-left"></i></button>
+    <button class="iconbtn" aria-label="Forward" title="Forward"><i class="ph ph-arrow-right"></i></button>
+    <div class="tb-title"><span class="srv-mini a2"></span><span>Pixel Club</span></div>
+    <div class="tb-end">
+      <button class="iconbtn" aria-label="Inbox" title="Inbox" aria-pressed="true"><i class="ph ph-tray"></i></button>
+      <button class="iconbtn tb-help" aria-label="Help" title="Help"><i class="ph ph-question"></i></button>
+      <div class="tb-win">
+        <button aria-label="Minimize"><i class="ph ph-minus"></i></button>
+        <button aria-label="Maximize"><i class="ph ph-square"></i></button>
+        <button class="close" aria-label="Close"><i class="ph ph-x"></i></button>
+      </div>
+    </div>
+  </div></div>
+  <p class="note" style="margin-top: 8px">Window controls are 46 by 36 and flush right; Close hovers to --danger. Inbox shows pressed while its popover is open.</p>
+
+  <h3>Long place name, narrow window</h3>
+  <div class="row" style="align-items: flex-start; gap: var(--space-4)">
+    <div class="nd-frame" style="width: 620px; max-width: 100%"><div class="titlebar">
+      <div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div>
+      <button class="iconbtn" aria-label="Back" title="Back: nothing to go back to" disabled><i class="ph ph-arrow-left"></i></button>
+      <button class="iconbtn" aria-label="Forward" title="Forward: nothing to go forward to" disabled><i class="ph ph-arrow-right"></i></button>
+      <div class="tb-title"><span class="srv-mini a5"></span><span>The Extremely Long Server Name Society of Late Night Gamers</span></div>
+      <div class="tb-end"><button class="iconbtn" aria-label="Inbox" title="Inbox"><i class="ph ph-tray"></i></button><button class="iconbtn tb-help" aria-label="Help" title="Help"><i class="ph ph-question"></i></button></div>
+    </div></div>
+    <div class="nd-frame" style="width: 340px; max-width: 100%"><div class="titlebar">
+      <div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div>
+      <button class="iconbtn" aria-label="Back" title="Back"><i class="ph ph-arrow-left"></i></button>
+      <button class="iconbtn" aria-label="Forward" title="Forward"><i class="ph ph-arrow-right"></i></button>
+      <div class="tb-title"><span class="srv-mini a1"></span><span>Night Shift</span></div>
+      <div class="tb-end"><button class="iconbtn has-dot" aria-label="Inbox, 3 unread mentions" title="Inbox"><i class="ph ph-tray"></i></button><button class="iconbtn tb-help" aria-label="Help" title="Help"><i class="ph ph-question"></i></button></div>
+    </div></div>
+  </div>
+  <p class="note" style="margin-top: 8px">The place truncates at 40% of the bar; under 520px it drops out, then help goes under 400px. Arrows and inbox never leave.</p>
+</section>
+
+<!-- Server rail -->
+<section id="server-rail">
+  <h2>Server rail</h2>
+  <p class="lede">Every server and folder, in the user's own order. The pill on the left edge carries the state: a dot for unread, longer on hover, full height for the server you're in.</p>
+  <div class="board nd-cols">
+    <div class="nd-frame" style="width: 70px; flex: none"><nav class="rail" aria-label="Servers">
+      <button class="srv home sel" aria-label="Direct messages, 3 unread" title="Direct messages"><svg width="22" height="22" viewBox="0 0 64 66" aria-hidden="true"><g fill="#e8326f"><rect x="2" y="21" width="8" height="24" rx="4"/><rect x="15" y="10.5" width="8" height="45" rx="4"/><rect x="28" y="1" width="8" height="64" rx="4"/><rect x="41" y="13.5" width="8" height="39" rx="4"/><rect x="54" y="22" width="8" height="22" rx="4"/></g></svg><span class="count">3</span></button>
+      <hr>
+      <button class="srv a1 unread" aria-label="Night Shift, unread" title="Night Shift">NS</button>
+      <button class="srv a2" aria-label="Pixel Club, 12 mentions" title="Pixel Club">PC<span class="count">12</span></button>
+      <div class="folder" style="--folder: oklch(0.66 0.13 250)">
+        <button class="srv folder-head" aria-expanded="true" aria-label="Games, folder" title="Games"><span class="minis" aria-hidden="true"><span class="a4"></span><span class="a5"></span><span class="a6"></span><span></span></span><i class="ph-fill ph-folder-simple"></i></button>
+        <button class="srv a4" aria-label="Lowkey" title="Lowkey">L</button>
+        <button class="srv a5 unread" aria-label="Moonbase, unread" title="Moonbase"></button>
+        <button class="srv a6" aria-label="Greenroom, voice connected" title="Greenroom"><span class="vc"><span class="bars still"><i></i><i></i><i></i></span></span></button>
+      </div>
+      <div class="folder">
+        <button class="srv folder-head unread" aria-expanded="false" aria-label="Friends, folder, 2 mentions" title="Friends"><span class="minis" aria-hidden="true"><span class="a3"></span><span class="a2"></span><span class="a1"></span><span class="a4"></span></span><i class="ph-fill ph-folder-simple"></i><span class="count">2</span></button>
+        <button class="srv a3" aria-label="Garden" title="Garden">G</button>
+        <button class="srv a2" aria-label="Study hall" title="Study hall">SH</button>
+      </div>
+      <button class="srv initials" aria-label="Late Night Gamers" title="Late Night Gamers">LNG</button>
+      <hr>
+      <button class="srv add" aria-label="Add a server" title="Add a server"><i class="ph-bold ph-plus"></i></button>
+      <button class="srv add" aria-label="Discover servers" title="Discover servers"><i class="ph-bold ph-compass"></i></button>
+    </nav></div>
+
+    <div style="flex: 1; min-width: min(100%, 280px)">
+      <h3 style="margin-top: 0">Server icon</h3>
+      <div class="nd-specs">
+        <figure class="nd-spec"><div class="nd-well"><button class="srv a1" aria-label="Night Shift">NS</button></div><figcaption class="note">Default</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv a1 is-hover" aria-label="Night Shift">NS</button></div><figcaption class="note">Hover</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv a1 is-hover is-press" aria-label="Night Shift">NS</button></div><figcaption class="note">Pressed, 0.97</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv a1 sel" aria-label="Night Shift">NS</button></div><figcaption class="note">Selected</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv a1 unread" aria-label="Night Shift, unread">NS</button></div><figcaption class="note">Unread</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv a2 unread" aria-label="Pixel Club, 3 mentions">PC<span class="count">3</span></button></div><figcaption class="note">Mentions</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv a2 unread" aria-label="Pixel Club, over 99 mentions">PC<span class="count">99+</span></button></div><figcaption class="note">99+</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv a3 muted" aria-label="Garden, muted">G</button></div><figcaption class="note">Muted, no pill</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv a5" aria-label="Moonbase"></button></div><figcaption class="note">Uploaded icon</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv initials" aria-label="Late Night Gamers">LNG</button></div><figcaption class="note">No icon</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv a6" aria-label="Greenroom, voice connected"><span class="vc"><span class="bars still"><i></i><i></i><i></i></span></span></button></div><figcaption class="note">Voice connected</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv home" aria-label="Direct messages"><svg width="22" height="22" viewBox="0 0 64 66" aria-hidden="true"><g fill="#e8326f"><rect x="2" y="21" width="8" height="24" rx="4"/><rect x="15" y="10.5" width="8" height="45" rx="4"/><rect x="28" y="1" width="8" height="64" rx="4"/><rect x="41" y="13.5" width="8" height="39" rx="4"/><rect x="54" y="22" width="8" height="22" rx="4"/></g></svg></button></div><figcaption class="note">Home</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv home sel" aria-label="Direct messages"><svg width="22" height="22" viewBox="0 0 64 66" aria-hidden="true"><g fill="#e8326f"><rect x="2" y="21" width="8" height="24" rx="4"/><rect x="15" y="10.5" width="8" height="45" rx="4"/><rect x="28" y="1" width="8" height="64" rx="4"/><rect x="41" y="13.5" width="8" height="39" rx="4"/><rect x="54" y="22" width="8" height="22" rx="4"/></g></svg></button></div><figcaption class="note">Home, selected</figcaption></figure>
+      </div>
+
+      <h3>Folders and actions</h3>
+      <div class="nd-specs">
+        <figure class="nd-spec"><div class="nd-well"><button class="srv folder-head" aria-expanded="false" aria-label="Friends, folder"><span class="minis" aria-hidden="true"><span class="a3"></span><span class="a2"></span><span class="a1"></span><span class="a4"></span></span><i class="ph-fill ph-folder-simple"></i></button></div><figcaption class="note">Closed folder</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv folder-head unread" aria-expanded="false" aria-label="Friends, folder, 24 mentions"><span class="minis" aria-hidden="true"><span class="a3"></span><span class="a2"></span><span></span><span></span></span><i class="ph-fill ph-folder-simple"></i><span class="count">24</span></button></div><figcaption class="note">Two servers, mentions</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv folder-head" style="--folder: oklch(0.66 0.13 250)" aria-expanded="false" aria-label="Games, folder"><span class="minis" aria-hidden="true"><span class="a4"></span><span class="a5"></span><span class="a6"></span><span></span></span><i class="ph-fill ph-folder-simple"></i></button></div><figcaption class="note">User colour</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv add" aria-label="Add a server"><i class="ph-bold ph-plus"></i></button></div><figcaption class="note">Add server</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv add is-hover" aria-label="Add a server"><i class="ph-bold ph-plus"></i></button></div><figcaption class="note">Add, hover</figcaption></figure>
+        <figure class="nd-spec"><div class="nd-well"><button class="srv add" aria-label="Discover servers"><i class="ph-bold ph-compass"></i></button></div><figcaption class="note">Discover</figcaption></figure>
+      </div>
+      <p class="note" style="margin-top: 12px">Click a folder in the rail to open or close it. An open folder is a tinted column (18% of its colour) with its servers inside; the closed folder shows up to four of them.</p>
+
+      <h3>Reorder and tooltip</h3>
+      <div class="row" style="align-items: flex-start; gap: var(--space-6)">
+        <figure class="stack" style="align-items: center">
+          <div class="nd-frame" style="width: 70px"><div class="rail" style="position: relative">
+            <button class="srv a1" aria-label="Night Shift">NS</button>
+            <span class="rail-drop" aria-hidden="true"></span>
+            <button class="srv a2" aria-label="Pixel Club">PC</button>
+            <button class="srv a4" aria-label="Lowkey">L</button>
+            <button class="srv a3 dragging" style="position: absolute; left: 24px; top: 72px" aria-label="Garden, dragging">G</button>
+          </div></div>
+          <figcaption class="note">Drop line: moves between</figcaption>
+        </figure>
+        <figure class="stack" style="align-items: center">
+          <div class="nd-frame" style="width: 70px"><div class="rail">
+            <button class="srv a1" aria-label="Night Shift">NS</button>
+            <button class="srv a2 drop-into" aria-label="Pixel Club, drop target">PC</button>
+            <button class="srv a4 dragging" aria-label="Lowkey, dragging">L</button>
+          </div></div>
+          <figcaption class="note">Ring: makes a folder</figcaption>
+        </figure>
+        <div class="stack" style="flex: 1; min-width: min(100%, 240px)">
+          <div class="nd-tipwell">
+            <button class="srv a5 is-hover" aria-label="The Extremely Long Server Name Society of Late Night Gamers"></button>
+            <span class="tooltip rail-tip" role="tooltip">The Extremely Long Server Name Society of Late Night Gamers<small>3 mentions</small></span>
+          </div>
+          <p class="note">The dragged server hangs 4° from the grab point with a pop shadow. A status line under the rail says what the drop will do ("Release to make a folder"), then Undo. Tooltips open after 300ms on hover, wrap at 220px, and name the server first.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Channel sidebar -->
+<section id="channel-sidebar">
+  <h2>Channel sidebar</h2>
+  <p class="lede">The server's channels, grouped by category. Rows sit at full ink; selection is a fill, unread is a pill and bold, and only mentions take the accent.</p>
+  <div class="board nd-cols">
+    <div class="nd-frame" style="width: 240px; flex: none">
+      <aside class="side" aria-label="Night Shift channels">
+        <header class="srvhead"><button aria-expanded="false" aria-haspopup="menu"><span>Night Shift</span><i class="ph-bold ph-caret-down"></i></button></header>
+        <div class="chlist">
+          <div class="catgroup">
+            <div class="cathead"><button class="cat" aria-expanded="true"><i class="ph-bold ph-caret-down"></i>Information</button><button class="cat-add" aria-label="Create channel in Information" title="Create channel"><i class="ph-bold ph-plus"></i></button></div>
+            <div class="ch"><i class="ph ph-book-open-text"></i><a class="nm" href="#">rules</a></div>
+            <div class="ch unread"><i class="ph ph-megaphone"></i><a class="nm" href="#">announcements</a></div>
+          </div>
+          <div class="catgroup">
+            <div class="cathead"><button class="cat" aria-expanded="true"><i class="ph-bold ph-caret-down"></i>Text</button><button class="cat-add" aria-label="Create channel in Text" title="Create channel"><i class="ph-bold ph-plus"></i></button></div>
+            <div class="ch sel"><i class="ph ph-hash"></i><a class="nm" href="#" aria-current="page">general</a><span class="acts"><button aria-label="Invite to general" title="Invite people"><i class="ph ph-user-plus"></i></button><button aria-label="Edit general" title="Edit channel"><i class="ph ph-gear-six"></i></button></span></div>
+            <div class="ch thread unread"><a class="nm" href="#">Season 7 tier list</a></div>
+            <div class="ch thread"><a class="nm" href="#">Snack rota</a></div>
+            <div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">clips</a><span class="count" aria-label="2 mentions">2</span></div>
+            <div class="ch"><i class="ph ph-chats"></i><a class="nm" href="#">help-forum</a></div>
+            <div class="ch"><i class="ph ph-images"></i><a class="nm" href="#">screenshots</a></div>
+            <div class="ch muted"><i class="ph ph-hash"></i><a class="nm" href="#">memes</a><span class="meta" title="Muted"><i class="ph ph-bell-slash" aria-label="Muted"></i></span></div>
+            <div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">staff-only</a><span class="meta" title="Private channel"><i class="ph ph-lock-simple" aria-label="Private"></i></span></div>
+            <div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">looking-for-group-in-every-timezone-ever</a></div>
+          </div>
+          <div class="catgroup">
+            <div class="cathead"><button class="cat" aria-expanded="true"><i class="ph-bold ph-caret-down"></i>Voice</button><button class="cat-add" aria-label="Create channel in Voice" title="Create channel"><i class="ph-bold ph-plus"></i></button></div>
+            <div class="ch"><i class="ph ph-speaker-high"></i><a class="nm" href="#">Lounge</a></div>
+            <button class="vp speaking"><span class="av" data-av="Mira"></span><span class="nm">Mira</span><span class="end"><span class="bars" aria-label="Speaking"><i></i><i></i><i></i></span></span></button>
+            <button class="vp"><span class="av" data-av="Theo"></span><span class="nm">Theo</span><span class="end"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span></span></button>
+            <button class="vp"><span class="av" data-av="You"></span><span class="nm">You</span><span class="end"><i class="ph-fill ph-microphone-slash" aria-label="Muted"></i></span></button>
+            <div class="ch"><i class="ph ph-speaker-high"></i><a class="nm" href="#">Ranked grind</a><span class="meta"><span class="limit" aria-label="3 of 8 people">3/8</span></span></div>
+            <div class="ch"><i class="ph ph-microphone-stage"></i><a class="nm" href="#">Friday stage</a></div>
+          </div>
+          <div class="catgroup">
+            <div class="cathead"><button class="cat" aria-expanded="false"><i class="ph-bold ph-caret-down"></i>Archive</button><button class="cat-add" aria-label="Create channel in Archive" title="Create channel"><i class="ph-bold ph-plus"></i></button></div>
+            <div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">season-6</a></div>
+            <div class="ch unread"><i class="ph ph-hash"></i><a class="nm" href="#">old-patch-notes</a></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div style="flex: 1; min-width: min(100%, 280px)">
+      <h3 style="margin-top: 0">Server header</h3>
+      <div class="nd-cols" style="gap: var(--space-4)">
+        <div class="nd-col"><div class="nd-frame"><div class="side"><header class="srvhead"><button aria-expanded="false" aria-haspopup="menu" data-static><span>Night Shift</span><i class="ph-bold ph-caret-down"></i></button></header></div></div><span class="note">Default</span></div>
+        <div class="nd-col"><div class="nd-frame"><div class="side"><header class="srvhead"><button class="is-hover" aria-expanded="false" aria-haspopup="menu" data-static><span>The Extremely Long Server Name Society</span><i class="ph-bold ph-caret-down"></i></button></header></div></div><span class="note">Hover, long name truncates</span></div>
+        <div class="nd-col"><div class="nd-frame"><div class="side banner-art"><header class="srvhead srvhead--banner"><button aria-expanded="false" aria-haspopup="menu" data-static><span>Night Shift</span><i class="ph-bold ph-caret-down"></i></button></header></div></div><span class="note">Banner, 136px, dark scrim under the name</span></div>
+        <div class="nd-col"><div class="nd-frame"><div class="side">
+          <header class="srvhead"><button aria-expanded="true" aria-haspopup="menu" data-static><span>Night Shift</span><i class="ph-bold ph-x"></i></button></header>
+          <div class="menu srvmenu" role="menu">
+            <button class="mi" role="menuitem"><i class="ph ph-user-plus"></i><div>Invite people</div></button>
+            <button class="mi" role="menuitem"><i class="ph ph-gear-six"></i><div>Server settings</div></button>
+            <button class="mi" role="menuitem"><i class="ph ph-plus-circle"></i><div>Create channel</div></button>
+            <hr>
+            <button class="mi" role="menuitem"><i class="ph ph-bell"></i><div>Notification settings</div></button>
+            <button class="mi" role="menuitem"><i class="ph ph-eye-slash"></i><div>Hide muted channels</div></button>
+            <hr>
+            <button class="mi danger" role="menuitem"><i class="ph ph-sign-out"></i><div>Leave server</div></button>
+          </div>
+        </div></div><span class="note">Open: caret turns to close, menu drops from the header</span></div>
+      </div>
+
+      <h3>Categories</h3>
+      <div class="nd-frame" style="max-width: 520px"><div class="nd-states">
+        <div class="cathead"><button class="cat" aria-expanded="true" data-static><i class="ph-bold ph-caret-down"></i>Text channels</button><button class="cat-add" aria-label="Create channel" title="Create channel"><i class="ph-bold ph-plus"></i></button></div><span class="note">Expanded</span>
+        <div class="cathead"><button class="cat" aria-expanded="false" data-static><i class="ph-bold ph-caret-down"></i>Archive</button><button class="cat-add" aria-label="Create channel" title="Create channel"><i class="ph-bold ph-plus"></i></button></div><span class="note">Collapsed: unread and selected rows stay visible</span>
+        <div class="cathead is-hover"><button class="cat is-hover" aria-expanded="true" data-static><i class="ph-bold ph-caret-down"></i>Voice channels</button><button class="cat-add" aria-label="Create channel" title="Create channel"><i class="ph-bold ph-plus"></i></button></div><span class="note">Hover: fill, plus add</span>
+      </div></div>
+
+      <h3>Channel types</h3>
+      <div class="nd-frame" style="max-width: 520px"><div class="nd-states">
+        <div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">general</a></div><span class="note">Text</span>
+        <div class="ch"><i class="ph ph-megaphone"></i><a class="nm" href="#">announcements</a></div><span class="note">Announcement</span>
+        <div class="ch"><i class="ph ph-book-open-text"></i><a class="nm" href="#">rules</a></div><span class="note">Rules</span>
+        <div class="ch"><i class="ph ph-chats"></i><a class="nm" href="#">help-forum</a></div><span class="note">Forum</span>
+        <div class="ch"><i class="ph ph-images"></i><a class="nm" href="#">screenshots</a></div><span class="note">Media</span>
+        <div class="ch"><i class="ph ph-microphone-stage"></i><a class="nm" href="#">Friday stage</a></div><span class="note">Stage</span>
+        <div class="ch"><i class="ph ph-speaker-high"></i><a class="nm" href="#">Ranked grind</a><span class="meta"><span class="limit" aria-label="3 of 8 people">3/8</span></span></div><span class="note">Voice, user limit</span>
+        <div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">staff-only</a><span class="meta" title="Private channel"><i class="ph ph-lock-simple" aria-label="Private"></i></span></div><span class="note">Private</span>
+        <div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">horror-nights</a><span class="meta" title="Age-restricted"><i class="ph ph-shield-warning" aria-label="Age-restricted"></i></span></div><span class="note">Age-restricted</span>
+        <div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">general</a></div><span class="note">Parent channel</span>
+        <div class="ch thread"><a class="nm" href="#">Season 7 tier list</a></div><span class="note">Thread</span>
+        <div class="ch thread"><a class="nm" href="#">Snack rota</a></div><span class="note">Thread, last</span>
+      </div></div>
+
+      <h3>Channel states</h3>
+      <div class="nd-frame" style="max-width: 520px"><div class="nd-states">
+        <div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">clips</a></div><span class="note">Default</span>
+        <div class="ch is-hover"><i class="ph ph-hash"></i><a class="nm" href="#">clips</a><span class="acts"><button aria-label="Invite to clips" title="Invite people"><i class="ph ph-user-plus"></i></button><button aria-label="Edit clips" title="Edit channel"><i class="ph ph-gear-six"></i></button></span></div><span class="note">Hover: invite and settings</span>
+        <div class="ch sel"><i class="ph ph-hash"></i><a class="nm" href="#">general</a><span class="acts"><button aria-label="Invite to general" title="Invite people"><i class="ph ph-user-plus"></i></button><button aria-label="Edit general" title="Edit channel"><i class="ph ph-gear-six"></i></button></span></div><span class="note">Selected</span>
+        <div class="ch unread"><i class="ph ph-hash"></i><a class="nm" href="#">announcements</a></div><span class="note">Unread: pill and bold</span>
+        <div class="ch unread"><i class="ph ph-hash"></i><a class="nm" href="#">looking-for-group</a><span class="count" aria-label="2 mentions">2</span></div><span class="note">Mentions</span>
+        <div class="ch unread"><i class="ph ph-hash"></i><a class="nm" href="#">everyone-pings</a><span class="count" aria-label="Over 99 mentions">99+</span></div><span class="note">99+</span>
+        <div class="ch muted"><i class="ph ph-hash"></i><a class="nm" href="#">memes</a><span class="meta" title="Muted"><i class="ph ph-bell-slash" aria-label="Muted"></i></span></div><span class="note">Muted: faint, bell off, no pill</span>
+        <div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">looking-for-group-in-every-timezone-ever</a></div><span class="note">Long name truncates</span>
+      </div></div>
+      <p class="note" style="margin-top: 8px">32px rows, 8px radius, 2px between rows, 16px from the last row to the next category. Hover actions replace the row's meta (lock, limit) in place; mention counts stay.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Voice occupants -->
+<section id="voice-occupants">
+  <h2>Voice occupants</h2>
+  <p class="lede">Who is in a voice channel, listed under it. The mini wave marks who is speaking; one trailing mark says what else is going on.</p>
+  <div class="board nd-cols">
+    <div class="nd-frame" style="width: 240px; flex: none"><div class="side"><div class="chlist">
+      <div class="ch"><i class="ph ph-speaker-high"></i><a class="nm" href="#">Lounge</a></div>
+      <button class="vp speaking"><span class="av" data-av="Mira"></span><span class="nm">Mira</span><span class="end"><span class="bars" aria-label="Speaking"><i></i><i></i><i></i></span></span></button>
+      <button class="vp"><span class="av" data-av="Theo"></span><span class="nm">Theo</span><span class="end"><span class="live" aria-label="Streaming"><span class="bars"><i></i><i></i><i></i></span>LIVE</span></span></button>
+      <button class="vp"><span class="av" data-av="Ana"></span><span class="nm">Ana</span><span class="end"><i class="ph-fill ph-video-camera" aria-label="Camera on"></i></span></button>
+      <button class="vp"><span class="av" data-av="You"></span><span class="nm">You</span><span class="end"><i class="ph-fill ph-microphone-slash" aria-label="Muted"></i></span></button>
+      <button class="vp"><span class="av" data-av="Jun"></span><span class="nm">Jun</span><span class="end"><i class="ph-fill ph-speaker-slash" aria-label="Deafened"></i></span></button>
+      <button class="vp is-hover"><span class="av" data-av="Rosa"></span><span class="nm">Rosa</span><span class="end"><i class="ph-fill ph-microphone-slash srvmute" aria-label="Muted by the server"></i></span></button>
+      <button class="vp"><span class="av" data-av="Bartholomew"></span><span class="nm">Bartholomew the Unmutable</span></button>
+      <button class="vp more"><span class="stackav"><span class="av" data-av="Kai"></span><span class="av" data-av="Lee"></span><span class="av" data-av="Ola"></span></span><span class="nm">4 more</span></button>
+    </div></div></div>
+    <div class="nd-frame" style="flex: 1; min-width: min(100%, 280px); max-width: 520px"><div class="nd-states">
+      <button class="vp speaking"><span class="av" data-av="Mira"></span><span class="nm">Mira</span><span class="end"><span class="bars" aria-label="Speaking"><i></i><i></i><i></i></span></span></button><span class="note">Speaking: bars, name at full ink</span>
+      <button class="vp"><span class="av" data-av="You"></span><span class="nm">You</span><span class="end"><i class="ph-fill ph-microphone-slash" aria-label="Muted"></i></span></button><span class="note">Muted</span>
+      <button class="vp"><span class="av" data-av="Jun"></span><span class="nm">Jun</span><span class="end"><i class="ph-fill ph-speaker-slash" aria-label="Deafened"></i></span></button><span class="note">Deafened</span>
+      <button class="vp"><span class="av" data-av="Theo"></span><span class="nm">Theo</span><span class="end"><span class="live" aria-label="Streaming"><span class="bars"><i></i><i></i><i></i></span>LIVE</span></span></button><span class="note">Streaming</span>
+      <button class="vp"><span class="av" data-av="Ana"></span><span class="nm">Ana</span><span class="end"><i class="ph-fill ph-video-camera" aria-label="Camera on"></i></span></button><span class="note">Camera on</span>
+      <button class="vp"><span class="av" data-av="Rosa"></span><span class="nm">Rosa</span><span class="end"><i class="ph-fill ph-microphone-slash srvmute" aria-label="Muted by the server"></i></span></button><span class="note">Server-muted: --danger-ink</span>
+      <button class="vp more"><span class="stackav"><span class="av" data-av="Kai"></span><span class="av" data-av="Lee"></span><span class="av" data-av="Ola"></span></span><span class="nm">4 more</span></button><span class="note">Overflow: opens the full list</span>
+    </div></div>
+  </div>
+  <p class="note" style="margin-top: 8px">30px rows indented 32px under the channel, 22px avatars. When several marks apply, the most important wins: server-muted, then live, then camera, then muted or deafened. Speaking is never a ring.</p>
+</section>
+
+<!-- Direct messages -->
+<section id="direct-messages">
+  <h2>Direct messages sidebar</h2>
+  <p class="lede">Home's sidebar: a field to find anyone, the Friends page, then conversations newest first. Each row is the person and one line on what they're doing.</p>
+  <div class="board nd-cols">
+    <div class="nd-frame" style="width: 240px; flex: none">
+      <aside class="side" aria-label="Direct messages">
+        <header style="padding: 0 8px"><button class="dm-find" data-open="qs-dialog"><i class="ph ph-magnifying-glass"></i>Find or start a conversation</button></header>
+        <div class="chlist">
+          <div class="ch navrow sel"><i class="ph ph-users"></i><a class="nm" href="#" aria-current="page">Friends</a><span class="count" aria-label="2 pending requests">2</span></div>
+          <div class="ch navrow"><i class="ph ph-envelope-simple"></i><a class="nm" href="#">Message requests</a></div>
+          <div class="catgroup">
+            <div class="cathead always"><span class="cat">Direct messages</span><button class="cat-add" aria-label="Start a conversation" title="Start a conversation"><i class="ph-bold ph-plus"></i></button></div>
+            <div class="dm"><span class="av" data-av="Mira"><span class="status online"></span></span><a class="nm" href="#"><b>Mira</b><small><i class="ph-fill ph-game-controller"></i>Playing Balatro</small></a><button class="x" aria-label="Close conversation with Mira" title="Close"><i class="ph ph-x"></i></button></div>
+            <div class="dm unread"><span class="gav"><span class="av" data-av="Theo"></span><span class="av" data-av="Ana"></span></span><a class="nm" href="#"><b>Ranked squad</b><small>4 members</small></a><span class="count" aria-label="5 mentions">5</span><button class="x" aria-label="Close Ranked squad" title="Close"><i class="ph ph-x"></i></button></div>
+            <div class="dm unread"><span class="av" data-av="Ana"><span class="status idle"></span></span><a class="nm" href="#"><b>Ana</b><small><span class="bars"><i></i><i></i><i></i></span>Typing…</small></a><button class="x" aria-label="Close conversation with Ana" title="Close"><i class="ph ph-x"></i></button></div>
+            <div class="dm is-hover"><span class="av" data-av="Theo"><span class="status dnd"></span></span><a class="nm" href="#"><b>Theo</b><small><i class="ph-fill ph-broadcast"></i>Streaming Hades II</small></a><button class="x" aria-label="Close conversation with Theo" title="Close"><i class="ph ph-x"></i></button></div>
+            <div class="dm sel"><span class="av" data-av="Wavebot"><span class="status online"></span></span><a class="nm" href="#"><b>Wavebot</b><small><i class="ph-fill ph-music-notes"></i>Listening to lofi beats</small></a><button class="x" aria-label="Close conversation with Wavebot" title="Close"><i class="ph ph-x"></i></button></div>
+            <div class="dm off"><span class="av" data-av="Jun"><span class="status offline"></span></span><a class="nm" href="#"><b>Jun</b></a><button class="x" aria-label="Close conversation with Jun" title="Close"><i class="ph ph-x"></i></button></div>
+            <div class="dm"><span class="av" data-av="Maximiliana"><span class="status online"></span></span><a class="nm" href="#"><b>Maximiliana Wolfeschlegelsteinhausen</b><small>🌙 night owl, reply by morning</small></a><button class="x" aria-label="Close conversation with Maximiliana" title="Close"><i class="ph ph-x"></i></button></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="nd-frame" style="flex: 1; min-width: min(100%, 280px); max-width: 520px"><div class="nd-states">
+      <div class="dm"><span class="av" data-av="Mira"><span class="status online"></span></span><a class="nm" href="#"><b>Mira</b><small><i class="ph-fill ph-game-controller"></i>Playing Balatro</small></a><button class="x" aria-label="Close conversation with Mira" title="Close"><i class="ph ph-x"></i></button></div><span class="note">Online, with activity</span>
+      <div class="dm"><span class="gav"><span class="av" data-av="Theo"></span><span class="av" data-av="Ana"></span></span><a class="nm" href="#"><b>Ranked squad</b><small>4 members</small></a><button class="x" aria-label="Close Ranked squad" title="Close"><i class="ph ph-x"></i></button></div><span class="note">Group: two faces, member count</span>
+      <div class="dm unread"><span class="av" data-av="Rosa"><span class="status online"></span></span><a class="nm" href="#"><b>Rosa</b><small>sent a photo</small></a><button class="x" aria-label="Close conversation with Rosa" title="Close"><i class="ph ph-x"></i></button></div><span class="note">Unread</span>
+      <div class="dm unread"><span class="av" data-av="Ana"><span class="status idle"></span></span><a class="nm" href="#"><b>Ana</b><small><span class="bars"><i></i><i></i><i></i></span>Typing…</small></a><span class="count" aria-label="1 mention">1</span><button class="x" aria-label="Close conversation with Ana" title="Close"><i class="ph ph-x"></i></button></div><span class="note">Typing, with a mention</span>
+      <div class="dm is-hover"><span class="av" data-av="Theo"><span class="status dnd"></span></span><a class="nm" href="#"><b>Theo</b><small>Do not disturb</small></a><button class="x" aria-label="Close conversation with Theo" title="Close"><i class="ph ph-x"></i></button></div><span class="note">Hover: close appears</span>
+      <div class="dm sel"><span class="av" data-av="Wavebot"><span class="status online"></span></span><a class="nm" href="#"><b>Wavebot</b><small>Online</small></a><button class="x" aria-label="Close conversation with Wavebot" title="Close"><i class="ph ph-x"></i></button></div><span class="note">Selected</span>
+      <div class="dm off"><span class="av" data-av="Jun"><span class="status offline"></span></span><a class="nm" href="#"><b>Jun</b></a><button class="x" aria-label="Close conversation with Jun" title="Close"><i class="ph ph-x"></i></button></div><span class="note">Offline: avatar dims, name stays legible</span>
+    </div></div>
+  </div>
+  <p class="note" style="margin-top: 8px">The find field opens the quick switcher (try it). Typing shows the mini wave in the row's own colour, not the accent.</p>
+</section>
+
+<!-- Friends -->
+<section id="friends">
+  <h2>Friends</h2>
+  <p class="lede">Home's main page. Tabs filter one list; Add friend is the page's one primary action.</p>
+  <h3>Online</h3>
+  <div class="nd-frame">
+    <div class="fhead">
+      <span class="title"><i class="ph ph-users"></i>Friends</span>
+      <div class="pills" role="tablist" aria-label="Friends filter">
+        <button class="tab" role="tab" aria-selected="true">Online</button>
+        <button class="tab" role="tab" aria-selected="false">All</button>
+        <button class="tab" role="tab" aria-selected="false">Pending <span class="count" aria-label="2 requests">2</span></button>
+        <button class="tab" role="tab" aria-selected="false">Blocked</button>
+      </div>
+      <button class="btn btn--primary btn--sm"><i class="ph-bold ph-user-plus"></i>Add friend</button>
+    </div>
+    <div class="flist">
+      <label class="input"><i class="ph ph-magnifying-glass"></i><input placeholder="Search friends" aria-label="Search friends"></label>
+      <div class="flabel">Online · 3</div>
+      <div class="friend"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>Playing Balatro</span></div><div class="acts"><button class="iconbtn" aria-label="Message Mira" title="Message"><i class="ph ph-chat-circle"></i></button><button class="iconbtn" aria-label="More for Mira" title="More"><i class="ph ph-dots-three-vertical"></i></button></div></div>
+      <div class="friend is-hover"><span class="av" data-av="Ana"><span class="status idle"></span></span><div><b>Ana</b><span>Idle</span></div><div class="acts"><button class="iconbtn" aria-label="Message Ana" title="Message"><i class="ph ph-chat-circle"></i></button><button class="iconbtn" aria-label="More for Ana" title="More"><i class="ph ph-dots-three-vertical"></i></button></div></div>
+      <div class="friend"><span class="av" data-av="Maximiliana"><span class="status dnd"></span></span><div><b>Maximiliana Wolfeschlegelsteinhausen</b><span>Do not disturb, deep in a ranked marathon that will last all weekend</span></div><div class="acts"><button class="iconbtn" aria-label="Message Maximiliana" title="Message"><i class="ph ph-chat-circle"></i></button><button class="iconbtn" aria-label="More for Maximiliana" title="More"><i class="ph ph-dots-three-vertical"></i></button></div></div>
+    </div>
+  </div>
+
+  <h3>Pending</h3>
+  <div class="nd-frame">
+    <div class="flist">
+      <div class="flabel">Pending · 3</div>
+      <div class="friend"><span class="av" data-av="Kai"></span><div><b>Kai</b><span>Wants to be friends</span></div><div class="acts"><button class="iconbtn accept" aria-label="Accept Kai" title="Accept"><i class="ph-bold ph-check"></i></button><button class="iconbtn ignore" aria-label="Ignore Kai" title="Ignore"><i class="ph-bold ph-x"></i></button></div></div>
+      <div class="friend is-hover"><span class="av" data-av="Lee"></span><div><b>Lee</b><span>Wants to be friends</span></div><div class="acts"><button class="iconbtn accept" aria-label="Accept Lee" title="Accept" style="color: var(--online-ink)"><i class="ph-bold ph-check"></i></button><button class="iconbtn ignore" aria-label="Ignore Lee" title="Ignore"><i class="ph-bold ph-x"></i></button></div></div>
+      <div class="friend"><span class="av" data-av="Ola"></span><div><b>Ola</b><span>You sent a request</span></div><div class="acts"><button class="iconbtn ignore" aria-label="Cancel request to Ola" title="Cancel request"><i class="ph-bold ph-x"></i></button></div></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Accept hovers to --online-ink, Ignore to --danger-ink (shown on Lee). Ignoring is undoable from a toast, so it never asks first.</p>
+
+  <h3>No one online</h3>
+  <div class="nd-frame"><div class="flist">
+    <div class="empty">
+      <div class="mascot idle" style="--s: .6" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      <b>No one's around right now</b>
+      <p>Your friends are offline. Say hi anyway, they'll see it when they're back.</p>
+      <button class="btn">Show all friends</button>
+    </div>
+  </div></div>
+</section>
+
+<!-- Member list -->
+<section id="member-list">
+  <h2>Member list</h2>
+  <p class="lede">Who is in this channel, grouped by their top role, then online and offline. One line of activity under each name.</p>
+  <div class="board nd-cols">
+    <div class="nd-frame" style="width: 240px; flex: none">
+      <aside class="members" aria-label="Members">
+        <div class="cat">Host · 1</div>
+        <div class="mem"><span class="av" data-av="Theo"><span class="status dnd"></span></span><div><b><bdi>Theo</bdi><i class="ph-fill ph-crown-simple crown" aria-label="Server owner" title="Server owner"></i></b><span><i class="ph-fill ph-broadcast"></i><bdi>Streaming Hades II</bdi></span></div></div>
+        <div class="cat">Online · 4</div>
+        <div class="mem"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b><bdi>Mira</bdi></b><span><i class="ph-fill ph-game-controller"></i><bdi>Playing Balatro</bdi></span></div></div>
+        <div class="mem is-hover"><span class="av" data-av="Ana"><span class="status idle"></span></span><div><b><bdi>Ana</bdi></b><span><bdi>🍕 brb, pizza</bdi></span></div></div>
+        <div class="mem"><span class="av" data-av="Wavebot"><span class="status online"></span></span><div><b><bdi>Wavebot</bdi><span class="tag">App</span></b><span><i class="ph-fill ph-music-notes"></i><bdi>Listening to lofi beats</bdi></span></div></div>
+        <div class="mem sel"><span class="av" data-av="Maximiliana"><span class="status online"></span></span><div><b><bdi>Maximiliana Wolfeschlegelsteinhausen</bdi></b><span><bdi>🌙 night owl, reply by morning, probably later</bdi></span></div></div>
+        <div class="cat">Offline · 2</div>
+        <div class="mem off"><span class="av" data-av="Jun"><span class="status offline"></span></span><div><b><bdi>Jun</bdi></b></div></div>
+        <div class="mem off"><span class="av" data-av="Rosa"><span class="status offline"></span></span><div><b><bdi>Rosa</bdi></b></div></div>
+      </aside>
+    </div>
+    <div class="nd-frame" style="width: 240px; flex: none">
+      <aside class="members" aria-label="Members, loading" aria-busy="true">
+        <div class="cat">Online</div>
+        <div class="mem skel"><span class="skeleton circle" style="width: 32px; height: 32px; flex: none"></span><div class="stack" style="gap: 6px; flex: 1"><span class="skeleton line" style="width: 70%; "></span><span class="skeleton line" style="width: 45%; height: 8px"></span></div></div>
+        <div class="mem skel"><span class="skeleton circle" style="width: 32px; height: 32px; flex: none"></span><div class="stack" style="gap: 6px; flex: 1"><span class="skeleton line" style="width: 52%; "></span></div></div>
+        <div class="mem skel"><span class="skeleton circle" style="width: 32px; height: 32px; flex: none"></span><div class="stack" style="gap: 6px; flex: 1"><span class="skeleton line" style="width: 80%; "></span><span class="skeleton line" style="width: 60%; height: 8px"></span></div></div>
+        <div class="mem skel"><span class="skeleton circle" style="width: 32px; height: 32px; flex: none"></span><div class="stack" style="gap: 6px; flex: 1"><span class="skeleton line" style="width: 40%; "></span></div></div>
+        <div class="mem skel"><span class="skeleton circle" style="width: 32px; height: 32px; flex: none"></span><div class="stack" style="gap: 6px; flex: 1"><span class="skeleton line" style="width: 64%; "></span><span class="skeleton line" style="width: 50%; height: 8px"></span></div></div>
+      </aside>
+    </div>
+    <div class="stack" style="flex: 1; min-width: min(100%, 240px); gap: var(--space-3)">
+      <p class="note">Group headers count with real numbers (Online · 4); the loading list shows the static label and no false count.</p>
+      <p class="note">Offline rows dim the avatar to 50% and the name to --text-faint, so the text still clears 4.5:1.</p>
+      <p class="note">Hover is --hover; the member whose profile is open keeps --selected (Maximiliana).</p>
+      <p class="note">The owner crown and the App tag follow the name and never truncate; the name gives way first.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Quick switcher -->
+<section id="quick-switcher">
+  <h2>Quick switcher</h2>
+  <p class="lede">Jump anywhere by name with Ctrl K (⌘K on macOS). Results group by kind; arrows move the selection, Enter goes.</p>
+  <div class="board nd-cols">
+    <div class="switcher" role="dialog" aria-label="Quick switcher">
+      <label class="switcher-field"><i class="ph ph-magnifying-glass"></i><input value="gen" aria-label="Where would you like to go?" aria-controls="qs-list" aria-activedescendant="qs-1"></label>
+      <div class="switcher-list" role="listbox" id="qs-list">
+        <div class="switcher-group">Channels</div>
+        <button class="switcher-row" role="option" id="qs-1" aria-selected="true"><i class="ph ph-hash"></i><span class="nm"><mark>gen</mark>eral</span><span class="where">Night Shift</span><kbd class="kbd go"><i class="ph ph-arrow-elbow-down-left"></i></kbd></button>
+        <button class="switcher-row" role="option" aria-selected="false"><i class="ph ph-hash"></i><span class="nm"><mark>gen</mark>eral</span><span class="where">Pixel Club</span><span class="count" aria-label="4 mentions">4</span></button>
+        <button class="switcher-row" role="option" aria-selected="false"><i class="ph ph-speaker-high"></i><span class="nm"><mark>Gen</mark>eral voice</span><span class="where">Garden</span></button>
+        <div class="switcher-group">People</div>
+        <button class="switcher-row" role="option" aria-selected="false"><span class="av" data-av="Genevieve"><span class="status online"></span></span><span class="nm"><mark>Gen</mark>evieve</span><span class="where">genny</span></button>
+        <div class="switcher-group">Servers</div>
+        <button class="switcher-row" role="option" aria-selected="false"><span class="srv-mini a6"></span><span class="nm"><mark>Gen</mark>shin Co-op Society of Extremely Long Server Names</span></button>
+      </div>
+      <div class="switcher-foot">
+        <span><kbd class="kbd"><i class="ph-bold ph-arrow-up"></i></kbd><kbd class="kbd"><i class="ph-bold ph-arrow-down"></i></kbd>Move</span>
+        <span><kbd class="kbd">Enter</kbd>Open</span>
+        <span><kbd class="kbd">Esc</kbd>Close</span>
+        <span class="tip">Start with # @ or * to search one kind</span>
+      </div>
+    </div>
+
+    <div class="switcher" role="dialog" aria-label="Quick switcher, no results">
+      <label class="switcher-field"><i class="ph ph-magnifying-glass"></i><input value="zzzq" aria-label="Where would you like to go?"></label>
+      <div class="empty">
+        <div class="mascot waiting" style="--s: .45" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+        <b>Nothing called “zzzq”</b>
+        <p>Check the spelling, or search messages in a channel instead.</p>
+      </div>
+      <div class="switcher-foot">
+        <span><kbd class="kbd">Esc</kbd>Close</span>
+        <span class="tip">Start with # @ or * to search one kind</span>
+      </div>
+    </div>
+  </div>
+  <dialog class="real" id="qs-dialog" aria-label="Quick switcher">
+    <div class="switcher" style="width: min(92vw, 560px)">
+      <label class="switcher-field"><i class="ph ph-magnifying-glass"></i><input placeholder="Where would you like to go?" aria-label="Where would you like to go?" autofocus></label>
+      <div class="switcher-list" role="listbox">
+        <div class="switcher-group">Recent</div>
+        <button class="switcher-row" role="option" aria-selected="true" data-close><i class="ph ph-hash"></i><span class="nm">general</span><span class="where">Night Shift</span><kbd class="kbd go"><i class="ph ph-arrow-elbow-down-left"></i></kbd></button>
+        <button class="switcher-row" role="option" aria-selected="false" data-close><span class="av" data-av="Mira"><span class="status online"></span></span><span class="nm">Mira</span></button>
+        <button class="switcher-row" role="option" aria-selected="false" data-close><span class="srv-mini a2"></span><span class="nm">Pixel Club</span></button>
+      </div>
+      <div class="switcher-foot"><span><kbd class="kbd">Enter</kbd>Open</span><span><kbd class="kbd">Esc</kbd>Close</span></div>
+    </div>
+  </dialog>
+  <p class="note" style="margin-top: 8px">20px radius, --bg-overlay, opens 200ms from scale 0.95. Matches render bold in place; the keyboard row takes --selected and shows the Enter key.</p>
+</section>
+
+<!-- Channel header -->
+<section id="channel-header">
+  <h2>Channel header</h2>
+  <p class="lede">Where you are, as a breadcrumb, then the topic and the channel's tools. As the window narrows, search folds to an icon, the topic goes, then the parent crumb.</p>
+  <h3>Channel</h3>
+  <div class="nd-frame chanbar"><div class="chanbar-in">
+    <nav class="crumbs" aria-label="Location"><button class="crumb"><span class="srv-mini a1"></span><span>Night Shift</span></button><i class="ph ph-caret-right" aria-hidden="true"></i><button class="crumb here" aria-current="page"><i class="ph ph-hash"></i><span>general</span></button></nav>
+    <span class="topic" title="late-night games and bad takes; be kind, post clips in #clips, and keep spoilers tagged">late-night games and bad takes; be kind, post clips in #clips, and keep spoilers tagged</span>
+    <div class="acts">
+      <button class="iconbtn hide-narrow" aria-label="Threads" title="Threads"><i class="ph ph-chats-circle"></i></button>
+      <button class="iconbtn" aria-label="Notification settings" title="Notification settings"><i class="ph ph-bell"></i></button>
+      <button class="iconbtn hide-narrow" aria-label="Pinned messages" title="Pinned messages"><i class="ph ph-push-pin"></i></button>
+      <button class="iconbtn" aria-label="Member list" title="Hide member list" aria-pressed="true"><i class="ph ph-users"></i></button>
+      <button class="iconbtn search-btn" aria-label="Search Night Shift" title="Search"><i class="ph ph-magnifying-glass"></i></button>
+      <label class="chansearch"><input placeholder="Search Night Shift" aria-label="Search Night Shift"><i class="ph ph-magnifying-glass"></i></label>
+    </div>
+  </div></div>
+  <p class="note" style="margin-top: 8px">Members is pressed (the list is showing): --selected fill, full ink. The topic truncates first; its full text is in the tooltip and the channel details.</p>
+
+  <h3>Thread, and a muted channel</h3>
+  <div class="nd-frame chanbar"><div class="chanbar-in">
+    <nav class="crumbs" aria-label="Location"><button class="crumb"><i class="ph ph-hash"></i><span>general</span></button><i class="ph ph-caret-right" aria-hidden="true"></i><button class="crumb here" aria-current="page"><i class="ph ph-chat-circle-text"></i><span>Season 7 tier list, final final version</span></button></nav>
+    <div class="acts">
+      <button class="iconbtn" aria-label="Notifications muted" title="Notifications: muted"><i class="ph ph-bell-slash"></i></button>
+      <button class="iconbtn hide-narrow" aria-label="Pinned messages" title="Pinned messages"><i class="ph ph-push-pin"></i></button>
+      <button class="iconbtn" aria-label="Thread members" title="Show thread members" aria-pressed="false"><i class="ph ph-users"></i></button>
+      <button class="iconbtn search-btn" aria-label="Search" title="Search"><i class="ph ph-magnifying-glass"></i></button>
+      <label class="chansearch"><input placeholder="Search this thread" aria-label="Search this thread"><i class="ph ph-magnifying-glass"></i></label>
+    </div>
+  </div></div>
+
+  <h3>Direct message</h3>
+  <div class="nd-frame chanbar"><div class="chanbar-in">
+    <nav class="crumbs" aria-label="Location"><button class="crumb here" aria-current="page"><span class="av" data-av="Mira"><span class="status online"></span></span><span>Mira</span></button></nav>
+    <span class="topic">Playing Balatro</span>
+    <div class="acts">
+      <button class="iconbtn" aria-label="Start voice call" title="Start voice call"><i class="ph ph-phone"></i></button>
+      <button class="iconbtn" aria-label="Start video call" title="Start video call"><i class="ph ph-video-camera"></i></button>
+      <button class="iconbtn hide-narrow" aria-label="Pinned messages" title="Pinned messages"><i class="ph ph-push-pin"></i></button>
+      <button class="iconbtn" aria-label="Profile" title="Show profile" aria-pressed="false"><i class="ph ph-user-circle"></i></button>
+      <button class="iconbtn search-btn" aria-label="Search" title="Search"><i class="ph ph-magnifying-glass"></i></button>
+      <label class="chansearch"><input placeholder="Search" aria-label="Search this conversation"><i class="ph ph-magnifying-glass"></i></label>
+    </div>
+  </div></div>
+
+  <h3>Narrow</h3>
+  <div class="row" style="align-items: flex-start; gap: var(--space-4)">
+    <div class="nd-frame chanbar" style="width: 520px; max-width: 100%"><div class="chanbar-in">
+      <nav class="crumbs" aria-label="Location"><button class="crumb"><span class="srv-mini a1"></span><span>Night Shift</span></button><i class="ph ph-caret-right" aria-hidden="true"></i><button class="crumb here" aria-current="page"><i class="ph ph-hash"></i><span>general</span></button></nav>
+      <span class="topic">late-night games and bad takes</span>
+      <div class="acts"><button class="iconbtn hide-narrow" aria-label="Threads" title="Threads"><i class="ph ph-chats-circle"></i></button><button class="iconbtn" aria-label="Notification settings" title="Notification settings"><i class="ph ph-bell"></i></button><button class="iconbtn hide-narrow" aria-label="Pinned messages" title="Pinned messages"><i class="ph ph-push-pin"></i></button><button class="iconbtn" aria-label="Member list" title="Hide member list" aria-pressed="true"><i class="ph ph-users"></i></button><button class="iconbtn search-btn" aria-label="Search Night Shift" title="Search"><i class="ph ph-magnifying-glass"></i></button><label class="chansearch"><input placeholder="Search Night Shift" aria-label="Search Night Shift"><i class="ph ph-magnifying-glass"></i></label></div>
+    </div></div>
+    <div class="nd-frame chanbar" style="width: 340px; max-width: 100%"><div class="chanbar-in">
+      <nav class="crumbs" aria-label="Location"><button class="crumb"><span class="srv-mini a1"></span><span>Night Shift</span></button><i class="ph ph-caret-right" aria-hidden="true"></i><button class="crumb here" aria-current="page"><i class="ph ph-hash"></i><span>looking-for-group-in-every-timezone</span></button></nav>
+      <span class="topic">late-night games and bad takes</span>
+      <div class="acts"><button class="iconbtn hide-narrow" aria-label="Threads" title="Threads"><i class="ph ph-chats-circle"></i></button><button class="iconbtn" aria-label="Notification settings" title="Notification settings"><i class="ph ph-bell"></i></button><button class="iconbtn hide-narrow" aria-label="Pinned messages" title="Pinned messages"><i class="ph ph-push-pin"></i></button><button class="iconbtn" aria-label="Member list" title="Hide member list" aria-pressed="true"><i class="ph ph-users"></i></button><button class="iconbtn search-btn" aria-label="Search Night Shift" title="Search"><i class="ph ph-magnifying-glass"></i></button><label class="chansearch"><input placeholder="Search Night Shift" aria-label="Search Night Shift"><i class="ph ph-magnifying-glass"></i></label></div>
+    </div></div>
+  </div>
+</section>
 </main>
 </div>
 <script src="site.js"></script>
+<script>
+// Disclosure: categories and folders fold from their button. Demo-only pinned states carry data-static.
+document.addEventListener("click", e => {
+  const t = e.target.closest("[aria-expanded]:not([data-static])");
+  if (t) t.setAttribute("aria-expanded", t.getAttribute("aria-expanded") !== "true");
+  if (e.target.closest("a.nm")) e.preventDefault();
+});
+</script>
 </body>
 </html>
