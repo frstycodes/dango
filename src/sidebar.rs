@@ -5,24 +5,25 @@ use gpui_kit::{
     Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, Radians, SharedString, Stateful, Window,
     base::{Transition as Tween, transition},
     component::{ActiveTheme, Icon, tooltip::Tooltip},
-    div, img, prelude::*, px, rgb,
+    div, img, point, prelude::*, px, relative, rgb,
 };
 use gpui_motion_kit::core::{Bezier, Easing, Motion, Target, Transition};
 
 use crate::{
     Rustcord, Edge, Part, RailEntry, Status,
     discord::{ActivityKind, Channel, ChannelKind, Folder, Guild, Status as Status_},
+    drag::{RowDrag, hole},
     icons::Glyph,
     layout::{RAIL_WIDTH, avatar_with_status},
     motion, palette,
     rail_drag::{Drop, RailDrag},
-    ui,
+    ui::{self, Squircle},
 };
 
 // Rail geometry: 44px tiles 8px apart, centred in the 68px rail, so the state pill sits on its edge.
-const TILE: f32 = 44.;
+pub(crate) const TILE: f32 = 44.;
 const RAIL_GAP: f32 = 8.;
-const TILE_X: f32 = (RAIL_WIDTH - TILE) / 2.;
+pub(crate) const TILE_X: f32 = (RAIL_WIDTH - TILE) / 2.;
 const MINI: f32 = 16.;
 const MINI_GAP: f32 = 4.;
 const MINI_INSET: f32 = (TILE - 2. * MINI - MINI_GAP) / 2.;
@@ -35,6 +36,7 @@ const TRIP: Duration = Duration::from_millis(260);
 const ROW_HEIGHT: f32 = 32.;
 const ROW_GAP: f32 = 2.;
 
+#[derive(Clone)]
 pub(crate) enum Face {
     Home,
     Icon(String),
@@ -185,7 +187,7 @@ impl Rustcord {
             .w(px(RAIL_WIDTH))
             .h(px(TILE + motion.trip * count as f32 * (TILE + RAIL_GAP)))
             .flex_none()
-            .child(div().absolute().top_0().bottom_0().left(px(TILE_X)).w(px(TILE)).rounded(px(ui::RADIUS_LG)).bg(tint.opacity(0.18 * motion.trip)))
+            .child(div().absolute().top_0().bottom_0().left(px(TILE_X)).w(px(TILE)).squircle(ui::RADIUS_LG).bg(tint.opacity(0.18 * motion.trip)))
             .children(servers)
             .child(head)
             .into_any_element()
@@ -200,23 +202,28 @@ impl Rustcord {
         let pill = self.motions.frame_one(Part::Pill(key.clone()), Motion::new(Target::default().height(pill_height)).transition(hover_ease()), window, cx);
         let pill_height = pill.target().height_px().unwrap_or(pill_height).max(0.);
         let rail = palette::surface(palette::Level::Rail, cx);
-        let drag_icon = match &face {
-            Face::Icon(url) => Some(url.clone()),
-            _ => None,
-        };
+        let look = crate::drag::Look::Tile(face.clone());
         let drop_hint = self.rail_drop.as_ref().filter(|(target, _)| *target == key).map(|(_, drop)| *drop);
-        let face = render_face(face, TILE, ui::RADIUS_LG, selected, open, cx);
+        let item_id = SharedString::from(format!("rail-{key}"));
+        let carried = self.drag_motion.row(&item_id);
+        let face = match carried {
+            RowDrag::Rest => render_face(face, TILE, ui::RADIUS_LG, selected, open, cx),
+            RowDrag::Hole => hole(div().size(px(TILE)).squircle(ui::RADIUS_LG), cx).into_any_element(),
+            RowDrag::Hidden => div().size(px(TILE)).into_any_element(),
+        };
         let hover_key = key.clone();
         let item = div()
-            .id(SharedString::from(format!("rail-{key}")))
+            .id(item_id.clone())
+            .children(self.drag_motion.spot(&item_id))
             .relative()
             .w(px(RAIL_WIDTH))
             .h(px(TILE))
             .flex_none()
             .cursor_pointer()
             .child(div().absolute().left_0().top(px((TILE - pill_height) / 2.)).w(px(4.)).h(px(pill_height)).rounded_r(px(4.)).bg(palette::strong(cx)))
-            // PATCH(transform): pressed tiles scale to 0.97 (.srv:active); muted ones desaturate to 35% (filter).
+            // GAP: muted tiles skip the design's saturate(0.35): gpui has no element filters.
             .child(div().absolute().left(px(TILE_X)).top_0().when(muted, |f| f.opacity(0.55)).child(face))
+            .active(|s| s.scale(0.97))
             .when(mentions > 0 && badge_scale > 0.01, |item| item.child(rail_count(mentions, badge_scale, rail)))
             .when(in_voice && mentions == 0, |item| item.child(voice_mark(rail, cx)))
             .children(drop_hint.map(drop_marker))
@@ -229,17 +236,20 @@ impl Rustcord {
             .when(key == "dms", |item| item.on_click(cx.listener(|this, _, window, cx| this.open_guild(None, window, cx))));
         let item = match key.as_str() {
             "dms" => item,
-            _ => self.rail_draggable(item, key.clone(), drag_icon, name, cx),
+            _ => self.rail_draggable(item, RailDrag { key: key.clone() }, look, cx),
         };
         let Some(guild_id) = guild_id else { return item.into_any_element() };
         item.on_mouse_down(gpui_kit::MouseButton::Right, cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_server_menu(guild_id.clone(), e.position, false, cx)))
             .into_any_element()
     }
 
-    fn rail_draggable(&self, item: Stateful<Div>, key: String, icon: Option<String>, label: SharedString, cx: &mut Context<Self>) -> Stateful<Div> {
+    // Carried, a tile swells to 104% and hangs at -4° (.srv.dragging), tilting further with speed.
+    fn rail_draggable(&self, item: Stateful<Div>, drag: RailDrag, look: crate::drag::Look, cx: &mut Context<Self>) -> Stateful<Div> {
+        let key = drag.key.clone();
         let can_combine = !key.starts_with("folder-");
         let (move_key, drop_key) = (key.clone(), key.clone());
-        item.on_drag(RailDrag { key, icon, label }, |drag, _, _, cx| cx.new(|_| drag.clone()))
+        let pick_up = crate::drag::pick_up(cx.weak_entity(), format!("rail-{key}").into(), look, point(px(RAIL_WIDTH), px(TILE)), 1.04, -4.);
+        item.on_drag(drag, pick_up)
             .on_drag_move::<RailDrag>(cx.listener(move |this, event: &gpui_kit::DragMoveEvent<RailDrag>, _, cx| {
                 let inside = event.bounds.contains(&event.event.position);
                 let dragged_folder = event.drag(cx).key.starts_with("folder-");
@@ -297,7 +307,7 @@ impl Rustcord {
                 div()
                     .absolute()
                     .inset_0()
-                    .rounded(px(ui::RADIUS_MD))
+                    .squircle(ui::RADIUS_MD)
                     .bg(gpui_kit::black().opacity(0.45))
                     .flex()
                     .items_center()
@@ -341,7 +351,7 @@ impl Rustcord {
                 cx.notify();
             }))
             .p(px(6.))
-            .rounded(px(ui::RADIUS_LG))
+            .squircle(ui::RADIUS_LG)
             .bg(overlay)
             .shadow(crate::call::pop_shadow(palette::line_strong(cx), cx))
             .flex()
@@ -350,9 +360,9 @@ impl Rustcord {
             .text_size(px(14.))
             .child(thumb)
             .child(cap)
+            .transform_origin(point(relative(0.), relative(0.)))
             .with_animation(SharedString::from(format!("stream-card-open-{}", streamer.id)), Animation::new(Duration::from_millis(180)).with_easing(motion::back_out), |card, t| {
-                // PATCH(transform): scale from 0.96 at the row's edge instead of growing the width.
-                card.w(px(STREAM_CARD_WIDTH * (0.96 + 0.04 * t))).opacity((t / 0.6).clamp(0., 1.))
+                card.scale(0.96 + 0.04 * t).opacity((t / 0.6).clamp(0., 1.))
             })
     }
 
@@ -402,7 +412,7 @@ impl Rustcord {
                     .mb_2()
                     .px_3()
                     .py_2()
-                    .rounded(px(ui::RADIUS_MD))
+                    .squircle(ui::RADIUS_MD)
                     .bg(warning.opacity(0.12))
                     .text_size(px(12.))
                     .flex()
@@ -453,7 +463,7 @@ impl Rustcord {
             .min_w_0()
             .h_full()
             .px_2()
-            .rounded(px(ui::RADIUS_SM))
+            .squircle(ui::RADIUS_SM)
             .flex()
             .items_center()
             .gap_2()
@@ -486,7 +496,7 @@ impl Rustcord {
             cx,
         );
         let degrees = chevron.target().x_px();
-        let strong = palette::strong(cx);
+        let target_ink = palette::accent_ink(cx);
         let id = category.id.clone();
         let label = div()
             .id(SharedString::from(format!("section-{}", category.id)))
@@ -498,7 +508,7 @@ impl Rustcord {
                 }
                 cx.notify();
             }))
-            .drag_over::<crate::drag::ChannelDrag>(move |s, _, _, _| s.text_color(strong))
+            .drag_over::<crate::drag::ChannelDrag>(move |s, _, _, _| s.text_color(target_ink))
             .on_drop({
                 let category = category.clone();
                 cx.listener(move |this, drag: &crate::drag::ChannelDrag, _, cx| this.drop_channel(drag, &category, crate::drag::Place::Into, cx))
@@ -554,13 +564,25 @@ impl Rustcord {
             _ => None,
         };
         let faint = palette::faint(cx);
-        let row = channel_row(SharedString::from(channel.id.clone()), group.clone(), state, cx)
-            .child(channel_glyph(channel).size(px(18.)).flex_none().text_color(if selected { palette::muted(cx) } else { faint }))
-            .child(div().flex_1().min_w_0().truncate().child(channel.name.clone()))
-            .children(elapsed)
-            .children(meta.filter(|_| !selected).map(|icon| div().flex_none().flex().text_color(faint).group_hover(group.clone(), |s| s.hidden()).child(icon.size(px(15.)))))
-            .child(self.row_actions(channel, guild, group.clone(), selected, cx))
-            .when(mentions > 0, |r| r.child(ui::count_badge(mentions)));
+        let carried = self.drag_motion.row(&channel.id);
+        let welcomes = channel.kind == ChannelKind::Voice && self.welcomes_voice_drop(channel, guild);
+        let row = channel_row(SharedString::from(channel.id.clone()), group.clone(), state, cx).children(self.drag_motion.spot(&channel.id));
+        let row = match carried {
+            RowDrag::Hole => hole(row.bg(gpui_kit::transparent_black()), cx),
+            _ => row
+                .when(carried == RowDrag::Hidden, |r| r.invisible())
+                .when(welcomes, |r| r.bg(palette::accent_soft(cx)).text_color(palette::strong(cx)))
+                .child(channel_glyph(channel).size(px(18.)).flex_none().text_color(match (welcomes, selected) {
+                    (true, _) => palette::accent_ink(cx),
+                    (false, true) => palette::muted(cx),
+                    (false, false) => faint,
+                }))
+                .child(div().flex_1().min_w_0().truncate().child(channel.name.clone()))
+                .children(elapsed)
+                .children(meta.filter(|_| !selected).map(|icon| div().flex_none().flex().text_color(faint).group_hover(group.clone(), |s| s.hidden()).child(icon.size(px(15.)))))
+                .child(self.row_actions(channel, guild, group.clone(), selected, cx))
+                .when(mentions > 0, |r| r.child(ui::count_badge(mentions))),
+        };
         let row = self.channel_draggable(row, channel, guild, cx);
         let keep = selected || unread;
         if channel.kind != ChannelKind::Voice {
@@ -580,18 +602,66 @@ impl Rustcord {
             rows.extend(self.thread_rows(channel, guild, cx));
             return rows;
         }
-        let (join, drop_target, drop_wash) = (channel.clone(), channel.clone(), palette::selected(cx));
-        let row = row
-            .drag_over::<crate::drag::VoiceDrag>(move |s, _, _, _| s.bg(drop_wash))
-            .on_drop(cx.listener(move |this, drag: &crate::drag::VoiceDrag, _, cx| this.drop_voice_user(drag, drop_target.clone(), cx)))
+        let join = channel.clone();
+        let row = self
+            .voice_drop_zone(row, channel.id.clone().into(), channel, cx)
             .on_click(cx.listener(move |this, _, window, cx| this.show_call(join.clone(), window, cx)))
             .on_mouse_down(gpui_kit::MouseButton::Right, {
                 let (channel, guild_id) = (channel.clone(), guild.id.clone());
                 cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_channel_menu(channel.clone(), guild_id.clone(), e.position, cx))
             });
         let mut rows = vec![ChannelRow { keep: keep || in_call, element: row.into_any_element() }];
-        rows.extend(self.voice_rows(channel, guild, in_call, window, cx).into_iter().map(|element| ChannelRow { keep: in_call, element }));
+        // A carried channel takes its people along in the ghost.
+        if carried == RowDrag::Rest {
+            rows.extend(self.voice_rows(channel, guild, in_call, window, cx).into_iter().map(|element| ChannelRow { keep: in_call, element }));
+        }
         rows
+    }
+
+    // A voice channel takes people dropped anywhere on it, its row or the people under it. Each part
+    // claims the target while the pointer is on it and lets go only of its own claim, so moving
+    // between parts of one channel never drops it.
+    fn voice_drop_zone(&self, zone: Stateful<Div>, part: SharedString, channel: &Channel, cx: &mut Context<Self>) -> Stateful<Div> {
+        let (target, name, drop_target) = (channel.id.clone(), channel.name.clone(), channel.clone());
+        zone.on_drag_move::<crate::drag::VoiceDrag>(cx.listener(move |this, e: &gpui_kit::DragMoveEvent<crate::drag::VoiceDrag>, _, cx| {
+            let claim = Some((target.clone(), part.clone()));
+            let inside = e.bounds.contains(&e.event.position);
+            match (inside, this.drag_motion.voice_target == claim) {
+                (true, false) => {
+                    let joining = this.me.as_ref().is_some_and(|me| me.id == e.drag(cx).user_id);
+                    let home = this.guilds.iter().flat_map(|g| &g.voice_states).any(|v| v.user_id == e.drag(cx).user_id && v.channel_id.as_ref() == Some(&target));
+                    this.drag_motion.voice_target = claim;
+                    this.drag_motion.set_tag((!home).then(|| format!("{} {name}", if joining { "Join" } else { "Move to" }).into()));
+                }
+                (false, true) => {
+                    this.drag_motion.voice_target = None;
+                    this.drag_motion.set_tag(None);
+                }
+                _ => return,
+            }
+            cx.notify();
+        }))
+        .on_drop(cx.listener(move |this, drag: &crate::drag::VoiceDrag, _, cx| this.drop_voice_user(drag, drop_target.clone(), cx)))
+    }
+
+    // Held over this voice channel by someone from elsewhere: it lights up and opens a slot.
+    fn welcomes_voice_drop(&self, channel: &Channel, guild: &Guild) -> bool {
+        let targeted = self.drag_motion.voice_target.as_ref().is_some_and(|(id, _)| *id == channel.id);
+        targeted && !guild.voice_states.iter().any(|v| v.channel_id.as_ref() == Some(&channel.id) && self.drag_motion.row(&format!("voice-{}", v.user_id)) == RowDrag::Hole)
+    }
+
+    // Who a carried voice channel takes along, as its ghost shows them.
+    fn voice_people(&self, channel: &Channel, guild: &Guild) -> Vec<(String, SharedString)> {
+        guild
+            .voice_states
+            .iter()
+            .filter(|v| v.channel_id.as_ref() == Some(&channel.id))
+            .map(|v| {
+                let avatar = v.user.as_ref().map(|u| u.avatar.clone()).unwrap_or_else(|| crate::discord::avatar_url(&v.user_id, None));
+                let name = v.user.as_ref().map(|u| u.name.clone()).unwrap_or_else(|| self.user_name(&v.user_id));
+                (avatar, name.into())
+            })
+            .collect()
     }
 
     // Invite and options, shown in the row's meta slot while it's hovered or selected.
@@ -647,21 +717,29 @@ impl Rustcord {
             });
             let stream_hover = cx.listener(move |this, hovered: &bool, _, cx| this.set_hovered(&hover_key, *hovered, cx));
             let end = voice_mark_for(state, talking, &state.user_id, cx);
+            let key = SharedString::from(format!("voice-{}", state.user_id));
+            let carried = self.drag_motion.row(&key);
+            let row = div().id(key.clone()).h(px(30.)).flex_none().squircle(ui::RADIUS_SM).children(self.drag_motion.spot(&key));
+            let row = self.voice_drop_zone(row, key.clone(), channel, cx);
+            if carried == RowDrag::Hole {
+                rows.push(hole(row, cx).into_any_element());
+                continue;
+            }
+            let row = match can_drag_people || self.me.as_ref().is_some_and(|m| m.id == state.user_id) {
+                true => {
+                    let drag = crate::drag::VoiceDrag { user_id: state.user_id.clone(), guild_id: guild.id.clone(), name: name.clone().into(), avatar: avatar.clone() };
+                    let look = crate::drag::Look::Person { avatar: drag.avatar.clone(), name: drag.name.clone() };
+                    row.on_drag(drag, crate::drag::pick_up(cx.weak_entity(), key, look, point(px(self.channels_width - 16.), px(30.)), 1.05, 0.))
+                }
+                false => row,
+            };
             rows.push(
-                div()
-                    .id(SharedString::from(format!("voice-{}", state.user_id)))
-                    .when(can_drag_people || self.me.as_ref().is_some_and(|m| m.id == state.user_id), |r| {
-                        let drag = crate::drag::VoiceDrag { user_id: state.user_id.clone(), guild_id: guild.id.clone(), name: name.clone().into(), avatar: avatar.clone() };
-                        r.on_drag(drag, |drag, _, _, cx| cx.new(|_| drag.clone()))
-                    })
-                    .h(px(30.))
-                    .flex_none()
+                row.when(carried == RowDrag::Hidden, |r| r.invisible())
                     .pl(px(32.))
                     .pr_2()
                     .flex()
                     .items_center()
                     .gap_2()
-                    .rounded(px(ui::RADIUS_SM))
                     .font_weight(FontWeight::MEDIUM)
                     .text_color(if talking { palette::strong(cx) } else { palette::muted(cx) })
                     .hover(move |s| s.bg(hover).text_color(text))
@@ -682,6 +760,10 @@ impl Rustcord {
                     .into_any_element(),
             );
         }
+        // .vd-slot: where the person held over this channel will sit.
+        if self.welcomes_voice_drop(channel, guild) {
+            rows.push(div().h(px(30.)).ml(px(32.)).flex_none().squircle(ui::RADIUS_SM).border(px(1.5)).border_color(palette::accent()).bg(palette::accent_soft(cx)).into_any_element());
+        }
         rows
     }
 
@@ -698,24 +780,45 @@ impl Rustcord {
                 _ => bar.top(px(-2.)),
             }
         });
-        let drag = crate::drag::ChannelDrag { channel_id: channel.id.clone(), guild_id: guild.id.clone(), name: channel.name.clone().into() };
+        let drag = crate::drag::ChannelDrag { channel_id: channel.id.clone(), guild_id: guild.id.clone() };
+        let people = match channel.kind {
+            ChannelKind::Voice => self.voice_people(channel, guild),
+            _ => Vec::new(),
+        };
+        // The ghost is the row and its people, 30px each under it 1px apart.
+        let size = point(px(self.channels_width - 16.), px(ROW_HEIGHT + people.len() as f32 * 31.));
+        let look = crate::drag::Look::Channel { channel: Box::new(channel.clone()), people };
         let (move_id, drop_target) = (channel.id.clone(), channel.clone());
         row.children(marker)
-            .on_drag(drag, |drag, _, _, cx| cx.new(|_| drag.clone()))
+            .on_drag(drag, crate::drag::pick_up(cx.weak_entity(), channel.id.clone().into(), look, size, 1.05, 0.))
             .on_drag_move::<crate::drag::ChannelDrag>(cx.listener(move |this, e: &gpui_kit::DragMoveEvent<crate::drag::ChannelDrag>, _, cx| {
                 let inside = e.bounds.contains(&e.event.position);
                 let hint = inside.then(|| (move_id.clone(), crate::drag::place_at((e.event.position.y - e.bounds.top()) / e.bounds.size.height)));
+                let tag = inside.then(|| this.category_move(&e.drag(cx).channel_id, &move_id)).flatten();
                 match (&hint, &this.channel_drop) {
                     (Some(_), _) if this.channel_drop != hint => this.channel_drop = hint,
                     (None, Some((id, _))) if *id == move_id => this.channel_drop = None,
                     _ => return,
                 }
+                this.drag_motion.set_tag(tag);
                 cx.notify();
             }))
             .on_drop(cx.listener(move |this, drag: &crate::drag::ChannelDrag, _, cx| {
                 let place = this.channel_drop.take().map_or(crate::drag::Place::Before, |(_, p)| p);
                 this.drop_channel(drag, &drop_target, place, cx);
             }))
+    }
+
+    // "Move to Archive": the tag a channel carries over a row in another category.
+    fn category_move(&self, moved: &str, over: &str) -> Option<SharedString> {
+        let channels = &self.guild()?.channels;
+        let parent_of = |id: &str| channels.iter().find(|c| c.id == id).and_then(|c| c.parent_id.clone());
+        let to = parent_of(over)?;
+        if parent_of(moved).as_ref() == Some(&to) {
+            return None;
+        }
+        let name = &channels.iter().find(|c| c.id == to)?.name;
+        Some(format!("Move to {name}").into())
     }
 
     // The threads you've joined (and the one you have open), hung under their channel on a hairline
@@ -858,7 +961,7 @@ pub(crate) fn channel_row(id: SharedString, group: SharedString, state: RowState
         .flex()
         .items_center()
         .gap_2()
-        .rounded(px(ui::RADIUS_SM))
+        .squircle(ui::RADIUS_SM)
         .cursor_pointer()
         .font_weight(if unread { FontWeight::SEMIBOLD } else { FontWeight::MEDIUM })
         .text_color(ink)
@@ -877,7 +980,7 @@ fn category_head(group: SharedString, label: Stateful<Div>, static_: bool, cx: &
             .min_w_0()
             .h(px(28.))
             .px(px(6.))
-            .rounded(px(ui::RADIUS_SM))
+            .squircle(ui::RADIUS_SM)
             .flex()
             .items_center()
             .gap_1()
@@ -898,7 +1001,7 @@ fn cat_add(id: impl Into<gpui_kit::ElementId>, reveal_on: Option<SharedString>, 
         .absolute()
         .right(px(2.))
         .size(px(24.))
-        .rounded(px(ui::RADIUS_XS))
+        .squircle(ui::RADIUS_XS)
         .flex()
         .items_center()
         .justify_center()
@@ -916,7 +1019,7 @@ fn row_action(id: SharedString, icon: Icon, tooltip: &'static str, cx: &App) -> 
     div()
         .id(id)
         .size(px(24.))
-        .rounded(px(ui::RADIUS_XS))
+        .squircle(ui::RADIUS_XS)
         .flex()
         .items_center()
         .justify_center()
@@ -927,7 +1030,7 @@ fn row_action(id: SharedString, icon: Icon, tooltip: &'static str, cx: &App) -> 
 }
 
 // The type glyph a channel leads with (Discord's raw types: 5 announcement, 13 stage, 16 media).
-fn channel_glyph(channel: &Channel) -> Icon {
+pub(crate) fn channel_glyph(channel: &Channel) -> Icon {
     match (channel.kind, channel.raw_type) {
         (_, 5) => Nav::Megaphone.icon(),
         (_, 13) => Nav::Stage.icon(),
@@ -969,7 +1072,7 @@ fn dm_find(cx: &App) -> Stateful<Div> {
         .w_full()
         .h(px(32.))
         .px(px(10.))
-        .rounded(px(ui::RADIUS_SM))
+        .squircle(ui::RADIUS_SM)
         .flex()
         .items_center()
         .gap_2()
@@ -1060,7 +1163,7 @@ fn flying_tile(mini: &Mini, i: usize, t: f32, cx: &App) -> AnyElement {
     let lerp = |a: f32, b: f32| a + (b - a) * t;
     let size = lerp(from.2, to.2);
     let face = match &mini.icon {
-        Some(url) => img(url.clone()).size(px(size)).rounded(px(lerp(ui::RADIUS_XS, ui::RADIUS_LG))).into_any_element(),
+        Some(url) => img(url.clone()).size(px(size)).squircle(lerp(ui::RADIUS_XS, ui::RADIUS_LG)).into_any_element(),
         None => letters_tile(&mini.letters, size, lerp(ui::RADIUS_XS, ui::RADIUS_LG), cx).into_any_element(),
     };
     div().absolute().left(px(lerp(from.0, to.0))).top(px(lerp(from.1, to.1))).child(face).into_any_element()
@@ -1079,9 +1182,9 @@ fn mini(guild: &Guild) -> Mini {
 
 // A tile's face at `size`. `open` trades a folder's minis for the folder glyph.
 pub(crate) fn render_face(face: Face, size: f32, radius: f32, selected: bool, open: f32, cx: &App) -> AnyElement {
-    let tile = || div().size(px(size)).flex_none().rounded(px(radius)).flex().items_center().justify_center();
+    let tile = || div().size(px(size)).flex_none().squircle(radius).flex().items_center().justify_center();
     match face {
-        Face::Icon(url) => img(url).size(px(size)).flex_none().rounded(px(radius)).into_any_element(),
+        Face::Icon(url) => img(url).size(px(size)).flex_none().squircle(radius).into_any_element(),
         Face::Letters(label) => letters_tile(&label, size, radius, cx).into_any_element(),
         Face::Home => tile()
             .bg(if selected { palette::accent() } else { palette::surface(palette::Level::Sidebar, cx) })
@@ -1099,9 +1202,9 @@ pub(crate) fn render_face(face: Face, size: f32, radius: f32, selected: bool, op
 fn minis_grid(minis: Vec<Mini>, cx: &App) -> Div {
     let sidebar = palette::surface(palette::Level::Sidebar, cx);
     let cells = (0..4).map(|i| match minis.get(i) {
-        Some(Mini { icon: Some(url), .. }) => img(url.clone()).size(px(MINI)).rounded(px(ui::RADIUS_XS)).into_any_element(),
+        Some(Mini { icon: Some(url), .. }) => img(url.clone()).size(px(MINI)).squircle(ui::RADIUS_XS).into_any_element(),
         Some(Mini { letters, .. }) => letters_tile(letters, MINI, ui::RADIUS_XS, cx).into_any_element(),
-        None => div().size(px(MINI)).rounded(px(ui::RADIUS_XS)).bg(sidebar).into_any_element(),
+        None => div().size(px(MINI)).squircle(ui::RADIUS_XS).bg(sidebar).into_any_element(),
     });
     div().absolute().left(px(MINI_INSET)).top(px(MINI_INSET)).w(px(2. * MINI + MINI_GAP)).flex().flex_wrap().gap(px(MINI_GAP)).children(cells)
 }
@@ -1112,7 +1215,7 @@ fn letters_tile(label: &str, size: f32, radius: f32, cx: &App) -> Div {
     div()
         .size(px(size))
         .flex_none()
-        .rounded(px(radius))
+        .squircle(radius)
         .bg(palette::surface(palette::Level::Sidebar, cx))
         .text_color(palette::strong(cx))
         // Minis keep a readable letter rather than scaling the tile's 14px down to nothing.
@@ -1136,7 +1239,7 @@ fn rail_action(id: &'static str, glyph: Nav, tooltip: &'static str, cx: &App) ->
         .id(id)
         .size(px(TILE))
         .flex_none()
-        .rounded(px(ui::RADIUS_LG))
+        .squircle(ui::RADIUS_LG)
         .flex()
         .items_center()
         .justify_center()
@@ -1149,9 +1252,8 @@ fn rail_action(id: &'static str, glyph: Nav, tooltip: &'static str, cx: &App) ->
 }
 
 // The mention count on a tile's corner, ringed in the rail so it reads apart from the art.
-// PATCH(transform): scale the badge itself; until then it shrinks by size, anchored at its corner.
 fn rail_count(count: u32, scale: f32, rail: Hsla) -> Div {
-    let ring = 3. * scale;
+    let ring = 3.;
     div()
         .absolute()
         .right(px(RAIL_WIDTH - TILE_X - TILE - 5. - ring))
@@ -1159,14 +1261,8 @@ fn rail_count(count: u32, scale: f32, rail: Hsla) -> Div {
         .p(px(ring))
         .rounded_full()
         .bg(rail)
-        .opacity(scale.clamp(0., 1.))
-        .child(
-            ui::count_badge(count)
-                .min_w(px(18. * scale))
-                .h(px(18. * scale))
-                .px(px(5. * scale))
-                .text_size(px(12. * scale)),
-        )
+        .scale(scale.max(0.))
+        .child(ui::count_badge(count).min_w(px(18.)).h(px(18.)).px(px(5.)).text_size(px(12.)))
 }
 
 // Connected to voice here: the still wave in a rail-coloured capsule on the corner.
@@ -1191,7 +1287,7 @@ fn drop_marker(drop: Drop) -> Div {
     match drop {
         Drop::Before => bar().top(px(-(RAIL_GAP + 4.) / 2.)),
         Drop::After => bar().bottom(px(-(RAIL_GAP + 4.) / 2.)),
-        Drop::Into => div().absolute().left(px(TILE_X - 4.)).top(px(-4.)).size(px(TILE + 8.)).rounded(px(ui::RADIUS_LG + 4.)).border_2().border_color(accent),
+        Drop::Into => div().absolute().left(px(TILE_X - 4.)).top(px(-4.)).size(px(TILE + 8.)).squircle(ui::RADIUS_LG + 4.).border_2().border_color(accent),
     }
 }
 

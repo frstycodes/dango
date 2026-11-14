@@ -8,7 +8,7 @@ pub const MARK_WHITE: &str = "brand/rustcord-mark-white.svg";
 
 // Phosphor icons (MIT, assets/icons/phosphor/LICENSE): regular for rows and chrome, bold for small
 // marks, fill for on and playing states. Order matches `Glyph`.
-const GLYPHS: [(&str, &[u8]); 129] = [
+const GLYPHS: [(&str, &[u8]); 150] = [
     ("icons/hashtag.svg", include_bytes!("../assets/icons/phosphor/hash.svg")),
     ("icons/hashtag-lock.svg", include_bytes!("../assets/icons/phosphor/lock-simple.svg")),
     ("icons/volume-high.svg", include_bytes!("../assets/icons/phosphor/speaker-high.svg")),
@@ -138,6 +138,27 @@ const GLYPHS: [(&str, &[u8]); 129] = [
     ("icons/minus-bold.svg", include_bytes!("../assets/icons/phosphor/minus-bold.svg")),
     ("icons/at-fill.svg", include_bytes!("../assets/icons/phosphor/at-fill.svg")),
     ("icons/paper-plane-tilt-bold.svg", include_bytes!("../assets/icons/phosphor/paper-plane-tilt-bold.svg")),
+    ("icons/reply-right.svg", include_bytes!("../assets/icons/phosphor/arrow-bend-up-right.svg")),
+    ("icons/more-vertical.svg", include_bytes!("../assets/icons/phosphor/dots-three-vertical.svg")),
+    ("icons/thread-new.svg", include_bytes!("../assets/icons/phosphor/chats-teardrop.svg")),
+    ("icons/download.svg", include_bytes!("../assets/icons/phosphor/download-simple.svg")),
+    ("icons/clock.svg", include_bytes!("../assets/icons/phosphor/clock.svg")),
+    ("icons/app-window.svg", include_bytes!("../assets/icons/phosphor/app-window.svg")),
+    ("icons/usb.svg", include_bytes!("../assets/icons/phosphor/usb.svg")),
+    ("icons/plus-circle.svg", include_bytes!("../assets/icons/phosphor/plus-circle-bold.svg")),
+    ("icons/arrow-up.svg", include_bytes!("../assets/icons/phosphor/arrow-up-bold.svg")),
+    ("icons/arrow-down.svg", include_bytes!("../assets/icons/phosphor/arrow-down-bold.svg")),
+    ("icons/at-bold.svg", include_bytes!("../assets/icons/phosphor/at-bold.svg")),
+    ("icons/eye-bold.svg", include_bytes!("../assets/icons/phosphor/eye-bold.svg")),
+    ("icons/chevron-up-bold.svg", include_bytes!("../assets/icons/phosphor/caret-up-bold.svg")),
+    ("icons/stream-bold.svg", include_bytes!("../assets/icons/phosphor/broadcast-bold.svg")),
+    ("icons/mic-fill.svg", include_bytes!("../assets/icons/phosphor/microphone-fill.svg")),
+    ("icons/mic-off-fill.svg", include_bytes!("../assets/icons/phosphor/microphone-slash-fill.svg")),
+    ("icons/video-fill.svg", include_bytes!("../assets/icons/phosphor/video-camera-fill.svg")),
+    ("icons/video-off-fill.svg", include_bytes!("../assets/icons/phosphor/video-camera-slash-fill.svg")),
+    ("icons/share-screen-fill.svg", include_bytes!("../assets/icons/phosphor/screencast-fill.svg")),
+    ("icons/activities-fill.svg", include_bytes!("../assets/icons/phosphor/rocket-launch-fill.svg")),
+    ("icons/arrow-right-bold.svg", include_bytes!("../assets/icons/phosphor/arrow-right-bold.svg")),
 ];
 
 const BRAND: [(&str, &[u8]); 2] = [
@@ -276,6 +297,27 @@ pub enum Glyph {
     MinusBold,
     AtFill,
     PaperPlaneBold,
+    ReplyRight,
+    MoreVertical,
+    ThreadNew,
+    Download,
+    Clock,
+    AppWindow,
+    Usb,
+    PlusCircle,
+    ArrowUp,
+    ArrowDown,
+    AtBold,
+    EyeBold,
+    ChevronUpBold,
+    StreamBold,
+    MicFill,
+    MicOffFill,
+    VideoFill,
+    VideoOffFill,
+    ShareScreenFill,
+    ActivitiesFill,
+    ArrowRightBold,
 }
 
 impl IconNamed for Glyph {

@@ -427,6 +427,8 @@ pub struct Rustcord {
     rail_drop: Option<(String, rail_drag::Drop)>,
     // Where a dragged channel would land: the row's id and above/below it.
     channel_drop: Option<(String, drag::Place)>,
+    // What a drag in the rail or channel list carries, and what it is landing.
+    drag_motion: drag::DragMotion,
     // Every user seen as their server shows them, keyed by guild then user, for voice rows and tiles.
     members: HashMap<String, HashMap<String, User>>,
     dms: Vec<Channel>,
@@ -620,6 +622,7 @@ impl Rustcord {
             open_folders: HashSet::new(),
             rail_drop: None,
             channel_drop: None,
+            drag_motion: Default::default(),
             members: HashMap::new(),
             dms: Vec::new(),
             guild_id: None,
