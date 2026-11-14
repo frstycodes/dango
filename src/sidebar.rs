@@ -353,7 +353,7 @@ impl Rustcord {
             .p(px(6.))
             .squircle(ui::RADIUS_LG)
             .bg(overlay)
-            .shadow(crate::call::pop_shadow(palette::line_strong(cx), cx))
+            .shadow(ui::shadow_pop(cx))
             .flex()
             .flex_col()
             .gap(px(6.))
@@ -832,7 +832,7 @@ impl Rustcord {
             .filter(|t| open.as_ref() == Some(&t.id) || t.thread.as_ref().is_some_and(|m| m.joined && !m.archived))
             .collect();
         let count = threads.len();
-        let line = mix(palette::faint(cx), palette::surface(palette::Level::Sidebar, cx), 0.5);
+        let line = ui::mix(palette::faint(cx), palette::surface(palette::Level::Sidebar, cx), 0.5);
         threads
             .into_iter()
             .enumerate()
@@ -1083,13 +1083,6 @@ fn dm_find(cx: &App) -> Stateful<Div> {
         .hover(move |s| s.text_color(strong))
         .child(Icon::new(Glyph::Search).size(px(16.)))
         .child(div().truncate().child("Find or start a conversation"))
-}
-
-// MOVE(ui): mix — ui.rs keeps the same helper private. Two colours mixed in RGB, `t` toward `to`.
-pub(crate) fn mix(from: Hsla, to: Hsla, t: f32) -> Hsla {
-    let (a, b) = (gpui_kit::Rgba::from(from), gpui_kit::Rgba::from(to));
-    let lerp = |x: f32, y: f32| x + (y - x) * t;
-    gpui_kit::Rgba { r: lerp(a.r, b.r), g: lerp(a.g, b.g), b: lerp(a.b, b.b), a: lerp(a.a, b.a) }.into()
 }
 
 pub(crate) fn channel_sections(guild: &Guild, me: &str) -> Vec<(Option<Channel>, Vec<Channel>)> {

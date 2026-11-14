@@ -6,7 +6,7 @@ use std::{collections::HashMap, f32::consts::TAU, rc::Rc, time::Duration};
 
 use chrono::{DateTime, Local, NaiveDate};
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, App, BoxShadow, Context, Corners, Div, Focusable, FontWeight, HighlightStyle, Hsla, KeyDownEvent, Pixels, SharedString, Stateful, StyledText, WeakEntity, Window,
+    Animation, AnimationExt, AnyElement, App, Context, Corners, Div, Focusable, FontWeight, HighlightStyle, Hsla, KeyDownEvent, Pixels, SharedString, Stateful, StyledText, WeakEntity, Window,
     WindowControlArea,
     component::{
         ActiveTheme, Icon, Sizable, Size,
@@ -172,7 +172,7 @@ impl Rustcord {
         let fresh: Vec<&Message> = feed.messages.iter().filter(|m| crate::order(&m.id) > read).collect();
         let first = fresh.first()?;
         let label = format!("{} new {} since {}", fresh.len(), if fresh.len() == 1 { "message" } else { "messages" }, clock(&first.timestamp));
-        let tint = mix(palette::surface(Level::Page, cx), palette::accent(), 0.16);
+        let tint = ui::mix(palette::surface(Level::Page, cx), palette::accent(), 0.16);
         let press = palette::accent().opacity(0.14);
         let button = move |id: &'static str| div().id(id).h(px(28.)).px(px(8.)).flex().items_center().gap(px(6.)).squircle(RADIUS_XS).cursor_pointer().hover(move |s| s.bg(press));
         let (first_id, channel_id) = (first.id.clone(), channel_id.to_owned());
@@ -407,7 +407,7 @@ impl Rustcord {
             return None;
         }
         let overlay = palette::surface(Level::Overlay, cx);
-        let hover = mix(overlay, palette::strong(cx), 0.06);
+        let hover = ui::mix(overlay, palette::strong(cx), 0.06);
         let capsule = div()
             .id("jump-to-present")
             .h(px(32.))
@@ -417,7 +417,7 @@ impl Rustcord {
             .gap(px(8.))
             .rounded_full()
             .bg(overlay)
-            .shadow(shadow_pop(cx))
+            .shadow(ui::shadow_pop(cx))
             .cursor_pointer()
             .active(|s| s.scale(0.97))
             .whitespace_nowrap()
@@ -465,7 +465,7 @@ impl Rustcord {
             true => bar.child(self.ping_toggle(cx)),
             false => bar.child(key_hint("Esc", "Cancel", cx)).child(key_hint("Enter", "Save", cx)),
         };
-        Some(bar.child(icon_button_sm("cancel-compose", Glyph::X, "Cancel", cx).on_click(cx.listener(|this, _, window, cx| this.cancel_compose(window, cx)))))
+        Some(bar.child(ui::icon_button("cancel-compose", Glyph::X, "Cancel", cx).small().on_click(cx.listener(|this, _, window, cx| this.cancel_compose(window, cx)))))
     }
 
     // Whether the reply notifies its author; it remembers your last choice.
@@ -532,7 +532,7 @@ impl Rustcord {
                             .child(div().truncate().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(strong).child(name))
                             .child(div().truncate().text_size(px(12.)).text_color(faint).child(size)),
                     )
-                    .child(icon_button_sm(SharedString::from(format!("remove-file-{i}")), Glyph::X, "Remove Attachment", cx).on_click(cx.listener(move |this, _, _, cx| this.remove_file(i, cx)))),
+                    .child(ui::icon_button(SharedString::from(format!("remove-file-{i}")), Glyph::X, "Remove Attachment", cx).small().on_click(cx.listener(move |this, _, _, cx| this.remove_file(i, cx)))),
             );
         }
         Some(div().id("composer-tray").flex().gap(px(8.)).p(px(10.)).overflow_x_scroll().border_b_1().border_color(palette::line(cx)).children(chips))
@@ -610,7 +610,7 @@ impl Rustcord {
                 .max_h(px(340.))
                 .squircle(RADIUS_LG)
                 .bg(palette::surface(Level::Overlay, cx))
-                .shadow(shadow_pop(cx))
+                .shadow(ui::shadow_pop(cx))
                 .text_size(px(14.))
                 .child(div().pt(px(6.)).px(px(10.)).pb(px(4.)).text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(muted).child(heading))
                 .children(rows)
@@ -1373,7 +1373,7 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, group: &SharedSt
         .gap(px(2.))
         .squircle(RADIUS_MD)
         .bg(palette::surface(Level::Overlay, cx))
-        .shadow(shadow_pop(cx))
+        .shadow(ui::shadow_pop(cx))
         .invisible()
         .group_hover(group.clone(), |s| s.visible());
     if shifted || message.state == SendState::Failed {
@@ -1747,44 +1747,6 @@ fn crumb(id: &'static str, cx: &App) -> Stateful<Div> {
         .hover(move |s| s.bg(hover).text_color(strong))
 }
 
-// MOVE(ui): icon_button_sm, the design's .iconbtn--sm: 24px, 16px glyph, the small radius.
-fn icon_button_sm(id: impl Into<gpui_kit::ElementId>, glyph: Glyph, tooltip: &'static str, cx: &App) -> Stateful<Div> {
-    let (hover, press, strong) = (palette::hover(cx), palette::press(cx), palette::strong(cx));
-    div()
-        .id(id)
-        .size(px(24.))
-        .flex_none()
-        .squircle(RADIUS_XS)
-        .flex()
-        .items_center()
-        .justify_center()
-        .cursor_pointer()
-        .text_color(palette::muted(cx))
-        .hover(move |s| s.bg(hover).text_color(strong))
-        .active(move |s| s.bg(press))
-        .child(Icon::new(glyph).size(px(16.)))
-        .tooltip(move |window, cx| Tooltip::new(tooltip).build(window, cx))
-}
-
-// MOVE(ui): shadow_pop, the design's --shadow-pop: a soft drop and a 1px line_strong ring.
-fn shadow_pop(cx: &App) -> Vec<BoxShadow> {
-    let drop = match cx.theme().is_dark() {
-        true => gpui_kit::black().opacity(0.45),
-        // oklch(0.3 0.03 40 / 0.16): a warm ink, not black, on paper.
-        false => Hsla::from(gpui_kit::rgb(0x3E2B24)).opacity(0.16),
-    };
-    vec![
-        BoxShadow { color: drop, offset: point(px(0.), px(12.)), blur_radius: px(32.), spread_radius: px(0.), inset: false },
-        BoxShadow { color: palette::line_strong(cx), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false },
-    ]
-}
-
-// MOVE(ui): mix (ui.rs keeps a private one; the forum shares this), CSS color-mix: `t` of `to` over `from`, in RGB.
-pub(crate) fn mix(from: Hsla, to: Hsla, t: f32) -> Hsla {
-    let (a, b) = (gpui_kit::Rgba::from(from), gpui_kit::Rgba::from(to));
-    let lerp = |x: f32, y: f32| x + (y - x) * t;
-    gpui_kit::Rgba { r: lerp(a.r, b.r), g: lerp(a.g, b.g), b: lerp(a.b, b.b), a: lerp(a.a, b.a) }.into()
-}
 #[cfg(test)]
 mod tests {
     use super::*;

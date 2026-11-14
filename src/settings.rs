@@ -612,7 +612,7 @@ impl Rustcord {
             .min_w_0()
             .h_full()
             .bg(palette::surface(Level::Page, cx))
-            .child(div().size_full().relative().child(body).with_animation(SharedString::from(format!("set-page-{page:?}")), Animation::new(ui::DUR_POP).with_easing(ease_out), |el, t| el.top(px(-4. * (1. - t))).opacity(t)))
+            .child(div().size_full().relative().child(body).with_animation(SharedString::from(format!("set-page-{page:?}")), Animation::new(ui::DUR_POP).with_easing(|t| motion::ease_out().sample(t)), |el, t| el.top(px(-4. * (1. - t))).opacity(t)))
             .child(self.close_button(cx));
         Some(
             div()
@@ -856,10 +856,10 @@ impl Rustcord {
             .pb(px(4.))
             .flex()
             .flex_col()
-            .child(row("acct-name", lines.next(), cx).child(field_text("Display name", me.name.clone(), cx)))
-            .child(row("acct-id", lines.next(), cx).child(field_text("User ID", me.id.clone(), cx)).child(copy));
+            .child(ui::settings_row("acct-name", lines.next(), cx).child(field_text("Display name", me.name.clone(), cx)))
+            .child(ui::settings_row("acct-id", lines.next(), cx).child(field_text("User ID", me.id.clone(), cx)).child(copy));
         let card = div().squircle(ui::RADIUS_LG).bg(raised).border_1().border_color(palette::line(cx)).flex().flex_col().child(banner).child(identity).child(fields);
-        vec![Section::new(group("Account info", cx).child(card))]
+        vec![Section::new(ui::settings_group("Account info", cx).child(card))]
     }
 
     fn copy_user_id(&mut self, id: &str, cx: &mut Context<Self>) {
@@ -885,9 +885,9 @@ impl Rustcord {
         let mut lines = Hairlines::default();
         let rows: Vec<AnyElement> = NOTIFY_CUES.iter().map(|&(id, label, cue)| self.cue_row(id, label, cue, lines.next(), window, cx)).collect();
         vec![Section::new(
-            group("Sounds", cx)
-                .child(card(cx).children(rows))
-                .child(caption("Sounds Wave plays for new direct messages and for mentions. Voice sounds are under Voice and video.", cx)),
+            ui::settings_group("Sounds", cx)
+                .child(ui::settings_card(cx).children(rows))
+                .child(ui::settings_caption("Sounds Wave plays for new direct messages and for mentions. Voice sounds are under Voice and video.", cx)),
         )]
     }
 
@@ -945,8 +945,8 @@ impl Rustcord {
         // GAP: the design's Neutrals, Message density and Chat font size groups have no setting in the
         // app yet; they appear here once Prefs carries them.
         vec![
-            Section::new(group("Theme", cx).child(picks).child(caption("Midnight is the darkest theme, the one Wave is built on.", cx))),
-            Section::new(group("App icon", cx).child(self.app_icon_grid(cx)).child(caption("How Wave looks in your Dock: the same voice wave in different media. Changes right away; no restart.", cx))),
+            Section::new(ui::settings_group("Theme", cx).child(picks).child(ui::settings_caption("Midnight is the darkest theme, the one Wave is built on.", cx))),
+            Section::new(ui::settings_group("App icon", cx).child(self.app_icon_grid(cx)).child(ui::settings_caption("How Wave looks in your Dock: the same voice wave in different media. Changes right away; no restart.", cx))),
         ]
     }
 
@@ -1005,18 +1005,18 @@ impl Rustcord {
             })
             .collect();
         out.push(Section::new(
-            group("Input profile", cx)
-                .child(card(cx).children(profile_rows))
-                .when(!custom, |g| g.child(caption("This profile sets noise suppression, echo cancellation and sensitivity for you. Pick Custom to change them.", cx))),
+            ui::settings_group("Input profile", cx)
+                .child(ui::settings_card(cx).children(profile_rows))
+                .when(!custom, |g| g.child(ui::settings_caption("This profile sets noise suppression, echo cancellation and sensitivity for you. Pick Custom to change them.", cx))),
         ));
         if !studio {
-            out.push(Section::new(group("Input mode", cx).child(self.input_mode_card(custom, window, cx))));
+            out.push(Section::new(ui::settings_group("Input mode", cx).child(self.input_mode_card(custom, window, cx))));
         }
         if custom {
             let mut lines = Hairlines::default();
             let noise = self.noise_row(lines.next(), window, cx);
             let echo = self.switch_row(SwitchRow { id: "set-echo", title: "Echo cancellation", detail: Some("Stops others hearing themselves through your speakers"), on: prefs.echo_cancellation, enabled: true, field: |p| &mut p.echo_cancellation }, lines.next(), window, cx);
-            out.push(Section::new(group("Voice processing", cx).child(card(cx).child(noise).child(echo))));
+            out.push(Section::new(ui::settings_group("Voice processing", cx).child(ui::settings_card(cx).child(noise).child(echo))));
         }
         let expander = expander_row("voice-advanced", false, if advanced { "Hide advanced voice settings" } else { "Show advanced voice settings" }, &advanced_summary(custom), advanced, window, cx).on_click(cx.listener(|this, _, _, cx| {
             if let Some(s) = &mut this.settings {
@@ -1025,7 +1025,7 @@ impl Rustcord {
             cx.notify();
         }));
         let advanced_rows = advanced.then(|| reveal("voice-advanced-body", self.advanced_voice_rows(custom, window, cx)));
-        out.push(Section::new(card(cx).child(expander).children(advanced_rows)));
+        out.push(Section::new(ui::settings_card(cx).child(expander).children(advanced_rows)));
 
         let camera = div()
             .flex()
@@ -1035,9 +1035,9 @@ impl Rustcord {
             .child(self.device_select(Select::Camera, Glyph::Video, &cameras, prefs.camera.as_deref(), 40., window, cx));
         // GAP: the design's camera preview tile (Test video, mirrored self view) needs a local camera
         // preview the settings page doesn't have yet.
-        out.push(Section::anchored("Camera", group("Camera", cx).child(card_pad(cx).child(camera))));
+        out.push(Section::anchored("Camera", ui::settings_group("Camera", cx).child(card_pad(cx).child(camera))));
         out.push(Section::anchored("Sounds", self.sounds_group(window, cx)));
-        out.push(Section::anchored("Advanced", group("Advanced", cx).child(card(cx).child(self.reset_row(cx)))));
+        out.push(Section::anchored("Advanced", ui::settings_group("Advanced", cx).child(ui::settings_card(cx).child(self.reset_row(cx)))));
         out
     }
 
@@ -1069,17 +1069,17 @@ impl Rustcord {
         let speaker = outputs.iter().find(|(id, _)| Some(id.as_str()) == prefs.output_device.as_deref()).map_or("your speaker", |(_, name)| name.as_str());
         let mic = inputs.iter().find(|(id, _)| Some(id.as_str()) == prefs.input_device.as_deref()).map_or("your microphone", |(_, name)| name.as_str());
         let notice = no_input.then(|| self.no_input_notice(mic, cx));
-        group("Devices", cx).child(
+        ui::settings_group("Devices", cx).child(
             card_pad(cx)
                 .child(div().flex().flex_col().gap(px(16.)).child(devices).child(volumes))
                 .child(mic_test)
                 .children(notice)
-                .child(caption(&format!("Talk normally. You'll hear yourself back through {speaker}."), cx).px_0()),
+                .child(ui::settings_caption(&format!("Talk normally. You'll hear yourself back through {speaker}."), cx).px_0()),
         )
     }
 
     // Names the device and every likely fix, with the fixes one click away.
-    fn no_input_notice(&self, mic: &str, cx: &mut Context<Self>) -> AnyElement {
+    fn no_input_notice(&self, mic: &str, cx: &mut Context<Self>) -> Div {
         let actions = div()
             .mt(px(8.))
             .flex()
@@ -1094,7 +1094,7 @@ impl Rustcord {
             .when(cfg!(target_os = "macos"), |d| {
                 d.child(ui::button("nomic-system", Tone::Ghost, cx).small().child("Open System Settings").on_click(|_, _, cx| cx.open_url(MAC_MIC_PRIVACY)))
             });
-        callout_with(
+        ui::callout_with(
             ui::Notice::Warning,
             Glyph::MicOff,
             "No audio detected from your mic",
@@ -1131,7 +1131,7 @@ impl Rustcord {
         let mode = |id: &'static str, title: &'static str, detail: &'static str, on_ptt: bool, line: bool, cx: &mut Context<Self>| {
             radio_row(id, line, title, detail, ptt == on_ptt, cx).on_click(cx.listener(move |this, _, _, cx| this.update_prefs(cx, |p| p.push_to_talk = on_ptt)))
         };
-        let mut card = card(cx).child(mode("mode-vad", "Voice activity", "Transmits when you speak above the sensitivity", false, lines.next(), cx)).child(mode(
+        let mut card = ui::settings_card(cx).child(mode("mode-vad", "Voice activity", "Transmits when you speak above the sensitivity", false, lines.next(), cx)).child(mode(
             "mode-ptt",
             "Push to talk",
             "Transmits while you hold a key",
@@ -1142,7 +1142,7 @@ impl Rustcord {
         if ptt {
             let ptt_index = prefs.keybinds.iter().position(|k| k.action == Action::PushToTalk);
             card = card
-                .child(row("ptt-shortcut", lines.next(), cx).child(row_text("Shortcut", Some("Also listed under Keybinds"), cx)).children(ptt_index.map(|i| self.keybind_recorder(i, cx).flex_basis(px(300.)).flex_shrink(1.))))
+                .child(ui::settings_row("ptt-shortcut", lines.next(), cx).child(row_text("Shortcut", Some("Also listed under Keybinds"), cx)).children(ptt_index.map(|i| self.keybind_recorder(i, cx).flex_basis(px(300.)).flex_shrink(1.))))
                 .child(
                     stack_row("ptt-delay", lines.next(), cx)
                         .child(numbered("Push to talk release delay", "Keeps transmitting this long after you let go, so word endings aren't cut", &format!("{} ms", prefs.ptt_release_ms), cx))
@@ -1188,7 +1188,7 @@ impl Rustcord {
         }));
         let mut body = Hairlines(true);
         let rest = more.then(|| reveal("more-sounds-body", div().flex().flex_col().children(MORE_CUES.iter().map(|&(id, label, cue)| self.cue_row(id, label, cue, body.next(), window, cx)))));
-        group("Sounds", cx).child(card(cx).children(first).child(expander).children(rest)).child(caption("Message and mention sounds are under Notifications.", cx))
+        ui::settings_group("Sounds", cx).child(ui::settings_card(cx).children(first).child(expander).children(rest)).child(ui::settings_caption("Message and mention sounds are under Notifications.", cx))
     }
 
     // Reset asks in place, naming what happens; once done it offers Undo for a few seconds.
@@ -1242,7 +1242,7 @@ impl Rustcord {
                         .on_click(cx.listener(|this, _, _, cx| this.undo_reset(cx))),
                 )
         });
-        row("reset", false, cx)
+        ui::settings_row("reset", false, cx)
             .flex_wrap()
             .child(row_text("Reset voice and video settings", Some("Puts devices, levels, processing and sounds back to their defaults. Your keybinds and theme stay."), cx))
             .children(trigger)
@@ -1293,16 +1293,16 @@ impl Rustcord {
             })));
         let mut lines = Hairlines::default();
         let rows: Vec<AnyElement> = self.prefs.keybinds.iter().enumerate().map(|(index, keybind)| self.keybind_row(index, keybind, lines.next(), window, cx)).collect();
-        let yours = group("Your keybinds", cx).when(!rows.is_empty(), |g| g.child(card(cx).children(rows)));
+        let yours = ui::settings_group("Your keybinds", cx).when(!rows.is_empty(), |g| g.child(ui::settings_card(cx).children(rows)));
         let mut lines = Hairlines::default();
         let defaults = DEFAULT_KEYBINDS.iter().map(|&(action, combos)| {
-            row(SharedString::from(format!("default-{action}")), lines.next(), cx).min_h(px(48.)).child(row_text(action, None::<&str>, cx)).child(combo_caps(combos, cx))
+            ui::settings_row(SharedString::from(format!("default-{action}")), lines.next(), cx).min_h(px(48.)).child(row_text(action, None::<&str>, cx)).child(combo_caps(combos, cx))
         });
         let platform = if cfg!(target_os = "macos") { "Built in and always on." } else { "Built in and always on. Ctrl reads \u{2318} on a Mac." };
         vec![
             Section::new(header),
             Section::new(yours),
-            Section::new(group("Default keybinds", cx).child(card(cx).children(defaults)).child(caption(platform, cx))),
+            Section::new(ui::settings_group("Default keybinds", cx).child(ui::settings_card(cx).children(defaults)).child(ui::settings_caption(platform, cx))),
         ]
     }
 
@@ -1337,7 +1337,7 @@ impl Rustcord {
                     }
                 });
             }));
-        row(SharedString::from(format!("keybind-{index}")), line, cx)
+        ui::settings_row(SharedString::from(format!("keybind-{index}")), line, cx)
             .flex_wrap()
             .gap(px(12.))
             .child(div().flex_grow(1.).flex_basis(px(0.)).min_w_0().child(action))
@@ -1512,7 +1512,7 @@ impl Rustcord {
             window,
             cx,
         );
-        row("noise", line, cx).child(row_text("Noise suppression", None::<&str>, cx).child(detail)).child(control.flex_none())
+        ui::settings_row("noise", line, cx).child(row_text("Noise suppression", None::<&str>, cx).child(detail)).child(control.flex_none())
     }
 
     // A sound cue: its preview button beside its switch.
@@ -1547,7 +1547,7 @@ impl Rustcord {
         }));
         // GAP: the play button turns into the mini wave while its sound plays; sounds.rs doesn't report
         // playback yet.
-        row(SharedString::from(format!("cue-{id}")), line, cx)
+        ui::settings_row(SharedString::from(format!("cue-{id}")), line, cx)
             .min_h(px(52.))
             .child(row_text(title, None::<&str>, cx))
             .child(div().flex().items_center().gap(px(8.)).flex_none().child(play).child(switch))
@@ -1570,7 +1570,7 @@ impl Rustcord {
                 .child(div().flex().items_center().gap(px(4.)).text_size(px(12.)).text_color(palette::muted(cx)).child(Icon::new(Glyph::Info).size(px(14.))).children(detail))
         };
         let switch = ui::switch_live(id, on, window, cx);
-        let row = row(SharedString::from(format!("row-{id}")), line, cx).child(text);
+        let row = ui::settings_row(SharedString::from(format!("row-{id}")), line, cx).child(text);
         if !enabled {
             return row.child(div().opacity(0.45).child(switch));
         }
@@ -1640,7 +1640,7 @@ impl Rustcord {
             let menu = ui::surface(cx).id(SharedString::from(format!("options-{select:?}"))).squircle(ui::RADIUS_LG).max_h(px(280.)).overflow_y_scroll().gap(px(1.)).occlude().children(rows);
             // The list rises from the trigger: 0.95 scale about its top centre, with the fade.
             let list = div().absolute().top(px(height + 4.)).left_0().right_0().min_w(px(200.)).child(menu);
-            crate::menu::rise(list, format!("options-in-{select:?}"), gpui_kit::point(relative(0.5), relative(0.)), Duration::ZERO)
+            ui::rise(list.transform_origin(gpui_kit::point(relative(0.5), relative(0.))), SharedString::from(format!("options-in-{select:?}")), Duration::ZERO)
         });
         // Deferred so the open list paints above the settings below it.
         div().relative().w_full().child(field).children(list.map(|list| gpui_kit::deferred(list).with_priority(2))).into_any_element()
@@ -1861,46 +1861,8 @@ fn page_title(text: &'static str, cx: &App) -> Div {
     div().text_size(px(28.)).line_height(px(34.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).truncate().child(text)
 }
 
-// MOVE(ui): settings_group. A heading over a card, with an optional caption under it.
-fn group(title: &'static str, cx: &App) -> Div {
-    div().min_w_0().flex().flex_col().gap(px(8.)).child(div().px(px(4.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(title))
-}
-
-fn caption(text: &str, cx: &App) -> Div {
-    div().px(px(4.)).text_size(px(12.)).line_height(px(17.)).text_color(palette::muted(cx)).child(text.to_owned())
-}
-
-// MOVE(ui): settings_card. Rows on the raised surface, inset 4px so their fills clear its edge.
-fn card(cx: &App) -> Div {
-    div().min_w_0().p(px(4.)).squircle(ui::RADIUS_LG).bg(palette::surface(Level::Raised, cx)).border_1().border_color(palette::line(cx)).flex().flex_col()
-}
-
 fn card_pad(cx: &App) -> Div {
-    card(cx).p(px(16.)).gap(px(16.))
-}
-
-// MOVE(ui): settings_row. Title and description left, control right; `line` draws the inset hairline
-// above it, hidden while the row is hovered.
-fn row(id: impl Into<SharedString>, line: bool, cx: &App) -> Stateful<Div> {
-    let id: SharedString = id.into();
-    div()
-        .id(id.clone())
-        .group(id.clone())
-        .relative()
-        .min_h(px(56.))
-        .py(px(10.))
-        .px(px(12.))
-        .squircle(ui::RADIUS_MD)
-        .flex()
-        .items_center()
-        .gap(px(16.))
-        .when(line, |d| d.child(hairline(id, cx)))
-        .text_color(palette::text(cx))
-}
-
-// GAP: CSS also hides the hairline under a hovered row (the next row's); gpui can't style a sibling.
-fn hairline(group: SharedString, cx: &App) -> impl IntoElement {
-    div().absolute().top(px(-0.5)).left(px(12.)).right(px(12.)).h(px(1.)).bg(palette::line(cx)).group_hover(group, |s| s.invisible())
+    ui::settings_card(cx).p(px(16.)).gap(px(16.))
 }
 
 // A whole-row control: the row fills on hover.
@@ -1911,7 +1873,7 @@ fn choice(row: Stateful<Div>, cx: &App) -> Stateful<Div> {
 
 // A row whose control sits under its text, full width.
 fn stack_row(id: &'static str, line: bool, cx: &App) -> Stateful<Div> {
-    row(id, line, cx).flex_col().items_stretch().gap(px(12.))
+    ui::settings_row(id, line, cx).flex_col().items_stretch().gap(px(12.))
 }
 
 fn row_text(title: impl Into<SharedString>, detail: Option<impl Into<SharedString>>, cx: &App) -> Div {
@@ -1951,7 +1913,7 @@ fn scale(stops: &[&'static str], cx: &App) -> Div {
 }
 
 fn radio_row(id: &'static str, line: bool, title: &'static str, detail: &'static str, on: bool, cx: &App) -> Stateful<Div> {
-    choice(row(id, line, cx), cx).items_start().child(div().mt(px(2.)).child(ui::radio(on, cx))).child(row_text(title, Some(detail), cx))
+    choice(ui::settings_row(id, line, cx), cx).items_start().child(div().mt(px(2.)).child(ui::radio(on, cx))).child(row_text(title, Some(detail), cx))
 }
 
 // A row that reveals more rows under it; closed, it names what's inside.
@@ -1968,7 +1930,7 @@ fn expander_row(id: &'static str, line: bool, title: &str, summary: &str, open: 
         .items_center()
         .justify_center()
         .child(Icon::new(Glyph::ChevronRight).size(px(16.)).rotate(angle));
-    choice(row(id, line, cx), cx).child(row_text(title.to_owned(), (!open).then(|| summary.to_owned()), cx)).child(chev)
+    choice(ui::settings_row(id, line, cx), cx).child(row_text(title.to_owned(), (!open).then(|| summary.to_owned()), cx)).child(chev)
 }
 
 fn error_line(text: &'static str, cx: &App) -> Div {
@@ -1988,36 +1950,6 @@ fn error_line(text: &'static str, cx: &App) -> Div {
 fn turn(id: String, degrees: f32, window: &mut Window, cx: &mut App) -> Radians {
     let degrees = gpui_kit::base::transition(id, degrees, gpui_kit::base::Transition::new(ui::DUR_POP).easing(motion::ease_out()), window, cx);
     Radians(degrees.to_radians())
-}
-
-// MOVE(ui): callout with actions under its text.
-fn callout_with(kind: ui::Notice, glyph: Glyph, title: &'static str, body: String, actions: Div, cx: &App) -> AnyElement {
-    let tone = match kind {
-        ui::Notice::Warning => palette::warning_ink(cx),
-        ui::Notice::Danger => palette::danger_ink(cx),
-        _ => palette::accent_ink(cx),
-    };
-    div()
-        .w_full()
-        .py(px(12.))
-        .px(px(14.))
-        .squircle(ui::RADIUS_LG)
-        .bg(tone.opacity(0.13))
-        .flex()
-        .items_start()
-        .gap(px(12.))
-        .child(div().mt(px(1.)).flex_none().text_color(tone).child(Icon::new(glyph).size(px(20.))))
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .flex()
-                .flex_col()
-                .child(div().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(title))
-                .child(div().text_color(palette::text(cx)).child(body))
-                .child(actions),
-        )
-        .into_any_element()
 }
 
 // The mic test draws your voice as the wave: 40 bars swelling from the middle, accent while live.
@@ -2076,13 +2008,8 @@ fn reveal(id: impl Into<ElementId>, el: impl IntoElement) -> AnyElement {
     div()
         .relative()
         .child(el)
-        .with_animation(id, Animation::new(ui::DUR_POP).with_easing(ease_out), |el, t| el.top(px(-4. * (1. - t))).opacity(t))
+        .with_animation(id, Animation::new(ui::DUR_POP).with_easing(|t| motion::ease_out().sample(t)), |el, t| el.top(px(-4. * (1. - t))).opacity(t))
         .into_any_element()
-}
-
-// cubic-bezier(0.23, 1, 0.32, 1), close enough: a quartic ease-out.
-fn ease_out(t: f32) -> f32 {
-    1. - (1. - t).powi(4)
 }
 
 fn ring(color: Hsla, width: f32) -> BoxShadow {

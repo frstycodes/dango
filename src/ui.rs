@@ -34,13 +34,9 @@ mod group;
 mod tabs;
 
 pub use control::{Control, button, chip, hover_fade, icon_button, menu_row, round_button, swatch, tip};
-pub use feedback::{meter, progress_indeterminate, progress_live, ring, skeleton, skeleton_circle, slider_live, slider_track};
-pub use field::{code_cell, drop_zone, field, field_error, field_hint, select, stepper, text_area, text_field};
-#[expect(unused_imports, reason = "promoted from menu.rs and settings.rs, which switch over after the merge")]
-pub use {
-    field::field_frame,
-    group::{settings_caption, settings_card, settings_group, settings_row},
-};
+pub use feedback::{meter, meter_with, progress_indeterminate, progress_live, ring, skeleton, skeleton_circle, slider_live, slider_track};
+pub use field::{code_cell, drop_zone, field, field_error, field_frame, field_hint, select, stepper, text_area, text_field};
+pub use group::{settings_caption, settings_card, settings_group, settings_row};
 pub use tabs::{pill_tabs, segmented_live, tabs};
 
 // Radius tiers: tags and tooltips, rows and menu items, controls, cards and tiles, dialogs. Sized for the
@@ -444,7 +440,6 @@ pub fn surface(cx: &App) -> Div {
 // A floating surface's entrance (menus, popovers, pickers, dialogs): it fades in and grows from 0.95 over
 // the pop timing, after `delay` (a submenu's intent delay). It grows from the top-left corner unless the
 // caller set a `transform_origin` toward its trigger.
-#[expect(dead_code, reason = "promoted from menu.rs, which switches over after the merge")]
 pub fn rise<E:IntoElement + Styled + 'static>(mut el: E, id: impl Into<ElementId>, delay: Duration) -> AnimationElement<E> {
     if el.style().transform_origin.x.is_none() {
         el = el.transform_origin(point(relative(0.), relative(0.)));
@@ -454,6 +449,11 @@ pub fn rise<E:IntoElement + Styled + 'static>(mut el: E, id: impl Into<ElementId
         let t = motion::ease_out().sample(((t - lead) / (1. - lead)).clamp(0., 1.));
         el.opacity(t).scale(0.95 + 0.05 * t)
     })
+}
+
+// A transform origin at one of an element's corners: where a floating surface rises from, toward its trigger.
+pub fn corner(right: bool, bottom: bool) -> gpui_kit::Point<gpui_kit::DefiniteLength> {
+    point(relative(if right { 1. } else { 0. }), relative(if bottom { 1. } else { 0. }))
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -474,7 +474,6 @@ pub fn callout(kind: Notice, glyph: Glyph, title: impl Into<SharedString>, body:
 
 // A callout whose actions sit under its text (`actions` is laid out by the caller), for notices that
 // offer more than one way on.
-#[expect(dead_code, reason = "promoted from settings.rs, which switches over after the merge")]
 pub fn callout_with(kind: Notice, glyph: Glyph, title: impl Into<SharedString>, body: impl Into<SharedString>, actions: impl IntoElement, cx: &App) -> Div {
     let (tone, tint) = notice_colors(kind, cx);
     callout_frame(tone, tint, glyph).child(callout_text(title, body, cx).child(actions))
@@ -596,7 +595,6 @@ pub fn bars_still(color: Hsla, height: f32) -> Div {
 }
 
 // The resting wave with all but its first bar dimmed (`.bars.weak`): connected, on a poor link.
-#[expect(dead_code, reason = "promoted from call.rs, which switches over after the merge")]
 pub fn bars_weak(color: Hsla, height: f32) -> Div {
     still_wave(color, height, true)
 }

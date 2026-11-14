@@ -210,7 +210,7 @@ impl Rustcord {
         let archived = post.thread.as_ref().is_some_and(|t| t.archived);
         let (strong, text, muted, faint) = (palette::strong(cx), palette::text(cx), palette::muted(cx), palette::faint(cx));
         let sidebar = palette::surface(Level::Sidebar, cx);
-        let (edge, lifted) = (palette::line_strong(cx), crate::chat::mix(sidebar, strong, 0.03));
+        let (edge, lifted) = (palette::line_strong(cx), ui::mix(sidebar, strong, 0.03));
         let thumb = first.and_then(|m| m.media.first()).map(|m| match &m.kind {
             MediaKind::Image => m.url.clone(),
             MediaKind::Video { poster } | MediaKind::Gif { poster } => poster.clone(),

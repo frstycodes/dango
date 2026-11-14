@@ -226,7 +226,6 @@ pub fn shade(cx: &App) -> Hsla {
 }
 
 // What dims the app behind a dialog (tokens.css --scrim): a deep plum veil on dark, a lighter one on light.
-#[expect(dead_code, reason = "promoted from menu.rs, which switches over after the merge")]
 pub fn scrim(cx: &App) -> Hsla {
     if cx.theme().is_dark() {
         return oklch(0.08, 0.01, 350.).opacity(0.7);

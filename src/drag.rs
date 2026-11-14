@@ -281,7 +281,7 @@ fn ghost(held: &Held, origin: Point<Pixels>, settle: f32, cx: &App) -> Div {
     let body = match &held.look {
         Look::Tile(face) => div()
             .pl(px(crate::sidebar::TILE_X))
-            .child(div().squircle(ui::RADIUS_LG).shadow(crate::call::pop_shadow(palette::line_strong(cx).opacity(lifted), cx)).child(render_face(face.clone(), crate::sidebar::TILE, ui::RADIUS_LG, false, 0., cx))),
+            .child(div().squircle(ui::RADIUS_LG).shadow(ui::shadow_pop_on(palette::line_strong(cx).opacity(lifted), cx)).child(render_face(face.clone(), crate::sidebar::TILE, ui::RADIUS_LG, false, 0., cx))),
         Look::Person { avatar, name } => row_card(ui::RADIUS_SM, lifted, cx).child(person(avatar, name)),
         Look::Channel { channel, people } => row_card(ui::RADIUS_MD, lifted, cx)
             .flex_col()

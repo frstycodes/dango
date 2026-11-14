@@ -17,7 +17,7 @@ use crate::{
     icons::Glyph,
     layout::{TITLE_HEIGHT, avatar_with_status},
     menu, palette,
-    ui::{RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XL, RADIUS_XS, Squircle},
+    ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XL, RADIUS_XS, Squircle},
 };
 
 const PROFILE_WIDTH: f32 = 320.;
@@ -519,11 +519,11 @@ impl Rustcord {
             )
             .children(doing.map(|line| div().py(px(8.)).px(px(10.)).squircle(RADIUS_MD).bg(palette::selected(cx)).text_color(palette::text(cx)).child(line)))
             .children(profile.bio.clone().map(|bio| block("About me").child(div().text_color(palette::text(cx)).line_clamp(6).child(bio))))
-            .when(!roles.is_empty(), |b| b.child(block("Roles").child(div().flex().flex_wrap().gap_1().children(roles.into_iter().map(|(name, color)| role_chip(name, color, cx))))))
+            .when(!roles.is_empty(), |b| b.child(block("Roles").child(div().flex().flex_wrap().gap_1().children(roles.into_iter().map(|(name, color)| ui::role_chip(name, color, cx))))))
             .when(!is_me, |b| {
                 let dm_user = user.id.clone();
                 b.child(
-                    menu::field_frame(cx)
+                    ui::field_frame(cx)
                         .id("profile-message")
                         .cursor_text()
                         .child(div().truncate().text_color(palette::faint(cx)).child(format!("Message @{}", user.name)))
@@ -538,14 +538,14 @@ impl Rustcord {
             .w(px(PROFILE_WIDTH))
             .squircle(RADIUS_LG)
             .bg(overlay)
-            .shadow(menu::pop_shadow(cx))
+            .shadow(ui::shadow_pop(cx))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(banner)
             .child(who)
             .child(body);
         // It rises from the corner nearest where it was asked for: pushed in from an edge, from that side.
-        let origin = menu::corner(x < f32::from(card.at.x), y < f32::from(card.at.y));
-        Some(backdrop("profile-backdrop", cx).child(menu::rise(card_el, format!("profile-{}", user.id), origin, Duration::ZERO)).into_any_element())
+        let origin = ui::corner(x < f32::from(card.at.x), y < f32::from(card.at.y));
+        Some(backdrop("profile-backdrop", cx).child(ui::rise(card_el.transform_origin(origin), SharedString::from(format!("profile-{}", user.id)), Duration::ZERO)).into_any_element())
     }
 
     // Your presence, as a menu of radio rows each led by its mark (auth.html's status menu).
@@ -561,14 +561,14 @@ impl Rustcord {
                 menu::menu_item_row(SharedString::from(format!("status-{label}")), &row, false, true, cx).on_click(cx.listener(move |this, _, _, cx| this.set_status(status, cx)))
             })
             .collect();
-        let card = menu::menu_surface(menu::WIDTH, cx)
+        let card = ui::surface(cx).w(px(menu::WIDTH))
             .id("status-menu")
             .absolute()
             .left(px(16.))
             .bottom(px(self.panel_stack_height() + 16.))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .children(rows);
-        Some(backdrop("status-backdrop", cx).child(menu::rise(card, "status-menu".into(), menu::corner(false, true), Duration::ZERO)).into_any_element())
+        Some(backdrop("status-backdrop", cx).child(ui::rise(card.transform_origin(ui::corner(false, true)), "status-menu", Duration::ZERO)).into_any_element())
     }
 
     // The emoji picker (messages.css `.picker`): search on top, categories down the left, the grid in
@@ -731,14 +731,14 @@ impl Rustcord {
             .h(px(PICKER_SIZE.1))
             .squircle(RADIUS_LG)
             .bg(palette::surface(palette::Level::Overlay, cx))
-            .shadow(menu::pop_shadow(cx))
+            .shadow(ui::shadow_pop(cx))
             .flex()
             .flex_col()
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(head)
             .child(div().flex_1().min_h_0().flex().child(rail).child(grid))
             .child(foot);
-        Some(backdrop("emoji-backdrop", cx).child(menu::rise(picker, "emoji-picker".into(), menu::corner(true, true), Duration::ZERO)).into_any_element())
+        Some(backdrop("emoji-backdrop", cx).child(ui::rise(picker.transform_origin(ui::corner(true, true)), "emoji-picker", Duration::ZERO)).into_any_element())
     }
 
     // What the picker lists for the current search: recent (only before you search), the server's own, then Unicode by group.
@@ -832,7 +832,7 @@ impl Rustcord {
             .p(px(10.))
             .squircle(RADIUS_XL)
             .bg(palette::surface(palette::Level::Overlay, cx))
-            .shadow(menu::pop_shadow(cx))
+            .shadow(ui::shadow_pop(cx))
             .flex()
             .flex_col()
             .gap_2()
@@ -843,8 +843,8 @@ impl Rustcord {
             .child(foot);
         Some(
             backdrop("switcher-backdrop", cx)
-                .bg(menu::scrim(cx))
-                .child(div().absolute().top(px(120.)).left_0().right_0().flex().justify_center().child(menu::rise(card, "switcher".into(), point(relative(0.5), relative(0.5)), Duration::ZERO)))
+                .bg(palette::scrim(cx))
+                .child(div().absolute().top(px(120.)).left_0().right_0().flex().justify_center().child(ui::rise(card.transform_origin(point(relative(0.5), relative(0.5))), "switcher", Duration::ZERO)))
                 .into_any_element(),
         )
     }
@@ -935,24 +935,6 @@ fn activity_line(activity: &Activity) -> String {
         ActivityKind::Watching => format!("Watching {text}"),
         ActivityKind::Competing => format!("Competing in {text}"),
     }
-}
-
-// A role as a chip with its colour dot (primitives.css `.role`).
-// MOVE(ui): role_chip
-fn role_chip(name: String, color: Hsla, cx: &App) -> gpui_kit::Div {
-    div()
-        .h(px(24.))
-        .px_2()
-        .flex()
-        .items_center()
-        .gap(px(6.))
-        .squircle(RADIUS_XS)
-        .bg(palette::selected(cx))
-        .text_size(px(12.))
-        .font_weight(FontWeight::SEMIBOLD)
-        .text_color(palette::text(cx))
-        .child(div().size(px(10.)).rounded_full().bg(color))
-        .child(name)
 }
 
 // A full-window catcher: clicking outside the floating surface closes it.

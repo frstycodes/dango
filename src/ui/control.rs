@@ -66,6 +66,7 @@ pub struct Control {
     look: Look,
     glyph: Option<Glyph>,
     disabled: bool,
+    highlighted: bool,
     loading: Option<SharedString>,
     ring: Option<Hsla>,
 }
@@ -174,7 +175,7 @@ pub(super) fn tab_option(id: impl Into<ElementId>, kind: TabKind, on: bool, cx: 
 impl Control {
     fn new(id: impl Into<ElementId>, kind: Kind, look: Look) -> Self {
         let id = id.into();
-        Self { base: div().id(id.clone()), id, children: Vec::new(), kind, size: Size::Medium, look, glyph: None, disabled: false, loading: None, ring: None }
+        Self { base: div().id(id.clone()), id, children: Vec::new(), kind, size: Size::Medium, look, glyph: None, disabled: false, highlighted: false, loading: None, ring: None }
     }
 
     fn base_style(mut self, f: impl FnOnce(Stateful<Div>) -> Stateful<Div>) -> Self {
@@ -202,6 +203,12 @@ impl Control {
                 let (fill, ink) = (palette::selected(cx), palette::strong(cx));
                 Look { rest: fill, hover: fill, press: palette::press(cx), ink, ink_hover: ink, edge: None }
             }
+            // The chosen radio row or option: a fill a step above hover, deeper again under the pointer.
+            Kind::Row => {
+                let strong = palette::strong(cx);
+                let hover = strong.opacity(0.13);
+                Look { rest: palette::press(cx), hover, press: hover, ink: strong, ink_hover: strong, edge: None }
+            }
             _ => {
                 let (soft, ink) = (palette::accent_soft(cx), palette::accent_ink(cx));
                 Look { rest: soft, hover: soft, press: soft, ink, ink_hover: ink, edge: self.look.edge }
@@ -223,6 +230,19 @@ impl Control {
     pub fn danger(mut self, cx: &App) -> Self {
         let fill = palette::danger();
         self.look = Look { hover: fill, press: fill, ink: palette::danger_ink(cx), ink_hover: gpui_kit::white(), ..self.look };
+        self
+    }
+
+    // The menu's one accent row (Invite people): accent ink, and the accent tint on hover.
+    pub fn accent(mut self, cx: &App) -> Self {
+        let ink = palette::accent_ink(cx);
+        self.look = Look { hover: palette::accent_soft(cx), press: palette::accent_soft(cx), ink, ink_hover: ink, ..self.look };
+        self
+    }
+
+    // Shows the hover state without the pointer: the row a submenu flies out of, the keyboard's row.
+    pub fn highlighted(mut self, on: bool) -> Self {
+        self.highlighted = on;
         self
     }
 
@@ -302,8 +322,10 @@ impl RenderOnce for Control {
         let pointer = window.use_keyed_state(part(&self.id, "pointer"), cx, |_, _| Pointer::default());
         let (hovered, pressed) = {
             let p = pointer.read(cx);
-            (p.hovered && !self.disabled, p.pressed && !self.disabled)
+            ((p.hovered || self.highlighted) && !self.disabled, p.pressed && !self.disabled)
         };
+        // A disabled row goes faint and still; other kinds fade to 0.45 below.
+        let faint_row = self.disabled && self.kind == Kind::Row;
         let t = hover_fade(part(&self.id, "hover"), hovered, window, cx);
         let scale = self.press().map(|(to, curve)| {
             let held = transition(part(&self.id, "press"), if pressed { 1. } else { 0. }, Transition::new(DUR_PRESS).easing(curve), window, cx);
@@ -311,7 +333,7 @@ impl RenderOnce for Control {
         });
         let (height, radius, icon) = self.dimensions();
         let type_and_padding = self.type_and_padding();
-        let look = self.look;
+        let look = if faint_row { faint_look(cx) } else { self.look };
         let held = hover_fade(part(&self.id, "held"), pressed, window, cx);
         let (fill, ink) = (mix(mix(look.rest, look.hover, t), look.press, held), mix(look.ink, look.ink_hover, t));
         let mut base = self.base;
@@ -342,7 +364,7 @@ impl RenderOnce for Control {
             .when_some(look.edge, |b, (rest, hover)| b.border_1().border_color(mix(rest, hover, t)))
             .when_some(self.ring, |b, ring| b.shadow(halo(ring, look.rest)))
             .when(!self.disabled, |b| b.cursor_pointer())
-            .when(self.disabled, |b| b.opacity(0.45));
+            .when(self.disabled && !faint_row, |b| b.opacity(0.45));
         base.child(hit_area(&self.id, &pointer, self.disabled, window))
             .when_some(self.glyph, |b, glyph| b.child(Icon::new(glyph).size(px(icon))))
             .when_some(self.loading.clone(), |b, label| b.child(super::bars(part(&self.id, "busy"), ink, 12.)).child(label))
@@ -377,6 +399,11 @@ fn hold<E: 'static>(pointer: &gpui_kit::Entity<Pointer>, held: bool, window: &Wi
             cx.notify();
         }
     })
+}
+
+fn faint_look(cx: &App) -> Look {
+    let (clear, faint) = (gpui_kit::transparent_black(), palette::faint(cx));
+    Look { rest: clear, hover: clear, press: clear, ink: faint, ink_hover: faint, edge: None }
 }
 
 // A 2px gap in the surface's colour, then a 2px ring in the control's: the chosen swatch.

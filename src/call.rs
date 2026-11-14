@@ -18,7 +18,7 @@ use crate::{
     icons::Glyph,
     layout::RAIL_WIDTH,
     menu::{Entry, item, submenu},
-    palette,
+    motion, palette,
     settings::Page,
     ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XS, Squircle},
     voice::{self, Stage},
@@ -409,8 +409,8 @@ impl Rustcord {
         };
         let bars: AnyElement = match link {
             Link::Connecting | Link::Lost => ui::bars("voice-bars", tone, 12.),
-            Link::Connected => still_bars(tone, 12., false).into_any_element(),
-            Link::Poor => still_bars(tone, 12., true).into_any_element(),
+            Link::Connected => ui::bars_still(tone, 12.).into_any_element(),
+            Link::Poor => ui::bars_weak(tone, 12.).into_any_element(),
         };
         let tip: SharedString = match (link, ping) {
             (Link::Connected | Link::Poor, Some(ms)) => format!("{ms} ms ping, {} connection. Click for details", quality_word(ms).to_lowercase()).into(),
@@ -779,7 +779,7 @@ impl Rustcord {
             (Some(drag), _) => drag.pos,
             (None, Some((from, at))) if at.elapsed() < PIP_SNAP => {
                 window.request_animation_frame();
-                let t = ease_spring((at.elapsed().as_secs_f32() / PIP_SNAP.as_secs_f32()).min(1.));
+                let t = motion::ease_spring().sample((at.elapsed().as_secs_f32() / PIP_SNAP.as_secs_f32()).min(1.));
                 (from.0 + (target.0 - from.0) * t, from.1 + (target.1 - from.1) * t)
             }
             _ => target,
@@ -997,7 +997,7 @@ impl Rustcord {
             .text_color(stage::muted())
             .text_size(px(12.))
             .font_weight(FontWeight::SEMIBOLD)
-            .child(face_stack(faces, 22., stage::bg()))
+            .child(ui::avatar_stack(faces, 22., stage::bg()))
             .child(count.to_string())
             .tooltip(move |window, cx| Tooltip::new(format!("{count} in {}", if count == 1 { "the call alone" } else { "the call" })).build(window, cx));
         let health = watching.filter(|w| !several && !w.arrivals.is_empty()).map(|w| {
@@ -1303,7 +1303,7 @@ impl Rustcord {
         };
         let name = tile_name(
             div()
-                .when(talking, |d| d.child(still_bars(gpui_kit::white(), 10., false)))
+                .when(talking, |d| d.child(ui::bars_still(gpui_kit::white(), 10.)))
                 .when(!is_stream && state.server_muted, |d| d.child(vmark(Glyph::MicOff, None, MarkKind::Server)))
                 .when(!is_stream && !state.server_muted && muted && !deafened, |d| d.child(Icon::new(Glyph::MicOff).size(px(14.)).text_color(stage::off_ink())))
                 .when(!is_stream && deafened, |d| d.child(Icon::new(Glyph::HeadphonesOff).size(px(14.)).text_color(stage::off_ink())))
@@ -1358,7 +1358,7 @@ impl Rustcord {
             Some(color) => oklch_hue(color),
             None => user_id.bytes().fold(0u32, |h, b| h.wrapping_mul(31).wrapping_add(b as u32)) as f32 % 360.,
         };
-        oklch(0.24, 0.02, hue)
+        palette::oklch(0.24, 0.02, hue)
     }
 
     // .controls: mic and camera as split buttons with their device menus, share, activities, more,
@@ -1552,7 +1552,7 @@ impl Rustcord {
             .p(px(16.))
             .squircle(RADIUS_LG)
             .bg(palette::surface(palette::Level::Overlay, cx))
-            .shadow(pop_shadow(palette::line_strong(cx), cx))
+            .shadow(ui::shadow_pop(cx))
             .flex()
             .flex_col()
             .gap(px(12.))
@@ -1613,7 +1613,7 @@ impl Rustcord {
             body.extend(options.into_iter().enumerate().map(|(i, (id, name))| {
                 let on = id == chosen;
                 choice_row(SharedString::from(format!("device-{title}-{i}")), &ink)
-                    .child(radio(on, &ink))
+                    .child(ui::radio_with(on, 18., ink.line_strong))
                     .child(div().flex_1().min_w_0().truncate().font_weight(FontWeight::MEDIUM).text_color(ink.strong).child(name))
                     .on_click(cx.listener(move |this, _, _, cx| this.choose_device(which, id.clone(), cx)))
                     .into_any_element()
@@ -1641,7 +1641,7 @@ impl Rustcord {
                         _ => p.input_volume = f.clamp(0., 1.) * 2.,
                     })
                 }, cx)
-                .children(level.map(|db| meter((db + 100.) / 100., &ink)))
+                .children(level.map(|db| ui::meter_with((db + 100.) / 100., METER_BARS, ink.lit, ink.line_strong).h(px(14.)).gap(px(2.))))
                 .into_any_element(),
             );
         }
@@ -1678,7 +1678,7 @@ impl Rustcord {
             .p(px(6.))
             .squircle(RADIUS_LG)
             .bg(ink.overlay)
-            .shadow(pop_shadow(ink.line_strong, cx))
+            .shadow(ui::shadow_pop_on(ink.line_strong, cx))
             .flex()
             .flex_col()
             .gap(px(1.))
@@ -1778,7 +1778,6 @@ fn call_backdrop(id: &'static str, cx: &mut Context<Rustcord>) -> Stateful<Div> 
 
 // The call stage is dark in both themes (design/css/voice.css `.call`), so whatever sits on it reads
 // these instead of the theme's tokens. Converted from the CSS's OKLCH.
-// MOVE(ui): stage scope, as palette::stage(..) beside the theme ramps.
 mod stage {
     use gpui_kit::{Hsla, rgb};
 
@@ -1868,12 +1867,14 @@ struct Inks {
     hover: Hsla,
     line: Hsla,
     line_strong: Hsla,
+    // A meter's lit bars: on, hot, clipping.
+    lit: [Hsla; 3],
 }
 
 impl Inks {
     fn of(on_stage: bool, cx: &App) -> Self {
         match on_stage {
-            true => Inks { overlay: stage::overlay(), strong: stage::strong(), text: stage::text(), muted: stage::muted(), faint: stage::faint(), hover: stage::wash(0.05), line: stage::wash(0.08), line_strong: stage::wash(0.14) },
+            true => Inks { overlay: stage::overlay(), strong: stage::strong(), text: stage::text(), muted: stage::muted(), faint: stage::faint(), hover: stage::wash(0.05), line: stage::wash(0.08), line_strong: stage::wash(0.14), lit: [discord::Status::Online, discord::Status::Idle, discord::Status::Dnd].map(palette::status) },
             false => Inks {
                 overlay: palette::surface(palette::Level::Overlay, cx),
                 strong: palette::strong(cx),
@@ -1883,28 +1884,10 @@ impl Inks {
                 hover: palette::hover(cx),
                 line: palette::line(cx),
                 line_strong: palette::line_strong(cx),
+                lit: [discord::Status::Online, discord::Status::Idle, discord::Status::Dnd].map(|s| palette::status_in(s, cx)),
             },
         }
     }
-}
-
-// --shadow-pop: a soft drop plus a 1px ring in the strong line colour.
-// MOVE(ui): pop shadow, also used by the Go live picker and the stream card.
-pub(crate) fn pop_shadow(ring: Hsla, cx: &App) -> Vec<BoxShadow> {
-    let drop = if cx.theme().is_dark() { gpui_kit::black().opacity(0.45) } else { Hsla::from(rgb(0x3D2A22)).opacity(0.16) };
-    vec![
-        BoxShadow { color: drop, offset: point(px(0.), px(12.)), blur_radius: px(32.), spread_radius: px(0.), inset: false },
-        BoxShadow { color: ring, offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false },
-    ]
-}
-
-// The mini wave at rest (.bars.still): 3px bars, 2px apart. `weak` dims all but the first.
-// MOVE(ui): bars_still at the .bars size (ui's is the LIVE badge's 2px).
-fn still_bars(color: Hsla, height: f32, weak: bool) -> Div {
-    div().h(px(height)).flex_none().flex().items_center().gap(px(2.)).children([0.55_f32, 1., 0.7].into_iter().enumerate().map(move |(i, base)| {
-        let ink = if weak && i > 0 { color.opacity(0.3) } else { color };
-        div().w(px(3.)).h(px(height * base)).rounded_full().bg(ink)
-    }))
 }
 
 // .voicebar .why: the second line, in the status's tone, saying what needs you.
@@ -2115,15 +2098,6 @@ fn vmark(glyph: Glyph, words: Option<&'static str>, kind: MarkKind) -> Div {
     }
 }
 
-// .stackav: avatars overlapping by 6px, each ringed in the surface so they read apart.
-// MOVE(ui): avatar_stack measures narrower than its avatars under negative margins, so its
-// neighbours slide underneath; this one is sized up front.
-fn face_stack(urls: Vec<String>, size: f32, ring: Hsla) -> Div {
-    let step = size - 6.;
-    let width = if urls.is_empty() { 0. } else { size + step * (urls.len() - 1) as f32 };
-    div().relative().flex_none().w(px(width)).h(px(size)).children(urls.into_iter().enumerate().map(move |(i, url)| ui::avatar(url, size).absolute().top_0().left(px(step * i as f32)).border_2().border_color(ring)))
-}
-
 // .tile.stream: a stream before its first preview arrives.
 pub(crate) fn stream_fill(radius: f32) -> Div {
     let glow = gpui_kit::linear_gradient(135., gpui_kit::linear_color_stop(Hsla::from(rgb(0x0097A1)).opacity(0.7), 0.), gpui_kit::linear_color_stop(Hsla::from(rgb(0x9D2398)).opacity(0.7), 1.));
@@ -2146,19 +2120,6 @@ fn choice_row(id: impl Into<ElementId>, ink: &Inks) -> Stateful<Div> {
     div().id(id).min_h(px(34.)).px(px(10.)).py(px(6.)).squircle(RADIUS_SM).flex().items_center().gap(px(10.)).cursor_pointer().hover(move |s| s.bg(hover))
 }
 
-// .vrow .radio: 18px; on is a 5px accent band.
-// MOVE(ui): radio with a size and a ring colour, so a dark scope can use it.
-fn radio(on: bool, ink: &Inks) -> Div {
-    div().size(px(18.)).flex_none().rounded_full().when(on, |d| d.border(px(5.)).border_color(palette::accent())).when(!on, |d| d.border(px(1.5)).border_color(ink.line_strong))
-}
-
-// .meter: the live level as a row of pills.
-// MOVE(ui): meter.
-fn meter(level: f32, ink: &Inks) -> Div {
-    let lit = (level.clamp(0., 1.) * METER_BARS as f32).round() as usize;
-    div().h(px(14.)).flex().items_center().gap(px(2.)).children((0..METER_BARS).map(|i| div().flex_1().min_w(px(3.)).h_full().rounded_full().bg(if i < lit { stage::online() } else { ink.line_strong })))
-}
-
 #[derive(Clone)]
 struct MenuSliderDrag(SharedString);
 
@@ -2168,32 +2129,8 @@ impl gpui_kit::Render for MenuSliderDrag {
     }
 }
 
-// --ease-spring: CSS linear() stops for a small overshoot that settles.
-// MOVE(ui): ease_spring beside the motion tokens.
-fn ease_spring(t: f32) -> f32 {
-    use gpui_kit::base::{Easing, LinearStop};
-    let stops = [LinearStop::new(0.), LinearStop::at(0.42, 0.12), LinearStop::at(0.82, 0.25), LinearStop::at(1.06, 0.4), LinearStop::at(1.1, 0.48), LinearStop::at(1.04, 0.62), LinearStop::at(0.99, 0.78), LinearStop::new(1.)];
-    Easing::linear_stops(stops).map_or(t, |e| e.sample(t))
-}
-
 fn tabular() -> FontFeatures {
     FontFeatures(Arc::new(vec![("tnum".into(), 1)]))
-}
-
-// MOVE(ui): oklch <-> sRGB, as palette already does privately for role colours.
-fn oklch(l: f32, c: f32, h: f32) -> Hsla {
-    let (a, b) = (c * h.to_radians().cos(), c * h.to_radians().sin());
-    let l_ = (l + 0.396_337_8 * a + 0.215_803_76 * b).powi(3);
-    let m_ = (l - 0.105_561_35 * a - 0.063_854_17 * b).powi(3);
-    let s_ = (l - 0.089_484_18 * a - 1.291_485_5 * b).powi(3);
-    let channel = |v: f32| {
-        let v = v.clamp(0., 1.);
-        if v <= 0.003_130_8 { 12.92 * v } else { 1.055 * v.powf(1. / 2.4) - 0.055 }
-    };
-    let r = channel(4.076_741_7 * l_ - 3.307_711_6 * m_ + 0.230_969_94 * s_);
-    let g = channel(-1.268_438 * l_ + 2.609_757_4 * m_ - 0.341_319_38 * s_);
-    let bl = channel(-0.004_196_086 * l_ - 0.703_418_6 * m_ + 1.707_614_7 * s_);
-    gpui_kit::Rgba { r, g, b: bl, a: 1. }.into()
 }
 
 fn oklch_hue(color: Hsla) -> f32 {
