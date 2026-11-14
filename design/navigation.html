@@ -278,9 +278,7 @@
         <div class="ch"><i class="ph ph-speaker-high"></i><a class="nm" href="#">Ranked grind</a><span class="meta"><span class="limit" aria-label="3 of 8 people">3/8</span></span></div><span class="note">Voice, user limit</span>
         <div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">staff-only</a><span class="meta" title="Private channel"><i class="ph ph-lock-simple" aria-label="Private"></i></span></div><span class="note">Private</span>
         <div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">horror-nights</a><span class="meta" title="Age-restricted"><i class="ph ph-shield-warning" aria-label="Age-restricted"></i></span></div><span class="note">Age-restricted</span>
-        <div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">general</a></div><span class="note">Parent channel</span>
-        <div class="ch thread"><a class="nm" href="#">Season 7 tier list</a></div><span class="note">Thread</span>
-        <div class="ch thread"><a class="nm" href="#">Snack rota</a></div><span class="note">Thread, last</span>
+        <div class="chlist" style="padding: 0"><div class="ch"><i class="ph ph-hash"></i><a class="nm" href="#">general</a></div><div class="ch thread"><a class="nm" href="#">Season 7 tier list</a></div><div class="ch thread"><a class="nm" href="#">Snack rota</a></div></div><span class="note">Parent channel and its threads; one line runs down the threads and curves into the last</span>
       </div></div>
 
       <h3>Channel states</h3>
@@ -569,9 +567,65 @@
 // Disclosure: categories and folders fold from their button. Demo-only pinned states carry data-static.
 document.addEventListener("click", e => {
   const t = e.target.closest("[aria-expanded]:not([data-static])");
-  if (t) t.setAttribute("aria-expanded", t.getAttribute("aria-expanded") !== "true");
+  if (t?.classList.contains("folder-head")) toggleFolder(t);
+  else if (t) t.setAttribute("aria-expanded", t.getAttribute("aria-expanded") !== "true");
   if (e.target.closest("a.nm")) e.preventDefault();
 });
+
+// Folder open/close: each server travels between its mini tile in the closed folder and its own slot,
+// and everything below in the rail slides to make room (FLIP: measure, toggle, animate from the old spot).
+function toggleFolder(head) {
+  const folder = head.parentElement, rail = folder.parentElement;
+  const opening = head.getAttribute("aria-expanded") !== "true";
+  const kids = [...folder.querySelectorAll(":scope > .srv:not(.folder-head)")];
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const flip = (el, from) => {
+    const to = el.getBoundingClientRect();
+    return [from.left - to.left, from.top - to.top, from.width / to.width];
+  };
+  const rect = el => el.getBoundingClientRect();
+  const timing = { duration: 320, easing: getComputedStyle(document.documentElement).getPropertyValue("--ease-spring").trim() || "ease-out" };
+  const others = [...rail.children].filter(el => el !== folder && rect(el).top > rect(folder).top);
+  const before = new Map(others.map(el => [el, rect(el)]));
+  const folderHeight = rect(folder).height;
+  const minis = () => [...head.querySelectorAll(".minis span")];
+
+  if (opening) {
+    const from = minis().map(rect);
+    const headRect = rect(head);
+    head.setAttribute("aria-expanded", "true");
+    if (still) return;
+    kids.forEach((kid, i) => {
+      const [dx, dy, s] = flip(kid, from[i] ?? headRect);
+      kid.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${s})`, transformOrigin: "0 0", opacity: from[i] ? 1 : 0 }, { transform: "none", transformOrigin: "0 0", opacity: 1 }], timing);
+      // Badges (mentions, voice connected) pop in once the server has nearly landed.
+      for (const b of kid.querySelectorAll(".count, .vc")) b.animate([{ transform: "scale(0.5)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 220, delay: 200, easing: timing.easing, fill: "backwards" });
+    });
+  } else {
+    const from = kids.map(rect);
+    head.setAttribute("aria-expanded", "false");
+    if (still) return;
+    const to = minis().map(rect);
+    for (const m of minis()) m.animate([{ opacity: 0 }, { opacity: 0, offset: 0.7 }, { opacity: 1 }], timing);
+    kids.forEach((kid, i) => {
+      // The real server is hidden once closed, so a copy makes the trip into the folder.
+      const ghost = kid.cloneNode(true);
+      Object.assign(ghost.style, { position: "fixed", left: from[i].left + "px", top: from[i].top + "px", margin: 0, zIndex: 50, pointerEvents: "none", transformOrigin: "0 0" });
+      ghost.removeAttribute("title");
+      document.body.append(ghost);
+      const target = to[i] ?? rect(head);
+      const s = target.width / from[i].width;
+      // Its badges shrink away first, so only the icon travels into the folder.
+      for (const b of ghost.querySelectorAll(".count, .vc")) b.animate([{ transform: "none", opacity: 1 }, { transform: "scale(0.5)", opacity: 0 }], { duration: 140, easing: "ease-in", fill: "forwards" });
+      ghost.animate([{ transform: "none", opacity: 1 }, { transform: `translate(${target.left - from[i].left}px, ${target.top - from[i].top}px) scale(${s})`, opacity: to[i] ? 1 : 0 }], timing).finished.then(() => ghost.remove());
+    });
+  }
+  folder.animate([{ height: folderHeight + "px" }, { height: rect(folder).height + "px" }], timing);
+  for (const [el, was] of before) {
+    const dy = was.top - rect(el).top;
+    if (dy) el.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], timing);
+  }
+}
 </script>
 </body>
 </html>
