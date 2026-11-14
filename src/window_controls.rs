@@ -1,31 +1,22 @@
-// Minimize, maximize and close for Windows. The title bar is drawn by the app (`appears_transparent`), and
-// unlike macOS, Windows then shows no caption buttons of its own. Each button is tagged with its
-// WindowControlArea, so Windows does the hit-testing: clicks, Snap Layouts on maximize hover, and
-// the close button all behave like native ones. Nothing is drawn on other platforms.
-use gpui_kit::{AnyElement, App, Hsla, Window, WindowControlArea, component::ActiveTheme, div, prelude::*, px, rgb};
+// Minimize, maximize and close for Windows (.tb-win): 46 by 36, flush right; Close hovers to danger.
+// The title bar is drawn by the app (`appears_transparent`), and unlike macOS, Windows then shows no
+// caption buttons of its own. Each button is tagged with its WindowControlArea, so Windows does the
+// hit-testing: clicks, Snap Layouts on maximize hover, and the close button all behave like native
+// ones. Nothing is drawn on other platforms.
+use gpui_kit::{AnyElement, App, Hsla, Window, WindowControlArea, component::Icon, div, prelude::*, px};
 
-use crate::layout::TITLE_HEIGHT;
+use crate::{icons::Glyph, layout::TITLE_HEIGHT, palette, sidebar::Nav};
 
-// Windows 11 caption buttons are 46px wide.
 const BUTTON_WIDTH: f32 = 46.;
 /// Room the controls take at the right of the title bar.
 pub const WIDTH: f32 = if cfg!(target_os = "windows") { BUTTON_WIDTH * 3. } else { 0. };
-
-// Segoe MDL2 Assets ships with Windows 10 and 11 and has the system's caption glyphs.
-const ICON_FONT: &str = "Segoe MDL2 Assets";
-const MINIMIZE: &str = "\u{E921}";
-const MAXIMIZE: &str = "\u{E922}";
-const RESTORE: &str = "\u{E923}";
-const CLOSE: &str = "\u{E8BB}";
 
 pub fn render(window: &Window, cx: &App) -> Option<AnyElement> {
     if !cfg!(target_os = "windows") {
         return None;
     }
-    let theme = cx.theme();
-    let foreground = theme.foreground;
-    let hover = theme.foreground.opacity(0.08);
-    let button = |id: &'static str, glyph: &'static str, area: WindowControlArea, hover_bg: Hsla, hover_fg: Hsla| {
+    let (muted, strong, hover) = (palette::muted(cx), palette::strong(cx), palette::hover(cx));
+    let button = |id: &'static str, icon: Icon, area: WindowControlArea, hover_bg: Hsla, hover_fg: Hsla| {
         div()
             .id(id)
             .w(px(BUTTON_WIDTH))
@@ -33,19 +24,16 @@ pub fn render(window: &Window, cx: &App) -> Option<AnyElement> {
             .flex()
             .items_center()
             .justify_center()
-            .font_family(ICON_FONT)
-            .text_size(px(10.))
-            .text_color(foreground)
+            .text_color(muted)
             .hover(move |s| s.bg(hover_bg).text_color(hover_fg))
             // gpui answers Windows' hit test with the first registered control area under the
             // cursor, and the title bar's Drag area (the whole window on the login screen) is
             // registered first. Blocking the mouse hides those from the hit test under the button.
             .occlude()
             .window_control_area(area)
-            .child(glyph)
+            .child(icon.size(px(16.)))
     };
-    let maximize = if window.is_maximized() { RESTORE } else { MAXIMIZE };
-    let close_red: Hsla = rgb(0xC42B1C).into();
+    let maximize = if window.is_maximized() { Nav::Restore } else { Nav::Maximize };
     Some(
         div()
             .absolute()
@@ -53,9 +41,9 @@ pub fn render(window: &Window, cx: &App) -> Option<AnyElement> {
             .right_0()
             .h(px(TITLE_HEIGHT))
             .flex()
-            .child(button("window-minimize", MINIMIZE, WindowControlArea::Min, hover, foreground))
-            .child(button("window-maximize", maximize, WindowControlArea::Max, hover, foreground))
-            .child(button("window-close", CLOSE, WindowControlArea::Close, close_red, gpui_kit::white()))
+            .child(button("window-minimize", Nav::Minimize.icon(), WindowControlArea::Min, hover, strong))
+            .child(button("window-maximize", maximize.icon(), WindowControlArea::Max, hover, strong))
+            .child(button("window-close", Icon::new(Glyph::X), WindowControlArea::Close, palette::danger(), gpui_kit::white()))
             .into_any_element(),
     )
 }

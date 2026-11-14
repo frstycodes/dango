@@ -120,7 +120,8 @@ fn main() {
             focus: splash.is_none(),
             window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(1280.), px(820.)), cx))),
             window_min_size: Some(size(px(940.), px(520.))),
-            titlebar: Some(TitlebarOptions { title: Some("Wave".into()), appears_transparent: true, ..Default::default() }),
+            // The traffic lights centre in the 36px title bar, leaving the first 72px to them.
+            titlebar: Some(TitlebarOptions { title: Some("Wave".into()), appears_transparent: true, traffic_light_position: Some(gpui_kit::point(px(12.), px(12.))) }),
             window_background: material::window_background(),
             ..Default::default()
         };

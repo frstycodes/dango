@@ -1,12 +1,13 @@
-// The server rail and the channel list.
+// The server rail and the channel list (design/css/navigation.css: .rail, .srv, .folder, .side, .ch).
 use std::time::Duration;
 
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, Radians, SharedString, Window,
+    Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, Radians, SharedString, Stateful, Window,
+    base::{Transition as Tween, transition},
     component::{ActiveTheme, Icon, tooltip::Tooltip},
-    div, hsla, img, linear_color_stop, linear_gradient, prelude::*, px, rgb,
+    div, img, prelude::*, px, rgb,
 };
-use gpui_motion_kit::core::{Motion, Target};
+use gpui_motion_kit::core::{Bezier, Easing, Motion, Target, Transition};
 
 use crate::{
     Rustcord, Edge, Part, RailEntry, Status,
@@ -15,32 +16,81 @@ use crate::{
     layout::{RAIL_WIDTH, avatar_with_status},
     motion, palette,
     rail_drag::{Drop, RailDrag},
-    ui::Tone,
+    ui::{self, Tone},
 };
+
+// Rail geometry: 44px tiles 8px apart, centred in the 68px rail, so the state pill sits on its edge.
+const TILE: f32 = 44.;
+const RAIL_GAP: f32 = 8.;
+const TILE_X: f32 = (RAIL_WIDTH - TILE) / 2.;
+const MINI: f32 = 16.;
+const MINI_GAP: f32 = 4.;
+const MINI_INSET: f32 = (TILE - 2. * MINI - MINI_GAP) / 2.;
+// A folder opening: badges shrink away, the servers travel from their mini tiles to their slots, then
+// their badges pop back. Closing runs the same steps in reverse.
+const BADGE_OUT: Duration = Duration::from_millis(100);
+const BADGE_IN: Duration = Duration::from_millis(200);
+const TRIP: Duration = Duration::from_millis(260);
 
 const ROW_HEIGHT: f32 = 32.;
 const ROW_GAP: f32 = 2.;
 
-enum Face {
-    Dms,
+pub(crate) enum Face {
+    Home,
     Icon(String),
-    Letters(String, String),
-    Folder { open: bool, tint: Hsla, previews: Vec<(String, Option<String>, String)> },
+    Letters(String),
+    Folder { tint: Hsla, minis: Vec<Mini> },
+}
+
+// A server as a folder shows it: its icon, or its first letter.
+#[derive(Clone)]
+pub(crate) struct Mini {
+    icon: Option<String>,
+    letters: String,
+}
+
+// One tile's state, as the rail draws it.
+struct RailTile {
+    key: String,
+    name: SharedString,
+    selected: bool,
+    unread: bool,
+    mentions: u32,
+    muted: bool,
+    in_voice: bool,
+    face: Face,
+    guild_id: Option<String>,
+    // Badges shrink with a folder's trip (1 shown, 0 gone).
+    badge_scale: f32,
+    // An open folder's head trades its minis for the folder glyph (0 closed, 1 open).
+    open: f32,
 }
 
 impl Rustcord {
     pub fn render_rail(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let border = cx.theme().sidebar_border;
         if !cx.has_active_drag() {
             self.rail_drop = None;
             self.channel_drop = None;
         }
         let dm_mentions: u32 = self.dms.iter().map(|d| self.mention_count(&d.id)).sum();
-        let dms = self.rail_item("dms".into(), "Direct Messages".into(), self.guild_id.is_none(), (false, dm_mentions), Face::Dms, None, window, cx);
+        let home = RailTile {
+            key: "dms".into(),
+            name: "Direct messages".into(),
+            selected: self.guild_id.is_none(),
+            unread: false,
+            mentions: dm_mentions,
+            muted: false,
+            in_voice: false,
+            face: Face::Home,
+            guild_id: None,
+            badge_scale: 1.,
+            open: 0.,
+        };
+        let home = self.rail_item(home, window, cx);
         let mut items: Vec<AnyElement> = Vec::new();
         for entry in self.rail_entries() {
             match entry {
-                RailEntry::Guild(guild) => items.push(self.guild_item(guild, window, cx)),
+                RailEntry::Guild(guild) => items.push(self.guild_item(guild, 1., window, cx)),
                 RailEntry::Folder(folder, guilds) => items.push(self.folder_item(folder, guilds, window, cx)),
             }
         }
@@ -49,180 +99,127 @@ impl Rustcord {
             .w(px(RAIL_WIDTH))
             .h_full()
             .flex_none()
-            .pt_2()
-            .pb(px(self.panel_stack_height() + 16.))
+            .py(px(12.))
             .flex()
             .flex_col()
             .items_center()
-            .gap_2()
+            .gap(px(RAIL_GAP))
             .overflow_y_scroll()
-            .child(dms)
-            .child(div().w(px(32.)).h(px(1.)).flex_none().bg(border))
+            .text_size(px(14.))
+            .child(home)
+            .child(rail_rule(cx))
             .children(items)
+            .child(rail_rule(cx))
+            .child(rail_action("rail-discover", Nav::Compass, "Discover servers", cx).on_click(|_, _, cx| cx.open_url("https://discord.com/servers")))
     }
 
-    fn guild_item(&mut self, guild: Guild, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let selected = self.guild_id.as_ref() == Some(&guild.id);
-        let badge = self.guild_badge(&guild);
-        let face = match &guild.icon {
-            Some(url) => Face::Icon(url.clone()),
-            None => Face::Letters(guild.id.clone(), initials(&guild.name)),
-        };
-        self.rail_item(guild.id.clone(), guild.name.clone().into(), selected, badge, face, Some(guild.id), window, cx)
+    fn guild_tile(&self, guild: &Guild, badge_scale: f32) -> RailTile {
+        let (unread, mentions) = self.guild_badge(guild);
+        RailTile {
+            key: guild.id.clone(),
+            name: guild.name.clone().into(),
+            selected: self.guild_id.as_ref() == Some(&guild.id),
+            unread,
+            mentions,
+            muted: self.guild_settings.get(&guild.id).is_some_and(|s| s.is_muted()),
+            in_voice: self.call.as_ref().is_some_and(|c| c.guild_id.as_ref() == Some(&guild.id)),
+            face: server_face(guild),
+            guild_id: Some(guild.id.clone()),
+            badge_scale,
+            open: 0.,
+        }
     }
 
-    // A Discord folder: closed, a tile of its first four servers; open, a tinted column holding them all.
+    fn guild_item(&mut self, guild: Guild, badge_scale: f32, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let tile = self.guild_tile(&guild, badge_scale);
+        self.rail_item(tile, window, cx)
+    }
+
+    // A folder: closed, a tile of its first four servers; open, a tinted column holding them all.
     fn folder_item(&mut self, folder: Folder, guilds: Vec<Guild>, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme().clone();
         let open = self.open_folders.contains(&folder.id);
-        let tint: Hsla = folder.color.map(|c| rgb(c).into()).unwrap_or(palette::accent());
+        let key = format!("folder-{}", folder.id);
+        let motion = FolderMotion::frame(&key, open, window, cx);
+        let tint: Hsla = folder.color.map(|c| rgb(c).into()).unwrap_or(palette::faint(cx));
         let (unread, mentions) = guilds.iter().map(|g| self.guild_badge(g)).fold((false, 0), |(u, m), (gu, gm)| (u || gu, m + gm));
         let has_selected = guilds.iter().any(|g| self.guild_id.as_ref() == Some(&g.id));
         let name: SharedString = folder.name.clone().unwrap_or_else(|| guilds.iter().map(|g| g.name.as_str()).take(3).collect::<Vec<_>>().join(", ")).into();
-        let id = folder.id.clone();
-        let header = self.rail_item(
-            format!("folder-{}", folder.id),
+        let minis: Vec<Mini> = guilds.iter().map(mini).collect();
+        let head = RailTile {
+            key: key.clone(),
             name,
-            has_selected && !open,
-            if open { (false, 0) } else { (unread, mentions) },
-            Face::Folder { open, tint, previews: guilds.iter().take(4).map(|g| (g.id.clone(), g.icon.clone(), initials(&g.name))).collect() },
-            None,
-            window,
-            cx,
-        );
-        let menu_id = id.clone();
-        let header = div()
-            .id(SharedString::from(format!("folder-hit-{id}")))
-            .child(header)
+            selected: has_selected && !open,
+            unread: unread && !open,
+            mentions: if open { 0 } else { mentions },
+            muted: false,
+            in_voice: false,
+            face: Face::Folder { tint, minis: minis.iter().take(4).cloned().collect() },
+            guild_id: None,
+            badge_scale: motion.head_badge,
+            open: motion.trip,
+        };
+        let head = self.rail_item(head, window, cx);
+        let (toggle_id, menu_id) = (folder.id.clone(), folder.id.clone());
+        let head = div()
+            .id(SharedString::from(format!("folder-hit-{}", folder.id)))
+            .absolute()
+            .top_0()
+            .left_0()
+            .child(head)
             .on_mouse_down(gpui_kit::MouseButton::Right, cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_folder_menu(menu_id.clone(), e.position, cx)))
             .on_click(cx.listener(move |this, _, _, cx| {
-            if !this.open_folders.remove(&id) {
-                this.open_folders.insert(id.clone());
-            }
-            cx.notify();
-        }));
-        if !open {
-            return header.into_any_element();
-        }
-        let children: Vec<AnyElement> = guilds.into_iter().map(|g| self.guild_item(g, window, cx)).collect();
+                if !this.open_folders.remove(&toggle_id) {
+                    this.open_folders.insert(toggle_id.clone());
+                }
+                cx.notify();
+            }));
+        let count = guilds.len();
+        let landed = motion.trip >= 1.;
+        let servers: Vec<AnyElement> = match (motion.trip > 0., landed) {
+            (false, _) => Vec::new(),
+            (true, true) => guilds.into_iter().enumerate().map(|(i, g)| div().absolute().left_0().top(px(slot_y(i))).child(self.guild_item(g, motion.child_badge, window, cx)).into_any_element()).collect(),
+            (true, false) => minis.iter().enumerate().map(|(i, m)| flying_tile(m, i, motion.trip, cx)).collect(),
+        };
         div()
+            .relative()
             .w(px(RAIL_WIDTH))
-            .flex()
-            .flex_col()
-            .items_center()
-            .child(div().w(px(48.)).rounded(px(16.)).bg(tint.opacity(0.18)).pb_1().flex().flex_col().items_center().gap_2().child(header).children(children))
-            .when(theme.is_dark(), |c| c)
+            .h(px(TILE + motion.trip * count as f32 * (TILE + RAIL_GAP)))
+            .flex_none()
+            .child(div().absolute().top_0().bottom_0().left(px(TILE_X)).w(px(TILE)).rounded(px(ui::RADIUS_LG)).bg(tint.opacity(0.18 * motion.trip)))
+            .children(servers)
+            .child(head)
             .into_any_element()
     }
 
-    // Discord's rail: 40px squircles that hold their shape, a pill that grows for unread, hover and the
-    // selected server, and a red count for mentions.
-    #[allow(clippy::too_many_arguments)]
-    fn rail_item(
-        &mut self,
-        key: String,
-        name: SharedString,
-        selected: bool,
-        (unread, mentions): (bool, u32),
-        face: Face,
-        guild_id: Option<String>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
+    // A rail tile: the face, the state pill on the rail's edge (dot unread, longer on hover, full when
+    // selected), and a count for mentions.
+    fn rail_item(&mut self, tile: RailTile, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let RailTile { key, name, selected, unread, mentions, muted, in_voice, face, guild_id, badge_scale, open } = tile;
         let hovered = self.hovered.as_deref() == Some(&key);
-        let pill_height = if selected { 40. } else if hovered { 20. } else if unread { 8. } else { 0. };
-        let pill = self.motions.frame_one(
-            Part::Pill(key.clone()),
-            Motion::new(Target::default().height(pill_height).opacity(if pill_height > 0. { 1. } else { 0. })).transition(motion::spring()),
-            window,
-            cx,
-        );
-        let theme = cx.theme().clone();
-        let (side, radius) = (40., 12.);
+        let pill_height = if selected { 36. } else if hovered { 20. } else if unread { 8. } else { 0. };
+        let pill = self.motions.frame_one(Part::Pill(key.clone()), Motion::new(Target::default().height(pill_height)).transition(hover_ease()), window, cx);
+        let pill_height = pill.target().height_px().unwrap_or(pill_height).max(0.);
+        let rail = palette::surface(palette::Level::Rail, cx);
         let drag_icon = match &face {
             Face::Icon(url) => Some(url.clone()),
             _ => None,
         };
         let drop_hint = self.rail_drop.as_ref().filter(|(target, _)| *target == key).map(|(_, drop)| *drop);
-        let face = match face {
-            Face::Icon(url) => img(url).size(px(side)).rounded(px(radius)).into_any_element(),
-            Face::Letters(id, label) => identity_tile(&id, label, 14.).size(px(side)).rounded(px(radius)).into_any_element(),
-            Face::Dms => div()
-                .size(px(side))
-                .rounded(px(radius))
-                .flex()
-                .items_center()
-                .justify_center()
-                .bg(if selected || hovered { palette::accent() } else { theme.foreground.opacity(0.1) })
-                // Wave's mark: white on the accent tile when selected or hovered, magenta on the neutral tile.
-                .child(img(if selected || hovered { crate::icons::MARK_WHITE } else { crate::icons::MARK }).size(px(22.)))
-                .into_any_element(),
-            Face::Folder { open: true, tint, .. } => div()
-                .size(px(side))
-                .rounded(px(radius))
-                .flex()
-                .items_center()
-                .justify_center()
-                .text_color(tint)
-                .child(Icon::new(Glyph::Folder).size(px(22.)))
-                .into_any_element(),
-            Face::Folder { open: false, tint, previews } => div()
-                .size(px(side))
-                .rounded(px(radius))
-                .bg(tint.opacity(0.3))
-                .p(px(4.))
-                .flex()
-                .flex_wrap()
-                .gap(px(2.))
-                .children(previews.into_iter().map(|(id, icon, label)| match icon {
-                    Some(url) => img(url).size(px(15.)).rounded(px(4.)).into_any_element(),
-                    None => identity_tile(&id, label.chars().take(1).collect::<String>(), 7.).size(px(15.)).rounded(px(4.)).into_any_element(),
-                }))
-                .into_any_element(),
-        };
-        let badge = (mentions > 0).then(|| {
-            div()
-                .absolute()
-                .right(px(10.))
-                .bottom(px(-2.))
-                .min_w(px(18.))
-                .h(px(18.))
-                .px_1()
-                .rounded_full()
-                .border_2()
-                .border_color(theme.title_bar)
-                .bg(theme.danger)
-                .text_color(gpui_kit::white())
-                .text_size(px(11.))
-                .font_weight(FontWeight::BOLD)
-                .flex()
-                .items_center()
-                .justify_center()
-                .child(if mentions > 99 { "99+".to_string() } else { mentions.to_string() })
-        });
+        let face = render_face(face, TILE, ui::RADIUS_LG, selected, open, cx);
         let hover_key = key.clone();
         let item = div()
             .id(SharedString::from(format!("rail-{key}")))
             .relative()
             .w(px(RAIL_WIDTH))
-            .h(px(40.))
+            .h(px(TILE))
             .flex_none()
-            .flex()
-            .items_center()
-            .justify_center()
             .cursor_pointer()
-            .child(
-                div()
-                    .absolute()
-                    .left_0()
-                    .w(px(4.))
-                    .h(px(pill.target().height_px().unwrap_or(pill_height)))
-                    .rounded_r(px(4.))
-                    .bg(theme.foreground.opacity(pill.target().alpha())),
-            )
-            .child(face)
-            .children(badge)
-            .children(drop_hint.map(|drop| drop_marker(drop, side, radius, theme.success)))
+            .child(div().absolute().left_0().top(px((TILE - pill_height) / 2.)).w(px(4.)).h(px(pill_height)).rounded_r(px(4.)).bg(palette::strong(cx)))
+            // PATCH(transform): pressed tiles scale to 0.97 (.srv:active); muted ones desaturate to 35% (filter).
+            .child(div().absolute().left(px(TILE_X)).top_0().when(muted, |f| f.opacity(0.55)).child(face))
+            .when(mentions > 0 && badge_scale > 0.01, |item| item.child(rail_count(mentions, badge_scale, rail)))
+            .when(in_voice && mentions == 0, |item| item.child(voice_mark(rail, cx)))
+            .children(drop_hint.map(drop_marker))
             .tooltip({
                 let name = name.clone();
                 move |window, cx| Tooltip::new(name.clone()).build(window, cx)
@@ -239,7 +236,7 @@ impl Rustcord {
             .into_any_element()
     }
 
-    fn rail_draggable(&self, item: gpui_kit::Stateful<Div>, key: String, icon: Option<String>, label: SharedString, cx: &mut Context<Self>) -> gpui_kit::Stateful<Div> {
+    fn rail_draggable(&self, item: Stateful<Div>, key: String, icon: Option<String>, label: SharedString, cx: &mut Context<Self>) -> Stateful<Div> {
         let can_combine = !key.starts_with("folder-");
         let (move_key, drop_key) = (key.clone(), key.clone());
         item.on_drag(RailDrag { key, icon, label }, |drag, _, _, cx| cx.new(|_| drag.clone()))
@@ -364,29 +361,27 @@ impl Rustcord {
     }
 
     pub fn render_channels(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme().clone();
-        let title: SharedString = match self.guild() {
-            Some(guild) => guild.name.clone().into(),
-            None => "Direct Messages".into(),
-        };
         let mut rows: Vec<AnyElement> = Vec::new();
         match (&self.status, self.guild().cloned()) {
             (Status::Connecting, _) => rows.push(muted_line("Connecting to Discord…", cx)),
             (_, Some(guild)) => {
                 let me = self.my_id().to_owned();
-                for (category, channels) in channel_sections(&guild, &me) {
-                    let rows_for = channels.iter().flat_map(|c| self.channel_rows(c, &guild, window, cx)).collect();
+                for (i, (category, channels)) in channel_sections(&guild, &me).into_iter().enumerate() {
+                    let channel_rows = channels.iter().flat_map(|c| self.channel_rows(c, &guild, window, cx)).collect();
                     match category {
-                        Some(category) => rows.push(self.section(category, rows_for, window, cx)),
-                        None => rows.extend(rows_for),
+                        Some(category) => rows.push(self.section(category, channel_rows, i > 0, window, cx)),
+                        None => rows.extend(channel_rows.into_iter().map(|row: ChannelRow| row.element)),
                     }
                 }
             }
-            (_, None) if self.dms.is_empty() => rows.push(muted_line("No direct messages yet", cx)),
             (_, None) => {
                 rows.push(self.friends_row(cx));
-                rows.push(div().h(px(28.)).px_2().mt_1().flex().items_center().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(theme.muted_foreground).child("Direct Messages").into_any_element());
-                rows.extend(self.dms.clone().iter().map(|c| self.dm_row(c, cx)));
+                let start = cat_add("dm-start", None, "Start a conversation", cx).on_click(cx.listener(|this, _, window, cx| this.open_switcher(window, cx)));
+                rows.push(div().mt(px(16.)).child(category_head("dm-head".into(), div().id("dm-head").child("Direct messages"), true, cx).child(start)).into_any_element());
+                match self.dms.is_empty() {
+                    true => rows.push(muted_line("No direct messages yet", cx)),
+                    false => rows.extend(self.dms.clone().iter().map(|c| self.dm_row(c, cx))),
+                }
             }
         }
         let reconnecting = match &self.status {
@@ -403,6 +398,7 @@ impl Rustcord {
             window,
             cx,
         );
+        let warning = cx.theme().warning;
         let banner = banner.render(|frame| {
             frame.apply(
                 div()
@@ -410,16 +406,21 @@ impl Rustcord {
                     .mb_2()
                     .px_3()
                     .py_2()
-                    .rounded(px(10.))
-                    .bg(theme.warning.opacity(0.12))
+                    .rounded(px(ui::RADIUS_MD))
+                    .bg(warning.opacity(0.12))
                     .text_size(px(12.))
                     .flex()
                     .items_center()
                     .gap_2()
-                    .child(div().size(px(6.)).flex_none().rounded_full().bg(theme.warning))
+                    .child(div().size(px(6.)).flex_none().rounded_full().bg(warning))
                     .child(div().truncate().child(format!("Reconnecting… {}", reconnecting.clone().unwrap_or_default()))),
             )
         });
+        let header = match self.guild() {
+            Some(guild) => self.server_header(guild.name.clone().into(), cx).into_any_element(),
+            None => dm_find(cx).on_click(cx.listener(|this, _, window, cx| this.open_switcher(window, cx))).into_any_element(),
+        };
+        let user_panel = self.me.clone().map(|me| self.user_panel(me, cx));
         div()
             .relative()
             .w(px(self.channels_width))
@@ -427,84 +428,74 @@ impl Rustcord {
             .flex_none()
             .flex()
             .flex_col()
-            .border_l_1()
-            .border_color(theme.sidebar_border)
-            .bg(theme.sidebar)
-            .text_color(theme.sidebar_foreground)
+            .bg(palette::surface(palette::Level::Sidebar, cx))
+            .text_color(palette::muted(cx))
+            .text_size(px(14.))
             .child(self.resize_handle(Edge::Channels, cx))
             .child(
                 div()
                     .h(px(48.))
                     .flex_none()
-                    .px_4()
                     .flex()
                     .items_center()
-                    .gap_1()
                     .border_b_1()
-                    .border_color(theme.sidebar_border)
-                    .text_size(px(16.))
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child(div().flex_1().truncate().child(title))
-                    .when(self.guild_id.is_some(), |h| h.child(Icon::new(Glyph::ChevronDown).size(px(16.))))
-                    .id("server-header")
-                    .when(self.guild_id.is_some(), |h| {
-                        h.cursor_pointer().hover(|s| s.bg(theme.foreground.opacity(0.04))).on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(|this, e: &gpui_kit::MouseDownEvent, _, cx| {
-                            let Some(guild_id) = this.guild_id.clone() else { return };
-                            let at = gpui_kit::point(e.position.x.min(px(RAIL_WIDTH + 16.)), px(crate::layout::TITLE_HEIGHT + 52.));
-                            this.open_server_menu(guild_id, at, true, cx);
-                        }))
-                    }),
+                    .border_color(palette::line(cx))
+                    .map(|h| if self.guild_id.is_some() { h.p(px(6.)) } else { h.px_2() })
+                    .child(header),
             )
-            .child(
-                div()
-                    .id("channels")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .px_2()
-                    .pt_2()
-                    .pb(px(self.panel_stack_height() + 24.))
-                    .flex()
-                    .flex_col()
-                    .gap(px(ROW_GAP))
-                    .children(rows),
-            )
-            .child(div().pb(px(self.panel_stack_height() + 16.)).child(banner))
+            .child(div().id("channels").flex_1().min_h_0().overflow_y_scroll().p_2().flex().flex_col().gap(px(ROW_GAP)).children(rows))
+            .child(banner)
+            .children(user_panel)
     }
 
-    // A category folds from its label: height and fade together on the fold curve, the chevron
-    // springs round with a little overshoot.
-    fn section(&mut self, category: Channel, rows: Vec<AnyElement>, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    // The server name as the header's one button; it drops the server menu.
+    fn server_header(&self, name: SharedString, cx: &mut Context<Self>) -> impl IntoElement {
+        let hover = palette::hover(cx);
+        div()
+            .id("server-header")
+            .flex_1()
+            .min_w_0()
+            .h_full()
+            .px_2()
+            .rounded(px(ui::RADIUS_SM))
+            .flex()
+            .items_center()
+            .gap_2()
+            .cursor_pointer()
+            .text_size(px(16.))
+            .font_weight(FontWeight::BOLD)
+            .text_color(palette::strong(cx))
+            .hover(move |s| s.bg(hover))
+            .child(div().flex_1().min_w_0().truncate().child(name))
+            .child(Nav::Caret.icon().size(px(16.)).text_color(palette::muted(cx)))
+            .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(|this, _: &gpui_kit::MouseDownEvent, _, cx| {
+                let Some(guild_id) = this.guild_id.clone() else { return };
+                // Drops from the header's bottom edge, inset by the header's padding.
+                let at = gpui_kit::point(px(RAIL_WIDTH + 6.), px(crate::layout::TITLE_HEIGHT + 48.));
+                this.open_server_menu(guild_id, at, true, cx);
+            }))
+    }
+
+    // A category folds from its label: height and fade together on the fold curve, the chevron turns.
+    // Folded, its unread and selected channels stay in view.
+    fn section(&mut self, category: Channel, rows: Vec<ChannelRow>, spaced: bool, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let folded = self.folded.contains(&category.id);
         let [fold, chevron] = self.motions.frame(
             [
                 (Part::Fold(category.id.clone()), Motion::new(Target::default().opacity(if folded { 0. } else { 1. })).transition(motion::fold())),
                 // The chevron's angle in degrees rides the x channel; it is read back, never applied as an offset.
-                (Part::Chevron(category.id.clone()), Motion::new(Target::default().x(if folded { -90. } else { 0. })).transition(motion::spring())),
+                (Part::Chevron(category.id.clone()), Motion::new(Target::default().x(if folded { -90. } else { 0. })).transition(hover_ease())),
             ],
             window,
             cx,
         );
         let degrees = chevron.target().x_px();
-        let muted = cx.theme().muted_foreground;
         let strong = palette::strong(cx);
         let id = category.id.clone();
-        let category_for_menu = category.clone();
         let label = div()
             .id(SharedString::from(format!("section-{}", category.id)))
-            .h(px(24.))
-            .mt_4()
-            .px_1()
-            .flex()
-            .items_center()
-            .gap_1()
-            .cursor_pointer()
-            .text_size(px(14.))
-            .font_weight(FontWeight::MEDIUM)
-            .text_color(muted)
-            .hover(|s| s.text_color(cx.theme().foreground))
-            .child(div().truncate().child(category.name))
-            .child(Icon::new(Glyph::ChevronDown).size(px(12.)).rotate(Radians(degrees.to_radians())))
+            .child(Nav::Caret.icon().size(px(11.)).rotate(Radians(degrees.to_radians())))
+            .child(div().truncate().child(category.name.clone()))
             .on_click(cx.listener(move |this, _, _, cx| {
                 if !this.folded.remove(&id) {
                     this.folded.insert(id.clone());
@@ -513,24 +504,39 @@ impl Rustcord {
             }))
             .drag_over::<crate::drag::ChannelDrag>(move |s, _, _, _| s.text_color(strong))
             .on_drop({
-                let category = category_for_menu.clone();
+                let category = category.clone();
                 cx.listener(move |this, drag: &crate::drag::ChannelDrag, _, cx| this.drop_channel(drag, &category, crate::drag::Place::Into, cx))
             })
             .on_mouse_down(gpui_kit::MouseButton::Right, {
-                let category = category_for_menu;
+                let category = category.clone();
                 cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| {
                     let Some(guild_id) = this.guild_id.clone() else { return };
                     this.open_channel_menu(category.clone(), guild_id, e.position, cx);
                 })
             });
+        let can_add = self.guild_id.as_ref().is_some_and(|g| self.can_arrange_channels(g));
+        let group: SharedString = format!("cathead-{}", category.id).into();
+        let head = category_head(group.clone(), label, false, cx).when(can_add, |head| {
+            let category = category.clone();
+            head.child(cat_add(SharedString::from(format!("section-add-{}", category.id)), Some(group), "Create channel", cx).on_mouse_down(
+                gpui_kit::MouseButton::Left,
+                cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| {
+                    let Some(guild_id) = this.guild_id.clone() else { return };
+                    cx.stop_propagation();
+                    this.open_channel_menu(category.clone(), guild_id, e.position, cx);
+                }),
+            ))
+        });
         let alpha = fold.target().alpha();
-        // Folded categories keep their unread and selected channels visible, as Discord does.
-        let body = div().flex().flex_col().gap(px(ROW_GAP)).opacity(alpha).when(!folded || alpha > 0.05, |b| b.children(rows));
-        div().flex().flex_col().gap(px(ROW_GAP)).child(label).child(body).into_any_element()
+        let gone = folded && alpha <= 0.05;
+        let rows = rows.into_iter().filter(|row| !gone || row.keep).map(|row| match row.keep {
+            true => row.element,
+            false => div().opacity(alpha).child(row.element).into_any_element(),
+        });
+        div().when(spaced, |g| g.mt(px(16.))).flex().flex_col().gap(px(ROW_GAP)).child(head).children(rows).into_any_element()
     }
 
-    fn channel_rows(&self, channel: &Channel, guild: &Guild, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
-        let theme = cx.theme().clone();
+    fn channel_rows(&self, channel: &Channel, guild: &Guild, window: &mut Window, cx: &mut Context<Self>) -> Vec<ChannelRow> {
         let selected = self.channel.as_ref().is_some_and(|c| c.id == channel.id);
         let settings = self.guild_settings.get(&guild.id);
         let muted = settings.is_some_and(|s| s.channel_muted(&channel.id) || channel.parent_id.as_ref().is_some_and(|p| s.channel_muted(p)));
@@ -540,170 +546,157 @@ impl Rustcord {
         }
         let unread = self.unread(&channel.id) && !muted;
         let mentions = self.mention_count(&channel.id);
-        let glyph = match (channel.kind, channel.private) {
-            (ChannelKind::Voice, _) => Glyph::VolumeHigh,
-            (ChannelKind::Forum, _) => Glyph::Forum,
-            (_, true) => Glyph::HashtagLock,
-            _ => Glyph::Hashtag,
-        };
-        let in_this_call = self.call.as_ref().is_some_and(|c| c.channel.id == channel.id);
-        let lead_color = if in_this_call { palette::status(Status_::Online) } else { theme.muted_foreground };
-        let lead = div().size(px(20.)).flex_none().flex().items_center().justify_center().text_color(lead_color).child(Icon::new(glyph).size(px(20.)));
+        let in_call = self.call.as_ref().is_some_and(|c| c.channel.id == channel.id);
+        let state = RowState { selected, unread, muted, strong: in_call };
         let elapsed = self.call.as_ref().filter(|c| c.channel.id == channel.id && c.connected).and_then(|_| self.voice_elapsed(&channel.id)).map(|secs| {
-            div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::positive_ink(cx)).child(format!("{}:{:02}", secs / 60, secs % 60))
+            div().flex_none().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::positive_ink(cx)).child(format!("{}:{:02}", secs / 60, secs % 60))
         });
-        let row = div()
-            .id(SharedString::from(channel.id.clone()))
-            .relative()
-            .h(px(ROW_HEIGHT))
-            .flex_none()
-            .px_2()
-            .flex()
-            .items_center()
-            .gap_2()
-            .rounded(px(8.))
-            .cursor_pointer()
-            .font_weight(FontWeight::MEDIUM)
-            // --channels-default for read channels, --interactive-text-active for unread and selected.
-            .text_color(match (selected, unread, muted) {
-                (true, _, _) | (_, true, _) => crate::palette::strong(cx),
-                // --text-muted at 50%, Discord's muted channel.
-                (_, _, true) => palette::faint(cx),
-                _ => theme.muted_foreground,
-            })
-            .child(lead)
-            .child(div().flex_1().truncate().child(channel.name.clone()))
+        let group: SharedString = format!("ch-{}", channel.id).into();
+        let meta = match (muted, channel.private) {
+            (true, _) => Some(Nav::BellSlash.icon()),
+            (false, true) => Some(Icon::new(Glyph::HashtagLock)),
+            _ => None,
+        };
+        let faint = palette::faint(cx);
+        let row = channel_row(SharedString::from(channel.id.clone()), group.clone(), state, cx)
+            .child(channel_glyph(channel).size(px(18.)).flex_none().text_color(if selected { palette::muted(cx) } else { faint }))
+            .child(div().flex_1().min_w_0().truncate().child(channel.name.clone()))
             .children(elapsed)
-            .when(mentions > 0, |r| r.child(crate::ui::count_badge(mentions)))
-            .when(unread && !selected, |r| r.child(div().absolute().left(px(-8.)).w(px(4.)).h(px(8.)).rounded_r(px(4.)).bg(theme.foreground)));
-        let row = if selected { row.bg(theme.sidebar_accent) } else { row.hover(|s| s.bg(theme.sidebar_accent.opacity(0.6)).text_color(theme.foreground)) };
+            .children(meta.filter(|_| !selected).map(|icon| div().flex_none().flex().text_color(faint).group_hover(group.clone(), |s| s.hidden()).child(icon.size(px(15.)))))
+            .child(self.row_actions(channel, guild, group.clone(), selected, cx))
+            .when(mentions > 0, |r| r.child(ui::count_badge(mentions)));
         let row = self.channel_draggable(row, channel, guild, cx);
-        let mut rows = Vec::new();
-        if channel.kind == ChannelKind::Voice {
-            let join = channel.clone();
-            let in_call = self.call.as_ref().is_some_and(|c| c.channel.id == channel.id);
-            let drop_target = channel.clone();
-            let drop_wash = theme.sidebar_accent;
-            rows.push(
-                row.when(in_call, |r| r.text_color(theme.foreground))
-                    .drag_over::<crate::drag::VoiceDrag>(move |s, _, _, _| s.bg(drop_wash))
-                    .on_drop(cx.listener(move |this, drag: &crate::drag::VoiceDrag, _, cx| this.drop_voice_user(drag, drop_target.clone(), cx)))
-                    .on_click(cx.listener(move |this, _, window, cx| this.show_call(join.clone(), window, cx)))
-                    .on_mouse_down(gpui_kit::MouseButton::Right, {
-                        let (channel, guild_id) = (channel.clone(), guild.id.clone());
-                        cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_channel_menu(channel.clone(), guild_id.clone(), e.position, cx))
-                    })
-                    .into_any_element(),
-            );
-            let speaking = self.call.as_ref().filter(|_| in_call).map(|c| c.speaking.clone()).unwrap_or_default();
-            let watching: Vec<String> = self.call.as_ref().map(|c| c.watching.iter().map(|w| w.streamer_id.clone()).collect()).unwrap_or_default();
-            let connected = self.call.as_ref().is_some_and(|c| c.connected && in_call);
-            let can_drag_people = self.can_move_people(&guild.id);
-            let mut present: Vec<&crate::discord::VoiceState> = guild.voice_states.iter().filter(|v| v.channel_id.as_ref() == Some(&channel.id)).collect();
-            // Whoever is streaming leads the list; the rest keep their order (a stable sort).
-            present.sort_by_key(|v| !v.streaming);
-            if self.hidden_voice_names.contains(&channel.id) && !present.is_empty() {
-                rows.push(
-                    div()
-                        .h(px(32.))
-                        .pl(px(30.))
-                        .flex()
-                        .items_center()
-                        .gap_1()
-                        .children(present.iter().map(|v| {
-                            let avatar = v.user.as_ref().map(|u| u.avatar.clone()).unwrap_or_else(|| crate::discord::avatar_url(&v.user_id, None));
-                            crate::ui::avatar(avatar, 24.)
-                        }))
-                        .into_any_element(),
-                );
-                return rows;
-            }
-            for state in present {
-                let user = state.user.clone();
-                let name = user.as_ref().map(|u| u.name.clone()).unwrap_or_else(|| self.user_name(&state.user_id));
-                let avatar = user.map(|u| u.avatar).unwrap_or_else(|| crate::discord::avatar_url(&state.user_id, None));
-                let talking = speaking.contains(&state.user_id);
-                let streamer = state.user_id.clone();
-                let is_watched = watching.contains(&state.user_id);
-                let hover_key = stream_hover_key(&state.user_id);
-                // Open while the row or the card itself is hovered, so the card's button can be reached.
-                let card_open = self.hovered.as_deref() == Some(hover_key.as_str()) || self.stream_card_hover.as_deref() == Some(hover_key.as_str());
-                let stream_card = (state.streaming && card_open).then(|| {
-                    let stream_key = format!("guild:{}:{}:{}", guild.id, channel.id, state.user_id);
-                    self.stream_card(Streamer { id: &state.user_id, name: &name, avatar: &avatar }, channel, &stream_key, connected, window, cx).into_any_element()
+        let keep = selected || unread;
+        if channel.kind != ChannelKind::Voice {
+            let (open, hover_id) = (channel.clone(), channel.id.clone());
+            let row = row
+                .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
+                    if *hovered {
+                        this.prefetch(&hover_id, cx);
+                    }
+                }))
+                .on_click(cx.listener(move |this, _, window, cx| this.open_channel(open.clone(), window, cx)))
+                .on_mouse_down(gpui_kit::MouseButton::Right, {
+                    let (channel, guild_id) = (channel.clone(), guild.id.clone());
+                    cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_channel_menu(channel.clone(), guild_id.clone(), e.position, cx))
                 });
-                let stream_hover = cx.listener(move |this, hovered: &bool, _, cx| this.set_hovered(&hover_key, *hovered, cx));
-                rows.push(
-                    div()
-                        .id(SharedString::from(format!("voice-{}", state.user_id)))
-                        .when(can_drag_people || self.me.as_ref().is_some_and(|m| m.id == state.user_id), |r| {
-                            let drag = crate::drag::VoiceDrag { user_id: state.user_id.clone(), guild_id: guild.id.clone(), name: name.clone().into(), avatar: avatar.clone() };
-                            r.on_drag(drag, |drag, _, _, cx| cx.new(|_| drag.clone()))
-                        })
-                        .h(px(32.))
-                        .pl(px(30.))
-                        .pr_2()
-                        .flex()
-                        .items_center()
-                        .gap_2()
-                        .rounded(px(6.))
-                        .text_color(if talking { theme.foreground } else { theme.muted_foreground })
-                        .child(
-                            // Discord's speaking ring: green around the avatar while their mic is open.
-                            div().size(px(24.)).flex_none().rounded_full().border_2().border_color(if talking { palette::status(Status_::Online) } else { gpui_kit::transparent_black() }).child(img(avatar).size_full().rounded_full()),
-                        )
-                        .child(div().flex_1().truncate().child(name))
-                        .when(state.camera, |r| r.child(Icon::new(Glyph::Video).size(px(16.))))
-                        .when(state.muted, |r| r.child(Icon::new(Glyph::MicOff).size(px(16.))))
-                        .when(state.deafened, |r| r.child(Icon::new(Glyph::HeadphonesOff).size(px(16.))))
-                        .when(state.streaming, |r| {
-                            r.child(crate::ui::live_badge().h(px(16.)).px_1().text_size(px(10.)))
-                        })
-                        .on_mouse_down(gpui_kit::MouseButton::Right, {
-                            let user_id = state.user_id.clone();
-                            cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.voice_user_menu(&user_id, e.position, cx))
-                        })
-                        .when(state.streaming, |r| {
-                            r.on_hover(stream_hover).children(stream_card.map(|card| div().absolute().top_0().right(px(4.)).child(gpui_kit::deferred(gpui_kit::anchored().snap_to_window_with_margin(px(8.)).child(card)))))
-                        })
-                        .when(state.streaming && connected, |r| {
-                            r.cursor_pointer()
-                                .when(is_watched, |r| r.bg(theme.sidebar_accent))
-                                .hover(|s| s.bg(theme.sidebar_accent.opacity(0.6)))
-                                .tooltip(|window, cx| Tooltip::new("Watch Stream").build(window, cx))
-                                .on_click(cx.listener(move |this, _, _, cx| this.watch_stream(streamer.clone(), cx)))
-                        })
-                        .into_any_element(),
-                );
-            }
+            let mut rows = vec![ChannelRow { keep, element: row.into_any_element() }];
+            rows.extend(self.thread_rows(channel, guild, cx));
             return rows;
         }
-        let (open, hover_id) = (channel.clone(), channel.id.clone());
-        rows.push(
-            row.on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
-                if *hovered {
-                    this.prefetch(&hover_id, cx);
-                }
-            }))
-            .on_click(cx.listener(move |this, _, window, cx| this.open_channel(open.clone(), window, cx)))
+        let (join, drop_target, drop_wash) = (channel.clone(), channel.clone(), palette::selected(cx));
+        let row = row
+            .drag_over::<crate::drag::VoiceDrag>(move |s, _, _, _| s.bg(drop_wash))
+            .on_drop(cx.listener(move |this, drag: &crate::drag::VoiceDrag, _, cx| this.drop_voice_user(drag, drop_target.clone(), cx)))
+            .on_click(cx.listener(move |this, _, window, cx| this.show_call(join.clone(), window, cx)))
             .on_mouse_down(gpui_kit::MouseButton::Right, {
                 let (channel, guild_id) = (channel.clone(), guild.id.clone());
                 cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_channel_menu(channel.clone(), guild_id.clone(), e.position, cx))
-            })
-            .into_any_element(),
+            });
+        let mut rows = vec![ChannelRow { keep: keep || in_call, element: row.into_any_element() }];
+        rows.extend(self.voice_rows(channel, guild, in_call, window, cx).into_iter().map(|element| ChannelRow { keep: in_call, element }));
+        rows
+    }
+
+    // Invite and options, shown in the row's meta slot while it's hovered or selected.
+    fn row_actions(&self, channel: &Channel, guild: &Guild, group: SharedString, selected: bool, cx: &mut Context<Self>) -> Div {
+        let (gid, cid) = (guild.id.clone(), channel.id.clone());
+        let (menu_channel, menu_guild) = (channel.clone(), guild.id.clone());
+        let invite = row_action(SharedString::from(format!("invite-{}", channel.id)), Icon::new(Glyph::GroupPlus), "Invite people", cx)
+            .on_click(cx.listener(move |this, _, window, cx| this.show_invite(gid.clone(), cid.clone(), window, cx)));
+        let options = row_action(SharedString::from(format!("options-{}", channel.id)), Icon::new(Glyph::Settings), "Channel options", cx).on_mouse_down(
+            gpui_kit::MouseButton::Left,
+            cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| {
+                cx.stop_propagation();
+                this.open_channel_menu(menu_channel.clone(), menu_guild.clone(), e.position, cx);
+            }),
         );
-        rows.extend(self.thread_rows(channel, guild, cx));
+        div()
+            .flex_none()
+            .gap(px(2.))
+            .when(selected, |a| a.flex())
+            .when(!selected, |a| a.hidden().group_hover(group, |s| s.flex()))
+            .child(invite)
+            .child(options)
+    }
+
+    // Who is in a voice channel: 30px rows under it, the mini wave for whoever speaks, then one mark.
+    fn voice_rows(&self, channel: &Channel, guild: &Guild, in_call: bool, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let speaking = self.call.as_ref().filter(|_| in_call).map(|c| c.speaking.clone()).unwrap_or_default();
+        let watching: Vec<String> = self.call.as_ref().map(|c| c.watching.iter().map(|w| w.streamer_id.clone()).collect()).unwrap_or_default();
+        let connected = self.call.as_ref().is_some_and(|c| c.connected && in_call);
+        let can_drag_people = self.can_move_people(&guild.id);
+        let mut present: Vec<&crate::discord::VoiceState> = guild.voice_states.iter().filter(|v| v.channel_id.as_ref() == Some(&channel.id)).collect();
+        // Whoever is streaming leads the list; the rest keep their order (a stable sort).
+        present.sort_by_key(|v| !v.streaming);
+        let avatar_of = |v: &crate::discord::VoiceState| v.user.as_ref().map(|u| u.avatar.clone()).unwrap_or_else(|| crate::discord::avatar_url(&v.user_id, None));
+        if self.hidden_voice_names.contains(&channel.id) && !present.is_empty() {
+            let sidebar = palette::surface(palette::Level::Sidebar, cx);
+            return vec![div().h(px(30.)).pl(px(32.)).flex().items_center().child(ui::avatar_stack(present.iter().map(|v| avatar_of(v)), 22., sidebar)).into_any_element()];
+        }
+        let (hover, selected, text) = (palette::hover(cx), palette::selected(cx), palette::text(cx));
+        let mut rows = Vec::new();
+        for state in present {
+            let name = state.user.as_ref().map(|u| u.name.clone()).unwrap_or_else(|| self.user_name(&state.user_id));
+            let avatar = avatar_of(state);
+            let talking = speaking.contains(&state.user_id);
+            let streamer = state.user_id.clone();
+            let is_watched = watching.contains(&state.user_id);
+            let hover_key = stream_hover_key(&state.user_id);
+            // Open while the row or the card itself is hovered, so the card's button can be reached.
+            let card_open = self.hovered.as_deref() == Some(hover_key.as_str()) || self.stream_card_hover.as_deref() == Some(hover_key.as_str());
+            let stream_card = (state.streaming && card_open).then(|| {
+                let stream_key = format!("guild:{}:{}:{}", guild.id, channel.id, state.user_id);
+                self.stream_card(Streamer { id: &state.user_id, name: &name, avatar: &avatar }, channel, &stream_key, connected, window, cx).into_any_element()
+            });
+            let stream_hover = cx.listener(move |this, hovered: &bool, _, cx| this.set_hovered(&hover_key, *hovered, cx));
+            let end = voice_mark_for(state, talking, &state.user_id, cx);
+            rows.push(
+                div()
+                    .id(SharedString::from(format!("voice-{}", state.user_id)))
+                    .when(can_drag_people || self.me.as_ref().is_some_and(|m| m.id == state.user_id), |r| {
+                        let drag = crate::drag::VoiceDrag { user_id: state.user_id.clone(), guild_id: guild.id.clone(), name: name.clone().into(), avatar: avatar.clone() };
+                        r.on_drag(drag, |drag, _, _, cx| cx.new(|_| drag.clone()))
+                    })
+                    .h(px(30.))
+                    .flex_none()
+                    .pl(px(32.))
+                    .pr_2()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .rounded(px(ui::RADIUS_SM))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(if talking { palette::strong(cx) } else { palette::muted(cx) })
+                    .hover(move |s| s.bg(hover).text_color(text))
+                    .child(ui::avatar(avatar.clone(), 22.))
+                    .child(div().flex_1().min_w_0().truncate().child(name.clone()))
+                    .children(end)
+                    .on_mouse_down(gpui_kit::MouseButton::Right, {
+                        let user_id = state.user_id.clone();
+                        cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.voice_user_menu(&user_id, e.position, cx))
+                    })
+                    .when(state.streaming, |r| r.on_hover(stream_hover).children(stream_card.map(|card| div().absolute().top_0().right(px(4.)).child(gpui_kit::deferred(gpui_kit::anchored().snap_to_window_with_margin(px(8.)).child(card))))))
+                    .when(state.streaming && connected, |r| {
+                        r.cursor_pointer()
+                            .when(is_watched, |r| r.bg(selected))
+                            .tooltip(|window, cx| Tooltip::new("Watch stream").build(window, cx))
+                            .on_click(cx.listener(move |this, _, _, cx| this.watch_stream(streamer.clone(), cx)))
+                    })
+                    .into_any_element(),
+            );
+        }
         rows
     }
 
     // With Manage Channels, a channel can be dragged above or below another, or onto a category.
-    fn channel_draggable(&self, row: gpui_kit::Stateful<Div>, channel: &Channel, guild: &Guild, cx: &mut Context<Self>) -> gpui_kit::Stateful<Div> {
+    fn channel_draggable(&self, row: Stateful<Div>, channel: &Channel, guild: &Guild, cx: &mut Context<Self>) -> Stateful<Div> {
         if !self.can_arrange_channels(&guild.id) {
             return row;
         }
         let hint = self.channel_drop.as_ref().filter(|(id, _)| *id == channel.id).map(|(_, place)| *place);
         let marker = hint.map(|place| {
-            let bar = div().absolute().left_0().right_0().h(px(2.)).rounded_full().bg(cx.theme().success);
+            let bar = div().absolute().left_0().right_0().h(px(2.)).rounded_full().bg(palette::accent());
             match place {
                 crate::drag::Place::After => bar.bottom(px(-2.)),
                 _ => bar.top(px(-2.)),
@@ -729,10 +722,9 @@ impl Rustcord {
             }))
     }
 
-    // Discord lists the threads you've joined (and the one you have open) under their channel,
-    // hung off a curved spine.
-    fn thread_rows(&self, channel: &Channel, guild: &Guild, cx: &mut Context<Self>) -> Vec<AnyElement> {
-        let theme = cx.theme().clone();
+    // The threads you've joined (and the one you have open), hung under their channel on a hairline
+    // tree: each draws its branch from the row above, and all but the last carry the trunk on.
+    fn thread_rows(&self, channel: &Channel, guild: &Guild, cx: &mut Context<Self>) -> Vec<ChannelRow> {
         let open = self.channel.as_ref().map(|c| c.id.clone());
         let threads: Vec<&Channel> = guild
             .threads
@@ -741,6 +733,7 @@ impl Rustcord {
             .filter(|t| open.as_ref() == Some(&t.id) || t.thread.as_ref().is_some_and(|m| m.joined && !m.archived))
             .collect();
         let count = threads.len();
+        let line = mix(palette::faint(cx), palette::surface(palette::Level::Sidebar, cx), 0.5);
         threads
             .into_iter()
             .enumerate()
@@ -749,63 +742,72 @@ impl Rustcord {
                 let unread = self.unread(&thread.id);
                 let target = thread.clone();
                 let (menu_thread, guild_id) = (thread.clone(), guild.id.clone());
-                // The spine: a vertical line down from the channel, curving into each thread.
-                let spine = div()
-                    .absolute()
-                    .left(px(16.))
-                    .top(px(-ROW_GAP - 14.))
-                    .w(px(12.))
-                    .h(px(ROW_GAP + 14. + 16.))
-                    .border_l_1()
-                    .border_b_1()
-                    .rounded_bl(px(8.))
-                    .border_color(palette::wash(0.4));
-                let rail = (i + 1 < count).then(|| div().absolute().left(px(16.)).top(px(16.)).bottom(px(-ROW_GAP)).w(px(1.)).bg(palette::wash(0.4)));
-                let row = div()
-                    .id(SharedString::from(format!("thread-{}", thread.id)))
-                    .relative()
-                    .h(px(ROW_HEIGHT))
-                    .flex_none()
-                    .ml(px(32.))
-                    .px_2()
-                    .flex()
-                    .items_center()
-                    .rounded(px(8.))
-                    .cursor_pointer()
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(if selected || unread { crate::palette::strong(cx) } else { theme.muted_foreground })
-                    .child(div().flex_1().truncate().child(thread.name.clone()))
+                // The first branch starts just below its parent, never touching the parent's fill.
+                let gap = if i == 0 { -4. } else { ROW_GAP };
+                let branch = div().absolute().left(px(16.)).top(px(-gap)).w(px(12.)).h(px(THREAD_HEIGHT / 2. + gap)).border_l(px(1.5)).border_b(px(1.5)).rounded_bl(px(8.)).border_color(line);
+                let trunk = (i + 1 < count).then(|| div().absolute().left(px(16.)).top(px(THREAD_HEIGHT / 2. - 8.)).bottom_0().w(px(1.5)).bg(line));
+                let state = RowState { selected, unread, muted: false, strong: false };
+                let row = channel_row(SharedString::from(format!("thread-{}", thread.id)), format!("thread-{}", thread.id).into(), state, cx)
+                    .h(px(THREAD_HEIGHT))
+                    .pl(px(34.))
+                    .child(branch)
+                    .children(trunk)
+                    .child(div().flex_1().min_w_0().truncate().child(thread.name.clone()))
                     .on_click(cx.listener(move |this, _, window, cx| this.open_channel(target.clone(), window, cx)))
                     .on_mouse_down(gpui_kit::MouseButton::Right, cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_thread_menu(menu_thread.clone(), guild_id.clone(), e.position, cx)));
-                let row = if selected { row.bg(theme.sidebar_accent) } else { row.hover(|s| s.bg(theme.sidebar_accent.opacity(0.6)).text_color(theme.foreground)) };
-                div().relative().child(spine).children(rail).child(row).into_any_element()
+                ChannelRow { keep: selected || unread, element: row.into_any_element() }
             })
             .collect()
     }
 
+    // A conversation: the person, then one line on what they're doing.
     fn dm_row(&self, channel: &Channel, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme().clone();
         let selected = self.channel.as_ref().is_some_and(|c| c.id == channel.id);
         let unread = self.unread(&channel.id);
         let mentions = self.mention_count(&channel.id);
-        let status = channel.recipient.as_ref().map(|u| self.presences.get(&u.id).map(|p| p.status).unwrap_or_default());
+        let presence = channel.recipient.as_ref().map(|u| self.presences.get(&u.id).cloned().unwrap_or_default());
+        let status = presence.as_ref().map(|p| p.status);
+        let offline = status == Some(Status_::Offline);
         let avatar = channel.recipient.as_ref().map(|u| u.avatar.clone()).unwrap_or_else(|| crate::discord::avatar_url(&channel.id, None));
-        let surface = theme.sidebar;
-        let (open, hover_id) = (channel.clone(), channel.id.clone());
-        let row = div()
-            .id(SharedString::from(channel.id.clone()))
-            .h(px(42.))
+        let typing = self.typing.get(&channel.id).is_some_and(|t| t.iter().any(|t| t.until > std::time::Instant::now()));
+        let faint = palette::faint(cx);
+        let line: Option<Div> = match (typing, presence) {
+            (true, _) => Some(div().child(ui::bars(SharedString::from(format!("dm-typing-{}", channel.id)), faint, 10.)).child("Typing…")),
+            (false, Some(p)) => match (p.activity, p.status) {
+                (Some(a), _) => Some(div().children(activity_glyph(a.kind).map(|i| i.size(px(13.)).flex_none())).child(div().truncate().child(a.text))),
+                (None, Status_::Offline) => None,
+                (None, s) => Some(div().child(s.label())),
+            },
+            (false, None) => None,
+        };
+        let state = RowState { selected, unread, muted: false, strong: false };
+        let (open, hover_id, close_id) = (channel.clone(), channel.id.clone(), channel.id.clone());
+        let group: SharedString = format!("dm-{}", channel.id).into();
+        // Hovered, the close button takes the count's place.
+        let close = row_action(SharedString::from(format!("dm-close-{}", channel.id)), Nav::Close.icon(), "Close", cx)
             .flex_none()
-            .px_2()
-            .flex()
-            .items_center()
-            .gap_3()
-            .rounded(px(6.))
-            .cursor_pointer()
-            .text_color(if selected || unread { theme.foreground } else { theme.muted_foreground })
-            .child(avatar_with_status(&avatar, 32., status, surface))
-            .child(div().flex_1().truncate().child(channel.name.clone()))
-            .when(mentions > 0, |r| r.child(crate::ui::count_badge(mentions)))
+            .hidden()
+            .group_hover(group.clone(), |s| s.flex())
+            .on_click(cx.listener(move |this, _, _, cx| {
+                cx.stop_propagation();
+                this.close_dm(&close_id, cx);
+            }));
+        channel_row(SharedString::from(channel.id.clone()), group.clone(), state, cx)
+            .h(px(44.))
+            .gap(px(10.))
+            .font_weight(FontWeight::NORMAL)
+            .child(div().when(offline, |a| a.opacity(0.5)).child(avatar_with_status(&avatar, 32., status, palette::surface(palette::Level::Sidebar, cx))))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .child(div().truncate().font_weight(if unread { FontWeight::SEMIBOLD } else { FontWeight::MEDIUM }).child(channel.name.clone()))
+                    .children(line.map(|l| l.flex().items_center().gap_1().min_w_0().text_size(px(12.)).text_color(faint))),
+            )
+            .when(mentions > 0, |r| r.child(div().group_hover(group, |s| s.hidden()).child(ui::count_badge(mentions))))
+            .child(close)
             .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
                 if *hovered {
                     this.prefetch(&hover_id, cx);
@@ -815,12 +817,180 @@ impl Rustcord {
             .on_mouse_down(gpui_kit::MouseButton::Right, {
                 let channel = channel.clone();
                 cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_dm_menu(channel.clone(), e.position, cx))
-            });
-        if selected {
-            return row.bg(theme.sidebar_accent).into_any_element();
-        }
-        row.hover(|s| s.bg(theme.sidebar_accent.opacity(0.6)).text_color(theme.foreground)).into_any_element()
+            })
+            .into_any_element()
     }
+}
+
+// CHANNEL LIST
+
+const THREAD_HEIGHT: f32 = 28.;
+
+// A row and whether it stays in view while its category is folded.
+struct ChannelRow {
+    keep: bool,
+    element: AnyElement,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct RowState {
+    pub selected: bool,
+    pub unread: bool,
+    pub muted: bool,
+    // Full ink without the unread pill (the voice channel you're in).
+    pub strong: bool,
+}
+
+// A sidebar row (.ch): muted ink at rest; selected is a fill, unread is bold with the pill on the
+// list's edge, muted is faint. `group` names the row for its hover-revealed actions.
+pub(crate) fn channel_row(id: SharedString, group: SharedString, state: RowState, cx: &App) -> Stateful<Div> {
+    let RowState { selected, unread, muted, strong } = state;
+    let (hover, text) = (palette::hover(cx), palette::text(cx));
+    let ink = match (selected || unread || strong, muted) {
+        (true, _) => palette::strong(cx),
+        (false, true) => palette::faint(cx),
+        (false, false) => palette::muted(cx),
+    };
+    div()
+        .id(id)
+        .group(group)
+        .relative()
+        .h(px(ROW_HEIGHT))
+        .w_full()
+        .flex_none()
+        .px_2()
+        .flex()
+        .items_center()
+        .gap_2()
+        .rounded(px(ui::RADIUS_SM))
+        .cursor_pointer()
+        .font_weight(if unread { FontWeight::SEMIBOLD } else { FontWeight::MEDIUM })
+        .text_color(ink)
+        .when(selected, |r| r.bg(palette::selected(cx)))
+        .when(!selected, |r| r.hover(move |s| s.bg(hover).text_color(text)))
+        .when(unread && !selected, |r| r.child(div().absolute().left(px(-8.)).w(px(4.)).h(px(8.)).rounded_r(px(4.)).bg(palette::strong(cx))))
+}
+
+// A category's header row (.cathead): the label, a button that folds the category unless `static_`,
+// and room on its right for the add button. `group` names the row so the add can show on hover.
+fn category_head(group: SharedString, label: Stateful<Div>, static_: bool, cx: &App) -> Div {
+    let (hover, strong) = (palette::hover(cx), palette::strong(cx));
+    div().group(group).relative().flex().items_center().child(
+        label
+            .flex_1()
+            .min_w_0()
+            .h(px(28.))
+            .px(px(6.))
+            .rounded(px(ui::RADIUS_SM))
+            .flex()
+            .items_center()
+            .gap_1()
+            .whitespace_nowrap()
+            .text_size(px(12.))
+            .font_weight(FontWeight::SEMIBOLD)
+            .text_color(palette::faint(cx))
+            .when(!static_, |l| l.cursor_pointer().hover(move |s| s.bg(hover).text_color(strong))),
+    )
+}
+
+// The + at a category's end: creates a channel there (or, on Direct messages, starts a conversation).
+// With `reveal_on`, it shows only while that header group is hovered.
+fn cat_add(id: impl Into<gpui_kit::ElementId>, reveal_on: Option<SharedString>, tooltip: &'static str, cx: &App) -> Stateful<Div> {
+    let strong = palette::strong(cx);
+    div()
+        .id(id)
+        .absolute()
+        .right(px(2.))
+        .size(px(24.))
+        .rounded(px(ui::RADIUS_XS))
+        .flex()
+        .items_center()
+        .justify_center()
+        .cursor_pointer()
+        .text_color(palette::muted(cx))
+        .hover(move |s| s.text_color(strong))
+        .when_some(reveal_on, |add, group| add.opacity(0.).group_hover(group, |s| s.opacity(1.)))
+        .child(Nav::Plus.icon().size(px(14.)))
+        .tooltip(move |window, cx| Tooltip::new(tooltip).build(window, cx))
+}
+
+// A 24px action inside a row (.ch .acts button).
+fn row_action(id: SharedString, icon: Icon, tooltip: &'static str, cx: &App) -> Stateful<Div> {
+    let strong = palette::strong(cx);
+    div()
+        .id(id)
+        .size(px(24.))
+        .rounded(px(ui::RADIUS_XS))
+        .flex()
+        .items_center()
+        .justify_center()
+        .text_color(palette::muted(cx))
+        .hover(move |s| s.text_color(strong))
+        .child(icon.size(px(16.)))
+        .tooltip(move |window, cx| Tooltip::new(tooltip).build(window, cx))
+}
+
+// The type glyph a channel leads with (Discord's raw types: 5 announcement, 13 stage, 16 media).
+fn channel_glyph(channel: &Channel) -> Icon {
+    match (channel.kind, channel.raw_type) {
+        (_, 5) => Nav::Megaphone.icon(),
+        (_, 13) => Nav::Stage.icon(),
+        (_, 16) => Nav::Media.icon(),
+        (ChannelKind::Voice, _) => Icon::new(Glyph::VolumeHigh),
+        (ChannelKind::Forum, _) => Icon::new(Glyph::Forum),
+        _ => Icon::new(Glyph::Hashtag),
+    }
+}
+
+// The one mark a voice occupant gets, most important first: server-muted, live, camera, muted or
+// deafened. Speaking shows the mini wave instead.
+fn voice_mark_for(state: &crate::discord::VoiceState, talking: bool, user_id: &str, cx: &App) -> Option<AnyElement> {
+    let mark = |icon: Icon, color: Hsla| div().flex_none().flex().text_color(color).child(icon.size(px(15.))).into_any_element();
+    let faint = palette::faint(cx);
+    if state.server_muted || state.server_deafened {
+        return Some(mark(Nav::MicOffFill.icon(), palette::danger_ink(cx)));
+    }
+    if state.streaming {
+        return Some(ui::live_badge().h(px(18.)).px(px(6.)).text_size(px(11.)).into_any_element());
+    }
+    if state.camera {
+        return Some(mark(Nav::CameraFill.icon(), faint));
+    }
+    if state.deafened {
+        return Some(mark(Nav::DeafenedFill.icon(), faint));
+    }
+    if state.muted {
+        return Some(mark(Nav::MicOffFill.icon(), faint));
+    }
+    talking.then(|| ui::bars(SharedString::from(format!("speaking-{user_id}")), palette::accent_ink(cx), 12.))
+}
+
+// The DM list's header: a field-shaped button that opens the quick switcher.
+fn dm_find(cx: &App) -> Stateful<Div> {
+    let strong = palette::strong(cx);
+    div()
+        .id("dm-find")
+        .w_full()
+        .h(px(32.))
+        .px(px(10.))
+        .rounded(px(ui::RADIUS_SM))
+        .flex()
+        .items_center()
+        .gap_2()
+        .cursor_pointer()
+        .bg(palette::surface(palette::Level::Rail, cx))
+        .text_color(palette::muted(cx))
+        .text_size(px(14.))
+        .hover(move |s| s.text_color(strong))
+        .child(Icon::new(Glyph::Search).size(px(16.)))
+        .child(div().truncate().child("Find or start a conversation"))
+}
+
+// MOVE(ui): mix — ui.rs keeps the same helper private. Two colours mixed in RGB, `t` toward `to`.
+pub(crate) fn mix(from: Hsla, to: Hsla, t: f32) -> Hsla {
+    let (a, b) = (gpui_kit::Rgba::from(from), gpui_kit::Rgba::from(to));
+    let lerp = |x: f32, y: f32| x + (y - x) * t;
+    gpui_kit::Rgba { r: lerp(a.r, b.r), g: lerp(a.g, b.g), b: lerp(a.b, b.b), a: lerp(a.a, b.a) }.into()
 }
 
 pub(crate) fn channel_sections(guild: &Guild, me: &str) -> Vec<(Option<Channel>, Vec<Channel>)> {
@@ -839,34 +1009,272 @@ pub fn initials(name: &str) -> String {
     name.split_whitespace().filter_map(|w| w.chars().next()).take(3).collect()
 }
 
-// Discord's drop cues: a bar in the gap to reorder, a ring around the server to combine.
-fn drop_marker(drop: Drop, side: f32, radius: f32, color: Hsla) -> Div {
-    let bar = || div().absolute().w(px(side)).h(px(4.)).rounded_full().bg(color);
-    match drop {
-        Drop::Before => bar().top(px(-6.)),
-        Drop::After => bar().bottom(px(-6.)),
-        Drop::Into => div().absolute().size(px(side + 6.)).rounded(px(radius + 3.)).border_2().border_color(color),
+// RAIL
+
+// A folder's motion this frame. Each step's delay lets the one before it finish: badges leave, the
+// servers travel, badges return.
+struct FolderMotion {
+    trip: f32,
+    head_badge: f32,
+    child_badge: f32,
+}
+
+impl FolderMotion {
+    fn frame(key: &str, open: bool, window: &mut Window, cx: &mut App) -> Self {
+        let id = SharedString::from(key.to_owned());
+        let (target, back) = if open { (1., 0.) } else { (0., 1.) };
+        let trip = transition((id.clone(), "trip"), target, Tween::new(TRIP).delay(BADGE_OUT).ease(ease_out()), window, cx);
+        let head_delay = if open { Duration::ZERO } else { BADGE_OUT + TRIP };
+        let head_badge = transition((id.clone(), "head-badge"), back, badge_tween(open, head_delay), window, cx);
+        let child_delay = if open { BADGE_OUT + TRIP } else { Duration::ZERO };
+        let child_badge = transition((id, "child-badge"), target, badge_tween(!open, child_delay), window, cx);
+        Self { trip, head_badge, child_badge }
     }
 }
 
-// A lit tile like an app icon: a mid-to-deep gradient of the id's hue with the label in white.
-pub fn identity_tile(id: &str, label: impl Into<SharedString>, text_size: f32) -> Div {
-    let hue = identity_hue(id);
+// Badges shrink quickly on the way out and pop back with a little overshoot.
+fn badge_tween(leaving: bool, delay: Duration) -> Tween {
+    match leaving {
+        true => Tween::new(BADGE_OUT).delay(delay).ease(ease_out()),
+        false => Tween::new(BADGE_IN).delay(delay).ease(motion::back_out),
+    }
+}
+
+// --ease-out: cubic-bezier(0.23, 1, 0.32, 1).
+fn ease_out() -> impl Fn(f32) -> f32 + 'static {
+    gpui_kit::base::animation::cubic_bezier(0.23, 1., 0.32, 1.)
+}
+
+// Hover and state changes: --dur-hover on --ease-out.
+fn hover_ease() -> Transition {
+    Transition::Tween(ui::DUR_HOVER, Easing::Bezier(Bezier::new(0.23, 1., 0.32, 1.).expect("monotonic bezier")))
+}
+
+// Where an open folder's `i`th server sits, from the folder's top.
+fn slot_y(i: usize) -> f32 {
+    (i + 1) as f32 * (TILE + RAIL_GAP)
+}
+
+// A server on its way between its mini tile and its slot. Past the fourth, servers have no mini and
+// grow out of the last one.
+fn flying_tile(mini: &Mini, i: usize, t: f32, cx: &App) -> AnyElement {
+    let slot = i.min(3);
+    let from = (TILE_X + MINI_INSET + (slot % 2) as f32 * (MINI + MINI_GAP), MINI_INSET + (slot / 2) as f32 * (MINI + MINI_GAP), if i < 4 { MINI } else { 0. });
+    let to = (TILE_X, slot_y(i), TILE);
+    let lerp = |a: f32, b: f32| a + (b - a) * t;
+    let size = lerp(from.2, to.2);
+    let face = match &mini.icon {
+        Some(url) => img(url.clone()).size(px(size)).rounded(px(lerp(ui::RADIUS_XS, ui::RADIUS_LG))).into_any_element(),
+        None => letters_tile(&mini.letters, size, lerp(ui::RADIUS_XS, ui::RADIUS_LG), cx).into_any_element(),
+    };
+    div().absolute().left(px(lerp(from.0, to.0))).top(px(lerp(from.1, to.1))).child(face).into_any_element()
+}
+
+pub(crate) fn server_face(guild: &Guild) -> Face {
+    match &guild.icon {
+        Some(url) => Face::Icon(url.clone()),
+        None => Face::Letters(initials(&guild.name)),
+    }
+}
+
+fn mini(guild: &Guild) -> Mini {
+    Mini { icon: guild.icon.clone(), letters: initials(&guild.name) }
+}
+
+// A tile's face at `size`. `open` trades a folder's minis for the folder glyph.
+pub(crate) fn render_face(face: Face, size: f32, radius: f32, selected: bool, open: f32, cx: &App) -> AnyElement {
+    let tile = || div().size(px(size)).flex_none().rounded(px(radius)).flex().items_center().justify_center();
+    match face {
+        Face::Icon(url) => img(url).size(px(size)).flex_none().rounded(px(radius)).into_any_element(),
+        Face::Letters(label) => letters_tile(&label, size, radius, cx).into_any_element(),
+        Face::Home => tile()
+            .bg(if selected { palette::accent() } else { palette::surface(palette::Level::Sidebar, cx) })
+            .child(img(if selected { crate::icons::MARK_WHITE } else { crate::icons::MARK }).size(px(size / 2.)))
+            .into_any_element(),
+        Face::Folder { tint, minis } => tile()
+            .relative()
+            .bg(tint.opacity(0.24 * (1. - open)))
+            .child(div().absolute().inset_0().flex().items_center().justify_center().opacity(open).text_color(tint).child(Icon::new(Glyph::Folder).size(px(22.))))
+            .when(open <= 0., |t| t.child(minis_grid(minis, cx)))
+            .into_any_element(),
+    }
+}
+
+fn minis_grid(minis: Vec<Mini>, cx: &App) -> Div {
+    let sidebar = palette::surface(palette::Level::Sidebar, cx);
+    let cells = (0..4).map(|i| match minis.get(i) {
+        Some(Mini { icon: Some(url), .. }) => img(url.clone()).size(px(MINI)).rounded(px(ui::RADIUS_XS)).into_any_element(),
+        Some(Mini { letters, .. }) => letters_tile(letters, MINI, ui::RADIUS_XS, cx).into_any_element(),
+        None => div().size(px(MINI)).rounded(px(ui::RADIUS_XS)).bg(sidebar).into_any_element(),
+    });
+    div().absolute().left(px(MINI_INSET)).top(px(MINI_INSET)).w(px(2. * MINI + MINI_GAP)).flex().flex_wrap().gap(px(MINI_GAP)).children(cells)
+}
+
+// A server with no icon: its initials on the sidebar tone. Minis keep only the first letter.
+fn letters_tile(label: &str, size: f32, radius: f32, cx: &App) -> Div {
+    let label: String = if size < 24. { label.chars().take(1).collect() } else { label.to_owned() };
     div()
+        .size(px(size))
+        .flex_none()
+        .rounded(px(radius))
+        .bg(palette::surface(palette::Level::Sidebar, cx))
+        .text_color(palette::strong(cx))
+        // Minis keep a readable letter rather than scaling the tile's 14px down to nothing.
+        .text_size(px((14. * size / TILE).max(8.)))
+        .font_weight(FontWeight::BOLD)
         .flex()
         .items_center()
         .justify_center()
-        .bg(linear_gradient(180., linear_color_stop(hsla(hue, 0.55, 0.56, 1.), 0.), linear_color_stop(hsla(hue, 0.6, 0.4, 1.), 1.)))
-        .text_color(gpui_kit::white())
-        .text_size(px(text_size))
-        .font_weight(FontWeight::SEMIBOLD)
-        .child(label.into())
+        .child(label)
 }
 
-fn identity_hue(id: &str) -> f32 {
-    let hash = id.bytes().fold(0u32, |h, b| h.wrapping_mul(31).wrapping_add(b as u32));
-    // Knuth multiplicative mix so near-identical ids (sequential snowflakes) still land on distant hues.
-    (hash.wrapping_mul(2_654_435_761) % 360) as f32 / 360.
+// The hairline between home, the servers and the actions.
+fn rail_rule(cx: &App) -> Div {
+    div().w(px(28.)).h(px(2.)).flex_none().rounded(px(2.)).bg(palette::line_strong(cx))
+}
+
+// Add and Discover: a quiet tile that lifts to the raised tone on hover.
+fn rail_action(id: &'static str, glyph: Nav, tooltip: &'static str, cx: &App) -> Stateful<Div> {
+    let (raised, strong) = (palette::surface(palette::Level::Raised, cx), palette::strong(cx));
+    div()
+        .id(id)
+        .size(px(TILE))
+        .flex_none()
+        .rounded(px(ui::RADIUS_LG))
+        .flex()
+        .items_center()
+        .justify_center()
+        .cursor_pointer()
+        .bg(palette::surface(palette::Level::Sidebar, cx))
+        .text_color(palette::muted(cx))
+        .hover(move |s| s.bg(raised).text_color(strong))
+        .child(glyph.icon().size(px(20.)))
+        .tooltip(move |window, cx| Tooltip::new(tooltip).build(window, cx))
+}
+
+// The mention count on a tile's corner, ringed in the rail so it reads apart from the art.
+// PATCH(transform): scale the badge itself; until then it shrinks by size, anchored at its corner.
+fn rail_count(count: u32, scale: f32, rail: Hsla) -> Div {
+    let ring = 3. * scale;
+    div()
+        .absolute()
+        .right(px(RAIL_WIDTH - TILE_X - TILE - 5. - ring))
+        .bottom(px(-4. - ring))
+        .p(px(ring))
+        .rounded_full()
+        .bg(rail)
+        .opacity(scale.clamp(0., 1.))
+        .child(
+            ui::count_badge(count)
+                .min_w(px(18. * scale))
+                .h(px(18. * scale))
+                .px(px(5. * scale))
+                .text_size(px(12. * scale)),
+        )
+}
+
+// Connected to voice here: the still wave in a rail-coloured capsule on the corner.
+fn voice_mark(rail: Hsla, cx: &App) -> Div {
+    div()
+        .absolute()
+        .right(px(RAIL_WIDTH - TILE_X - TILE - 7.))
+        .bottom(px(-6.))
+        .h(px(22.))
+        .px(px(7.))
+        .rounded_full()
+        .bg(rail)
+        .flex()
+        .items_center()
+        .child(ui::bars_still(palette::positive_ink(cx), 10.))
+}
+
+// Drop cues: a bar in the gap to reorder, a ring around the tile to combine.
+fn drop_marker(drop: Drop) -> Div {
+    let accent = palette::accent();
+    let bar = || div().absolute().left(px((RAIL_WIDTH - 36.) / 2.)).w(px(36.)).h(px(4.)).rounded_full().bg(accent);
+    match drop {
+        Drop::Before => bar().top(px(-(RAIL_GAP + 4.) / 2.)),
+        Drop::After => bar().bottom(px(-(RAIL_GAP + 4.) / 2.)),
+        Drop::Into => div().absolute().left(px(TILE_X - 4.)).top(px(-4.)).size(px(TILE + 8.)).rounded(px(ui::RADIUS_LG + 4.)).border_2().border_color(accent),
+    }
+}
+
+// ICONS
+
+// MOVE(icons): Phosphor glyphs the navigation chrome needs that `icons::Glyph` lacks yet (bold and fill
+// weights included); promote each into `Glyph` and drop this.
+#[derive(Clone, Copy)]
+pub(crate) enum Nav {
+    Megaphone,
+    Media,
+    Stage,
+    BellSlash,
+    Compass,
+    Plus,
+    Caret,
+    MoreVertical,
+    Close,
+    MicOffFill,
+    DeafenedFill,
+    CameraFill,
+    LiveFill,
+    GameFill,
+    MusicFill,
+    TvFill,
+    Mic,
+    Headphones,
+    HeadphonesOff,
+    MicOff,
+    Settings,
+    Minimize,
+    Maximize,
+    Restore,
+}
+
+impl Nav {
+    pub(crate) fn icon(self) -> Icon {
+        Icon::default().data(self.svg())
+    }
+
+    fn svg(self) -> &'static [u8] {
+        match self {
+            Nav::Megaphone => include_bytes!("../assets/icons/phosphor/megaphone.svg"),
+            Nav::Media => include_bytes!("../assets/icons/phosphor/images.svg"),
+            Nav::Stage => include_bytes!("../assets/icons/phosphor/microphone-stage.svg"),
+            Nav::BellSlash => include_bytes!("../assets/icons/phosphor/bell-slash.svg"),
+            Nav::Compass => include_bytes!("../assets/icons/phosphor/compass-bold.svg"),
+            Nav::Plus => include_bytes!("../assets/icons/phosphor/plus-bold.svg"),
+            Nav::Caret => include_bytes!("../assets/icons/phosphor/caret-down-bold.svg"),
+            Nav::MoreVertical => include_bytes!("../assets/icons/phosphor/dots-three-vertical.svg"),
+            Nav::Close => include_bytes!("../assets/icons/phosphor/x-bold.svg"),
+            Nav::MicOffFill => include_bytes!("../assets/icons/phosphor/microphone-slash-fill.svg"),
+            Nav::DeafenedFill => include_bytes!("../assets/icons/phosphor/speaker-slash-fill.svg"),
+            Nav::CameraFill => include_bytes!("../assets/icons/phosphor/video-camera-fill.svg"),
+            Nav::LiveFill => include_bytes!("../assets/icons/phosphor/broadcast-fill.svg"),
+            Nav::GameFill => include_bytes!("../assets/icons/phosphor/game-controller-fill.svg"),
+            Nav::MusicFill => include_bytes!("../assets/icons/phosphor/music-notes-fill.svg"),
+            Nav::TvFill => include_bytes!("../assets/icons/phosphor/television-simple-fill.svg"),
+            Nav::Mic => include_bytes!("../assets/icons/phosphor/microphone-bold.svg"),
+            Nav::Headphones => include_bytes!("../assets/icons/phosphor/headphones-bold.svg"),
+            Nav::HeadphonesOff => include_bytes!("../assets/icons/phosphor/ear-slash-bold.svg"),
+            Nav::MicOff => include_bytes!("../assets/icons/phosphor/microphone-slash-bold.svg"),
+            Nav::Settings => include_bytes!("../assets/icons/phosphor/gear-six-bold.svg"),
+            Nav::Minimize => include_bytes!("../assets/icons/phosphor/minus.svg"),
+            Nav::Maximize => include_bytes!("../assets/icons/phosphor/square.svg"),
+            Nav::Restore => include_bytes!("../assets/icons/phosphor/copy-simple.svg"),
+        }
+    }
+}
+
+// An activity's kind as its filled glyph: what someone is playing, hearing, streaming or watching.
+pub(crate) fn activity_glyph(kind: ActivityKind) -> Option<Icon> {
+    match kind {
+        ActivityKind::Playing | ActivityKind::Competing => Some(Nav::GameFill.icon()),
+        ActivityKind::Listening => Some(Nav::MusicFill.icon()),
+        ActivityKind::Streaming => Some(Nav::LiveFill.icon()),
+        ActivityKind::Watching => Some(Nav::TvFill.icon()),
+        ActivityKind::Custom => None,
+    }
 }
 
 fn muted_line(text: &'static str, cx: &App) -> AnyElement {
