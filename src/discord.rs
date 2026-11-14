@@ -236,6 +236,39 @@ impl Guild {
         self.permissions(me) & bit != 0
     }
 
+    // Discord's order: server permissions, then the @everyone overwrite, then all our roles' overwrites
+    // together, then one for us personally. Threads follow their parent channel.
+    pub fn channel_permissions(&self, me: &str, channel: &Channel) -> u64 {
+        // Roles not loaded yet: don't hide anything rather than hide everything.
+        if self.roles.is_empty() {
+            return u64::MAX;
+        }
+        let base = self.permissions(me);
+        if base == u64::MAX {
+            return base;
+        }
+        let channel = match (&channel.thread, &channel.parent_id) {
+            (Some(_), Some(parent)) => self.channels.iter().find(|c| &c.id == parent).unwrap_or(channel),
+            _ => channel,
+        };
+        let apply = |bits: u64, allow: u64, deny: u64| (bits & !deny) | allow;
+        let mut bits = base;
+        if let Some(o) = channel.overwrites.iter().find(|o| o.id == self.id) {
+            bits = apply(bits, o.allow, o.deny);
+        }
+        let (allow, deny) = channel.overwrites.iter().filter(|o| self.my_roles.contains(&o.id)).fold((0, 0), |(a, d), o| (a | o.allow, d | o.deny));
+        bits = apply(bits, allow, deny);
+        if let Some(o) = channel.overwrites.iter().find(|o| o.id == me) {
+            bits = apply(bits, o.allow, o.deny);
+        }
+        bits
+    }
+
+    /// Discord sends every channel in a server, including ones we can't open; fetching those is a 403.
+    pub fn can_view(&self, me: &str, channel: &Channel) -> bool {
+        self.channel_permissions(me, channel) & VIEW_CHANNEL != 0
+    }
+
     // The highest role we hold; Discord lets us manage only roles below it.
     pub fn top_position(&self, me: &str) -> i64 {
         if self.owner_id.as_deref() == Some(me) {
@@ -278,6 +311,16 @@ pub struct Channel {
     // Discord's own channel type number (0 text, 2 voice, 5 announcement, 15 forum, …).
     #[serde(default)]
     pub raw_type: u8,
+    // Per-role and per-member permission changes on top of the server's; `id` is a role or user id.
+    #[serde(default)]
+    pub overwrites: Vec<Overwrite>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Overwrite {
+    pub id: String,
+    pub allow: u64,
+    pub deny: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -822,10 +865,12 @@ impl gpui_kit::http_client::HttpClient for Images {
 pub async fn send(req: reqwest::RequestBuilder) -> Result<Value, String> {
     let res = req.send().await.map_err(|e| e.to_string())?;
     let status = res.status();
+    let url = res.url().path().to_owned();
     let body: Value = res.json().await.unwrap_or(Value::Null);
     if status.is_success() {
         return Ok(body);
     }
+    eprintln!("http: {status} {url}: {body}");
     Err(body["message"].as_str().map(str::to_owned).unwrap_or_else(|| status.to_string()))
 }
 
@@ -861,7 +906,10 @@ enum GatewayError {
 
 async fn session(token: &str, tx: &mpsc::UnboundedSender<Event>, outbound: &mut Outbound) -> Result<(), GatewayError> {
     let dropped = |e: &dyn std::fmt::Display| GatewayError::Dropped(e.to_string());
-    let (ws, _) = tokio_tungstenite::connect_async(GATEWAY).await.map_err(|e| dropped(&e))?;
+    let (ws, _) = tokio_tungstenite::connect_async(GATEWAY).await.map_err(|e| {
+        eprintln!("gateway: connect failed: {e}");
+        dropped(&e)
+    })?;
     let (mut sink, mut stream) = ws.split();
     let mut seq: Option<u64> = None;
     let mut heartbeat = tokio::time::interval(Duration::from_secs(3600));
@@ -1130,11 +1178,13 @@ fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
         muted: c["member"]["muted"].as_bool().unwrap_or(false),
         flags: c["member"]["flags"].as_u64().unwrap_or(0),
     });
-    let private = c["permission_overwrites"]
+    let overwrites: Vec<Overwrite> = c["permission_overwrites"]
         .as_array()
         .into_iter()
         .flatten()
-        .any(|o| o["id"].as_str() == Some(guild_id) && permission(&o["deny"]) & VIEW_CHANNEL != 0);
+        .filter_map(|o| Some(Overwrite { id: o["id"].as_str()?.to_owned(), allow: permission(&o["allow"]), deny: permission(&o["deny"]) }))
+        .collect();
+    let private = overwrites.iter().any(|o| o.id == guild_id && o.deny & VIEW_CHANNEL != 0);
     Some(Channel {
         id: c["id"].as_str()?.to_owned(),
         name: c["name"].as_str().unwrap_or_default().to_owned(),
@@ -1147,6 +1197,7 @@ fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
         recipient: None,
         thread,
         raw_type: c["type"].as_u64().unwrap_or(0) as u8,
+        overwrites,
     })
 }
 
@@ -1174,6 +1225,7 @@ fn parse_dm(c: &Value, users: &Value) -> Option<Channel> {
         recipient: (recipients.len() == 1).then(|| recipients[0].clone()),
         thread: None,
         raw_type: c["type"].as_u64().unwrap_or(1) as u8,
+        overwrites: Vec::new(),
     })
 }
 
@@ -1440,6 +1492,41 @@ mod tests {
         let open = json!({ "id": "c", "type": 0, "permission_overwrites": [{ "id": "g", "type": 0, "deny": "2048", "allow": "0" }] });
         assert!(parse_channel(&hidden, "g").unwrap().private);
         assert!(!parse_channel(&open, "g").unwrap().private);
+    }
+
+    #[test]
+    fn hides_channels_we_cannot_view() {
+        let role = |id: &str, permissions: u64| Role { id: id.into(), name: id.into(), color: 0, position: 0, permissions, managed: false };
+        let channel = |id: &str, overwrites: Value| parse_channel(&json!({ "id": id, "type": 0, "permission_overwrites": overwrites }), "g").unwrap();
+        let deny_everyone = json!({ "id": "g", "type": 0, "deny": "1024", "allow": "0" });
+        let guild = Guild {
+            id: "g".into(),
+            name: "g".into(),
+            icon: None,
+            channels: vec![
+                channel("open", json!([])),
+                channel("staff", json!([deny_everyone, { "id": "mods", "type": 0, "allow": "1024", "deny": "0" }])),
+                channel("mine", json!([deny_everyone, { "id": "me", "type": 1, "allow": "1024", "deny": "0" }])),
+                channel("secret", json!([deny_everyone])),
+                channel("kicked", json!([{ "id": "me", "type": 1, "allow": "0", "deny": "1024" }])),
+            ],
+            roles: vec![role("g", VIEW_CHANNEL), role("mods", 0), role("admins", perm::ADMINISTRATOR)],
+            voice_states: Vec::new(),
+            emojis: Vec::new(),
+            owner_id: Some("owner".into()),
+            threads: Vec::new(),
+            my_roles: Vec::new(),
+            default_notifications: Default::default(),
+        };
+        fn visible(g: &Guild) -> Vec<&str> {
+            g.channels.iter().filter(|c| g.can_view("me", c)).map(|c| c.id.as_str()).collect()
+        }
+        assert_eq!(visible(&guild), ["open", "mine"]);
+        let modded = Guild { my_roles: vec!["mods".into()], ..guild.clone() };
+        assert_eq!(visible(&modded), ["open", "staff", "mine"]);
+        let admin = Guild { my_roles: vec!["admins".into()], ..guild.clone() };
+        assert_eq!(visible(&admin).len(), 5);
+        assert!(guild.can_view("owner", &guild.channels[3]));
     }
 
     #[test]

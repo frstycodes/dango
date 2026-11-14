@@ -10,7 +10,10 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio_tungstenite::tungstenite::{Message as WsMessage, client::IntoClientRequest, http::HeaderValue};
 
-use crate::discord::{self, User};
+use crate::{
+    captcha,
+    discord::{self, User},
+};
 
 // Discord's QR sign-in ("remote auth"). Undocumented; the op names below are what the official
 // clients use as of v2 of the protocol. Not verified against a live server in this repo yet.
@@ -19,10 +22,13 @@ const KEYRING_SERVICE: &str = "rustcord";
 // Before the rename the app was "Chord"; its Keychain entry and dev-token file are read once and moved.
 const OLD_KEYRING_SERVICE: &str = "chord";
 const KEYRING_USER: &str = "discord-token";
+const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 
 pub enum AuthEvent {
     Qr(String),
     Scanned(User),
+    /// Discord wants a captcha; the URL is a local page that shows it in the browser.
+    Captcha(String),
     SignedIn(String),
     Failed(String),
 }
@@ -80,12 +86,17 @@ pub fn stored_token() -> Option<String> {
 
 #[cfg(debug_assertions)]
 pub fn store_token(token: &str) {
-    use std::{io::Write, os::unix::fs::OpenOptionsExt};
+    use std::io::Write;
     let Some(path) = token_file() else { return };
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    let file = std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(&path);
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    // Owner-only on Unix. On Windows the file sits in the user's own %APPDATA%, which other users can't read.
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let file = options.open(&path);
     if let Ok(mut file) = file {
         let _ = file.write_all(token.as_bytes());
     }
@@ -108,7 +119,10 @@ pub fn sign_in() -> mpsc::UnboundedReceiver<AuthEvent> {
                 Ok(token) => AuthEvent::SignedIn(token),
                 Err(Outcome::Expired) if !tx.is_closed() => continue,
                 Err(Outcome::Expired) => return,
-                Err(Outcome::Failed(error)) => AuthEvent::Failed(error),
+                Err(Outcome::Failed(error)) => {
+                    eprintln!("auth: {error}");
+                    AuthEvent::Failed(error)
+                }
             };
             let _ = tx.unbounded_send(event);
             return;
@@ -131,9 +145,10 @@ async fn qr_session(tx: &mpsc::UnboundedSender<AuthEvent>) -> Result<String, Out
     let public_key = key.to_public_key().to_public_key_der().map_err(|e| failed(&e))?;
 
     let mut request = REMOTE_AUTH.into_client_request().map_err(|e| failed(&e))?;
-    // The gateway refuses connections without Discord's own origin.
+    // The gateway refuses connections without Discord's own origin and a browser user agent.
     request.headers_mut().insert("Origin", HeaderValue::from_static("https://discord.com"));
-    let (ws, _) = tokio_tungstenite::connect_async(request).await.map_err(|e| failed(&e))?;
+    request.headers_mut().insert("User-Agent", HeaderValue::from_static(USER_AGENT));
+    let (ws, _) = tokio_tungstenite::connect_async(request).await.map_err(|e| Outcome::Failed(format!("QR gateway: {}", describe_ws_error(&e))))?;
     let (mut sink, mut stream) = ws.split();
     let mut heartbeat = tokio::time::interval(Duration::from_secs(3600));
     heartbeat.tick().await;
@@ -175,7 +190,7 @@ async fn qr_session(tx: &mpsc::UnboundedSender<AuthEvent>) -> Result<String, Out
                             let _ = tx.unbounded_send(AuthEvent::Scanned(user));
                         }
                     }
-                    "pending_login" => return exchange_ticket(&key, msg["ticket"].as_str().unwrap_or_default()).await,
+                    "pending_login" => return exchange_ticket(tx, &key, msg["ticket"].as_str().unwrap_or_default()).await,
                     // Protocol v1 sends the token directly.
                     "finish" => return String::from_utf8(decrypt(&key, &msg["encrypted_token"])?).map_err(|e| failed(&e)),
                     "cancel" => return Err(Outcome::Expired),
@@ -186,13 +201,52 @@ async fn qr_session(tx: &mpsc::UnboundedSender<AuthEvent>) -> Result<String, Out
     }
 }
 
-async fn exchange_ticket(key: &RsaPrivateKey, ticket: &str) -> Result<String, Outcome> {
-    let req = reqwest::Client::new()
-        .post(format!("{}/users/@me/remote-auth/login", discord::API))
-        .json(&json!({ "ticket": ticket }));
-    let body = discord::send(req).await.map_err(Outcome::Failed)?;
-    let token = decrypt(key, &body["encrypted_token"])?;
-    String::from_utf8(token).map_err(|e| Outcome::Failed(e.to_string()))
+async fn exchange_ticket(tx: &mpsc::UnboundedSender<AuthEvent>, key: &RsaPrivateKey, ticket: &str) -> Result<String, Outcome> {
+    let failed = |e: String| Outcome::Failed(format!("Ticket exchange: {e}"));
+    let client = reqwest::Client::new();
+    let mut solved: Option<(captcha::Challenge, String)> = None;
+    // Discord may ask for a captcha, and occasionally asks again after one is solved.
+    for _ in 0..3 {
+        let mut req = client
+            .post(format!("{}/users/@me/remote-auth/login", discord::API))
+            .header("User-Agent", USER_AGENT)
+            .header("Origin", "https://discord.com")
+            .json(&json!({ "ticket": ticket }));
+        if let Some((challenge, answer)) = &solved {
+            for (name, value) in challenge.headers(answer) {
+                req = req.header(name, value);
+            }
+        }
+        let res = req.send().await.map_err(|e| failed(e.to_string()))?;
+        let status = res.status();
+        let body: Value = res.json().await.unwrap_or(Value::Null);
+        if status.is_success() {
+            let token = decrypt(key, &body["encrypted_token"])?;
+            return String::from_utf8(token).map_err(|e| Outcome::Failed(e.to_string()));
+        }
+        let Some(challenge) = captcha::Challenge::from_response(&body) else {
+            eprintln!("http: {status} remote-auth/login: {body}");
+            return Err(failed(body["message"].as_str().map(str::to_owned).unwrap_or_else(|| status.to_string())));
+        };
+        let pending = captcha::serve(&challenge).await.map_err(failed)?;
+        let _ = tx.unbounded_send(AuthEvent::Captcha(pending.url.clone()));
+        let answer = pending.solved().await.map_err(Outcome::Failed)?;
+        solved = Some((challenge, answer));
+    }
+    Err(failed("Discord kept asking for a captcha".into()))
+}
+
+// A refused upgrade carries the server's reason in the response body; show it instead of just the status.
+fn describe_ws_error(e: &tokio_tungstenite::tungstenite::Error) -> String {
+    use tokio_tungstenite::tungstenite::Error;
+    match e {
+        Error::Http(res) => {
+            let body = res.body().as_deref().map(String::from_utf8_lossy).unwrap_or_default();
+            let body: String = body.trim().chars().take(200).collect();
+            if body.is_empty() { res.status().to_string() } else { format!("{} ({body})", res.status()) }
+        }
+        e => e.to_string(),
+    }
 }
 
 fn decrypt(key: &RsaPrivateKey, encoded: &Value) -> Result<Vec<u8>, Outcome> {

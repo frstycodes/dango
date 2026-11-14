@@ -320,7 +320,8 @@ impl Rustcord {
         match (&self.status, self.guild().cloned()) {
             (Status::Connecting, _) => rows.push(muted_line("Connecting to Discord…", cx)),
             (_, Some(guild)) => {
-                for (category, channels) in channel_sections(&guild) {
+                let me = self.my_id().to_owned();
+                for (category, channels) in channel_sections(&guild, &me) {
                     let rows_for = channels.iter().flat_map(|c| self.channel_rows(c, &guild, cx)).collect();
                     match category {
                         Some(category) => rows.push(self.section(category, rows_for, window, cx)),
@@ -780,8 +781,8 @@ fn mention_badge(count: u32, cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-pub(crate) fn channel_sections(guild: &Guild) -> Vec<(Option<Channel>, Vec<Channel>)> {
-    let visible = |c: &&Channel| matches!(c.kind, ChannelKind::Text | ChannelKind::Voice | ChannelKind::Forum);
+pub(crate) fn channel_sections(guild: &Guild, me: &str) -> Vec<(Option<Channel>, Vec<Channel>)> {
+    let visible = |c: &&Channel| matches!(c.kind, ChannelKind::Text | ChannelKind::Voice | ChannelKind::Forum) && guild.can_view(me, c);
     let uncategorised: Vec<Channel> = guild.channels.iter().filter(visible).filter(|c| c.parent_id.is_none()).cloned().collect();
     let mut sections = vec![(None, uncategorised)];
     for category in guild.channels.iter().filter(|c| c.kind == ChannelKind::Category) {
