@@ -25,7 +25,22 @@ const CHANNELS_RANGE: (f32, f32) = (200., 440.);
 const PANEL_RANGE: (f32, f32) = (200., 380.);
 
 impl Render for Rustcord {
+    // Everything draws through the app's image cache, which frees images that are no longer drawn.
+    // Out of sight (minimized, in the tray or fully covered) and no video playing, nothing is drawn at
+    // all: incoming events keep updating the app's data, but nothing is laid out, decoded or touched
+    // until the window can be seen again, so memory given back in the background stays given back.
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if crate::presence::out_of_sight() && !crate::video::is_playing(cx) {
+            return div().into_any_element();
+        }
+        let images = crate::images::cache(cx);
+        images.update(cx, |images, cx| images.next_frame(cx));
+        gpui_kit::image_cache(images).size_full().child(self.render_root(window, cx)).into_any_element()
+    }
+}
+
+impl Rustcord {
+    fn render_root(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme().clone();
         let root = div()
             .id("chord")
@@ -392,7 +407,7 @@ impl Rustcord {
         let url = item.url.clone();
         let stage = match &item.kind {
             MediaKind::Image => crate::chat::animated_image(item.url.clone()).w(px(w)).h(px(h)).rounded(px(6.)).into_any_element(),
-            MediaKind::Gif { poster } => crate::chat::gif_image(&item.url, poster).w(px(w)).h(px(h)).rounded(px(6.)).into_any_element(),
+            MediaKind::Gif { poster } => div().w(px(w)).h(px(h)).rounded(px(6.)).overflow_hidden().child(crate::gif::tile(format!("viewer-{}", item.url), &item.url, poster, cx)).into_any_element(),
             // ponytail: video plays in the system player; an in-app AVPlayer view is the upgrade.
             MediaKind::Video { poster } => {
                 let open = item.url.clone();

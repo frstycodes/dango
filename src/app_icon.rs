@@ -54,7 +54,7 @@ impl AppIcon {
         BRAND_ICONS[self as usize].0
     }
 
-    fn bytes(self) -> &'static [u8] {
+    pub fn bytes(self) -> &'static [u8] {
         BRAND_ICONS[self as usize].1
     }
 
@@ -63,6 +63,9 @@ impl AppIcon {
     pub fn apply(self) {
         #[cfg(target_os = "macos")]
         set_dock_icon(self.bytes());
+        // The tray icon follows the pick; the taskbar's still comes from the build (see GAP above).
+        #[cfg(target_os = "windows")]
+        crate::tray::set_icon(self.bytes());
     }
 }
 

@@ -37,6 +37,10 @@ pub fn render(window: &Window, cx: &App) -> Option<AnyElement> {
             .text_size(px(10.))
             .text_color(foreground)
             .hover(move |s| s.bg(hover_bg).text_color(hover_fg))
+            // gpui answers Windows' hit test with the first registered control area under the
+            // cursor, and the title bar's Drag area (the whole window on the login screen) is
+            // registered first. Blocking the mouse hides those from the hit test under the button.
+            .occlude()
             .window_control_area(area)
             .child(glyph)
     };

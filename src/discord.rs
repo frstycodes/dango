@@ -841,6 +841,44 @@ impl Client {
 #[derive(Default)]
 pub struct Images(reqwest::Client);
 
+// Image files as downloaded (compressed), most recently used last, within `CAP` bytes. The image
+// cache frees decoded images that leave the screen; this lets them come back without the network.
+pub mod downloads {
+    use std::{collections::VecDeque, sync::Mutex};
+
+    const CAP: usize = 32 << 20;
+
+    static FILES: Mutex<VecDeque<(String, bytes::Bytes)>> = Mutex::new(VecDeque::new());
+
+    pub fn get(url: &str) -> Option<bytes::Bytes> {
+        let mut files = FILES.lock().ok()?;
+        let index = files.iter().position(|(u, _)| u == url)?;
+        let entry = files.remove(index)?;
+        let bytes = entry.1.clone();
+        files.push_back(entry);
+        Some(bytes)
+    }
+
+    pub fn put(url: String, bytes: bytes::Bytes) {
+        let Ok(mut files) = FILES.lock() else { return };
+        files.retain(|(u, _)| *u != url);
+        files.push_back((url, bytes));
+        while files.iter().map(|(_, b)| b.len()).sum::<usize>() > CAP && files.len() > 1 {
+            files.pop_front();
+        }
+    }
+
+    pub fn bytes() -> usize {
+        FILES.lock().map(|f| f.iter().map(|(_, b)| b.len()).sum()).unwrap_or(0)
+    }
+
+    pub fn clear() {
+        if let Ok(mut files) = FILES.lock() {
+            *files = VecDeque::new();
+        }
+    }
+}
+
 impl gpui_kit::http_client::HttpClient for Images {
     fn user_agent(&self) -> Option<&gpui_kit::http_client::http::HeaderValue> {
         None
@@ -855,6 +893,9 @@ impl gpui_kit::http_client::HttpClient for Images {
         req: gpui_kit::http_client::Request<gpui_kit::http_client::AsyncBody>,
     ) -> futures::future::BoxFuture<'static, gpui_kit::http_client::Result<gpui_kit::http_client::Response<gpui_kit::http_client::AsyncBody>>> {
         let url = req.uri().to_string();
+        if let Some(bytes) = downloads::get(&url) {
+            return Box::pin(async move { Ok(gpui_kit::http_client::Response::builder().status(200).body(bytes.to_vec().into())?) });
+        }
         let get = self.0.get(&url);
         Box::pin(async move {
             let (status, bytes) = runtime()
@@ -865,6 +906,9 @@ impl gpui_kit::http_client::HttpClient for Images {
                 .await??;
             if cfg!(debug_assertions) && std::env::var_os("RUSTCORD_IMAGE_DEBUG").is_some() && status >= 400 {
                 eprintln!("image {status} {url}");
+            }
+            if status == 200 {
+                downloads::put(url, bytes.clone());
             }
             Ok(gpui_kit::http_client::Response::builder().status(status).body(bytes.to_vec().into())?)
         })
@@ -1354,6 +1398,27 @@ pub fn parse_user(user: &Value) -> User {
     User { id, name, avatar, bot: user["bot"].as_bool().unwrap_or(false), tag, nameplate, decoration }
 }
 
+/// An image as Discord's media proxy scales it: `width` x `height` (logical pixels, drawn at up to 2x
+/// for high-DPI screens), never larger than the original. Attachments on cdn.discordapp.com move to
+/// media.discordapp.net, which resizes on request, as Discord's own client does; the signed query
+/// (ex, is, hm) is kept. Other hosts come back unchanged. Not verified against every proxy host:
+/// images-ext-*.discordapp.net (embeds) is assumed to take the same parameters.
+pub fn sized_image(url: &str, width: f32, height: f32, original: (f32, f32)) -> String {
+    let scale = (2. * width / original.0.max(1.)).min(2. * height / original.1.max(1.)).min(1.);
+    let (w, h) = ((original.0 * scale).round().max(1.) as u32, (original.1 * scale).round().max(1.) as u32);
+    let proxied = if let Some(rest) = url.strip_prefix("https://cdn.discordapp.com/attachments/") {
+        format!("https://media.discordapp.net/attachments/{rest}")
+    } else if url.starts_with("https://media.discordapp.net/") || (url.starts_with("https://images-ext-") && url.contains(".discordapp.net/")) {
+        url.to_owned()
+    } else {
+        return url.to_owned();
+    };
+    if scale >= 1. {
+        return proxied;
+    }
+    format!("{proxied}{}width={w}&height={h}", if proxied.contains('?') { "&" } else { "?" })
+}
+
 pub fn avatar_url(user_id: &str, hash: Option<&str>) -> String {
     match hash.filter(|h| !h.is_empty() && *h != "0") {
         Some(hash) => format!("{CDN}/avatars/{user_id}/{hash}.png?size=128"),
@@ -1500,6 +1565,17 @@ mod tests {
     fn default_avatar_when_hash_missing() {
         assert_eq!(avatar_url("4194304", None), "https://cdn.discordapp.com/embed/avatars/1.png");
         assert_eq!(avatar_url("1", Some("0")), "https://cdn.discordapp.com/embed/avatars/0.png");
+    }
+
+    #[test]
+    fn sizes_images_through_the_media_proxy() {
+        let signed = "https://cdn.discordapp.com/attachments/1/2/shot.png?ex=a&is=b&hm=c&";
+        assert_eq!(
+            sized_image(signed, 400., 225., (3840., 2160.)),
+            "https://media.discordapp.net/attachments/1/2/shot.png?ex=a&is=b&hm=c&&width=800&height=450"
+        );
+        assert_eq!(sized_image("https://cdn.discordapp.com/attachments/1/2/a.png", 100., 100., (150., 150.)), "https://media.discordapp.net/attachments/1/2/a.png", "never upscaled");
+        assert_eq!(sized_image("https://example.com/a.png", 10., 10., (999., 999.)), "https://example.com/a.png");
     }
 
     #[test]

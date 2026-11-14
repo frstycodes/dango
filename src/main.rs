@@ -9,6 +9,7 @@ mod demo;
 mod discord;
 mod drag;
 mod icons;
+mod images;
 mod layout;
 mod login;
 mod mascot;
@@ -20,10 +21,12 @@ mod h264;
 mod home;
 mod overlays;
 mod playback;
+mod memory;
 mod menu;
 mod message_menu;
 mod motion;
 mod palette;
+mod presence;
 mod notify;
 mod panel;
 mod rail_drag;
@@ -34,6 +37,8 @@ mod user_menu;
 mod video;
 mod hotkeys;
 mod sounds;
+#[cfg(target_os = "windows")]
+mod tray;
 mod ui;
 mod app_icon;
 mod voice;
@@ -63,7 +68,19 @@ use login::Login;
 const TYPING_TTL: Duration = Duration::from_secs(10);
 const TYPING_SEND_EVERY: Duration = Duration::from_secs(8);
 
+// Counts every allocation so the memory report can show Rust's own share (see memory.rs); the
+// dhat-heap build records where each one comes from instead.
+#[cfg(not(feature = "dhat-heap"))]
+#[global_allocator]
+static ALLOCATOR: memory::Counting = memory::Counting;
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOCATOR: dhat::Alloc = dhat::Alloc;
+
 fn main() {
+    #[cfg(feature = "dhat-heap")]
+    memory::start_heap_profile();
+    memory::start_reporting();
     gpui_kit::application().with_assets(Assets).run(move |cx| {
         gpui_kit::init(cx);
         cx.text_system()
@@ -94,6 +111,8 @@ fn main() {
         };
         let handle = gpui_kit::open_window(options, cx, |window, cx| {
             palette::sync(window, cx);
+            #[cfg(target_os = "windows")]
+            tray::install(window, cx);
             cx.new(|cx| Rustcord::new(window, cx))
         })
         .expect("open window");
@@ -111,7 +130,92 @@ fn main() {
                 .expect("clear root background");
         }
         cx.activate(true);
+        background_watch(cx);
     });
+}
+
+// Background mode, unless a video is playing: minimized or closed to the tray, the app gives memory
+// back at once (frees decoded images and their GPU textures, then pages everything out). Unfocused or
+// fully covered, it waits `BACKGROUND_AFTER` first: fully covered it does the same, merely unfocused it
+// only compacts its heaps, since paging out a window still in view would make the next click hitch.
+const BACKGROUND_AFTER: Duration = Duration::from_secs(5);
+// While a video plays in the background nothing announces it stopping, so check this often.
+const VIDEO_CHECK: Duration = Duration::from_secs(5);
+
+// Runs on presence changes rather than a timer (see presence::changes): redraws so GIFs stop or start
+// (see gif.rs), and releases memory as above. While minimized or in the tray it only waits.
+fn background_watch(cx: &mut gpui_kit::App) {
+    let mut changes = presence::changes();
+    cx.spawn(async move |cx| {
+        // When the app went to the background, and the presence state memory was last released in:
+        // each new out-of-sight state (covered, then minimized) releases again.
+        let (mut since, mut released_in, mut compacted): (Option<Instant>, Option<u64>, bool) = (None, None, false);
+        loop {
+            let video = cx.update(|cx| video::is_playing(cx));
+            let state = presence::generation();
+            let mut wait = None;
+            if !presence::background() {
+                (since, released_in, compacted) = (None, None, false);
+            } else if video {
+                since = None;
+                wait = Some(VIDEO_CHECK);
+            } else {
+                let at = *since.get_or_insert_with(Instant::now);
+                let left = BACKGROUND_AFTER.saturating_sub(at.elapsed());
+                if presence::out_of_sight() && (presence::hidden() || left.is_zero()) {
+                    if released_in != Some(state) {
+                        released_in = Some(state);
+                        release_memory(cx).await;
+                    }
+                } else if !left.is_zero() {
+                    wait = Some(left);
+                } else if !std::mem::replace(&mut compacted, true) {
+                    cx.background_executor().spawn(async { memory::compact() }).await;
+                }
+            }
+            let changed = match wait {
+                None => match changes.next().await {
+                    Some(()) => true,
+                    None => return,
+                },
+                Some(wait) => {
+                    let timer = cx.background_executor().timer(wait);
+                    futures::select_biased! {
+                        change = changes.next() => match change {
+                            Some(()) => true,
+                            None => return,
+                        },
+                        _ = futures::FutureExt::fuse(timer) => false,
+                    }
+                }
+            };
+            // Redraw so GIFs stop or start, but not for going out of sight: that would reload what was just freed.
+            if changed && !presence::out_of_sight() {
+                cx.update(|cx| cx.refresh_windows());
+            }
+        }
+    })
+    .detach();
+}
+
+// Frees decoded images (RAM and GPU), lets GIF players notice and drop their frames, then pages the
+// rest out. Downloaded image files stay cached; paging takes them out of RAM too.
+async fn release_memory(cx: &mut gpui_kit::AsyncApp) {
+    cx.update(|cx| {
+        let images = images::cache(cx);
+        images.update(cx, |images, cx| images.clear(cx));
+    });
+    cx.background_executor().timer(Duration::from_millis(100)).await;
+    cx.background_executor()
+        .spawn(async {
+            let before = memory::process().map_or(0, |p| p.private_working_set);
+            memory::trim();
+            let after = memory::process().map_or(0, |p| p.private_working_set);
+            if std::env::var_os("RUSTCORD_MEMORY").is_some() {
+                eprintln!("background: gave back memory, {} MB -> {} MB", before >> 20, after >> 20);
+            }
+        })
+        .await;
 }
 
 enum Status {
