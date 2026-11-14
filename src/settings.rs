@@ -3,7 +3,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, App, BoxShadow, Context, Div, ElementId, FontWeight, Hsla, MouseButton, Pixels, ScrollHandle, SharedString, Stateful, Window, canvas,
+    Animation, AnimationExt, AnyElement, App, BoxShadow, Context, Div, ElementId, FontWeight, Hsla, MouseButton, Pixels, Radians, ScrollHandle, SharedString, Stateful, Window, canvas,
     component::{Icon, input::Input},
     div, img, point, prelude::*, px, relative, rgb,
 };
@@ -16,7 +16,8 @@ use crate::{
     layout::TITLE_HEIGHT,
     palette::{self, Level},
     sounds::{self, Cue},
-    ui::{self, Tone},
+    motion,
+    ui::{self, Squircle, Tone},
     voice,
 };
 
@@ -42,8 +43,7 @@ impl Page {
 
     fn glyph(self) -> Glyph {
         match self {
-            // GAP: the design's user-circle glyph isn't in icons.rs; the plain user stands in.
-            Page::Account => Glyph::User,
+            Page::Account => Glyph::UserCircle,
             Page::Notifications => Glyph::Bell,
             Page::VoiceVideo => Glyph::Mic,
             Page::Keybinds => Glyph::Keyboard,
@@ -587,7 +587,7 @@ impl Rustcord {
             Page::Account => self.account_page(cx),
             Page::Notifications => self.notifications_page(window, cx),
             Page::VoiceVideo => self.voice_page(window, cx),
-            Page::Keybinds => self.keybinds_page(cx),
+            Page::Keybinds => self.keybinds_page(window, cx),
             Page::Appearance => self.appearance_page(window, cx),
         };
         // The scroll list's first item is the page title, so a section's item index is one past its own.
@@ -659,8 +659,8 @@ impl Rustcord {
                     .justify_center()
                     .cursor_pointer()
                     .text_color(muted)
-                    // PATCH(transform): scale(0.94) while pressed.
                     .hover(move |s| s.bg(hover).text_color(strong))
+                    .active(|s| s.scale(0.94))
                     .child(Icon::new(Glyph::X).size(px(18.)))
                     .on_click(cx.listener(|this, _, _, cx| this.close_settings(cx))),
             )
@@ -705,7 +705,7 @@ impl Rustcord {
             .pl(px(10.))
             .pr(px(4.))
             .flex_none()
-            .rounded(px(ui::RADIUS_MD))
+            .squircle(ui::RADIUS_MD)
             .bg(palette::surface(Level::Page, cx))
             .border_1()
             .border_color(if focused { palette::accent() } else { palette::line_strong(cx) })
@@ -775,7 +775,7 @@ impl Rustcord {
             .min_h(px(32.))
             .px(px(10.))
             .flex_none()
-            .rounded(px(ui::RADIUS_SM))
+            .squircle(ui::RADIUS_SM)
             .flex()
             .items_center()
             .gap(px(10.))
@@ -800,7 +800,7 @@ impl Rustcord {
             div()
                 .my(px(4.))
                 .p(px(10.))
-                .rounded(px(ui::RADIUS_MD))
+                .squircle(ui::RADIUS_MD)
                 .bg(palette::danger().opacity(0.1))
                 .flex()
                 .flex_col()
@@ -827,7 +827,7 @@ impl Rustcord {
     fn account_page(&self, cx: &mut Context<Self>) -> Vec<Section> {
         let Some(me) = self.me.clone() else { return Vec::new() };
         let raised = palette::surface(Level::Raised, cx);
-        let banner = ui::edge(div().h(px(96.)).bg(gpui_kit::linear_gradient(135., gpui_kit::linear_color_stop(rgb(BANNER.0), 0.), gpui_kit::linear_color_stop(rgb(BANNER.1), 1.))), ui::top(ui::RADIUS_LG - 1.));
+        let banner = ui::edge(div().h(px(96.)).bg(gpui_kit::linear_gradient(135., gpui_kit::linear_color_stop(rgb(BANNER.0), 0.), gpui_kit::linear_color_stop(rgb(BANNER.1), 1.))), ui::top(ui::RADIUS_LG - 1.)).corner_shape(ui::SQUIRCLE);
         let avatar = div()
             .relative()
             .flex_none()
@@ -858,7 +858,7 @@ impl Rustcord {
             .flex_col()
             .child(row("acct-name", lines.next(), cx).child(field_text("Display name", me.name.clone(), cx)))
             .child(row("acct-id", lines.next(), cx).child(field_text("User ID", me.id.clone(), cx)).child(copy));
-        let card = div().rounded(px(ui::RADIUS_LG)).bg(raised).border_1().border_color(palette::line(cx)).flex().flex_col().child(banner).child(identity).child(fields);
+        let card = div().squircle(ui::RADIUS_LG).bg(raised).border_1().border_color(palette::line(cx)).flex().flex_col().child(banner).child(identity).child(fields);
         vec![Section::new(group("Account info", cx).child(card))]
     }
 
@@ -903,7 +903,7 @@ impl Rustcord {
                 .pt(px(6.))
                 .px(px(6.))
                 .pb(px(10.))
-                .rounded(px(ui::RADIUS_LG))
+                .squircle(ui::RADIUS_LG)
                 .flex()
                 .flex_col()
                 .gap(px(8.))
@@ -915,10 +915,10 @@ impl Rustcord {
                     let hover = palette::hover(cx);
                     d.hover(move |s| s.bg(hover))
                 })
-                // PATCH(transform): scale(0.97) while pressed.
+                .active(|s| s.scale(0.97))
                 .child(
                     div()
-                        .rounded(px(ui::RADIUS_MD))
+                        .squircle(ui::RADIUS_MD)
                         .shadow(vec![ring(if on { palette::accent() } else { palette::line_strong(cx) }, if on { 2. } else { 1. })])
                         .child(preview),
                 )
@@ -961,7 +961,7 @@ impl Rustcord {
                 .pt(px(10.))
                 .px(px(4.))
                 .pb(px(8.))
-                .rounded(px(ui::RADIUS_LG))
+                .squircle(ui::RADIUS_LG)
                 .flex()
                 .flex_col()
                 .items_center()
@@ -972,7 +972,7 @@ impl Rustcord {
                 .text_color(if on { palette::strong(cx) } else { palette::text(cx) })
                 .when(on, |d| d.bg(palette::selected(cx)).shadow(vec![inset_ring(palette::accent(), 2.)]))
                 .when(!on, |d| d.hover(move |s| s.bg(hover)))
-                // PATCH(transform): scale(0.95) while pressed.
+                .active(|s| s.scale(0.95))
                 .child(img(icon.asset()).size(px(56.)))
                 .child(icon.label())
                 .children((icon == crate::app_icon::AppIcon::default()).then(|| div().mt(px(-4.)).font_weight(FontWeight::NORMAL).text_color(palette::muted(cx)).child("Default")))
@@ -1018,7 +1018,7 @@ impl Rustcord {
             let echo = self.switch_row(SwitchRow { id: "set-echo", title: "Echo cancellation", detail: Some("Stops others hearing themselves through your speakers"), on: prefs.echo_cancellation, enabled: true, field: |p| &mut p.echo_cancellation }, lines.next(), window, cx);
             out.push(Section::new(group("Voice processing", cx).child(card(cx).child(noise).child(echo))));
         }
-        let expander = expander_row("voice-advanced", false, if advanced { "Hide advanced voice settings" } else { "Show advanced voice settings" }, &advanced_summary(custom), advanced, cx).on_click(cx.listener(|this, _, _, cx| {
+        let expander = expander_row("voice-advanced", false, if advanced { "Hide advanced voice settings" } else { "Show advanced voice settings" }, &advanced_summary(custom), advanced, window, cx).on_click(cx.listener(|this, _, _, cx| {
             if let Some(s) = &mut this.settings {
                 s.advanced = !s.advanced;
             }
@@ -1032,7 +1032,7 @@ impl Rustcord {
             .flex_col()
             .gap(px(6.))
             .child(field_label("Camera", cx))
-            .child(self.device_select(Select::Camera, Glyph::Video, &cameras, prefs.camera.as_deref(), 40., cx));
+            .child(self.device_select(Select::Camera, Glyph::Video, &cameras, prefs.camera.as_deref(), 40., window, cx));
         // GAP: the design's camera preview tile (Test video, mirrored self view) needs a local camera
         // preview the settings page doesn't have yet.
         out.push(Section::anchored("Camera", group("Camera", cx).child(card_pad(cx).child(camera))));
@@ -1053,8 +1053,8 @@ impl Rustcord {
         let devices = div()
             .flex()
             .gap(px(24.))
-            .child(column("Microphone", self.device_select(Select::Microphone, Glyph::Mic, inputs, prefs.input_device.as_deref(), 40., cx), cx))
-            .child(column("Speaker", self.device_select(Select::Speaker, Glyph::Headphones, outputs, prefs.output_device.as_deref(), 40., cx), cx));
+            .child(column("Microphone", self.device_select(Select::Microphone, Glyph::Mic, inputs, prefs.input_device.as_deref(), 40., window, cx), cx))
+            .child(column("Speaker", self.device_select(Select::Speaker, Glyph::Headphones, outputs, prefs.output_device.as_deref(), 40., window, cx), cx));
         let volumes = div()
             .flex()
             .gap(px(24.))
@@ -1062,14 +1062,13 @@ impl Rustcord {
             .child(div().flex_1().min_w_0().child(self.volume("Speaker volume", &percent(prefs.output_volume), Slider::OutputVolume, cx)));
         let test_button = ui::button("mic-test", Tone::Primary, cx)
             .min_w(px(112.))
-            .child(Icon::new(if testing { Glyph::MicOff } else { Glyph::Mic }).size(px(16.)))
+            .child(Icon::new(if testing { Glyph::Stop } else { Glyph::Mic }).size(px(16.)))
             .child(if testing { "Stop testing" } else { "Test mic" })
             .on_click(cx.listener(|this, _, _, cx| this.toggle_mic_test(cx)));
         let mic_test = div().flex().items_center().gap(px(16.)).child(test_button).child(mic_wave(self.mic_level, testing, cx));
         let speaker = outputs.iter().find(|(id, _)| Some(id.as_str()) == prefs.output_device.as_deref()).map_or("your speaker", |(_, name)| name.as_str());
         let mic = inputs.iter().find(|(id, _)| Some(id.as_str()) == prefs.input_device.as_deref()).map_or("your microphone", |(_, name)| name.as_str());
         let notice = no_input.then(|| self.no_input_notice(mic, cx));
-        let _ = window;
         group("Devices", cx).child(
             card_pad(cx)
                 .child(div().flex().flex_col().gap(px(16.)).child(devices).child(volumes))
@@ -1178,6 +1177,7 @@ impl Rustcord {
             &if more { format!("Hide {} sounds", MORE_CUES.len()) } else { format!("Show {} more sounds", MORE_CUES.len()) },
             "Voice disconnected, PTT activate, User join, and more",
             more,
+            window,
             cx,
         )
         .on_click(cx.listener(|this, _, _, cx| {
@@ -1205,7 +1205,7 @@ impl Rustcord {
                     .w_full()
                     .py(px(10.))
                     .px(px(12.))
-                    .rounded(px(ui::RADIUS_MD))
+                    .squircle(ui::RADIUS_MD)
                     .bg(palette::danger().opacity(0.1))
                     .flex()
                     .flex_wrap()
@@ -1228,7 +1228,7 @@ impl Rustcord {
                 .gap(px(6.))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(palette::positive_ink(cx))
-                .child(Icon::new(Glyph::Checkmark).size(px(16.)))
+                .child(Icon::new(Glyph::CheckCircle).size(px(16.)))
                 .child("Voice and video settings reset")
                 .child(
                     div()
@@ -1278,7 +1278,7 @@ impl Rustcord {
         self.update_prefs(cx, |p| *p = before);
     }
 
-    fn keybinds_page(&self, cx: &mut Context<Self>) -> Vec<Section> {
+    fn keybinds_page(&self, window: &mut Window, cx: &mut Context<Self>) -> Vec<Section> {
         let header = div()
             .flex()
             .items_start()
@@ -1292,7 +1292,7 @@ impl Rustcord {
                 }
             })));
         let mut lines = Hairlines::default();
-        let rows: Vec<AnyElement> = self.prefs.keybinds.iter().enumerate().map(|(index, keybind)| self.keybind_row(index, keybind, lines.next(), cx)).collect();
+        let rows: Vec<AnyElement> = self.prefs.keybinds.iter().enumerate().map(|(index, keybind)| self.keybind_row(index, keybind, lines.next(), window, cx)).collect();
         let yours = group("Your keybinds", cx).when(!rows.is_empty(), |g| g.child(card(cx).children(rows)));
         let mut lines = Hairlines::default();
         let defaults = DEFAULT_KEYBINDS.iter().map(|&(action, combos)| {
@@ -1307,17 +1307,17 @@ impl Rustcord {
     }
 
     // Action picker, recorder, and a remove button that's always there.
-    fn keybind_row(&self, index: usize, keybind: &Keybind, line: bool, cx: &mut Context<Self>) -> AnyElement {
+    fn keybind_row(&self, index: usize, keybind: &Keybind, line: bool, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let refused = keybind.keys.as_ref().is_some_and(|k| self.keybind_errors.contains(k));
         let actions: Vec<(String, String)> = Action::ALL.iter().map(|a| (format!("{a:?}"), sentence(a.label()))).collect();
-        let action = self.select_field(Select::Action(index), None, &actions, &format!("{:?}", keybind.action), sentence(keybind.action.label()).into(), 36., cx);
+        let action = self.select_field(Select::Action(index), None, &actions, &format!("{:?}", keybind.action), sentence(keybind.action.label()).into(), 36., window, cx);
         let (danger, hover, press) = (palette::danger_ink(cx), palette::hover(cx), palette::press(cx));
         // The design's .iconbtn.rm: ui::icon_button, but hovering to the danger ink.
         let remove = div()
             .id(SharedString::from(format!("keybind-delete-{index}")))
             .size(px(32.))
             .flex_none()
-            .rounded(px(ui::RADIUS_SM))
+            .squircle(ui::RADIUS_SM)
             .flex()
             .items_center()
             .justify_center()
@@ -1359,7 +1359,7 @@ impl Rustcord {
                 .items_center()
                 .gap(px(6.))
                 .text_color(palette::muted(cx))
-                .child(div().size(px(10.)).rounded_full().bg(palette::accent_ink(cx)))
+                .child(div().text_color(palette::accent_ink(cx)).child(Icon::new(Glyph::Record).size(px(14.))))
                 .child("Press a key\u{2026}")
                 .into_any_element(),
             (Some(keys), false) => key_caps(keys, cx).into_any_element(),
@@ -1383,7 +1383,7 @@ impl Rustcord {
             .min_w_0()
             .pl(px(12.))
             .pr(px(4.))
-            .rounded(px(ui::RADIUS_MD))
+            .squircle(ui::RADIUS_MD)
             .bg(palette::surface(Level::Page, cx))
             .border_1()
             .border_color(border)
@@ -1483,9 +1483,13 @@ impl Rustcord {
         let degraded = selected == 2 && self.call.as_ref().is_some_and(|c| c.session.noise_suppression_degraded());
         let detail = if degraded {
             div()
+                .flex()
+                .items_center()
+                .gap(px(4.))
                 .text_size(px(12.))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(palette::warning_ink(cx))
+                .child(Icon::new(Glyph::WarningBold).size(px(14.)))
                 .child("Your computer couldn't run DeepFilterNet in real time, so this call uses Standard.")
         } else {
             div().text_size(px(12.)).text_color(palette::muted(cx)).child("Reduces background noise from your mic. Advanced is powered by DeepFilterNet.")
@@ -1519,7 +1523,7 @@ impl Rustcord {
             .id(SharedString::from(format!("preview-{id}")))
             .size(px(36.))
             .flex_none()
-            .rounded(px(ui::RADIUS_MD))
+            .squircle(ui::RADIUS_MD)
             .bg(selected)
             .text_color(palette::strong(cx))
             .flex()
@@ -1563,7 +1567,7 @@ impl Rustcord {
                 .flex_col()
                 .gap(px(2.))
                 .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(title))
-                .child(div().flex().items_center().gap(px(4.)).text_size(px(12.)).text_color(palette::muted(cx)).child(Icon::new(Glyph::Help).size(px(14.))).children(detail))
+                .child(div().flex().items_center().gap(px(4.)).text_size(px(12.)).text_color(palette::muted(cx)).child(Icon::new(Glyph::Info).size(px(14.))).children(detail))
         };
         let switch = ui::switch_live(id, on, window, cx);
         let row = row(SharedString::from(format!("row-{id}")), line, cx).child(text);
@@ -1578,17 +1582,19 @@ impl Rustcord {
         }))
     }
 
-    fn device_select(&self, select: Select, glyph: Glyph, devices: &[(String, String)], chosen: Option<&str>, height: f32, cx: &mut Context<Self>) -> AnyElement {
+    #[allow(clippy::too_many_arguments)]
+    fn device_select(&self, select: Select, glyph: Glyph, devices: &[(String, String)], chosen: Option<&str>, height: f32, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let mut options = vec![(String::new(), "Default".to_owned())];
         options.extend(devices.iter().cloned());
         let value = chosen.and_then(|id| devices.iter().find(|(d, _)| d == id)).map_or("Default".to_owned(), |(_, name)| name.clone());
-        self.select_field(select, Some(glyph), &options, chosen.unwrap_or(""), value.into(), height, cx)
+        self.select_field(select, Some(glyph), &options, chosen.unwrap_or(""), value.into(), height, window, cx)
     }
 
     // A dropdown trigger whose list rises from it; the chosen option carries a check.
     #[allow(clippy::too_many_arguments)]
-    fn select_field(&self, select: Select, glyph: Option<Glyph>, options: &[(String, String)], chosen: &str, value: SharedString, height: f32, cx: &mut Context<Self>) -> AnyElement {
+    fn select_field(&self, select: Select, glyph: Option<Glyph>, options: &[(String, String)], chosen: &str, value: SharedString, height: f32, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let open = self.settings.as_ref().and_then(|s| s.select) == Some(select);
+        let caret = turn(format!("caret-{select:?}"), if open { 180. } else { 0. }, window, cx);
         let (muted, faint) = (palette::muted(cx), palette::faint(cx));
         let hover_border = faint.opacity(0.6);
         let field = div()
@@ -1596,7 +1602,7 @@ impl Rustcord {
             .h(px(height))
             .px(px(12.))
             .w_full()
-            .rounded(px(ui::RADIUS_MD))
+            .squircle(ui::RADIUS_MD)
             .bg(palette::surface(Level::Page, cx))
             .border_1()
             .border_color(if open { palette::accent() } else { palette::line_strong(cx) })
@@ -1610,8 +1616,7 @@ impl Rustcord {
             .text_color(palette::strong(cx))
             .children(glyph.map(|g| div().text_color(muted).child(Icon::new(g).size(px(18.)))))
             .child(div().flex_1().min_w_0().truncate().child(value))
-            // PATCH(transform): the caret turns 180° on open instead of swapping glyphs.
-            .child(div().text_color(faint).child(Icon::new(if open { Glyph::ChevronUp } else { Glyph::ChevronDown }).size(px(14.))))
+            .child(div().text_color(faint).child(Icon::new(Glyph::ChevronDown).size(px(14.)).rotate(caret)))
             .on_click(cx.listener(move |this, _, _, cx| {
                 if let Some(s) = &mut this.settings {
                     s.select = if s.select == Some(select) { None } else { Some(select) };
@@ -1632,13 +1637,10 @@ impl Rustcord {
                         .into_any_element()
                 })
                 .collect();
-            let menu = ui::surface(cx).id(SharedString::from(format!("options-{select:?}"))).max_h(px(280.)).overflow_y_scroll().gap(px(1.)).occlude().children(rows);
-            // PATCH(transform): the list rises from the trigger at 0.95 scale as it fades in.
-            div().absolute().top(px(height + 4.)).left_0().right_0().min_w(px(200.)).child(menu).with_animation(
-                SharedString::from(format!("options-in-{select:?}")),
-                Animation::new(ui::DUR_POP).with_easing(ease_out),
-                move |el, t| el.top(px(height + 4. - 4. * (1. - t))).opacity(t),
-            )
+            let menu = ui::surface(cx).id(SharedString::from(format!("options-{select:?}"))).squircle(ui::RADIUS_LG).max_h(px(280.)).overflow_y_scroll().gap(px(1.)).occlude().children(rows);
+            // The list rises from the trigger: 0.95 scale about its top centre, with the fade.
+            let list = div().absolute().top(px(height + 4.)).left_0().right_0().min_w(px(200.)).child(menu);
+            crate::menu::rise(list, format!("options-in-{select:?}"), gpui_kit::point(relative(0.5), relative(0.)), Duration::ZERO)
         });
         // Deferred so the open list paints above the settings below it.
         div().relative().w_full().child(field).children(list.map(|list| gpui_kit::deferred(list).with_priority(2))).into_any_element()
@@ -1804,7 +1806,7 @@ fn nav_item(page: Page, selected: bool, cx: &mut Context<Rustcord>) -> impl Into
         .min_h(px(32.))
         .px(px(10.))
         .flex_none()
-        .rounded(px(ui::RADIUS_SM))
+        .squircle(ui::RADIUS_SM)
         .flex()
         .items_center()
         .gap(px(10.))
@@ -1837,7 +1839,7 @@ fn sub_items(page: Page, current: usize, anchors: &[usize], cx: &mut Context<Rus
             .min_h(px(28.))
             .pl(px(38.))
             .pr(px(10.))
-            .rounded(px(ui::RADIUS_SM))
+            .squircle(ui::RADIUS_SM)
             .flex()
             .items_center()
             .cursor_pointer()
@@ -1870,7 +1872,7 @@ fn caption(text: &str, cx: &App) -> Div {
 
 // MOVE(ui): settings_card. Rows on the raised surface, inset 4px so their fills clear its edge.
 fn card(cx: &App) -> Div {
-    div().min_w_0().p(px(4.)).rounded(px(ui::RADIUS_LG)).bg(palette::surface(Level::Raised, cx)).border_1().border_color(palette::line(cx)).flex().flex_col()
+    div().min_w_0().p(px(4.)).squircle(ui::RADIUS_LG).bg(palette::surface(Level::Raised, cx)).border_1().border_color(palette::line(cx)).flex().flex_col()
 }
 
 fn card_pad(cx: &App) -> Div {
@@ -1888,7 +1890,7 @@ fn row(id: impl Into<SharedString>, line: bool, cx: &App) -> Stateful<Div> {
         .min_h(px(56.))
         .py(px(10.))
         .px(px(12.))
-        .rounded(px(ui::RADIUS_MD))
+        .squircle(ui::RADIUS_MD)
         .flex()
         .items_center()
         .gap(px(16.))
@@ -1953,23 +1955,39 @@ fn radio_row(id: &'static str, line: bool, title: &'static str, detail: &'static
 }
 
 // A row that reveals more rows under it; closed, it names what's inside.
-fn expander_row(id: &'static str, line: bool, title: &str, summary: &str, open: bool, cx: &App) -> Stateful<Div> {
+#[allow(clippy::too_many_arguments)]
+fn expander_row(id: &'static str, line: bool, title: &str, summary: &str, open: bool, window: &mut Window, cx: &mut App) -> Stateful<Div> {
+    let angle = turn(format!("chevron-{id}"), if open { 90. } else { 0. }, window, cx);
     let chev = div()
         .size(px(32.))
         .flex_none()
-        .rounded(px(ui::RADIUS_SM))
+        .squircle(ui::RADIUS_SM)
         .bg(palette::selected(cx))
         .text_color(palette::strong(cx))
         .flex()
         .items_center()
         .justify_center()
-        // PATCH(transform): turn the one chevron 90° instead of swapping glyphs.
-        .child(Icon::new(if open { Glyph::ChevronDown } else { Glyph::ChevronRight }).size(px(16.)));
+        .child(Icon::new(Glyph::ChevronRight).size(px(16.)).rotate(angle));
     choice(row(id, line, cx), cx).child(row_text(title.to_owned(), (!open).then(|| summary.to_owned()), cx)).child(chev)
 }
 
 fn error_line(text: &'static str, cx: &App) -> Div {
-    div().px(px(2.)).text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::danger_ink(cx)).child(text)
+    div()
+        .px(px(2.))
+        .flex()
+        .items_start()
+        .gap(px(6.))
+        .text_size(px(12.))
+        .font_weight(FontWeight::MEDIUM)
+        .text_color(palette::danger_ink(cx))
+        .child(div().mt(px(1.)).flex_none().child(Icon::new(Glyph::WarningCircle).size(px(14.))))
+        .child(text)
+}
+
+// An icon's angle in degrees, eased over the pop duration whenever `degrees` changes.
+fn turn(id: String, degrees: f32, window: &mut Window, cx: &mut App) -> Radians {
+    let degrees = gpui_kit::base::transition(id, degrees, gpui_kit::base::Transition::new(ui::DUR_POP).easing(motion::ease_out()), window, cx);
+    Radians(degrees.to_radians())
 }
 
 // MOVE(ui): callout with actions under its text.
@@ -1983,7 +2001,7 @@ fn callout_with(kind: ui::Notice, glyph: Glyph, title: &'static str, body: Strin
         .w_full()
         .py(px(12.))
         .px(px(14.))
-        .rounded(px(ui::RADIUS_LG))
+        .squircle(ui::RADIUS_LG)
         .bg(tone.opacity(0.13))
         .flex()
         .items_start()
@@ -2045,7 +2063,7 @@ fn sensitivity_track(threshold: Option<f32>, level_db: f32, cx: &App) -> Div {
 
 // The recorder's listening ring: 3px of accent tint 4px out, breathing.
 fn pulse_ring(id: SharedString, cx: &App) -> AnyElement {
-    let ring = div().absolute().top(px(-5.)).bottom(px(-5.)).left(px(-5.)).right(px(-5.)).rounded(px(ui::RADIUS_MD + 4.)).border(px(3.)).border_color(palette::accent_soft(cx));
+    let ring = div().absolute().top(px(-5.)).bottom(px(-5.)).left(px(-5.)).right(px(-5.)).squircle(ui::RADIUS_MD + 4.).border(px(3.)).border_color(palette::accent_soft(cx));
     if cx.reduce_motion() {
         return ring.into_any_element();
     }
@@ -2144,8 +2162,8 @@ fn mini_window(m: &Mini) -> Div {
         .flex_col()
         .items_center()
         .gap(px(4.))
-        .child(div().w(relative(0.6)).h(px(14.)).rounded(px(4.)).bg(palette::accent()))
-        .child(div().w(relative(0.6)).h(px(14.)).rounded(px(4.)).bg(rgb(m.faint)));
+        .child(div().w(relative(0.6)).h(px(14.)).squircle(4.).bg(palette::accent()))
+        .child(div().w(relative(0.6)).h(px(14.)).squircle(4.).bg(rgb(m.faint)));
     let side = div().w(relative(0.28)).h_full().bg(rgb(m.side)).py(px(8.)).px(px(6.)).flex().flex_col().gap(px(5.)).child(bar(m.faint, 1.)).child(bar(m.ink, 0.8)).child(bar(m.faint, 0.6)).child(bar(m.faint, 1.));
     let content = div()
         .flex_1()
@@ -2160,14 +2178,15 @@ fn mini_window(m: &Mini) -> Div {
         .child(bar(m.faint, 0.85))
         .child(bar(m.ink, 0.4))
         .child(bar(m.faint, 0.85))
-        .child(div().mt(px(4.)).h(px(12.)).w_full().rounded(px(4.)).bg(rgb(m.faint)));
-    div().w_full().h(px(MINI_HEIGHT)).rounded(px(ui::RADIUS_MD)).bg(rgb(m.page)).flex().child(rail).child(side).child(content)
+        .child(div().mt(px(4.)).h(px(12.)).w_full().squircle(4.).bg(rgb(m.faint)));
+    div().w_full().h(px(MINI_HEIGHT)).squircle(ui::RADIUS_MD).bg(rgb(m.page)).flex().child(rail).child(side).child(content)
 }
 
 const MINI_HEIGHT: f32 = 130.;
 
 // Sync with OS: the light window on the left half, the dark one on the right.
-// GAP: the design splits the two along the diagonal (clip-path); gpui clips only to rectangles.
+// GAP: the design splits the two along the diagonal (clip-path). gpui clips only to rectangles, and a
+// clip inside a rotated element is its axis-aligned box, so rotation can't cut the diagonal either.
 fn mini_sync() -> AnyElement {
     let half = |left: bool, m: &Mini| {
         div()
