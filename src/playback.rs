@@ -36,6 +36,7 @@ pub struct Picture {
 impl Playback {
     // Blocking (parses the clip and opens the audio device): call off the UI thread.
     pub fn open(bytes: Arc<[u8]>) -> Result<Self, String> {
+        let bytes = crate::h264::modernize_audio_entries(&bytes).map(Arc::from).unwrap_or(bytes);
         let duration = Track::open(bytes.clone())?.duration();
         let audio = Audio::open(&bytes);
         Ok(Self { frames: decode_from(bytes.clone(), Duration::ZERO), bytes, duration, next: None, sought: true, audio, clock: Clock::default() })

@@ -206,9 +206,12 @@ impl Rustcord {
             None if self.channel.is_none() => (Icon::new(Glyph::Friends).size(px(16.)).text_color(theme.muted_foreground).into_any_element(), "Friends".into()),
             None => (Icon::new(Glyph::ChatRound).size(px(16.)).text_color(theme.muted_foreground).into_any_element(), "Direct Messages".into()),
         };
+        // Each control occludes the title bar's drag area: on Windows a drag area is the native
+        // caption, which takes the click before the app sees it.
         let arrow = |id: &'static str, glyph: Glyph, enabled: bool, label: &'static str| {
             div()
                 .id(id)
+                .occlude()
                 .size(px(26.))
                 .rounded(px(6.))
                 .flex()

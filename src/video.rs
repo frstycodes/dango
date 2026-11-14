@@ -452,7 +452,8 @@ impl Render for VideoPlayer {
             cx,
         );
         let painted = self.unpainted_since.clone();
-        let center = center.render(|f| div().absolute().inset_0().child(f.apply(div().size_full().flex().items_center().justify_center().child(self.center_button(window, cx)))));
+        // The centring lives on the full-size layer: the motion wrapper doesn't take the layer's size.
+        let center = center.render(|f| div().absolute().inset_0().flex().items_center().justify_center().child(f.apply(div().child(self.center_button(window, cx)))));
         let failed = match &self.stage {
             Stage::Failed(error) => Some(error.clone()),
             _ => None,
@@ -511,7 +512,8 @@ impl VideoPlayer {
                 true => loading_dots(),
                 false => Icon::new(Glyph::Play).size(px(side / 2.)).into_any_element(),
             });
-        self.control(Control::Center, "Play", div().size(px(CENTER)).flex().items_center().justify_center().child(face), |this, _, cx| this.toggle(cx), cx)
+        let ended = matches!(&self.stage, Stage::Ready(p) if !p.is_playing() && p.is_ended());
+        self.control(Control::Center, if ended { "Play Again" } else { "Play" }, div().size(px(CENTER)).flex().items_center().justify_center().child(face), |this, _, cx| this.toggle(cx), cx)
     }
 
     // Discord's bar on a gradient: play/pause, then time and scrubber, then volume and fullscreen.

@@ -48,10 +48,12 @@ impl Rustcord {
             .gap_2()
             .border_b_1()
             .border_color(theme.sidebar_border)
+            // Drag area: every control inside it occludes it, or Windows' caption takes its clicks.
             .window_control_area(WindowControlArea::Drag)
             .children(self.thread_parent(&channel).map(|parent| {
                 div()
                     .id("thread-parent")
+                    .occlude()
                     .flex()
                     .items_center()
                     .gap_2()
@@ -68,7 +70,8 @@ impl Rustcord {
                 ChannelKind::Thread => Glyph::Thread,
                 _ => Glyph::Hashtag,
             }).text_color(theme.muted_foreground))
-            .child(div().flex_none().font_weight(FontWeight::MEDIUM).text_color(crate::palette::strong(cx)).child(channel.name.clone()))
+            // Thread names are often whole sentences: the name truncates rather than pushing the header wide.
+            .child(div().min_w_0().max_w(px(480.)).truncate().font_weight(FontWeight::MEDIUM).text_color(crate::palette::strong(cx)).child(channel.name.clone()))
             .children(channel.topic.clone().map(|topic| {
                 div()
                     .flex_1()
@@ -85,6 +88,7 @@ impl Rustcord {
                 h.child(
                     div()
                         .id("threads-button")
+                        .occlude()
                         .size(px(32.))
                         .flex_none()
                         .rounded(px(8.))
@@ -102,6 +106,7 @@ impl Rustcord {
             .child(
                 div()
                     .id("pins-button")
+                    .occlude()
                     .size(px(32.))
                     .flex_none()
                     .rounded(px(8.))
@@ -119,6 +124,7 @@ impl Rustcord {
                 h.child(
                     div()
                         .id("members-toggle")
+                        .occlude()
                         .size(px(32.))
                         .flex_none()
                         .rounded(px(8.))
@@ -139,6 +145,7 @@ impl Rustcord {
                     div()
                         .w(px(240.))
                         .flex_none()
+                        .occlude()
                         .h(px(32.))
                         .pl_1()
                         .pr_2()
@@ -501,27 +508,31 @@ impl Rustcord {
             .flex_col()
             .capture_key_down(cx.listener(Self::on_composer_key))
             .children(self.autocomplete_popup(cx))
+            // A small pill floating above the box, out of the flow, so it never opens a gap.
             .children(self.scrolled_up.then(|| {
                 div()
-                    .id("jump-to-present")
-                    .h(px(32.))
-                    .mb_1()
-                    .px_3()
-                    .rounded(px(8.))
+                    .absolute()
+                    .left_0()
+                    .right_0()
+                    .top(px(-40.))
                     .flex()
-                    .items_center()
-                    .cursor_pointer()
-                    .bg(theme.muted)
-                    .border_1()
-                    .border_color(theme.input)
-                    .text_size(px(13.))
-                    .child(div().flex_1().text_color(theme.muted_foreground).child("You're viewing older messages"))
-                    .child(div().font_weight(FontWeight::SEMIBOLD).text_color(theme.foreground).child("Jump To Present"))
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.list.scroll_to_end();
-                        this.scrolled_up = false;
-                        cx.notify();
-                    }))
+                    .justify_center()
+                    .child(
+                        crate::ui::button("jump-to-present", crate::ui::Tone::Primary, cx)
+                            .h(px(28.))
+                            .px_3()
+                            .rounded_full()
+                            .shadow_lg()
+                            .text_size(px(13.))
+                            .child(Icon::new(Glyph::ChevronDown).size(px(16.)))
+                            .child("Jump to Present")
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.list.scroll_to_end();
+                                this.scrolled_up = false;
+                                cx.notify();
+                            })),
+                    )
+                    .with_animation("jump-to-present-in", gpui_kit::Animation::new(std::time::Duration::from_millis(200)), |d, t| d.opacity(t.min(1.)).mt(px((1. - crate::motion::back_out(t)) * 8.)))
             }))
             .child(status_row)
             .children(context_bar)
@@ -806,6 +817,8 @@ fn content(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &App) -> Option
     Some(
         div()
             .id(SharedString::from(format!("content-{}", message.id)))
+            .w_full()
+            .min_w_0()
             .flex()
             .flex_col()
             .when(has_spoiler && !revealed, |c| {
@@ -820,7 +833,8 @@ fn content(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &App) -> Option
                     .flex_wrap()
                     .items_end()
                     .gap_1()
-                    .when(!body.trim().is_empty(), |c| c.child(view))
+                    // Capped at the row's width so long lines wrap instead of running off the side.
+                    .when(!body.trim().is_empty(), |c| c.child(div().min_w_0().max_w_full().child(view)))
                     .when(message.edited, |c| c.child(div().text_size(px(10.)).text_color(cx.theme().muted_foreground).child("(edited)"))),
             )
             .children(subtext.into_iter().map(|line| div().text_size(px(12.)).text_color(cx.theme().muted_foreground).child(line)))
