@@ -131,6 +131,8 @@ pub struct Guild {
     pub voice_states: Vec<VoiceState>,
     pub emojis: Vec<Emoji>,
     pub owner_id: Option<String>,
+    // The server's own notification default (0 all messages, 1 only mentions), used until we pick one.
+    pub default_notifications: u8,
     // Active threads we know of (joined ones come in READY; more arrive as they're used).
     pub threads: Vec<Channel>,
     // Our own roles here, for working out what moderation we may do.
@@ -273,6 +275,9 @@ pub struct Channel {
     // A 1:1 DM's other person, for their avatar and status dot.
     pub recipient: Option<User>,
     pub thread: Option<ThreadMeta>,
+    // Discord's own channel type number (0 text, 2 voice, 5 announcement, 15 forum, …).
+    #[serde(default)]
+    pub raw_type: u8,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -296,6 +301,9 @@ pub struct ThreadMeta {
     pub joined: bool,
     pub message_count: u32,
     pub owner_id: Option<String>,
+    // Our thread-member settings: muted, and the notification flags (2 all, 4 mentions, 8 nothing).
+    pub muted: bool,
+    pub flags: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -514,6 +522,10 @@ pub enum Event {
     // A channel or thread created or changed in a server.
     ChannelUpsert { guild_id: String, channel: Channel },
     ChannelDelete { guild_id: String, id: String },
+    // A member's roles, nickname or server avatar changed.
+    MemberUpdate { guild_id: String, user: User, roles: Vec<String> },
+    // A friend, block or request was added, changed or removed (`None` kind = removed).
+    RelationshipChange { user_id: String, relationship: Option<Relationship> },
     // Our membership of a thread changed (joined or left).
     ThreadJoined { id: String, joined: bool },
     GuildSettings((String, GuildSettings)),
@@ -930,6 +942,23 @@ fn dispatch(kind: &str, d: &Value) -> Option<Event> {
             parse_channel(d, &guild_id).map(|channel| Event::ChannelUpsert { guild_id, channel })
         }
         "CHANNEL_DELETE" | "THREAD_DELETE" => Some(Event::ChannelDelete { guild_id: d["guild_id"].as_str()?.to_owned(), id: d["id"].as_str()?.to_owned() }),
+        "GUILD_MEMBER_UPDATE" => Some(Event::MemberUpdate {
+            guild_id: d["guild_id"].as_str()?.to_owned(),
+            user: parse_member_user(d, &d["user"], d["guild_id"].as_str()),
+            roles: strings(&d["roles"]),
+        }),
+        "RELATIONSHIP_ADD" | "RELATIONSHIP_UPDATE" => {
+            let kind = match d["type"].as_u64()? {
+                1 => Relation::Friend,
+                2 => Relation::Blocked,
+                3 => Relation::Incoming,
+                4 => Relation::Outgoing,
+                _ => return None,
+            };
+            let user = if d["user"].is_object() { parse_user(&d["user"]) } else { User { id: d["id"].as_str()?.to_owned(), ..Default::default() } };
+            Some(Event::RelationshipChange { user_id: d["id"].as_str()?.to_owned(), relationship: Some(Relationship { user, kind }) })
+        }
+        "RELATIONSHIP_REMOVE" => Some(Event::RelationshipChange { user_id: d["id"].as_str()?.to_owned(), relationship: None }),
         "THREAD_MEMBER_UPDATE" => Some(Event::ThreadJoined { id: d["id"].as_str()?.to_owned(), joined: true }),
         "THREAD_LIST_SYNC" => {
             let guild_id = d["guild_id"].as_str()?.to_owned();
@@ -1066,6 +1095,7 @@ fn parse_guild(g: &Value) -> Option<Guild> {
         voice_states: g["voice_states"].as_array().into_iter().flatten().map(parse_voice_state).collect(),
         emojis: g["emojis"].as_array().into_iter().flatten().map(parse_emoji).collect(),
         owner_id: props["owner_id"].as_str().or(g["owner_id"].as_str()).map(str::to_owned),
+        default_notifications: props["default_message_notifications"].as_u64().or(g["default_message_notifications"].as_u64()).unwrap_or(0) as u8,
         threads: g["threads"].as_array().into_iter().flatten().filter_map(|t| parse_channel(t, id)).collect(),
         my_roles: Vec::new(),
     })
@@ -1097,6 +1127,8 @@ fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
         joined: c["member"].is_object(),
         message_count: c["message_count"].as_u64().unwrap_or(0) as u32,
         owner_id: c["owner_id"].as_str().map(str::to_owned),
+        muted: c["member"]["muted"].as_bool().unwrap_or(false),
+        flags: c["member"]["flags"].as_u64().unwrap_or(0),
     });
     let private = c["permission_overwrites"]
         .as_array()
@@ -1114,6 +1146,7 @@ fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
         private,
         recipient: None,
         thread,
+        raw_type: c["type"].as_u64().unwrap_or(0) as u8,
     })
 }
 
@@ -1140,6 +1173,7 @@ fn parse_dm(c: &Value, users: &Value) -> Option<Channel> {
         private: false,
         recipient: (recipients.len() == 1).then(|| recipients[0].clone()),
         thread: None,
+        raw_type: c["type"].as_u64().unwrap_or(1) as u8,
     })
 }
 

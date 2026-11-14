@@ -49,6 +49,11 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             chord.voice_user_menu("8388608", gpui_kit::point(gpui_kit::px(300.), gpui_kit::px(160.)), cx);
         }
         "server-menu" => chord.open_server_menu("1".into(), gpui_kit::point(gpui_kit::px(60.), gpui_kit::px(130.)), false, cx),
+        // Move to... is entry 13 (separators count); Folder is its first child.
+        "server-menu-nested" => {
+            chord.open_server_menu("1".into(), gpui_kit::point(gpui_kit::px(60.), gpui_kit::px(130.)), false, cx);
+            chord.open_submenus(vec![13, 0]);
+        }
         "channel-menu" => {
             let general = chord.guild().and_then(|g| g.channels.iter().find(|c| c.id == "general").cloned());
             if let Some(channel) = general {
@@ -135,6 +140,7 @@ fn channel(id: &str, name: &str, kind: ChannelKind, parent: Option<&str>) -> Cha
         private: false,
         recipient: None,
         thread: None,
+        raw_type: 0,
     }
 }
 
@@ -159,6 +165,7 @@ fn ready(me: User) -> Ready {
         roles: roles.clone(),
         voice_states,
         threads: Vec::new(),
+        default_notifications: 1,
         owner_id: Some("4194304".into()),
         my_roles: Vec::new(),
         emojis: Vec::new(),

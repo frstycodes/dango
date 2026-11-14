@@ -22,8 +22,19 @@ const VOICE: u64 = 2;
 const CATEGORY: u64 = 4;
 
 impl Rustcord {
-    fn settings_for(&self, guild_key: &str) -> GuildSettings {
-        self.guild_settings.get(guild_key).cloned().unwrap_or_default()
+    // Our settings for a server, with "use the server's default" resolved to that default, as
+    // Discord shows it when we've never changed anything there.
+    pub(crate) fn settings_for(&self, guild_key: &str) -> GuildSettings {
+        let default = self.guilds.iter().find(|g| g.id == guild_key).map_or(0, |g| g.default_notifications);
+        match self.guild_settings.get(guild_key).cloned() {
+            Some(mut settings) => {
+                if settings.notifications == 3 {
+                    settings.notifications = default;
+                }
+                settings
+            }
+            None => GuildSettings { notifications: default, ..Default::default() },
+        }
     }
 
     fn can_guild(&self, guild_id: &str, bit: u64) -> bool {
@@ -93,11 +104,10 @@ impl Rustcord {
     }
 
     pub(crate) fn open_channel_menu(&mut self, channel: Channel, guild_id: String, at: Point<Pixels>, cx: &mut Context<Self>) {
-        let entries = match channel.kind {
-            ChannelKind::Category => self.category_menu(&channel, &guild_id),
-            _ => self.channel_menu(&channel, &guild_id),
-        };
-        self.open_menu(at, entries, cx);
+        self.open_live_menu(at, move |this| match channel.kind {
+            ChannelKind::Category => this.category_menu(&channel, &guild_id),
+            _ => this.channel_menu(&channel, &guild_id),
+        }, cx);
     }
 
     fn channel_menu(&self, channel: &Channel, guild_id: &str) -> Vec<Entry> {
@@ -160,7 +170,7 @@ impl Rustcord {
             out.push(item("Edit Channel", move |this, window, cx| this.rename_channel(ch.clone(), window, cx)).entry());
             let (gid2, ch2) = (gid.clone(), channel.clone());
             out.push(item("Duplicate Channel", move |this, _, cx| {
-                let body = json!({ "name": ch2.name, "type": if ch2.kind == ChannelKind::Voice { VOICE } else { TEXT }, "parent_id": ch2.parent_id, "topic": ch2.topic });
+                let body = json!({ "name": ch2.name, "type": ch2.raw_type, "parent_id": ch2.parent_id, "topic": ch2.topic });
                 this.rest(Method::POST, format!("/guilds/{gid2}/channels"), Some(body), |_, _| {}, cx);
             })
             .entry());
@@ -316,8 +326,7 @@ impl Rustcord {
     }
 
     pub(crate) fn open_server_menu(&mut self, guild_id: String, at: Point<Pixels>, dropdown: bool, cx: &mut Context<Self>) {
-        let entries = self.server_menu(&guild_id, dropdown);
-        self.open_menu(at, entries, cx);
+        self.open_live_menu(at, move |this| this.server_menu(&guild_id, dropdown), cx);
     }
 
     // The server icon's menu, or (with `dropdown`) the server name dropdown, which orders the same
@@ -328,7 +337,8 @@ impl Rustcord {
         let settings = self.settings_for(guild_id);
         let owner = guild.owner_id.as_deref() == Some(me.id.as_str());
         let manage_channels = guild.can(&me.id, perm::MANAGE_CHANNELS);
-        let invite_channel = guild.channels.iter().find(|c| c.kind == ChannelKind::Text).map(|c| c.id.clone());
+        // A channel everyone can see, as Discord's default invite channel is.
+        let invite_channel = guild.channels.iter().find(|c| c.kind == ChannelKind::Text && !c.private).map(|c| c.id.clone());
         let mut out = Vec::new();
 
         if !dropdown {
@@ -449,7 +459,12 @@ impl Rustcord {
     }
 
     pub(crate) fn open_folder_menu(&mut self, folder_id: String, at: Point<Pixels>, cx: &mut Context<Self>) {
-        let Some(folder) = self.folders.iter().find(|f| f.id == folder_id).cloned() else { return };
+        self.open_live_menu(at, move |this| this.folder_menu(&folder_id), cx);
+    }
+
+    fn folder_menu(&self, folder_id: &str) -> Vec<Entry> {
+        let folder_id = folder_id.to_owned();
+        let Some(folder) = self.folders.iter().find(|f| f.id == folder_id).cloned() else { return Vec::new() };
         let mut entries = Vec::new();
         let unread = folder.guild_ids.iter().any(|g| self.guilds.iter().find(|x| &x.id == g).is_some_and(|x| x.channels.iter().any(|c| self.unread(&c.id))));
         let ids = folder.guild_ids.clone();
@@ -494,7 +509,7 @@ impl Rustcord {
             })
             .entry());
         }
-        self.open_menu(at, entries, cx);
+        entries
     }
 
     // ponytail: Discord's Folder Settings also picks a colour; this renames only.
@@ -516,6 +531,15 @@ impl Rustcord {
     // Discord's thread menu (navId "thread-context"): read state, join, close, lock, mute and
     // notifications for the thread, delete, leave, and its ID.
     pub(crate) fn open_thread_menu(&mut self, thread: Channel, guild_id: String, at: Point<Pixels>, cx: &mut Context<Self>) {
+        // The thread as it is now (joined, archived, locked change while the menu is open).
+        self.open_live_menu(at, move |this| {
+            let current = this.guilds.iter().flat_map(|g| g.threads.iter()).find(|t| t.id == thread.id).cloned().unwrap_or_else(|| thread.clone());
+            this.thread_menu(&current, &guild_id)
+        }, cx);
+    }
+
+    fn thread_menu(&self, thread: &Channel, guild_id: &str) -> Vec<Entry> {
+        let (thread, guild_id) = (thread.clone(), guild_id.to_owned());
         let meta = thread.thread.clone().unwrap_or_default();
         let me = self.me.as_ref().map(|m| m.id.clone()).unwrap_or_default();
         let manage = self.can_guild(&guild_id, perm::MANAGE_THREADS);
@@ -550,14 +574,17 @@ impl Rustcord {
         match meta.joined {
             true => {
                 let id = thread.id.clone();
-                out.push(self.mute_entry("Mute Thread", "Unmute Thread", false, None, move |this, body, cx| {
+                out.push(self.mute_entry("Mute Thread", "Unmute Thread", meta.muted, None, move |this, body, cx| {
                     this.rest(Method::PATCH, format!("/channels/{id}/thread-members/@me/settings"), Some(body), |_, _| {}, cx);
                 }));
-                let rows: Vec<Entry> = [("All Messages", 2), ("Only @mentions", 4), ("Nothing", 8)]
+                // The level is one of three flag bits; the member's other flag bits are kept.
+                let rows: Vec<Entry> = [("All Messages", 2u64), ("Only @mentions", 4), ("Nothing", 8)]
                     .into_iter()
                     .map(|(label, flag)| {
-                        let id = thread.id.clone();
-                        item(label, move |this, _, cx| this.rest(Method::PATCH, format!("/channels/{id}/thread-members/@me/settings"), Some(json!({ "flags": flag })), |_, _| {}, cx)).entry()
+                        let (id, flags) = (thread.id.clone(), (meta.flags & !0b1110) | flag);
+                        item(label, move |this, _, cx| this.rest(Method::PATCH, format!("/channels/{id}/thread-members/@me/settings"), Some(json!({ "flags": flags })), |_, _| {}, cx))
+                            .checked(meta.flags & flag != 0)
+                            .entry()
                     })
                     .collect();
                 out.push(submenu("Notification Settings", rows).entry());
@@ -586,7 +613,7 @@ impl Rustcord {
             let id = thread.id.clone();
             out.push(item("Copy Thread ID", move |this, _, cx| this.copy_text(id.clone(), cx)).icon(Glyph::Id).entry());
         }
-        self.open_menu(at, out, cx);
+        out
     }
 
     // The header's Threads button: the channel's active threads, each opening on click.

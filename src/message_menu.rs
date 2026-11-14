@@ -16,8 +16,7 @@ pub const QUICK_PAD: [&str; 12] = ["👍", "❤️", "😂", "💯", "😆", "�
 
 impl Rustcord {
     pub(crate) fn open_message_menu(&mut self, message: Message, at: Point<Pixels>, cx: &mut Context<Self>) {
-        let entries = self.message_menu(&message);
-        self.open_menu(at, entries, cx);
+        self.open_live_menu(at, move |this| this.message_menu(&message), cx);
     }
 
     // In a server, whether we may moderate messages here (server-wide permission; channel overwrites aside).
@@ -159,7 +158,13 @@ impl Rustcord {
 // Discord's "Speak Message", through the system voice.
 fn speak(text: &str) {
     let text = text.to_owned();
+    // Through stdin, so text starting with "-" can't be read as `say` options.
     std::thread::spawn(move || {
-        let _ = std::process::Command::new("say").arg(text).status();
+        use std::io::Write;
+        let Ok(mut child) = std::process::Command::new("say").stdin(std::process::Stdio::piped()).spawn() else { return };
+        if let Some(mut stdin) = child.stdin.take() {
+            let _ = stdin.write_all(text.as_bytes());
+        }
+        let _ = child.wait();
     });
 }

@@ -34,16 +34,24 @@ impl Rustcord {
             return Notify::None;
         }
         let key = message.guild_id.clone().unwrap_or_else(|| "@me".into());
-        let settings = self.guild_settings.get(&key).cloned().unwrap_or_default();
-        let channel = self.guilds.iter().flat_map(|g| g.channels.iter()).find(|c| c.id == message.channel_id);
-        let parent = channel.and_then(|c| c.parent_id.clone());
-        let muted = settings.is_muted() || settings.channel_muted(&message.channel_id) || parent.as_ref().is_some_and(|p| settings.channel_muted(p));
+        let settings = self.settings_for(&key);
+        // A thread takes its channel's mute and level; the channel its category's.
+        let all = || self.guilds.iter().flat_map(|g| g.channels.iter().chain(g.threads.iter()));
+        let mut channel_id = message.channel_id.clone();
+        if let Some(parent) = all().find(|c| c.id == channel_id && c.kind == crate::discord::ChannelKind::Thread).and_then(|t| t.parent_id.clone()) {
+            channel_id = parent;
+        }
+        let parent = all().find(|c| c.id == channel_id).and_then(|c| c.parent_id.clone());
+        let muted = settings.is_muted()
+            || settings.channel_muted(&message.channel_id)
+            || settings.channel_muted(&channel_id)
+            || parent.as_ref().is_some_and(|p| settings.channel_muted(p));
         let direct = message.mentions.iter().any(|u| u.id == me.id);
         let everyone = message.mention_everyone && !settings.suppress_everyone;
         let role = !settings.suppress_roles && self.mentions_role(message);
         let mentioned = direct || everyone || role;
         // 3 means "inherit": channel → category → server.
-        let channel_level = settings.channels.get(&message.channel_id).map(|c| c.notifications).filter(|l| *l != 3);
+        let channel_level = settings.channels.get(&channel_id).map(|c| c.notifications).filter(|l| *l != 3);
         let category_level = parent.as_ref().and_then(|p| settings.channels.get(p)).map(|c| c.notifications).filter(|l| *l != 3);
         let level = channel_level.or(category_level).unwrap_or(settings.notifications);
         decide(message.guild_id.is_none(), level, mentioned, muted)

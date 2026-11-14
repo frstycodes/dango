@@ -30,12 +30,15 @@ const TIMEOUTS: [(&str, i64); 6] = [("60 Seconds", 60), ("5 Minutes", 300), ("10
 
 impl Rustcord {
     pub(crate) fn open_user_menu(&mut self, user: User, guild_id: Option<String>, surface: Surface, at: Point<Pixels>, cx: &mut Context<Self>) {
-        let entries = self.user_menu(&user, guild_id.as_deref(), surface, at);
-        self.open_menu(at, entries, cx);
+        self.open_live_menu(at, move |this| this.user_menu(&user, guild_id.as_deref(), surface, at), cx);
     }
 
     // Discord's DM row menu: read state, the DM user's items, then Close DM and the channel's ID.
     pub(crate) fn open_dm_menu(&mut self, channel: crate::discord::Channel, at: Point<Pixels>, cx: &mut Context<Self>) {
+        self.open_live_menu(at, move |this| this.dm_menu(&channel, at), cx);
+    }
+
+    fn dm_menu(&self, channel: &crate::discord::Channel, at: Point<Pixels>) -> Vec<Entry> {
         let mut entries = Vec::new();
         let unread = self.unread(&channel.id);
         let id = channel.id.clone();
@@ -56,7 +59,7 @@ impl Rustcord {
             let cid = channel.id.clone();
             entries.push(item("Copy Channel ID", move |this, _, cx| this.copy_text(cid.clone(), cx)).icon(Glyph::Id).entry());
         }
-        self.open_menu(at, entries, cx);
+        entries
     }
 
     // Closes a DM (Discord's DELETE on the channel only hides it from the list for us).
@@ -77,7 +80,7 @@ impl Rustcord {
     }
 
     fn relation(&self, user_id: &str) -> Option<Relation> {
-        self.relationships.iter().find(|r| r.user.id == user_id).map(|r| r.kind.clone())
+        self.relationships.iter().find(|r| r.user.id == user_id).map(|r| r.kind)
     }
 
     // Discord's canManageUser: the permission, and my highest role above theirs (or I own the server).
@@ -360,8 +363,7 @@ impl Rustcord {
 
     // `user_id` is "@me" for our own nickname, as Discord's API spells it.
     fn edit_nickname(&mut self, guild_id: String, user_id: String, current: String, window: &mut Window, cx: &mut Context<Self>) {
-        let title = if user_id == "@me" { "Change Nickname" } else { "Change Nickname" };
-        self.prompt(title, "Everyone in this server sees this name.", &current, "Save", move |this, nick, _, cx| {
+        self.prompt("Change Nickname", "Everyone in this server sees this name.", &current, "Save", move |this, nick, _, cx| {
             let nick = (!nick.trim().is_empty()).then(|| nick.trim().to_owned());
             this.rest(Method::PATCH, format!("/guilds/{guild_id}/members/{user_id}"), Some(json!({ "nick": nick })), |_, _| {}, cx);
         }, window, cx);
@@ -400,7 +402,7 @@ impl Rustcord {
     // Discord's "Invite to Server": a single-use invite to that server, sent to their DMs.
     fn invite_to_server(&mut self, guild_id: String, user_id: String, _: &mut Window, cx: &mut Context<Self>) {
         let Some(client) = self.client.clone() else { return };
-        let Some(channel) = self.guilds.iter().find(|g| g.id == guild_id).and_then(|g| g.channels.iter().find(|c| c.kind == ChannelKind::Text).map(|c| c.id.clone())) else { return };
+        let Some(channel) = self.guilds.iter().find(|g| g.id == guild_id).and_then(|g| g.channels.iter().find(|c| c.kind == ChannelKind::Text && !c.private).map(|c| c.id.clone())) else { return };
         cx.spawn(async move |this, cx| {
             let result = async {
                 let invite = client.call(Method::POST, format!("/channels/{channel}/invites"), Some(json!({ "max_uses": 1, "unique": true }))).await?;

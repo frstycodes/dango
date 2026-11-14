@@ -17,6 +17,8 @@ impl Asset for Gif {
     type Source = String;
     type Output = Option<Arc<RenderImage>>;
 
+    // Not `async fn`: the future must not borrow the `App` it's given.
+    #[allow(clippy::manual_async_fn)]
     fn load(url: String, _: &mut App) -> impl Future<Output = Self::Output> + Send + 'static {
         async move {
             let bytes = crate::discord::runtime()
