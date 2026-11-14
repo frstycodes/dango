@@ -988,7 +988,7 @@ impl Rustcord {
                     })
             })
             .child(div().flex_1())
-            .when(several, |b| b.child(ui::segmented().w(px(220.)).child(segment("layout-focus", "Focus", StreamLayout::Focus)).child(segment("layout-split", "Side by Side", StreamLayout::Split))))
+            .when(several, |b| b.child(ui::segmented(cx).w(px(220.)).child(segment("layout-focus", "Focus", StreamLayout::Focus)).child(segment("layout-split", "Side by Side", StreamLayout::Split))))
             .child(ui::button("stop-watching", Tone::OnMedia, cx).child(if several { "Stop All" } else { "Stop Watching" }).on_click(cx.listener(|this, _, _, cx| this.stop_watching(cx))))
             .into_any_element()
     }
