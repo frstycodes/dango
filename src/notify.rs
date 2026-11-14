@@ -1,0 +1,116 @@
+// Desktop notifications and the Dock badge, following Discord's rules: nothing on Do Not Disturb or
+// for the channel you're looking at; DMs notify unless muted; in servers the channel's level wins
+// over the server's, muted channels and servers notify only on mentions, and suppressed
+// @everyone / role mentions don't count.
+use crate::{
+    Rustcord,
+    discord::{Message, Status},
+};
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Notify {
+    None,
+    Message,
+    Mention,
+}
+
+// `level`: 0 all messages, 1 only mentions, 2 nothing (already resolved from channel/category/server).
+fn decide(dm: bool, level: u8, mentioned: bool, muted: bool) -> Notify {
+    if dm {
+        return if muted { Notify::None } else { Notify::Message };
+    }
+    match (level, mentioned, muted) {
+        (2, _, _) => Notify::None,
+        (_, true, _) => Notify::Mention,
+        (0, false, false) => Notify::Message,
+        _ => Notify::None,
+    }
+}
+
+impl Rustcord {
+    pub(crate) fn notify_kind(&self, message: &Message, focused_here: bool) -> Notify {
+        let Some(me) = &self.me else { return Notify::None };
+        if message.author.id == me.id || focused_here || self.my_status == Status::Dnd {
+            return Notify::None;
+        }
+        let key = message.guild_id.clone().unwrap_or_else(|| "@me".into());
+        let settings = self.guild_settings.get(&key).cloned().unwrap_or_default();
+        let channel = self.guilds.iter().flat_map(|g| g.channels.iter()).find(|c| c.id == message.channel_id);
+        let parent = channel.and_then(|c| c.parent_id.clone());
+        let muted = settings.is_muted() || settings.channel_muted(&message.channel_id) || parent.as_ref().is_some_and(|p| settings.channel_muted(p));
+        let direct = message.mentions.iter().any(|u| u.id == me.id);
+        let everyone = message.mention_everyone && !settings.suppress_everyone;
+        let role = !settings.suppress_roles && self.mentions_role(message);
+        let mentioned = direct || everyone || role;
+        // 3 means "inherit": channel → category → server.
+        let channel_level = settings.channels.get(&message.channel_id).map(|c| c.notifications).filter(|l| *l != 3);
+        let category_level = parent.as_ref().and_then(|p| settings.channels.get(p)).map(|c| c.notifications).filter(|l| *l != 3);
+        let level = channel_level.or(category_level).unwrap_or(settings.notifications);
+        decide(message.guild_id.is_none(), level, mentioned, muted)
+    }
+
+    pub(crate) fn notify(&self, message: &Message) {
+        let place = match &message.guild_id {
+            None => message.author.name.clone(),
+            Some(guild_id) => {
+                let guild = self.guilds.iter().find(|g| &g.id == guild_id);
+                let channel = guild.and_then(|g| g.channels.iter().find(|c| c.id == message.channel_id)).map(|c| c.name.clone()).unwrap_or_default();
+                format!("{} (#{channel}, {})", message.author.name, guild.map(|g| g.name.as_str()).unwrap_or_default())
+            }
+        };
+        let body = if message.content.is_empty() { "Sent an attachment".to_owned() } else { message.content.clone() };
+        // Not verified: how macOS attributes notifications from an unbundled binary (a .app bundle
+        // shows its own name and icon).
+        std::thread::spawn(move || {
+            let _ = notify_rust::Notification::new().summary(&place).body(&body).show();
+        });
+    }
+
+    // Discord's Dock badge: the number of unread mentions and DMs, or nothing.
+    pub(crate) fn update_badge(&self) {
+        let total: u32 = self.read_states.values().map(|r| r.mentions).sum();
+        set_badge(if total == 0 { None } else { Some(total) });
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn set_badge(count: Option<u32>) {
+    use objc2::{
+        msg_send,
+        runtime::{AnyClass, AnyObject},
+    };
+    let label = count.map(|n| if n > 99 { "99+".to_owned() } else { n.to_string() }).unwrap_or_default();
+    // SAFETY: plain AppKit messages on the main thread; nil checks below.
+    unsafe {
+        let (Some(app_class), Some(string_class)) = (AnyClass::get(c"NSApplication"), AnyClass::get(c"NSString")) else { return };
+        let app: *mut AnyObject = msg_send![app_class, sharedApplication];
+        if app.is_null() {
+            return;
+        }
+        let tile: *mut AnyObject = msg_send![app, dockTile];
+        let text = std::ffi::CString::new(label).unwrap_or_default();
+        let ns: *mut AnyObject = msg_send![string_class, stringWithUTF8String: text.as_ptr()];
+        let _: () = msg_send![tile, setBadgeLabel: ns];
+    }
+}
+
+// ponytail: the taskbar overlay badge on Windows (ITaskbarList3) is the upgrade.
+#[cfg(not(target_os = "macos"))]
+fn set_badge(_: Option<u32>) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn follows_discord_levels() {
+        assert_eq!(decide(true, 1, false, false), Notify::Message);
+        assert_eq!(decide(true, 0, false, true), Notify::None);
+        assert_eq!(decide(false, 0, false, false), Notify::Message);
+        assert_eq!(decide(false, 0, false, true), Notify::None, "muted servers stay quiet");
+        assert_eq!(decide(false, 0, true, true), Notify::Mention, "but mentions still come through");
+        assert_eq!(decide(false, 1, false, false), Notify::None);
+        assert_eq!(decide(false, 1, true, false), Notify::Mention);
+        assert_eq!(decide(false, 2, true, false), Notify::None, "Nothing means nothing");
+    }
+}

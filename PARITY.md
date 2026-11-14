@@ -42,7 +42,7 @@ Order: features first (most used at the top), then polish. `[x]` done, `[~]` par
 - [ ] Threads: thread chips under messages, threads list, thread view in a split pane
 - [ ] Forum channels (post list)
 - [x] Friends page (Online, All, Pending) as the Direct Messages home
-- [ ] System notifications for DMs and mentions, plus a Dock badge
+- [x] System notifications for DMs and mentions (Discord's rules: DND, muted servers and channels, notification levels, suppressed @everyone and roles), plus a Dock badge (macOS; Windows taskbar badge open)
 - [x] Server dropdown (header chevron): mark as read, notification settings, leave server
 - [ ] Notification bell in the channel header: per-channel notification level
 - [x] Mark channel read with Esc; Alt+↑/↓ to move between channels
@@ -108,7 +108,14 @@ Tokens: `docs/discord-tokens.json` (Discord web, Midnight, read 2026-11-14).
 - [x] Owner crown in the member list (--text-feedback-warning, 14px)
 - [x] Stream previews: thumbnails on call tiles and a hover card on LIVE voice rows (GET /streams/{key}/preview, refreshed each minute)
 - [x] A message that is only a GIF or image link shows just the embed
-- [ ] Right-click menus: rebuilding every menu from Discord's own menu code (items, order, conditions)
+- [x] Right-click menus rebuilt from Discord's own menu code: user (server, voice, DM, friends), message, channel, voice channel, category, server icon, folder, server dropdown
+- [ ] Menu items for features not built yet: Forward, Create Thread, Translate, Bookmarks/Reminders, Apps, Report, Favorites, Activities, Mod View, Server Settings, Create Event
+- [ ] Edit Channel and Folder Settings: Discord opens full settings screens; ours rename only
+- [x] GIFs play inline (MP4 decoded with OpenH264; clips with B-frames play at true speed with fewer frames)
+- [x] Embeds: markdown descriptions and fields, author icon, footer icon and timestamp, Discord's card styling
+- [ ] Mention pills: Discord draws mentions as tinted pills; ours are coloured links (gpui-component markdown can't give links a background)
+- [x] Call view: Discord's tile order, overlay name pills, stream tiles with dimmed preview, 112px strip when watching
+- [x] Muted channels dim, Hide Muted Channels, Hide Names; muted servers keep mention badges only
 - [ ] Call view tiles: Discord tints each tile with the user's banner colour; ours are neutral
 - [ ] Settings search only filters page names; Discord searches every setting
 

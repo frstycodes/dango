@@ -17,6 +17,7 @@ mod menu;
 mod message_menu;
 mod motion;
 mod palette;
+mod notify;
 mod panel;
 mod rail_drag;
 mod sidebar;
@@ -297,6 +298,8 @@ pub struct Rustcord {
     hidden_voice_names: HashSet<String>,
     // Shift held: Discord's hover bar shows Delete instead of More.
     shift_held: bool,
+    // The window is in front; notifications for the open channel are skipped then.
+    window_active: bool,
     dialog: Option<menu::Dialog>,
     dialog_input: Entity<SearchState>,
     // A short notice at the bottom, e.g. why a moderation action failed.
@@ -366,6 +369,11 @@ impl Rustcord {
         let search_input = cx.new(|cx| SearchState::new(window, cx).placeholder("Search"));
         cx.subscribe_in(&search_input, window, Self::on_search_input).detach();
         cx.observe_window_appearance(window, |_, window, cx| palette::sync(window, cx)).detach();
+        cx.observe_window_activation(window, |this: &mut Self, window, cx| {
+            this.window_active = window.is_window_active();
+            cx.notify();
+        })
+        .detach();
         // Typing filters the picker and switcher; the views read the inputs' text on render.
         let emoji_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Find the perfect emoji"));
         cx.subscribe_in(&emoji_search, window, Self::on_emoji_search).detach();
@@ -432,6 +440,7 @@ impl Rustcord {
             ring_on_connect: None,
             hidden_voice_names: HashSet::new(),
             shift_held: false,
+            window_active: true,
             dialog: None,
             dialog_input,
             toast: None,
@@ -658,6 +667,7 @@ impl Rustcord {
         }
         self.resolve_voice_users();
         self.refresh_stream_previews(cx);
+        self.update_badge();
         cx.notify();
     }
 
@@ -703,9 +713,12 @@ impl Rustcord {
         let is_dm = self.dms.iter().any(|d| d.id == channel_id);
         if !mine && !is_open && (self.mentions_me(&message) || is_dm) {
             self.read_states.entry(channel_id.clone()).or_default().mentions += 1;
-            // Discord stays quiet on Do Not Disturb.
-            if self.my_status != discord::Status::Dnd {
-                sounds::play(if is_dm { sounds::Cue::Message } else { sounds::Cue::Mention });
+        }
+        let kind = self.notify_kind(&message, is_open && self.window_active);
+        if kind != notify::Notify::None {
+            sounds::play(if is_dm { sounds::Cue::Message } else { sounds::Cue::Mention });
+            if !self.window_active || !is_open {
+                self.notify(&message);
             }
         }
         if let Some(pos) = self.dms.iter().position(|d| d.id == channel_id) {
@@ -1425,9 +1438,12 @@ impl Rustcord {
 
     fn mentions_me(&self, message: &Message) -> bool {
         let Some(me) = &self.me else { return false };
-        if message.mention_everyone || message.mentions.iter().any(|u| u.id == me.id) {
-            return true;
-        }
+        message.mention_everyone || message.mentions.iter().any(|u| u.id == me.id) || self.mentions_role(message)
+    }
+
+    // Whether the message pings one of our roles in its server.
+    fn mentions_role(&self, message: &Message) -> bool {
+        let Some(me) = &self.me else { return false };
         let mine = message.guild_id.as_ref().and_then(|g| self.member_roles.get(g)).and_then(|r| r.get(&me.id));
         mine.is_some_and(|roles| message.mention_roles.iter().any(|r| roles.contains(r)))
     }
