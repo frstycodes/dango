@@ -840,7 +840,7 @@ impl From<BackdropBlur> for Primitive {
 
 /// The most downsample passes a backdrop blur takes. Past a blur radius of about 400 device
 /// pixels, blurs stop widening.
-pub const MAX_BACKDROP_BLUR_LEVELS: usize = 8;
+const MAX_BACKDROP_BLUR_LEVELS: usize = 8;
 
 /// Wider tap offsets reach further per pass but leave gaps that show as banding.
 const MAX_BACKDROP_BLUR_TAP_OFFSET: f32 = 2.0;
@@ -883,9 +883,10 @@ impl BackdropBlur {
     }
 }
 
-/// The fewest levels whose tap offset stays within [`MAX_BACKDROP_BLUR_TAP_OFFSET`], since every
-/// level quarters the cost of the next. Each level pair adds `4^level` times the variance of
-/// the first, so `level_count` levels add `(4^level_count - 1) / 3` times it.
+/// The fewest levels whose tap offset stays within [`MAX_BACKDROP_BLUR_TAP_OFFSET`]: each further
+/// level is coarser, so the result shifts more with where content sits on its grid. Level `k`
+/// adds `4^(k - 1)` times the variance of level 1, so `level_count` levels add
+/// `(4^level_count - 1) / 3` times it.
 fn backdrop_blur_levels(blur_radius: f32) -> (usize, f32) {
     if blur_radius <= 0. {
         return (0, 0.);
