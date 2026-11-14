@@ -225,6 +225,17 @@
 [aria-pressed="true"] > .when-off { display: none; }
 .msg.is-thread-parent { background: var(--selected); }
 
+/* Thread deleted while open: the panel stays and says so rather than closing under you. An unsent reply waits
+   here in a filled well, never dropped into the parent's composer over whatever is already there. */
+.panel-head.is-gone .panel-title, .panel-head.is-gone > i { color: var(--text-faint); }
+.panel .empty.pn-gone { flex: 1; align-content: center; }
+.pn-gone .icontile { margin-bottom: var(--space-2); }
+.pn-draft { display: grid; gap: var(--space-2); width: 100%; margin-top: var(--space-3); padding: 12px; border-radius: var(--radius-md); background: var(--bg-sidebar); text-align: left; }
+.pn-draft small { color: var(--text-muted); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.pn-draft p { color: var(--text); max-width: none; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.pn-draft .pn-draft-acts { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.panel .pn-gone .pn-draft .btn { margin-top: 0; }
+
 /* Home view: friends with the Active now column; under 820px the column becomes a strip above the list */
 .homeview { container-type: inline-size; background: var(--bg-page); }
 .home-in { display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 540px; }

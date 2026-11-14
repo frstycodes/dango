@@ -486,6 +486,33 @@
       <div style="padding: 12px 0"><div class="composer locked"><i class="ph ph-lock-simple"></i><span><b>Locked.</b> Only moderators can reply.</span></div></div>
     </div></div>
   </div>
+  <h3>Deleted while open</h3>
+  <div class="pn-cols">
+    <div class="pframe" style="width: 400px; max-width: 100%; height: 440px"><aside class="panel panel--page" style="--pw: 100%; height: 100%" aria-label="Thread, deleted">
+      <div class="panel-head is-gone"><i class="ph ph-chat-circle-text"></i><span class="panel-title">Patch 7 tier list</span><div class="panel-acts"><button class="iconbtn" aria-label="Close thread" title="Close"><i class="ph ph-x"></i></button></div></div>
+      <div class="empty pn-gone" role="alert">
+        <span class="icontile"><i class="ph ph-trash"></i></span>
+        <b>This thread was deleted</b>
+        <p>Its messages are gone for everyone. What you were writing is still here.</p>
+        <div class="pn-draft"><small>Your unsent reply</small><p>honestly the healer is fine, people just aren't building for sustain yet. give it a week and we'll see</p>
+          <div class="pn-draft-acts"><button class="btn btn--primary btn--sm"><i class="ph-bold ph-copy"></i>Copy reply</button><button class="btn btn--sm"><i class="ph-bold ph-arrow-bend-up-left"></i>Move to #general</button></div></div>
+      </div>
+    </aside></div>
+    <div class="pframe" style="width: 400px; max-width: 100%; height: 440px"><aside class="panel panel--page" style="--pw: 100%; height: 100%" aria-label="Thread, deleted">
+      <div class="panel-head is-gone"><i class="ph ph-chat-circle-text"></i><span class="panel-title">Season 6 rants about the matchmaking that never ends</span><div class="panel-acts"><button class="iconbtn" aria-label="Close thread" title="Close"><i class="ph ph-x"></i></button></div></div>
+      <div class="empty pn-gone" role="alert">
+        <span class="icontile"><i class="ph ph-trash"></i></span>
+        <b>This thread was deleted</b>
+        <p>Its messages are gone for everyone.</p>
+        <button class="btn">Close thread</button>
+      </div>
+    </aside></div>
+    <div class="pn-col" style="flex: 1; min-width: min(100%, 240px)">
+      <p class="note">The panel stays put and says what happened instead of vanishing mid-sentence. The title dims; Follow, More and the composer go; Close stays where it was.</p>
+      <p class="note">An unsent reply stays here in a filled well. Move to #general puts it in the channel composer (after any text already there); Copy reply takes it anywhere. Without a draft the one action is Close thread.</p>
+      <p class="note">It says "was deleted", never who: the delete event doesn't name the moderator, and guessing would be worse than saying nothing.</p>
+    </div>
+  </div>
   <p class="note" style="margin-top: 8px">Follow is one button showing the current state (Following uses the pressed accent tint; Follow is plain). Archived threads keep their composer under a one-line note, because sending reopens them.</p>
 </section>
 
@@ -746,6 +773,7 @@
     <div><p>Mentions filters (@everyone, roles, this server) sit in a menu behind an icon.</p><p><b><a href="#inbox">Filters are visible chips</a></b>Toggled in one click, state always on show.</p><p>A hidden filter leaves you wondering why a mention is missing; a chip shows what's on.</p></div>
     <div><p>Active now disappears when the window is narrow.</p><p><b><a href="#home">Active now folds into a strip above the list</a></b>Swipeable name cards under 820px.</p><p>Who's playing is the reason many people open Home; it should survive a smaller window.</p></div>
     <div><p>No results shows an illustration and a "nothing found" line.</p><p><b><a href="#search-results">No results suggests what to drop</a></b>One-click chips remove a filter or widen to all channels, plus a matching tip.</p><p>An empty result is a dead end unless it says how to get a result.</p></div>
+    <div><p>A thread deleted while you have it open closes, and a reply you were typing goes with it.</p><p><b><a href="#thread-view">The panel stays and says so</a></b>"This thread was deleted", with your unsent reply kept to copy or move to the channel.</p><p>Nothing you typed is lost, and nothing changes without a reason you can read.</p></div>
     <div><p>The member list has a fixed width.</p><p><b><a href="#side-panel">The side panel resizes</a></b>Drag or arrow keys, 200 to 380px, double-click to reset.</p><p>Long names and wide search results need room on big screens; small screens need the chat back.</p></div>
   </div>
   <p class="note" style="margin-top: 8px">The Discord column describes its desktop client from use, not from a fresh check; confirm a row against current Discord before quoting it.</p>
