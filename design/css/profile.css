@@ -1,5 +1,8 @@
 /* Profile and privacy: profile editor, custom status, privacy, blocked users, connections, devices, apps, security, report. */
 
+/* Circles stay circles under the global squircle */
+.pf-crop .mask, .pf-deco, .pf-decopick .none, .pf-smark, .pf-smark .status { corner-shape: round; }
+
 /* Wide settings page: form beside a live preview */
 .pf-wide { max-width: 1040px; }
 .pf-editor-wrap { container-type: inline-size; }
@@ -69,7 +72,7 @@
 .pf-upload .row { flex-wrap: nowrap; }
 .pf-upload .row > div { min-width: 0; flex: 1; line-height: 1.3; }
 .pf-upload b { display: block; color: var(--text-strong); font-weight: var(--weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pf-upload span { color: var(--text-muted); font-size: var(--text-xs); }
+.pf-upload .row > div > span { color: var(--text-muted); font-size: var(--text-xs); }
 .pf-upload.is-error { border-color: color-mix(in oklch, var(--danger) 45%, transparent); }
 .pf-upload.is-error .icontile { --ink: var(--danger-ink); }
 
@@ -91,7 +94,7 @@
 /* Avatar decorations: drawn around the avatar, never inside it; fixed materials read in both themes */
 .pf-deco { position: absolute; inset: calc(var(--size) * -0.09); border-radius: 50%; pointer-events: none; }
 .pf-deco i { position: absolute; font-size: calc(var(--size) * 0.36); filter: drop-shadow(0 0 1.5px var(--bg-ring, var(--bg-page))) drop-shadow(0 0 1px var(--bg-ring, var(--bg-page))); }
-.pf-deco[data-deco="halo"] { background: conic-gradient(from 20deg, oklch(0.82 0.14 80), oklch(0.68 0.21 355), oklch(0.66 0.15 260), oklch(0.78 0.13 175), oklch(0.82 0.14 80)); mask: radial-gradient(farthest-side, transparent calc(100% - var(--size) * 0.06), #000 calc(100% - var(--size) * 0.06 + 0.5px)); }
+.pf-deco[data-deco="halo"] { background: conic-gradient(from 160deg, oklch(0.82 0.14 80), oklch(0.68 0.21 355) 100deg, oklch(0.66 0.15 260) 200deg, oklch(0.78 0.13 175) 305deg, transparent 306deg); mask: radial-gradient(farthest-side, transparent calc(100% - var(--size) * 0.06), #000 calc(100% - var(--size) * 0.06 + 0.5px)); }
 .pf-deco[data-deco="headset"] i { left: 50%; top: calc(var(--size) * -0.14); translate: -50% 0; font-size: calc(var(--size) * 0.9); color: oklch(0.62 0.2 355); clip-path: inset(0 0 52% 0); }
 .pf-deco[data-deco="sprout"] i { left: calc(var(--size) * -0.06); bottom: calc(var(--size) * -0.02); color: oklch(0.66 0.15 150); rotate: -18deg; }
 .pf-deco[data-deco="stars"] i { color: oklch(0.84 0.15 85); }
@@ -114,7 +117,7 @@
 .pf-decoprev b { color: var(--text-strong); font-weight: var(--weight-semibold); }
 
 /* Themed popout: the user's two colours tint the whole card, kept close to the surface so every text pair holds AA */
-.profile.pf-themed { --t1: color-mix(in oklch, var(--c1) 30%, var(--bg-overlay)); --t2: color-mix(in oklch, var(--c2) 30%, var(--bg-overlay)); --bg-ring: var(--t1); background: linear-gradient(var(--t1), var(--t2)); box-shadow: var(--shadow-pop), inset 0 0 0 1px color-mix(in oklch, var(--c1) 40%, transparent); }
+.profile.pf-themed { --t1: color-mix(in oklab, var(--c1) 30%, var(--bg-overlay)); --t2: color-mix(in oklab, var(--c2) 30%, var(--bg-overlay)); --bg-ring: var(--t1); background: linear-gradient(var(--t1), var(--t2)); box-shadow: var(--shadow-pop), inset 0 0 0 1px color-mix(in oklch, var(--c1) 40%, transparent); }
 .profile.pf-themed .who .av { box-shadow: 0 0 0 5px var(--t1); }
 .profile.pf-themed .who .status { box-shadow: 0 0 0 4px var(--t1); }
 .profile.pf-themed .cstatus, .profile.pf-themed .pf-chip { background: color-mix(in oklch, var(--bg-overlay) 55%, transparent); }
@@ -135,7 +138,7 @@
 .pf-unsaved.is-blocked > i { color: var(--danger-ink); }
 .pf-unsaved.is-shaking { animation: pf-shake 360ms var(--ease-out); }
 @keyframes pf-shake { 20% { transform: translateX(-6px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
-.pf-unsaved-dock { position: sticky; bottom: 16px; margin-top: var(--space-6); z-index: 2; opacity: 0; transform: translateY(12px); pointer-events: none; transition: opacity var(--dur-pop) var(--ease-out), transform var(--dur-pop) var(--ease-out); }
+.pf-unsaved-dock { position: sticky; bottom: 16px; z-index: 2; opacity: 0; transform: translateY(12px); pointer-events: none; transition: opacity var(--dur-pop) var(--ease-out), transform var(--dur-pop) var(--ease-out); }
 .pf-unsaved-dock.is-dirty { opacity: 1; transform: none; pointer-events: auto; }
 
 /* Server profile: picker heads the tab; fields fall back to the main profile */
@@ -171,6 +174,7 @@
 /* Data request row */
 .pf-pending { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: var(--text-xs); font-weight: var(--weight-medium); }
 .pf-pending i { font-size: 14px; }
+.pf-pending .bars { --c: var(--text-muted); }
 
 /* Lists: blocked, ignored, devices, apps */
 .pf-person { display: flex; align-items: center; gap: var(--space-3); min-height: 56px; padding: 8px 12px; position: relative; border-radius: var(--radius-md); flex-wrap: nowrap; }
@@ -198,13 +202,11 @@
 .pf-cmp b i { font-size: 16px; color: var(--text-muted); }
 .pf-cmp ul { margin: 0; padding-left: 18px; color: var(--text-muted); font-size: var(--text-xs); display: grid; gap: 2px; }
 
-/* Who can add you: a tri-state parent over its options */
-.check[aria-checked="mixed"] { background: var(--accent); border-color: var(--accent); color: #fff; }
-.check[aria-checked="mixed"] i { opacity: 1; transform: none; }
+/* Who can add you: a tri-state parent (primitive .check mixed) over its options */
 .pf-sub { padding-left: 32px; }
 
 /* Connections: service tiles, connected account cards, connect flow */
-.pf-svcs { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: var(--space-2); }
+.pf-svcs { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--space-2); }
 .pf-svc { position: relative; display: grid; justify-items: center; gap: 8px; padding: 14px 6px 10px; border-radius: var(--radius-lg); background: var(--bg-raised); border: 1px solid var(--line); color: var(--text-strong); font-weight: var(--weight-medium); transition: background var(--dur-hover), transform var(--dur-press) var(--ease-out); }
 .pf-svc:hover { background: color-mix(in oklch, var(--bg-raised) 100%, var(--text-strong) 4%); }
 .pf-svc:active { transform: scale(0.97); }
@@ -216,7 +218,7 @@
 .pf-accthead { display: flex; align-items: center; gap: var(--space-3); padding: 10px 12px; flex-wrap: wrap; }
 .pf-accthead > div { flex: 1 1 160px; min-width: 0; line-height: 1.3; }
 .pf-accthead b { display: block; color: var(--text-strong); font-weight: var(--weight-semibold); }
-.pf-accthead span { color: var(--text-muted); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.pf-accthead > div > span { color: var(--text-muted); font-size: var(--text-xs); overflow-wrap: anywhere; }
 .pf-handshake { display: flex; align-items: center; justify-content: center; gap: var(--space-4); padding: var(--space-4) 0 var(--space-2); }
 .pf-handshake .icontile { width: 56px; height: 56px; border-radius: var(--radius-lg); }
 .pf-handshake .icontile i { font-size: 28px; }
@@ -232,6 +234,8 @@
 .pf-centre p { color: var(--text-muted); max-width: 36ch; text-wrap: pretty; }
 
 /* Devices */
+.pf-device { flex-wrap: nowrap; }
+.pf-device .t { flex-basis: 0; }
 .pf-device .icontile { --tile: var(--bg-page); }
 .pf-device .t b { display: flex; align-items: center; gap: 8px; }
 .pf-device .t b .tag { flex: none; }
@@ -244,19 +248,19 @@
 
 /* Authorized apps */
 .pf-app { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); padding: var(--space-4); }
-.pf-app + .pf-app { border-top: 1px solid var(--line); }
+.pf-app + .pf-app, .pf-app + .pf-undo { border-top: 1px solid var(--line); }
 .pf-apphead { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .pf-apphead .av { --size: 40px; border-radius: var(--radius-md); font-size: 16px; corner-shape: superellipse(1.4); }
 .pf-apphead > div { flex: 1 1 160px; min-width: 0; line-height: 1.3; }
 .pf-apphead b { display: block; color: var(--text-strong); font-weight: var(--weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pf-apphead span { color: var(--text-muted); font-size: var(--text-xs); }
+.pf-apphead > div > span { color: var(--text-muted); font-size: var(--text-xs); }
 .pf-apphead .is-stale { color: var(--warning-ink); font-weight: var(--weight-medium); }
 .pf-scopes { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 6px var(--space-4); padding-left: 52px; }
 .pf-scopes li { display: flex; gap: 8px; align-items: flex-start; color: var(--text); font-size: var(--text-sm); line-height: 1.35; }
 .pf-scopes li i { font-size: 16px; color: var(--text-muted); margin-top: 1px; }
 .pf-scopes li.is-power { color: var(--warning-ink); font-weight: var(--weight-medium); }
 .pf-scopes li.is-power i { color: var(--warning-ink); }
-@container (max-width: 520px) { .pf-scopes { padding-left: 0; } }
+@media (max-width: 600px) { .pf-scopes { padding-left: 0; } }
 
 /* Security: password strength, steps, QR, backup codes */
 .pf-strength { display: grid; gap: 6px; }
@@ -306,6 +310,7 @@
 .pf-owned { display: grid; gap: 2px; }
 .pf-owned .pf-person { padding: 6px 8px; min-height: 48px; }
 .pf-owned .pf-person .dropdown { width: 168px; height: 34px; flex: none; }
+.pf-owned .dropdown > .av { flex: none; }
 .pf-owned .pf-person.is-set .dropdown { border-color: color-mix(in oklch, var(--online) 55%, transparent); }
 .pf-owned .pf-srvtile { width: 36px; height: 36px; border-radius: var(--radius-sm); font-size: var(--text-sm); }
 .pf-done { display: grid; justify-items: center; text-align: center; gap: var(--space-2); padding: var(--space-4) 0 var(--space-2); }

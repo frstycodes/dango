@@ -107,7 +107,7 @@
 .live { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: var(--radius-xs); background: var(--accent); color: #fff; font-size: 11px; font-weight: var(--weight-bold); letter-spacing: 0.06em; }
 .live .bars { --c: #fff; height: 9px; gap: 1.5px; }
 .live .bars i { width: 2px; }
-.av { --size: 32px; position: relative; width: var(--size); height: var(--size); border-radius: 50%; flex: none; display: grid; place-items: center; color: #fff; font-weight: var(--weight-bold); font-size: calc(var(--size) * 0.38); background: linear-gradient(135deg, oklch(0.56 0.12 var(--hue)), oklch(0.42 0.13 calc(var(--hue) + 35))); user-select: none; }
+.av { --size: 32px; position: relative; width: var(--size); height: var(--size); border-radius: 50%; flex: none; display: grid; place-items: center; color: #fff; font-weight: var(--weight-bold); font-size: calc(var(--size) * 0.38); background: linear-gradient(135deg, oklch(0.53 0.12 var(--hue)), oklch(0.41 0.13 calc(var(--hue) + 35))); user-select: none; }
 .av.speaking { box-shadow: 0 0 0 2px var(--bg-ring, var(--bg-page)), 0 0 0 4px var(--accent); }
 .status { position: absolute; right: calc(var(--size) * 0.04 - 2px); bottom: calc(var(--size) * 0.04 - 2px); width: clamp(9px, calc(var(--size) * 0.3), 16px); height: clamp(9px, calc(var(--size) * 0.3), 16px); border-radius: 50%; box-shadow: 0 0 0 2px var(--bg-ring, var(--bg-page)); }
 .status.online { background: var(--online); }
