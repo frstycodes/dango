@@ -48,10 +48,10 @@
 .srv-mini { width: 20px; height: 20px; border-radius: var(--radius-xs); flex: none; }
 
 /* Server art: stand-ins for uploaded server icons, shared by rail tiles, folder minis and .srv-mini on every page */
-:is(.srv, .srv-mini, .minis > span).a1 { background: linear-gradient(135deg, oklch(0.58 0.17 20), oklch(0.44 0.17 350)); }
-:is(.srv, .srv-mini, .minis > span).a2 { background: linear-gradient(135deg, oklch(0.55 0.12 220), oklch(0.42 0.13 250)); }
-:is(.srv, .srv-mini, .minis > span).a3 { background: linear-gradient(135deg, oklch(0.56 0.13 140), oklch(0.42 0.12 165)); }
-:is(.srv, .srv-mini, .minis > span).a4 { background: linear-gradient(135deg, oklch(0.58 0.14 55), oklch(0.46 0.15 35)); }
+:is(.srv, .srv-mini, .minis > span).a1 { background: linear-gradient(135deg, oklch(0.54 0.17 20), oklch(0.44 0.17 350)); }
+:is(.srv, .srv-mini, .minis > span).a2 { background: linear-gradient(135deg, oklch(0.52 0.12 220), oklch(0.42 0.13 250)); }
+:is(.srv, .srv-mini, .minis > span).a3 { background: linear-gradient(135deg, oklch(0.52 0.13 140), oklch(0.42 0.12 165)); }
+:is(.srv, .srv-mini, .minis > span).a4 { background: linear-gradient(135deg, oklch(0.54 0.14 55), oklch(0.46 0.15 35)); }
 :is(.srv, .srv-mini, .minis > span).a5 { background: radial-gradient(circle at 34% 30%, oklch(0.92 0.08 90) 0 20%, transparent 21%), linear-gradient(160deg, oklch(0.55 0.14 270), oklch(0.32 0.1 300)); }
 :is(.srv, .srv-mini, .minis > span).a6 { background: repeating-linear-gradient(135deg, oklch(0.52 0.1 195) 0 6px, oklch(0.42 0.09 210) 6px 12px); }
 
