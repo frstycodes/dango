@@ -192,7 +192,9 @@ struct Call {
 struct Watching {
     streamer_id: String,
     frame: Option<Arc<RenderImage>>,
-    _watch: voice::StreamWatch,
+    // None for our own Go Live, shown from its local frames: watching it through Discord would
+    // end it on stop, since leaving a stream and ending one are the same gateway op.
+    _watch: Option<voice::StreamWatch>,
 }
 
 // A profile popout opened from an avatar or name, at the click point.
@@ -330,6 +332,8 @@ pub struct Rustcord {
     // When the pointer last moved over the call view; the bar and header fade out after a while.
     call_pointer_at: Instant,
     call_strip_hidden: bool,
+    // Bumped on each Go Live so an earlier stream's preview uploads stop.
+    preview_generation: u64,
     // Each call participant's avatar colour for their tile; None while loading or when it failed.
     avatar_colors: HashMap<String, Option<Hsla>>,
     pins: Option<Option<Result<Vec<Message>, SharedString>>>,
@@ -478,6 +482,7 @@ impl Rustcord {
             stream_viewers: HashMap::new(),
             call_pointer_at: Instant::now(),
             call_strip_hidden: false,
+            preview_generation: 0,
             avatar_colors: HashMap::new(),
             pins: None,
             revealed: Rc::default(),
@@ -1830,8 +1835,14 @@ impl Rustcord {
         if call.watching.as_ref().is_some_and(|w| w.streamer_id == streamer_id) {
             return;
         }
+        if self.me.as_ref().is_some_and(|m| m.id == streamer_id) {
+            if call.sharing.is_some() {
+                call.watching = Some(Watching { streamer_id, frame: None, _watch: None });
+            }
+            return cx.notify();
+        }
         match call.session.watch_stream(&streamer_id) {
-            Ok(watch) => call.watching = Some(Watching { streamer_id, frame: None, _watch: watch }),
+            Ok(watch) => call.watching = Some(Watching { streamer_id, frame: None, _watch: Some(watch) }),
             Err(error) => self.voice_error = Some(error.into()),
         }
         cx.notify();
@@ -1857,6 +1868,9 @@ impl Rustcord {
         let Some(call) = &mut self.call else { return };
         if call.sharing.take().is_some() {
             sounds::play(sounds::Cue::StreamEnded);
+            if self.me.as_ref().is_some_and(|m| call.watching.as_ref().is_some_and(|w| w.streamer_id == m.id)) {
+                self.stop_watching(cx);
+            }
             return cx.notify();
         }
         self.open_share_picker(cx);
@@ -1870,6 +1884,7 @@ impl Rustcord {
             Ok(live) => {
                 call.sharing = Some(live);
                 call.share_label = self.share_choice_label.take();
+                self.upload_stream_previews(source, cx);
                 sounds::play(sounds::Cue::StreamStarted);
             }
             Err(error) => self.voice_error = Some(error.into()),

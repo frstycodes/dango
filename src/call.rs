@@ -137,6 +137,40 @@ impl Rustcord {
         }
     }
 
+    // What everyone sees of our Go Live before watching, uploaded as Discord's own client does:
+    // a 512px-wide JPEG shortly after going live, then every five minutes (a minute after a failure).
+    pub(crate) fn upload_stream_previews(&mut self, source: voice::ShareSource, cx: &mut Context<Self>) {
+        let (Some(client), Some(call), Some(me)) = (self.client.clone(), self.call.as_ref(), self.me.as_ref()) else { return };
+        let key = match &call.guild_id {
+            Some(guild) => format!("guild:{guild}:{}:{}", call.channel.id, me.id),
+            None => format!("call:{}:{}", call.channel.id, me.id),
+        };
+        self.preview_generation += 1;
+        let generation = self.preview_generation;
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(Duration::from_secs(3)).await;
+            loop {
+                let live = this.update(cx, |this, _| this.preview_generation == generation && this.call.as_ref().is_some_and(|c| c.sharing.is_some()));
+                if !live.unwrap_or(false) {
+                    return;
+                }
+                let thumbnail = cx.background_spawn(async move { voice::thumbnail(source, 512).ok().and_then(|frame| jpeg_data_url(&frame)) }).await;
+                let sent = match thumbnail {
+                    Some(url) => {
+                        let result = client.call(reqwest::Method::POST, format!("/streams/{key}/preview"), Some(serde_json::json!({ "thumbnail": url }))).await;
+                        if cfg!(debug_assertions) && std::env::var_os("RUSTCORD_STREAM_DEBUG").is_some() {
+                            eprintln!("stream preview upload {key}: {result:?}");
+                        }
+                        result.is_ok()
+                    }
+                    None => false,
+                };
+                cx.background_executor().timer(Duration::from_secs(if sent { 300 } else { 60 })).await;
+            }
+        })
+        .detach();
+    }
+
     pub(crate) fn stream_preview(&self, user_id: &str) -> Option<String> {
         self.stream_previews.get(user_id).map(|(url, _)| url.clone()).filter(|url| !url.is_empty())
     }
@@ -592,7 +626,7 @@ impl Rustcord {
                 .into_any_element(),
         };
         let watching = call.watching.as_ref().is_some_and(|w| w.streamer_id == state.user_id);
-        let watchable = is_stream && !me && !watching;
+        let watchable = is_stream && !watching && (!me || call.sharing.is_some());
         let status = |glyph: Glyph| {
             let pad = if compact { 4. } else { 6. };
             div().size(px(20. + pad * 2.)).p(px(pad)).flex_none().rounded_full().bg(gpui_kit::black().opacity(0.56)).text_color(gpui_kit::white()).child(Icon::new(glyph).size_full())
@@ -1125,6 +1159,15 @@ fn live_badge() -> Div {
     div().h(px(18.)).px_1().rounded(px(4.)).bg(rgb(0xED4245)).text_color(gpui_kit::white()).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child("LIVE")
 }
 
+// A BGRA frame as the data URL Discord's preview upload takes.
+fn jpeg_data_url(frame: &voice::VideoFrame) -> Option<String> {
+    use base64::Engine;
+    let rgb: Vec<u8> = frame.bgra.as_chunks::<4>().0.iter().flat_map(|[b, g, r, _]| [*r, *g, *b]).collect();
+    let mut jpeg = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg, 80).encode(&rgb, frame.width, frame.height, image::ExtendedColorType::Rgb8).ok()?;
+    Some(format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(jpeg)))
+}
+
 // Discord's CDN serves any avatar as a small PNG, whatever its original format.
 fn small_png(avatar: &str) -> String {
     let base = avatar.split('?').next().unwrap_or(avatar);
@@ -1165,5 +1208,7 @@ mod tests {
         assert_eq!(average_color(&[1, 2, 3, 0]), None);
         assert_eq!(small_png("https://cdn.discordapp.com/avatars/1/a_b.gif?size=128"), "https://cdn.discordapp.com/avatars/1/a_b.png?size=32");
         assert_eq!(small_png("https://cdn.discordapp.com/embed/avatars/3.png"), "https://cdn.discordapp.com/embed/avatars/3.png?size=32");
+        let frame = voice::VideoFrame { width: 2, height: 1, bgra: vec![0, 0, 255, 255, 255, 0, 0, 255] };
+        assert!(jpeg_data_url(&frame).is_some_and(|url| url.starts_with("data:image/jpeg;base64,/9j/")));
     }
 }

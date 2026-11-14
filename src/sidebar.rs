@@ -313,7 +313,10 @@ impl Rustcord {
                                 .on_click(cx.listener(move |this, _, window, cx| {
                                     this.stream_card_hover = None;
                                     match connected {
-                                        true => this.watch_stream(streamer.clone(), cx),
+                                        true => {
+                                            this.watch_stream(streamer.clone(), cx);
+                                            this.show_call(join.clone(), window, cx);
+                                        }
                                         // Not in that call yet: join it, then watch once connected.
                                         false => {
                                             this.watch_on_connect = Some(streamer.clone());
