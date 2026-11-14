@@ -25,29 +25,582 @@
 <div class="layout">
 <nav class="toc" id="toc" aria-label="Design system"></nav>
 <main>
-<section id="overlays">
-  <h2>Overlays</h2>
-  <p class="lede">Menus and popovers rise from their trigger; dialogs scale from the centre over a scrim. Descriptions sit under their titles.</p>
-  <div class="board" style="display:flex; gap: var(--space-8); flex-wrap: wrap; align-items: flex-start">
-    <div class="menu" role="menu">
-      <button class="mi" role="menuitem"><i class="ph ph-arrow-bend-up-left"></i><div>Reply</div><kbd>R</kbd></button>
-      <button class="mi" role="menuitem"><i class="ph ph-smiley"></i><div>Add reaction</div></button>
-      <button class="mi" role="menuitem"><i class="ph ph-chats-circle"></i><div>Create thread<small>Keep the side chat out of #general</small></div></button>
-      <button class="mi" role="menuitem"><i class="ph ph-copy"></i><div>Copy text</div><kbd>⌘C</kbd></button>
-      <hr>
-      <button class="mi danger" role="menuitem"><i class="ph ph-trash"></i><div>Delete message</div></button>
+
+<section id="tooltips">
+  <h2>Tooltips</h2>
+  <p class="lede">Every icon-only control gets one: its name, then a key or one line on what happens. A disabled control's tooltip says why.</p>
+  <div class="board stack" style="gap: var(--space-8)">
+    <div class="row" style="gap: var(--space-8); align-items: center; justify-content: center; padding: var(--space-4) 0">
+      <span class="tooltip" data-side="top">Top</span>
+      <span class="tooltip" data-side="bottom">Bottom</span>
+      <span class="tooltip" data-side="left">Left</span>
+      <span class="tooltip" data-side="right">Right</span>
+      <span class="tooltip" data-side="top">Mute<kbd class="kbd">=</kbd><kbd class="kbd">Backspace</kbd></span>
+      <span class="tooltip" data-side="top">Search<kbd class="kbd">⌘</kbd><kbd class="kbd">F</kbd></span>
+      <span class="tooltip" data-side="right">Pinned messages<small>3 pins in #clips. Pin a message from its menu.</small></span>
+      <span class="tooltip" data-side="bottom">Start video<small>Wave can't see a camera. Plug one in or allow access in System Settings.</small></span>
     </div>
-    <div class="stack" style="gap: var(--space-6); align-items: flex-start">
-      <span class="tooltip">Mute<kbd>= Backspace</kbd></span>
-      <div class="toast"><i class="ph-fill ph-check-circle"></i><p>Message deleted</p><button class="btn btn--sm btn--ghost">Undo</button></div>
-      <button class="btn" data-open="dialog">Open dialog</button>
+    <div>
+      <h3 style="margin-top: 0">Live: hover or Tab across the bar</h3>
+      <div class="row" style="gap: 2px; padding: 6px; border-radius: var(--radius-md); background: var(--bg-page); width: fit-content">
+        <button class="iconbtn" aria-label="Threads" data-tip="Threads"><i class="ph ph-chats-circle"></i></button>
+        <button class="iconbtn" aria-label="Notification settings" data-tip="Notification settings" data-tip-desc="Only @mentions in #clips"><i class="ph ph-bell"></i></button>
+        <button class="iconbtn" aria-label="Pinned messages" data-tip="Pinned messages"><i class="ph ph-push-pin"></i></button>
+        <button class="iconbtn" aria-label="Member list" data-tip="Hide member list" data-tip-keys="⌘ U"><i class="ph ph-users"></i></button>
+        <button class="iconbtn" aria-label="Search" data-tip="Search" data-tip-keys="⌘ F"><i class="ph ph-magnifying-glass"></i></button>
+        <button class="iconbtn" aria-label="Start video" aria-disabled="true" style="opacity: 0.45; cursor: not-allowed" data-tip="Start video" data-tip-desc="Wave can't see a camera. Plug one in or allow access."><i class="ph ph-video-camera"></i></button>
+      </div>
     </div>
-    <div class="dialog" role="dialog" aria-labelledby="dlg1"><h4 id="dlg1"><i class="ph-fill ph-warning"></i>Delete #clips?</h4><p>Everyone loses the channel and its 1,204 messages. This can't be undone.</p><footer><button class="btn btn--ghost">Keep channel</button><button class="btn btn--danger">Delete channel</button></footer></div>
+    <p class="note">Shows after 500ms of rest, then instantly while moving between items (warm for 300ms after the last one hides). Fades and scales from 0.95 toward the trigger over 150ms. Inverted ink, radius 8, max width 240, 12px semibold. Arrow sits on the side facing the trigger; 8px gap.</p>
   </div>
-  <dialog class="real" id="dialog"><div class="dialog"><h4><i class="ph-fill ph-warning"></i>Leave Night Shift?</h4><p>You can rejoin with a new invite.</p><footer><button class="btn btn--ghost" data-close>Stay</button><button class="btn btn--danger" data-close>Leave server</button></footer></div></dialog>
 </section>
+
+<section id="menus">
+  <h2>Menus</h2>
+  <p class="lede">Context menus open at the pointer, menus from a button open under it; both rise 200ms from 0.95 at the corner nearest the trigger. Titles stay on one line, the description goes under. Right-click opens the same list as the overflow button.</p>
+  <div class="board" style="display:flex; gap: var(--space-6); flex-wrap: wrap; align-items: flex-start; --bg-ring: var(--bg-overlay)">
+    <div class="menu" role="menu" aria-label="Mira">
+      <div class="mhead"><span class="av" style="--size: 32px" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>mira.wav</span></div></div>
+      <button class="mi" role="menuitem"><i class="ph ph-user-circle"></i><div>Profile</div></button>
+      <button class="mi" role="menuitem"><i class="ph ph-chat-circle"></i><div>Message</div></button>
+      <button class="mi" role="menuitem"><i class="ph ph-phone"></i><div>Call</div></button>
+      <hr>
+      <div class="mslider"><div><label for="uvol">User volume</label><output id="uvol-out">100%</output></div><input id="uvol" class="range" type="range" min="0" max="200" value="100" data-out="uvol-out"></div>
+      <button class="mi" role="menuitemcheckbox" aria-checked="true"><i class="ph ph-microphone-slash"></i><div>Mute</div><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+      <button class="mi" role="menuitemcheckbox" aria-checked="false"><i class="ph ph-video-camera-slash"></i><div>Hide video</div><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+      <hr>
+      <div class="has-sub open">
+        <button class="mi" role="menuitem" aria-haspopup="menu" aria-expanded="true"><i class="ph ph-user-plus"></i><div>Invite to server</div><i class="ph ph-caret-right chev"></i></button>
+        <div class="menu" role="menu" aria-label="Invite to server">
+          <button class="mi" role="menuitem"><span class="av" style="--size: 20px; font-size: 9px; border-radius: 6px" data-av="Night Shift"></span><div>Night Shift</div></button>
+          <button class="mi" role="menuitem"><span class="av" style="--size: 20px; font-size: 9px; border-radius: 6px" data-av="Clip Club"></span><div>Clip Club</div></button>
+          <button class="mi" role="menuitem" aria-disabled="true"><span class="av" style="--size: 20px; font-size: 9px; border-radius: 6px" data-av="Hades speedruns"></span><div>Hades speedruns<small>Mira is already a member</small></div></button>
+        </div>
+      </div>
+      <hr>
+      <button class="mi danger" role="menuitem"><i class="ph ph-sign-out"></i><div>Kick Mira</div></button>
+      <button class="mi" role="menuitem" aria-disabled="true"><i class="ph ph-prohibit"></i><div>Ban Mira<small>Needs the Ban members permission</small></div></button>
+    </div>
+    <div style="width: 216px" aria-hidden="true"></div>
+
+    <div class="menu" role="menu" aria-label="Message from Rosa">
+      <div class="mhead"><span class="av" style="--size: 24px; font-size: 10px" data-av="Rosa"></span><div><b>Rosa</b><span>caught this on stream last night</span></div></div>
+      <button class="mi" role="menuitem"><i class="ph ph-arrow-bend-up-left"></i><div>Reply</div><kbd>R</kbd></button>
+      <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-smiley"></i><div>Add reaction</div><i class="ph ph-caret-right chev"></i></button>
+      <button class="mi" role="menuitem"><i class="ph ph-chats-circle"></i><div>Create thread<small>Keep the side chat out of #clips</small></div></button>
+      <hr>
+      <button class="mi" role="menuitem"><i class="ph ph-copy"></i><div>Copy text</div><kbd>⌘C</kbd></button>
+      <button class="mi" role="menuitem"><i class="ph ph-push-pin"></i><div>Pin message</div><kbd>P</kbd></button>
+      <button class="mi" role="menuitem"><i class="ph ph-envelope-simple"></i><div>Mark unread</div><kbd>⌥ Click</kbd></button>
+      <hr>
+      <button class="mi danger" role="menuitem"><i class="ph ph-trash"></i><div>Delete message</div><kbd>⌫</kbd></button>
+    </div>
+
+    <div class="menu" role="menu" aria-label="Notifications for #clips">
+      <div class="mlabel">Notifications for #clips</div>
+      <div role="group" aria-label="Notify me about">
+        <button class="mi" role="menuitemradio" aria-checked="true"><i class="ph ph-gear-six"></i><div>Use server default<small>Only @mentions</small></div><span class="radio" aria-checked="true"></span></button>
+        <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-chat-text"></i><div>All messages</div><span class="radio" aria-checked="false"></span></button>
+        <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-at"></i><div>Only @mentions</div><span class="radio" aria-checked="false"></span></button>
+        <button class="mi" role="menuitemradio" aria-checked="false"><i class="ph ph-bell-slash"></i><div>Nothing</div><span class="radio" aria-checked="false"></span></button>
+      </div>
+      <hr>
+      <button class="mi" role="menuitemcheckbox" aria-checked="true"><i class="ph ph-megaphone-simple"></i><div>Mute @everyone</div><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+    </div>
+
+    <div class="menu" role="menu" aria-label="Move Theo to">
+      <div class="mlabel">Move Theo to</div>
+      <div class="scroll">
+        <button class="mi" role="menuitem"><i class="ph ph-speaker-high"></i><div>Lounge</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-speaker-high"></i><div>Clip review</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-speaker-high"></i><div>Hades runs</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-speaker-high"></i><div>Movie night</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-speaker-high"></i><div>Duos</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-speaker-high"></i><div>Squads</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-speaker-high"></i><div>A channel with a very long name for late night chat</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-speaker-high"></i><div>AFK</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-speaker-high"></i><div>Stage</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-speaker-high"></i><div>Music</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-speaker-high"></i><div>Study room</div></button>
+        <button class="mi" role="menuitem"><i class="ph ph-speaker-high"></i><div>Overflow</div></button>
+      </div>
+    </div>
+  </div>
+  <h3>Live: open, submenu, right-click</h3>
+  <div class="board stack" style="gap: var(--space-4); --bg-ring: var(--bg-overlay)">
+    <div class="row" style="gap: var(--space-4)">
+      <button class="btn" popovertarget="live-menu" style="anchor-name: --live-menu"><i class="ph-bold ph-dots-three-vertical"></i>Open menu</button>
+      <div class="msg first" id="ctx-target" style="flex: 1; min-width: min(100%, 280px); margin: 0; background: var(--bg-page); cursor: context-menu"><span class="av" data-av="Rosa"></span><div><div class="head"><span class="name">Rosa</span><span class="time">Today at 9:41 PM</span></div><div class="body">Right-click this message</div></div></div>
+    </div>
+    <p class="note">Hover "Add reaction" for the submenu (80ms intent delay, opens to the side). Esc or a click outside closes. Rows 34px, panel padding 6, width 248, submenu 208, radius 14, items 8.</p>
+  </div>
+  <div class="menu" role="menu" popover id="live-menu" style="position-anchor: --live-menu; top: anchor(bottom); left: anchor(left); margin-top: 6px; position-try-fallbacks: flip-block, flip-inline">
+    <div class="mhead"><span class="av" style="--size: 24px; font-size: 10px" data-av="Rosa"></span><div><b>Rosa</b><span>Right-click this message</span></div></div>
+    <button class="mi" role="menuitem"><i class="ph ph-arrow-bend-up-left"></i><div>Reply</div><kbd>R</kbd></button>
+    <div class="has-sub">
+      <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-smiley"></i><div>Add reaction</div><i class="ph ph-caret-right chev"></i></button>
+      <div class="menu" role="menu" aria-label="Add reaction">
+        <button class="mi" role="menuitem"><span style="font-size: 18px">😭</span><div>:sob:</div></button>
+        <button class="mi" role="menuitem"><span style="font-size: 18px">👏</span><div>:clap:</div></button>
+        <button class="mi" role="menuitem"><span style="font-size: 18px">🔥</span><div>:fire:</div></button>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-smiley"></i><div>All reactions</div></button>
+      </div>
+    </div>
+    <button class="mi" role="menuitem"><i class="ph ph-chats-circle"></i><div>Create thread<small>Keep the side chat out of #clips</small></div></button>
+    <hr>
+    <button class="mi" role="menuitem"><i class="ph ph-copy"></i><div>Copy text</div><kbd>⌘C</kbd></button>
+    <button class="mi" role="menuitem" aria-disabled="true"><i class="ph ph-push-pin"></i><div>Pin message<small>#clips has all 50 pins in use</small></div></button>
+    <hr>
+    <button class="mi danger" role="menuitem"><i class="ph ph-trash"></i><div>Delete message</div><kbd>⌫</kbd></button>
+  </div>
+</section>
+
+<section id="popovers">
+  <h2>Popovers</h2>
+  <p class="lede">Anchored panels for one object: a person, an invite, a reaction. Solid, layered shadow, radius 14. They close on any click outside and never on a click inside.</p>
+  <div class="board" style="display:flex; gap: var(--space-6); flex-wrap: wrap; align-items: flex-start">
+    <div class="pop profile" style="--banner: 20">
+      <div class="banner"></div>
+      <div class="who"><span class="av" data-av="Mira"><span class="status online"></span></span></div>
+      <div class="body">
+        <div class="name"><b>Mira</b><span>mira.wav · she/her</span></div>
+        <div class="cstatus"><span>🎧</span><span>editing the montage, ask me later</span></div>
+        <div class="pblock"><b>About me</b><p>Clips, speedruns and too much coffee. Montage editor for Night Shift.</p></div>
+        <div class="pblock"><b>Roles</b><div class="roles"><span class="role" style="--role: oklch(0.66 0.19 350)">Mod</span><span class="role" style="--role: oklch(0.66 0.15 250)">Editor</span><span class="role" style="--role: oklch(0.78 0.15 80)">Night owl</span><button class="role add" aria-label="Add role"><i class="ph-bold ph-plus"></i></button></div></div>
+        <div class="pblock"><b>Member since</b><div class="since"><span><i class="ph ph-waveform"></i>Mar 4, 2021</span><span><i class="ph ph-moon-stars"></i>Jun 18, 2022</span></div></div>
+        <div class="mutual">
+          <button><span>4 mutual servers</span><span class="stackav"><span class="av" data-av="Night Shift"></span><span class="av" data-av="Clip Club"></span><span class="av" data-av="Hades"></span></span><i class="ph ph-caret-right"></i></button>
+          <button><span>12 mutual friends</span><span class="stackav"><span class="av" data-av="Theo"></span><span class="av" data-av="Ana"></span><span class="av" data-av="Jun"></span></span><i class="ph ph-caret-right"></i></button>
+        </div>
+        <div class="input"><input aria-label="Message Mira" placeholder="Message @Mira"></div>
+      </div>
+    </div>
+
+    <div class="pop profile" style="--banner: 300">
+      <div class="banner"></div>
+      <div class="who"><span class="av" data-av="Juno"><span class="status idle"></span></span><button class="btn btn--sm"><i class="ph-bold ph-pencil-simple"></i>Edit profile</button></div>
+      <div class="body">
+        <div class="name"><b>Juno</b><span>juno.wav</span></div>
+        <button class="cstatus" style="color: var(--text-muted); text-align: left"><i class="ph ph-smiley"></i><span>Set a custom status</span></button>
+        <div class="pblock"><b>Member since</b><div class="since"><span><i class="ph ph-waveform"></i>Nov 2, 2020</span></div></div>
+        <div class="mutual">
+          <button><span class="status idle" style="position: static; width: 10px; height: 10px; --bg-ring: var(--bg-overlay); box-shadow: none"></span><span>Idle</span><i class="ph ph-caret-right"></i></button>
+          <button><i class="ph ph-user-switch" style="font-size: 18px; color: var(--text-muted)"></i><span>Switch accounts</span><i class="ph ph-caret-right"></i></button>
+          <button><i class="ph ph-copy" style="font-size: 18px; color: var(--text-muted)"></i><span>Copy user ID</span></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="pop profile" style="--banner: 200">
+      <div class="banner" style="background: var(--selected)"></div>
+      <div class="who"><span class="av" data-av="Bartholomew"><span class="status offline"></span></span></div>
+      <div class="body">
+        <div class="name"><b>Bartholomew Featherstonehaugh-Wright</b><span>bartholomew.featherstonehaugh.wright</span></div>
+        <div class="pblock"><b>Member since</b><div class="since"><span><i class="ph ph-waveform"></i>Today</span></div></div>
+        <p class="note" style="font-size: var(--text-xs)">Worst case: long name and username truncate, no banner colour, no status, no about, no roles, no mutuals. Empty blocks hide.</p>
+        <div class="input"><input aria-label="Message Bartholomew" placeholder="Message @Bartholomew Featherstonehaugh-Wright"></div>
+      </div>
+    </div>
+
+    <div class="stack" style="gap: var(--space-6)">
+      <div class="pop invitepop">
+        <div class="dhead"><h4>Invite friends to Night Shift</h4><p class="sub">They land in #general.</p><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <div class="linkrow"><div class="input"><input aria-label="Invite link" value="wave.gg/nightshift-7Kq2" readonly></div><button class="btn btn--primary" data-copy>Copy</button></div>
+        <p class="sub">Expires in 7 days. <button class="btn btn--link" style="font-size: var(--text-xs)">Edit invite link</button></p>
+      </div>
+      <div class="pop reactpop">
+        <header><span class="e">😭</span><div><b>:sob:</b><span>6 reactions · tap to add yours</span></div></header>
+        <ul>
+          <li><span class="av" data-av="Mira"></span><span>Mira</span></li>
+          <li><span class="av" data-av="Theo"></span><span>Theo</span></li>
+          <li><span class="av" data-av="Ana"></span><span>Ana</span></li>
+          <li><span class="av" data-av="Jun"></span><span>Jun</span></li>
+          <li><span class="av" data-av="Rosa"></span><span>Rosa</span></li>
+          <li><span class="av" data-av="Bartholomew"></span><span>Bartholomew Featherstonehaugh-Wright</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <h3>Live</h3>
+  <div class="board row" style="gap: var(--space-3); --bg-ring: var(--bg-overlay)">
+    <button class="btn" popovertarget="live-profile" style="anchor-name: --live-profile"><span class="av" style="--size: 20px; font-size: 9px" data-av="Mira"></span>Mira</button>
+    <button class="btn" popovertarget="live-invite" style="anchor-name: --live-invite"><i class="ph-bold ph-user-plus"></i>Invite people</button>
+    <button class="react" popovertarget="live-react" aria-label="6 people reacted with sob" style="anchor-name: --live-react"><span class="e">😭</span>6</button>
+  </div>
+  <div class="pop profile" popover id="live-profile" style="--banner: 20; position-anchor: --live-profile; top: anchor(bottom); left: anchor(left); margin-top: 6px; position-try-fallbacks: flip-block">
+    <div class="banner"></div>
+    <div class="who"><span class="av" data-av="Mira"><span class="status online"></span></span></div>
+    <div class="body">
+      <div class="name"><b>Mira</b><span>mira.wav · she/her</span></div>
+      <div class="cstatus"><span>🎧</span><span>editing the montage, ask me later</span></div>
+      <div class="pblock"><b>Roles</b><div class="roles"><span class="role" style="--role: oklch(0.66 0.19 350)">Mod</span><span class="role" style="--role: oklch(0.66 0.15 250)">Editor</span></div></div>
+      <div class="input"><input aria-label="Message Mira" placeholder="Message @Mira"></div>
+    </div>
+  </div>
+  <div class="pop invitepop" popover id="live-invite" style="position-anchor: --live-invite; top: anchor(bottom); left: anchor(left); margin-top: 6px; position-try-fallbacks: flip-block, flip-inline">
+    <div class="dhead"><h4>Invite friends to Night Shift</h4><p class="sub">They land in #general.</p><button class="iconbtn" aria-label="Close" popovertarget="live-invite" popovertargetaction="hide"><i class="ph ph-x"></i></button></div>
+    <div class="linkrow"><div class="input"><input aria-label="Invite link" value="wave.gg/nightshift-7Kq2" readonly></div><button class="btn btn--primary" data-copy>Copy</button></div>
+    <p class="sub">Expires in 7 days.</p>
+  </div>
+  <div class="pop reactpop" popover id="live-react" style="--origin: bottom left; position-anchor: --live-react; bottom: anchor(top); left: anchor(left); margin-bottom: 6px; position-try-fallbacks: flip-block">
+    <header><span class="e">😭</span><div><b>:sob:</b><span>6 reactions</span></div></header>
+    <ul><li><span class="av" data-av="Mira"></span><span>Mira</span></li><li><span class="av" data-av="Theo"></span><span>Theo</span></li><li><span class="av" data-av="Ana"></span><span>Ana</span></li></ul>
+  </div>
+</section>
+
+<section id="toasts">
+  <h2>Toasts</h2>
+  <p class="lede">Only for something you may want to undo or act on. Icon, title, a muted line, one action. They blur in and out with the fade; a failed action's toast turns into its outcome when you retry.</p>
+  <div class="board" style="display:grid; gap: var(--space-6); grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); align-items: start">
+    <div class="stack" style="gap: var(--space-3)">
+      <div class="toast" data-tone="success"><i class="ph-fill ph-check-circle"></i><p>Mira joined Night Shift<small>Sent from your invite</small></p><button class="btn btn--sm">Say hi</button></div>
+      <div class="toast" data-tone="info"><i class="ph-fill ph-broadcast"></i><p>Theo went live<small>Hades II in Lounge</small></p><button class="btn btn--sm">Watch</button></div>
+      <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>Couldn't send your message<small>You're offline. Retry once you reconnect.</small></p><button class="btn btn--sm" data-loading="Sending…">Retry</button></div>
+      <div class="toast" data-tone="undo" style="--life: 6s"><i class="ph-fill ph-trash"></i><p>Deleted 3 messages</p><button class="btn btn--sm">Undo</button><button class="iconbtn" aria-label="Dismiss"><i class="ph ph-x"></i></button><span class="timer"></span></div>
+      <div class="toast" data-tone="success"><i class="ph-fill ph-check-circle"></i><p>Moved Bartholomew Featherstonehaugh-Wright to A channel with a very long name for late night chat</p></div>
+    </div>
+    <div class="stack" style="gap: var(--space-4)">
+      <h3 style="margin: 0">Stacked: hover to fan out</h3>
+      <div class="tstack" tabindex="0" aria-label="3 notifications">
+        <div class="toast" data-tone="info"><i class="ph-fill ph-broadcast"></i><p>Theo went live<small>Hades II in Lounge</small></p><button class="btn btn--sm">Watch</button></div>
+        <div class="toast" data-tone="success"><i class="ph-fill ph-check-circle"></i><p>Mira joined Night Shift</p><button class="btn btn--sm">Say hi</button></div>
+        <div class="toast" data-tone="undo"><i class="ph-fill ph-trash"></i><p>Deleted 3 messages</p><button class="btn btn--sm">Undo</button></div>
+      </div>
+      <p class="note" style="margin-top: 132px">Position: bottom centre of the chat column, 16px above the composer, so they never cover the channel list. Newest in front, three at most; older ones tuck behind at 0.95 and 0.9. Hover or focus fans the stack out and pauses timers. Success and info leave after 5s, undo after 6s, errors stay until dismissed or retried.</p>
+    </div>
+  </div>
+  <h3>Live</h3>
+  <div class="board stack" style="gap: var(--space-4)">
+    <div class="row">
+      <button class="btn" data-toast="success">Show success</button>
+      <button class="btn" data-toast="info">Show info</button>
+      <button class="btn" data-toast="error">Show error</button>
+      <button class="btn" data-toast="undo">Delete message</button>
+    </div>
+    <div style="position: relative; min-height: 220px; border-radius: var(--radius-md); background: var(--bg-page); display: flex; align-items: flex-end; justify-content: center; padding: var(--space-4)">
+      <div class="toasts stack" id="toast-host" role="status" aria-live="polite" style="width: 100%; gap: var(--space-2); flex-direction: column-reverse"></div>
+    </div>
+  </div>
+</section>
+
+<section id="banners">
+  <h2>Banners</h2>
+  <p class="lede">App-level notices span the top of the window above everything else. One at a time; the most urgent wins. A banner that needs you carries one action.</p>
+  <div class="board stack" style="gap: var(--space-4)">
+    <div style="border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--line)"><div class="banner banner--update" role="status"><i class="ph-fill ph-arrow-circle-up"></i>Wave 0.5 is ready to install.<button class="btn btn--primary btn--sm">Restart now</button><button class="iconbtn x" aria-label="Remind me later"><i class="ph ph-x"></i></button></div></div>
+    <div style="border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--line)"><div class="banner banner--lost" role="status"><span class="bars"><i></i><i></i><i></i></span>Connection lost. Reconnecting in 4s…<button class="btn btn--sm">Reconnect now</button></div></div>
+    <div style="border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--line)"><div class="banner banner--offline" role="status"><i class="ph-bold ph-wifi-slash"></i>You're offline. Messages you write send when you're back.</div></div>
+    <p class="note">36px, centred, 14px medium. Tone tints the rail colour at 14%; the icon carries the tone. Update: accent, dismissible. Reconnecting: neutral with the mini wave. Offline: warning, not dismissible while it lasts.</p>
+  </div>
+</section>
+
+<section id="dialogs">
+  <h2>Dialogs</h2>
+  <p class="lede">For a form with several fields or a decision that can't be undone. They scale from the centre over a dimmed scrim, close on Esc or a click outside, and keep one tone inside: no footer strip.</p>
+  <div class="board row" style="gap: var(--space-2)">
+    <button class="btn" data-open="dlg-delete"><i class="ph-bold ph-trash"></i>Delete channel</button>
+    <button class="btn" data-open="dlg-create"><i class="ph-bold ph-plus"></i>Create channel</button>
+    <button class="btn" data-open="dlg-invite"><i class="ph-bold ph-user-plus"></i>Invite people</button>
+    <button class="btn" data-open="dlg-viewer"><i class="ph-bold ph-image"></i>Open image</button>
+    <button class="btn" data-open="dlg-keys"><i class="ph-bold ph-keyboard"></i>Keyboard shortcuts</button>
+  </div>
+  <h3>Small confirm</h3>
+  <div class="board row" style="gap: var(--space-6); align-items: flex-start">
+    <div class="dialog" role="dialog" aria-labelledby="dlg1" data-live="dlg-delete"><h4 id="dlg1"><i class="ph-fill ph-warning"></i>Delete #clips?</h4><p>#clips and its 1,204 messages, 38 files and 3 threads go for everyone. This can't be undone.</p><footer><button class="btn" data-close>Keep channel</button><button class="btn btn--danger" data-close>Delete channel</button></footer></div>
+    <div class="dialog" role="dialog" aria-labelledby="dlg2"><h4 id="dlg2">Leave Night Shift?</h4><p>You can rejoin with a new invite.</p><footer><button class="btn" data-close>Stay</button><button class="btn btn--danger" data-close>Leave server</button></footer></div>
+  </div>
+  <h3>Standard, with a form</h3>
+  <div class="board">
+    <form class="dialog dialog--md" role="dialog" aria-labelledby="dlg3" data-live="dlg-create" onsubmit="return false">
+      <div class="dhead"><h4 id="dlg3">Create channel</h4><p>In Clips</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="dbody">
+        <div class="field"><label>Type</label>
+          <div class="typechoice" role="radiogroup" aria-label="Channel type">
+            <button type="button" class="choice" data-toggle="radio"><span class="icontile"><i class="ph ph-hash"></i></span><div><b>Text</b><span>Messages, images, GIFs, opinions and puns</span></div><span class="radio" role="radio" aria-checked="true"></span></button>
+            <button type="button" class="choice" data-toggle="radio"><span class="icontile"><i class="ph ph-speaker-high"></i></span><div><b>Voice</b><span>Hang out with voice, video and screen share</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+            <button type="button" class="choice" data-toggle="radio"><span class="icontile"><i class="ph ph-chats-teardrop"></i></span><div><b>Forum</b><span>Organised posts, each with its own thread</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+          </div>
+        </div>
+        <div class="field"><label for="chname">Name</label><div class="input"><i class="ph ph-hash"></i><input id="chname" placeholder="new-channel" value="late-night-clips" autocomplete="off"></div></div>
+        <button type="button" class="choice" data-toggle="switch" style="padding: 10px 0"><div><b><i class="ph ph-lock-simple" style="font-size: 16px; vertical-align: -2px; margin-right: 4px"></i>Private channel</b><span>Only members and roles you pick can see it</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+      </div>
+      <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-loading="Creating…">Create channel</button></footer>
+    </form>
+  </div>
+  <h3>Large: invite people</h3>
+  <div class="board">
+    <div class="dialog dialog--lg" role="dialog" aria-labelledby="dlg4" data-live="dlg-invite">
+      <div class="dhead"><h4 id="dlg4">Invite friends to Night Shift</h4><p>They land in #general.</p><button class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="input"><i class="ph ph-magnifying-glass"></i><input aria-label="Search friends" placeholder="Search friends"></div>
+      <div class="dscroll stack" style="gap: 2px">
+        <div class="friendrow"><span class="av" data-av="Mira"><span class="status online" style="--bg-ring: var(--bg-raised)"></span></span><div><b>Mira</b><span>mira.wav</span></div><button class="btn btn--sm" data-invite>Invite</button></div>
+        <div class="friendrow"><span class="av" data-av="Theo"><span class="status dnd" style="--bg-ring: var(--bg-raised)"></span></span><div><b>Theo</b><span>theo_</span></div><button class="btn btn--sm sent" aria-disabled="true"><i class="ph-bold ph-check"></i>Sent</button></div>
+        <div class="friendrow"><span class="av" data-av="Ana"><span class="status idle" style="--bg-ring: var(--bg-raised)"></span></span><div><b>Ana</b><span>ana.k</span></div><button class="btn btn--sm" data-invite>Invite</button></div>
+        <div class="friendrow"><span class="av" data-av="Bartholomew"><span class="status offline" style="--bg-ring: var(--bg-raised)"></span></span><div><b>Bartholomew Featherstonehaugh-Wright</b><span>bartholomew.featherstonehaugh.wright</span></div><button class="btn btn--sm" data-invite>Invite</button></div>
+        <div class="friendrow"><span class="av" data-av="Jun"><span class="status offline" style="--bg-ring: var(--bg-raised)"></span></span><div><b>Jun</b><span>jun</span></div><button class="btn btn--sm" data-invite>Invite</button></div>
+        <div class="friendrow"><span class="av" data-av="Rosa"><span class="status online" style="--bg-ring: var(--bg-raised)"></span></span><div><b>Rosa</b><span>rosa</span></div><button class="btn btn--sm" data-invite>Invite</button></div>
+      </div>
+      <div class="divider">Or send an invite link</div>
+      <div class="linkrow"><div class="input"><input aria-label="Invite link" value="wave.gg/nightshift-7Kq2" readonly></div><button class="btn btn--primary" data-copy>Copy</button></div>
+      <p class="note">Expires in 7 days. <button class="btn btn--link" style="font-size: var(--text-xs)">Edit invite link</button></p>
+    </div>
+  </div>
+  <h3>Loading and error</h3>
+  <div class="board row" style="gap: var(--space-6); align-items: flex-start">
+    <div class="dialog" role="dialog" aria-labelledby="dlg5" aria-busy="true">
+      <div class="dhead"><h4 id="dlg5">Invite friends to Night Shift</h4><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+      <div class="stack" style="gap: 14px; padding: 4px 8px" aria-label="Loading friends">
+        <div class="row" style="flex-wrap: nowrap"><span class="skeleton circle" style="width: 32px; height: 32px"></span><span class="skeleton line" style="width: 38%"></span><span class="skeleton" style="width: 64px; height: 30px; margin-left: auto; border-radius: var(--radius-sm)"></span></div>
+        <div class="row" style="flex-wrap: nowrap"><span class="skeleton circle" style="width: 32px; height: 32px"></span><span class="skeleton line" style="width: 52%"></span><span class="skeleton" style="width: 64px; height: 30px; margin-left: auto; border-radius: var(--radius-sm)"></span></div>
+        <div class="row" style="flex-wrap: nowrap"><span class="skeleton circle" style="width: 32px; height: 32px"></span><span class="skeleton line" style="width: 30%"></span><span class="skeleton" style="width: 64px; height: 30px; margin-left: auto; border-radius: var(--radius-sm)"></span></div>
+      </div>
+      <p class="note row" style="gap: 6px"><span class="bars"><i></i><i></i><i></i></span>Loading your friends…</p>
+    </div>
+    <div class="dialog" role="dialog" aria-labelledby="dlg6">
+      <div class="dhead"><h4 id="dlg6">Invite friends to Night Shift</h4><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+      <div class="dstate" role="alert"><i class="ph-fill ph-cloud-x"></i><b>Couldn't load your friends</b><p>Wave lost the connection while loading. Your invites weren't sent.</p><button class="btn" data-loading="Loading…"><i class="ph-bold ph-arrow-clockwise"></i>Try again</button></div>
+    </div>
+  </div>
+  <h3>Full-screen image viewer</h3>
+  <div class="board" style="padding: 0; overflow: hidden">
+    <figure class="viewer" data-live="dlg-viewer" data-live-class="viewer-dlg">
+      <div class="vbar"><div><b>riso.png</b><span>Mira · 184 KB · 1024 × 1024</span></div><a class="vlink" href="/assets/brand/icons/riso.png" target="_blank" rel="noopener"><i class="ph-bold ph-arrow-square-out"></i>Open original</a><button class="iconbtn" aria-label="Download"><i class="ph ph-download-simple"></i></button><button class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="vimg"><img src="/assets/brand/icons/riso.png" alt="The Wave logo printed in riso pink and teal" style="max-height: 320px"></div>
+      <figcaption>new icon test print, the riso one is my favourite</figcaption>
+    </figure>
+  </div>
+  <h3>Keyboard shortcuts</h3>
+  <div class="board">
+    <div class="dialog dialog--lg" role="dialog" aria-labelledby="dlg7" data-live="dlg-keys" style="--dw: 680px">
+      <div class="dhead"><h4 id="dlg7">Keyboard shortcuts</h4><p>Open this any time with ⌘/.</p><button class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="shortcuts">
+        <div class="grp"><h5>Navigation</h5>
+          <div class="sc"><span>Quick switcher</span><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">K</kbd></span></div>
+          <div class="sc"><span>Previous or next channel</span><span class="keys"><kbd class="kbd">⌥</kbd><kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd></span></div>
+          <div class="sc"><span>Next unread channel</span><span class="keys"><kbd class="kbd">⌥</kbd><kbd class="kbd">⇧</kbd><kbd class="kbd">↓</kbd></span></div>
+          <div class="sc"><span>Back or forward</span><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">[</kbd><kbd class="kbd">]</kbd></span></div>
+          <div class="sc"><span>Mark channel read</span><span class="keys"><kbd class="kbd">Esc</kbd></span></div>
+        </div>
+        <div class="grp"><h5>Messages</h5>
+          <div class="sc"><span>New line</span><span class="keys"><kbd class="kbd">⇧</kbd><kbd class="kbd">Return</kbd></span></div>
+          <div class="sc"><span>Edit your last message</span><span class="keys"><kbd class="kbd">↑</kbd></span></div>
+          <div class="sc"><span>Search</span><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">F</kbd></span></div>
+          <div class="sc"><span>Upload a file</span><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">⇧</kbd><kbd class="kbd">U</kbd></span></div>
+          <div class="sc"><span>Emoji picker</span><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">E</kbd></span></div>
+        </div>
+        <div class="grp"><h5>Voice</h5>
+          <div class="sc"><span>Toggle mute</span><span class="keys"><kbd class="kbd">=</kbd><kbd class="kbd">Backspace</kbd></span></div>
+          <div class="sc"><span>Toggle deafen</span><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">⇧</kbd><kbd class="kbd">D</kbd></span></div>
+          <div class="sc"><span>Push to talk</span><span class="keys"><kbd class="kbd">`</kbd></span></div>
+          <div class="sc"><span>Answer incoming call</span><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">Return</kbd></span></div>
+        </div>
+        <div class="grp"><h5>Window</h5>
+          <div class="sc"><span>Settings</span><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">,</kbd></span></div>
+          <div class="sc"><span>Zoom in or out</span><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">=</kbd><kbd class="kbd">−</kbd></span></div>
+          <div class="sc"><span>This sheet</span><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">/</kbd></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="search">
+  <h2>Search</h2>
+  <p class="lede">Search drops from the header field: filters become chips you can remove, results group by channel with the match highlighted. Empty results say what to change.</p>
+  <div class="board" style="display:flex; gap: var(--space-6); flex-wrap: wrap; align-items: flex-start">
+    <div class="pop search">
+      <div class="sfield"><i class="ph ph-magnifying-glass"></i><input aria-label="Search Night Shift" placeholder="Search Night Shift"><kbd class="kbd">⌘F</kbd></div>
+      <div class="sbody">
+        <div class="sgroup">Filters</div>
+        <button class="sopt"><i class="ph ph-user"></i><div><b>from:</b> <small>a person</small></div></button>
+        <button class="sopt"><i class="ph ph-hash"></i><div><b>in:</b> <small>a channel</small></div></button>
+        <button class="sopt" aria-selected="true"><i class="ph ph-paperclip"></i><div><b>has:</b> <small>link, embed, file, video, image or sound</small></div><kbd class="kbd">Tab</kbd></button>
+        <button class="sopt"><i class="ph ph-at"></i><div><b>mentions:</b> <small>a person</small></div></button>
+        <button class="sopt"><i class="ph ph-calendar-blank"></i><div><b>before:</b> <small>a date</small></div></button>
+        <div class="sgroup">Recent</div>
+        <div class="sopt" role="button" tabindex="0"><i class="ph ph-clock-counter-clockwise"></i><div>montage export settings</div><button class="iconbtn x" aria-label="Remove from recent"><i class="ph ph-x"></i></button></div>
+        <div class="sopt" role="button" tabindex="0"><i class="ph ph-clock-counter-clockwise"></i><div><span class="filter" style="height: 22px"><b>from:</b>Theo</span> boss fight</div><button class="iconbtn x" aria-label="Remove from recent"><i class="ph ph-x"></i></button></div>
+      </div>
+    </div>
+
+    <div class="pop search">
+      <div class="sfield"><i class="ph ph-magnifying-glass"></i><span class="filter"><b>from:</b>Rosa<button aria-label="Remove from: Rosa"><i class="ph-bold ph-x"></i></button></span><span class="filter"><b>in:</b>#clips<button aria-label="Remove in: #clips"><i class="ph-bold ph-x"></i></button></span><span class="filter"><b>has:</b>video<button aria-label="Remove has: video"><i class="ph-bold ph-x"></i></button></span><input aria-label="Search" value="dodge"></div>
+      <div class="sbody">
+        <div class="sgroup"><i class="ph ph-hash"></i>clips<span>3 results</span></div>
+        <button class="hit"><span class="av" data-av="Rosa"></span><div class="head"><b>Rosa</b><span>Yesterday at 11:03 PM</span></div><p>the timing on that <mark>dodge</mark> 😭 clip attached</p></button>
+        <button class="hit"><span class="av" data-av="Rosa"></span><div class="head"><b>Rosa</b><span>Nov 9</span></div><p>frame-perfect <mark>dodge</mark> into the parry, I'm framing this one. Also uploading the whole run later because the second half has two more <mark>dodges</mark> like it</p></button>
+        <div class="sgroup"><i class="ph ph-hash"></i>hades-runs<span>1 result</span></div>
+        <button class="hit"><span class="av" data-av="Rosa"></span><div class="head"><b>Rosa</b><span>Oct 30</span></div><p>practice <mark>dodge</mark> cancels on stage 2</p></button>
+      </div>
+      <div class="sfoot"><span><kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd>to move</span><span><kbd class="kbd">Return</kbd>to jump</span><span>Sorted by newest</span></div>
+    </div>
+
+    <div class="pop search">
+      <div class="sfield"><i class="ph ph-magnifying-glass"></i><span class="filter"><b>from:</b>Jun<button aria-label="Remove from: Jun"><i class="ph-bold ph-x"></i></button></span><input aria-label="Search" value="montage v3"></div>
+      <div class="empty" style="padding: var(--space-6) var(--space-4)"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b style="font-size: var(--text-md)">No results for "montage v3"</b><p>Nothing from Jun matches. Try fewer words or remove a filter.</p></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: var(--space-3)">The quick switcher (⌘K) lives with navigation: <a href="navigation.html#quick-switcher" style="color: var(--accent-ink)">Navigation, Quick switcher</a>.</p>
+</section>
+
 </main>
 </div>
+<div class="tooltip floating" id="tip" role="tooltip"></div>
 <script src="site.js"></script>
+<script>
+// Live dialogs: each [data-live] demo is cloned into a real <dialog> driven by site.js's data-open.
+for (const demo of document.querySelectorAll("[data-live]")) {
+  const dlg = document.createElement("dialog");
+  dlg.id = demo.dataset.live;
+  dlg.className = demo.dataset.liveClass || "real";
+  const copy = demo.cloneNode(true);
+  copy.removeAttribute("data-live");
+  for (const el of copy.querySelectorAll("[id]")) el.id += "-live";
+  for (const el of copy.querySelectorAll("[for]")) el.htmlFor += "-live";
+  for (const el of [copy, ...copy.querySelectorAll("[aria-labelledby]")]) if (el.hasAttribute("aria-labelledby")) el.setAttribute("aria-labelledby", el.getAttribute("aria-labelledby") + "-live");
+  dlg.append(copy);
+  document.body.append(dlg);
+}
+
+// Tooltips: 500ms rest delay, instant while warm (another one hid under 300ms ago).
+const tip = document.getElementById("tip");
+let tipTimer, coolTimer, warm = false;
+function showTip(el) {
+  const keys = (el.dataset.tipKeys || "").split(" ").filter(Boolean).map(k => `<kbd class="kbd">${k}</kbd>`).join("");
+  const desc = el.dataset.tipDesc ? `<small>${el.dataset.tipDesc}</small>` : "";
+  tip.innerHTML = el.dataset.tip + keys + desc;
+  tip.dataset.side = "top";
+  const r = el.getBoundingClientRect(), t = tip.getBoundingClientRect();
+  const left = Math.min(Math.max(8, r.left + r.width / 2 - t.width / 2), innerWidth - t.width - 8);
+  tip.style.left = left + "px";
+  tip.style.top = r.top - t.height - 8 + "px";
+  tip.classList.toggle("warm", warm);
+  tip.classList.add("on");
+  warm = true;
+  clearTimeout(coolTimer);
+}
+function hideTip() {
+  clearTimeout(tipTimer);
+  tip.classList.remove("on");
+  clearTimeout(coolTimer);
+  coolTimer = setTimeout(() => { warm = false; }, 300);
+}
+for (const el of document.querySelectorAll("[data-tip]")) {
+  const enter = () => { clearTimeout(tipTimer); warm ? showTip(el) : tipTimer = setTimeout(() => showTip(el), 500); };
+  el.addEventListener("pointerenter", enter);
+  el.addEventListener("focus", enter);
+  el.addEventListener("pointerleave", hideTip);
+  el.addEventListener("blur", hideTip);
+}
+
+// Context menu at the pointer, using the same list as the Open menu button.
+const liveMenu = document.getElementById("live-menu");
+const anchoredStyle = liveMenu.style.cssText;
+let atPointer = false;
+document.getElementById("ctx-target").addEventListener("contextmenu", e => {
+  e.preventDefault();
+  liveMenu.hidePopover();
+  liveMenu.style.cssText = "margin: 0; left: 0; top: 0";
+  atPointer = true;
+  liveMenu.showPopover();
+  atPointer = false;
+  // Open toward the side with room, rising from the corner at the pointer.
+  const { width: w, height: h } = liveMenu.getBoundingClientRect();
+  const flipX = e.clientX + w > innerWidth - 8, flipY = e.clientY + h > innerHeight - 8;
+  liveMenu.style.left = (flipX ? Math.max(8, e.clientX - w) : e.clientX) + "px";
+  liveMenu.style.top = (flipY ? Math.max(8, e.clientY - h) : e.clientY) + "px";
+  liveMenu.style.setProperty("--origin", `${flipY ? "bottom" : "top"} ${flipX ? "right" : "left"}`);
+});
+liveMenu.addEventListener("beforetoggle", e => {
+  if (e.newState === "open" && !atPointer) liveMenu.style.cssText = anchoredStyle;
+});
+document.addEventListener("click", e => {
+  const item = e.target.closest(".menu[popover] .mi:not([aria-haspopup]):not([aria-disabled])");
+  if (item && !item.matches("[role=menuitemcheckbox],[role=menuitemradio]")) item.closest("[popover]").hidePopover();
+});
+
+// Checkbox and radio menu items.
+document.addEventListener("click", e => {
+  const cb = e.target.closest(".mi[role=menuitemcheckbox]");
+  if (cb) {
+    const on = cb.getAttribute("aria-checked") !== "true";
+    cb.setAttribute("aria-checked", on);
+    cb.querySelector(".check")?.setAttribute("aria-checked", on);
+  }
+  const rd = e.target.closest(".mi[role=menuitemradio]");
+  if (rd) for (const r of rd.parentElement.querySelectorAll("[role=menuitemradio]")) {
+    r.setAttribute("aria-checked", r === rd);
+    r.querySelector(".radio").setAttribute("aria-checked", r === rd);
+  }
+});
+
+// Slider readouts.
+document.addEventListener("input", e => {
+  const out = e.target.dataset.out && document.getElementById(e.target.dataset.out);
+  if (out) out.textContent = e.target.value + "%";
+});
+
+// Copy and invite: optimistic, with a quiet confirmation.
+document.addEventListener("click", e => {
+  const copy = e.target.closest("[data-copy]");
+  if (copy && !copy.classList.contains("copied")) {
+    const value = copy.parentElement.querySelector("input")?.value;
+    try { navigator.clipboard?.writeText("https://" + value); } catch {}
+    copy.classList.add("copied");
+    copy.innerHTML = '<i class="ph-bold ph-check"></i>Copied';
+    setTimeout(() => { copy.classList.remove("copied"); copy.textContent = "Copy"; }, 1600);
+  }
+  const invite = e.target.closest("[data-invite]");
+  if (invite) {
+    invite.removeAttribute("data-invite");
+    invite.classList.add("sent");
+    invite.setAttribute("aria-disabled", "true");
+    invite.innerHTML = '<i class="ph-bold ph-check"></i>Sent';
+  }
+});
+
+// Toasts: newest at the bottom, three at most; errors stay, retry turns the toast into its outcome.
+const host = document.getElementById("toast-host");
+const TOASTS = {
+  success: { icon: "ph-check-circle", title: "Mira joined Night Shift", desc: "Sent from your invite", action: "Say hi" },
+  info: { icon: "ph-broadcast", title: "Theo went live", desc: "Hades II in Lounge", action: "Watch" },
+  error: { icon: "ph-warning-circle", title: "Couldn't send your message", desc: "You're offline. Retry once you reconnect.", action: "Retry", sticky: true },
+  undo: { icon: "ph-trash", title: "Message deleted", action: "Undo", life: 6000, timer: true },
+};
+function dismiss(t) {
+  if (!t.isConnected || t.classList.contains("out")) return;
+  t.classList.add("out");
+  t.addEventListener("animationend", () => t.remove(), { once: true });
+}
+function toast(kind) {
+  const d = TOASTS[kind];
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.dataset.tone = kind;
+  t.style.setProperty("--life", (d.life || 5000) + "ms");
+  t.innerHTML = `<i class="ph-fill ${d.icon}"></i><p>${d.title}${d.desc ? `<small>${d.desc}</small>` : ""}</p><button class="btn btn--sm">${d.action}</button><button class="iconbtn" aria-label="Dismiss"><i class="ph ph-x"></i></button>${d.timer ? '<span class="timer"></span>' : ""}`;
+  host.append(t);
+  const live = [...host.querySelectorAll(".toast:not(.out)")];
+  if (live.length > 3) dismiss(live[0]);
+  let left = d.life || 5000, started = Date.now(), timer;
+  const arm = () => { if (!d.sticky) { started = Date.now(); timer = setTimeout(() => dismiss(t), left); } };
+  t.addEventListener("pointerenter", () => { clearTimeout(timer); left -= Date.now() - started; });
+  t.addEventListener("pointerleave", arm);
+  arm();
+  t.querySelector(".iconbtn").onclick = () => dismiss(t);
+  t.querySelector(".btn").onclick = () => {
+    if (kind !== "error") return dismiss(t);
+    const b = t.querySelector(".btn");
+    b.innerHTML = '<span class="bars"><i></i><i></i><i></i></span>Sending…';
+    setTimeout(() => {
+      t.dataset.tone = "success";
+      t.innerHTML = '<i class="ph-fill ph-check-circle"></i><p>Message sent<small>to #clips</small></p>';
+      setTimeout(() => dismiss(t), 3000);
+    }, 1200);
+  };
+}
+for (const b of document.querySelectorAll("[data-toast]")) b.addEventListener("click", () => toast(b.dataset.toast));
+</script>
 </body>
 </html>

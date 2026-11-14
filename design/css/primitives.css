@@ -49,10 +49,14 @@
 .field .err { font-size: var(--text-xs); color: var(--danger-ink); display: flex; gap: 4px; align-items: center; }
 .field .err i { font-size: 14px; }
 
-.switch { position: relative; width: 38px; height: 22px; border-radius: 99px; background: var(--line-strong); transition: background var(--dur-hover); flex: none; }
-.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px oklch(0 0 0 / 0.3); transition: transform var(--dur-pop) var(--ease-spring); }
+/* Switch: a wide pill with a capsule knob that turns to glass and swells while pressed, then springs across.
+   GAP: modelled on iOS 26's Liquid Glass switch; iOS 27's exact metrics not checked. */
+.switch { --travel: 20px; position: relative; width: 52px; height: 28px; border-radius: 99px; background: var(--track-rest); transition: background var(--dur-pop) var(--ease-out); flex: none; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 28px; height: 24px; border-radius: 99px; background: #fff; box-shadow: 0 2px 6px oklch(0 0 0 / 0.22), 0 0 0 0.5px oklch(0 0 0 / 0.06); transition: transform 300ms var(--ease-spring), background var(--dur-hover), box-shadow var(--dur-hover); }
 .switch[aria-checked="true"] { background: var(--accent); }
-.switch[aria-checked="true"]::after { transform: translateX(16px); }
+.switch[aria-checked="true"]::after { transform: translateX(var(--travel)); }
+.switch:active::after, .choice:active .switch::after { transform: scale(1.18, 1.25); background: oklch(1 0 0 / 0.42); box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.7), inset 0 1px 1px oklch(1 0 0 / 0.9), 0 4px 12px oklch(0 0 0 / 0.25); backdrop-filter: blur(2px) saturate(180%); }
+.switch[aria-checked="true"]:active::after, .choice:active .switch[aria-checked="true"]::after { transform: translateX(var(--travel)) scale(1.18, 1.25); }
 .check { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--line-strong); display: grid; place-items: center; color: transparent; transition: background var(--dur-hover), border-color var(--dur-hover), transform var(--dur-press); flex: none; }
 .check i { font-size: 13px; opacity: 0; transform: scale(0.5); transition: opacity var(--dur-hover), transform var(--dur-pop) var(--ease-spring); }
 .check[aria-checked="true"] i { opacity: 1; transform: none; }
@@ -65,19 +69,32 @@
 .choice b { display: block; color: var(--text-strong); font-weight: var(--weight-medium); }
 .choice span { color: var(--text-muted); font-size: var(--text-xs); }
 .choice > div { flex: 1; min-width: 0; }
-.seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--radius-md); background: var(--selected); }
-.seg button { height: 28px; padding: 0 12px; border-radius: 7px; font-weight: var(--weight-semibold); color: var(--text-muted); transition: background var(--dur-hover), color var(--dur-hover); }
+/* Segmented: a recessed track and one raised thumb that slides between options (site.js sets --x and --w). */
+.seg { position: relative; display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--radius-md); background: var(--seg-track); }
+.seg::before { content: ""; position: absolute; top: 3px; bottom: 3px; left: 0; width: var(--w, 0); transform: translateX(var(--x, 0)); border-radius: calc(var(--radius-md) - 3px); background: var(--seg-thumb); box-shadow: var(--seg-shadow); opacity: 0; }
+.seg.is-placed::before { opacity: 1; }
+.seg.is-sliding::before { transition: transform 280ms var(--ease-spring), width 280ms var(--ease-spring); }
+.seg button { position: relative; z-index: 1; height: 28px; padding: 0 12px; border-radius: calc(var(--radius-md) - 3px); font-weight: var(--weight-semibold); color: var(--text-muted); transition: color var(--dur-hover), transform var(--dur-press) var(--ease-out); }
 .seg button:hover { color: var(--text-strong); }
-.seg button[aria-pressed="true"] { background: var(--bg-overlay); color: var(--text-strong); box-shadow: 0 1px 3px oklch(0 0 0 / 0.18); }
-/* Slider: done and remaining never touch; a tall narrow thumb sits in its own gap. --p (0..1) is set by site.js. */
-.range { --tw: 6px; --gap: 4px; --track: 8px; --at: calc((100% - var(--tw)) * var(--p, 0.5)); -webkit-appearance: none; appearance: none; width: 100%; height: 24px; background: none; cursor: pointer; }
-.range::-webkit-slider-runnable-track { height: var(--track); border-radius: calc(var(--track) / 2); background: linear-gradient(to right, var(--accent) 0 max(0px, calc(var(--at) - var(--gap))), transparent 0 calc(var(--at) + var(--tw) + var(--gap)), var(--line-strong) 0); }
-.range::-webkit-slider-thumb { -webkit-appearance: none; width: var(--tw); height: 24px; margin-top: calc((var(--track) - 24px) / 2); border-radius: 3px; background: var(--accent); transition: transform var(--dur-press) var(--ease-out); }
+.seg button:active { transform: scale(0.96); }
+.seg button[aria-pressed="true"] { color: var(--text-strong); }
+.seg:not(.is-placed) button[aria-pressed="true"] { background: var(--seg-thumb); box-shadow: var(--seg-shadow); }
+/* Slider: done and remaining never touch; a tall narrow thumb sits in its own gap. site.js wraps each
+   .range in .slider and sets --p (0..1). Segment ends facing the thumb get small corners, like dough
+   pressed to a wall; the outer ends stay round. */
+.slider { --tw: 6px; --gap: 4px; --track: 8px; --inner: 2.5px; --at: calc((100% - var(--tw)) * var(--p, 0.5)); position: relative; display: flex; align-items: center; flex: 1; min-width: 0; }
+.slider::before, .slider::after { content: ""; position: absolute; top: 50%; height: var(--track); translate: 0 -50%; pointer-events: none; }
+.slider::before { left: 0; width: max(0px, calc(var(--at) - var(--gap))); background: var(--accent); border-radius: calc(var(--track) / 2) var(--inner) var(--inner) calc(var(--track) / 2); }
+.slider::after { right: 0; left: min(100%, calc(var(--at) + var(--tw) + var(--gap))); background: var(--line-strong); border-radius: var(--inner) calc(var(--track) / 2) calc(var(--track) / 2) var(--inner); }
+.slider:has(.range:disabled) { opacity: 0.45; }
+.range { --tw: 6px; position: relative; z-index: 1; -webkit-appearance: none; appearance: none; width: 100%; height: 24px; margin: 0; background: none; cursor: pointer; }
+.range::-webkit-slider-runnable-track { height: 24px; background: none; }
+.range::-webkit-slider-thumb { -webkit-appearance: none; width: var(--tw); height: 24px; border-radius: 3px; background: var(--accent); transition: transform var(--dur-press) var(--ease-out); }
 .range:hover::-webkit-slider-thumb { transform: scaleY(1.08); }
 .range:active::-webkit-slider-thumb { transform: scaleX(0.66); }
 .range:focus-visible { outline: none; }
 .range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--bg-page), 0 0 0 4px var(--accent-ink); }
-.range:disabled { opacity: 0.45; cursor: not-allowed; }
+.range:disabled { cursor: not-allowed; }
 
 /* Badges, avatars, status */
 .count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--accent); color: #fff; font-size: var(--text-xs); font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; line-height: 1; }
@@ -182,7 +199,11 @@
 @property --a { syntax: "<percentage>"; inherits: true; initial-value: 0%; }
 @property --b { syntax: "<percentage>"; inherits: true; initial-value: 30%; }
 .progress { --gap: 4px; position: relative; height: 6px; }
-.progress > span, .progress::before, .progress::after { position: absolute; top: 0; bottom: 0; border-radius: 99px; }
+.progress > span, .progress::before, .progress::after { position: absolute; top: 0; bottom: 0; }
+.progress > span { border-radius: 3px 2px 2px 3px; }
+.progress::after { border-radius: 2px 3px 3px 2px; }
+.progress::before { border-radius: 3px 2px 2px 3px; }
+.progress--indeterminate > span { border-radius: 2px; }
 .progress > span { left: 0; width: max(0px, calc(var(--v, 40%) - var(--gap) / 2)); background: var(--accent); transition: width var(--dur-panel) var(--ease-out); }
 .progress::after { content: ""; right: 0; left: min(100%, calc(var(--v, 40%) + var(--gap) / 2)); background: var(--line-strong); transition: left var(--dur-panel) var(--ease-out); }
 .progress--indeterminate { animation: travel 1.6s var(--ease-move) infinite; }
@@ -195,7 +216,11 @@
 .meter i.on { background: var(--online); }
 .meter i.hot { background: var(--idle); }
 .meter i.clip { background: var(--dnd); }
-.ring { --v: 0.6; width: 40px; height: 40px; border-radius: 50%; background: conic-gradient(from 6deg, var(--accent) 0 max(0deg, calc(var(--v) * 360deg - 12deg)), transparent 0 calc(var(--v) * 360deg), var(--line-strong) 0 calc(360deg - 12deg), transparent 0); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px)); }
+/* Ring: an SVG of two round-capped arcs with a gap at each meeting point. --v is 0..1. */
+.ring { --v: 0.6; --g: 6.5; width: 40px; height: 40px; transform: rotate(-90deg); flex: none; }
+.ring circle { fill: none; stroke-width: 4; stroke-linecap: round; }
+.ring .rest { stroke: var(--line-strong); stroke-dasharray: max(0, calc((1 - var(--v)) * 100 - var(--g))) 100; stroke-dashoffset: calc(var(--v) * -100 - var(--g) / 2); }
+.ring .fill { stroke: var(--accent); stroke-dasharray: max(0, calc(var(--v) * 100 - var(--g))) 100; stroke-dashoffset: calc(var(--g) / -2); transition: stroke-dasharray var(--dur-panel) var(--ease-out); }
 
 /* Skeleton: a calm shimmer, a quick sweep then a rest */
 .skeleton { position: relative; overflow: hidden; border-radius: var(--radius-xs); background: var(--selected); }
