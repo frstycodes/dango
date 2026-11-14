@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wave Primitives</title>
+<meta name="description" content="Buttons, fields, choices, badges, avatars and status.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<link rel="stylesheet" href="css/navigation.css">
+<link rel="stylesheet" href="css/messages.css">
+<link rel="stylesheet" href="css/voice.css">
+<link rel="stylesheet" href="css/overlays.css">
+<link rel="stylesheet" href="css/settings.css">
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+<section id="controls">
+  <h2>Controls</h2>
+  <p class="lede">Verb plus object on every button. Hover, press, focus (Tab to it), disabled and loading are all live.</p>
+  <h3>Buttons</h3>
+  <div class="board stack" style="gap: var(--space-4)">
+    <div class="row"><button class="btn btn--primary">Join voice</button><button class="btn">Invite friends</button><button class="btn btn--ghost">Mark as read</button><button class="btn btn--danger">Leave server</button><button class="btn btn--primary" disabled>Join voice</button><button class="btn btn--primary" data-loading="Saving…">Save changes</button></div>
+    <div class="row"><button class="btn btn--primary btn--lg"><i class="ph-bold ph-broadcast"></i>Go live</button><button class="btn"><i class="ph-bold ph-user-plus"></i>Add friend</button><button class="btn btn--sm">Small</button><button class="iconbtn" aria-label="Pin"><i class="ph ph-push-pin"></i></button><button class="iconbtn" aria-label="Reply"><i class="ph ph-arrow-bend-up-left"></i></button><button class="iconbtn on" aria-label="Unmute"><i class="ph-bold ph-microphone-slash"></i></button></div>
+  </div>
+  <h3>Inputs</h3>
+  <div class="board grid">
+    <div class="field"><label for="f1">Display name</label><div class="input"><input id="f1" value="you"></div></div>
+    <div class="field"><label for="f2">Search</label><div class="input"><i class="ph ph-magnifying-glass"></i><input id="f2" placeholder="Search Night Shift"></div></div>
+    <div class="field"><label for="f3">Invite link</label><div class="input error"><input id="f3" value="wave.gg/nght" aria-describedby="f3e"></div><span class="err" id="f3e"><i class="ph-fill ph-warning-circle"></i>This invite has expired. Ask for a new one.</span></div>
+  </div>
+  <h3>Choices</h3>
+  <div class="board grid">
+    <div class="stack">
+      <button class="choice" data-toggle="switch"><div><b>Noise suppression</b><span>Removes background sound from your mic</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+      <button class="choice" data-toggle="switch"><div><b>Echo cancellation</b><span>Stops others hearing themselves</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+    </div>
+    <div class="stack">
+      <button class="choice" data-toggle="check"><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span><div><b>Show game activity</b><span>Lets friends see what you play</span></div></button>
+      <button class="choice" data-toggle="check"><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span><div><b>Allow DMs from server members</b></div></button>
+    </div>
+    <div class="stack" role="radiogroup" aria-label="Input mode">
+      <button class="choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="true"></span><div><b>Voice activity</b><span>Transmits when you speak</span></div></button>
+      <button class="choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div><b>Push to talk</b><span>Hold a key to transmit</span></div></button>
+    </div>
+    <div class="stack" style="gap: var(--space-4)">
+      <div class="seg" role="group" aria-label="Quality"><button aria-pressed="false">720p</button><button aria-pressed="true">1080p</button><button aria-pressed="false">Source</button></div>
+      <div class="field"><label for="vol">Mira's volume</label><input id="vol" class="range" type="range" value="60"></div>
+    </div>
+  </div>
+</section>
+<section id="status">
+  <h2>Status and people</h2>
+  <p class="lede">Status is never colour alone: online is a dot, idle a moon, do not disturb a bar, offline a ring. Speaking is the accent ring plus the bars.</p>
+  <div class="board stack" style="gap: var(--space-6)">
+    <div class="row" style="gap: var(--space-6)">
+      <div class="row"><span class="av" style="--size:40px" data-av="Mira"><span class="status online"></span></span><span class="muted">Online</span></div>
+      <div class="row"><span class="av" style="--size:40px" data-av="Ana"><span class="status idle"></span></span><span class="muted">Idle</span></div>
+      <div class="row"><span class="av" style="--size:40px" data-av="Theo"><span class="status dnd"></span></span><span class="muted">Do not disturb</span></div>
+      <div class="row"><span class="av" style="--size:40px" data-av="Jun"><span class="status offline"></span></span><span class="muted">Offline</span></div>
+      <div class="row"><span class="av speaking" style="--size:40px; --bg-ring: var(--bg-sidebar)" data-av="Rosa"></span><span class="muted">Speaking</span></div>
+    </div>
+    <div class="row" style="gap: var(--space-4)"><span class="count">3</span><span class="count">99+</span><span class="tag">App</span><span class="tag"><i class="ph-bold ph-crown-simple"></i>Host</span><span class="tag">New</span><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><div class="stackav" style="--bg-ring: var(--bg-sidebar)"><span class="av" style="--size:24px" data-av="Mira"></span><span class="av" style="--size:24px" data-av="Theo"></span><span class="av" style="--size:24px" data-av="Ana"></span></div><span class="muted">3 watching</span></div>
+  </div>
+</section>
+</main>
+</div>
+<script src="site.js"></script>
+</body>
+</html>

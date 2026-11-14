@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wave Voice</title>
+<meta name="description" content="Voice panel, call stage, controls and streams.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<link rel="stylesheet" href="css/navigation.css">
+<link rel="stylesheet" href="css/messages.css">
+<link rel="stylesheet" href="css/voice.css">
+<link rel="stylesheet" href="css/overlays.css">
+<link rel="stylesheet" href="css/settings.css">
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+<section id="voice">
+  <h2>Voice and streams</h2>
+  <p class="lede">The call stage stays dark in both themes, so streams read like a screen. Controls are squircles; off-states turn coral, sharing turns magenta, leaving is the one red fill.</p>
+  <div class="call">
+    <div class="tiles">
+      <div class="tile speaking" style="--hue: 20"><span class="av" data-av="Mira"></span><span class="name"><span class="bars"><i></i><i></i><i></i></span>Mira</span></div>
+      <div class="tile stream" style="--hue: 280"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="viewers"><i class="ph-bold ph-eye"></i>3</span><span class="name">Theo · Hades II</span></div>
+      <div class="tile" style="--hue: 200"><span class="av" data-av="You"></span><span class="name"><i class="ph-fill ph-microphone-slash"></i>You</span></div>
+    </div>
+    <div class="controls">
+      <button class="cbtn off" aria-label="Unmute"><i class="ph-fill ph-microphone-slash"></i></button>
+      <button class="cbtn" aria-label="Deafen"><i class="ph-fill ph-headphones"></i></button>
+      <button class="cbtn" aria-label="Turn on camera"><i class="ph-fill ph-video-camera"></i></button>
+      <button class="cbtn active" aria-label="Stop sharing"><i class="ph-fill ph-screencast"></i></button>
+      <button class="cbtn" aria-label="Open chat"><i class="ph-fill ph-chat-circle"></i></button>
+      <button class="cbtn leave" aria-label="Leave call"><i class="ph-fill ph-phone-x"></i></button>
+    </div>
+  </div>
+</section>
+</main>
+</div>
+<script src="site.js"></script>
+</body>
+</html>

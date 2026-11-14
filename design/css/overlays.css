@@ -1,0 +1,27 @@
+/* Overlays: tooltips, menus, toasts, dialogs. */
+/* Overlays */
+.tooltip { display: inline-block; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--text-strong); color: var(--bg-page); font-size: var(--text-xs); font-weight: var(--weight-semibold); position: relative; }
+.tooltip kbd { font: inherit; opacity: 0.6; margin-left: 6px; }
+.menu { width: 248px; padding: 6px; border-radius: var(--radius-lg); background: var(--bg-overlay); box-shadow: var(--shadow-pop); display: grid; gap: 1px; }
+.menu hr { border: 0; height: 1px; background: var(--line); margin: 4px 8px; }
+.mi { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 6px 10px; border-radius: var(--radius-sm); color: var(--text); font-weight: var(--weight-medium); text-align: left; width: 100%; transition: background var(--dur-hover); }
+.mi:hover { background: var(--hover); color: var(--text-strong); }
+.mi i { color: var(--text-muted); }
+.mi > div { flex: 1; min-width: 0; }
+.mi small { display: block; color: var(--text-faint); font-size: var(--text-xs); font-weight: var(--weight-regular); }
+.mi kbd { font: var(--weight-medium) var(--text-xs) var(--font-ui); color: var(--text-faint); }
+.mi.danger, .mi.danger i { color: var(--danger-ink); }
+.mi.danger:hover { background: var(--danger); color: #fff; }
+.mi.danger:hover i { color: #fff; }
+.toast { display: flex; align-items: center; gap: var(--space-3); padding: 10px 10px 10px 14px; border-radius: var(--radius-lg); background: var(--bg-overlay); box-shadow: var(--shadow-pop); max-width: 380px; }
+.toast > i { color: var(--online-ink); font-size: 20px; }
+.toast p { flex: 1; color: var(--text-strong); font-weight: var(--weight-medium); }
+.dialog { width: min(100%, 420px); border-radius: var(--radius-xl); background: var(--bg-raised); box-shadow: var(--shadow-pop); padding: var(--space-6); display: grid; gap: var(--space-4); }
+.dialog h4 { font-size: var(--text-lg); color: var(--text-strong); display: flex; gap: 10px; align-items: center; }
+.dialog h4 i { color: var(--danger-ink); font-size: 22px; }
+.dialog p { color: var(--text-muted); }
+.dialog footer { display: flex; justify-content: flex-end; gap: var(--space-2); }
+dialog.real { border: 0; padding: 0; background: none; margin: auto; overflow: visible; }
+dialog.real::backdrop { background: var(--scrim); }
+dialog.real[open] .dialog { animation: pop var(--dur-panel) var(--ease-out); }
+@keyframes pop { from { opacity: 0; transform: scale(0.95); } }
