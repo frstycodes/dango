@@ -291,6 +291,6 @@ pub fn bottom(radius: f32) -> Corners<Pixels> {
 
 // A strip (header, footer, scroll area) that runs edge to edge of a rounded container, rounded to
 // match on the corners it touches.
-pub fn edge(el: Div, corners: Corners<Pixels>) -> Div {
+pub fn edge<E: Styled>(el: E, corners: Corners<Pixels>) -> E {
     el.rounded_tl(corners.top_left).rounded_tr(corners.top_right).rounded_bl(corners.bottom_left).rounded_br(corners.bottom_right)
 }
