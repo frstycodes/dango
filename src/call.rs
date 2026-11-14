@@ -1147,8 +1147,8 @@ impl Rustcord {
                 ui::round_button(SharedString::from(format!("volume-{id}")), Glyph::VolumeHigh, "Stream volume", 28.)
                     .on_mouse_down(MouseButton::Left, cx.listener(move |this, e: &MouseDownEvent, _, cx| this.open_stream_volume(volume_id.clone(), e.position, cx))),
             )
-            .when(several && call.stream_layout == StreamLayout::Split, |d| d.child(ui::small(ui::button(SharedString::from(format!("focus-{id}")), ui::Tone::OnMedia, cx)).child("Focus").on_click(cx.listener(move |this, _, _, cx| this.focus_stream(&focus_id, cx)))))
-            .child(ui::small(ui::button(SharedString::from(format!("unwatch-{id}")), ui::Tone::OnMedia, cx)).child("Stop watching").on_click(cx.listener(move |this, _, _, cx| this.unwatch_stream(&stop_id, cx))));
+            .when(several && call.stream_layout == StreamLayout::Split, |d| d.child(ui::button(SharedString::from(format!("focus-{id}")), ui::Tone::OnMedia, cx).small().child("Focus").on_click(cx.listener(move |this, _, _, cx| this.focus_stream(&focus_id, cx)))))
+            .child(ui::button(SharedString::from(format!("unwatch-{id}")), ui::Tone::OnMedia, cx).small().child("Stop watching").on_click(cx.listener(move |this, _, _, cx| this.unwatch_stream(&stop_id, cx))));
         let swap_id = id.clone();
         let viewers = self.viewer_count(&id);
         div()
@@ -1705,7 +1705,7 @@ impl Rustcord {
             .w_full()
             .cursor_pointer()
             .child(gpui_kit::canvas(move |b, _, _| { record.borrow_mut().insert(record_key.clone(), b); }, |_, _, _, _| {}).absolute().size_full())
-            .child(ui::slider(fraction, cx))
+            .child(ui::slider_track(fraction, cx))
             .on_mouse_down(MouseButton::Left, cx.listener(move |this, e: &MouseDownEvent, _, cx| set(this, &down_key, e.position.x, cx)))
             .on_drag(MenuSliderDrag(key.clone()), |drag, _, _, cx| cx.new(|_| drag.clone()))
             .on_drag_move::<MenuSliderDrag>(cx.listener(move |this, e: &gpui_kit::DragMoveEvent<MenuSliderDrag>, _, cx| {

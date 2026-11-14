@@ -793,8 +793,8 @@ impl Rustcord {
         let buttons = div()
             .flex()
             .gap(px(8.))
-            .child(ui::small(ui::button("log-out-stay", Tone::Secondary, cx)).flex_1().child("Stay").on_click(cx.listener(|this, _, _, cx| this.set_ask(None, cx))))
-            .child(ui::small(ui::button("log-out-yes", Tone::Danger, cx)).flex_1().child("Log out").on_click(cx.listener(|this, _, _, cx| this.sign_out(cx))));
+            .child(ui::button("log-out-stay", Tone::Secondary, cx).small().flex_1().child("Stay").on_click(cx.listener(|this, _, _, cx| this.set_ask(None, cx))))
+            .child(ui::button("log-out-yes", Tone::Danger, cx).small().flex_1().child("Log out").on_click(cx.listener(|this, _, _, cx| this.sign_out(cx))));
         reveal(
             "log-out-ask",
             div()
@@ -843,7 +843,7 @@ impl Rustcord {
             .child(div().flex_1().min_w_0().pb(px(12.)).truncate().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child(me.name.clone()));
         let copied = self.settings.as_ref().is_some_and(|s| s.copied);
         let id = me.id.clone();
-        let copy = ui::small(ui::button("copy-user-id", Tone::Secondary, cx))
+        let copy = ui::button("copy-user-id", Tone::Secondary, cx).small()
             .min_w(px(96.))
             .when(copied, |b| b.text_color(palette::positive_ink(cx)))
             .child(Icon::new(if copied { Glyph::Checkmark } else { Glyph::Copy }).size(px(16.)))
@@ -1086,14 +1086,14 @@ impl Rustcord {
             .flex()
             .flex_wrap()
             .gap(px(8.))
-            .child(ui::small(ui::button("nomic-pick", Tone::Secondary, cx)).child("Choose another input").on_click(cx.listener(|this, _, _, cx| {
+            .child(ui::button("nomic-pick", Tone::Secondary, cx).small().child("Choose another input").on_click(cx.listener(|this, _, _, cx| {
                 if let Some(s) = &mut this.settings {
                     s.select = Some(Select::Microphone);
                 }
                 cx.notify();
             })))
             .when(cfg!(target_os = "macos"), |d| {
-                d.child(ui::small(ui::button("nomic-system", Tone::Ghost, cx)).child("Open System Settings").on_click(|_, _, cx| cx.open_url(MAC_MIC_PRIVACY)))
+                d.child(ui::button("nomic-system", Tone::Ghost, cx).small().child("Open System Settings").on_click(|_, _, cx| cx.open_url(MAC_MIC_PRIVACY)))
             });
         callout_with(
             ui::Notice::Warning,
@@ -1196,7 +1196,7 @@ impl Rustcord {
         let view = self.settings.as_ref().expect("settings are open");
         let (asking, done) = (view.asking == Some(Ask::Reset), view.reset_undo.is_some());
         let trigger = (!asking && !done).then(|| {
-            ui::small(ui::button("reset-voice", Tone::Secondary, cx)).text_color(palette::danger_ink(cx)).child("Reset voice settings").on_click(cx.listener(|this, _, _, cx| this.set_ask(Some(Ask::Reset), cx)))
+            ui::button("reset-voice", Tone::Secondary, cx).small().text_color(palette::danger_ink(cx)).child("Reset voice settings").on_click(cx.listener(|this, _, _, cx| this.set_ask(Some(Ask::Reset), cx)))
         });
         let ask = asking.then(|| {
             reveal(
@@ -1216,8 +1216,8 @@ impl Rustcord {
                         div()
                             .flex()
                             .gap(px(8.))
-                            .child(ui::small(ui::button("reset-keep", Tone::Secondary, cx)).child("Keep my settings").on_click(cx.listener(|this, _, _, cx| this.set_ask(None, cx))))
-                            .child(ui::small(ui::button("reset-yes", Tone::Danger, cx)).child("Reset voice settings").on_click(cx.listener(|this, _, _, cx| this.reset_voice(cx)))),
+                            .child(ui::button("reset-keep", Tone::Secondary, cx).small().child("Keep my settings").on_click(cx.listener(|this, _, _, cx| this.set_ask(None, cx))))
+                            .child(ui::button("reset-yes", Tone::Danger, cx).small().child("Reset voice settings").on_click(cx.listener(|this, _, _, cx| this.reset_voice(cx)))),
                     ),
             )
         });
@@ -1392,7 +1392,7 @@ impl Rustcord {
             .gap(px(8.))
             .children(recording.then(|| pulse_ring(SharedString::from(format!("record-ring-{index}")), cx)))
             .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(value))
-            .child(ui::small(ui::button(SharedString::from(format!("record-{index}")), Tone::Secondary, cx)).child(label).on_click(cx.listener(move |this, _, window, cx| {
+            .child(ui::button(SharedString::from(format!("record-{index}")), Tone::Secondary, cx).small().child(label).on_click(cx.listener(move |this, _, window, cx| {
                 if let Some(s) = &mut this.settings {
                     s.recording = if s.recording == Some(index) { None } else { Some(index) };
                 }
@@ -1683,7 +1683,7 @@ impl Rustcord {
         let bounds = self.slider_bounds.clone();
         let record = bounds.clone();
         let track = match fill {
-            Fill::Accent => ui::slider(fraction, cx).into_any_element(),
+            Fill::Accent => ui::slider_track(fraction, cx).into_any_element(),
             Fill::Threshold(level) => sensitivity_track(Some(fraction), level.unwrap_or(crate::SILENCE_DB), cx).into_any_element(),
         };
         let (down_key, drag_key, move_key, record_key) = (key.clone(), key.clone(), key.clone(), key.clone());

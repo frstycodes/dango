@@ -488,7 +488,7 @@ impl Rustcord {
             .child(div().p(px(5.)).rounded_full().bg(overlay).child(avatar_with_status(&user.avatar, 80., status, overlay)))
             .when(is_me, |who| {
                 who.child(
-                    crate::ui::small(crate::ui::button("profile-edit", crate::ui::Tone::Secondary, cx))
+                    crate::ui::button("profile-edit", crate::ui::Tone::Secondary, cx).small()
                         .child(Icon::new(Glyph::Pen).size(px(16.)))
                         .child("Edit profile")
                         .on_click(cx.listener(|this, _, window, cx| {

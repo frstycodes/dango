@@ -35,7 +35,7 @@ mod field;
 mod tabs;
 
 pub use control::{Control, button, chip, hover_fade, icon_button, round_button, swatch, tip};
-pub use feedback::{meter, progress_indeterminate, progress_live, ring, skeleton, slider_live};
+pub use feedback::{meter, progress_indeterminate, progress_live, ring, skeleton, slider_live, slider_track};
 pub use field::{code_cell, drop_zone, field, field_error, field_hint, select, stepper, text_area, text_field};
 pub use tabs::{pill_tabs, segmented_live, tabs};
 

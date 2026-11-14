@@ -936,7 +936,7 @@ fn hide_spoilers(text: &str, revealed: bool) -> String {
 fn send_failure(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> AnyElement {
     let (retry_this, retry) = (ctx.this.clone(), message.clone());
     let (delete_this, delete) = (ctx.this.clone(), message.clone());
-    let action = |id: String, label: &'static str| ui::small(ui::button(SharedString::from(id), ui::Tone::Ghost, cx)).h(px(28.)).child(label);
+    let action = |id: String, label: &'static str| ui::button(SharedString::from(id), ui::Tone::Ghost, cx).small().h(px(28.)).child(label);
     div()
         .mt(px(4.))
         .flex()
