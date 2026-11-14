@@ -8,7 +8,7 @@ pub const MARK_WHITE: &str = "brand/rustcord-mark-white.svg";
 
 // Phosphor icons (MIT, assets/icons/phosphor/LICENSE): regular for rows and chrome, bold for small
 // marks, fill for on and playing states. Order matches `Glyph`.
-const GLYPHS: [(&str, &[u8]); 120] = [
+const GLYPHS: [(&str, &[u8]); 129] = [
     ("icons/hashtag.svg", include_bytes!("../assets/icons/phosphor/hash.svg")),
     ("icons/hashtag-lock.svg", include_bytes!("../assets/icons/phosphor/lock-simple.svg")),
     ("icons/volume-high.svg", include_bytes!("../assets/icons/phosphor/speaker-high.svg")),
@@ -129,6 +129,15 @@ const GLYPHS: [(&str, &[u8]); 120] = [
     ("icons/arrow-clockwise-bold.svg", include_bytes!("../assets/icons/phosphor/arrow-clockwise-bold.svg")),
     ("icons/warning-bold.svg", include_bytes!("../assets/icons/phosphor/warning-bold.svg")),
     ("icons/prohibit.svg", include_bytes!("../assets/icons/phosphor/prohibit.svg")),
+    ("icons/eye.svg", include_bytes!("../assets/icons/phosphor/eye.svg")),
+    ("icons/upload-simple.svg", include_bytes!("../assets/icons/phosphor/upload-simple.svg")),
+    ("icons/image.svg", include_bytes!("../assets/icons/phosphor/image.svg")),
+    ("icons/file.svg", include_bytes!("../assets/icons/phosphor/file.svg")),
+    ("icons/x-circle-fill.svg", include_bytes!("../assets/icons/phosphor/x-circle-fill.svg")),
+    ("icons/info-fill.svg", include_bytes!("../assets/icons/phosphor/info-fill.svg")),
+    ("icons/minus-bold.svg", include_bytes!("../assets/icons/phosphor/minus-bold.svg")),
+    ("icons/at-fill.svg", include_bytes!("../assets/icons/phosphor/at-fill.svg")),
+    ("icons/paper-plane-tilt-bold.svg", include_bytes!("../assets/icons/phosphor/paper-plane-tilt-bold.svg")),
 ];
 
 const BRAND: [(&str, &[u8]); 2] = [
@@ -258,6 +267,15 @@ pub enum Glyph {
     TryAgain,
     WarningBold,
     Prohibit,
+    Eye,
+    Upload,
+    Image,
+    File,
+    XCircle,
+    InfoFill,
+    MinusBold,
+    AtFill,
+    PaperPlaneBold,
 }
 
 impl IconNamed for Glyph {
