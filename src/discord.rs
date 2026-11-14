@@ -131,6 +131,8 @@ pub struct Guild {
     pub voice_states: Vec<VoiceState>,
     pub emojis: Vec<Emoji>,
     pub owner_id: Option<String>,
+    // Active threads we know of (joined ones come in READY; more arrive as they're used).
+    pub threads: Vec<Channel>,
     // Our own roles here, for working out what moderation we may do.
     pub my_roles: Vec<String>,
 }
@@ -213,6 +215,8 @@ pub mod perm {
     pub const MANAGE_MESSAGES: u64 = 1 << 13;
     pub const MANAGE_NICKNAMES: u64 = 1 << 27;
     pub const MANAGE_ROLES: u64 = 1 << 28;
+    pub const MANAGE_THREADS: u64 = 1 << 34;
+    pub const CREATE_PUBLIC_THREADS: u64 = 1 << 35;
     pub const MODERATE_MEMBERS: u64 = 1 << 40;
 }
 
@@ -268,6 +272,7 @@ pub struct Channel {
     pub private: bool,
     // A 1:1 DM's other person, for their avatar and status dot.
     pub recipient: Option<User>,
+    pub thread: Option<ThreadMeta>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -276,7 +281,19 @@ pub enum ChannelKind {
     Voice,
     Category,
     Dm,
+    // A thread or forum post; `Channel::thread` carries its state.
+    Thread,
     Other,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ThreadMeta {
+    pub archived: bool,
+    pub locked: bool,
+    // We're a member: Discord lists joined threads under their channel.
+    pub joined: bool,
+    pub message_count: u32,
+    pub owner_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -404,6 +421,8 @@ pub struct Message {
     pub nonce: Option<String>,
     pub state: SendState,
     pub pinned: bool,
+    // The thread started from this message, for Discord's thread chip.
+    pub thread: Option<Channel>,
 }
 
 // What a profile popout shows beyond the user object. From GET /users/{id}/profile (user-account API, Not verified).
@@ -490,7 +509,13 @@ pub struct Ready {
 
 pub enum Event {
     Ready(Box<Ready>),
+    // A channel or thread created or changed in a server.
+    ChannelUpsert { guild_id: String, channel: Channel },
+    ChannelDelete { guild_id: String, id: String },
+    // Our membership of a thread changed (joined or left).
+    ThreadJoined { id: String, joined: bool },
     GuildSettings((String, GuildSettings)),
+    Batch(Vec<Event>),
     GuildCreate(Guild),
     MessageCreate(Box<Message>),
     // Partial: apply with `apply_update`.
@@ -889,6 +914,18 @@ fn dispatch(kind: &str, d: &Value) -> Option<Event> {
     match kind {
         "READY" => Some(Event::Ready(Box::new(parse_ready(d)))),
         "GUILD_CREATE" => parse_guild(d).map(Event::GuildCreate),
+        "CHANNEL_CREATE" | "CHANNEL_UPDATE" | "THREAD_CREATE" | "THREAD_UPDATE" => {
+            let guild_id = d["guild_id"].as_str()?.to_owned();
+            parse_channel(d, &guild_id).map(|channel| Event::ChannelUpsert { guild_id, channel })
+        }
+        "CHANNEL_DELETE" | "THREAD_DELETE" => Some(Event::ChannelDelete { guild_id: d["guild_id"].as_str()?.to_owned(), id: d["id"].as_str()?.to_owned() }),
+        "THREAD_MEMBER_UPDATE" => Some(Event::ThreadJoined { id: d["id"].as_str()?.to_owned(), joined: true }),
+        "THREAD_LIST_SYNC" => {
+            let guild_id = d["guild_id"].as_str()?.to_owned();
+            // Sent with many threads at once; each becomes an upsert below via Batch.
+            let threads: Vec<Event> = d["threads"].as_array().into_iter().flatten().filter_map(|t| parse_channel(t, &guild_id)).map(|channel| Event::ChannelUpsert { guild_id: guild_id.clone(), channel }).collect();
+            Some(Event::Batch(threads))
+        }
         "USER_GUILD_SETTINGS_UPDATE" => Some(Event::GuildSettings(parse_guild_settings(d))),
         "MESSAGE_CREATE" => parse_message(d).map(|m| Event::MessageCreate(Box::new(m))),
         "MESSAGE_UPDATE" => Some(Event::MessageUpdate(d.clone())),
@@ -1018,6 +1055,7 @@ fn parse_guild(g: &Value) -> Option<Guild> {
         voice_states: g["voice_states"].as_array().into_iter().flatten().map(parse_voice_state).collect(),
         emojis: g["emojis"].as_array().into_iter().flatten().map(parse_emoji).collect(),
         owner_id: props["owner_id"].as_str().or(g["owner_id"].as_str()).map(str::to_owned),
+        threads: g["threads"].as_array().into_iter().flatten().filter_map(|t| parse_channel(t, id)).collect(),
         my_roles: Vec::new(),
     })
 }
@@ -1028,13 +1066,26 @@ fn my_roles(guild: &Value, merged: &Value, me: &str) -> Vec<String> {
     mine(&guild["members"]).or_else(|| mine(merged)).unwrap_or_default()
 }
 
+pub fn parse_thread(c: &Value, guild_id: &str) -> Option<Channel> {
+    parse_channel(c, guild_id)
+}
+
 fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
     let kind = match c["type"].as_u64()? {
         0 | 5 => ChannelKind::Text,
         2 | 13 => ChannelKind::Voice,
         4 => ChannelKind::Category,
+        10..=12 => ChannelKind::Thread,
         _ => ChannelKind::Other,
     };
+    let meta = &c["thread_metadata"];
+    let thread = (kind == ChannelKind::Thread).then(|| ThreadMeta {
+        archived: meta["archived"].as_bool().unwrap_or(false),
+        locked: meta["locked"].as_bool().unwrap_or(false),
+        joined: c["member"].is_object(),
+        message_count: c["message_count"].as_u64().unwrap_or(0) as u32,
+        owner_id: c["owner_id"].as_str().map(str::to_owned),
+    });
     let private = c["permission_overwrites"]
         .as_array()
         .into_iter()
@@ -1050,6 +1101,7 @@ fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
         last_message_id: c["last_message_id"].as_str().map(str::to_owned),
         private,
         recipient: None,
+        thread,
     })
 }
 
@@ -1075,6 +1127,7 @@ fn parse_dm(c: &Value, users: &Value) -> Option<Channel> {
         last_message_id: c["last_message_id"].as_str().map(str::to_owned),
         private: false,
         recipient: (recipients.len() == 1).then(|| recipients[0].clone()),
+        thread: None,
     })
 }
 
@@ -1137,6 +1190,7 @@ pub fn parse_message(m: &Value) -> Option<Message> {
         nonce: m["nonce"].as_str().map(str::to_owned),
         state: SendState::Sent,
         pinned: m["pinned"].as_bool().unwrap_or(false),
+        thread: m["thread"].is_object().then(|| parse_channel(&m["thread"], m["guild_id"].as_str().unwrap_or_default())).flatten(),
     })
 }
 

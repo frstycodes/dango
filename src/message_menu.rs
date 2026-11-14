@@ -63,6 +63,12 @@ impl Rustcord {
         }
         let m = message.clone();
         out.push(item("Reply", move |this, window, cx| this.start_reply(m.clone(), window, cx)).icon(Glyph::Reply).entry());
+        let in_text = self.guilds.iter().flat_map(|g| g.channels.iter()).any(|c| c.id == message.channel_id && c.kind == crate::discord::ChannelKind::Text);
+        let can_thread = message.guild_id.as_ref().and_then(|g| self.guilds.iter().find(|x| &x.id == g)).zip(self.me.as_ref()).is_some_and(|(g, me)| g.can(&me.id, perm::CREATE_PUBLIC_THREADS));
+        if in_text && can_thread && message.thread.is_none() {
+            let m = message.clone();
+            out.push(item("Create Thread", move |this, window, cx| this.create_thread(m.clone(), window, cx)).icon(Glyph::Thread).entry());
+        }
         out.push(Entry::Separator);
 
         // G5: secondary.
