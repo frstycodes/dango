@@ -58,6 +58,9 @@ impl Render for Rustcord {
                 .children(crate::window_controls::render(window, cx))
                 .into_any_element();
         }
+        if let Some(video) = crate::video::fullscreen(cx) {
+            return root.child(video).into_any_element();
+        }
         if self.call_fullscreen && self.call_view
             && let Some(call) = self.render_call_with_chat(window, cx)
         {
@@ -385,7 +388,7 @@ impl Rustcord {
         let (w, h) = (item.width * scale, item.height * scale);
         let url = item.url.clone();
         let stage = match &item.kind {
-            MediaKind::Image => img(item.url.clone()).w(px(w)).h(px(h)).rounded(px(6.)).into_any_element(),
+            MediaKind::Image => crate::chat::animated_image(item.url.clone()).w(px(w)).h(px(h)).rounded(px(6.)).into_any_element(),
             MediaKind::Gif { poster } => crate::chat::gif_image(&item.url, poster).w(px(w)).h(px(h)).rounded(px(6.)).into_any_element(),
             // ponytail: video plays in the system player; an in-app AVPlayer view is the upgrade.
             MediaKind::Video { poster } => {

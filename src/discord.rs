@@ -360,7 +360,7 @@ pub struct Media {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum MediaKind {
     Image,
-    // `poster` is a still frame to show; the video itself plays outside the app for now.
+    // `poster` is a still frame to show until the inline player starts.
     Video { poster: String },
     // A GIF embed: a silent looping MP4 that plays inline, with a still to show until it's ready.
     Gif { poster: String },

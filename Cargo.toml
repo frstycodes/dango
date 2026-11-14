@@ -34,7 +34,7 @@ notify-rust = "4"
 sonora = "0.3"
 nokhwa = { version = "0.10", features = ["input-native", "output-threaded"] }
 nnnoiseless = { version = "0.5.2", default-features = false }
-rodio = { version = "0.23.0", default-features = false, features = ["playback", "mp3"] }
+rodio = { version = "0.23.0", default-features = false, features = ["playback", "mp3", "symphonia-aac"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"

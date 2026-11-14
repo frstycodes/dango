@@ -7,7 +7,7 @@ pub const CLYDE_WHITE: &str = "brand/discord-symbol-white.svg";
 
 // Discord's own icons, extracted from its web app for the user's personal use (assets/discord/README.md:
 // never redistribute). Order matches `Glyph`.
-const GLYPHS: [(&str, &[u8]); 65] = [
+const GLYPHS: [(&str, &[u8]); 67] = [
     ("icons/hashtag.svg", include_bytes!("../assets/discord/icons/hashtag.svg")),
     ("icons/hashtag-lock.svg", include_bytes!("../assets/discord/icons/hashtag-lock.svg")),
     ("icons/volume-high.svg", include_bytes!("../assets/discord/icons/volume-high.svg")),
@@ -73,6 +73,8 @@ const GLYPHS: [(&str, &[u8]); 65] = [
     ("icons/fullscreen-exit.svg", include_bytes!("../assets/discord/icons/fullscreen-exit.svg")),
     ("icons/chevron-up.svg", include_bytes!("../assets/discord/icons/chevron-up.svg")),
     ("icons/group-plus.svg", include_bytes!("../assets/discord/icons/group-plus.svg")),
+    ("icons/pause.svg", include_bytes!("../assets/discord/icons/pause.svg")),
+    ("icons/volume-off.svg", include_bytes!("../assets/discord/icons/volume-off.svg")),
 ];
 
 // Discord's symbol (Clyde) in its blurple and white versions, unmodified from discord.com/branding.
@@ -148,6 +150,8 @@ pub enum Glyph {
     FullscreenExit,
     ChevronUp,
     GroupPlus,
+    Pause,
+    VolumeOff,
 }
 
 impl IconNamed for Glyph {

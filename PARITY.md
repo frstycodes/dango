@@ -117,7 +117,8 @@ Tokens: `docs/discord-tokens.json` (Discord web, Midnight, read 2026-11-14).
 - [x] Right-click menus rebuilt from Discord's own menu code: user (server, voice, DM, friends), message, channel, voice channel, category, server icon, folder, server dropdown
 - [ ] Menu items for features not built yet: Forward, Translate, Bookmarks/Reminders, Apps, Report, Favorites, Activities, Mod View, Server Settings, Create Event
 - [ ] Edit Channel and Folder Settings: Discord opens full settings screens; ours rename only
-- [x] GIFs play inline (MP4 decoded with OpenH264; clips with B-frames play at true speed with fewer frames)
+- [x] GIFs play inline: Tenor/Giphy MP4s (OpenH264, every B-frame decoded) and animated .gif/.webp attachments
+- [x] Video attachments play inline (H.264 + AAC MP4s): play/pause, scrubber, volume and mute, fullscreen, one at a time; other codecs (HEVC, VP9) open in the browser
 - [x] Embeds: markdown descriptions and fields, author icon, footer icon and timestamp, Discord's card styling
 - [ ] Mention pills: Discord draws mentions as tinted pills; ours are coloured links (gpui-component markdown can't give links a background)
 - [x] Call view: Discord's tile order, overlay name pills, stream tiles with dimmed preview, 112px strip when watching
