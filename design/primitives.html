@@ -25,21 +25,50 @@
 <div class="layout">
 <nav class="toc" id="toc" aria-label="Design system"></nav>
 <main>
-<section id="controls">
-  <h2>Controls</h2>
-  <p class="lede">Verb plus object on every button. Hover, press, focus (Tab to it), disabled and loading are all live.</p>
-  <h3>Buttons</h3>
-  <div class="board stack" style="gap: var(--space-4)">
-    <div class="row"><button class="btn btn--primary">Join voice</button><button class="btn">Invite friends</button><button class="btn btn--ghost">Mark as read</button><button class="btn btn--danger">Leave server</button><button class="btn btn--primary" disabled>Join voice</button><button class="btn btn--primary" data-loading="Saving…">Save changes</button></div>
-    <div class="row"><button class="btn btn--primary btn--lg"><i class="ph-bold ph-broadcast"></i>Go live</button><button class="btn"><i class="ph-bold ph-user-plus"></i>Add friend</button><button class="btn btn--sm">Small</button><button class="iconbtn" aria-label="Pin"><i class="ph ph-push-pin"></i></button><button class="iconbtn" aria-label="Reply"><i class="ph ph-arrow-bend-up-left"></i></button><button class="iconbtn on" aria-label="Unmute"><i class="ph-bold ph-microphone-slash"></i></button></div>
+<section id="buttons">
+  <h1>Primitives</h1>
+  <p class="lede">The small parts every screen is built from. Everything here is live: hover, press, Tab to focus, toggle.</p>
+  <h2>Buttons</h2>
+  <p class="lede">Verb plus object, sentence case. One primary per surface; secondary is the quiet fill, ghost for low-stakes actions in dense rows, danger only for the destructive step itself.</p>
+  <div class="board stack" style="gap: var(--space-6)">
+    <div class="stack"><h3 style="margin:0">Tones</h3>
+      <div class="row"><button class="btn btn--primary">Join voice</button><button class="btn">Invite friends</button><button class="btn btn--ghost">Mark as read</button><button class="btn btn--danger">Leave server</button><button class="btn btn--link">View all members</button></div></div>
+    <div class="stack"><h3 style="margin:0">Sizes</h3>
+      <div class="row"><button class="btn btn--primary btn--lg"><i class="ph-bold ph-broadcast"></i>Go live</button><button class="btn btn--primary"><i class="ph-bold ph-broadcast"></i>Go live</button><button class="btn btn--primary btn--sm"><i class="ph-bold ph-broadcast"></i>Go live</button><span class="note">44 / 36 / 30 tall · radius 10, small 8</span></div></div>
+    <div class="stack"><h3 style="margin:0">States</h3>
+      <div class="row"><button class="btn btn--primary" disabled>Join voice</button><button class="btn" disabled>Invite friends</button><button class="btn btn--primary" data-loading="Saving…">Save changes</button><button class="btn" data-loading="Sending…"><i class="ph-bold ph-paper-plane-tilt"></i>Send invite</button><span class="note">Loading keeps the width and shows the wave</span></div></div>
+    <div class="stack"><h3 style="margin:0">Toggle and split</h3>
+      <div class="row"><button class="btn" aria-pressed="true"><i class="ph-bold ph-bell-slash"></i>Muted</button><button class="btn" aria-pressed="false"><i class="ph-bold ph-push-pin"></i>Pin</button>
+        <div class="split"><button class="btn"><i class="ph-bold ph-microphone"></i>Microphone</button><button class="btn" aria-label="Microphone options"><i class="ph-bold ph-caret-down"></i></button></div>
+        <div class="split"><button class="btn btn--primary"><i class="ph-bold ph-broadcast"></i>Go live</button><button class="btn btn--primary" aria-label="Stream options"><i class="ph-bold ph-caret-down"></i></button></div></div></div>
+    <div class="stack"><h3 style="margin:0">Icon buttons</h3>
+      <div class="row"><button class="iconbtn iconbtn--sm" aria-label="Close"><i class="ph-bold ph-x"></i></button><button class="iconbtn" aria-label="Pin"><i class="ph ph-push-pin"></i></button><button class="iconbtn iconbtn--lg" aria-label="Settings"><i class="ph ph-gear-six"></i></button><button class="iconbtn" aria-pressed="true" aria-label="Member list"><i class="ph ph-users"></i></button><button class="iconbtn on" aria-label="Unmute"><i class="ph-bold ph-microphone-slash"></i></button><span class="note">24 / 32 / 40 · pressed is the selected fill · off-states are coral</span></div></div>
   </div>
-  <h3>Inputs</h3>
-  <div class="board grid">
-    <div class="field"><label for="f1">Display name</label><div class="input"><input id="f1" value="you"></div></div>
-    <div class="field"><label for="f2">Search</label><div class="input"><i class="ph ph-magnifying-glass"></i><input id="f2" placeholder="Search Night Shift"></div></div>
-    <div class="field"><label for="f3">Invite link</label><div class="input error"><input id="f3" value="wave.gg/nght" aria-describedby="f3e"></div><span class="err" id="f3e"><i class="ph-fill ph-warning-circle"></i>This invite has expired. Ask for a new one.</span></div>
+</section>
+
+<section id="fields">
+  <h2>Fields</h2>
+  <p class="lede">Labels above, help and errors below. Focus is the accent border plus a soft ring. Errors say what happened and how to fix it, and keep what the user typed.</p>
+  <div class="board grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: var(--space-6)">
+    <div class="field"><label for="p1">Display name</label><div class="input"><input id="p1" value="you"></div><span class="hint"><span>Shown to everyone</span><span>3/32</span></span></div>
+    <div class="field"><label for="p2">Search</label><div class="input"><i class="ph ph-magnifying-glass"></i><input id="p2" placeholder="Search Night Shift"><span class="keys"><span class="kbd">⌘</span><span class="kbd">F</span></span></div></div>
+    <div class="field"><label for="p3">Channel name</label><div class="input"><span class="affix">#</span><input id="p3" placeholder="new-channel"></div></div>
+    <div class="field"><label for="p4">Password</label><div class="input"><input id="p4" type="password" value="hunter22"><button class="iconbtn" aria-label="Show password" onclick="const i=this.previousElementSibling;i.type=i.type==='password'?'text':'password';this.firstElementChild.className='ph '+(i.type==='password'?'ph-eye':'ph-eye-slash')"><i class="ph ph-eye"></i></button></div></div>
+    <div class="field"><label for="p5">Invite link</label><div class="input error"><input id="p5" value="wave.gg/nght" aria-describedby="p5e" aria-invalid="true"></div><span class="err" id="p5e"><i class="ph-fill ph-warning-circle"></i>This invite has expired. Ask for a new one.</span></div>
+    <div class="field"><label for="p6">Username</label><div class="input"><input id="p6" value="you" disabled></div><span class="hint">You can change this once every 30 days</span></div>
+    <div class="field" style="grid-column: span 2"><label for="p7">About me</label><textarea id="p7" class="textarea" placeholder="Tell people about yourself" oninput="this.nextElementSibling.lastElementChild.textContent=this.value.length+'/190'"></textarea><span class="hint"><span>Markdown and emoji work here</span><span>0/190</span></span></div>
+    <div class="field"><label>Input device</label><button class="dropdown" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded')!=='true')"><i class="ph ph-microphone"></i><span>MacBook Pro Microphone (Built-in)</span><i class="ph-bold ph-caret-down"></i></button></div>
+    <div class="field"><label>Slowmode</label><div class="stepper"><button aria-label="Less" onclick="const o=this.nextElementSibling;o.value=Math.max(0,+o.value-5)+'s'"><i class="ph-bold ph-minus"></i></button><output>10s</output><button aria-label="More" onclick="const o=this.previousElementSibling;o.value=(parseInt(o.value)+5)+'s'"><i class="ph-bold ph-plus"></i></button></div></div>
+    <div class="field"><label>Two-factor code</label><div class="otp"><input maxlength="1" value="4" aria-label="Digit 1"><input maxlength="1" value="8" aria-label="Digit 2"><input maxlength="1" value="1" aria-label="Digit 3"><input maxlength="1" aria-label="Digit 4"><input maxlength="1" aria-label="Digit 5"><input maxlength="1" aria-label="Digit 6"></div></div>
+    <div class="field"><label>Role colour</label><div class="swatches" style="--bg-sidebar: var(--bg-sidebar)">
+      <button style="--c: oklch(0.6 0.2 5)" aria-pressed="true" aria-label="Magenta"><i class="ph-bold ph-check"></i></button><button style="--c: oklch(0.62 0.17 35)" aria-pressed="false" aria-label="Coral"><i class="ph-bold ph-check"></i></button><button style="--c: oklch(0.7 0.15 80)" aria-pressed="false" aria-label="Amber"><i class="ph-bold ph-check"></i></button><button style="--c: oklch(0.6 0.14 155)" aria-pressed="false" aria-label="Mint"><i class="ph-bold ph-check"></i></button><button style="--c: oklch(0.58 0.12 220)" aria-pressed="false" aria-label="Sky"><i class="ph-bold ph-check"></i></button><button style="--c: oklch(0.55 0.17 290)" aria-pressed="false" aria-label="Violet"><i class="ph-bold ph-check"></i></button></div></div>
+    <div class="field" style="grid-column: span 2"><label>Attachments</label><div class="drop" onmouseenter="this.classList.add('over')" onmouseleave="this.classList.remove('over')"><i class="ph ph-upload-simple"></i><b>Drop files to upload</b><span>Up to 25 MB each, or <button class="btn btn--link">browse files</button></span></div></div>
   </div>
-  <h3>Choices</h3>
+</section>
+
+<section id="choices">
+  <h2>Choices</h2>
+  <p class="lede">Switches apply at once; checkboxes pick many; radios pick one; segmented controls switch a view or a value in place; chips filter.</p>
   <div class="board grid">
     <div class="stack">
       <button class="choice" data-toggle="switch"><div><b>Noise suppression</b><span>Removes background sound from your mic</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
@@ -55,26 +84,95 @@
     </div>
     <div class="stack" style="gap: var(--space-4)">
       <div class="seg" role="group" aria-label="Quality"><button aria-pressed="false">720p</button><button aria-pressed="true">1080p</button><button aria-pressed="false">Source</button></div>
-      <div class="field"><label for="vol">Mira's volume</label><input id="vol" class="range" type="range" value="60"></div>
+      <div class="field"><label for="vol">Mira's volume</label><div class="row" style="flex-wrap:nowrap"><input id="vol" class="range" type="range" min="0" max="200" value="100" oninput="this.nextElementSibling.value=this.value+'%'"><output class="strong" style="min-width:44px;text-align:right;font-variant-numeric:tabular-nums">100%</output></div></div>
+      <div class="row"><button class="chip" aria-pressed="true"><i class="ph ph-image"></i>Images</button><button class="chip" aria-pressed="false"><i class="ph ph-link"></i>Links</button><button class="chip" aria-pressed="false"><i class="ph ph-file"></i>Files</button></div>
     </div>
   </div>
 </section>
-<section id="status">
-  <h2>Status and people</h2>
+
+<section id="tabs">
+  <h2>Tabs</h2>
+  <p class="lede">Underline tabs split a page into views; pill tabs filter a list inside one view.</p>
+  <div class="board stack" style="gap: var(--space-6)">
+    <div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="true">Overview</button><button class="tab" role="tab" aria-selected="false">Roles</button><button class="tab" role="tab" aria-selected="false">Emoji</button><button class="tab" role="tab" aria-selected="false">Members<span class="count">4</span></button><button class="tab" role="tab" aria-selected="false">Audit log</button></div>
+    <div class="pills" role="tablist"><button class="tab" role="tab" aria-selected="true">Online</button><button class="tab" role="tab" aria-selected="false">All</button><button class="tab" role="tab" aria-selected="false">Pending<span class="count">2</span></button><button class="tab" role="tab" aria-selected="false">Blocked</button></div>
+  </div>
+</section>
+
+<section id="badges">
+  <h2>Badges and keys</h2>
+  <p class="lede">A count asks for you, so it takes the accent. Tags label what something is; roles carry their colour as a dot, never as text colour.</p>
+  <div class="board stack" style="gap: var(--space-4)">
+    <div class="row" style="gap: var(--space-4)"><span class="count">3</span><span class="count">42</span><span class="count">99+</span><span class="dot" aria-label="Unread"></span><span class="tag">App</span><span class="tag"><i class="ph-bold ph-crown-simple"></i>Host</span><span class="tag">New</span><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span></div>
+    <div class="row"><span class="role" style="--role: oklch(0.65 0.2 5)">Moderators</span><span class="role" style="--role: oklch(0.7 0.14 155)">Raid team</span><span class="role" style="--role: oklch(0.75 0.14 80)">Night owls</span><span class="role">Members</span></div>
+    <div class="row"><span class="keys"><span class="kbd">⌘</span><span class="kbd">K</span></span><span class="muted">Quick switcher</span><span class="keys" style="margin-left: var(--space-4)"><span class="kbd">=</span><span class="kbd">Backspace</span></span><span class="muted">Mute</span><span class="keys" style="margin-left: var(--space-4)"><span class="kbd">Esc</span></span><span class="muted">Close</span></div>
+  </div>
+</section>
+
+<section id="avatars">
+  <h2>Avatars and status</h2>
   <p class="lede">Status is never colour alone: online is a dot, idle a moon, do not disturb a bar, offline a ring. Speaking is the accent ring plus the bars.</p>
   <div class="board stack" style="gap: var(--space-6)">
+    <div class="row" style="gap: var(--space-4); align-items: flex-end"><span class="av" style="--size:16px; font-size:0" data-av="Mira"></span><span class="av" style="--size:20px; font-size:0" data-av="Mira"></span><span class="av" style="--size:24px" data-av="Mira"></span><span class="av" style="--size:32px" data-av="Mira"><span class="status online"></span></span><span class="av" style="--size:40px" data-av="Mira"><span class="status online"></span></span><span class="av" style="--size:56px" data-av="Mira"><span class="status online"></span></span><span class="av" style="--size:80px" data-av="Mira"><span class="status online"></span></span><span class="note">16 20 24 32 40 56 80 · below 24 no initials, no status</span></div>
     <div class="row" style="gap: var(--space-6)">
-      <div class="row"><span class="av" style="--size:40px" data-av="Mira"><span class="status online"></span></span><span class="muted">Online</span></div>
-      <div class="row"><span class="av" style="--size:40px" data-av="Ana"><span class="status idle"></span></span><span class="muted">Idle</span></div>
-      <div class="row"><span class="av" style="--size:40px" data-av="Theo"><span class="status dnd"></span></span><span class="muted">Do not disturb</span></div>
-      <div class="row"><span class="av" style="--size:40px" data-av="Jun"><span class="status offline"></span></span><span class="muted">Offline</span></div>
+      <div class="row"><span class="av" style="--size:40px; --bg-ring: var(--bg-sidebar)" data-av="Mira"><span class="status online"></span></span><span class="muted">Online</span></div>
+      <div class="row"><span class="av" style="--size:40px; --bg-ring: var(--bg-sidebar)" data-av="Ana"><span class="status idle"></span></span><span class="muted">Idle</span></div>
+      <div class="row"><span class="av" style="--size:40px; --bg-ring: var(--bg-sidebar)" data-av="Theo"><span class="status dnd"></span></span><span class="muted">Do not disturb</span></div>
+      <div class="row"><span class="av" style="--size:40px; --bg-ring: var(--bg-sidebar)" data-av="Jun"><span class="status offline"></span></span><span class="muted">Offline</span></div>
       <div class="row"><span class="av speaking" style="--size:40px; --bg-ring: var(--bg-sidebar)" data-av="Rosa"></span><span class="muted">Speaking</span></div>
     </div>
-    <div class="row" style="gap: var(--space-4)"><span class="count">3</span><span class="count">99+</span><span class="tag">App</span><span class="tag"><i class="ph-bold ph-crown-simple"></i>Host</span><span class="tag">New</span><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><div class="stackav" style="--bg-ring: var(--bg-sidebar)"><span class="av" style="--size:24px" data-av="Mira"></span><span class="av" style="--size:24px" data-av="Theo"></span><span class="av" style="--size:24px" data-av="Ana"></span></div><span class="muted">3 watching</span></div>
+    <div class="row" style="gap: var(--space-3)"><div class="stackav"><span class="av" style="--size:24px" data-av="Mira"></span><span class="av" style="--size:24px" data-av="Theo"></span><span class="av" style="--size:24px" data-av="Ana"></span><span class="av" style="--size:24px; background: var(--bg-overlay); color: var(--text-strong); font-size: 11px">+3</span></div><span class="muted">6 watching</span></div>
+  </div>
+</section>
+
+<section id="feedback">
+  <h2>Feedback</h2>
+  <p class="lede">Progress shows a count when the work is countable. Waits look alive: the wave, or a calm shimmer that sweeps then rests. Callouts sit inside the view they're about.</p>
+  <div class="board stack" style="gap: var(--space-6)">
+    <div class="grid">
+      <div class="stack"><span class="row" style="justify-content:space-between"><b class="strong" style="font-weight:600">clip.mp4</b><span class="faint" style="font-variant-numeric: tabular-nums">12.4 / 31 MB</span></span><div class="progress" style="--v: 40%"><span></span></div></div>
+      <div class="stack"><span class="strong" style="font-weight:600">Connecting to Lounge…</span><div class="progress progress--indeterminate"><span></span></div></div>
+      <div class="stack"><span class="strong" style="font-weight:600">Mic level</span><div class="meter" id="meter" aria-label="Mic level"></div></div>
+      <div class="row"><span class="ring" style="--v:0.72"></span><span class="muted">18 of 25 uploaded</span></div>
+    </div>
+    <div class="stack" style="gap: var(--space-3)">
+      <div class="row" style="flex-wrap:nowrap"><span class="skeleton circle" style="width:40px;height:40px;flex:none"></span><div class="stack" style="flex:1"><span class="skeleton line" style="width:120px"></span><span class="skeleton line" style="width:72%"></span></div></div>
+      <div class="row" style="flex-wrap:nowrap"><span class="skeleton circle" style="width:40px;height:40px;flex:none"></span><div class="stack" style="flex:1"><span class="skeleton line" style="width:90px"></span><span class="skeleton line" style="width:48%"></span><span class="skeleton" style="width:240px;height:140px;border-radius:var(--radius-lg)"></span></div></div>
+    </div>
+    <div class="stack">
+      <div class="callout callout--info"><i class="ph-fill ph-info"></i><div><b>Slowmode is on</b>You can send one message every 10 seconds.</div></div>
+      <div class="callout callout--warning"><i class="ph-fill ph-warning"></i><div><b>Your connection is unstable</b>Others may hear you cut out. Try a wired connection.</div><button class="btn btn--sm">Run test</button></div>
+      <div class="callout callout--danger"><i class="ph-fill ph-x-circle"></i><div><b>Couldn't send 2 messages</b>Wave lost the connection. They're kept below.</div><button class="btn btn--sm">Retry all</button></div>
+      <div class="callout callout--success"><i class="ph-fill ph-check-circle"></i><div><b>Two-factor is on</b>Keep your backup codes somewhere safe.</div></div>
+      <div class="callout"><i class="ph-fill ph-at"></i><div><b>3 mentions while you were away</b>The oldest is in #looking-for-group.</div><button class="btn btn--sm btn--primary">Jump to first</button></div>
+    </div>
+    <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr))">
+      <div class="empty" style="background: var(--bg-page); border-radius: var(--radius-lg)"><div class="mascot idle"><i></i><i></i><i></i><i></i><i></i></div><b>No one's around</b><p>None of your friends are online. Invite someone to play.</p><button class="btn btn--primary">Add friend</button></div>
+      <div class="empty" style="background: var(--bg-page); border-radius: var(--radius-lg)"><div class="mascot waiting"><i></i><i></i><i></i><i></i><i></i></div><b>Loading messages…</b><p>Fetching the last 50 messages in #general.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="layout">
+  <h2>Dividers and tiles</h2>
+  <p class="lede">Dividers separate groups; a label on a divider names what follows. Icon tiles lead rows that need more presence than a bare icon.</p>
+  <div class="board stack" style="gap: var(--space-4)">
+    <div class="divider">Today</div>
+    <div class="divider"></div>
+    <div class="row" style="gap: var(--space-4)"><span class="icontile"><i class="ph ph-hash"></i></span><span class="icontile"><i class="ph ph-speaker-high"></i></span><span class="icontile icontile--accent"><i class="ph-fill ph-broadcast"></i></span><span class="icontile" style="--tile: oklch(0.6 0.2 30 / 0.15); --ink: var(--danger-ink)"><i class="ph ph-trash"></i></span></div>
   </div>
 </section>
 </main>
 </div>
 <script src="site.js"></script>
+<script>
+const meter = document.getElementById("meter");
+meter.innerHTML = "<i></i>".repeat(24);
+let level = 0;
+setInterval(() => {
+  level = Math.max(0, Math.min(1, level * 0.82 + Math.random() * 0.35));
+  [...meter.children].forEach((bar, i) => { const on = i / 24 < level; bar.className = on ? (i > 21 ? "clip" : i > 17 ? "hot" : "on") : ""; });
+}, 90);
+</script>
 </body>
 </html>

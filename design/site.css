@@ -7,7 +7,7 @@
 * { box-sizing: border-box; margin: 0; }
 html { -webkit-font-smoothing: antialiased; }
 body { background: var(--bg-page); color: var(--text); font: var(--weight-regular) var(--text-sm)/var(--leading-body) var(--font-ui); }
-button, input, select { font: inherit; color: inherit; }
+button, input, select, textarea, output { font: inherit; color: inherit; }
 button { cursor: pointer; border: 0; background: none; }
 :focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
 i.ph, i.ph-bold, i.ph-fill { font-size: 18px; line-height: 1; flex: none; }
