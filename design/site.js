@@ -119,16 +119,17 @@ for (const r of $$(".range")) {
   r.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-// Segmented controls: one thumb slides to the pressed option.
-function placeSeg(seg) {
-  const on = $('[aria-pressed="true"]', seg);
+// Segmented controls and tab strips: one thumb or underline slides to the chosen option.
+const STRIPS = ".seg, .tabs, .pills";
+function placeThumb(strip) {
+  const on = $('[aria-pressed="true"], [aria-selected="true"]', strip);
   if (!on) return;
-  seg.style.setProperty("--x", on.offsetLeft + "px");
-  seg.style.setProperty("--w", on.offsetWidth + "px");
-  if (!seg.classList.contains("is-placed")) { seg.classList.add("is-placed"); requestAnimationFrame(() => seg.classList.add("is-sliding")); }
+  for (const [k, v] of [["--x", on.offsetLeft], ["--y", on.offsetTop], ["--w", on.offsetWidth], ["--h", on.offsetHeight]]) strip.style.setProperty(k, v + "px");
+  if (!strip.classList.contains("is-placed")) { strip.classList.add("is-placed"); requestAnimationFrame(() => strip.classList.add("is-sliding")); }
 }
-const placeAll = () => $$(".seg").forEach(placeSeg);
+const placeAll = () => $$(STRIPS).forEach(placeThumb);
 placeAll();
 document.fonts?.ready.then(placeAll);
+addEventListener("resize", placeAll);
 document.addEventListener("wave:prefs", () => requestAnimationFrame(placeAll));
-document.addEventListener("click", e => { const seg = e.target.closest(".seg"); if (seg) placeSeg(seg); });
+document.addEventListener("click", e => { const strip = e.target.closest(STRIPS); if (strip) placeThumb(strip); });
