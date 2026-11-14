@@ -81,12 +81,23 @@ impl Rustcord {
             out.push(
                 item(label, move |this, _, cx| {
                     let path = format!("/channels/{}/messages/pins/{}", m.channel_id, m.id);
-                    let (channel, id, pinned) = (m.channel_id.clone(), m.id.clone(), method == Method::PUT);
-                    this.rest(method.clone(), path, None, move |this, _| {
-                        if let Some(m) = this.message_mut(&channel, &id) {
-                            m.pinned = pinned;
-                        }
-                    }, cx);
+                    let (c1, i1, c2, i2, pinned) = (m.channel_id.clone(), m.id.clone(), m.channel_id.clone(), m.id.clone(), method == Method::PUT);
+                    this.rest_optimistic(
+                        method.clone(),
+                        path,
+                        None,
+                        move |this| {
+                            if let Some(m) = this.message_mut(&c1, &i1) {
+                                m.pinned = pinned;
+                            }
+                        },
+                        move |this| {
+                            if let Some(m) = this.message_mut(&c2, &i2) {
+                                m.pinned = !pinned;
+                            }
+                        },
+                        cx,
+                    );
                 })
                 .icon(Glyph::Pin)
                 .entry(),
@@ -114,7 +125,8 @@ impl Rustcord {
                     let (m, emoji) = (message.clone(), r.emoji.clone());
                     item(r.emoji.name.clone(), move |this, _, cx| {
                         let path = format!("/channels/{}/messages/{}/reactions/{}", m.channel_id, m.id, emoji.path());
-                        this.rest(Method::DELETE, path, None, |_, _| {}, cx);
+                        let emoji = emoji.clone();
+                        this.reactions_optimistic(&m, path, move |r| r.emoji != emoji, cx);
                     })
                     .entry()
                 })
@@ -125,7 +137,7 @@ impl Rustcord {
                 item("Remove All Reactions", move |this, _, cx| {
                     let m = m.clone();
                     this.confirm("Remove All Reactions", "Are you sure you want to remove all the reactions on this message?", "Remove All", move |this, _, cx| {
-                        this.rest(Method::DELETE, format!("/channels/{}/messages/{}/reactions", m.channel_id, m.id), None, |_, _| {}, cx);
+                        this.reactions_optimistic(&m, format!("/channels/{}/messages/{}/reactions", m.channel_id, m.id), |_| false, cx);
                     }, cx);
                 })
                 .danger()
@@ -152,6 +164,30 @@ impl Rustcord {
             out.push(item("Copy Message ID", move |this, _, cx| this.copy_text(id.clone(), cx)).icon(Glyph::Id).entry());
         }
         out
+    }
+}
+
+impl Rustcord {
+    // Removing reactions shows at once (`keep` decides which stay); they come back if refused.
+    fn reactions_optimistic(&mut self, message: &Message, path: String, keep: impl Fn(&crate::discord::Reaction) -> bool + 'static, cx: &mut Context<Self>) {
+        let before = self.message_mut(&message.channel_id, &message.id).map(|m| m.reactions.clone()).unwrap_or_default();
+        let (c1, i1, c2, i2) = (message.channel_id.clone(), message.id.clone(), message.channel_id.clone(), message.id.clone());
+        self.rest_optimistic(
+            Method::DELETE,
+            path,
+            None,
+            move |this| {
+                if let Some(m) = this.message_mut(&c1, &i1) {
+                    m.reactions.retain(|r| keep(r));
+                }
+            },
+            move |this| {
+                if let Some(m) = this.message_mut(&c2, &i2) {
+                    m.reactions = before;
+                }
+            },
+            cx,
+        );
     }
 }
 

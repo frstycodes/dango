@@ -74,6 +74,115 @@ impl Rustcord {
         .detach();
     }
 
+    // A channel or thread edit (name, category, archived, locked, …) shown at once; the old copy
+    // comes back if Discord refuses.
+    pub(crate) fn channel_optimistic(&mut self, channel_id: &str, method: Method, body: Value, change: impl Fn(&mut Channel) + 'static, cx: &mut Context<Self>) {
+        let before = self.guilds.iter().flat_map(|g| g.channels.iter().chain(g.threads.iter())).find(|c| c.id == channel_id).cloned();
+        let (a, b) = (channel_id.to_owned(), channel_id.to_owned());
+        self.rest_optimistic(
+            method,
+            format!("/channels/{channel_id}"),
+            Some(body),
+            move |this| {
+                if let Some(channel) = this.guilds.iter_mut().flat_map(|g| g.channels.iter_mut().chain(g.threads.iter_mut())).find(|c| c.id == a) {
+                    change(channel);
+                }
+                for guild in this.guilds.iter_mut() {
+                    guild.channels.sort_by_key(|c| c.position);
+                }
+            },
+            move |this| {
+                if let (Some(before), Some(channel)) = (before, this.guilds.iter_mut().flat_map(|g| g.channels.iter_mut().chain(g.threads.iter_mut())).find(|c| c.id == b)) {
+                    *channel = before;
+                }
+            },
+            cx,
+        );
+    }
+
+    fn thread_joined_optimistic(&mut self, thread_id: &str, joined: bool, cx: &mut Context<Self>) {
+        let (a, b) = (thread_id.to_owned(), thread_id.to_owned());
+        self.rest_optimistic(
+            if joined { Method::PUT } else { Method::DELETE },
+            format!("/channels/{thread_id}/thread-members/@me"),
+            None,
+            move |this| set_joined(this, &a, joined),
+            move |this| set_joined(this, &b, !joined),
+            cx,
+        );
+    }
+
+    // Our thread-member settings (mute, notification flags), shown at once.
+    fn thread_member_optimistic(&mut self, thread_id: &str, body: Value, change: impl Fn(&mut crate::discord::ThreadMeta) + 'static, cx: &mut Context<Self>) {
+        let before = self.guilds.iter().flat_map(|g| g.threads.iter()).find(|t| t.id == thread_id).and_then(|t| t.thread.clone());
+        let (a, b) = (thread_id.to_owned(), thread_id.to_owned());
+        self.rest_optimistic(
+            Method::PATCH,
+            format!("/channels/{thread_id}/thread-members/@me/settings"),
+            Some(body),
+            move |this| {
+                if let Some(meta) = this.guilds.iter_mut().flat_map(|g| g.threads.iter_mut()).find(|t| t.id == a).and_then(|t| t.thread.as_mut()) {
+                    change(meta);
+                }
+            },
+            move |this| {
+                if let (Some(before), Some(meta)) = (before, this.guilds.iter_mut().flat_map(|g| g.threads.iter_mut()).find(|t| t.id == b).and_then(|t| t.thread.as_mut())) {
+                    *meta = before;
+                }
+            },
+            cx,
+        );
+    }
+
+    fn delete_channel_optimistic(&mut self, channel_id: &str, cx: &mut Context<Self>) {
+        let found = self.guilds.iter().enumerate().find_map(|(gi, g)| {
+            g.channels.iter().position(|c| c.id == channel_id).map(|i| (gi, false, i, g.channels[i].clone())).or_else(|| g.threads.iter().position(|c| c.id == channel_id).map(|i| (gi, true, i, g.threads[i].clone())))
+        });
+        let Some((guild_index, thread, index, channel)) = found else { return };
+        let id = channel_id.to_owned();
+        self.rest_optimistic(
+            Method::DELETE,
+            format!("/channels/{channel_id}"),
+            None,
+            move |this| {
+                for guild in this.guilds.iter_mut() {
+                    guild.channels.retain(|c| c.id != id);
+                    guild.threads.retain(|c| c.id != id);
+                }
+            },
+            move |this| {
+                if let Some(guild) = this.guilds.get_mut(guild_index) {
+                    let list = if thread { &mut guild.threads } else { &mut guild.channels };
+                    list.insert(index.min(list.len()), channel);
+                }
+            },
+            cx,
+        );
+    }
+
+    fn leave_guild_optimistic(&mut self, guild_id: &str, cx: &mut Context<Self>) {
+        let Some(index) = self.guilds.iter().position(|g| g.id == guild_id) else { return };
+        let guild = self.guilds[index].clone();
+        let id = guild_id.to_owned();
+        self.rest_optimistic(
+            Method::DELETE,
+            format!("/users/@me/guilds/{guild_id}"),
+            Some(json!({ "lurking": false })),
+            move |this| {
+                this.guilds.retain(|g| g.id != id);
+                if this.guild_id.as_deref() == Some(id.as_str()) {
+                    this.guild_id = None;
+                    this.channel = None;
+                }
+            },
+            move |this| {
+                let at = index.min(this.guilds.len());
+                this.guilds.insert(at, guild);
+            },
+            cx,
+        );
+    }
+
     // Mute and its six lengths, or Unmute with when it ends: the same shape for channels and servers.
     fn mute_entry(&self, label: &str, unmute: &str, muted: bool, end: Option<&str>, apply: impl Fn(&mut Rustcord, Value, &mut Context<Rustcord>) + Clone + 'static) -> Entry {
         if muted {
@@ -273,14 +382,17 @@ impl Rustcord {
                     .filter(|c| c.kind == ChannelKind::Category)
                     .map(|c| {
                         let (id, parent) = (channel.id.clone(), c.id.clone());
-                        let row = item(c.name.clone(), move |this, _, cx| this.rest(Method::PATCH, format!("/channels/{id}"), Some(json!({ "parent_id": parent })), |_, _| {}, cx));
+                        let row = item(c.name.clone(), move |this, _, cx| {
+                            let next = Some(parent.clone());
+                            this.channel_optimistic(&id, Method::PATCH, json!({ "parent_id": parent }), move |c| c.parent_id = next.clone(), cx)
+                        });
                         if channel.parent_id.as_ref() == Some(&c.id) { row.disabled() } else { row }.entry()
                     })
                     .collect()
             })
             .unwrap_or_default();
         let id = channel.id.clone();
-        let none = item("No Category", move |this, _, cx| this.rest(Method::PATCH, format!("/channels/{id}"), Some(json!({ "parent_id": null })), |_, _| {}, cx));
+        let none = item("No Category", move |this, _, cx| this.channel_optimistic(&id, Method::PATCH, json!({ "parent_id": null }), |c| c.parent_id = None, cx));
         let mut rows = vec![if channel.parent_id.is_none() { none.disabled() } else { none }.entry(), Entry::Separator];
         rows.extend(categories);
         submenu("Move to...", vec![submenu("Category", rows).entry()]).entry()
@@ -291,7 +403,7 @@ impl Rustcord {
         item(label, move |this, _, cx| {
             let id = id.clone();
             this.confirm(label, format!("Are you sure you want to delete #{name}? This cannot be undone."), label, move |this, _, cx| {
-                this.rest(Method::DELETE, format!("/channels/{id}"), None, |_, _| {}, cx);
+                this.delete_channel_optimistic(&id, cx);
             }, cx);
         })
         .danger()
@@ -302,8 +414,10 @@ impl Rustcord {
     fn rename_channel(&mut self, channel: Channel, window: &mut Window, cx: &mut Context<Self>) {
         let id = channel.id.clone();
         self.prompt("Edit Channel", "Channel name", &channel.name, "Save", move |this, name, _, cx| {
-            if !name.trim().is_empty() {
-                this.rest(Method::PATCH, format!("/channels/{id}"), Some(json!({ "name": name.trim() })), |_, _| {}, cx);
+            let name = name.trim().to_owned();
+            if !name.is_empty() {
+                let next = name.clone();
+                this.channel_optimistic(&id, Method::PATCH, json!({ "name": name }), move |c| c.name = next.clone(), cx);
             }
         }, window, cx);
     }
@@ -409,7 +523,7 @@ impl Rustcord {
                 item("Leave Server", move |this, _, cx| {
                     let gid = gid.clone();
                     this.confirm(format!("Leave '{name}'"), format!("Are you sure you want to leave {name}? You won't be able to rejoin this server unless you are re-invited."), "Leave Server", move |this, _, cx| {
-                        this.rest(Method::DELETE, format!("/users/@me/guilds/{gid}"), Some(json!({ "lurking": false })), |_, _| {}, cx);
+                        this.leave_guild_optimistic(&gid, cx);
                     }, cx);
                 })
                 .danger()
@@ -428,7 +542,7 @@ impl Rustcord {
     fn edit_own_nickname(&mut self, guild_id: String, current: String, window: &mut Window, cx: &mut Context<Self>) {
         self.prompt("Change Nickname", "Everyone in this server sees this name.", &current, "Save", move |this, nick, _, cx| {
             let nick = (!nick.trim().is_empty()).then(|| nick.trim().to_owned());
-            this.rest(Method::PATCH, format!("/guilds/{guild_id}/members/@me"), Some(json!({ "nick": nick })), |_, _| {}, cx);
+            this.nickname_optimistic(&guild_id, "@me", nick, cx);
         }, window, cx);
     }
 
@@ -567,17 +681,29 @@ impl Rustcord {
             let id = thread.id.clone();
             out.push(item("Join Thread", move |this, _, cx| {
                 let joined = id.clone();
-                this.rest(Method::PUT, format!("/channels/{id}/thread-members/@me"), None, move |this, cx| this.on_event(crate::discord::Event::ThreadJoined { id: joined.clone(), joined: true }, cx), cx);
+                this.thread_joined_optimistic(&joined, true, cx);
             })
             .entry());
         }
         if manage || (owner && !meta.locked) {
             let (id, archived) = (thread.id.clone(), meta.archived);
-            out.push(item(if archived { "Open Thread" } else { "Close Thread" }, move |this, _, cx| this.rest(Method::PATCH, format!("/channels/{id}"), Some(json!({ "archived": !archived })), |_, _| {}, cx)).entry());
+            out.push(item(if archived { "Open Thread" } else { "Close Thread" }, move |this, _, cx| {
+                this.channel_optimistic(&id, Method::PATCH, json!({ "archived": !archived }), move |c| {
+                    if let Some(meta) = c.thread.as_mut() {
+                        meta.archived = !archived;
+                    }
+                }, cx)
+            }).entry());
         }
         if manage {
             let (id, locked) = (thread.id.clone(), meta.locked);
-            out.push(item(if locked { "Unlock Thread" } else { "Lock Thread" }, move |this, _, cx| this.rest(Method::PATCH, format!("/channels/{id}"), Some(json!({ "locked": !locked })), |_, _| {}, cx)).entry());
+            out.push(item(if locked { "Unlock Thread" } else { "Lock Thread" }, move |this, _, cx| {
+                this.channel_optimistic(&id, Method::PATCH, json!({ "locked": !locked }), move |c| {
+                    if let Some(meta) = c.thread.as_mut() {
+                        meta.locked = !locked;
+                    }
+                }, cx)
+            }).entry());
         }
         let link = format!("https://discord.com/channels/{guild_id}/{}", thread.id);
         out.push(item("Copy Link", move |this, _, cx| this.copy_text(link.clone(), cx)).entry());
@@ -587,14 +713,15 @@ impl Rustcord {
             true => {
                 let id = thread.id.clone();
                 out.push(self.mute_entry("Mute Thread", "Unmute Thread", meta.muted, None, move |this, body, cx| {
-                    this.rest(Method::PATCH, format!("/channels/{id}/thread-members/@me/settings"), Some(body), |_, _| {}, cx);
+                    let muted = body["muted"].as_bool().unwrap_or(false);
+                    this.thread_member_optimistic(&id, body, move |meta| meta.muted = muted, cx);
                 }));
                 // The level is one of three flag bits; the member's other flag bits are kept.
                 let rows: Vec<Entry> = [("All Messages", 2u64), ("Only @mentions", 4), ("Nothing", 8)]
                     .into_iter()
                     .map(|(label, flag)| {
                         let (id, flags) = (thread.id.clone(), (meta.flags & !0b1110) | flag);
-                        item(label, move |this, _, cx| this.rest(Method::PATCH, format!("/channels/{id}/thread-members/@me/settings"), Some(json!({ "flags": flags })), |_, _| {}, cx))
+                        item(label, move |this, _, cx| this.thread_member_optimistic(&id, json!({ "flags": flags }), move |meta| meta.flags = flags, cx))
                             .checked(meta.flags & flag != 0)
                             .entry()
                     })
@@ -616,7 +743,7 @@ impl Rustcord {
             let id = thread.id.clone();
             out.push(item("Leave Thread", move |this, _, cx| {
                 let left = id.clone();
-                this.rest(Method::DELETE, format!("/channels/{id}/thread-members/@me"), None, move |this, cx| this.on_event(crate::discord::Event::ThreadJoined { id: left.clone(), joined: false }, cx), cx);
+                this.thread_joined_optimistic(&left, false, cx);
             })
             .entry());
             out.push(Entry::Separator);
@@ -702,6 +829,12 @@ fn merge_settings(settings: &mut GuildSettings, body: &Value) {
         if let Some(level) = change["message_notifications"].as_u64() {
             channel.notifications = level as u8;
         }
+    }
+}
+
+fn set_joined(this: &mut Rustcord, thread_id: &str, joined: bool) {
+    for meta in this.guilds.iter_mut().flat_map(|g| g.threads.iter_mut()).filter(|t| t.id == thread_id).filter_map(|t| t.thread.as_mut()) {
+        meta.joined = joined;
     }
 }
 
