@@ -100,6 +100,8 @@ fn main() {
                 .to_vec(),
             )
             .expect("bundled fonts");
+        // The design is drawn with `-webkit-font-smoothing: antialiased`; macOS smoothing would thicken every stroke.
+        cx.text_system().set_font_smoothing(false);
         cx.set_http_client(std::sync::Arc::new(discord::Images::default()));
         cx.set_reduce_motion(material::system_reduce_motion());
         settings::Prefs::load().app_icon.apply();
