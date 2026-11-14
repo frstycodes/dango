@@ -933,13 +933,6 @@ pub(crate) fn animated_image(source: impl Into<gpui_kit::ImageSource>) -> gpui_k
     img(source).id("animated")
 }
 
-// A GIF plays as soon as it's decoded; the still shows meanwhile and if decoding fails.
-pub(crate) fn gif_image(url: &str, poster: &str) -> gpui_kit::Stateful<gpui_kit::Img> {
-    let (loading, fallback) = (poster.to_owned(), poster.to_owned());
-    animated_image(crate::gif::source(url.to_owned()))
-        .with_loading(move || img(loading.clone()).size_full().rounded(px(8.)).into_any_element())
-        .with_fallback(move || img(fallback.clone()).size_full().rounded(px(8.)).into_any_element())
-}
 
 fn media_grid(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &mut App) -> Option<AnyElement> {
     if message.media.is_empty() {
@@ -955,9 +948,12 @@ fn media_grid(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &mut App) ->
             tiles.push(tile.child(crate::video::tile(format!("{}-{i}", message.id), &item.url, poster, cx)));
             continue;
         }
+        // Fetched at the size it's drawn rather than full resolution; the viewer still opens the original.
+        let (shown_w, shown_h) = (item.width * scale, item.height * scale);
+        let sized = |url: &str| crate::discord::sized_image(url, shown_w, shown_h, (item.width, item.height));
         let picture = match &item.kind {
-            MediaKind::Gif { poster } => gif_image(&item.url, poster).size_full().rounded(px(8.)).into_any_element(),
-            _ => animated_image(item.url.clone()).size_full().rounded(px(8.)).into_any_element(),
+            MediaKind::Gif { poster } => div().size_full().rounded(px(8.)).overflow_hidden().child(crate::gif::tile(format!("{}-{i}-{}", message.id, item.url), &item.url, &sized(poster), cx)).into_any_element(),
+            _ => animated_image(sized(&item.url)).size_full().rounded(px(8.)).into_any_element(),
         };
         let (this, url) = (ctx.this.clone(), item.url.clone());
         tiles.push(tile.cursor_pointer().hover(|s| s.opacity(0.92)).child(picture).on_click(move |_, window, cx| {
@@ -1034,7 +1030,7 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
         })
         .children(large.map(|m| {
             let scale = (400. / m.width).min(300. / m.height).min(1.);
-            img(m.url.clone()).w(px(m.width * scale)).h(px(m.height * scale)).mt_4().rounded(px(4.))
+            img(crate::discord::sized_image(&m.url, m.width * scale, m.height * scale, (m.width, m.height))).w(px(m.width * scale)).h(px(m.height * scale)).mt_4().rounded(px(4.))
         }))
         .children(footer);
     div()

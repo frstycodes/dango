@@ -78,6 +78,11 @@ pub fn tile(key: String, url: &str, poster: &str, cx: &mut App) -> AnyElement {
     player.into_any_element()
 }
 
+// A video is playing somewhere, so the app shouldn't drop to background mode.
+pub fn is_playing(cx: &App) -> bool {
+    cx.try_global::<Videos>().and_then(|v| v.playing.as_ref()?.upgrade()).is_some_and(|p| p.read(cx).is_playing())
+}
+
 // The video shown alone over the whole window, when one is fullscreen.
 pub fn fullscreen(cx: &App) -> Option<AnyElement> {
     cx.try_global::<Videos>()?.fullscreen.clone().map(|player| player.into_any_element())

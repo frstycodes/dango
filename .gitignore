@@ -4,3 +4,4 @@
 .claude/settings.local.json
 .DS_Store
 .claude/worktrees/
+dhat-heap.json
