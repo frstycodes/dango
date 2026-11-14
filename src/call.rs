@@ -17,7 +17,9 @@ use crate::{
     voice::{self, Stage},
 };
 
-pub const VOICE_HEIGHT: f32 = 92.;
+// Discord's voice panel: 8px padding, a 40px status row, 12px gap, 32px buttons.
+pub const VOICE_HEIGHT: f32 = 100.;
+const GO_LIVE_HEIGHT: f32 = 57.;
 const PREVIEW_AGE: std::time::Duration = std::time::Duration::from_secs(60);
 // Discord's call tiles (read from Discord web, 2026-11-14).
 const TILE_RADIUS: f32 = 8.;
@@ -110,7 +112,7 @@ impl Rustcord {
 
     pub(crate) fn voice_panel_height(&self) -> f32 {
         match (&self.call, &self.voice_error) {
-            (Some(_), _) => VOICE_HEIGHT,
+            (Some(call), _) => VOICE_HEIGHT + if call.sharing.is_some() { GO_LIVE_HEIGHT } else { 0. },
             (None, Some(_)) => ERROR_HEIGHT,
             (None, None) => 0.,
         }
@@ -152,17 +154,38 @@ impl Rustcord {
             );
         };
         let connected = call.stage == Stage::Connected;
-        let color = match call.stage {
-            Stage::Connected => palette::status(discord::Status::Online),
-            Stage::NoRoute | Stage::Disconnected => theme.danger,
-            _ => theme.warning,
+        // --text-feedback-positive / -warning / -critical, Discord's status text.
+        let color: Hsla = match call.stage {
+            Stage::Connected => rgb(0x41A063).into(),
+            Stage::NoRoute | Stage::Disconnected => rgb(0xEB5F5E).into(),
+            _ => rgb(0xCE8100).into(),
         };
-        let (glyph, _) = signal(call.stats.as_ref().map(|s| s.ping_ms));
+        let ping = call.stats.as_ref().map(|s| s.ping_ms);
+        let (glyph, quality) = signal(ping);
         let place = match call.guild_id.as_ref().and_then(|id| self.guilds.iter().find(|g| &g.id == id)) {
             Some(guild) => format!("{} / {}", call.channel.name, guild.name),
             None => call.channel.name.clone(),
         };
         let channel = call.channel.clone();
+        // Discord's large ping: an 18px signal in a 32px tile tinted by connection quality.
+        let ping_tile = div()
+            .id("voice-ping")
+            .size(px(32.))
+            .flex_none()
+            .rounded(px(8.))
+            .bg(quality.opacity(0.08))
+            .border_1()
+            .border_color(Hsla::from(rgb(0x97979F)).opacity(0.16))
+            .flex()
+            .items_center()
+            .justify_center()
+            .cursor_pointer()
+            .text_color(quality)
+            .child(Icon::new(glyph).size(px(18.)))
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.connection_info = !this.connection_info;
+                cx.notify();
+            }));
         let status = div()
             .id("voice-status")
             .flex_1()
@@ -170,20 +193,13 @@ impl Rustcord {
             .flex()
             .flex_col()
             .cursor_pointer()
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_1()
-                    .text_color(color)
-                    .child(Icon::new(glyph).size(px(16.)))
-                    .child(div().truncate().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).child(stage_text(call.stage))),
-            )
+            .child(div().truncate().h(px(20.)).text_size(px(16.)).line_height(px(20.)).font_weight(FontWeight::SEMIBOLD).text_color(color).child(stage_text(call.stage)))
             .child(
                 div()
                     .id("voice-place")
                     .truncate()
-                    .text_size(px(12.))
+                    .text_size(px(14.))
+                    .line_height(px(18.))
                     .text_color(theme.muted_foreground)
                     .hover(|s| s.underline())
                     .child(place)
@@ -198,9 +214,11 @@ impl Rustcord {
             }));
         let noise = self.prefs.noise_suppression;
         let header = div()
+            .h(px(40.))
             .flex()
             .items_center()
-            .gap_1()
+            .gap_2()
+            .child(ping_tile)
             .child(status)
             .child(
                 panel_button("noise", Glyph::Waveform, if noise { "Disable Noise Suppression" } else { "Enable Noise Suppression" }, cx)
@@ -213,8 +231,75 @@ impl Rustcord {
             .flex()
             .gap_2()
             .child(wide_button("panel-camera", if call.camera_on { Glyph::Video } else { Glyph::VideoOff }, if call.camera_on { "Turn Off Camera" } else { "Turn On Camera" }, call.camera_on, connected, cx).on_click(cx.listener(|this, _, _, cx| this.toggle_camera(cx))))
-            .child(wide_button("panel-share", Glyph::ShareScreen, if sharing { "Stop Streaming" } else { "Share Your Screen" }, sharing, connected, cx).on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx))));
-        Some(div().h(px(VOICE_HEIGHT)).p_2().flex().flex_col().gap_2().border_b_1().border_color(theme.border).child(header).child(actions).into_any_element())
+            .child(wide_button("panel-share", if sharing { Glyph::ScreenOff } else { Glyph::ShareScreen }, if sharing { "Stop Streaming" } else { "Share Your Screen" }, sharing, connected, cx).on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx))))
+            .child(wide_button("panel-activities", Glyph::Activities, "Start an Activity", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities aren't in Rustcord yet", cx))))
+            .child(wide_button("panel-soundboard", Glyph::Soundboard, "Open Soundboard", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.show_toast("The soundboard isn't in Rustcord yet", cx))));
+        let voice = div().h(px(VOICE_HEIGHT)).p_2().flex().flex_col().gap(px(12.)).border_b_1().border_color(Hsla::from(rgb(0x97979F)).opacity(0.16)).child(header).child(actions);
+        Some(div().flex().flex_col().children(self.go_live_panel(cx)).child(voice).into_any_element())
+    }
+
+    // Discord's Go Live panel above the voice panel while we share: the source, its quality, and
+    // a button to stop.
+    fn go_live_panel(&self, cx: &mut Context<Self>) -> Option<impl IntoElement> {
+        let call = self.call.as_ref()?;
+        call.sharing.as_ref()?;
+        let theme = cx.theme().clone();
+        let label = call.share_label.clone().unwrap_or_else(|| "Screen".into());
+        let initial: String = label.chars().next().map(|c| c.to_uppercase().collect()).unwrap_or_default();
+        let resolution = match self.prefs.stream_resolution {
+            0 => "Source".to_owned(),
+            r => format!("{r}p"),
+        };
+        // Discord colours quality above its free tier (720p 30fps) in Nitro pink.
+        let boosted = self.prefs.stream_resolution == 0 || self.prefs.stream_resolution > 720 || self.prefs.stream_fps > 30;
+        let quality: Hsla = if boosted { rgb(0xFF73FA).into() } else { theme.muted_foreground };
+        Some(
+            div()
+                .h(px(GO_LIVE_HEIGHT))
+                .px_2()
+                .flex()
+                .items_center()
+                .gap_3()
+                .border_b_1()
+                .border_color(Hsla::from(rgb(0x97979F)).opacity(0.16))
+                .child(
+                    div()
+                        .relative()
+                        .size(px(40.))
+                        .flex_none()
+                        .rounded(px(8.))
+                        .bg(rgb(0x45A796))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .text_color(gpui_kit::white())
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child(initial)
+                        .child(
+                            div()
+                                .absolute()
+                                .right(px(-4.))
+                                .bottom(px(-4.))
+                                .size(px(20.))
+                                .rounded(px(6.))
+                                .bg(theme.popover)
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .child(Icon::new(Glyph::Video).size(px(14.)).text_color(gpui_kit::white())),
+                        ),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .flex()
+                        .flex_col()
+                        .child(div().truncate().text_size(px(16.)).font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(label))
+                        .child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(quality).child(format!("{resolution} {}FPS", self.prefs.stream_fps))),
+                )
+                .child(panel_button("stop-streaming", Glyph::ScreenOff, "Stop Streaming", cx).on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx)))),
+        )
     }
 
     pub(crate) fn toggle_noise_suppression(&mut self, cx: &mut Context<Self>) {
@@ -792,23 +877,26 @@ fn panel_button_tinted(id: &'static str, glyph: Glyph, label: &'static str, hove
         .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
 }
 
-// The panel's row of equal-width call buttons; lit green while that thing is on.
-fn wide_button(id: &'static str, glyph: Glyph, label: &'static str, on: bool, enabled: bool, cx: &mut Context<Rustcord>) -> Stateful<Div> {
-    let theme = cx.theme().clone();
-    let on_color = palette::status(discord::Status::Online);
+// The panel's row of equal-width call buttons, from Discord's stylesheet: 32px, 8px radius, a 12%
+// wash with a 16% border; while on (sharing, camera), green at 12% with a green icon.
+fn wide_button(id: &'static str, glyph: Glyph, label: &'static str, on: bool, enabled: bool, _cx: &mut Context<Rustcord>) -> Stateful<Div> {
+    let wash = |a: f32| Hsla::from(rgb(0x97979F)).opacity(a);
+    let green = |a: f32| Hsla::from(rgb(0x008545)).opacity(a);
     div()
         .id(id)
         .flex_1()
         .h(px(32.))
         .rounded(px(8.))
+        .border_1()
+        .border_color(if on { green(0.12) } else { wash(0.16) })
+        .bg(if on { green(0.12) } else { wash(0.12) })
         .flex()
         .items_center()
         .justify_center()
         .cursor_pointer()
-        .bg(if on { on_color.opacity(0.2) } else { theme.foreground.opacity(0.08) })
-        .text_color(if on { on_color } else { theme.foreground.opacity(0.85) })
-        .hover(|s| s.bg(theme.foreground.opacity(0.14)))
-        .when(!enabled, |b| b.opacity(0.5))
+        .text_color(if on { rgb(0x62B77C) } else { rgb(0xDCDCDF) })
+        .hover(move |s| s.bg(if on { green(0.24) } else { wash(0.2) }))
+        .when(!enabled, |b| b.opacity(0.3))
         .child(Icon::new(glyph).size(px(20.)))
         .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
 }

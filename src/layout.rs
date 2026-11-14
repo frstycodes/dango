@@ -224,6 +224,7 @@ impl Rustcord {
     fn user_panel(&mut self, me: discord::User, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme().clone();
         let status_line: SharedString = self.custom_status.clone().unwrap_or_else(|| self.my_status.label().into()).into();
+        let sharing = self.call.as_ref().is_some_and(|c| c.sharing.is_some());
         let (muted, deafened) = (self.muted || self.deafened, self.deafened);
         // Each toggle pops its icon in (keyed by state, so it replays on every flip), with Discord's cue.
         let control = |id: &'static str, glyph: Glyph, off: bool, label: &'static str| {
@@ -324,7 +325,18 @@ impl Rustcord {
                                     .flex()
                                     .flex_col()
                                     .child(div().truncate().font_weight(FontWeight::SEMIBOLD).child(me.name.clone()))
-                                    .child(div().truncate().text_size(px(12.)).text_color(theme.muted_foreground).child(status_line)),
+                                    .child(match sharing {
+                                        // Discord's status line while live: a green screen and "Sharing their screen".
+                                        true => div()
+                                            .flex()
+                                            .items_center()
+                                            .gap_1()
+                                            .text_size(px(12.))
+                                            .text_color(theme.muted_foreground)
+                                            .child(Icon::new(Glyph::Screen).size(px(14.)).text_color(gpui_kit::rgb(0x41A063)))
+                                            .child(div().truncate().child("Sharing their screen")),
+                                        false => div().truncate().text_size(px(12.)).text_color(theme.muted_foreground).child(status_line),
+                                    }),
                             ),
                     )
                     .child(mic)
