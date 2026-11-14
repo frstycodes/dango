@@ -24,6 +24,8 @@ use crate::{
 // Discord's voice panel: 8px padding, a 40px status row, 12px gap, 32px buttons.
 pub const VOICE_HEIGHT: f32 = 100.;
 const GO_LIVE_HEIGHT: f32 = 57.;
+// A warning line under the voice status: 16px of text plus the panel's 12px gap.
+const WARNING_HEIGHT: f32 = 28.;
 const PREVIEW_AGE: std::time::Duration = std::time::Duration::from_secs(60);
 // Discord's call tiles (read from Discord web, 2026-11-14).
 const TILE_RADIUS: f32 = 8.;
@@ -235,9 +237,22 @@ impl Rustcord {
         self.stream_previews.get(user_id).map(|(url, _)| url.clone()).filter(|url| !url.is_empty())
     }
 
+    // Discord's in-call warnings: a mic that sends nothing, and Advanced suppression that had to
+    // fall back to RNNoise because this computer can't keep up with it.
+    fn voice_warning(&self) -> Option<&'static str> {
+        let call = self.call.as_ref()?;
+        let silent = self.prefs.silence_warning && !self.muted && !self.deafened && call.session.input_detected() == Some(false);
+        match (silent, call.session.noise_suppression_degraded()) {
+            (true, _) => Some("No audio detected from your mic"),
+            (false, true) => Some("Advanced noise suppression fell back to Standard"),
+            _ => None,
+        }
+    }
+
     pub(crate) fn voice_panel_height(&self) -> f32 {
+        let warning = if self.voice_warning().is_some() { WARNING_HEIGHT } else { 0. };
         match (&self.call, &self.voice_error) {
-            (Some(call), _) => VOICE_HEIGHT + if call.sharing.is_some() { GO_LIVE_HEIGHT } else { 0. },
+            (Some(call), _) => VOICE_HEIGHT + warning + if call.sharing.is_some() { GO_LIVE_HEIGHT } else { 0. },
             (None, Some(_)) => ERROR_HEIGHT,
             (None, None) => 0.,
         }
@@ -362,7 +377,31 @@ impl Rustcord {
             })
             .child(wide_button("panel-activities", Glyph::Activities, "Start an Activity", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities aren't in Rustcord yet", cx))))
             .child(wide_button("panel-soundboard", Glyph::Soundboard, "Open Soundboard", false, connected, cx).on_click(cx.listener(|this, _, _, cx| this.show_toast("The soundboard isn't in Rustcord yet", cx))));
-        let voice = div().h(px(VOICE_HEIGHT)).p_2().flex().flex_col().gap(px(12.)).border_b_1().border_color(palette::wash(0.16)).child(header).child(actions);
+        let warning = self.voice_warning();
+        let voice = div()
+            .min_h(px(VOICE_HEIGHT))
+            .p_2()
+            .flex()
+            .flex_col()
+            .gap(px(12.))
+            .border_b_1()
+            .border_color(palette::wash(0.16))
+            .child(header)
+            .children(warning.map(|text| {
+                div()
+                    .id("voice-warning")
+                    .h(px(16.))
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .text_size(px(12.))
+                    .text_color(rgb(0xCE8100))
+                    .cursor_pointer()
+                    .child(Icon::new(Glyph::Help).size(px(14.)))
+                    .child(div().min_w_0().truncate().child(text))
+                    .on_click(cx.listener(|this, _, window, cx| this.open_settings(Page::VoiceVideo, window, cx)))
+            }))
+            .child(actions);
         Some(div().flex().flex_col().children(self.go_live_panel(cx)).child(voice).into_any_element())
     }
 
