@@ -26,7 +26,7 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         return;
     }
     let messages = messages();
-    chord.feeds.insert("general".into(), Feed { messages, loaded: true, ..Default::default() });
+    chord.feeds.insert("general".into(), Feed { messages: std::sync::Arc::new(messages), loaded: true, ..Default::default() });
     let general = chord.guild().and_then(|g| g.channels.iter().find(|c| c.id == "general").cloned());
     if let Some(channel) = general {
         chord.open_channel(channel, window, cx);
