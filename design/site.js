@@ -5,6 +5,7 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
 const PAGES = [
   ["index.html", "Overview"],
+  ["better.html", "Better than Discord"],
   ["foundations.html", "Foundations"],
   ["primitives.html", "Primitives"],
   ["navigation.html", "Navigation"],
