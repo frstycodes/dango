@@ -114,7 +114,6 @@ fn demo_call(chord: &mut Rustcord) {
         watching: None,
         sharing: None,
         share_label: None,
-        joined_at: std::time::Instant::now() - std::time::Duration::from_secs(754),
         _events: gpui_kit::Task::ready(()),
     });
     chord.call_view = true;

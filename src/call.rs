@@ -467,8 +467,10 @@ impl Rustcord {
         let call = self.call.as_ref()?;
         let tiles = self.ordered_tiles();
         let viewport = window.viewport_size();
-        let width = f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - 32.;
-        let height = f32::from(viewport.height) - 32. - 16.;
+        let (width, height) = match self.call_fullscreen {
+            true => (f32::from(viewport.width) - 32., f32::from(viewport.height)),
+            false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - 32., f32::from(viewport.height) - 32. - 16.),
+        };
         let chrome = !self.call_idle();
         let stage: AnyElement = match &call.watching {
             Some(watching) => {
@@ -546,6 +548,15 @@ impl Rustcord {
                 .child(div().absolute().bottom_0().left_0().right_0().child(fade("call-controls", self.call_controls(window, cx).into_any_element())))
                 .into_any_element(),
         )
+    }
+
+    // Discord's full screen shows the call alone: no servers, channels or user panel.
+    pub(crate) fn set_call_fullscreen(&mut self, on: bool, window: &mut Window, cx: &mut Context<Self>) {
+        self.call_fullscreen = on;
+        if window.is_fullscreen() != on {
+            window.toggle_fullscreen();
+        }
+        cx.notify();
     }
 
     // Still pointer for a while, and nothing open that belongs to the bar.
@@ -694,7 +705,7 @@ impl Rustcord {
         let muted = self.muted || self.deafened;
         let connected = call.stage == Stage::Connected;
         let sharing = call.sharing.is_some();
-        let fullscreen = window.is_fullscreen();
+        let fullscreen = self.call_fullscreen;
         let invite = call.guild_id.clone().map(|guild| {
             let channel = call.channel.id.clone();
             round_button("call-invite", Glyph::GroupPlus, "Invite to Voice").on_click(cx.listener(move |this, _, window, cx| this.show_invite(guild.clone(), channel.clone(), window, cx)))
@@ -783,7 +794,7 @@ impl Rustcord {
                     .children(strip_toggle)
                     .child(
                         round_button("call-fullscreen", if fullscreen { Glyph::FullscreenExit } else { Glyph::Fullscreen }, if fullscreen { "Exit Full Screen" } else { "Full Screen" })
-                            .on_click(|_, window, _| window.toggle_fullscreen()),
+                            .on_click(cx.listener(move |this, _, window, cx| this.set_call_fullscreen(!fullscreen, window, cx))),
                     ),
             )
     }

@@ -58,6 +58,18 @@ impl Render for Rustcord {
                 .children(crate::window_controls::render(window, cx))
                 .into_any_element();
         }
+        if self.call_fullscreen && self.call_view
+            && let Some(call) = self.render_call(window, cx)
+        {
+            return root
+                .child(call)
+                .children(self.render_overlays(window, cx))
+                .children(self.render_call_overlays(window, cx))
+                .children(self.render_toast(cx))
+                .children(self.render_menu(window, cx))
+                .children(self.render_dialog(cx))
+                .into_any_element();
+        }
         let body = div()
             .relative()
             .flex_1()
@@ -96,6 +108,9 @@ impl Rustcord {
         let keystroke = &event.keystroke;
         if self.record_keystroke(keystroke, cx) {
             return cx.stop_propagation();
+        }
+        if keystroke.key == "escape" && self.call_fullscreen {
+            return self.set_call_fullscreen(false, window, cx);
         }
         if keystroke.key == "escape" && self.settings.is_some() {
             self.close_settings(cx);
