@@ -754,9 +754,18 @@ impl Client {
         let _ = self.run(req).await;
     }
 
-    pub async fn search(&self, guild_id: &str, query: &str) -> Result<Vec<Message>, String> {
-        let mut url = reqwest::Url::parse(&format!("{API}/guilds/{guild_id}/messages/search")).map_err(|e| e.to_string())?;
-        url.query_pairs_mut().append_pair("content", query);
+    /// `scope` is `guilds/{id}` or, for a DM, `channels/{id}`. `params` are Discord's search filters.
+    pub async fn search(&self, scope: &str, content: &str, params: &[(String, String)]) -> Result<Vec<Message>, String> {
+        let mut url = reqwest::Url::parse(&format!("{API}/{scope}/messages/search")).map_err(|e| e.to_string())?;
+        {
+            let mut pairs = url.query_pairs_mut();
+            if !content.is_empty() {
+                pairs.append_pair("content", content);
+            }
+            for (name, value) in params {
+                pairs.append_pair(name, value);
+            }
+        }
         let body = self.run(self.http.get(url).header("Authorization", &self.token)).await?;
         // Each hit is a small array of messages around the match; the match is the first.
         Ok(body["messages"].as_array().into_iter().flatten().filter_map(|hit| hit.get(0).and_then(parse_message)).collect())
