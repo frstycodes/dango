@@ -72,6 +72,24 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
                 chord.open_message_menu(message, gpui_kit::point(gpui_kit::px(700.), gpui_kit::px(260.)), cx);
             }
         }
+        // Fixture sources rather than the real listing, which would ask for Screen Recording access.
+        // share-window remembers a closed Figma window, so a sibling is preselected.
+        "share" | "share-window" => {
+            demo_call(chord);
+            if scene == "share-window" {
+                chord.prefs.last_share = Some(crate::go_live::LastShare::Window { id: 99, pid: 501, app_name: "Figma".into() });
+            }
+            let window = |id, pid, app: &str, title: &str| crate::voice::ShareableWindow { id, title: title.into(), app_name: app.into(), pid };
+            let windows = vec![
+                window(1, 500, "Safari", "Rustcord: a Discord client in Rust with gpui, the full and very long window title of a pull request"),
+                window(2, 501, "Figma", "Go Live picker"),
+                window(3, 502, "Terminal", "zsh"),
+                window(4, 503, "Notes", "N"),
+            ];
+            let screen = |id, name: &str| crate::voice::ShareableScreen { id, name: name.into(), width: 1512, height: 982 };
+            chord.empty_share_picker(cx);
+            chord.list_shareables(Ok(windows), Ok(vec![screen(1, "Screen 1"), screen(2, "Screen 2")]), cx);
+        }
         "call" | "call-info" | "call-devices" => {
             demo_call(chord);
             match scene {

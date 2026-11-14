@@ -118,6 +118,8 @@ pub struct Prefs {
     pub stream_resolution: u32,
     pub stream_fps: u32,
     pub stream_audio: bool,
+    // What we last went live with, preselected in the picker.
+    pub last_share: Option<crate::go_live::LastShare>,
 }
 
 impl Default for Prefs {
@@ -148,6 +150,7 @@ impl Default for Prefs {
             stream_resolution: 720,
             stream_fps: 30,
             stream_audio: true,
+            last_share: None,
         }
     }
 }
@@ -157,7 +160,7 @@ impl Prefs {
         prefs_file().and_then(|path| std::fs::read_to_string(path).ok()).and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default()
     }
 
-    fn save(&self) {
+    pub(crate) fn save(&self) {
         let Some(path) = prefs_file() else { return };
         if let Some(dir) = path.parent() {
             let _ = std::fs::create_dir_all(dir);
@@ -1365,7 +1368,7 @@ fn divider(theme: &gpui_kit::component::Theme) -> Div {
     div().my(px(32.)).h(px(1.)).bg(theme.border)
 }
 
-fn switch(on: bool, theme: &gpui_kit::component::Theme) -> Div {
+pub(crate) fn switch(on: bool, theme: &gpui_kit::component::Theme) -> Div {
     div()
         .w(px(40.))
         .h(px(24.))
