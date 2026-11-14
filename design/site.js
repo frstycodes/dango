@@ -104,6 +104,9 @@ document.addEventListener("click", e => {
   }
 });
 document.addEventListener("input", e => {
-  if (e.target.matches(".range")) e.target.style.setProperty("--v", ((e.target.value - (e.target.min || 0)) / ((e.target.max || 100) - (e.target.min || 0))) * 100 + "%");
+  if (!e.target.matches(".range")) return;
+  const r = e.target, p = (r.value - (r.min || 0)) / ((r.max || 100) - (r.min || 0));
+  r.style.setProperty("--p", p);
+  r.style.setProperty("--v", p * 100 + "%");
 });
 for (const r of $$(".range")) r.dispatchEvent(new Event("input", { bubbles: true }));

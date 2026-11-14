@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/index.html"
+        ],
+        "createdAt": "2026-11-14T17:56:36.924Z",
+        "reason": "Claude: the two matches are the indeterminate progress bar and skeleton shimmer in css/primitives.css (decorative loading fills, no content scrolls)"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/index.html"
+        ],
+        "createdAt": "2026-11-14T18:02:42.962Z",
+        "reason": "Claude: radial gradients stand in for stream and image content (placeholder screenshots), not decorative page glows"
+      }
+    ]
+  }
+}
