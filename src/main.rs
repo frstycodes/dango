@@ -325,8 +325,13 @@ pub struct Rustcord {
     // The source picked in the Go Live window, waiting for "Go Live".
     share_choice: Option<voice::ShareSource>,
     share_choice_label: Option<String>,
-    // Who is watching our Go Live, to play Discord's viewer join/leave cues.
-    stream_viewers: Vec<String>,
+    // Who watches each Go Live we've heard of, by stream key (STREAM_UPDATE).
+    stream_viewers: HashMap<String, Vec<String>>,
+    // When the pointer last moved over the call view; the bar and header fade out after a while.
+    call_pointer_at: Instant,
+    call_strip_hidden: bool,
+    // Each call participant's avatar colour for their tile; None while loading or when it failed.
+    avatar_colors: HashMap<String, Option<Hsla>>,
     pins: Option<Option<Result<Vec<Message>, SharedString>>>,
     // Messages whose spoilers were clicked open.
     revealed: Rc<RefCell<HashSet<String>>>,
@@ -470,7 +475,10 @@ impl Rustcord {
             share_picker: None,
             share_choice: None,
             share_choice_label: None,
-            stream_viewers: Vec::new(),
+            stream_viewers: HashMap::new(),
+            call_pointer_at: Instant::now(),
+            call_strip_hidden: false,
+            avatar_colors: HashMap::new(),
             pins: None,
             revealed: Rc::default(),
             relationships: Vec::new(),
@@ -772,8 +780,10 @@ impl Rustcord {
                 let is_live = is_here && state.streaming;
                 if Some(&state.user_id) != me.as_ref() && was_here != is_here {
                     sounds::play(if is_here { sounds::Cue::UserJoin } else { sounds::Cue::UserLeave });
-                } else if Some(&state.user_id) != me.as_ref() && was_live != is_live {
-                    sounds::play(if is_live { sounds::Cue::StreamStarted } else { sounds::Cue::StreamEnded });
+                } else if Some(&state.user_id) != me.as_ref() && !was_live && is_live {
+                    sounds::play(sounds::Cue::StreamStarted);
+                } else if was_live && !is_live && self.call.as_ref().and_then(|c| c.watching.as_ref()).is_some_and(|w| w.streamer_id == state.user_id) {
+                    sounds::play(sounds::Cue::StreamEnded);
                 }
                 guild.voice_states.retain(|v| v.user_id != state.user_id);
                 if state.channel_id.is_some() {
@@ -782,14 +792,13 @@ impl Rustcord {
             }
             Event::VoiceServer(_) => {}
             Event::StreamViewers { key, viewers } => {
-                let Some(me) = self.me.as_ref() else { return };
-                if !key.ends_with(&format!(":{}", me.id)) {
-                    return;
-                }
-                if let Some(cue) = viewer_cue(&self.stream_viewers, &viewers) {
+                let before = self.stream_viewers.get(&key).map_or(0, Vec::len);
+                if self.in_stream(&key)
+                    && let Some(cue) = viewer_cue(before, viewers.len())
+                {
                     sounds::play(cue);
                 }
-                self.stream_viewers = viewers;
+                self.stream_viewers.insert(key, viewers);
             }
             Event::Disconnected(reason) => self.status = Status::Reconnecting(reason.into()),
             Event::AuthFailed => {
@@ -799,6 +808,7 @@ impl Rustcord {
         }
         self.resolve_voice_users();
         self.refresh_stream_previews(cx);
+        self.refresh_avatar_colors(cx);
         self.update_badge();
         cx.notify();
     }
@@ -1588,6 +1598,10 @@ impl Rustcord {
         users
     }
 
+    fn user_avatar(&self, user_id: &str) -> String {
+        self.known_users().into_iter().find(|u| u.id == user_id).map(|u| u.avatar).unwrap_or_else(|| discord::avatar_url(user_id, None))
+    }
+
     fn user_name(&self, user_id: &str) -> String {
         self.known_users().into_iter().find(|u| u.id == user_id).map(|u| u.name).unwrap_or_else(|| "Someone".into())
     }
@@ -1823,6 +1837,14 @@ impl Rustcord {
         cx.notify();
     }
 
+    // Whether `key` is our own Go Live or the one we're watching: the stream whose viewers Discord announces.
+    fn in_stream(&self, key: &str) -> bool {
+        let Some(call) = &self.call else { return false };
+        let mine = call.sharing.is_some() && self.me.as_ref().is_some_and(|m| key.ends_with(&format!(":{}", m.id)));
+        let watched = call.watching.as_ref().is_some_and(|w| key.ends_with(&format!(":{}", w.streamer_id)));
+        mine || watched
+    }
+
     fn stop_watching(&mut self, cx: &mut Context<Self>) {
         if let Some(frame) = self.call.as_mut().and_then(|c| c.watching.take()).and_then(|w| w.frame) {
             cx.drop_image(frame, None);
@@ -1848,7 +1870,6 @@ impl Rustcord {
             Ok(live) => {
                 call.sharing = Some(live);
                 call.share_label = self.share_choice_label.take();
-                self.stream_viewers.clear();
                 sounds::play(sounds::Cue::StreamStarted);
             }
             Err(error) => self.voice_error = Some(error.into()),
@@ -2043,12 +2064,14 @@ mod tests {
     }
 }
 
-// Discord's cue when someone starts or stops watching our stream; joins win when both happen at once.
-fn viewer_cue(before: &[String], after: &[String]) -> Option<sounds::Cue> {
-    if after.iter().any(|v| !before.contains(v)) {
-        return Some(sounds::Cue::StreamUserJoined);
+// Discord's cue when the viewer count of the stream we're in changes (it stays quiet past 25).
+fn viewer_cue(before: usize, after: usize) -> Option<sounds::Cue> {
+    match () {
+        _ if before > 25 => None,
+        _ if after > before => Some(sounds::Cue::StreamUserJoined),
+        _ if after < before => Some(sounds::Cue::StreamUserLeft),
+        _ => None,
     }
-    before.iter().any(|v| !after.contains(v)).then_some(sounds::Cue::StreamUserLeft)
 }
 
 #[cfg(test)]
@@ -2057,10 +2080,9 @@ mod viewer_tests {
 
     #[test]
     fn viewer_cues() {
-        let (a, b) = ("a".to_owned(), "b".to_owned());
-        assert_eq!(viewer_cue(&[], &[a.clone()]), Some(sounds::Cue::StreamUserJoined));
-        assert_eq!(viewer_cue(&[a.clone(), b.clone()], &[a.clone()]), Some(sounds::Cue::StreamUserLeft));
-        assert_eq!(viewer_cue(&[a.clone()], &[b.clone()]), Some(sounds::Cue::StreamUserJoined));
-        assert_eq!(viewer_cue(&[a.clone()], &[a]), None);
+        assert_eq!(viewer_cue(0, 1), Some(sounds::Cue::StreamUserJoined));
+        assert_eq!(viewer_cue(2, 1), Some(sounds::Cue::StreamUserLeft));
+        assert_eq!(viewer_cue(1, 1), None);
+        assert_eq!(viewer_cue(30, 31), None);
     }
 }

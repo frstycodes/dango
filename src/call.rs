@@ -1,8 +1,10 @@
 // Everything around a voice call, after Discord: the voice panel over the user panel with its
 // connection stages, the connection details popout, the call view with participant tiles and the
 // control bar, device menus and the participant menu.
+use std::time::{Duration, Instant};
+
 use gpui_kit::{
-    AnyElement, Context, Div, FontWeight, Hsla, ImageSource, MouseButton, MouseDownEvent, Pixels, Point, SharedString, Stateful, Window,
+    Animation, AnimationExt, AnyElement, Context, Div, FontWeight, Hsla, ImageSource, MouseButton, MouseDownEvent, Pixels, Point, SharedString, Stateful, Window,
     component::{ActiveTheme, Icon, tooltip::Tooltip},
     div, img, prelude::*, px, rgb,
 };
@@ -27,6 +29,10 @@ const TILE_GAP: f32 = 8.;
 const STRIP_HEIGHT: f32 = 112.;
 const STRIP_LIMIT: usize = 12;
 const RECENT_SPEAKER: std::time::Duration = std::time::Duration::from_secs(10);
+const CONTROLS_IDLE: Duration = Duration::from_secs(3);
+const HEADER_HEIGHT: f32 = 48.;
+const CONTROLS_HEIGHT: f32 = 96.;
+const TILE_BG: gpui_kit::Rgba = gpui_kit::Rgba { r: 0x1E as f32 / 255., g: 0x1F as f32 / 255., b: 0x22 as f32 / 255., a: 1. };
 
 enum Tile {
     User(VoiceState),
@@ -102,6 +108,27 @@ impl Rustcord {
                 let Some(url) = body["url"].as_str().map(str::to_owned) else { return };
                 this.update(cx, |this, cx| {
                     this.stream_previews.insert(user_id, (url, std::time::Instant::now()));
+                    cx.notify();
+                })
+                .ok();
+            })
+            .detach();
+        }
+    }
+
+    // Tiles without a camera take their avatar's colour, as Discord's do; fetched once per person.
+    pub(crate) fn refresh_avatar_colors(&mut self, cx: &mut Context<Self>) {
+        if self.call.is_none() {
+            return;
+        }
+        let wanted: Vec<(String, String)> = self.participants().into_iter().filter(|p| !self.avatar_colors.contains_key(&p.user_id)).map(|p| (p.user_id.clone(), p.user.map(|u| u.avatar).unwrap_or_else(|| self.user_avatar(&p.user_id)))).collect();
+        for (user_id, avatar) in wanted {
+            self.avatar_colors.insert(user_id.clone(), None);
+            let url = small_png(&avatar);
+            cx.spawn(async move |this, cx| {
+                let color = discord::runtime().spawn(async move { avatar_color(&url).await }).await.ok().flatten();
+                this.update(cx, |this, cx| {
+                    this.avatar_colors.insert(user_id, color);
                     cx.notify();
                 })
                 .ok();
@@ -399,29 +426,20 @@ impl Rustcord {
         tiles.into_iter().map(|(_, tile)| tile).collect()
     }
 
-    // The call view: a grid of 16:9 tiles, or the watched stream large with everyone in a strip of
-    // 112px tiles below; Discord's control bar underneath.
+    // The call view: a grid of 16:9 tiles, or the watched stream large over a collapsible strip of
+    // everyone else. The header and control bar float over the stage and fade out while the pointer
+    // is still, as Discord's do.
     pub(crate) fn render_call(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let call = self.call.as_ref()?;
         let tiles = self.ordered_tiles();
         let viewport = window.viewport_size();
         let width = f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - 32.;
-        let height = f32::from(viewport.height) - 32. - 48. - 96. - 16.;
-        let people = tiles.iter().filter(|t| matches!(t, Tile::User(_))).count();
-        let header = div()
-            .h(px(48.))
-            .flex_none()
-            .px_4()
-            .flex()
-            .items_center()
-            .gap_2()
-            .text_color(gpui_kit::white())
-            .child(Icon::new(Glyph::VolumeHigh).size(px(20.)).text_color(gpui_kit::white().opacity(0.7)))
-            .child(div().font_weight(FontWeight::SEMIBOLD).child(call.channel.name.clone()))
-            .child(div().text_size(px(14.)).text_color(gpui_kit::white().opacity(0.6)).child(format!("{people} in voice")));
+        let height = f32::from(viewport.height) - 32. - 16.;
+        let chrome = !self.call_idle();
         let stage: AnyElement = match &call.watching {
             Some(watching) => {
-                let main_h = (height - STRIP_HEIGHT - TILE_GAP).max(120.);
+                let strip_shown = !self.call_strip_hidden && tiles.len() > 1;
+                let main_h = (height - CONTROLS_HEIGHT - if strip_shown { STRIP_HEIGHT + TILE_GAP } else { 0. }).max(120.);
                 let main = match &watching.frame {
                     Some(frame) => {
                         let (w, h) = (frame.size(0).width.0 as f32, frame.size(0).height.0 as f32);
@@ -439,49 +457,103 @@ impl Rustcord {
                     .collect();
                 div()
                     .size_full()
+                    .pb(px(CONTROLS_HEIGHT))
                     .flex()
                     .flex_col()
                     .gap(px(TILE_GAP))
-                    .child(
-                        div()
-                            .relative()
-                            .flex_1()
-                            .min_h_0()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .child(main)
-                            .child(div().absolute().top_2().right_2().child(pill_button("stop-watching", "Stop Watching").on_click(cx.listener(|this, _, _, cx| this.stop_watching(cx))))),
-                    )
-                    .child(div().flex_none().flex().justify_center().gap(px(TILE_GAP)).children(strip))
+                    .child(div().flex_1().min_h_0().flex().items_center().justify_center().child(main))
+                    .when(strip_shown, |d| d.child(div().flex_none().flex().justify_center().gap(px(TILE_GAP)).children(strip)))
                     .into_any_element()
             }
             None => {
+                let grid_h = height - HEADER_HEIGHT - CONTROLS_HEIGHT;
                 let n = tiles.len().max(1);
                 // The column count that makes the biggest 16:9 tiles fit the stage.
                 let size = |cols: usize| {
                     let rows = n.div_ceil(cols) as f32;
                     let w = (width - TILE_GAP * (cols as f32 - 1.)) / cols as f32;
-                    w.min((height - TILE_GAP * (rows - 1.)) / rows * 16. / 9.)
+                    w.min((grid_h - TILE_GAP * (rows - 1.)) / rows * 16. / 9.)
                 };
                 let cols = (1..=n).max_by(|a, b| size(*a).total_cmp(&size(*b))).unwrap_or(1);
                 let tile_w = size(cols).max(124.);
                 let rendered: Vec<AnyElement> = tiles.iter().map(|t| self.tile(t, tile_w, tile_w * 9. / 16., false, cx)).collect();
-                div().size_full().flex().flex_wrap().items_center().justify_center().content_center().gap(px(TILE_GAP)).children(rendered).into_any_element()
+                div()
+                    .size_full()
+                    .pt(px(HEADER_HEIGHT))
+                    .pb(px(CONTROLS_HEIGHT))
+                    .flex()
+                    .flex_wrap()
+                    .items_center()
+                    .justify_center()
+                    .content_center()
+                    .gap(px(TILE_GAP))
+                    .children(rendered)
+                    .into_any_element()
             }
+        };
+        let fade = |id: &'static str, el: AnyElement| {
+            div().with_animation(SharedString::from(format!("{id}-{chrome}")), Animation::new(Duration::from_millis(if chrome { 150 } else { 300 })), move |d, t| d.opacity(if chrome { t } else { 1. - t })).child(el)
         };
         Some(
             div()
                 .id("call-view")
+                .relative()
                 .size_full()
                 .bg(gpui_kit::black())
-                .flex()
-                .flex_col()
-                .child(header)
-                .child(div().flex_1().min_h_0().px_4().child(stage))
-                .child(self.call_controls(cx))
+                .on_mouse_move(cx.listener(|this, _, _, cx| {
+                    let was_idle = this.call_idle();
+                    this.call_pointer_at = Instant::now();
+                    if was_idle {
+                        cx.notify();
+                    }
+                }))
+                .child(div().size_full().px_4().child(stage))
+                .child(div().absolute().top_0().left_0().right_0().child(fade("call-header", self.call_header(cx))))
+                .child(div().absolute().bottom_0().left_0().right_0().child(fade("call-controls", self.call_controls(window, cx).into_any_element())))
                 .into_any_element(),
         )
+    }
+
+    // Still pointer for a while, and nothing open that belongs to the bar.
+    // GAP: Discord's idle timeout isn't in the cached bundle chunks; 3 seconds by eye.
+    fn call_idle(&self) -> bool {
+        self.call_pointer_at.elapsed() > CONTROLS_IDLE && self.device_menu.is_none() && self.menu.is_none()
+    }
+
+    // The channel name, or while watching: whose screen, its quality, LIVE and who else is watching.
+    fn call_header(&self, cx: &mut Context<Self>) -> AnyElement {
+        let call = self.call.as_ref().expect("in a call");
+        let bar = div()
+            .h(px(HEADER_HEIGHT))
+            .px_4()
+            .flex()
+            .items_center()
+            .gap_2()
+            .bg(gpui_kit::linear_gradient(180., gpui_kit::linear_color_stop(gpui_kit::black().opacity(0.6), 0.), gpui_kit::linear_color_stop(gpui_kit::transparent_black(), 1.)))
+            .text_color(gpui_kit::white());
+        let Some(watching) = &call.watching else {
+            let people = self.participants().len();
+            return bar
+                .child(Icon::new(Glyph::VolumeHigh).size(px(20.)).text_color(gpui_kit::white().opacity(0.7)))
+                .child(div().font_weight(FontWeight::SEMIBOLD).child(call.channel.name.clone()))
+                .child(div().text_size(px(14.)).text_color(gpui_kit::white().opacity(0.6)).child(format!("{people} in voice")))
+                .into_any_element();
+        };
+        let suffix = format!(":{}", watching.streamer_id);
+        let viewers: Vec<String> = self.stream_viewers.iter().find(|(key, _)| key.ends_with(&suffix)).map(|(_, v)| v.clone()).unwrap_or_default();
+        // GAP: the frame rate isn't reported by the voice engine, so only the resolution shows.
+        let quality = watching.frame.as_ref().map(|f| format!("{}P", f.size(0).height.0));
+        let avatars: Vec<AnyElement> = viewers.iter().take(3).map(|id| img(self.user_avatar(id)).size(px(20.)).rounded_full().border_2().border_color(gpui_kit::black()).ml(px(-6.)).into_any_element()).collect();
+        bar.child(Icon::new(Glyph::Screen).size(px(20.)).text_color(gpui_kit::white().opacity(0.7)))
+            .child(div().font_weight(FontWeight::SEMIBOLD).truncate().child(format!("{}'s Screen", self.user_name(&watching.streamer_id))))
+            .children(quality.map(|q| div().h(px(18.)).px_1().rounded(px(4.)).bg(gpui_kit::white().opacity(0.16)).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child(q)))
+            .child(live_badge())
+            .when(!viewers.is_empty(), |b| {
+                b.child(div().pl(px(6.)).flex().items_center().children(avatars).when(viewers.len() > 3, |d| d.child(div().pl_1().text_size(px(12.)).font_weight(FontWeight::BOLD).child(format!("+{}", viewers.len() - 3)))))
+            })
+            .child(div().flex_1())
+            .child(pill_button("stop-watching", "Stop Watching").on_click(cx.listener(|this, _, _, cx| this.stop_watching(cx))))
+            .into_any_element()
     }
 
     // A participant (camera or avatar, green ring while speaking, name and mute state in Discord's
@@ -506,11 +578,18 @@ impl Rustcord {
         let face: AnyElement = match (is_stream, call.cameras.get(&state.user_id)) {
             (true, _) => div()
                 .size_full()
-                .bg(rgb(0x1E1F22))
+                .bg(TILE_BG)
                 .children(self.stream_preview(&state.user_id).map(|url| img(url).size_full().object_fit(gpui_kit::ObjectFit::Cover).opacity(0.15)))
                 .into_any_element(),
             (false, Some(frame)) => img(ImageSource::Render(frame.clone())).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
-            (false, None) => div().size_full().bg(rgb(0x1E1F22)).flex().items_center().justify_center().child(img(user.avatar.clone()).size(px((h * 0.4).clamp(32., 96.))).rounded_full()).into_any_element(),
+            (false, None) => div()
+                .size_full()
+                .bg(self.avatar_colors.get(&state.user_id).copied().flatten().unwrap_or(TILE_BG.into()))
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(img(user.avatar.clone()).size(px((h * 0.4).clamp(32., 80.))).rounded_full())
+                .into_any_element(),
         };
         let watching = call.watching.as_ref().is_some_and(|w| w.streamer_id == state.user_id);
         let watchable = is_stream && !me && !watching;
@@ -555,9 +634,7 @@ impl Rustcord {
             .rounded(px(TILE_RADIUS))
             .overflow_hidden()
             .child(face)
-            .when(is_stream, |d| {
-                d.child(div().absolute().top(px(8.)).right(px(8.)).h(px(18.)).px_1().rounded(px(4.)).bg(rgb(0xED4245)).text_color(gpui_kit::white()).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child("LIVE"))
-            })
+            .when(is_stream, |d| d.child(div().absolute().top(px(8.)).right(px(8.)).child(live_badge())))
             .when(watchable, |d| {
                 d.child(
                     div()
@@ -576,43 +653,71 @@ impl Rustcord {
             .into_any_element()
     }
 
-    // Discord's call bar: mic and camera with their device chevrons, share screen, then the red hang-up.
-    fn call_controls(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    // Discord's call bar: invite on the left; mic and camera with their device chevrons, share,
+    // activities, soundboard and the red hang-up in the middle; strip and fullscreen on the right.
+    fn call_controls(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let call = self.call.as_ref().expect("in a call");
         let muted = self.muted || self.deafened;
         let connected = call.stage == Stage::Connected;
         let sharing = call.sharing.is_some();
-        div()
-            .h(px(96.))
-            .flex_none()
+        let fullscreen = window.is_fullscreen();
+        let invite = call.guild_id.clone().map(|guild| {
+            let channel = call.channel.id.clone();
+            round_button("call-invite", Glyph::GroupPlus, "Invite to Voice").on_click(cx.listener(move |this, _, window, cx| this.show_invite(guild.clone(), channel.clone(), window, cx)))
+        });
+        let strip_toggle = call.watching.is_some().then(|| {
+            let hidden = self.call_strip_hidden;
+            round_button("call-strip", if hidden { Glyph::ChevronUp } else { Glyph::ChevronDown }, if hidden { "Show Members" } else { "Hide Members" }).on_click(cx.listener(|this, _, _, cx| {
+                this.call_strip_hidden = !this.call_strip_hidden;
+                cx.notify();
+            }))
+        });
+        let center = div()
             .flex()
             .items_center()
-            .justify_center()
-            .gap_3()
+            .gap_2()
             .child(
-                split_button("call-mic", if muted { Glyph::MicOff } else { Glyph::Mic }, if muted { "Unmute" } else { "Mute" }, muted, cx)
-                    .on_click(cx.listener(|this, _, _, cx| this.toggle_mute(cx)))
-                    .into_any_element(),
+                div()
+                    .flex()
+                    .child(
+                        split_button("call-mic", if muted { Glyph::MicOff } else { Glyph::Mic }, if muted { "Unmute" } else { "Mute" }, muted, cx)
+                            .on_click(cx.listener(|this, _, _, cx| this.toggle_mute(cx))),
+                    )
+                    .child(chevron("call-mic-devices", cx).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(DeviceKind::Input, e.position, cx)))),
             )
-            .child(chevron("call-mic-devices", cx).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(DeviceKind::Input, e.position, cx))))
             .child(
-                split_button("call-camera", if call.camera_on { Glyph::Video } else { Glyph::VideoOff }, if call.camera_on { "Turn Off Camera" } else { "Turn On Camera" }, !call.camera_on, cx)
-                    .when(!connected, |b| b.opacity(0.5))
-                    .on_click(cx.listener(|this, _, _, cx| this.toggle_camera(cx)))
-                    .into_any_element(),
+                div()
+                    .flex()
+                    .child(
+                        split_button("call-camera", if call.camera_on { Glyph::Video } else { Glyph::VideoOff }, if call.camera_on { "Turn Off Camera" } else { "Turn On Camera" }, !call.camera_on, cx)
+                            .when(!connected, |b| b.opacity(0.5))
+                            .on_click(cx.listener(|this, _, _, cx| this.toggle_camera(cx))),
+                    )
+                    .child(chevron("call-camera-devices", cx).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(DeviceKind::Camera, e.position, cx)))),
             )
-            .child(chevron("call-camera-devices", cx).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(DeviceKind::Camera, e.position, cx))))
             .child(
                 split_button("call-share", if sharing { Glyph::ScreenOff } else { Glyph::ShareScreen }, if sharing { "Stop Streaming" } else { "Share Your Screen" }, false, cx)
                     .rounded(px(12.))
-                    .when(sharing, |b| b.bg(palette::status(discord::Status::Online)))
+                    .when(sharing, |b| b.bg(Hsla::from(rgb(0x008545)).opacity(0.24)).text_color(rgb(0x62B77C)))
                     .when(!connected, |b| b.opacity(0.5))
-                    .on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx)))
-                    .into_any_element(),
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx))),
+            )
+            .child(
+                split_button("call-activities", Glyph::Activities, "Start an Activity", false, cx)
+                    .rounded(px(12.))
+                    .when(!connected, |b| b.opacity(0.5))
+                    .on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities aren't in Rustcord yet", cx))),
+            )
+            .child(
+                split_button("call-soundboard", Glyph::Soundboard, "Open Soundboard", false, cx)
+                    .rounded(px(12.))
+                    .when(!connected, |b| b.opacity(0.5))
+                    .on_click(cx.listener(|this, _, _, cx| this.show_toast("The soundboard isn't in Rustcord yet", cx))),
             )
             .child(
                 div()
                     .id("call-hang-up")
+                    .ml_2()
                     .w(px(64.))
                     .h(px(48.))
                     .rounded(px(12.))
@@ -626,6 +731,26 @@ impl Rustcord {
                     .child(Icon::new(Glyph::CallEnd).size(px(24.)))
                     .tooltip(|window, cx| Tooltip::new("Disconnect").build(window, cx))
                     .on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx))),
+            );
+        div()
+            .h(px(CONTROLS_HEIGHT))
+            .px_4()
+            .flex()
+            .items_center()
+            .bg(gpui_kit::linear_gradient(0., gpui_kit::linear_color_stop(gpui_kit::black().opacity(0.6), 0.), gpui_kit::linear_color_stop(gpui_kit::transparent_black(), 1.)))
+            .child(div().flex_1().flex().children(invite))
+            .child(center)
+            .child(
+                div()
+                    .flex_1()
+                    .flex()
+                    .justify_end()
+                    .gap_2()
+                    .children(strip_toggle)
+                    .child(
+                        round_button("call-fullscreen", if fullscreen { Glyph::FullscreenExit } else { Glyph::Fullscreen }, if fullscreen { "Exit Full Screen" } else { "Full Screen" })
+                            .on_click(|_, window, _| window.toggle_fullscreen()),
+                    ),
             )
     }
 
@@ -977,4 +1102,68 @@ fn menu_row(id: impl Into<SharedString>, label: String, checked: bool, cx: &mut 
         .hover(|s| s.bg(palette::blurple()).text_color(gpui_kit::white()))
         .child(div().flex_1().min_w_0().truncate().child(label))
         .when(checked, |d| d.child(Icon::new(Glyph::Checkmark).size(px(16.)).text_color(theme.foreground)))
+}
+
+// A secondary call bar button: a 40px circle, white icon on a dark wash.
+fn round_button(id: &'static str, glyph: Glyph, label: &'static str) -> Stateful<Div> {
+    div()
+        .id(id)
+        .size(px(40.))
+        .rounded_full()
+        .flex()
+        .items_center()
+        .justify_center()
+        .cursor_pointer()
+        .bg(gpui_kit::white().opacity(0.1))
+        .text_color(gpui_kit::white())
+        .hover(|s| s.bg(gpui_kit::white().opacity(0.16)))
+        .child(Icon::new(glyph).size(px(20.)))
+        .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
+}
+
+fn live_badge() -> Div {
+    div().h(px(18.)).px_1().rounded(px(4.)).bg(rgb(0xED4245)).text_color(gpui_kit::white()).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child("LIVE")
+}
+
+// Discord's CDN serves any avatar as a small PNG, whatever its original format.
+fn small_png(avatar: &str) -> String {
+    let base = avatar.split('?').next().unwrap_or(avatar);
+    let stem = base.rsplit_once('.').map_or(base, |(stem, _)| stem);
+    format!("{stem}.png?size=32")
+}
+
+async fn avatar_color(url: &str) -> Option<Hsla> {
+    let bytes = reqwest::get(url).await.ok()?.bytes().await.ok()?;
+    let rgba = image::load_from_memory(&bytes).ok()?.to_rgba8();
+    let (r, g, b) = average_color(rgba.as_raw())?;
+    let mut color = Hsla::from(gpui_kit::Rgba { r: r as f32 / 255., g: g as f32 / 255., b: b as f32 / 255., a: 1. });
+    // Dark enough for white names and the avatar to stand out, as on Discord's tiles.
+    color.l = color.l.clamp(0.2, 0.45);
+    Some(color)
+}
+
+// The alpha-weighted mean colour of RGBA pixels; None when fully transparent.
+fn average_color(rgba: &[u8]) -> Option<(u8, u8, u8)> {
+    let (mut sum, mut weight) = ([0u64; 3], 0u64);
+    for px in rgba.as_chunks::<4>().0 {
+        let a = px[3] as u64;
+        for (total, channel) in sum.iter_mut().zip(px) {
+            *total += *channel as u64 * a;
+        }
+        weight += a;
+    }
+    (weight > 0).then(|| ((sum[0] / weight) as u8, (sum[1] / weight) as u8, (sum[2] / weight) as u8))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn avatar_colour_and_url() {
+        assert_eq!(average_color(&[255, 0, 0, 255, 0, 0, 255, 255, 9, 9, 9, 0]), Some((127, 0, 127)));
+        assert_eq!(average_color(&[1, 2, 3, 0]), None);
+        assert_eq!(small_png("https://cdn.discordapp.com/avatars/1/a_b.gif?size=128"), "https://cdn.discordapp.com/avatars/1/a_b.png?size=32");
+        assert_eq!(small_png("https://cdn.discordapp.com/embed/avatars/3.png"), "https://cdn.discordapp.com/embed/avatars/3.png?size=32");
+    }
 }
