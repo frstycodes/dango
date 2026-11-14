@@ -1015,7 +1015,6 @@ impl Rustcord {
                 .items_center()
                 .gap(px(6.))
                 .text_size(px(12.))
-                .font_weight(FontWeight::SEMIBOLD)
                 .text_color(stage::muted())
                 .child(div().size(px(6.)).rounded_full().bg(color))
                 .child(format!("{quality}{label}"))
@@ -1127,7 +1126,7 @@ impl Rustcord {
         let several = call.watching.len() > 1;
         let body: AnyElement = match &watch.frame {
             Some(frame) => ui::media(ImageSource::Render(frame.clone()), ui::all(RADIUS_LG)).size_full().into_any_element(),
-            None => stream_fill().size_full().flex().items_center().justify_center().text_size(px(14.)).text_color(stage::muted()).child(format!("Joining {name}'s stream…")).into_any_element(),
+            None => stream_fill(RADIUS_LG).size_full().flex().items_center().justify_center().text_size(px(14.)).text_color(stage::muted()).child(format!("Joining {name}'s stream…")).into_any_element(),
         };
         let group = SharedString::from(format!("stream-{id}"));
         let label = match self.activity_name(&id) {
@@ -1280,7 +1279,7 @@ impl Rustcord {
         let camera = (!is_stream).then(|| call.cameras.get(&state.user_id)).flatten();
         let media = is_stream || camera.is_some();
         let face: AnyElement = match (is_stream, camera) {
-            (true, _) => stream_fill()
+            (true, _) => stream_fill(RADIUS_LG)
                 .size_full()
                 .children(self.stream_preview(&state.user_id).map(|url| ui::media(url, ui::all(RADIUS_LG)).absolute().inset_0().size_full().object_fit(gpui_kit::ObjectFit::Cover)))
                 .into_any_element(),
@@ -1889,7 +1888,7 @@ impl Inks {
 }
 
 // --shadow-pop: a soft drop plus a 1px ring in the strong line colour.
-fn pop_shadow(ring: Hsla, cx: &App) -> Vec<BoxShadow> {
+pub(crate) fn pop_shadow(ring: Hsla, cx: &App) -> Vec<BoxShadow> {
     let drop = if cx.theme().is_dark() { gpui_kit::black().opacity(0.45) } else { Hsla::from(rgb(0x3D2A22)).opacity(0.16) };
     vec![
         BoxShadow { color: drop, offset: point(px(0.), px(12.)), blur_radius: px(32.), spread_radius: px(0.), inset: false },
@@ -1972,7 +1971,7 @@ fn stage_button(id: &'static str, label: &'static str) -> Stateful<Div> {
 }
 
 // .preview .watch: the light button over a dimmed stream.
-fn watch_button(label: &'static str) -> Div {
+pub(crate) fn watch_button(label: &'static str) -> Div {
     div()
         .h(px(30.))
         .px(px(10.))
@@ -2127,9 +2126,9 @@ fn face_stack(urls: Vec<String>, size: f32, ring: Hsla) -> Div {
 }
 
 // .tile.stream: a stream before its first preview arrives.
-fn stream_fill() -> Div {
+pub(crate) fn stream_fill(radius: f32) -> Div {
     let glow = gpui_kit::linear_gradient(135., gpui_kit::linear_color_stop(Hsla::from(rgb(0x0097A1)).opacity(0.7), 0.), gpui_kit::linear_color_stop(Hsla::from(rgb(0x9D2398)).opacity(0.7), 1.));
-    div().relative().rounded(px(RADIUS_LG)).bg(rgb(0x1D1E39)).child(div().absolute().inset_0().rounded(px(RADIUS_LG)).bg(glow))
+    div().relative().rounded(px(radius)).bg(rgb(0x1D1E39)).child(div().absolute().inset_0().rounded(px(radius)).bg(glow))
 }
 
 // .mlabel
