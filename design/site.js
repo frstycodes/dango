@@ -51,7 +51,7 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => docu
 const sections = $$("main > section[id]");
 $("#toc").innerHTML = PAGES.map(([href, name]) => {
   const on = href === here;
-  const subs = on && sections.length > 1 ? `<div class="sub">${sections.map(s => `<a href="#${s.id}">${$("h1, h2", s)?.textContent ?? s.id}</a>`).join("")}</div>` : "";
+  const subs = on && sections.length > 1 ? `<div class="sub">${sections.map(s => `<a href="#${s.id}">${($("h2", s) ?? $("h1", s))?.textContent ?? s.id}</a>`).join("")}</div>` : "";
   return `<a class="page${on ? " on" : ""}" href="${href}" ${on ? 'aria-current="page"' : ""}>${name}</a>${subs}`;
 }).join("");
 const subLinks = $$("#toc .sub a");
