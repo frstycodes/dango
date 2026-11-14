@@ -60,9 +60,10 @@
   <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
     <div class="msg first mention"><span class="av" data-av="Jun"></span><div><div class="head"><span class="name">Jun</span><span class="time">Today at 9:44 PM</span></div><div class="body"><span class="at">@Mira</span> <span class="at">@you</span> send me the clip? I want it for the montage</div></div></div>
     <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name has-role" style="--role: oklch(0.70 0.16 150)">Theo</span><span class="tag"><i class="ph-bold ph-crown-simple"></i>Host</span><span class="time">Today at 9:46 PM</span><i class="ph-fill ph-push-pin state pinned" role="img" aria-label="Pinned"></i></div><div class="body">Server rules: be kind, no spoilers outside #spoilers, and clips go in #clips.</div></div></div>
+    <div class="msg first"><span class="av" data-av="Sunny"></span><div><div class="head"><span class="name has-role" style="--role: #ffff00">Sunny</span><span class="time">Today at 9:46 PM</span></div><div class="body">pure yellow role, clamped so the name still reads on paper and on ink</div></div></div>
     <div class="msg first"><span class="av" style="--hue: 350"><i class="ph-fill ph-waveform" style="font-size:20px"></i></span><div><div class="head"><span class="name">Bartholomew Featherstonehaugh-Montgomery of the Very Long Display Name</span><span class="time">Today at 9:47 PM</span></div><div class="body">no avatar, a long name, and an unbroken link: https://clips.example/watch/7f3a9c2e4b1d8a6f0e5c3b2a1d9e8f7c6b5a4d3e2f1a0b9c8d7e6f5a4b3c2d1e0</div></div></div>
   </div>
-  <p class="note" style="margin-top:8px">A mention tints the whole row, never a stripe. The name takes its top role colour mixed toward ink so it stays at 4.5:1. A missing avatar falls back to the wave on the name's hue.</p>
+  <p class="note" style="margin-top:8px">A mention tints the whole row, never a stripe. The name takes its top role colour with lightness clamped per theme (0.72 to 0.92 on ink, 0.30 to 0.45 on paper, chroma at most 0.16), so even a pure yellow role stays at 4.5:1. A missing avatar falls back to the wave on the name's hue.</p>
 
   <h3>Replies</h3>
   <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
@@ -92,6 +93,63 @@
   </div>
   <p class="note" style="margin-top:8px">Optimistic: your message appears at once in faint ink, a quiet clock in the gutter (or after the time on a first row) until the server confirms. Failure keeps the text and says why, with resend and delete inline. A deleted message keeps its slot only while you are looking at it.</p>
 
+  <h3 id="edit-in-place">Edit in place</h3>
+  <div class="grid" style="align-items:start;grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr))">
+    <div class="board" style="padding:var(--space-3) 0 var(--space-4);background:var(--bg-page);min-width:0">
+      <p class="note" style="margin:0 24px 4px">Up arrow in an empty composer</p>
+      <div class="msg first"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">Today at 9:41 PM</span></div><div class="body">anyone up for a few rounds after dinner?</div></div></div>
+      <div class="msg first"><span class="av" data-av="You"></span><div><div class="head"><span class="name">You</span><span class="time">Today at 9:43 PM</span></div><div class="body">in 5, grabbing snacks</div></div></div>
+      <div style="height:var(--space-4)"></div>
+      <div class="composer is-focus"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><textarea rows="1" placeholder="Message #general" aria-label="Message #general" aria-keyshortcuts="ArrowUp"></textarea><span class="chint" aria-hidden="true"><span class="kbd"><i class="ph-bold ph-arrow-up"></i></span>Edit last message</span><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+    </div>
+    <div class="board" style="padding:var(--space-3) 0 var(--space-4);background:var(--bg-page);min-width:0">
+      <p class="note" style="margin:0 24px 4px">The row becomes its own editor; your draft stays below</p>
+      <div class="msg first"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">Today at 9:41 PM</span></div><div class="body">anyone up for a few rounds after dinner?</div></div></div>
+      <div class="msg first is-editing"><span class="av" data-av="You"></span><div><div class="head"><span class="name">You</span><span class="time">Today at 9:43 PM</span></div>
+        <div class="composer composer--inline"><textarea rows="1" aria-label="Edit message">in 10, grabbing snacks</textarea><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+        <div class="msg-edit-keys"><button><span class="kbd">Esc</span>Cancel edit</button><button class="is-save"><span class="kbd">Enter</span>Save edit</button></div></div></div>
+      <div style="height:var(--space-4)"></div>
+      <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><textarea rows="1" aria-label="Message #general">wait who's bringing the</textarea><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+    </div>
+  </div>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page);margin-top:var(--space-4)">
+    <p class="note" style="margin:0 24px 4px">Saving</p>
+    <div class="msg first pending"><span class="av" data-av="You"></span><div><div class="head"><span class="name">You</span><span class="time">Today at 9:43 PM</span><i class="ph ph-clock state" role="img" aria-label="Saving edit"></i></div><div class="body">in 10, grabbing snacks</div></div></div>
+    <p class="note" style="margin:16px 24px 4px">Not saved</p>
+    <div class="msg first failed"><span class="av" data-av="You"></span><div><div class="head"><span class="name">You</span><span class="time">Today at 9:43 PM</span></div><div class="body">in 10, grabbing snacks</div>
+      <div class="msg-error" role="alert"><i class="ph-fill ph-warning-circle"></i>Edit not saved. You're offline.<button class="btn btn--sm btn--ghost"><i class="ph-bold ph-arrow-clockwise"></i>Save edit</button><button class="btn btn--sm btn--ghost">Restore original</button></div></div></div>
+    <p class="note" style="margin:16px 24px 4px">Over the limit</p>
+    <div class="msg first is-editing"><span class="av" data-av="You"></span><div><div class="head"><span class="name">You</span><span class="time">Today at 9:43 PM</span></div>
+      <div class="composer composer--inline"><textarea rows="2" aria-label="Edit message" aria-describedby="edit-over">…and then a second chapter nobody asked for, which pushes this past the limit by a little and keeps going for a while longer</textarea><span class="ccount over" aria-live="polite">12 over</span></div>
+      <p class="cnote bad" id="edit-over"><i class="ph-fill ph-warning-circle"></i>Remove 12 characters to save. Nothing is trimmed.</p>
+      <div class="msg-edit-keys"><button><span class="kbd">Esc</span>Cancel edit</button><button class="is-save" disabled><span class="kbd">Enter</span>Save edit</button></div></div></div>
+    <p class="note" style="margin:16px 24px 4px">Edited down to nothing</p>
+    <div class="msg first is-editing"><span class="av" data-av="You"></span><div><div class="head"><span class="name">You</span><span class="time">Today at 9:43 PM</span></div>
+      <div class="composer composer--inline"><textarea rows="1" aria-label="Edit message" placeholder="Nothing left to save"></textarea><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+      <div class="msg-edit-keys"><button><span class="kbd">Esc</span>Restore message</button><button class="is-delete"><span class="kbd">Enter</span>Delete message</button></div></div></div>
+  </div>
+  <p class="note" style="margin-top:8px">Up arrow in an empty composer, E on a focused message, or Edit message in its menu opens the editor: a <code>.composer--inline</code> in the content column, the row held at the hover fill. Esc cancels, Enter saves, Shift Enter adds a line, and a click elsewhere keeps the editor open. Saving is optimistic like sending (<code>.msg.pending</code>), and a failed save keeps your new text (<code>.msg.failed</code>). Empty, the key hints change meaning: Enter deletes, with the usual Undo toast.</p>
+
+  <h3 id="shift-and-swipe">Shift held, swipe to reply</h3>
+  <div class="board" style="padding:var(--space-6) 0 var(--space-3);background:var(--bg-page)">
+    <div class="msg first is-hover"><span class="av" data-av="You"></span><div><div class="head"><span class="name">You</span><span class="time">Today at 9:43 PM</span></div><div class="body">in 5, grabbing snacks</div></div>
+      <div class="msg-tools" role="toolbar" aria-label="Message actions">
+        <button class="qr" aria-label="React with fire">🔥</button><button class="qr" aria-label="React with loudly crying face">😭</button><button class="qr" aria-label="React with clapping hands">👏</button><span class="sep"></span>
+        <button class="iconbtn" aria-label="Add reaction"><i class="ph ph-smiley"></i></button><button class="iconbtn" aria-label="Reply"><i class="ph ph-arrow-bend-up-left"></i></button><button class="iconbtn" aria-label="Create thread"><i class="ph ph-chats-teardrop"></i></button><button class="iconbtn" aria-label="More actions"><i class="ph ph-dots-three-vertical"></i></button>
+      </div></div>
+    <div style="height:var(--space-8)"></div>
+    <div class="msg first is-hover"><span class="av" data-av="You"></span><div><div class="head"><span class="name">You</span><span class="time">Today at 9:44 PM</span></div><div class="body">wrong channel, ignore me</div></div>
+      <div class="msg-tools" role="toolbar" aria-label="Message actions, Shift held">
+        <span class="kbd" aria-hidden="true">Shift</span><button class="iconbtn" aria-label="Edit message"><i class="ph ph-pencil-simple"></i></button><button class="iconbtn" aria-label="Pin message"><i class="ph ph-push-pin"></i></button><button class="iconbtn mt-danger" aria-label="Delete message"><i class="ph ph-trash"></i></button><span class="sep"></span>
+        <button class="iconbtn" aria-label="Add reaction"><i class="ph ph-smiley"></i></button><button class="iconbtn" aria-label="Reply"><i class="ph ph-arrow-bend-up-left"></i></button><button class="iconbtn" aria-label="Create thread"><i class="ph ph-chats-teardrop"></i></button><button class="iconbtn" aria-label="More actions"><i class="ph ph-dots-three-vertical"></i></button>
+      </div></div>
+    <p class="note" style="margin:24px 24px 4px">Pulling, not yet far enough</p>
+    <div class="msg first is-swiping" style="--pull: 28px; --p: 0.5"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">Today at 9:41 PM</span></div><div class="body">anyone up for a few rounds after dinner?</div></div><span class="msg-swipe" aria-hidden="true"><i class="ph-bold ph-arrow-bend-up-left"></i></span></div>
+    <p class="note" style="margin:16px 24px 4px">Past the threshold: letting go replies</p>
+    <div class="msg first is-swiping" style="--pull: 48px; --p: 1"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">Today at 9:41 PM</span></div><div class="body">anyone up for a few rounds after dinner?</div></div><span class="msg-swipe is-armed" aria-hidden="true"><i class="ph-bold ph-arrow-bend-up-left"></i></span></div>
+  </div>
+  <p class="note" style="margin-top:8px">Shift held swaps the three quick reactions for Edit, Pin and Delete (<code>.mt-danger</code>) and adds a Shift keycap on the left; react, reply, thread and more keep their places. Delete still gets the Undo toast. Swipe: two fingers left on a trackpad pull the row (<code>.is-swiping</code>, <code>--pull</code>, <code>--p</code> 0 to 1); past 56px of finger travel (the row follows at a rubber-banded 48px) the arrow fills (<code>.is-armed</code>) and letting go opens the reply bar, the row springing back with <code>--ease-spring</code>. With reduced motion the row stays still and only the arrow fades in. R replies to the focused message; Alt Up and Alt Down move focus.</p>
+
   <h3>Apps and ephemeral</h3>
   <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
     <div class="msg first"><span class="reply"><i class="ph ph-arrow-bend-up-right"></i><span class="av" data-av="Mira"></span><b>Mira</b><span>used <b>/play</b></span></span><span class="av" data-av="Wavebot"></span><div><div class="head"><span class="name">Wavebot</span><span class="tag"><i class="ph-bold ph-check"></i>App</span><span class="time">Today at 10:02 PM</span></div><div class="body">Now playing <b>Midnight Arcade</b> by Neon Harbor in <span class="at"><i class="ph ph-speaker-high"></i>Lounge</span>. 3 songs in the queue.</div></div></div>
@@ -113,6 +171,49 @@
     <div class="sys"><i class="ph ph-pencil-simple"></i><div><b>Theo</b> changed the channel name: <b>late-night-games</b><span class="time">Today at 9:15 PM</span></div></div>
   </div>
   <p class="note" style="margin-top:8px">14 / 22 body in muted ink, names semibold. Joins and calls take the online green; a missed call takes danger. Durations drop zero units: 4m, 1h 12m.</p>
+
+  <h3 id="bulk-removal">Bulk removal</h3>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="sys"><i class="ph ph-trash"></i><div>31 messages from <b>Rosa</b> were removed by a moderator. <button class="btn btn--link sys-more" aria-expanded="false" aria-controls="bulk-a">Show details<i class="ph-bold ph-caret-down"></i></button><span class="time">Today at 9:42 PM</span>
+      <div class="sys-detail" id="bulk-a" hidden><span>Sent between 9:12 PM and 9:40 PM in #general.</span><span>Reason: invite spam.</span></div></div></div>
+    <div class="sys"><i class="ph ph-trash"></i><div>31 messages from <b>Rosa</b> were removed by a moderator. <button class="btn btn--link sys-more" aria-expanded="true" aria-controls="bulk-b">Hide details<i class="ph-bold ph-caret-down"></i></button><span class="time">Today at 9:42 PM</span>
+      <div class="sys-detail" id="bulk-b"><span>Sent between 9:12 PM and 9:40 PM in #general.</span><span>Reason: invite spam.</span></div></div></div>
+    <div class="sys"><i class="ph ph-trash"></i><div>31 messages from <b>Rosa</b> were removed by <b>Theo</b>. <button class="btn btn--link sys-more" aria-expanded="true" aria-controls="bulk-c">Hide details<i class="ph-bold ph-caret-down"></i></button><span class="time">Today at 9:42 PM</span>
+      <div class="sys-detail" id="bulk-c"><span>Sent between 9:12 PM and 9:40 PM in #general. Removed when Theo banned Rosa.</span><span>Reason: invite spam. <button class="btn btn--link">Open audit log</button></span></div></div></div>
+    <div class="sys"><i class="ph ph-trash"></i><div>1 message from <b>Jun</b> was removed by a moderator. <button class="btn btn--link sys-more" aria-expanded="false" aria-controls="bulk-d">Show details<i class="ph-bold ph-caret-down"></i></button><span class="time">Today at 9:50 PM</span>
+      <div class="sys-detail" id="bulk-d" hidden><span>Sent at 9:49 PM in #general.</span><span>No reason given.</span></div></div></div>
+    <div class="sys"><i class="ph ph-trash"></i><div>1,204 messages from <b>Bartholomew Featherstonehaugh-Montgomery of the Very Long Display Name</b> were removed by a moderator. <button class="btn btn--link sys-more" aria-expanded="false" aria-controls="bulk-e">Show details<i class="ph-bold ph-caret-down"></i></button><span class="time">Today at 10:02 PM</span>
+      <div class="sys-detail" id="bulk-e" hidden><span>Sent over the last 7 days in #general.</span><span>Reason: raid.</span></div></div></div>
+  </div>
+  <p class="note" style="margin-top:8px">Removed messages fold into one counted line where the first of them sat, instead of vanishing. Members see when and why; moderators also see who, with the audit log one click away. Real plurals: 1 message was, 31 messages were. Details open in place (<code>.sys-more</code> with <code>aria-expanded</code>, <code>.sys-detail</code>).</p>
+</section>
+
+<section id="dm-start">
+  <h2>Conversation start</h2>
+  <p class="lede">The top of a DM: who this is, what you share, and the one thing to do next. It scrolls away with the history.</p>
+  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr))">
+    <div class="board" style="padding:var(--space-4) 0;background:var(--bg-page);min-width:0">
+      <div class="dm-start"><span class="av" data-av="Mira"><span class="status online"></span></span><div class="dm-start-name">Mira</div><div class="dm-start-user">mira.k</div>
+        <button class="dm-start-mutual"><span class="stackav"><span class="srv-tile" style="--hue: 300"></span><span class="srv-tile" style="--hue: 200"></span></span><span>2 mutual servers · 3 mutual friends</span></button>
+        <div class="dm-start-acts"><button class="btn btn--sm btn--primary"><i class="ph-bold ph-user-plus"></i>Add friend</button><button class="btn btn--sm btn--ghost">Block</button></div></div>
+    </div>
+    <div class="board" style="padding:var(--space-4) 0;background:var(--bg-page);min-width:0">
+      <div class="dm-start"><span class="av" data-av="Kai"><span class="status idle"></span></span><div class="dm-start-name">Kai</div><div class="dm-start-user">kai.exe</div>
+        <button class="dm-start-mutual"><span class="stackav"><span class="srv-tile" style="--hue: 300"></span></span><span>Night owls</span></button>
+        <div class="dm-start-acts"><span class="dm-start-state"><i class="ph-fill ph-check-circle"></i>Friend request sent</span><button class="btn btn--sm btn--ghost">Cancel request</button><button class="btn btn--sm btn--ghost">Block</button></div></div>
+    </div>
+    <div class="board" style="padding:var(--space-4) 0;background:var(--bg-page);min-width:0">
+      <div class="dm-start"><span class="av" data-av="Theo"><span class="status dnd"></span></span><div class="dm-start-name">Theo</div><div class="dm-start-user">theo.plays</div>
+        <button class="dm-start-mutual"><span class="stackav"><span class="srv-tile" style="--hue: 300"></span><span class="srv-tile" style="--hue: 200"></span><span class="srv-tile" style="--hue: 40"></span></span><span>Night owls, Pixel Club and 4 more</span></button>
+        <div class="dm-start-acts"><span class="dm-start-state"><i class="ph-fill ph-users"></i>Friends since March 4, 2024</span></div></div>
+    </div>
+    <div class="board" style="padding:var(--space-4) 0;background:var(--bg-page);min-width:0">
+      <div class="dm-start"><span class="av" style="--hue: 350"><i class="ph-fill ph-waveform" style="font-size:36px"></i><span class="status offline"></span></span><div class="dm-start-name">Bartholomew Featherstonehaugh-Montgomery of the Very Long Display Name</div><div class="dm-start-user">bartholomew.featherstonehaugh.official.account</div>
+        <span class="dm-start-mutual"><i class="ph ph-users-three"></i><span>No mutual servers or friends</span></span>
+        <div class="dm-start-acts"><button class="btn btn--sm btn--primary"><i class="ph-bold ph-user-plus"></i>Add friend</button><button class="btn btn--sm btn--ghost">Block</button></div></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top:8px">Avatar 80 · name 28 bold on one line · username 16 muted. The mutual line names servers when it fits and opens the profile's mutual tab. Strangers get Add friend as the one primary; a pending request says so in place; friends get no buttons, only since when. Block is instant with an Undo toast, as in <a href="community.html" style="color:var(--accent-ink)">Community</a>.</p>
 </section>
 
 <section id="dividers">
@@ -335,6 +436,19 @@
   </div>
   <p class="note" style="margin-top:8px">The count appears in the last 100 characters and turns danger past the limit; the text you typed is never trimmed.</p>
 
+  <h3 id="composer-refused">Blocked, timed out, friends only</h3>
+  <div class="board stack" style="background:var(--bg-page);padding:var(--space-4) 0;gap:var(--space-4)">
+    <div class="composer locked"><i class="ph ph-prohibit"></i><div class="cwhy"><b>You blocked Mira</b><small>Neither of you can message the other. Your history stays, and unblocking is instant.</small></div><button class="btn btn--sm">Unblock Mira</button></div>
+    <div class="composer locked"><i class="ph ph-timer"></i><div class="cwhy"><b>You're timed out until 10:41 PM</b><small>A moderator timed you out for 1 hour. Reason: “Posting invites in #general.” You can still read along.</small></div></div>
+    <div>
+      <div class="msg first failed"><span class="av" data-av="You"></span><div><div class="head"><span class="name">You</span><span class="time">Today at 9:42 PM</span></div><div class="body">hey! is this Kai from the tournament?</div>
+        <div class="msg-error" role="alert"><i class="ph-fill ph-warning-circle"></i>Not delivered. Kai only accepts DMs from friends.<button class="btn btn--sm btn--ghost">Delete message</button></div></div></div>
+      <div style="height:var(--space-3)"></div>
+      <div class="composer locked"><i class="ph ph-user-circle-plus"></i><div class="cwhy"><b>Kai only accepts messages from friends</b><small>Your message is kept. Send a friend request; once Kai accepts, resend it from the row above.</small></div><button class="btn btn--sm btn--primary">Send friend request</button></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top:8px">Refusals replace the composer with what happened on the first line and why on the second (<code>.cwhy</code>), plus the one action that changes it. A refused send keeps its text on the row and names the recipient's setting; from then on the composer says it before you type again.</p>
+
   <h3>Voice message recording</h3>
   <div class="board" style="background:var(--bg-page);padding:var(--space-4) 0;min-width:0">
     <div class="composer recording"><button class="iconbtn" aria-label="Discard recording"><i class="ph ph-trash"></i></button><span class="bars" aria-hidden="true"><i></i><i></i><i></i></span><div class="waveform" data-wave="2 3 5 4 6 8 7 5 3 4 6 9 8 6 4 3 5 7 6 4 5 8 9 7 5 3 4 6 5 3" data-played="99"></div><span class="rec-time" role="timer">0:07</span><button class="send" aria-label="Send voice message"><i class="ph-bold ph-arrow-up"></i></button></div>
@@ -380,6 +494,34 @@
     </div>
   </div>
   <p class="note" style="margin-top:8px">Autocomplete: same width as the composer, 8px above it, rises from its top edge (scale 0.95 and fade, 200ms). The first match is selected; Tab or Enter inserts in place without touching the rest of the text. Descriptions sit under titles.</p>
+
+  <h3 id="composer-mentions">Mentions in the composer, no matches</h3>
+  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr))">
+    <div class="board stack" style="background:var(--bg-page);padding:var(--space-4) 0;gap:var(--space-4);min-width:0;align-content:end">
+      <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><div class="cinput" role="textbox" aria-multiline="true" aria-label="Message #general" contenteditable="true">hey <span class="at" contenteditable="false"><span class="av" data-av="Mira"></span>@Mira</span> and <span class="at at--role" style="--role: oklch(0.70 0.16 150)" contenteditable="false">@Mods</span>, brackets are in <span class="at" contenteditable="false"><i class="ph ph-hash"></i>tournament</span></div><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+      <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><div class="cinput" role="textbox" aria-multiline="true" aria-label="Message #general" contenteditable="true">ask <span class="at is-selected" contenteditable="false"><span class="av" data-av="Theo"></span>@Theo</span></div><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+    </div>
+    <div class="board" style="background:var(--bg-page);padding:var(--space-4) 0;min-width:0">
+      <div class="ac" role="listbox" aria-label="Mention">
+        <div class="ac-head">Members</div>
+        <div class="ac-empty" role="status"><i class="ph ph-user-circle-dashed"></i><div><b>No one called “@zq” in #general</b>Keep typing to send it as plain text.</div></div>
+      </div>
+      <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><textarea rows="1" aria-label="Message #general">hey @zq</textarea><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top:8px">A picked mention becomes one token (<code>.cinput .at</code>): user, role or channel, styled as it will read in the feed, and a user token carries their avatar so two people called Mira stay apart. The first Backspace selects the whole token (<code>.is-selected</code>), the second removes it. With nothing matching, the list stays open and says so (<code>.ac-empty</code>).</p>
+
+  <h3 id="composer-plus">Plus menu</h3>
+  <div class="board" style="background:var(--bg-page);padding:var(--space-4) 0;min-width:0">
+    <div class="menu cmenu" role="menu" aria-label="Add to message">
+      <button class="mi hover" role="menuitem"><i class="ph ph-upload-simple"></i><div>Upload a file<small>Or drag files onto the channel</small></div><kbd><i class="ph ph-command"></i>U</kbd></button>
+      <button class="mi" role="menuitem"><i class="ph ph-chats-teardrop"></i><div>Create thread<small>A side conversation off #general</small></div></button>
+      <button class="mi" role="menuitem"><i class="ph ph-chart-bar-horizontal"></i><div>Create poll<small>Up to 10 answers, open for up to 2 weeks</small></div></button>
+      <button class="mi" role="menuitem"><i class="ph ph-terminal-window"></i><div>Use an app command<small>Or type / in your message</small></div><kbd>/</kbd></button>
+    </div>
+    <div class="composer"><button class="iconbtn" aria-label="Add to message" aria-haspopup="menu" aria-expanded="true"><i class="ph-bold ph-plus-circle"></i></button><textarea rows="1" placeholder="Message #general" aria-label="Message #general"></textarea><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+  </div>
+  <p class="note" style="margin-top:8px">The + opens a menu (<code>.menu.cmenu</code>) rising from its own corner; while open the button holds the selected fill. Each row says the faster way to do the same thing next time.</p>
 </section>
 
 <section id="emoji-picker">
@@ -456,6 +598,22 @@
   </div>
   <p class="note" style="margin-top:8px">Categories: 96px tiles, the label centred on a soft scrim. Results: two columns, 6px gaps, each GIF at its own ratio; the star appears on hover and stays once favourited.</p>
 </section>
+
+<section id="better-than-discord">
+  <h2>Better than Discord</h2>
+  <p class="lede">Where these message states differ from Discord's on purpose. Discord's side is described from its current desktop app.</p>
+  <div class="btd">
+    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
+    <div><p>Editing a message down to nothing and pressing Enter opens a dialog asking whether to delete it.</p><p><b><a href="#edit-in-place">Empty edit</a></b>The editor's own key hints change to Restore message and Delete message; the delete gets the usual Undo.</p><p>A two-way choice belongs where you are typing, not in a modal.</p></div>
+    <div><p>Holding Shift turns the toolbar's bin into an instant delete with no way back.</p><p><b><a href="#shift-and-swipe">Shift toolbar</a></b>Shift puts Edit, Pin and Delete in the quick-reaction slots, shows a Shift keycap, and the delete still leaves Undo.</p><p>Fast is fine; irreversible isn't. The other buttons stay put, so muscle memory survives.</p></div>
+    <div><p>On desktop, replying means hovering for the toolbar or opening the menu.</p><p><b><a href="#shift-and-swipe">Swipe to reply</a></b>A two-finger swipe pulls the row; the arrow fills at the point where letting go replies.</p><p>The gesture shows its threshold, so you know before you commit.</p></div>
+    <div><p>The mention list closes as soon as nothing matches, as if you hadn't typed an @.</p><p><b><a href="#composer-mentions">No matches</a></b>The list stays open, says no one by that name is in the channel, and that it will send as plain text.</p><p>Silence reads as a glitch; one line says what will happen.</p></div>
+    <div><p>A mention in the composer is just highlighted text, the same for any two people with one name.</p><p><b><a href="#composer-mentions">Mention tokens</a></b>User tokens carry the avatar; Backspace selects a token before removing it.</p><p>You see who you are pinging, and what Backspace will remove.</p></div>
+    <div><p>A DM that can't be delivered gets a reply from a bot listing several possible reasons.</p><p><b><a href="#composer-refused">Friends only</a></b>The failed row names the setting, keeps the text, and the composer offers Send friend request.</p><p>Errors say what happened and the fix, on the thing that failed.</p></div>
+    <div><p>When a moderator bulk-deletes someone's messages, they vanish and the conversation stops making sense.</p><p><b><a href="#bulk-removal">Bulk removal</a></b>One counted line where they were, opening to when and why.</p><p>Gaps in a conversation should be explained, not hidden.</p></div>
+    <div><p>A timed-out composer says until when, not why.</p><p><b><a href="#composer-refused">Timed out</a></b>The second line gives the length and the moderator's reason.</p><p>A restriction with a reason can be learned from.</p></div>
+  </div>
+</section>
 </main>
 </div>
 <script src="site.js"></script>
@@ -480,6 +638,13 @@ document.addEventListener("mouseover", e => {
   picker.querySelector(".ep-foot .e").innerHTML = cell.innerHTML;
   picker.querySelector(".ep-foot b").textContent = cell.getAttribute("aria-label");
   picker.querySelector(".ep-foot small").textContent = cell.dataset.src;
+});
+document.addEventListener("click", e => {
+  const b = e.target.closest(".sys-more"); if (!b) return;
+  const open = b.getAttribute("aria-expanded") !== "true";
+  b.setAttribute("aria-expanded", open);
+  b.firstChild.textContent = open ? "Hide details" : "Show details";
+  document.getElementById(b.getAttribute("aria-controls")).hidden = !open;
 });
 </script>
 </body>
