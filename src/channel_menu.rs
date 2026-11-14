@@ -188,7 +188,7 @@ impl Rustcord {
         if muted {
             let hint = end.and_then(|e| chrono::DateTime::parse_from_rfc3339(e).ok()).map(|e| format!("Muted until {}", until(e.with_timezone(&chrono::Local), chrono::Local::now())));
             let apply = apply.clone();
-            let row = item(unmute.to_owned(), move |this, _, cx| apply(this, json!({ "muted": false }), cx));
+            let row = item(unmute.to_owned(), move |this, _, cx| apply(this, json!({ "muted": false }), cx)).icon(Glyph::BellRinging);
             return match hint {
                 Some(hint) => row.hint(hint),
                 None => row,
@@ -208,7 +208,7 @@ impl Rustcord {
                 if seconds > 0 { row.hint(format!("Until {}", until(now + chrono::Duration::seconds(seconds), now))) } else { row }.entry()
             })
             .collect();
-        submenu(label.to_owned(), lengths).entry()
+        submenu(label.to_owned(), lengths).icon(Glyph::BellSlash).entry()
     }
 
     fn notification_radios(&self, current: u8, inherited: Option<(&'static str, u8)>, apply: impl Fn(&mut Rustcord, u8, &mut Context<Rustcord>) + Clone + 'static) -> Vec<Entry> {
@@ -246,19 +246,19 @@ impl Rustcord {
         let mut out = vec![self.channel_menu_header(channel, guild_id)];
 
         let id = channel.id.clone();
-        let read = item("Mark as read", move |this, _, cx| this.mark_channel_read(&id, cx));
+        let read = item("Mark as read", move |this, _, cx| this.mark_channel_read(&id, cx)).icon(Glyph::Checks);
         out.push(if self.unread(&channel.id) { read } else { read.disabled() }.entry());
         out.push(Entry::Separator);
 
         let (gid, cid) = (guild_id.to_owned(), channel.id.clone());
         out.push(item(if voice { "Invite to voice" } else { "Invite people" }, move |this, window, cx| this.show_invite(gid.clone(), cid.clone(), window, cx)).brand().icon(Glyph::GroupPlus).entry());
         let link = format!("https://discord.com/channels/{guild_id}/{}", channel.id);
-        out.push(item("Copy link", move |this, _, cx| this.copy_text(link.clone(), cx)).entry());
+        out.push(item("Copy link", move |this, _, cx| this.copy_text(link.clone(), cx)).icon(Glyph::Link).entry());
         out.push(Entry::Separator);
 
         if voice {
             let open = channel.clone();
-            out.push(item("Open chat", move |this, window, cx| this.open_channel(open.clone(), window, cx)).entry());
+            out.push(item("Open chat", move |this, window, cx| this.open_channel(open.clone(), window, cx)).icon(Glyph::ChatRound).entry());
             let id = channel.id.clone();
             out.push(item("Hide names", move |this, _, cx| {
                 if !this.hidden_voice_names.remove(&id) {
@@ -267,6 +267,7 @@ impl Rustcord {
                 cx.notify();
             })
             .checked(self.hidden_voice_names.contains(&channel.id))
+            .icon(Glyph::EyeSlash)
             .entry());
             out.push(Entry::Separator);
         }
@@ -301,10 +302,10 @@ impl Rustcord {
                 let body = json!({ "name": ch2.name, "type": ch2.raw_type, "parent_id": ch2.parent_id, "topic": ch2.topic });
                 this.rest(Method::POST, format!("/guilds/{gid2}/channels"), Some(body), |_, _| {}, cx);
             })
-            .icon(Glyph::Copy)
+            .icon(Glyph::CopySimple)
             .entry());
             let (gid3, parent, kind) = (gid.clone(), channel.parent_id.clone(), if voice { VOICE } else { TEXT });
-            out.push(item(if voice { "Create voice channel" } else { "Create text channel" }, move |this, window, cx| this.create_channel(gid3.clone(), kind, parent.clone(), window, cx)).entry());
+            out.push(item(if voice { "Create voice channel" } else { "Create text channel" }, move |this, window, cx| this.create_channel(gid3.clone(), kind, parent.clone(), window, cx)).icon(Glyph::Plus).entry());
             out.push(self.delete_channel_entry(channel, "Delete channel"));
             out.push(Entry::Separator);
         }
@@ -328,7 +329,8 @@ impl Rustcord {
             for id in &ids {
                 this.mark_channel_read(id, cx);
             }
-        });
+        })
+        .icon(Glyph::Checks);
         out.push(if unread { read } else { read.disabled() }.entry());
         out.push(Entry::Separator);
 
@@ -340,6 +342,7 @@ impl Rustcord {
             cx.notify();
         })
         .checked(self.folded.contains(&category.id))
+        .icon(Glyph::Collapse)
         .entry());
         let categories: Vec<String> = self.guilds.iter().find(|g| g.id == guild_id).map(|g| g.channels.iter().filter(|c| c.kind == ChannelKind::Category).map(|c| c.id.clone()).collect()).unwrap_or_default();
         if categories.iter().any(|c| !self.folded.contains(c)) {
@@ -347,6 +350,7 @@ impl Rustcord {
                 this.folded.extend(categories.iter().cloned());
                 cx.notify();
             })
+            .icon(Glyph::CollapseAll)
             .entry());
         }
         out.push(Entry::Separator);
@@ -363,12 +367,12 @@ impl Rustcord {
             overrides.insert(cid.clone(), json!({ "message_notifications": level }));
             this.patch_guild_settings(gid.clone(), json!({ "channel_overrides": overrides }), cx);
         });
-        out.push(submenu("Notification settings", radios).hint(notification_label(effective(overrides.notifications, settings.notifications))).entry());
+        out.push(submenu("Notification settings", radios).hint(notification_label(effective(overrides.notifications, settings.notifications))).icon(Glyph::Bell).entry());
         out.push(Entry::Separator);
 
         if self.can_guild(guild_id, perm::MANAGE_CHANNELS) {
             let ch = category.clone();
-            out.push(item("Edit category", move |this, window, cx| this.rename_channel(ch.clone(), window, cx)).entry());
+            out.push(item("Edit category", move |this, window, cx| this.rename_channel(ch.clone(), window, cx)).icon(Glyph::Pen).entry());
             out.push(self.delete_channel_entry(category, "Delete category"));
             out.push(Entry::Separator);
         }
@@ -394,16 +398,17 @@ impl Rustcord {
                             let next = Some(parent.clone());
                             this.channel_optimistic(&id, Method::PATCH, json!({ "parent_id": parent }), move |c| c.parent_id = next.clone(), cx)
                         });
+                        let row = row.icon(Glyph::Folder);
                         if channel.parent_id.as_ref() == Some(&c.id) { row.disabled() } else { row }.entry()
                     })
                     .collect()
             })
             .unwrap_or_default();
         let id = channel.id.clone();
-        let none = item("No category", move |this, _, cx| this.channel_optimistic(&id, Method::PATCH, json!({ "parent_id": null }), |c| c.parent_id = None, cx));
+        let none = item("No category", move |this, _, cx| this.channel_optimistic(&id, Method::PATCH, json!({ "parent_id": null }), |c| c.parent_id = None, cx)).icon(Glyph::Minus);
         let mut rows = vec![if channel.parent_id.is_none() { none.disabled() } else { none }.entry(), Entry::Separator];
         rows.extend(categories);
-        submenu("Move to", vec![submenu("Category", rows).entry()]).entry()
+        submenu("Move to", vec![submenu("Category", rows).icon(Glyph::Folder).entry()]).icon(Glyph::MoveTo).entry()
     }
 
     // The channel the menu is about: its kind's glyph, its name, and where it sits.
@@ -428,7 +433,7 @@ impl Rustcord {
         let (id, name) = (channel.id.clone(), channel.name.clone());
         item(label, move |this, _, cx| {
             let id = id.clone();
-            this.confirm(label, format!("Are you sure you want to delete #{name}? This cannot be undone."), label, move |this, _, cx| {
+            this.confirm_delete(label, format!("Are you sure you want to delete #{name}? This cannot be undone."), label, move |this, _, cx| {
                 this.delete_channel_optimistic(&id, cx);
             }, cx);
         })
@@ -498,7 +503,7 @@ impl Rustcord {
         if !dropdown {
             let gid = guild_id.to_owned();
             let unread = guild.channels.iter().any(|c| self.unread(&c.id) && !settings.channel_muted(&c.id));
-            let read = item("Mark as read", move |this, _, cx| this.mark_guild_read(&gid, cx));
+            let read = item("Mark as read", move |this, _, cx| this.mark_guild_read(&gid, cx)).icon(Glyph::Checks);
             out.push(if unread { read } else { read.disabled() }.entry());
             out.push(Entry::Separator);
         }
@@ -510,7 +515,7 @@ impl Rustcord {
             let gid = guild_id.to_owned();
             out.push(item("Create channel", move |this, window, cx| this.create_channel(gid.clone(), TEXT, None, window, cx)).icon(Glyph::Plus).entry());
             let gid = guild_id.to_owned();
-            out.push(item("Create category", move |this, window, cx| this.create_channel(gid.clone(), CATEGORY, None, window, cx)).icon(Glyph::Folder).entry());
+            out.push(item("Create category", move |this, window, cx| this.create_channel(gid.clone(), CATEGORY, None, window, cx)).icon(Glyph::FolderPlus).entry());
         }
         out.push(Entry::Separator);
 
@@ -526,18 +531,18 @@ impl Rustcord {
         out.push(submenu("Notification settings", notifications).hint(notification_label(settings.notifications)).icon(Glyph::Bell).entry());
         let gid = guild_id.to_owned();
         let hide = settings.hide_muted;
-        out.push(item("Hide muted channels", move |this, _, cx| this.patch_guild_settings(gid.clone(), json!({ "hide_muted_channels": !hide }), cx)).checked(hide).entry());
+        out.push(item("Hide muted channels", move |this, _, cx| this.patch_guild_settings(gid.clone(), json!({ "hide_muted_channels": !hide }), cx)).checked(hide).icon(Glyph::EyeSlash).entry());
         out.push(Entry::Separator);
 
         let gid = guild_id.to_owned();
         let current = self.members.get(guild_id).and_then(|m| m.get(&me.id)).map(|u| u.name.clone()).unwrap_or_else(|| me.name.clone());
-        out.push(item("Edit per-server profile", move |this, window, cx| this.edit_own_nickname(gid.clone(), current.clone(), window, cx)).icon(Glyph::Pen).entry());
+        out.push(item("Edit per-server profile", move |this, window, cx| this.edit_own_nickname(gid.clone(), current.clone(), window, cx)).icon(Glyph::UserGear).entry());
         if !dropdown && manage_channels {
             let gid = guild_id.to_owned();
             out.push(Entry::Separator);
             out.push(item("Create channel", move |this, window, cx| this.create_channel(gid.clone(), TEXT, None, window, cx)).icon(Glyph::Plus).entry());
             let gid = guild_id.to_owned();
-            out.push(item("Create category", move |this, window, cx| this.create_channel(gid.clone(), CATEGORY, None, window, cx)).icon(Glyph::Folder).entry());
+            out.push(item("Create category", move |this, window, cx| this.create_channel(gid.clone(), CATEGORY, None, window, cx)).icon(Glyph::FolderPlus).entry());
         }
         out.push(Entry::Separator);
 
@@ -585,7 +590,7 @@ impl Rustcord {
             .map(|f| {
                 let (gid, target) = (guild_id.to_owned(), format!("folder-{}", f.id));
                 let name = f.name.clone().unwrap_or_else(|| "Folder".into());
-                item(name, move |this, _, cx| this.drop_on_rail(&gid, &target, crate::rail_drag::Drop::Into, cx)).entry()
+                item(name, move |this, _, cx| this.drop_on_rail(&gid, &target, crate::rail_drag::Drop::Into, cx)).icon(Glyph::Folder).entry()
             })
             .collect();
         let first = entries.first().map(rail_key);
@@ -596,20 +601,23 @@ impl Rustcord {
             if let Some(target) = &last_loose {
                 this.drop_on_rail(&gid3, target, crate::rail_drag::Drop::After, cx);
             }
-        });
+        })
+        .icon(Glyph::Minus);
         let mut folder_rows = vec![if in_folder { no_folder } else { no_folder.disabled() }.entry()];
         folder_rows.extend(folders);
         let first_item = item("First in list", move |this, _, cx| {
             if let Some(target) = &first {
                 this.drop_on_rail(&gid, target, crate::rail_drag::Drop::Before, cx);
             }
-        });
+        })
+        .icon(Glyph::ArrowLineUp);
         let last_item = item("Last in list", move |this, _, cx| {
             if let Some(target) = &last {
                 this.drop_on_rail(&gid2, target, crate::rail_drag::Drop::After, cx);
             }
-        });
-        submenu("Move server", vec![submenu("Folder", folder_rows).entry(), Entry::Separator, first_item.entry(), last_item.entry()]).entry()
+        })
+        .icon(Glyph::ArrowLineDown);
+        submenu("Move server", vec![submenu("Folder", folder_rows).icon(Glyph::Folder).entry(), Entry::Separator, first_item.entry(), last_item.entry()]).icon(Glyph::MoveTo).entry()
     }
 
     pub(crate) fn open_folder_menu(&mut self, folder_id: String, at: Point<Pixels>, cx: &mut Context<Self>) {
@@ -626,7 +634,8 @@ impl Rustcord {
             for id in &ids {
                 this.mark_guild_read(id, cx);
             }
-        });
+        })
+        .icon(Glyph::Checks);
         entries.push(if unread { read } else { read.disabled() }.entry());
         entries.push(Entry::Separator);
         let rail = self.rail_entries();
@@ -642,25 +651,29 @@ impl Rustcord {
                             this.drop_on_rail(&k1, t, crate::rail_drag::Drop::Before, cx);
                         }
                     })
+                    .icon(Glyph::ArrowLineUp)
                     .entry(),
                     item("Last in List", move |this, _, cx| {
                         if let Some(t) = &last {
                             this.drop_on_rail(&k2, t, crate::rail_drag::Drop::After, cx);
                         }
                     })
+                    .icon(Glyph::ArrowLineDown)
                     .entry(),
                 ],
             )
+            .icon(Glyph::MoveTo)
             .entry(),
         );
         entries.push(Entry::Separator);
         let (fid, name) = (folder_id.clone(), folder.name.clone().unwrap_or_default());
-        entries.push(item("Folder settings", move |this, window, cx| this.rename_folder(fid.clone(), name.clone(), window, cx)).entry());
+        entries.push(item("Folder settings", move |this, window, cx| this.rename_folder(fid.clone(), name.clone(), window, cx)).icon(Glyph::Settings).entry());
         if !self.open_folders.is_empty() {
             entries.push(item("Close all folders", |this, _, cx| {
                 this.open_folders.clear();
                 cx.notify();
             })
+            .icon(Glyph::CollapseAll)
             .entry());
         }
         entries
@@ -701,7 +714,7 @@ impl Rustcord {
         let mut out = vec![self.channel_menu_header(&thread, &guild_id)];
 
         let id = thread.id.clone();
-        let read = item("Mark as read", move |this, _, cx| this.mark_channel_read(&id, cx));
+        let read = item("Mark as read", move |this, _, cx| this.mark_channel_read(&id, cx)).icon(Glyph::Checks);
         out.push(if self.unread(&thread.id) { read } else { read.disabled() }.entry());
         out.push(Entry::Separator);
 
@@ -711,6 +724,7 @@ impl Rustcord {
                 let joined = id.clone();
                 this.thread_joined_optimistic(&joined, true, cx);
             })
+            .icon(Glyph::SignIn)
             .entry());
         }
         if manage || (owner && !meta.locked) {
@@ -721,7 +735,7 @@ impl Rustcord {
                         meta.archived = !archived;
                     }
                 }, cx)
-            }).entry());
+            }).icon(Glyph::Archive).entry());
         }
         if manage {
             let (id, locked) = (thread.id.clone(), meta.locked);
@@ -731,10 +745,10 @@ impl Rustcord {
                         meta.locked = !locked;
                     }
                 }, cx)
-            }).entry());
+            }).icon(Glyph::HashtagLock).entry());
         }
         let link = format!("https://discord.com/channels/{guild_id}/{}", thread.id);
-        out.push(item("Copy link", move |this, _, cx| this.copy_text(link.clone(), cx)).entry());
+        out.push(item("Copy link", move |this, _, cx| this.copy_text(link.clone(), cx)).icon(Glyph::Link).entry());
         out.push(Entry::Separator);
 
         match meta.joined {
@@ -757,8 +771,8 @@ impl Rustcord {
                 out.push(submenu("Notification settings", rows).icon(Glyph::Bell).entry());
             }
             false => {
-                out.push(item("Mute thread", |_, _, _| {}).disabled().entry());
-                out.push(item("Notification settings", |_, _, _| {}).disabled().entry());
+                out.push(item("Mute thread", |_, _, _| {}).icon(Glyph::BellSlash).hint("Join the thread to mute it").disabled().entry());
+                out.push(item("Notification settings", |_, _, _| {}).icon(Glyph::Bell).disabled().entry());
             }
         }
         out.push(Entry::Separator);
@@ -773,6 +787,7 @@ impl Rustcord {
                 let left = id.clone();
                 this.thread_joined_optimistic(&left, false, cx);
             })
+            .icon(Glyph::DoorExit)
             .entry());
             out.push(Entry::Separator);
         }

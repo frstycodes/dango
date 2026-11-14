@@ -29,8 +29,8 @@ impl Rustcord {
         if message.state == SendState::Failed {
             let (retry, delete) = (message.clone(), message.clone());
             return vec![
-                item("Resend message", move |this, _, cx| this.retry(retry.clone(), cx)).entry(),
-                item("Delete message", move |this, _, cx| this.delete(delete.clone(), cx)).danger().entry(),
+                item("Resend message", move |this, _, cx| this.retry(retry.clone(), cx)).icon(Glyph::Retry).entry(),
+                item("Delete message", move |this, _, cx| this.delete(delete.clone(), cx)).danger().icon(Glyph::Trash).entry(),
             ];
         }
         if message.state != SendState::Sent {
@@ -78,7 +78,7 @@ impl Rustcord {
         }
         if in_dm || manage {
             let m = message.clone();
-            let (label, method) = if message.pinned { ("Unpin message", Method::DELETE) } else { ("Pin message", Method::PUT) };
+            let (label, glyph, method) = if message.pinned { ("Unpin message", Glyph::PinSlash, Method::DELETE) } else { ("Pin message", Glyph::Pin, Method::PUT) };
             out.push(
                 item(label, move |this, _, cx| {
                     let path = format!("/channels/{}/messages/pins/{}", m.channel_id, m.id);
@@ -100,17 +100,17 @@ impl Rustcord {
                         cx,
                     );
                 })
-                .icon(Glyph::Pin)
+                .icon(glyph)
                 .entry(),
             );
         }
         let m = message.clone();
-        out.push(item("Mark unread", move |this, _, cx| this.mark_unread(&m, cx)).entry());
+        out.push(item("Mark unread", move |this, _, cx| this.mark_unread(&m, cx)).icon(Glyph::Envelope).entry());
         let m = message.clone();
         out.push(item("Copy message link", move |this, _, cx| {
             let link = this.message_link(&m);
             this.copy_text(link, cx)
-        }).entry());
+        }).icon(Glyph::Link).entry());
         if cfg!(target_os = "macos") && !message.content.is_empty() {
             let text = message.content.clone();
             out.push(item("Speak message", move |_, _, _| speak(&text)).icon(Glyph::Soundboard).entry());
@@ -132,7 +132,7 @@ impl Rustcord {
                     .entry()
                 })
                 .collect();
-            out.push(submenu("Remove reactions", per_emoji).danger().entry());
+            out.push(submenu("Remove reactions", per_emoji).danger().icon(Glyph::SmileyXEyes).entry());
             let m = message.clone();
             out.push(
                 item("Remove all reactions", move |this, _, cx| {
@@ -142,6 +142,7 @@ impl Rustcord {
                     }, cx);
                 })
                 .danger()
+                .icon(Glyph::SmileyXEyes)
                 .entry(),
             );
         }
@@ -150,7 +151,7 @@ impl Rustcord {
             out.push(
                 item("Delete message", move |this, _, cx| {
                     let m = m.clone();
-                    this.confirm("Delete message", "Are you sure you want to delete this message?", "Delete", move |this, _, cx| this.delete(m.clone(), cx), cx);
+                    this.confirm_delete("Delete message", "Are you sure you want to delete this message?", "Delete", move |this, _, cx| this.delete(m.clone(), cx), cx);
                 })
                 .icon(Glyph::Trash)
                 .danger()
