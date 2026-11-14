@@ -87,7 +87,7 @@ impl Scene {
     pub fn insert_primitive(&mut self, primitive: impl Into<Primitive>) {
         let mut primitive = primitive.into();
         let clipped_bounds = primitive
-            .bounds()
+            .transformed_bounds()
             .intersect(&primitive.content_mask().bounds);
 
         if clipped_bounds.is_empty() {
@@ -256,6 +256,20 @@ impl Primitive {
             Primitive::PolychromeSprite(sprite) => &sprite.content_mask,
             Primitive::Surface(surface) => &surface.content_mask,
         }
+    }
+
+    /// The bounds this primitive covers once its transformation is applied.
+    pub fn transformed_bounds(&self) -> Bounds<ScaledPixels> {
+        let transformation = match self {
+            Primitive::Shadow(shadow) => shadow.transformation,
+            Primitive::Quad(quad) => quad.transformation,
+            Primitive::Underline(underline) => underline.transformation,
+            Primitive::MonochromeSprite(sprite) => sprite.transformation,
+            Primitive::SubpixelSprite(sprite) => sprite.transformation,
+            Primitive::PolychromeSprite(sprite) => sprite.transformation,
+            Primitive::Path(_) | Primitive::Surface(_) => TransformationMatrix::unit(),
+        };
+        transformation.transform_bounds(*self.bounds())
     }
 }
 
@@ -529,7 +543,7 @@ impl PrimitiveBatch {
     }
 }
 
-#[derive(Default, Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 #[repr(C)]
 #[expect(missing_docs)]
 pub struct Quad {
@@ -541,6 +555,28 @@ pub struct Quad {
     pub border_color: Hsla,
     pub corner_radii: Corners<ScaledPixels>,
     pub border_widths: Edges<ScaledPixels>,
+    pub transformation: TransformationMatrix,
+    /// See [`CornerShape::exponent`].
+    pub corner_exponent: f32,
+    pub pad: u32, // align to 8 bytes
+}
+
+impl Default for Quad {
+    fn default() -> Self {
+        Self {
+            order: DrawOrder::default(),
+            border_style: BorderStyle::default(),
+            bounds: Bounds::default(),
+            content_mask: ContentMask::default(),
+            background: Background::default(),
+            border_color: Hsla::default(),
+            corner_radii: Corners::default(),
+            border_widths: Edges::default(),
+            transformation: TransformationMatrix::unit(),
+            corner_exponent: CornerShape::Round.exponent(),
+            pad: 0,
+        }
+    }
 }
 
 impl From<Quad> for Primitive {
@@ -560,6 +596,7 @@ pub struct Underline {
     pub color: Hsla,
     pub thickness: ScaledPixels,
     pub wavy: PaddedBool32,
+    pub transformation: TransformationMatrix,
 }
 
 impl From<Underline> for Primitive {
@@ -583,6 +620,10 @@ pub struct Shadow {
     /// 0 = drop shadow (rendered outside the element), 1 = inset shadow (rendered inside).
     pub inset: u32,
     pub pad: u32, // align to 8 bytes
+    pub transformation: TransformationMatrix,
+    /// See [`CornerShape::exponent`].
+    pub corner_exponent: f32,
+    pub pad2: u32, // align to 8 bytes
 }
 
 impl From<Shadow> for Primitive {
@@ -600,6 +641,53 @@ pub enum BorderStyle {
     Solid = 0,
     /// A dashed border.
     Dashed = 1,
+}
+
+/// The shape of an element's corners within the area its corner radii give them, as with the CSS
+/// `corner-shape` property.
+///
+/// Every shape is a superellipse `|x|^n + |y|^n = 1` with `n = 2^|K|` for the CSS parameter `K`;
+/// negative `K` gives the concave mirror image of the convex curve.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub enum CornerShape {
+    /// A quarter circle or ellipse, `superellipse(1)`.
+    #[default]
+    Round,
+    /// A rounded square, `superellipse(2)`.
+    Squircle,
+    /// A straight diagonal cut, `superellipse(0)`.
+    Bevel,
+    /// A concave quarter ellipse, `superellipse(-1)`.
+    Scoop,
+    /// A superellipse with the CSS parameter `K`, as in `superellipse(K)`.
+    Superellipse(f32),
+}
+
+impl CornerShape {
+    /// Beyond this `|K|` the curve is within a fraction of a pixel of a right angle at UI sizes,
+    /// and larger values only risk float overflow in the shaders.
+    const MAX_PARAMETER: f32 = 10.;
+
+    /// The CSS `superellipse()` parameter `K` of this shape.
+    pub fn parameter(self) -> f32 {
+        match self {
+            CornerShape::Round => 1.,
+            CornerShape::Squircle => 2.,
+            CornerShape::Bevel => 0.,
+            CornerShape::Scoop => -1.,
+            CornerShape::Superellipse(k) => k,
+        }
+    }
+
+    /// The superellipse exponent `2^|K|` the shaders draw, negated for concave shapes.
+    /// Exactly `2.0` for [`CornerShape::Round`], which the shaders draw with circular arcs.
+    pub fn exponent(self) -> f32 {
+        let parameter = self
+            .parameter()
+            .clamp(-Self::MAX_PARAMETER, Self::MAX_PARAMETER);
+        let exponent = parameter.abs().exp2();
+        if parameter < 0. { -exponent } else { exponent }
+    }
 }
 
 /// A data type representing a 2 dimensional transformation that can be applied to an element.
@@ -705,6 +793,59 @@ impl Default for TransformationMatrix {
     }
 }
 
+impl TransformationMatrix {
+    /// Whether this transformation leaves everything where it is.
+    #[inline]
+    pub fn is_unit(&self) -> bool {
+        *self == Self::unit()
+    }
+
+    /// The transformation that undoes this one. Its entries are not finite when this
+    /// transformation collapses the plane (a zero scale), so nothing maps back into bounds.
+    pub(crate) fn inverse(&self) -> Self {
+        let [[a, b], [c, d]] = self.rotation_scale;
+        let inverse_determinant = 1. / (a * d - b * c);
+        let rotation_scale = [
+            [d * inverse_determinant, -b * inverse_determinant],
+            [-c * inverse_determinant, a * inverse_determinant],
+        ];
+        let [x, y] = self.translation;
+        Self {
+            rotation_scale,
+            translation: [
+                -(rotation_scale[0][0] * x + rotation_scale[0][1] * y),
+                -(rotation_scale[1][0] * x + rotation_scale[1][1] * y),
+            ],
+        }
+    }
+
+    /// Apply this transformation to a point in scaled pixels.
+    pub fn apply_scaled(&self, point: Point<ScaledPixels>) -> Point<ScaledPixels> {
+        let transformed = self.apply(Point::new(point.x.0.into(), point.y.0.into()));
+        Point::new(ScaledPixels(transformed.x.0), ScaledPixels(transformed.y.0))
+    }
+
+    /// The smallest axis-aligned bounds containing `bounds` once transformed.
+    pub fn transform_bounds(&self, bounds: Bounds<ScaledPixels>) -> Bounds<ScaledPixels> {
+        if self.is_unit() {
+            return bounds;
+        }
+        let corners = [
+            bounds.origin,
+            bounds.top_right(),
+            bounds.bottom_right(),
+            bounds.bottom_left(),
+        ]
+        .map(|corner| self.apply_scaled(corner));
+        let (mut min, mut max) = (corners[0], corners[0]);
+        for corner in &corners[1..] {
+            min = min.min(corner);
+            max = max.max(corner);
+        }
+        Bounds::from_corners(min, max)
+    }
+}
+
 #[derive(Copy, Clone, Debug)]
 #[repr(C)]
 #[expect(missing_docs)]
@@ -755,6 +896,10 @@ pub struct PolychromeSprite {
     pub content_mask: ContentMask<ScaledPixels>,
     pub corner_radii: Corners<ScaledPixels>,
     pub tile: AtlasTile,
+    pub transformation: TransformationMatrix,
+    /// See [`CornerShape::exponent`].
+    pub corner_exponent: f32,
+    pub pad2: u32, // align to 8 bytes
 }
 
 impl From<PolychromeSprite> for Primitive {

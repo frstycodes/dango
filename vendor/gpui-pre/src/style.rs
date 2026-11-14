@@ -5,11 +5,11 @@ use std::{
 };
 
 use crate::{
-    AbsoluteLength, App, Background, BackgroundTag, BorderStyle, Bounds, ContentMask, Corners,
-    CornersRefinement, CursorStyle, DefiniteLength, DevicePixels, Edges, EdgesRefinement, Font,
-    FontFallbacks, FontFeatures, FontStyle, FontWeight, GridLocation, Hsla, Length, Pixels, Point,
-    PointRefinement, Rgba, SharedString, Size, SizeRefinement, Styled, TextRun, Window, black, phi,
-    point, px, quad, rems, size,
+    AbsoluteLength, App, Background, BackgroundTag, BorderStyle, Bounds, ContentMask, CornerShape,
+    Corners, CornersRefinement, CursorStyle, DefiniteLength, DevicePixels, Edges, EdgesRefinement,
+    Font, FontFallbacks, FontFeatures, FontStyle, FontWeight, GridLocation, Hsla, IsZero, Length,
+    Pixels, Point, PointRefinement, Radians, Rgba, SharedString, Size, SizeRefinement, Styled,
+    TextRun, TransformationMatrix, Window, black, phi, point, px, quad, relative, rems, size,
 };
 use collections::HashSet;
 use refineable::Refineable;
@@ -311,6 +311,27 @@ pub struct Style {
 
     /// The grid location of this element
     pub grid_location: Option<GridLocation>,
+
+    /// How much this element and its children are scaled around the transform origin, like the
+    /// CSS `scale` property. Transformations affect painting and hit testing, not layout.
+    #[refineable]
+    pub scale: Size<f32>,
+
+    /// How far this element and its children are rotated clockwise around the transform origin,
+    /// like the CSS `rotate` property.
+    pub rotate: Radians,
+
+    /// How far this element and its children are moved, like the CSS `translate` property.
+    #[refineable]
+    pub translate: Point<Pixels>,
+
+    /// The point that `scale` and `rotate` act around, relative to the element's bounds, like the
+    /// CSS `transform-origin` property. Defaults to the center.
+    #[refineable]
+    pub transform_origin: Point<DefiniteLength>,
+
+    /// The shape of this element's rounded corners, like the CSS `corner-shape` property.
+    pub corner_shape: CornerShape,
 
     /// Whether to draw a red debugging outline around this element
     #[cfg(debug_assertions)]
@@ -684,8 +705,22 @@ impl Style {
         }
     }
 
-    /// Paints the background of an element styled with this style.
+    /// Paints the background of an element styled with this style, and the continuation (its
+    /// children), under this style's transformation.
     pub fn paint(
+        &self,
+        bounds: Bounds<Pixels>,
+        window: &mut Window,
+        cx: &mut App,
+        continuation: impl FnOnce(&mut Window, &mut App),
+    ) {
+        let transformation = self.transformation(bounds, window);
+        window.with_element_transformation(transformation, |window| {
+            self.paint_untransformed(bounds, window, cx, continuation)
+        });
+    }
+
+    fn paint_untransformed(
         &self,
         bounds: Bounds<Pixels>,
         window: &mut Window,
@@ -708,7 +743,9 @@ impl Style {
             .to_pixels(rem_size)
             .clamp_radii_for_quad_size(bounds.size);
 
-        window.paint_drop_shadows(bounds, corner_radii, &self.box_shadow);
+        window.with_corner_shape(self.corner_shape, |window| {
+            window.paint_drop_shadows(bounds, corner_radii, &self.box_shadow);
+        });
 
         let background_color = self.background.as_ref().and_then(Fill::color);
         if background_color.is_some_and(|color| !color.is_transparent()) {
@@ -727,17 +764,21 @@ impl Style {
                 None => Hsla::default(),
             };
             border_color.a = 0.;
-            window.paint_quad(quad(
-                bounds,
-                corner_radii,
-                background_color.unwrap_or_default(),
-                Edges::default(),
-                border_color,
-                self.border_style,
-            ));
+            window.with_corner_shape(self.corner_shape, |window| {
+                window.paint_quad(quad(
+                    bounds,
+                    corner_radii,
+                    background_color.unwrap_or_default(),
+                    Edges::default(),
+                    border_color,
+                    self.border_style,
+                ));
+            });
         }
 
-        window.paint_inset_shadows(bounds, corner_radii, &self.box_shadow);
+        window.with_corner_shape(self.corner_shape, |window| {
+            window.paint_inset_shadows(bounds, corner_radii, &self.box_shadow);
+        });
 
         continuation(window, cx);
 
@@ -745,20 +786,54 @@ impl Style {
             let border_widths = self.border_widths.to_pixels(rem_size);
             let mut background = self.border_color.unwrap_or_default();
             background.a = 0.;
-            window.paint_quad(quad(
-                bounds,
-                corner_radii,
-                background,
-                border_widths,
-                self.border_color.unwrap_or_default(),
-                self.border_style,
-            ));
+            window.with_corner_shape(self.corner_shape, |window| {
+                window.paint_quad(quad(
+                    bounds,
+                    corner_radii,
+                    background,
+                    border_widths,
+                    self.border_color.unwrap_or_default(),
+                    self.border_style,
+                ));
+            });
         }
 
         #[cfg(debug_assertions)]
         if self.debug_below {
             cx.remove_global::<DebugBelow>();
         }
+    }
+
+    /// The transformation that `scale`, `rotate` and `translate` apply to an element with the
+    /// given bounds, in scaled pixels, or `None` when they leave it in place.
+    pub fn transformation(
+        &self,
+        bounds: Bounds<Pixels>,
+        window: &Window,
+    ) -> Option<TransformationMatrix> {
+        if self.scale == size(1., 1.) && self.rotate == Radians(0.) && self.translate.is_zero() {
+            return None;
+        }
+
+        let scale_factor = window.scale_factor();
+        let rem_size = window.rem_size();
+        let origin = bounds.origin
+            + point(
+                self.transform_origin
+                    .x
+                    .to_pixels(bounds.size.width.into(), rem_size),
+                self.transform_origin
+                    .y
+                    .to_pixels(bounds.size.height.into(), rem_size),
+            );
+        // Applied bottom to top, as with CSS individual transform properties.
+        Some(
+            TransformationMatrix::unit()
+                .translate((origin + self.translate).scale(scale_factor))
+                .rotate(self.rotate)
+                .scale(self.scale)
+                .translate(origin.scale(-scale_factor)),
+        )
     }
 
     fn is_border_visible(&self) -> bool {
@@ -812,6 +887,11 @@ impl Default for Style {
             grid_rows: None,
             grid_cols: None,
             grid_location: None,
+            scale: size(1., 1.),
+            rotate: Radians(0.),
+            translate: Point::default(),
+            transform_origin: point(relative(0.5), relative(0.5)),
+            corner_shape: CornerShape::default(),
 
             #[cfg(debug_assertions)]
             debug: false,
