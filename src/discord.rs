@@ -1,0 +1,1214 @@
+use std::{path::PathBuf, sync::OnceLock, time::Duration};
+
+use futures::{SinkExt, StreamExt, channel::mpsc};
+use serde_json::{Value, json};
+use tokio::runtime::Runtime;
+use tokio_tungstenite::tungstenite::{Message as WsMessage, protocol::frame::coding::CloseCode};
+
+const GATEWAY: &str = "wss://gateway.discord.gg/?v=10&encoding=json";
+pub const API: &str = "https://discord.com/api/v10";
+const CDN: &str = "https://cdn.discordapp.com";
+const AUTH_FAILED: u16 = 4004;
+const VIEW_CHANNEL: u64 = 1 << 10;
+
+// The user-account gateway and several fields below (nameplates, guild tags, member list ops,
+// read states) are undocumented; shapes are from memory of the official client. Not verified live.
+
+#[derive(Clone, Debug, Default)]
+pub struct User {
+    pub id: String,
+    pub name: String,
+    pub avatar: String,
+    pub bot: bool,
+    pub tag: Option<GuildTag>,
+    pub nameplate: Option<Nameplate>,
+    // Avatar decoration frame drawn around the avatar.
+    pub decoration: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Nameplate {
+    pub art: String,
+    // The tint Discord paints under the art: (dark theme, light theme), from the nameplate's palette.
+    pub tint: (u32, u32),
+}
+
+// Discord's nameplate palettes, read from its web client (module 641886, 2026-11-14).
+fn palette_tint(name: &str) -> (u32, u32) {
+    match name {
+        "crimson" => (0x900007, 0xE7040F),
+        "berry" => (0x893A99, 0xB11FCF),
+        "sky" => (0x0080B7, 0x56CCFF),
+        "teal" => (0x086460, 0x7DEED7),
+        "forest" => (0x2D5401, 0x6AA624),
+        "bubble_gum" => (0xDC3E97, 0xF957B3),
+        "violet" => (0x730BC8, 0x972FED),
+        "cobalt" => (0x0131C2, 0x4278FF),
+        "clover" => (0x047B20, 0x63CD5A),
+        "lemon" => (0xF6CD12, 0xFED400),
+        "white" => (0xFFFFFF, 0xFFFFFF),
+        _ => (0x000000, 0x000000),
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct GuildTag {
+    pub text: String,
+    pub badge: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Status {
+    Online,
+    Idle,
+    Dnd,
+    #[default]
+    Offline,
+}
+
+impl Status {
+    fn parse(s: &str) -> Self {
+        match s {
+            "online" => Status::Online,
+            "idle" => Status::Idle,
+            "dnd" => Status::Dnd,
+            _ => Status::Offline,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Status::Online => "Online",
+            Status::Idle => "Idle",
+            Status::Dnd => "Do Not Disturb",
+            Status::Offline => "Invisible",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct Presence {
+    pub status: Status,
+    pub activity: Option<Activity>,
+}
+
+// What Discord's member list shows under a name: an icon by kind, the text, and "+N" for more.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Activity {
+    pub kind: ActivityKind,
+    pub text: String,
+    pub more: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ActivityKind {
+    Custom,
+    Playing,
+    Streaming,
+    Listening,
+    Watching,
+    Competing,
+}
+
+#[derive(Clone, Debug)]
+pub struct Role {
+    pub id: String,
+    pub name: String,
+    pub color: u32,
+    pub position: i64,
+}
+
+#[derive(Clone, Debug)]
+pub struct Guild {
+    pub id: String,
+    pub name: String,
+    pub icon: Option<String>,
+    pub channels: Vec<Channel>,
+    pub roles: Vec<Role>,
+    pub voice_states: Vec<VoiceState>,
+    pub emojis: Vec<Emoji>,
+}
+
+#[derive(Clone, Debug)]
+pub struct VoiceState {
+    pub guild_id: Option<String>,
+    pub channel_id: Option<String>,
+    pub user_id: String,
+    pub user: Option<User>,
+    pub muted: bool,
+    pub deafened: bool,
+    // Live on Go Live, or camera on.
+    pub streaming: bool,
+    pub camera: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct Channel {
+    pub id: String,
+    pub name: String,
+    pub kind: ChannelKind,
+    pub parent_id: Option<String>,
+    pub position: i64,
+    pub topic: Option<String>,
+    pub last_message_id: Option<String>,
+    // @everyone can't view it: drawn with a lock.
+    pub private: bool,
+    // A 1:1 DM's other person, for their avatar and status dot.
+    pub recipient: Option<User>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChannelKind {
+    Text,
+    Voice,
+    Category,
+    Dm,
+    Other,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Media {
+    pub url: String,
+    pub width: f32,
+    pub height: f32,
+    pub kind: MediaKind,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum MediaKind {
+    Image,
+    // `poster` is a still frame to show; the video itself plays outside the app for now.
+    Video { poster: String },
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct Embed {
+    pub url: Option<String>,
+    pub color: Option<u32>,
+    pub provider: Option<String>,
+    pub author: Option<String>,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub fields: Vec<(String, String, bool)>,
+    pub thumbnail: Option<Media>,
+    pub footer: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Folder {
+    pub id: String,
+    pub name: Option<String>,
+    pub color: Option<u32>,
+    pub guild_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct File {
+    pub name: String,
+    pub url: String,
+    pub size: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Emoji {
+    pub id: Option<String>,
+    pub name: String,
+    pub animated: bool,
+}
+
+impl Emoji {
+    pub fn unicode(name: &str) -> Self {
+        Emoji { id: None, name: name.into(), animated: false }
+    }
+
+    pub fn url(&self) -> Option<String> {
+        let id = self.id.as_ref()?;
+        Some(format!("{CDN}/emojis/{id}.{}?size=48", if self.animated { "gif" } else { "webp" }))
+    }
+
+    // The REST path segment: `name:id` for custom emoji, the character itself for unicode.
+    fn key(&self) -> String {
+        match &self.id {
+            Some(id) => format!("{}:{id}", self.name),
+            None => self.name.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Reaction {
+    pub emoji: Emoji,
+    pub count: u32,
+    pub me: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SendState {
+    #[default]
+    Sent,
+    Sending,
+    Failed,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct Message {
+    pub id: String,
+    pub channel_id: String,
+    pub guild_id: Option<String>,
+    pub author: User,
+    // The author's roles in this guild when the payload carried them (gateway messages do, REST history doesn't).
+    pub roles: Option<Vec<String>>,
+    pub content: String,
+    pub timestamp: String,
+    pub edited: bool,
+    // Attachments plus image, GIF and video embeds, in order: what the gallery pages through.
+    pub media: Vec<Media>,
+    // Rich link cards (articles, YouTube, bots).
+    pub embeds: Vec<Embed>,
+    pub files: Vec<File>,
+    pub reactions: Vec<Reaction>,
+    pub reply_to: Option<String>,
+    pub reply: Option<Box<Message>>,
+    pub mentions: Vec<User>,
+    pub mention_roles: Vec<String>,
+    pub mention_everyone: bool,
+    pub nonce: Option<String>,
+    pub state: SendState,
+}
+
+// What a profile popout shows beyond the user object. From GET /users/{id}/profile (user-account API, Not verified).
+#[derive(Clone, Debug, Default)]
+pub struct Profile {
+    pub username: String,
+    pub bio: Option<String>,
+    pub pronouns: Option<String>,
+    pub banner: Option<String>,
+    pub accent: Option<u32>,
+    pub roles: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Member {
+    pub user: User,
+    pub roles: Vec<String>,
+    pub presence: Presence,
+}
+
+// Lists are almost all members; boxing them would allocate per row to shrink the rare group headers.
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Debug)]
+pub enum ListItem {
+    Group { id: String, count: u32 },
+    Member(Member),
+}
+
+#[derive(Clone, Debug)]
+pub enum ListOp {
+    Sync { start: usize, items: Vec<ListItem> },
+    Insert { index: usize, item: ListItem },
+    Update { index: usize, item: ListItem },
+    Delete { index: usize },
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ReadState {
+    pub last_read: u64,
+    pub mentions: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Relation {
+    Friend,
+    Blocked,
+    Incoming,
+    Outgoing,
+}
+
+#[derive(Clone, Debug)]
+pub struct Relationship {
+    pub user: User,
+    pub kind: Relation,
+}
+
+// One result from Discord's GIF search (its Tenor proxy). `preview` is an animated GIF gpui can draw.
+#[derive(Clone, Debug)]
+pub struct Gif {
+    pub url: String,
+    pub preview: String,
+    pub width: f32,
+    pub height: f32,
+}
+
+pub struct Ready {
+    pub me: User,
+    pub status: Status,
+    pub custom_status: Option<String>,
+    pub session_id: String,
+    pub guilds: Vec<Guild>,
+    pub dms: Vec<Channel>,
+    pub read_states: Vec<(String, ReadState)>,
+    pub presences: Vec<(String, Presence)>,
+    // The rail's order and folders. A folder without an id is a single, unfoldered server.
+    pub folders: Vec<Folder>,
+    pub relationships: Vec<Relationship>,
+}
+
+pub enum Event {
+    Ready(Box<Ready>),
+    GuildCreate(Guild),
+    MessageCreate(Box<Message>),
+    // Partial: apply with `apply_update`.
+    MessageUpdate(Value),
+    MessageDelete { channel_id: String, id: String },
+    Reaction { channel_id: String, message_id: String, user_id: String, emoji: Emoji, added: bool },
+    Typing { channel_id: String, user_id: String, name: Option<String> },
+    Presence { user_id: String, presence: Presence },
+    MemberList { guild_id: String, groups: Vec<(String, u32)>, ops: Vec<ListOp> },
+    MembersChunk { guild_id: String, members: Vec<(User, Vec<String>)> },
+    Ack { channel_id: String, message_id: u64 },
+    VoiceState(VoiceState),
+    // Raw voice server info (endpoint, token) for the voice engine.
+    VoiceServer(Value),
+    Disconnected(String),
+    AuthFailed,
+}
+
+#[derive(Clone)]
+pub struct Client {
+    http: reqwest::Client,
+    token: String,
+    commands: mpsc::UnboundedSender<Value>,
+    // The voice engine's view of this gateway: it sends its own ops and sees VOICE_* / STREAM_* dispatches.
+    pub voice: crate::voice::GatewayHandle,
+}
+
+// One runtime for the gateway, REST and QR sign-in; GPUI awaits its results on its own executor.
+pub fn runtime() -> &'static Runtime {
+    static RUNTIME: OnceLock<Runtime> = OnceLock::new();
+    RUNTIME.get_or_init(|| Runtime::new().expect("tokio runtime"))
+}
+
+pub fn connect(token: String) -> (Client, mpsc::UnboundedReceiver<Event>) {
+    let (commands, command_rx) = mpsc::unbounded();
+    let (voice, voice_out) = crate::voice::GatewayHandle::new();
+    let client = Client { http: reqwest::Client::new(), token: token.clone(), commands, voice: voice.clone() };
+    let (tx, rx) = mpsc::unbounded();
+    runtime().spawn(run_gateway(token, tx, Outbound { commands: command_rx, voice, voice_out }));
+    (client, rx)
+}
+
+impl Client {
+    fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
+        self.http.request(method, format!("{API}{path}")).header("Authorization", &self.token)
+    }
+
+    async fn run(&self, req: reqwest::RequestBuilder) -> Result<Value, String> {
+        runtime().spawn(send(req)).await.map_err(|e| e.to_string())?
+    }
+
+    /// Sends a raw gateway payload (lazy member list, member requests, voice state updates).
+    pub fn gateway(&self, payload: Value) {
+        let _ = self.commands.unbounded_send(payload);
+    }
+
+    pub fn request_member_list(&self, guild_id: &str, channel_id: &str) {
+        self.gateway(json!({
+            "op": 14,
+            "d": { "guild_id": guild_id, "typing": true, "activities": true, "threads": false, "channels": { channel_id: [[0, 99]] } }
+        }));
+    }
+
+    pub fn request_members(&self, guild_id: &str, user_ids: Vec<String>) {
+        self.gateway(json!({ "op": 8, "d": { "guild_id": guild_id, "user_ids": user_ids, "presences": false } }));
+    }
+
+    /// Oldest first. `before` pages back through history; `around` loads the window a reply jumps to.
+    pub async fn messages(&self, channel_id: &str, before: Option<&str>, around: Option<&str>) -> Result<Vec<Message>, String> {
+        let mut path = format!("/channels/{channel_id}/messages?limit=50");
+        if let Some(id) = before {
+            path.push_str(&format!("&before={id}"));
+        }
+        if let Some(id) = around {
+            path.push_str(&format!("&around={id}"));
+        }
+        let body = self.run(self.request(reqwest::Method::GET, &path)).await?;
+        let mut messages: Vec<Message> = body.as_array().into_iter().flatten().filter_map(parse_message).collect();
+        messages.reverse();
+        Ok(messages)
+    }
+
+    /// `ping_author`: whether a reply mentions the person replied to (Discord's "@ ON / OFF").
+    pub async fn send_message(&self, channel_id: &str, content: &str, nonce: &str, reply_to: Option<&str>, ping_author: bool) -> Result<Message, String> {
+        let mut body = json!({ "content": content, "nonce": nonce });
+        if let Some(id) = reply_to {
+            body["message_reference"] = json!({ "message_id": id });
+            body["allowed_mentions"] = json!({ "parse": ["users", "roles", "everyone"], "replied_user": ping_author });
+        }
+        let req = self.request(reqwest::Method::POST, &format!("/channels/{channel_id}/messages")).json(&body);
+        self.run(req).await.and_then(|v| parse_message(&v).ok_or_else(|| "Unexpected response".into()))
+    }
+
+    /// One message carrying all the files, as Discord sends a multi-attachment upload.
+    pub async fn upload(&self, channel_id: &str, paths: Vec<PathBuf>, content: &str, nonce: &str) -> Result<Message, String> {
+        let mut form = reqwest::multipart::Form::new().text("payload_json", json!({ "content": content, "nonce": nonce }).to_string());
+        for (i, path) in paths.iter().enumerate() {
+            let bytes = tokio::fs::read(path).await.map_err(|e| e.to_string())?;
+            let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "file".into());
+            form = form.part(format!("files[{i}]"), reqwest::multipart::Part::bytes(bytes).file_name(name));
+        }
+        let req = self.request(reqwest::Method::POST, &format!("/channels/{channel_id}/messages")).multipart(form);
+        self.run(req).await.and_then(|v| parse_message(&v).ok_or_else(|| "Unexpected response".into()))
+    }
+
+    /// Recent messages that mention you, across servers (the title bar's Inbox).
+    pub async fn mentions(&self) -> Result<Vec<Message>, String> {
+        let body = self.run(self.request(reqwest::Method::GET, "/users/@me/mentions?limit=25&roles=true&everyone=true")).await?;
+        Ok(body.as_array().into_iter().flatten().filter_map(parse_message).collect())
+    }
+
+    /// Discord's GIF search; an empty query returns what's trending. Shapes from memory: Not verified.
+    pub async fn gifs(&self, query: &str) -> Result<Vec<Gif>, String> {
+        let mut url = reqwest::Url::parse(&format!("{API}/gifs/{}", if query.is_empty() { "trending-gifs" } else { "search" })).map_err(|e| e.to_string())?;
+        url.query_pairs_mut().append_pair("provider", "tenor").append_pair("locale", "en-US").append_pair("media_format", "gif");
+        if !query.is_empty() {
+            url.query_pairs_mut().append_pair("q", query);
+        }
+        let body = self.run(self.http.get(url).header("Authorization", &self.token)).await?;
+        Ok(body
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|g| {
+                Some(Gif {
+                    url: g["url"].as_str()?.to_owned(),
+                    preview: g["gif_src"].as_str().or(g["src"].as_str())?.to_owned(),
+                    width: g["width"].as_f64().unwrap_or(200.) as f32,
+                    height: g["height"].as_f64().unwrap_or(150.) as f32,
+                })
+            })
+            .collect())
+    }
+
+    /// Newest pin first.
+    pub async fn pins(&self, channel_id: &str) -> Result<Vec<Message>, String> {
+        let body = self.run(self.request(reqwest::Method::GET, &format!("/channels/{channel_id}/pins"))).await?;
+        Ok(body.as_array().into_iter().flatten().filter_map(parse_message).collect())
+    }
+
+    pub async fn edit_message(&self, channel_id: &str, id: &str, content: &str) -> Result<(), String> {
+        let req = self.request(reqwest::Method::PATCH, &format!("/channels/{channel_id}/messages/{id}")).json(&json!({ "content": content }));
+        self.run(req).await.map(|_| ())
+    }
+
+    pub async fn delete_message(&self, channel_id: &str, id: &str) -> Result<(), String> {
+        self.run(self.request(reqwest::Method::DELETE, &format!("/channels/{channel_id}/messages/{id}"))).await.map(|_| ())
+    }
+
+    pub async fn react(&self, channel_id: &str, message_id: &str, emoji: &Emoji, add: bool) -> Result<(), String> {
+        let mut url = reqwest::Url::parse(&format!("{API}/channels/{channel_id}/messages/{message_id}/reactions")).map_err(|e| e.to_string())?;
+        // path_segments_mut percent-encodes the emoji, which unicode reactions need.
+        url.path_segments_mut().map_err(|_| "Bad URL")?.push(&emoji.key()).push("@me");
+        let method = if add { reqwest::Method::PUT } else { reqwest::Method::DELETE };
+        self.run(self.http.request(method, url).header("Authorization", &self.token)).await.map(|_| ())
+    }
+
+    pub async fn typing(&self, channel_id: &str) {
+        let _ = self.run(self.request(reqwest::Method::POST, &format!("/channels/{channel_id}/typing"))).await;
+    }
+
+    pub async fn ack(&self, channel_id: &str, message_id: &str) {
+        let req = self.request(reqwest::Method::POST, &format!("/channels/{channel_id}/messages/{message_id}/ack")).json(&json!({ "token": null }));
+        let _ = self.run(req).await;
+    }
+
+    pub async fn profile(&self, user_id: &str, guild_id: Option<&str>) -> Result<Profile, String> {
+        let mut path = format!("/users/{user_id}/profile?with_mutual_guilds=false");
+        if let Some(guild) = guild_id {
+            path.push_str(&format!("&guild_id={guild}"));
+        }
+        let body = self.run(self.request(reqwest::Method::GET, &path)).await?;
+        let user = &body["user"];
+        let banner = user["banner"].as_str().map(|hash| {
+            let ext = if hash.starts_with("a_") { "gif" } else { "png" };
+            format!("{CDN}/banners/{user_id}/{hash}.{ext}?size=600")
+        });
+        Ok(Profile {
+            username: user["username"].as_str().unwrap_or_default().to_owned(),
+            bio: body["user_profile"]["bio"].as_str().or(user["bio"].as_str()).filter(|b| !b.is_empty()).map(str::to_owned),
+            pronouns: body["user_profile"]["pronouns"].as_str().filter(|p| !p.is_empty()).map(str::to_owned),
+            banner,
+            accent: user["accent_color"].as_u64().or(user["banner_color"].as_str().and_then(|c| u32::from_str_radix(c.trim_start_matches('#'), 16).ok().map(u64::from))).map(|c| c as u32),
+            roles: strings(&body["guild_member"]["roles"]),
+        })
+    }
+
+    /// Opens (or finds) the DM channel with a user.
+    pub async fn open_dm(&self, user_id: &str) -> Result<Channel, String> {
+        let req = self.request(reqwest::Method::POST, "/users/@me/channels").json(&json!({ "recipients": [user_id] }));
+        let body = self.run(req).await?;
+        parse_dm(&body, &Value::Null).ok_or_else(|| "Unexpected response".into())
+    }
+
+    /// Changes your status everywhere: the gateway presence now, the saved setting for next time.
+    pub async fn set_status(&self, status: Status) {
+        let wire = match status {
+            Status::Online => "online",
+            Status::Idle => "idle",
+            Status::Dnd => "dnd",
+            Status::Offline => "invisible",
+        };
+        self.gateway(json!({ "op": 3, "d": { "status": wire, "since": 0, "activities": [], "afk": false } }));
+        let req = self.request(reqwest::Method::PATCH, "/users/@me/settings").json(&json!({ "status": wire }));
+        let _ = self.run(req).await;
+    }
+
+    /// Saves the rail's order and folders. Loose servers are folders without an id.
+    // Not verified: the legacy settings endpoint still accepting `guild_folders` (it accepts `status`).
+    pub async fn set_guild_folders(&self, folders: Vec<Folder>) {
+        let wire: Vec<Value> = folders
+            .iter()
+            .map(|f| json!({ "id": f.id.parse::<u64>().ok(), "name": f.name, "color": f.color, "guild_ids": f.guild_ids }))
+            .collect();
+        let positions: Vec<&String> = folders.iter().flat_map(|f| &f.guild_ids).collect();
+        let req = self.request(reqwest::Method::PATCH, "/users/@me/settings").json(&json!({ "guild_folders": wire, "guild_positions": positions }));
+        let _ = self.run(req).await;
+    }
+
+    /// Marks several channels read at once (a server's "Mark As Read").
+    pub async fn ack_bulk(&self, reads: Vec<(String, u64)>) {
+        let read_states: Vec<Value> = reads.into_iter().map(|(channel, message)| json!({ "channel_id": channel, "message_id": message.to_string(), "read_state_type": 0 })).collect();
+        let req = self.request(reqwest::Method::POST, "/read-states/ack-bulk").json(&json!({ "read_states": read_states }));
+        let _ = self.run(req).await;
+    }
+
+    pub async fn search(&self, guild_id: &str, query: &str) -> Result<Vec<Message>, String> {
+        let mut url = reqwest::Url::parse(&format!("{API}/guilds/{guild_id}/messages/search")).map_err(|e| e.to_string())?;
+        url.query_pairs_mut().append_pair("content", query);
+        let body = self.run(self.http.get(url).header("Authorization", &self.token)).await?;
+        // Each hit is a small array of messages around the match; the match is the first.
+        Ok(body["messages"].as_array().into_iter().flatten().filter_map(|hit| hit.get(0).and_then(parse_message)).collect())
+    }
+}
+
+// Native GPUI ships no HTTP client (only its web build has one), so `img(url)` loads nothing
+// until the app installs one. GET-only: it serves avatars, icons and attachments from the CDN.
+#[derive(Default)]
+pub struct Images(reqwest::Client);
+
+impl gpui_kit::http_client::HttpClient for Images {
+    fn user_agent(&self) -> Option<&gpui_kit::http_client::http::HeaderValue> {
+        None
+    }
+
+    fn proxy(&self) -> Option<&gpui_kit::http_client::Url> {
+        None
+    }
+
+    fn send(
+        &self,
+        req: gpui_kit::http_client::Request<gpui_kit::http_client::AsyncBody>,
+    ) -> futures::future::BoxFuture<'static, gpui_kit::http_client::Result<gpui_kit::http_client::Response<gpui_kit::http_client::AsyncBody>>> {
+        let get = self.0.get(req.uri().to_string());
+        Box::pin(async move {
+            let (status, bytes) = runtime()
+                .spawn(async move {
+                    let res = get.send().await?;
+                    Ok::<_, reqwest::Error>((res.status().as_u16(), res.bytes().await?))
+                })
+                .await??;
+            Ok(gpui_kit::http_client::Response::builder().status(status).body(bytes.to_vec().into())?)
+        })
+    }
+}
+
+pub async fn send(req: reqwest::RequestBuilder) -> Result<Value, String> {
+    let res = req.send().await.map_err(|e| e.to_string())?;
+    let status = res.status();
+    let body: Value = res.json().await.unwrap_or(Value::Null);
+    if status.is_success() {
+        return Ok(body);
+    }
+    Err(body["message"].as_str().map(str::to_owned).unwrap_or_else(|| status.to_string()))
+}
+
+// ponytail: full re-identify after every drop; RESUME (session_id + seq) when reconnect churn matters.
+// What the app and the voice engine send through the gateway, and where voice dispatches go.
+struct Outbound {
+    commands: mpsc::UnboundedReceiver<Value>,
+    voice: crate::voice::GatewayHandle,
+    voice_out: mpsc::UnboundedReceiver<String>,
+}
+
+async fn run_gateway(token: String, tx: mpsc::UnboundedSender<Event>, mut outbound: Outbound) {
+    loop {
+        let reason = match session(&token, &tx, &mut outbound).await {
+            Ok(()) => return,
+            Err(GatewayError::AuthFailed) => {
+                let _ = tx.unbounded_send(Event::AuthFailed);
+                return;
+            }
+            Err(GatewayError::Dropped(reason)) => reason,
+        };
+        if tx.unbounded_send(Event::Disconnected(reason)).is_err() {
+            return;
+        }
+        tokio::time::sleep(Duration::from_secs(5)).await;
+    }
+}
+
+enum GatewayError {
+    AuthFailed,
+    Dropped(String),
+}
+
+async fn session(token: &str, tx: &mpsc::UnboundedSender<Event>, outbound: &mut Outbound) -> Result<(), GatewayError> {
+    let dropped = |e: &dyn std::fmt::Display| GatewayError::Dropped(e.to_string());
+    let (ws, _) = tokio_tungstenite::connect_async(GATEWAY).await.map_err(|e| dropped(&e))?;
+    let (mut sink, mut stream) = ws.split();
+    let mut seq: Option<u64> = None;
+    let mut heartbeat = tokio::time::interval(Duration::from_secs(3600));
+    heartbeat.tick().await;
+
+    loop {
+        tokio::select! {
+            _ = heartbeat.tick() => {
+                let beat = json!({ "op": 1, "d": seq }).to_string();
+                sink.send(WsMessage::Text(beat)).await.map_err(|e| dropped(&e))?;
+            }
+            Some(command) = outbound.commands.next() => {
+                sink.send(WsMessage::Text(command.to_string())).await.map_err(|e| dropped(&e))?;
+            }
+            Some(text) = outbound.voice_out.next() => {
+                sink.send(WsMessage::Text(text)).await.map_err(|e| dropped(&e))?;
+            }
+            frame = stream.next() => {
+                let frame = match frame {
+                    None => return Err(GatewayError::Dropped("Connection closed".into())),
+                    Some(frame) => frame.map_err(|e| dropped(&e))?,
+                };
+                let text = match frame {
+                    WsMessage::Text(text) => text,
+                    WsMessage::Close(Some(close)) if close.code == CloseCode::from(AUTH_FAILED) => return Err(GatewayError::AuthFailed),
+                    WsMessage::Close(close) => return Err(GatewayError::Dropped(close.map(|c| c.reason.to_string()).unwrap_or_default())),
+                    _ => continue,
+                };
+                let payload: Value = serde_json::from_str(&text).map_err(|e| dropped(&e))?;
+                if let Some(s) = payload["s"].as_u64() {
+                    seq = Some(s);
+                }
+                match payload["op"].as_u64() {
+                    Some(10) => {
+                        let ms = payload["d"]["heartbeat_interval"].as_u64().unwrap_or(41_250);
+                        heartbeat = tokio::time::interval(Duration::from_millis(ms));
+                        heartbeat.tick().await;
+                        sink.send(WsMessage::Text(identify(token))).await.map_err(|e| dropped(&e))?;
+                    }
+                    Some(7) | Some(9) => return Err(GatewayError::Dropped("Gateway asked to reconnect".into())),
+                    Some(0) => {
+                        let kind = payload["t"].as_str().unwrap_or("");
+                        outbound.voice.dispatch(kind, &payload["d"]);
+                        let Some(event) = dispatch(kind, &payload["d"]) else { continue };
+                        if tx.unbounded_send(event).is_err() {
+                            return Ok(());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+// capabilities 0 asks for the legacy READY shape: full guild objects and user objects in DMs.
+fn identify(token: &str) -> String {
+    json!({
+        "op": 2,
+        "d": {
+            "token": token,
+            "capabilities": 0,
+            "properties": { "os": std::env::consts::OS, "browser": "Rustcord", "device": "" },
+            "presence": { "status": "online", "since": 0, "activities": [], "afk": false },
+            "compress": false,
+        }
+    })
+    .to_string()
+}
+
+fn dispatch(kind: &str, d: &Value) -> Option<Event> {
+    let s = |v: &Value| v.as_str().unwrap_or_default().to_owned();
+    match kind {
+        "READY" => Some(Event::Ready(Box::new(parse_ready(d)))),
+        "GUILD_CREATE" => parse_guild(d).map(Event::GuildCreate),
+        "MESSAGE_CREATE" => parse_message(d).map(|m| Event::MessageCreate(Box::new(m))),
+        "MESSAGE_UPDATE" => Some(Event::MessageUpdate(d.clone())),
+        "MESSAGE_DELETE" => Some(Event::MessageDelete { channel_id: s(&d["channel_id"]), id: s(&d["id"]) }),
+        "MESSAGE_REACTION_ADD" | "MESSAGE_REACTION_REMOVE" => Some(Event::Reaction {
+            channel_id: s(&d["channel_id"]),
+            message_id: s(&d["message_id"]),
+            user_id: s(&d["user_id"]),
+            emoji: parse_emoji(&d["emoji"]),
+            added: kind == "MESSAGE_REACTION_ADD",
+        }),
+        "TYPING_START" => Some(Event::Typing {
+            channel_id: s(&d["channel_id"]),
+            user_id: s(&d["user_id"]),
+            name: d["member"]["user"].is_object().then(|| parse_member_user(&d["member"], &d["member"]["user"], d["guild_id"].as_str()).name),
+        }),
+        "PRESENCE_UPDATE" => Some(Event::Presence { user_id: s(&d["user"]["id"]), presence: parse_presence(d) }),
+        "GUILD_MEMBER_LIST_UPDATE" => Some(Event::MemberList {
+            guild_id: s(&d["guild_id"]),
+            // Group counts arrive here; the group items inside the list ops carry only ids.
+            groups: d["groups"].as_array().into_iter().flatten().map(|g| (s(&g["id"]), g["count"].as_u64().unwrap_or(0) as u32)).collect(),
+            ops: d["ops"].as_array().into_iter().flatten().filter_map(|op| parse_list_op(op, d["guild_id"].as_str())).collect(),
+        }),
+        "GUILD_MEMBERS_CHUNK" => Some(Event::MembersChunk {
+            guild_id: s(&d["guild_id"]),
+            members: d["members"].as_array().into_iter().flatten().map(|m| (parse_member_user(m, &m["user"], d["guild_id"].as_str()), strings(&m["roles"]))).collect(),
+        }),
+        "MESSAGE_ACK" => Some(Event::Ack { channel_id: s(&d["channel_id"]), message_id: snowflake(&d["message_id"]) }),
+        "VOICE_STATE_UPDATE" => Some(Event::VoiceState(parse_voice_state(d))),
+        "VOICE_SERVER_UPDATE" => Some(Event::VoiceServer(d.clone())),
+        _ => None,
+    }
+}
+
+fn parse_ready(d: &Value) -> Ready {
+    let entries = d["read_state"]["entries"].as_array().or(d["read_state"].as_array());
+    Ready {
+        me: parse_user(&d["user"]),
+        status: Status::parse(d["user_settings"]["status"].as_str().unwrap_or("online")),
+        custom_status: d["user_settings"]["custom_status"]["text"].as_str().filter(|t| !t.is_empty()).map(str::to_owned),
+        session_id: d["session_id"].as_str().unwrap_or_default().to_owned(),
+        guilds: d["guilds"].as_array().into_iter().flatten().filter_map(parse_guild).collect(),
+        dms: d["private_channels"].as_array().into_iter().flatten().filter_map(|c| parse_dm(c, &d["users"])).collect(),
+        read_states: entries
+            .into_iter()
+            .flatten()
+            .filter_map(|r| {
+                let id = r["id"].as_str()?.to_owned();
+                Some((id, ReadState { last_read: snowflake(&r["last_message_id"]), mentions: r["mention_count"].as_u64().unwrap_or(0) as u32 }))
+            })
+            .collect(),
+        relationships: d["relationships"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|r| {
+                let kind = match r["type"].as_u64()? {
+                    1 => Relation::Friend,
+                    2 => Relation::Blocked,
+                    3 => Relation::Incoming,
+                    4 => Relation::Outgoing,
+                    _ => return None,
+                };
+                // Legacy READY embeds the user; newer shapes reference READY.users by id.
+                let user = if r["user"].is_object() { parse_user(&r["user"]) } else { d["users"].as_array()?.iter().find(|u| u["id"] == r["id"]).map(parse_user)? };
+                Some(Relationship { user, kind })
+            })
+            .collect(),
+        folders: d["user_settings"]["guild_folders"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|f| Folder {
+                id: f["id"].as_u64().map(|n| n.to_string()).or(f["id"].as_str().map(str::to_owned)).unwrap_or_default(),
+                name: f["name"].as_str().filter(|n| !n.is_empty()).map(str::to_owned),
+                color: f["color"].as_u64().map(|c| c as u32),
+                guild_ids: strings(&f["guild_ids"]),
+            })
+            .collect(),
+        presences: d["presences"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|p| Some((p["user"]["id"].as_str().or(p["user_id"].as_str())?.to_owned(), parse_presence(p))))
+            .collect(),
+    }
+}
+
+fn parse_guild(g: &Value) -> Option<Guild> {
+    let id = g["id"].as_str()?;
+    let props = if g["name"].is_string() { g } else { &g["properties"] };
+    let mut channels: Vec<Channel> = g["channels"].as_array().into_iter().flatten().filter_map(|c| parse_channel(c, id)).collect();
+    channels.sort_by_key(|c| c.position);
+    Some(Guild {
+        id: id.to_owned(),
+        name: props["name"].as_str()?.to_owned(),
+        icon: props["icon"].as_str().map(|hash| format!("{CDN}/icons/{id}/{hash}.png?size=96")),
+        channels,
+        roles: g["roles"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|r| {
+                Some(Role {
+                    id: r["id"].as_str()?.to_owned(),
+                    name: r["name"].as_str().unwrap_or_default().to_owned(),
+                    color: r["color"].as_u64().unwrap_or(0) as u32,
+                    position: r["position"].as_i64().unwrap_or(0),
+                })
+            })
+            .collect(),
+        voice_states: g["voice_states"].as_array().into_iter().flatten().map(parse_voice_state).collect(),
+        emojis: g["emojis"].as_array().into_iter().flatten().map(parse_emoji).collect(),
+    })
+}
+
+fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
+    let kind = match c["type"].as_u64()? {
+        0 | 5 => ChannelKind::Text,
+        2 | 13 => ChannelKind::Voice,
+        4 => ChannelKind::Category,
+        _ => ChannelKind::Other,
+    };
+    let private = c["permission_overwrites"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .any(|o| o["id"].as_str() == Some(guild_id) && permission(&o["deny"]) & VIEW_CHANNEL != 0);
+    Some(Channel {
+        id: c["id"].as_str()?.to_owned(),
+        name: c["name"].as_str().unwrap_or_default().to_owned(),
+        kind,
+        parent_id: c["parent_id"].as_str().map(str::to_owned),
+        position: c["position"].as_i64().unwrap_or(0),
+        topic: c["topic"].as_str().filter(|t| !t.is_empty()).map(str::to_owned),
+        last_message_id: c["last_message_id"].as_str().map(str::to_owned),
+        private,
+        recipient: None,
+    })
+}
+
+fn parse_dm(c: &Value, users: &Value) -> Option<Channel> {
+    let recipients: Vec<User> = match c["recipients"].as_array() {
+        Some(list) => list.iter().map(parse_user).collect(),
+        None => c["recipient_ids"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|rid| users.as_array()?.iter().find(|u| u["id"] == *rid).map(parse_user))
+            .collect(),
+    };
+    let names: Vec<&str> = recipients.iter().map(|u| u.name.as_str()).collect();
+    let name = c["name"].as_str().filter(|n| !n.is_empty()).map(str::to_owned).unwrap_or_else(|| names.join(", "));
+    Some(Channel {
+        id: c["id"].as_str()?.to_owned(),
+        name,
+        kind: ChannelKind::Dm,
+        parent_id: None,
+        position: 0,
+        topic: None,
+        last_message_id: c["last_message_id"].as_str().map(str::to_owned),
+        private: false,
+        recipient: (recipients.len() == 1).then(|| recipients[0].clone()),
+    })
+}
+
+pub fn parse_message(m: &Value) -> Option<Message> {
+    let mut media = Vec::new();
+    let mut files = Vec::new();
+    for a in m["attachments"].as_array().into_iter().flatten() {
+        let url = a["url"].as_str().unwrap_or_default().to_owned();
+        let kind = a["content_type"].as_str().unwrap_or_default();
+        match (a["width"].as_f64(), a["height"].as_f64()) {
+            (Some(w), Some(h)) if kind.starts_with("video/") => {
+                // Discord's media proxy returns a still frame for a video when asked for an image format.
+                let proxy = a["proxy_url"].as_str().unwrap_or(&url);
+                let poster = format!("{proxy}{}format=jpeg", if proxy.contains('?') { "&" } else { "?" });
+                media.push(Media { url, width: w as f32, height: h as f32, kind: MediaKind::Video { poster } })
+            }
+            (Some(w), Some(h)) => media.push(Media { url, width: w as f32, height: h as f32, kind: MediaKind::Image }),
+            _ => files.push(File { name: a["filename"].as_str().unwrap_or("file").to_owned(), url, size: a["size"].as_u64().unwrap_or(0) }),
+        }
+    }
+    let mut embeds = Vec::new();
+    for e in m["embeds"].as_array().into_iter().flatten() {
+        match e["type"].as_str().unwrap_or("rich") {
+            "image" => media.extend(embed_media(&e["thumbnail"]).or_else(|| embed_media(&e["image"]))),
+            // GIF pickers (Tenor, Giphy) send a looping mp4 with a still thumbnail.
+            "gifv" => {
+                let poster = embed_media(&e["thumbnail"]);
+                let video = e["video"]["url"].as_str();
+                if let (Some(poster), Some(video)) = (poster, video) {
+                    media.push(Media { url: video.to_owned(), width: poster.width, height: poster.height, kind: MediaKind::Video { poster: poster.url } });
+                }
+            }
+            _ => embeds.push(parse_embed(e)),
+        }
+    }
+    let reply = m["referenced_message"].is_object().then(|| parse_message(&m["referenced_message"])).flatten().map(Box::new);
+    Some(Message {
+        id: m["id"].as_str()?.to_owned(),
+        channel_id: m["channel_id"].as_str()?.to_owned(),
+        guild_id: m["guild_id"].as_str().map(str::to_owned),
+        author: parse_member_user(&m["member"], &m["author"], m["guild_id"].as_str()),
+        roles: m["member"]["roles"].is_array().then(|| strings(&m["member"]["roles"])),
+        content: m["content"].as_str().unwrap_or_default().to_owned(),
+        timestamp: m["timestamp"].as_str().unwrap_or_default().to_owned(),
+        edited: m["edited_timestamp"].is_string(),
+        media,
+        embeds,
+        files,
+        reactions: m["reactions"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|r| Reaction { emoji: parse_emoji(&r["emoji"]), count: r["count"].as_u64().unwrap_or(1) as u32, me: r["me"].as_bool().unwrap_or(false) })
+            .collect(),
+        reply_to: m["message_reference"]["message_id"].as_str().map(str::to_owned),
+        reply,
+        mentions: m["mentions"].as_array().into_iter().flatten().map(parse_user).collect(),
+        mention_roles: strings(&m["mention_roles"]),
+        mention_everyone: m["mention_everyone"].as_bool().unwrap_or(false),
+        nonce: m["nonce"].as_str().map(str::to_owned),
+        state: SendState::Sent,
+    })
+}
+
+/// Merges a partial MESSAGE_UPDATE (edits, late embeds) into a cached message.
+pub fn apply_update(message: &mut Message, d: &Value) {
+    if let Some(full) = d["author"].is_object().then(|| parse_message(d)).flatten() {
+        let reactions = std::mem::take(&mut message.reactions);
+        *message = Message { reactions, ..full };
+        return;
+    }
+    if let Some(content) = d["content"].as_str() {
+        message.content = content.to_owned();
+        message.edited = true;
+    }
+}
+
+// A member as that server shows them: their server nickname and server avatar win over the account's.
+pub fn parse_member_user(member: &Value, user: &Value, guild_id: Option<&str>) -> User {
+    let mut parsed = parse_user(user);
+    if let Some(nick) = member["nick"].as_str().filter(|n| !n.is_empty()) {
+        parsed.name = nick.to_owned();
+    }
+    if let (Some(hash), Some(guild_id)) = (member["avatar"].as_str().filter(|h| !h.is_empty()), guild_id) {
+        parsed.avatar = format!("{CDN}/guilds/{guild_id}/users/{}/avatars/{hash}.png?size=128", parsed.id);
+    }
+    parsed
+}
+
+pub fn parse_user(user: &Value) -> User {
+    let id = user["id"].as_str().unwrap_or_default().to_owned();
+    let name = user["global_name"].as_str().or(user["username"].as_str()).unwrap_or("Unknown").to_owned();
+    let avatar = avatar_url(&id, user["avatar"].as_str());
+    let guild = if user["primary_guild"].is_object() { &user["primary_guild"] } else { &user["clan"] };
+    let tag = guild["tag"].as_str().filter(|_| guild["identity_enabled"].as_bool() != Some(false)).map(|text| GuildTag {
+        text: text.to_owned(),
+        badge: match (guild["identity_guild_id"].as_str(), guild["badge"].as_str()) {
+            (Some(gid), Some(badge)) => Some(format!("{CDN}/guild-tag-badges/{gid}/{badge}.png?size=32")),
+            _ => None,
+        },
+    });
+    let plate = &user["collectibles"]["nameplate"];
+    let nameplate = plate["asset"].as_str().map(|asset| Nameplate {
+        art: format!("{CDN}/assets/collectibles/{asset}static.png"),
+        tint: palette_tint(plate["palette"].as_str().unwrap_or_default()),
+    });
+    let decoration = user["avatar_decoration_data"]["asset"].as_str().map(|asset| format!("{CDN}/avatar-decoration-presets/{asset}.png?size=96&passthrough=false"));
+    User { id, name, avatar, bot: user["bot"].as_bool().unwrap_or(false), tag, nameplate, decoration }
+}
+
+pub fn avatar_url(user_id: &str, hash: Option<&str>) -> String {
+    match hash.filter(|h| !h.is_empty() && *h != "0") {
+        Some(hash) => format!("{CDN}/avatars/{user_id}/{hash}.png?size=128"),
+        // Discord's default avatars, chosen by (id >> 22) % 6 for accounts on the new username system.
+        None => format!("{CDN}/embed/avatars/{}.png", user_id.parse::<u64>().map(|id| (id >> 22) % 6).unwrap_or(0)),
+    }
+}
+
+fn embed_media(v: &Value) -> Option<Media> {
+    let url = v["proxy_url"].as_str().or(v["url"].as_str())?;
+    Some(Media { url: url.to_owned(), width: v["width"].as_f64()? as f32, height: v["height"].as_f64()? as f32, kind: MediaKind::Image })
+}
+
+fn parse_embed(e: &Value) -> Embed {
+    let text = |v: &Value| v.as_str().filter(|t| !t.is_empty()).map(str::to_owned);
+    Embed {
+        url: text(&e["url"]),
+        color: e["color"].as_u64().map(|c| c as u32),
+        provider: text(&e["provider"]["name"]),
+        author: text(&e["author"]["name"]),
+        title: text(&e["title"]),
+        description: text(&e["description"]),
+        fields: e["fields"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|f| (f["name"].as_str().unwrap_or_default().to_owned(), f["value"].as_str().unwrap_or_default().to_owned(), f["inline"].as_bool().unwrap_or(false)))
+            .collect(),
+        // Video embeds (YouTube) show their thumbnail large; others keep it small beside the text.
+        thumbnail: embed_media(&e["image"]).or_else(|| embed_media(&e["thumbnail"])),
+        footer: text(&e["footer"]["text"]),
+    }
+}
+
+fn parse_presence(p: &Value) -> Presence {
+    let activities = p["activities"].as_array().cloned().unwrap_or_default();
+    let custom = activities.iter().find(|a| a["type"] == 4).and_then(|a| {
+        let text = a["state"].as_str().filter(|t| !t.is_empty())?;
+        let emoji = a["emoji"]["name"].as_str().filter(|_| a["emoji"]["id"].is_null()).map(|e| format!("{e} ")).unwrap_or_default();
+        Some(Activity { kind: ActivityKind::Custom, text: format!("{emoji}{text}"), more: 0 })
+    });
+    let others: Vec<&Value> = activities.iter().filter(|a| a["type"] != 4).collect();
+    // Discord shows the custom status when there is one; otherwise the first activity, with "+N" for the rest.
+    let first = others.first().and_then(|a| {
+        let name = a["name"].as_str()?;
+        let (kind, text) = match a["type"].as_u64() {
+            Some(1) => (ActivityKind::Streaming, a["details"].as_str().unwrap_or(name)),
+            Some(2) => (ActivityKind::Listening, a["state"].as_str().unwrap_or(name)),
+            Some(3) => (ActivityKind::Watching, name),
+            Some(5) => (ActivityKind::Competing, name),
+            _ => (ActivityKind::Playing, name),
+        };
+        Some(Activity { kind, text: text.to_owned(), more: others.len() - 1 })
+    });
+    Presence { status: Status::parse(p["status"].as_str().unwrap_or("offline")), activity: custom.or(first) }
+}
+
+fn parse_list_op(op: &Value, guild_id: Option<&str>) -> Option<ListOp> {
+    let index = op["index"].as_u64().map(|i| i as usize);
+    Some(match op["op"].as_str()? {
+        "SYNC" => ListOp::Sync {
+            start: op["range"][0].as_u64().unwrap_or(0) as usize,
+            items: op["items"].as_array().into_iter().flatten().filter_map(|item| parse_list_item(item, guild_id)).collect(),
+        },
+        "INSERT" => ListOp::Insert { index: index?, item: parse_list_item(&op["item"], guild_id)? },
+        "UPDATE" => ListOp::Update { index: index?, item: parse_list_item(&op["item"], guild_id)? },
+        "DELETE" => ListOp::Delete { index: index? },
+        _ => return None,
+    })
+}
+
+fn parse_list_item(item: &Value, guild_id: Option<&str>) -> Option<ListItem> {
+    if let Some(group) = item["group"].as_object() {
+        return Some(ListItem::Group { id: group.get("id")?.as_str()?.to_owned(), count: group.get("count").and_then(Value::as_u64).unwrap_or(0) as u32 });
+    }
+    let m = &item["member"];
+    m.is_object().then(|| ListItem::Member(Member { user: parse_member_user(m, &m["user"], guild_id), roles: strings(&m["roles"]), presence: parse_presence(&m["presence"]) }))
+}
+
+fn parse_voice_state(v: &Value) -> VoiceState {
+    let user = &v["member"]["user"];
+    VoiceState {
+        guild_id: v["guild_id"].as_str().map(str::to_owned),
+        channel_id: v["channel_id"].as_str().map(str::to_owned),
+        user_id: v["user_id"].as_str().unwrap_or_default().to_owned(),
+        user: user.is_object().then(|| parse_member_user(&v["member"], user, v["guild_id"].as_str())),
+        muted: v["self_mute"].as_bool().unwrap_or(false) || v["mute"].as_bool().unwrap_or(false),
+        deafened: v["self_deaf"].as_bool().unwrap_or(false) || v["deaf"].as_bool().unwrap_or(false),
+        streaming: v["self_stream"].as_bool().unwrap_or(false),
+        camera: v["self_video"].as_bool().unwrap_or(false),
+    }
+}
+
+fn parse_emoji(e: &Value) -> Emoji {
+    Emoji { id: e["id"].as_str().map(str::to_owned), name: e["name"].as_str().unwrap_or("?").to_owned(), animated: e["animated"].as_bool().unwrap_or(false) }
+}
+
+fn strings(v: &Value) -> Vec<String> {
+    v.as_array().into_iter().flatten().filter_map(|s| s.as_str().map(str::to_owned)).collect()
+}
+
+// Permission bitfields arrive as strings (they overflow JS numbers); older payloads used numbers.
+fn permission(v: &Value) -> u64 {
+    v.as_str().and_then(|s| s.parse().ok()).or(v.as_u64()).unwrap_or(0)
+}
+
+pub fn snowflake(v: &Value) -> u64 {
+    v.as_str().and_then(|s| s.parse().ok()).unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_both_ready_shapes() {
+        let legacy = json!({ "id": "1", "name": "Rust", "icon": "abc", "channels": [
+            { "id": "b", "type": 0, "name": "general", "position": 2 },
+            { "id": "a", "type": 4, "name": "Text", "position": 1 },
+        ]});
+        let guild = parse_guild(&legacy).unwrap();
+        assert_eq!(guild.name, "Rust");
+        assert_eq!(guild.icon.as_deref(), Some("https://cdn.discordapp.com/icons/1/abc.png?size=96"));
+        assert_eq!(guild.channels[0].kind, ChannelKind::Category);
+
+        let deduped = json!({ "id": "2", "properties": { "name": "Zed", "icon": null }, "channels": [] });
+        let guild = parse_guild(&deduped).unwrap();
+        assert_eq!(guild.name, "Zed");
+        assert!(guild.icon.is_none());
+
+        let users = json!([{ "id": "9", "username": "ferris", "global_name": "Ferris", "avatar": "h" }]);
+        let dm = parse_dm(&json!({ "id": "d", "type": 1, "recipient_ids": ["9"] }), &users).unwrap();
+        assert_eq!(dm.name, "Ferris");
+        assert_eq!(dm.recipient.unwrap().avatar, "https://cdn.discordapp.com/avatars/9/h.png?size=128");
+    }
+
+    #[test]
+    fn default_avatar_when_hash_missing() {
+        assert_eq!(avatar_url("4194304", None), "https://cdn.discordapp.com/embed/avatars/1.png");
+        assert_eq!(avatar_url("1", Some("0")), "https://cdn.discordapp.com/embed/avatars/0.png");
+    }
+
+    #[test]
+    fn locks_channels_hidden_from_everyone() {
+        let hidden = json!({ "id": "c", "type": 0, "permission_overwrites": [{ "id": "g", "type": 0, "deny": "1024", "allow": "0" }] });
+        let open = json!({ "id": "c", "type": 0, "permission_overwrites": [{ "id": "g", "type": 0, "deny": "2048", "allow": "0" }] });
+        assert!(parse_channel(&hidden, "g").unwrap().private);
+        assert!(!parse_channel(&open, "g").unwrap().private);
+    }
+
+    #[test]
+    fn sorts_attachments_into_images_and_files() {
+        let m = parse_message(&json!({ "id": "1", "channel_id": "c", "author": { "id": "u" }, "attachments": [
+            { "url": "a.png", "width": 10, "height": 20, "content_type": "image/png" },
+            { "url": "b.zip", "filename": "b.zip", "size": 5 },
+        ], "referenced_message": { "id": "0", "channel_id": "c", "author": { "id": "v", "username": "zoe" }, "content": "hi" },
+           "message_reference": { "message_id": "0" } }))
+        .unwrap();
+        assert_eq!(m.media.len(), 1);
+        assert_eq!(m.files[0].name, "b.zip");
+        assert_eq!(m.reply.unwrap().author.name, "zoe");
+        assert_eq!(m.reply_to.as_deref(), Some("0"));
+    }
+
+    #[test]
+    fn sorts_embeds_by_kind() {
+        let m = parse_message(&json!({ "id": "1", "channel_id": "c", "author": { "id": "u" },
+            "attachments": [{ "url": "v.mp4", "proxy_url": "https://media/v.mp4", "width": 640, "height": 360, "content_type": "video/mp4" }],
+            "embeds": [
+                { "type": "gifv", "thumbnail": { "url": "t.png", "width": 200, "height": 100 }, "video": { "url": "g.mp4" } },
+                { "type": "image", "thumbnail": { "url": "i.png", "width": 50, "height": 50 } },
+                { "type": "video", "title": "Clip", "provider": { "name": "YouTube" }, "thumbnail": { "url": "y.jpg", "width": 1280, "height": 720 } },
+            ] }))
+        .unwrap();
+        assert_eq!(m.media.len(), 3);
+        assert_eq!(m.media[0].kind, MediaKind::Video { poster: "https://media/v.mp4?format=jpeg".into() });
+        assert_eq!(m.media[1].url, "g.mp4");
+        assert_eq!(m.embeds.len(), 1);
+        assert_eq!(m.embeds[0].provider.as_deref(), Some("YouTube"));
+    }
+
+    #[test]
+    fn presence_prefers_custom_status() {
+        let p = parse_presence(&json!({ "status": "dnd", "activities": [{ "type": 0, "name": "Apex" }, { "type": 4, "state": "m!help" }] }));
+        assert_eq!(p.status, Status::Dnd);
+        assert_eq!(p.activity.unwrap().text, "m!help");
+        let p = parse_presence(&json!({ "status": "idle", "activities": [{ "type": 2, "name": "Spotify", "state": "Hozier" }, { "type": 0, "name": "Apex" }] }));
+        assert_eq!(p.activity, Some(Activity { kind: ActivityKind::Listening, text: "Hozier".into(), more: 1 }));
+    }
+
+    #[test]
+    fn parses_member_list_ops() {
+        let op = parse_list_op(&json!({ "op": "SYNC", "range": [0, 99], "items": [
+            { "group": { "id": "online", "count": 2 } },
+            { "member": { "user": { "id": "1", "username": "a" }, "nick": "Nick", "avatar": "h", "roles": ["r"], "presence": { "status": "online" } } },
+        ]}), Some("g"))
+        .unwrap();
+        let ListOp::Sync { items, .. } = op else { panic!("sync") };
+        assert!(matches!(&items[1], ListItem::Member(m) if m.roles == ["r"] && m.user.name == "Nick" && m.user.avatar.contains("/guilds/g/users/1/avatars/h.png")));
+    }
+}
