@@ -8,7 +8,7 @@ pub const MARK_WHITE: &str = "brand/rustcord-mark-white.svg";
 
 // Phosphor icons (MIT, assets/icons/phosphor/LICENSE): regular for rows and chrome, bold for small
 // marks, fill for on and playing states. Order matches `Glyph`.
-const GLYPHS: [(&str, &[u8]); 67] = [
+const GLYPHS: [(&str, &[u8]); 80] = [
     ("icons/hashtag.svg", include_bytes!("../assets/icons/phosphor/hash.svg")),
     ("icons/hashtag-lock.svg", include_bytes!("../assets/icons/phosphor/lock-simple.svg")),
     ("icons/volume-high.svg", include_bytes!("../assets/icons/phosphor/speaker-high.svg")),
@@ -76,6 +76,19 @@ const GLYPHS: [(&str, &[u8]); 67] = [
     ("icons/group-plus.svg", include_bytes!("../assets/icons/phosphor/user-plus.svg")),
     ("icons/pause.svg", include_bytes!("../assets/icons/phosphor/pause-fill.svg")),
     ("icons/volume-off.svg", include_bytes!("../assets/icons/phosphor/speaker-slash.svg")),
+    ("icons/eye.svg", include_bytes!("../assets/icons/phosphor/eye.svg")),
+    ("icons/paper-plane.svg", include_bytes!("../assets/icons/phosphor/paper-plane-tilt-bold.svg")),
+    ("icons/upload.svg", include_bytes!("../assets/icons/phosphor/upload-simple.svg")),
+    ("icons/image.svg", include_bytes!("../assets/icons/phosphor/image.svg")),
+    ("icons/link.svg", include_bytes!("../assets/icons/phosphor/link.svg")),
+    ("icons/file.svg", include_bytes!("../assets/icons/phosphor/file.svg")),
+    ("icons/warning-circle.svg", include_bytes!("../assets/icons/phosphor/warning-circle-fill.svg")),
+    ("icons/minus.svg", include_bytes!("../assets/icons/phosphor/minus-bold.svg")),
+    ("icons/info.svg", include_bytes!("../assets/icons/phosphor/info-fill.svg")),
+    ("icons/warning.svg", include_bytes!("../assets/icons/phosphor/warning-fill.svg")),
+    ("icons/x-circle.svg", include_bytes!("../assets/icons/phosphor/x-circle-fill.svg")),
+    ("icons/check-circle.svg", include_bytes!("../assets/icons/phosphor/check-circle-fill.svg")),
+    ("icons/at.svg", include_bytes!("../assets/icons/phosphor/at-fill.svg")),
 ];
 
 const BRAND: [(&str, &[u8]); 2] = [
@@ -152,6 +165,19 @@ pub enum Glyph {
     GroupPlus,
     Pause,
     VolumeOff,
+    Eye,
+    PaperPlane,
+    Upload,
+    Image,
+    Link,
+    File,
+    WarningCircle,
+    Minus,
+    Info,
+    Warning,
+    XCircle,
+    CheckCircle,
+    At,
 }
 
 impl IconNamed for Glyph {
