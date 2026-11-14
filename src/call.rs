@@ -32,6 +32,7 @@ const STRIP_LIMIT: usize = 12;
 const RECENT_SPEAKER: std::time::Duration = std::time::Duration::from_secs(10);
 const CONTROLS_IDLE: Duration = Duration::from_secs(3);
 const PIP_WIDTH: f32 = 240.;
+const CHAT_WIDTH: f32 = 340.;
 const PIP_INSET: f32 = 16.;
 const PIP_DECELERATION: f32 = 0.995;
 const PIP_SNAP: Duration = Duration::from_millis(320);
@@ -560,6 +561,65 @@ impl Rustcord {
         tiles.into_iter().map(|(_, tile)| tile).collect()
     }
 
+    // The call view, with the voice channel's chat beside it when open (the stage shrinks; the
+    // chat never covers the stream).
+    pub(crate) fn render_call_with_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let call_channel = self.call.as_ref()?.channel.clone();
+        let chat_open = self.call_chat && self.channel.as_ref().is_some_and(|c| c.id == call_channel.id);
+        let drawer = chat_open.then(|| self.call_chat_drawer(&call_channel, window, cx));
+        let call = self.render_call(window, cx)?;
+        Some(div().size_full().flex().child(div().flex_1().min_w_0().h_full().child(call)).children(drawer).into_any_element())
+    }
+
+    fn call_chat_drawer(&mut self, channel: &discord::Channel, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme().clone();
+        let messages = self.render_messages(cx).into_any_element();
+        let composer = self.render_composer(window, cx).into_any_element();
+        div()
+            .w(px(CHAT_WIDTH))
+            .flex_none()
+            .h_full()
+            .flex()
+            .flex_col()
+            .bg(theme.background)
+            .border_l_1()
+            .border_color(theme.sidebar_border)
+            .child(
+                div()
+                    .h(px(48.))
+                    .flex_none()
+                    .px_4()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .border_b_1()
+                    .border_color(theme.sidebar_border)
+                    .child(Icon::new(Glyph::VolumeHigh).size(px(20.)).text_color(theme.muted_foreground))
+                    .child(div().flex_1().min_w_0().truncate().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(channel.name.clone()))
+                    .child(panel_button("call-chat-close", Glyph::X, "Close Chat", cx).on_click(cx.listener(|this, _, _, cx| {
+                        this.call_chat = false;
+                        cx.notify();
+                    }))),
+            )
+            .child(div().relative().flex_1().min_h_0().child(messages))
+            .child(composer)
+            .with_animation("call-chat-in", Animation::new(Duration::from_millis(220)), |d, t| d.opacity(t.min(1.)).ml(px((1. - crate::motion::back_out(t)) * 24.)))
+            .into_any_element()
+    }
+
+    // Opens the voice channel's text chat beside the call, as Discord's chat button does.
+    fn toggle_call_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.call_chat = !self.call_chat;
+        if self.call_chat
+            && let Some(channel) = self.call.as_ref().map(|c| c.channel.clone())
+            && self.channel.as_ref().is_none_or(|c| c.id != channel.id)
+        {
+            self.open_channel(channel, window, cx);
+            self.call_view = true;
+        }
+        cx.notify();
+    }
+
     // The call view: a grid of 16:9 tiles, or the watched stream large over a collapsible strip of
     // everyone else. The header and control bar float over the stage and fade out while the pointer
     // is still, as Discord's do.
@@ -567,14 +627,15 @@ impl Rustcord {
         let call = self.call.as_ref()?;
         let tiles = self.ordered_tiles();
         let viewport = window.viewport_size();
+        let chat = if self.call_chat && self.channel.as_ref().is_some_and(|c| c.id == call.channel.id) { CHAT_WIDTH } else { 0. };
         let (width, height) = match self.call_fullscreen {
-            true => (f32::from(viewport.width) - 32., f32::from(viewport.height)),
-            false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - 32., f32::from(viewport.height) - 32. - 16.),
+            true => (f32::from(viewport.width) - 32. - chat, f32::from(viewport.height)),
+            false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - 32. - chat, f32::from(viewport.height) - 32. - 16.),
         };
         let chrome = !self.call_idle();
         let stage_size = match self.call_fullscreen {
-            true => (f32::from(viewport.width), f32::from(viewport.height)),
-            false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width, f32::from(viewport.height) - crate::layout::TITLE_HEIGHT - 1.),
+            true => (f32::from(viewport.width) - chat, f32::from(viewport.height)),
+            false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - chat, f32::from(viewport.height) - crate::layout::TITLE_HEIGHT - 1.),
         };
         let ended = call.ended.clone().filter(|_| call.watching.is_empty());
         let stage: AnyElement = match (call.watching.is_empty(), ended) {
@@ -1241,6 +1302,12 @@ impl Rustcord {
                     .flex()
                     .justify_end()
                     .gap_2()
+                    .child({
+                        let open = self.call_chat;
+                        round_button("call-chat", Glyph::ChatRound, if open { "Hide Chat" } else { "Show Chat" })
+                            .when(open, |b| b.bg(gpui_kit::white()).text_color(gpui_kit::black()))
+                            .on_click(cx.listener(|this, _, window, cx| this.toggle_call_chat(window, cx)))
+                    })
                     .children(strip_toggle)
                     .child(
                         round_button("call-fullscreen", if fullscreen { Glyph::FullscreenExit } else { Glyph::Fullscreen }, if fullscreen { "Exit Full Screen" } else { "Full Screen" })

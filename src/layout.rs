@@ -59,7 +59,7 @@ impl Render for Rustcord {
                 .into_any_element();
         }
         if self.call_fullscreen && self.call_view
-            && let Some(call) = self.render_call(window, cx)
+            && let Some(call) = self.render_call_with_chat(window, cx)
         {
             return root
                 .child(call)
@@ -79,7 +79,7 @@ impl Render for Rustcord {
             .border_color(theme.border)
             .child(self.render_rail(window, cx))
             .child(self.render_channels(window, cx))
-            .child(match self.call_view.then(|| self.render_call(window, cx)).flatten() {
+            .child(match self.call_view.then(|| self.render_call_with_chat(window, cx)).flatten() {
                 Some(call) => div().flex_1().min_w_0().h_full().child(call).into_any_element(),
                 None if self.guild_id.is_none() && self.channel.is_none() => self.render_home(cx),
                 None if self.channel.as_ref().is_some_and(|c| c.kind == discord::ChannelKind::Forum) => {
