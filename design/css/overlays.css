@@ -127,9 +127,6 @@
 .toast p small { display: block; color: var(--text-muted); font-size: var(--text-xs); font-weight: var(--weight-regular); overflow-wrap: anywhere; }
 .toast .iconbtn { width: 28px; height: 28px; }
 .toast .iconbtn i { font-size: 16px; }
-.toast .timer { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--text-faint); transform-origin: left; animation: countdown var(--life, 5s) linear forwards; }
-.toast:hover .timer { animation-play-state: paused; }
-@keyframes countdown { to { transform: scaleX(0); } }
 .toasts { position: relative; display: grid; justify-items: center; }
 .toasts .toast { animation: toast-in 240ms var(--ease-out) backwards; }
 .toasts .toast.out { animation: toast-out 160ms var(--ease-out) forwards; }

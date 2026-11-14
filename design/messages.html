@@ -25,17 +25,454 @@
 <div class="layout">
 <nav class="toc" id="toc" aria-label="Design system"></nav>
 <main>
-<section id="messages">
-  <h2>Messages</h2>
-  <p class="lede">A mention tints the whole row, with no stripe. Reactions you added carry the accent. Embeds lead with the site, never a coloured bar.</p>
-  <div class="board" style="padding: var(--space-3) 0; background: var(--bg-page)">
-    <div class="msg first"><span class="av" data-av="Rosa"></span><div><div class="head"><span class="name">Rosa</span><span class="time">Yesterday at 11:02 PM</span></div><div class="body">caught this on stream last night</div><div class="media"></div></div></div>
-    <div class="msg"><span class="gutter">11:03</span><div class="body">the timing on that dodge 😭</div><div class="reacts" style="grid-column:2"><button class="react"><span class="e">😭</span>6</button><button class="react mine"><span class="e">👏</span>3</button></div></div>
-    <div class="msg first mention"><span class="av" data-av="Jun"></span><div><div class="head"><span class="name">Jun</span><span class="time">Yesterday at 11:10 PM</span></div><div class="body"><span class="at">@you</span> send me the clip? I want it for the montage. Code block next:</div><div class="body mono" style="font-size:14px; margin-top:6px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--bg-sidebar); border: 1px solid var(--line)">ffmpeg -ss 00:41 -t 12 -i clip.mp4 out.gif</div></div></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="ce-wave" viewBox="0 0 64 66"><g fill="#e8326f"><rect x="2" y="21" width="8" height="24" rx="4"/><rect x="15" y="10.5" width="8" height="45" rx="4"/><rect x="28" y="1" width="8" height="64" rx="4"/><rect x="41" y="13.5" width="8" height="39" rx="4"/><rect x="54" y="22" width="8" height="22" rx="4"/></g></symbol>
+  <symbol id="ce-nod" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#f2c14e"/><circle cx="11" cy="13" r="2.2" fill="#3a2614"/><circle cx="21" cy="13" r="2.2" fill="#3a2614"/><path d="M10 19.5q6 6 12 0" stroke="#3a2614" stroke-width="2.4" fill="none" stroke-linecap="round"/></symbol>
+  <symbol id="ce-heart" viewBox="0 0 32 32"><path d="M16 28S4 21 4 12.5A6.5 6.5 0 0 1 16 9a6.5 6.5 0 0 1 12 3.5C28 21 16 28 16 28z" fill="#ff7a59"/><path d="M9 11.5a3 3 0 0 1 3-2.5" stroke="#fff" stroke-opacity=".6" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
+</svg>
+
+<section id="rows">
+  <h2>Message rows</h2>
+  <p class="lede">An avatar column and a content column. Messages from one author within seven minutes group under one header; a continuation shows its time in the gutter on hover, and the toolbar floats at the row's top right.</p>
+
+  <h3>First in group, continuations, hover toolbar, edited</h3>
+  <div class="board" style="padding:var(--space-4) 0 var(--space-3);background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">Today at 9:41 PM</span></div><div class="body">anyone up for a few rounds after dinner?</div></div></div>
+    <div class="msg"><span class="gutter">9:41</span><div class="body">bringing snacks this time, promise</div></div>
+    <div class="msg is-hover"><span class="gutter">9:42</span><div class="body">ranked or chill, your call</div>
+      <div class="msg-tools" role="toolbar" aria-label="Message actions">
+        <button class="qr" aria-label="React with fire">🔥</button><button class="qr" aria-label="React with loudly crying face">😭</button><button class="qr" aria-label="React with clapping hands">👏</button><span class="sep"></span>
+        <button class="iconbtn" aria-label="Add reaction"><i class="ph ph-smiley"></i></button><button class="iconbtn" aria-label="Reply"><i class="ph ph-arrow-bend-up-left"></i></button><button class="iconbtn" aria-label="Create thread"><i class="ph ph-chats-teardrop"></i></button><button class="iconbtn" aria-label="More actions"><i class="ph ph-dots-three-vertical"></i></button>
+      </div></div>
+    <div class="msg"><span class="gutter">9:43</span><div class="body">actually make it 8:30, I still have to walk the dog<span class="edited" title="Edited today at 9:52 PM">(edited)</span></div></div>
   </div>
+  <p class="note" style="margin-top:8px">Avatar 40 · column gap 16 · name 16 semibold · time 12 · body 16 / 1.45 · row radius 8. Toolbar: 32px buttons, three recent reactions, then react, reply, thread, more; it is opaque and sits 18px above the row. Each button shows the overlay tooltip; right-click opens the same list as More.</p>
+
+  <h3>Mention, pinned, role colour, worst case</h3>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first mention"><span class="av" data-av="Jun"></span><div><div class="head"><span class="name">Jun</span><span class="time">Today at 9:44 PM</span></div><div class="body"><span class="at">@Mira</span> <span class="at">@you</span> send me the clip? I want it for the montage</div></div></div>
+    <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name has-role" style="--role: oklch(0.70 0.16 150)">Theo</span><span class="tag"><i class="ph-bold ph-crown-simple"></i>Host</span><span class="time">Today at 9:46 PM</span><i class="ph-fill ph-push-pin state pinned" role="img" aria-label="Pinned"></i></div><div class="body">Server rules: be kind, no spoilers outside #spoilers, and clips go in #clips.</div></div></div>
+    <div class="msg first"><span class="av" style="--hue: 350"><i class="ph-fill ph-waveform" style="font-size:20px"></i></span><div><div class="head"><span class="name">Bartholomew Featherstonehaugh-Montgomery of the Very Long Display Name</span><span class="time">Today at 9:47 PM</span></div><div class="body">no avatar, a long name, and an unbroken link: https://clips.example/watch/7f3a9c2e4b1d8a6f0e5c3b2a1d9e8f7c6b5a4d3e2f1a0b9c8d7e6f5a4b3c2d1e0</div></div></div>
+  </div>
+  <p class="note" style="margin-top:8px">A mention tints the whole row, never a stripe. The name takes its top role colour mixed toward ink so it stays at 4.5:1. A missing avatar falls back to the wave on the name's hue.</p>
+
+  <h3>Replies</h3>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="reply"><i class="ph ph-arrow-bend-up-right"></i><span class="av" data-av="Mira"></span><b>Mira</b><span>anyone up for a few rounds after dinner?</span></span><span class="av" data-av="Ana"></span><div><div class="head"><span class="name">Ana</span><span class="time">Today at 9:48 PM</span></div><div class="body">count me in after 9</div></div></div>
+    <div class="msg first"><span class="reply"><i class="ph ph-arrow-bend-up-right"></i><i class="ph ph-prohibit"></i><span class="gone">Original message was deleted</span></span><span class="av" data-av="Jun"></span><div><div class="head"><span class="name">Jun</span><span class="time">Today at 9:49 PM</span></div><div class="body">lol what did it say</div></div></div>
+    <div class="msg first"><span class="reply"><i class="ph ph-arrow-bend-up-right"></i><span class="av" data-av="Rosa"></span><b>Rosa</b><span class="reply-media"><i class="ph ph-image"></i>Image</span></span><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="time">Today at 9:50 PM</span></div><div class="body">this is going on the wall</div></div></div>
+  </div>
+  <p class="note" style="margin-top:8px">Clicking the reference scrolls to the original and flashes its row with the hover fill. An image reply names the attachment type instead of quoting text.</p>
+
+  <h3>Forwarded</h3>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Ana"></span><div><div class="head"><span class="name">Ana</span><span class="time">Today at 9:51 PM</span></div>
+      <div class="fwd"><div class="fwd-label"><i class="ph ph-share-fat"></i>Forwarded</div><div class="body">caught this on stream last night</div><div class="pic att" style="--h: 20; --w: 280px; --ar: 16 / 10; margin-top:4px"></div><div class="fwd-src"><i class="ph ph-hash"></i>clips · Yesterday at 11:02 PM</div></div>
+      <div class="body" style="margin-top:4px">you two need to see this</div></div></div>
+  </div>
+
+  <h3>Sending, failed, deleted, blocked</h3>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="You"></span><div><div class="head"><span class="name">You</span><span class="time">Today at 9:53 PM</span></div><div class="body">on my way</div></div></div>
+    <div class="msg pending"><span class="gutter keep"><i class="ph ph-clock" role="img" aria-label="Sending"></i></span><div class="body">grabbing the controller from upstairs</div></div>
+    <div class="msg failed"><span class="gutter keep"></span><div><div class="body">two minutes</div>
+      <div class="msg-error" role="alert"><i class="ph-fill ph-warning-circle"></i>Not sent. You're offline.<button class="btn btn--sm btn--ghost"><i class="ph-bold ph-arrow-clockwise"></i>Resend message</button><button class="btn btn--sm btn--ghost">Delete message</button></div></div></div>
+    <div class="msg first pending"><span class="av" data-av="You"></span><div><div class="head"><span class="name">You</span><span class="time">Today at 9:58 PM</span><i class="ph ph-clock state" role="img" aria-label="Sending"></i></div><div class="body">back, connection was flaky</div><div class="pic att" style="--h: 160; --w: 240px; --ar: 4 / 3"></div></div></div>
+    <div class="msg first"><span class="av" data-av="Rosa"></span><div><div class="head"><span class="name">Rosa</span><span class="time">Today at 9:59 PM</span></div><div class="body">wait did someone delete that</div></div></div>
+    <div class="msg"><span class="gutter">9:59</span><div class="msg-gone"><i class="ph ph-prohibit"></i>Message deleted</div></div>
+    <div class="msg first"><i class="ph ph-eye-slash lead-ic"></i><div class="msg-collapsed">2 messages from someone you blocked<button class="btn btn--link">Show messages</button></div></div>
+  </div>
+  <p class="note" style="margin-top:8px">Optimistic: your message appears at once in faint ink, a quiet clock in the gutter (or after the time on a first row) until the server confirms. Failure keeps the text and says why, with resend and delete inline. A deleted message keeps its slot only while you are looking at it.</p>
+
+  <h3>Apps and ephemeral</h3>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="reply"><i class="ph ph-arrow-bend-up-right"></i><span class="av" data-av="Mira"></span><b>Mira</b><span>used <b>/play</b></span></span><span class="av" data-av="Wavebot"></span><div><div class="head"><span class="name">Wavebot</span><span class="tag"><i class="ph-bold ph-check"></i>App</span><span class="time">Today at 10:02 PM</span></div><div class="body">Now playing <b>Midnight Arcade</b> by Neon Harbor in <span class="at"><i class="ph ph-speaker-high"></i>Lounge</span>. 3 songs in the queue.</div></div></div>
+    <div class="msg first ephemeral"><span class="av" data-av="Wavebot"></span><div><div class="head"><span class="name">Wavebot</span><span class="tag"><i class="ph-bold ph-check"></i>App</span><span class="time">Today at 10:03 PM</span></div><div class="body">You need to be in a voice channel to use /play. Join one and try again.</div>
+      <div class="msg-foot"><i class="ph ph-eye"></i>Only you can see this<span aria-hidden="true">·</span><button class="btn btn--link">Dismiss message</button></div></div></div>
+  </div>
+</section>
+
+<section id="system">
+  <h2>System messages</h2>
+  <p class="lede">Events, not chat: one quiet line with the icon in the avatar column, coloured by what happened. Repeats fold into one counted line.</p>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="sys"><i class="ph ph-sign-in go"></i><div><b>Mira</b> joined the server. Say hi.<span class="time">Today at 8:02 PM</span></div></div>
+    <div class="sys"><i class="ph ph-sign-in go"></i><div><b>Ana</b>, <b>Jun</b> and 3 others joined the server.<span class="time">Today at 8:10 PM</span></div></div>
+    <div class="sys"><i class="ph ph-push-pin"></i><div><b>Theo</b> pinned a message to this channel. <button class="btn btn--link">See all pinned messages</button><span class="time">Today at 8:14 PM</span></div></div>
+    <div class="sys"><i class="ph ph-phone go"></i><div><b>Theo</b> started a call that lasted 1h 12m.<span class="time">Today at 8:20 PM</span></div></div>
+    <div class="sys"><i class="ph ph-phone-x" style="color: var(--danger-ink)"></i><div>You missed a call from <b>Rosa</b> that lasted 4m.<span class="time">Today at 8:41 PM</span></div></div>
+    <div class="sys"><i class="ph ph-chats-teardrop"></i><div><b>Jun</b> started a thread: <b>Patch 7 tier list</b>. <button class="btn btn--link">See all threads</button><span class="time">Today at 9:02 PM</span></div></div>
+    <div class="sys"><i class="ph ph-pencil-simple"></i><div><b>Theo</b> changed the channel name: <b>late-night-games</b><span class="time">Today at 9:15 PM</span></div></div>
+  </div>
+  <p class="note" style="margin-top:8px">14 / 22 body in muted ink, names semibold. Joins and calls take the online green; a missed call takes danger. Durations drop zero units: 4m, 1h 12m.</p>
+</section>
+
+<section id="dividers">
+  <h2>Dividers and unread</h2>
+  <p class="lede">A day divider between dates; one accent line where unread starts. The bar on top and the jump button stay put while the feed scrolls under them.</p>
+  <div class="board" style="padding:0;background:var(--bg-page);position:relative;height:420px;overflow:hidden">
+    <div class="feed" style="height:100%;padding-top:8px">
+      <div class="unread-bar"><button><i class="ph-bold ph-arrow-up"></i><span>12 new messages since 9:41 PM</span></button><button>Mark as read<i class="ph-bold ph-check"></i></button></div>
+      <div class="msg first"><span class="av" data-av="Rosa"></span><div><div class="head"><span class="name">Rosa</span><span class="time">Yesterday at 11:58 PM</span></div><div class="body">night all</div></div></div>
+      <div class="day">Friday, November 14, 2026</div>
+      <div class="msg first"><span class="av" data-av="Jun"></span><div><div class="head"><span class="name">Jun</span><span class="time">Today at 9:38 PM</span></div><div class="body">who's on tonight</div></div></div>
+      <div class="unread-line"><span class="new">New</span></div>
+      <div class="msg first"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">Today at 9:41 PM</span></div><div class="body">anyone up for a few rounds after dinner?</div></div></div>
+      <div class="msg"><span class="gutter">9:41</span><div class="body">bringing snacks this time, promise</div></div>
+      <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="time">Today at 9:44 PM</span></div><div class="body">yes, starting a stream in Lounge</div></div></div>
+    </div>
+    <button class="jump"><i class="ph-bold ph-arrow-down"></i>Jump to present</button>
+  </div>
+  <p class="note" style="margin-top:8px">Unread bar: opaque accent tint, the left part jumps to the first unread, the right marks the channel read. "New" is an 11px badge on the accent line. Jump to present appears once you scroll more than a screen up as a small centred capsule.</p>
+</section>
+
+<section id="rich-text">
+  <h2>Rich text</h2>
+  <p class="lede">Markdown renders inline at body size; headings step up the type scale. Code is the only monospace. Spoilers hide until clicked.</p>
+
+  <h3>Markdown</h3>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Ana"></span><div><div class="head"><span class="name">Ana</span><span class="time">Today at 10:10 PM</span></div>
+      <div class="body"><b>bold</b>, <i>italic</i>, <s>strike</s>, <u>underline</u>, <code>inline code</code> and a <a href="#">link to the patch notes</a></div>
+      <div class="body"><div class="md-h1" role="heading" aria-level="3">Heading one</div><div class="md-h2" role="heading" aria-level="4">Heading two</div><div class="md-h3" role="heading" aria-level="5">Heading three</div><div class="md-sub">Subtext for small print, like who wrote the rules.</div></div>
+      <div class="body"><ul><li>Ashen Peaks is the new map</li><li>Two heroes: Wren and Calder<ul><li>Calder is a healer</li></ul></li></ul><ol><li>Queue up</li><li>Pick a role</li></ol></div>
+      <div class="body"><blockquote>New map, two heroes and a reworked ranked ladder.<br>Season 7 starts Tuesday.</blockquote></div>
+      <div class="body">the ending: <span class="spoiler" role="button" tabindex="0" aria-pressed="false" aria-label="Spoiler, click to reveal">Calder was the traitor all along</span> and revealed: <span class="spoiler" role="button" tabindex="0" aria-pressed="true">the map flips at night</span></div>
+    </div></div>
+  </div>
+
+  <h3>Code block</h3>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Jun"></span><div><div class="head"><span class="name">Jun</span><span class="time">Today at 10:12 PM</span></div><div class="body">here's the clip cutter</div>
+      <div class="codeblock"><header>rust<button class="copy" aria-pressed="false" aria-label="Copy code"><span class="idle" style="display:inline-flex;align-items:center;gap:6px"><i class="ph ph-copy"></i>Copy</span><span class="done"><i class="ph-bold ph-check"></i>Copied</span></button></header>
+<pre><code><span class="c">// Cut a 12 second clip starting at 0:41.</span>
+<span class="k">fn</span> <span class="f">cut</span>(input: &amp;<span class="k">str</span>) -&gt; Result&lt;()&gt; {
+    Command::<span class="f">new</span>(<span class="s">"ffmpeg"</span>)
+        .<span class="f">args</span>([<span class="s">"-ss"</span>, <span class="s">"00:41"</span>, <span class="s">"-t"</span>, <span class="s">"12"</span>, <span class="s">"-i"</span>, input, <span class="s">"out.gif"</span>])
+        .<span class="f">status</span>()?;
+    <span class="f">Ok</span>(())
+}</code></pre></div></div></div>
+  </div>
+  <p class="note" style="margin-top:8px">Code block: plain 10 radius, language label and Copy on one header line, 14px mono, scrolls sideways instead of wrapping. Copy confirms in place for 2s.</p>
+
+  <h3>Emoji and mentions</h3>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">Today at 10:14 PM</span></div><div class="body jumbo">🔥🎮<svg class="cemoji" role="img" aria-label=":wave:"><use href="#ce-wave"/></svg></div></div></div>
+    <div class="msg"><span class="gutter">10:14</span><div class="body">custom emoji sit inline <svg class="cemoji" role="img" aria-label=":nod:"><use href="#ce-nod"/></svg> at the line's height <svg class="cemoji" role="img" aria-label=":heart:"><use href="#ce-heart"/></svg></div></div>
+    <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="time">Today at 10:15 PM</span></div><div class="body"><span class="at">@Mira</span> and <span class="at at--role" style="--role: oklch(0.70 0.16 150)">@Mods</span> and <span class="at at--role" style="--role: oklch(0.68 0.15 250)">@Streamers</span>, head to <span class="at"><i class="ph ph-hash"></i>tournament</span> or <span class="at"><i class="ph ph-speaker-high"></i>Lounge</span>. <span class="at">@everyone</span> brackets are up.</div></div></div>
+  </div>
+  <p class="note" style="margin-top:8px">Jumbo: up to 27 emoji with no other text render at 48px. Custom emoji are images at 1.375em. Role mentions tint with the role colour; user, channel and @everyone use the accent.</p>
+</section>
+
+<section id="attachments">
+  <h2>Attachments</h2>
+  <p class="lede">Media renders at its own shape inside a 432px column; files are one card with the system's own icon, name, size and one action.</p>
+
+  <h3>Images</h3>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Rosa"></span><div><div class="head"><span class="name">Rosa</span><span class="time">Today at 10:20 PM</span></div><div class="pic att" style="--h: 20; --ar: 16 / 10"></div></div></div>
+    <div class="msg"><span class="gutter">10:20</span><div><div class="pic att spoiled" style="--h: 260; --w: 320px; --ar: 16 / 10"><button class="media-tag">Spoiler</button></div></div></div>
+    <div class="msg first"><span class="av" data-av="Ana"></span><div><div class="head"><span class="name">Ana</span><span class="time">Today at 10:22 PM</span></div>
+      <div class="gallery g2"><div class="pic" style="--h: 40"></div><div class="pic" style="--h: 200"></div></div></div></div>
+    <div class="msg"><span class="gutter">10:22</span><div class="gallery g3"><div class="pic" style="--h: 310"></div><div class="pic" style="--h: 120"></div><div class="pic" style="--h: 60"></div></div></div>
+    <div class="msg"><span class="gutter">10:23</span><div class="gallery g4"><div class="pic" style="--h: 0"></div><div class="pic" style="--h: 90"></div><div class="pic" style="--h: 180"></div><div class="pic" style="--h: 270"></div></div></div>
+    <div class="msg"><span class="gutter">10:23</span><div class="gallery g5"><div class="pic" style="--h: 330"></div><div class="pic" style="--h: 30"></div><div class="pic" style="--h: 150"></div><div class="pic" style="--h: 220"></div><div class="pic more" style="--h: 100"><span>+3</span></div></div></div>
+  </div>
+  <p class="note" style="margin-top:8px">2: side by side · 3: one tall, two stacked · 4: two by two · 5 or more: two over three, the last tile counting the rest. 4px gaps, 14 outer radius.</p>
+
+  <h3>Video and GIF</h3>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="time">Today at 10:25 PM</span></div>
+      <div class="pic att" style="--h: 280; --ar: 16 / 9"><button class="play" aria-label="Play video"><i class="ph-fill ph-play"></i></button><span class="media-tag br">0:42</span></div></div></div>
+    <div class="msg"><span class="gutter">10:25</span><div><div class="pic att" style="--h: 80; --w: 240px; --ar: 1"><span class="media-tag tl">GIF</span></div></div></div>
+  </div>
+  <p class="note" style="margin-top:8px">GIFs loop silently and pause when the window loses focus; with reduced motion they play on hover only.</p>
+
+  <h3>Files, audio, voice messages</h3>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Ana"></span><div><div class="head"><span class="name">Ana</span><span class="time">Today at 10:30 PM</span></div>
+      <div class="filecard"><i class="ph ph-file-pdf fic"></i><div class="meta"><a class="fname" href="#">patch-notes-season-7.pdf</a><span class="fsize">1.2 MB</span></div><div class="acts"><button class="iconbtn" aria-label="Download patch-notes-season-7.pdf"><i class="ph ph-download-simple"></i></button></div></div>
+      <div class="filecard"><i class="ph ph-file-xls fic"></i><div class="meta"><a class="fname" href="#">the-absolutely-final-tournament-bracket-v12-FINAL-really-final.xlsx</a><span class="fsize">48 KB</span></div><div class="acts"><button class="iconbtn" aria-label="Download bracket"><i class="ph ph-download-simple"></i></button></div></div>
+      <div class="filecard"><i class="ph ph-file-audio fic"></i><div class="meta"><a class="fname" href="#">late-night-mix.mp3</a><span class="fsize">6.8 MB</span></div><div class="acts"><button class="iconbtn" aria-label="Download late-night-mix.mp3"><i class="ph ph-download-simple"></i></button></div>
+        <div class="player wide"><button class="iconbtn" aria-label="Play"><i class="ph-fill ph-play"></i></button><span class="ptime">1:12 / 3:48</span><input class="range" type="range" value="32" aria-label="Seek"><button class="iconbtn" aria-label="Volume"><i class="ph ph-speaker-high"></i></button></div></div>
+    </div></div>
+    <div class="msg first"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">Today at 10:31 PM</span></div>
+      <div class="voice-note"><button class="vplay" aria-label="Play voice message"><i class="ph-fill ph-play"></i></button><div class="waveform" data-wave="3 5 7 4 8 9 6 4 3 5 8 9 7 5 3 2 4 6 8 7 5 4 6 9 8 6 4 3 5 7 6 4 3 2 3 5 4 3 2 2" data-played="0"></div><span class="vtime">0:14</span><button class="vspeed" aria-label="Playback speed">1×</button></div>
+      <div class="voice-note"><button class="vplay" aria-label="Pause voice message"><i class="ph-fill ph-pause"></i></button><div class="waveform" data-wave="2 4 6 8 6 5 7 9 8 6 4 3 5 7 9 7 5 4 3 5 6 8 7 5 3 2 4 6 5 4 3 4 6 7 5 3 2 3 2 2" data-played="17"></div><span class="vtime">0:06</span><button class="vspeed" aria-label="Playback speed">1.5×</button></div>
+    </div></div>
+  </div>
+  <p class="note" style="margin-top:8px">File icons: in the app this is the icon the OS gives the file type (NSWorkspace / shell icon); Phosphor stands in here. Voice messages draw their waveform as wave bars; the played part takes the accent ink, the time counts down while playing.</p>
+
+  <h3>Uploads</h3>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="You"></span><div><div class="head"><span class="name">You</span><span class="time">Today at 10:34 PM</span></div>
+      <div class="filecard"><i class="ph ph-file-zip fic"></i><div class="meta"><span class="fname">clips-season-7.zip</span><span class="fsize">Uploading · 3.1 of 5.0 MB</span></div><div class="acts"><button class="iconbtn" aria-label="Cancel upload"><i class="ph ph-x"></i></button></div><div class="progress wide" role="progressbar" aria-valuenow="62" aria-label="Upload progress" style="--v: 62%"><span></span></div></div>
+      <div class="filecard"><i class="ph ph-file-video fic bad"></i><div class="meta"><span class="fname">night-run-1080p.mov</span><span class="fsize bad">Upload failed. Check your connection and retry.</span></div><div class="acts"><button class="btn btn--sm">Retry upload</button><button class="iconbtn" aria-label="Remove file"><i class="ph ph-x"></i></button></div></div>
+    </div></div>
+  </div>
+</section>
+
+<section id="embeds">
+  <h2>Embeds</h2>
+  <p class="lede">Previews of what a link points to. They lead with the site's own icon and name, never a coloured bar, and sit one surface step from the feed.</p>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Ana"></span><div><div class="head"><span class="name">Ana</span><span class="time">Today at 10:40 PM</span></div><div class="body"><a href="#">https://store.example/news/season-7</a></div>
+      <div class="embed thumbed"><div class="etext"><div class="site"><span></span>store.example</div><a href="#">Season 7: the long night</a><p class="clamp">New map, two heroes and a reworked ranked ladder. Ashen Peaks flips between day and night every four minutes, and the ladder now resets softly instead of dropping you two tiers.</p></div><div class="pic thumb" style="--h: 330"></div></div></div></div>
+    <div class="msg"><span class="gutter">10:41</span><div>
+      <div class="embed"><div class="site"><span style="background: oklch(0.6 0.15 30)"></span>artstation.example</div><a href="#">Ashen Peaks, concept art</a><div class="pic" style="--h: 30; --ar: 16 / 9"></div></div></div></div>
+    <div class="msg"><span class="gutter">10:42</span><div>
+      <div class="embed"><div class="site"><span style="background: oklch(0.58 0.2 25)"></span>video.example</div><div class="author"><span class="av" data-av="Rift Notes"></span>Rift Notes</div><a href="#">Every change in Season 7, in 9 minutes</a><div class="pic" style="--h: 260; --ar: 16 / 9; position:relative"><button class="play" aria-label="Play video"><i class="ph-fill ph-play"></i></button><span class="media-tag br">9:12</span></div></div></div></div>
+
+    <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="time">Today at 10:44 PM</span></div><div class="body"><a href="#">wave.gg/nightowls</a></div>
+      <div class="embed invite"><div class="lbl">You're invited to join a server</div><div class="srv-tile" style="--hue: 300">N</div><div class="who"><b>Night owls</b><div class="counts"><span>1,204 online</span><span class="all">8,930 members</span></div></div><button class="btn btn--primary">Join server</button></div>
+      <div class="embed invite"><div class="lbl">You're invited to join a server</div><div class="srv-tile dead"><i class="ph ph-link-break"></i></div><div class="who"><b>Invite expired</b><span class="faint" style="font-size:var(--text-xs)">Ask Theo for a new invite.</span></div></div>
+    </div></div>
+
+    <div class="msg first"><span class="av" data-av="Jun"></span><div><div class="head"><span class="name">Jun</span><span class="time">Today at 10:46 PM</span></div>
+      <div class="poll"><div><div class="poll-q">Which map first tonight?</div><div class="poll-sub">Select one answer</div></div>
+        <div class="poll-opts">
+          <button class="choice poll-opt" data-toggle="radio"><span class="radio" role="radio" aria-checked="true"></span><span class="e">🏔️</span><span class="lab">Ashen Peaks</span></button>
+          <button class="choice poll-opt" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><span class="e">🌊</span><span class="lab">Drowned Harbor</span></button>
+          <button class="choice poll-opt" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><span class="e">🌵</span><span class="lab">Glass Desert, the one with the sandstorms that last forever</span></button>
+        </div>
+        <div class="poll-foot"><span>141 votes · Ends in 3 hours</span><div class="acts"><button class="btn btn--sm btn--ghost">Show results</button><button class="btn btn--sm btn--primary">Vote</button></div></div></div>
+      <div class="poll voted"><div><div class="poll-q">Which map first tonight?</div><div class="poll-sub">Select one answer</div></div>
+        <div class="poll-opts">
+          <div class="poll-opt mine" style="--p: 0.48"><span class="e">🏔️</span><span class="lab">Ashen Peaks</span><i class="ph-fill ph-check-circle" role="img" aria-label="Your vote"></i><span class="pct">48%</span></div>
+          <div class="poll-opt" style="--p: 0.35"><span class="e">🌊</span><span class="lab">Drowned Harbor</span><span class="pct">35%</span></div>
+          <div class="poll-opt" style="--p: 0.17"><span class="e">🌵</span><span class="lab">Glass Desert, the one with the sandstorms that last forever</span><span class="pct">17%</span></div>
+        </div>
+        <div class="poll-foot"><span>142 votes · Ends in 3 hours</span><div class="acts"><button class="btn btn--sm btn--ghost">Remove vote</button></div></div></div>
+    </div></div>
+
+    <div class="msg first"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">Today at 10:50 PM</span></div>
+      <div class="embed listen"><div class="site"><i class="ph-fill ph-music-notes"></i>Listening on Wave Radio</div><div class="pic art" style="--h: 330"></div><div class="ltrack"><b>Midnight Arcade</b><span>Neon Harbor · Afterglow</span></div><div class="ltime"><span>1:12</span><div class="progress" style="--v: 34%"><span></span></div><span>3:30</span></div><div class="lacts"><button class="btn btn--sm"><i class="ph-bold ph-headphones"></i>Listen along</button></div></div>
+    </div></div>
+  </div>
+  <p class="note" style="margin-top:8px">Embed: 432 max, 14 radius, sidebar tone with one hairline. Link preview thumbnail sits right at 80px; image and video embeds run full width. Poll: options are radios until you vote, then bars with your vote marked by a check, not colour alone.</p>
+</section>
+
+<section id="reactions">
+  <h2>Reactions</h2>
+  <p class="lede">One click adds or removes yours. Yours carry the accent; the rest stay neutral. Hover names who reacted.</p>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first" style="margin-bottom:64px"><span class="av" data-av="Rosa"></span><div><div class="head"><span class="name">Rosa</span><span class="time">Today at 11:02 PM</span></div><div class="body">the timing on that dodge</div>
+      <div class="reacts"><span class="react-tip below" role="tooltip"><span class="e">🔥</span><span><b>Mira</b>, <b>Theo</b> and 4 others reacted with :fire:</span></span><button class="react mine is-hover"><span class="e">🔥</span>6</button><button class="react"><span class="e">😭</span>3</button><button class="react"><svg class="cemoji" role="img" aria-label=":wave:"><use href="#ce-wave"/></svg>2</button><button class="react" aria-label="Add reaction"><i class="ph ph-smiley-sticker"></i></button></div></div></div>
+    <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="time">Today at 11:05 PM</span></div><div class="body">we won the bracket</div>
+      <div class="reacts" style="max-width:420px"><button class="react mine"><span class="e">🏆</span>128</button><button class="react"><span class="e">🔥</span>64</button><button class="react mine"><span class="e">🎉</span>41</button><button class="react"><span class="e">👏</span>33</button><button class="react"><span class="e">😭</span>12</button><button class="react"><svg class="cemoji" role="img" aria-label=":nod:"><use href="#ce-nod"/></svg>9</button><button class="react"><span class="e">🐐</span>8</button><button class="react"><span class="e">💀</span>5</button><button class="react"><svg class="cemoji" role="img" aria-label=":heart:"><use href="#ce-heart"/></svg>4</button><button class="react"><span class="e">🙌</span>3</button><button class="react"><span class="e">🎮</span>2</button><button class="react"><span class="e">✨</span>1</button><button class="react" aria-label="Add reaction"><i class="ph ph-smiley-sticker"></i></button></div></div></div>
+  </div>
+  <p class="note" style="margin-top:8px">Reaction: 28 tall, 8 radius, 16px emoji, tabular count; press springs to 0.92. Yours: accent tint and an accent hairline. Tooltip after 500ms names two people and counts the rest; clicking it opens the full list (overlays). The add button stays last in the wrap.</p>
+</section>
+
+<section id="threads">
+  <h2>Threads</h2>
+  <p class="lede">A thread hangs under the message that started it as one card: its name, how many messages, and the latest reply.</p>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Jun"></span><div><div class="head"><span class="name">Jun</span><span class="time">Today at 9:02 PM</span></div><div class="body">ok who's making the tier list</div>
+      <button class="thread-card"><span class="tc-top"><b>Patch 7 tier list</b><span class="count">3 new</span><span class="tc-count">24 messages<i class="ph ph-caret-right"></i></span></span><span class="tc-last"><span class="av" data-av="Ana"></span><b>Ana</b><span>ok but the new healer is completely broken in ranked</span><time>2m</time></span></button></div></div>
+    <div class="msg first"><span class="av" data-av="Rosa"></span><div><div class="head"><span class="name">Rosa</span><span class="time">Monday at 6:15 PM</span></div><div class="body">rant thread, go</div>
+      <button class="thread-card quiet"><span class="tc-top"><i class="ph ph-archive faint" style="font-size:16px"></i><b>Season 6 rants</b><span class="tc-count">1 message<i class="ph ph-caret-right"></i></span></span><span class="tc-last"><span class="av" data-av="Rosa"></span><b>Rosa</b><span>rant thread, go</span><time>3d</time></span></button></div></div>
+  </div>
+  <p class="note" style="margin-top:8px">Unread replies get the accent count; an archived thread drops to muted ink with an archive mark. The card is one button that opens the thread pane.</p>
+</section>
+
+<section id="typing">
+  <h2>Typing</h2>
+  <p class="lede">The mini wave plus who is typing, in a reserved 24px slot above the composer, so nothing moves when it appears.</p>
+  <div class="board stack" style="background:var(--bg-page);padding:var(--space-3) 0">
+    <div class="typing"><span class="bars"><i></i><i></i><i></i></span><span><b>Mira</b> is typing…</span></div>
+    <div class="typing"><span class="bars"><i></i><i></i><i></i></span><span><b>Mira</b> and <b>Theo</b> are typing…</span></div>
+    <div class="typing"><span class="bars"><i></i><i></i><i></i></span><span><b>Mira</b>, <b>Theo</b> and <b>Ana</b> are typing…</span></div>
+    <div class="typing"><span class="bars"><i></i><i></i><i></i></span><span>Several people are typing…</span></div>
+  </div>
+</section>
+
+<section id="composer">
+  <h2>Composer</h2>
+  <p class="lede">One surface at the bottom of the chat. Bars it gains (reply, attachments) stack inside it above the text, separated by one hairline, and popovers rise from its top edge.</p>
+
+  <h3>Empty, with text, multi-line</h3>
+  <div class="board stack" style="background:var(--bg-page);padding:var(--space-4) 0;gap:var(--space-4)">
+    <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><textarea rows="1" placeholder="Message #general" aria-label="Message #general"></textarea><button class="iconbtn" aria-label="GIFs"><i class="ph ph-gif"></i></button><button class="iconbtn" aria-label="Stickers"><i class="ph ph-sticker"></i></button><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button><button class="iconbtn" aria-label="Record voice message"><i class="ph ph-microphone"></i></button></div>
+    <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><textarea rows="1" aria-label="Message #general">see you at 8:30</textarea><button class="iconbtn" aria-label="GIFs"><i class="ph ph-gif"></i></button><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button><button class="send" aria-label="Send message"><i class="ph-bold ph-arrow-up"></i></button></div>
+    <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><textarea aria-label="Message #general">ok plan for tonight:
+1. warm up in unranked
+2. three ranked games, then we stop
+3. nobody tilts, nobody blames the healer</textarea><button class="iconbtn" aria-label="GIFs"><i class="ph ph-gif"></i></button><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button><button class="send" aria-label="Send message"><i class="ph-bold ph-arrow-up"></i></button></div>
+  </div>
+  <p class="note" style="margin-top:8px">The text grows with its content up to 240px, then scrolls; icons stay on the last line. The send button is optional (off by default, Enter sends); when on it appears with text and is the composer's one round control. Focus shows as a stronger hairline, not a ring.</p>
+
+  <h3>Reply bar and attachment tray</h3>
+  <div class="board stack" style="background:var(--bg-page);padding:var(--space-4) 0;gap:var(--space-4)">
+    <div class="composer-box"><div class="cbar"><span>Replying to <b>Mira</b></span><button class="ctoggle" aria-pressed="true" aria-label="Mention Mira"><i class="ph-bold ph-at"></i></button><button class="iconbtn iconbtn--sm" aria-label="Cancel reply"><i class="ph-bold ph-x"></i></button></div>
+      <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><textarea rows="1" aria-label="Reply to Mira">yes, count me in</textarea><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div></div>
+    <div class="composer-box"><div class="ctray">
+        <div class="cchip"><div class="pic" style="--h: 20"></div><div class="meta"><b>dodge.png</b><small>2.4 MB</small></div><button class="iconbtn iconbtn--sm" aria-label="Remove dodge.png"><i class="ph-bold ph-x"></i></button></div>
+        <div class="cchip"><div class="cic"><i class="ph ph-file-zip"></i></div><div class="meta"><b>clips-season-7.zip</b><small>Uploading · 62%</small><div class="progress" style="--v: 62%"><span></span></div></div><button class="iconbtn iconbtn--sm" aria-label="Cancel upload"><i class="ph-bold ph-x"></i></button></div>
+        <div class="cchip"><div class="cic bad"><i class="ph ph-file-video"></i></div><div class="meta"><b>night-run-4k.mov</b><small class="bad">Over 25 MB</small></div><button class="iconbtn iconbtn--sm" aria-label="Remove night-run-4k.mov"><i class="ph-bold ph-x"></i></button></div>
+      </div>
+      <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><textarea rows="1" placeholder="Add a message" aria-label="Add a message"></textarea><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button><button class="send" aria-label="Send 2 files"><i class="ph-bold ph-arrow-up"></i></button></div></div>
+    <p class="cnote bad" style="margin-top:0"><i class="ph-fill ph-warning-circle"></i>night-run-4k.mov is over the 25 MB limit. Remove it or share a link to send the rest.</p>
+  </div>
+  <p class="note" style="margin-top:8px">The @ toggle decides whether the reply notifies Mira; it remembers your last choice. Upload chips are borderless wells inside the composer, never cards in a card.</p>
+
+  <h3>Slowmode, character limit, read-only</h3>
+  <div class="board stack" style="background:var(--bg-page);padding:var(--space-4) 0;gap:var(--space-4)">
+    <div><div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><textarea rows="1" placeholder="Message #tournament" aria-label="Message #tournament"></textarea><span class="cslow" role="timer" aria-label="You can send again in 42 seconds"><i class="ph ph-timer"></i>0:42</span><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+      <p class="cnote"><i class="ph ph-timer"></i>Slowmode is on: one message every 2 minutes.</p></div>
+    <div><div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><textarea rows="1" aria-label="Message #general">…and that is the whole story of how the healer got banned from the tournament, which honestly was fair</textarea><span class="ccount near" aria-live="polite">38 left</span><button class="send" aria-label="Send message"><i class="ph-bold ph-arrow-up"></i></button></div></div>
+    <div><div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><textarea rows="1" aria-label="Message #general">…and then a second chapter nobody asked for, which pushes this past the limit by a little</textarea><span class="ccount over" aria-live="polite">12 over</span><button class="send" aria-label="Send message" disabled><i class="ph-bold ph-arrow-up"></i></button></div>
+      <p class="cnote bad"><i class="ph-fill ph-warning-circle"></i>Messages can be up to 2,000 characters. Remove 12 to send, or send it as a file.</p></div>
+    <div class="composer locked"><i class="ph ph-lock-simple"></i><span>You can't send messages in <b>#announcements</b>. Only moderators can post here.</span></div>
+  </div>
+  <p class="note" style="margin-top:8px">The count appears in the last 100 characters and turns danger past the limit; the text you typed is never trimmed.</p>
+
+  <h3>Voice message recording</h3>
+  <div class="board" style="background:var(--bg-page);padding:var(--space-4) 0;min-width:0">
+    <div class="composer recording"><button class="iconbtn" aria-label="Discard recording"><i class="ph ph-trash"></i></button><span class="bars" aria-hidden="true"><i></i><i></i><i></i></span><div class="waveform" data-wave="2 3 5 4 6 8 7 5 3 4 6 9 8 6 4 3 5 7 6 4 5 8 9 7 5 3 4 6 5 3" data-played="99"></div><span class="rec-time" role="timer">0:07</span><button class="send" aria-label="Send voice message"><i class="ph-bold ph-arrow-up"></i></button></div>
+  </div>
+  <p class="note" style="margin-top:8px">Live: the mini wave moves while the waveform grows from the right. Esc or the bin discards; Enter sends. Up to 20 minutes.</p>
+
+  <h3>Autocomplete</h3>
+  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr))">
+    <div class="board" style="background:var(--bg-page);padding:var(--space-4) 0;min-width:0">
+      <div class="ac" role="listbox" aria-label="Mention">
+        <div class="ac-head">Members</div>
+        <button class="ac-row" role="option" aria-selected="true"><span class="av" data-av="Mira"><span class="status online" style="--bg-ring: var(--bg-overlay)"></span></span><div><b>Mira</b><small>mira.k</small></div></button>
+        <button class="ac-row" role="option" aria-selected="false"><span class="av" data-av="Milo"><span class="status idle" style="--bg-ring: var(--bg-overlay)"></span></span><div><b>Milo</b><small>milo_dev</small></div></button>
+        <button class="ac-row" role="option" aria-selected="false"><span class="av" data-av="Mirabel"><span class="status offline" style="--bg-ring: var(--bg-overlay)"></span></span><div><b>Mirabel Featherstonehaugh-Montgomery the Third</b><small>mirabel.featherstonehaugh.official</small></div></button>
+        <div class="ac-head">Roles</div>
+        <button class="ac-row" role="option" aria-selected="false"><span class="ric has-role" style="--role: oklch(0.70 0.16 150)"><i class="ph-fill ph-shield"></i></span><div><b>@Mods</b><small>Notifies 12 members</small></div></button>
+        <button class="ac-row" role="option" aria-selected="false"><span class="ric"><i class="ph-bold ph-at"></i></span><div><b>@everyone</b><small>Notifies everyone who can see #general</small></div></button>
+      </div>
+      <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><textarea rows="1" aria-label="Message #general">hey @mi</textarea><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+    </div>
+    <div class="board" style="background:var(--bg-page);padding:var(--space-4) 0;min-width:0">
+      <div class="ac" role="listbox" aria-label="Commands">
+        <div class="ac-head">Wavebot</div>
+        <button class="ac-row" role="option" aria-selected="true"><span class="av" data-av="Wavebot"></span><div><b>/play<span class="arg">query</span></b><small>Play a song from a link or a search</small></div></button>
+        <button class="ac-row" role="option" aria-selected="false"><span class="av" data-av="Wavebot"></span><div><b>/skip<span class="arg opt">count</span></b><small>Skip the current song, or several</small></div></button>
+        <div class="ac-head">Built in</div>
+        <button class="ac-row" role="option" aria-selected="false"><span class="ric"><i class="ph ph-gif"></i></span><div><b>/gif<span class="arg">search</span></b><small>Send a GIF that matches your search</small></div></button>
+        <button class="ac-row" role="option" aria-selected="false"><span class="ric"><i class="ph ph-eye-slash"></i></span><div><b>/spoiler<span class="arg">message</span></b><small>Send a message hidden behind a spoiler</small></div></button>
+        <div class="ac-foot"><span class="kbd"><i class="ph-bold ph-arrow-up" style="font-size:12px"></i></span><span class="kbd"><i class="ph-bold ph-arrow-down" style="font-size:12px"></i></span>to choose<span class="kbd" style="margin-left:8px">Tab</span>to fill in</div>
+      </div>
+      <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><textarea rows="1" aria-label="Message #general">/</textarea><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+    </div>
+    <div class="board" style="background:var(--bg-page);padding:var(--space-4) 0;min-width:0">
+      <div class="ac" role="listbox" aria-label="Emoji">
+        <div class="ac-head">Emoji matching :fi</div>
+        <button class="ac-row" role="option" aria-selected="true"><span class="e">🔥</span><div><b>:fi<span class="q">re:</span></b></div></button>
+        <button class="ac-row" role="option" aria-selected="false"><span class="e">🎆</span><div><b>:fi<span class="q">reworks:</span></b></div></button>
+        <button class="ac-row" role="option" aria-selected="false"><span class="e">🤞</span><div><b>:fi<span class="q">ngers_crossed:</span></b></div></button>
+        <button class="ac-row" role="option" aria-selected="false"><span class="e">🥇</span><div><b>:fi<span class="q">rst_place:</span></b></div></button>
+        <button class="ac-row" role="option" aria-selected="false"><span class="e">🐟</span><div><b>:fi<span class="q">sh:</span></b></div></button>
+      </div>
+      <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><textarea rows="1" aria-label="Message #general">nice :fi</textarea><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top:8px">Autocomplete: same width as the composer, 8px above it, rises from its top edge (scale 0.95 and fade, 200ms). The first match is selected; Tab or Enter inserts in place without touching the rest of the text. Descriptions sit under titles.</p>
+</section>
+
+<section id="emoji-picker">
+  <h2>Emoji picker</h2>
+  <p class="lede">Search on top, categories down the left, the grid in the middle and a preview of the hovered emoji at the bottom. Typing anywhere in the picker goes to search.</p>
+  <div class="row" style="align-items:flex-start;gap:var(--space-6)">
+    <div class="picker" role="dialog" aria-label="Emoji">
+      <div class="picker-head"><label class="input"><i class="ph ph-magnifying-glass"></i><input placeholder="Search emoji" aria-label="Search emoji"></label><button class="skin" aria-label="Skin tone: default">👋</button></div>
+      <div class="ep-body">
+        <div class="ep-rail" role="tablist" aria-orientation="vertical" aria-label="Categories">
+          <button class="ep-cat" role="tab" aria-selected="true" aria-label="Recently used"><i class="ph ph-clock-counter-clockwise"></i></button>
+          <button class="ep-cat" role="tab" aria-selected="false" aria-label="Night owls"><span class="srv-tile" style="--hue: 300">N</span></button>
+          <span class="sep"></span>
+          <button class="ep-cat" role="tab" aria-selected="false" aria-label="People"><i class="ph ph-smiley"></i></button>
+          <button class="ep-cat" role="tab" aria-selected="false" aria-label="Nature"><i class="ph ph-leaf"></i></button>
+          <button class="ep-cat" role="tab" aria-selected="false" aria-label="Food"><i class="ph ph-hamburger"></i></button>
+          <button class="ep-cat" role="tab" aria-selected="false" aria-label="Activities"><i class="ph ph-soccer-ball"></i></button>
+          <button class="ep-cat" role="tab" aria-selected="false" aria-label="Travel"><i class="ph ph-airplane-tilt"></i></button>
+          <button class="ep-cat" role="tab" aria-selected="false" aria-label="Objects"><i class="ph ph-lightbulb"></i></button>
+          <button class="ep-cat" role="tab" aria-selected="false" aria-label="Symbols"><i class="ph ph-heart"></i></button>
+          <button class="ep-cat" role="tab" aria-selected="false" aria-label="Flags"><i class="ph ph-flag"></i></button>
+        </div>
+        <div class="ep-scroll">
+          <div class="ep-sec"><i class="ph ph-clock-counter-clockwise"></i>Recently used</div>
+          <div class="ep-grid" data-emoji="🔥:fire 😭:loudly_crying_face 👏:clap 🎮:video_game 💀:skull ✨:sparkles" data-custom="wave nod"></div>
+          <div class="ep-sec"><span class="srv-tile" style="--hue: 300;width:16px;height:16px;border-radius:5px;font-size:11px">N</span>Night owls</div>
+          <div class="ep-grid" data-custom="wave nod heart"></div>
+          <div class="ep-sec"><i class="ph ph-smiley"></i>People</div>
+          <div class="ep-grid" data-emoji="😀:grinning 😃:smiley 😄:smile 😁:grin 😆:laughing 🥹:face_holding_back_tears 😅:sweat_smile 😂:joy 🤣:rofl 🥲:smiling_face_with_tear 😊:blush 😇:innocent 🙂:slight_smile 🙃:upside_down 😉:wink 😌:relieved 😍:heart_eyes 🥰:smiling_face_with_hearts 😘:kissing_heart 😋:yum 😛:stuck_out_tongue 😜:stuck_out_tongue_winking_eye 🤪:zany_face 🤨:raised_eyebrow 🧐:monocle 🤓:nerd 😎:sunglasses 🥸:disguised_face 🤩:star_struck 🥳:partying_face 😏:smirk 😒:unamused 😞:disappointed 😔:pensive 😟:worried 😕:confused"></div>
+        </div>
+      </div>
+      <div class="ep-foot"><span class="e">🥰</span><div><b>:smiling_face_with_hearts:</b><small>Unicode emoji</small></div></div>
+    </div>
+    <div class="stack" style="gap:var(--space-3)">
+      <div class="note">Skin tone, opened from the hand</div>
+      <div class="skins" role="group" aria-label="Skin tone"><button aria-pressed="true" aria-label="Default">✋</button><button aria-pressed="false" aria-label="Light">✋🏻</button><button aria-pressed="false" aria-label="Medium light">✋🏼</button><button aria-pressed="false" aria-label="Medium">✋🏽</button><button aria-pressed="false" aria-label="Medium dark">✋🏾</button><button aria-pressed="false" aria-label="Dark">✋🏿</button></div>
+      <p class="note" style="max-width:300px">Picker: 440 × 452, 14 radius, solid overlay with the layered shadow. 40px cells, 26px emoji. The rail scrolls the grid; the section in view is selected by fill. A server's custom emoji sit under its icon, never as a separate tab.</p>
+    </div>
+  </div>
+</section>
+
+<section id="gif-picker">
+  <h2>GIF picker</h2>
+  <p class="lede">Shares the emoji picker's frame and tabs. Before you search it shows favourites and trending categories; results fill a two-column masonry at their own shapes.</p>
+  <div class="row" style="align-items:flex-start;gap:var(--space-6)">
+    <div class="picker" role="dialog" aria-label="GIFs" style="grid-template-rows:auto auto minmax(0,1fr)">
+      <div class="gp-tabs"><div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="true">GIFs</button><button class="tab" role="tab" aria-selected="false">Stickers</button><button class="tab" role="tab" aria-selected="false">Emoji</button></div></div>
+      <div class="picker-head"><label class="input"><i class="ph ph-magnifying-glass"></i><input placeholder="Search GIFs" aria-label="Search GIFs"></label></div>
+      <div class="gp-body"><div class="gp-cats">
+        <button class="gp-cat"><span class="pic" style="--h: 60"></span><span><i class="ph-fill ph-star"></i>Favourites</span></button>
+        <button class="gp-cat"><span class="pic" style="--h: 300"></span><span><i class="ph-bold ph-trend-up"></i>Trending</span></button>
+        <button class="gp-cat"><span class="pic" style="--h: 20"></span><span>excited</span></button>
+        <button class="gp-cat"><span class="pic" style="--h: 150"></span><span>thumbs up</span></button>
+        <button class="gp-cat"><span class="pic" style="--h: 240"></span><span>facepalm</span></button>
+        <button class="gp-cat"><span class="pic" style="--h: 330"></span><span>dance</span></button>
+        <button class="gp-cat"><span class="pic" style="--h: 100"></span><span>sleepy</span></button>
+        <button class="gp-cat"><span class="pic" style="--h: 200"></span><span>good game</span></button>
+      </div></div>
+    </div>
+    <div class="picker" role="dialog" aria-label="GIFs" style="grid-template-rows:auto auto minmax(0,1fr)">
+      <div class="gp-tabs"><div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="true">GIFs</button><button class="tab" role="tab" aria-selected="false">Stickers</button><button class="tab" role="tab" aria-selected="false">Emoji</button></div></div>
+      <div class="picker-head"><label class="input"><i class="ph ph-magnifying-glass"></i><input value="victory" aria-label="Search GIFs"></label></div>
+      <div class="gp-body"><div class="gp-masonry">
+        <div class="gp-gif"><div class="pic" style="--h: 20; --ar: 4 / 3"></div><button class="gp-fav" aria-pressed="true" aria-label="Favourite"><i class="ph ph-star off"></i><i class="ph-fill ph-star on"></i></button></div>
+        <div class="gp-gif"><div class="pic" style="--h: 280; --ar: 1"></div><button class="gp-fav" aria-pressed="false" aria-label="Favourite"><i class="ph ph-star off"></i><i class="ph-fill ph-star on"></i></button></div>
+        <div class="gp-gif"><div class="pic" style="--h: 140; --ar: 3 / 4"></div><button class="gp-fav" aria-pressed="false" aria-label="Favourite"><i class="ph ph-star off"></i><i class="ph-fill ph-star on"></i></button></div>
+        <div class="gp-gif"><div class="pic" style="--h: 60; --ar: 16 / 9"></div><button class="gp-fav" aria-pressed="false" aria-label="Favourite"><i class="ph ph-star off"></i><i class="ph-fill ph-star on"></i></button></div>
+        <div class="gp-gif"><div class="pic" style="--h: 320; --ar: 4 / 5"></div><button class="gp-fav" aria-pressed="false" aria-label="Favourite"><i class="ph ph-star off"></i><i class="ph-fill ph-star on"></i></button></div>
+        <div class="gp-gif"><div class="pic" style="--h: 200; --ar: 1"></div><button class="gp-fav" aria-pressed="false" aria-label="Favourite"><i class="ph ph-star off"></i><i class="ph-fill ph-star on"></i></button></div>
+        <div class="gp-gif"><div class="pic" style="--h: 100; --ar: 4 / 3"></div><button class="gp-fav" aria-pressed="false" aria-label="Favourite"><i class="ph ph-star off"></i><i class="ph-fill ph-star on"></i></button></div>
+        <div class="gp-gif"><div class="pic" style="--h: 240; --ar: 16 / 10"></div><button class="gp-fav" aria-pressed="false" aria-label="Favourite"><i class="ph ph-star off"></i><i class="ph-fill ph-star on"></i></button></div>
+      </div></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top:8px">Categories: 96px tiles, the label centred on a soft scrim. Results: two columns, 6px gaps, each GIF at its own ratio; the star appears on hover and stays once favourited.</p>
 </section>
 </main>
 </div>
 <script src="site.js"></script>
+<script>
+// Page demo data: waveform bars and emoji grids, plus the picker's hover preview.
+for (const w of document.querySelectorAll("[data-wave]")) {
+  const played = +w.dataset.played;
+  w.innerHTML = w.dataset.wave.split(" ").map((v, i) => `<i style="--v:${v * 11}%"${i < played ? ' class="on"' : ""}></i>`).join("");
+}
+const CUSTOM = { wave: "Night owls", nod: "Night owls", heart: "Night owls" };
+for (const g of document.querySelectorAll(".ep-grid")) {
+  const uni = (g.dataset.emoji || "").split(" ").filter(Boolean).map(p => { const [e, n] = p.split(":"); return `<button class="ep-cell" aria-label=":${n}:" data-src="Unicode emoji">${e}</button>`; });
+  const cus = (g.dataset.custom || "").split(" ").filter(Boolean).map(n => `<button class="ep-cell" aria-label=":${n}:" data-src="From ${CUSTOM[n]}"><svg class="cemoji"><use href="#ce-${n}"/></svg></button>`);
+  g.innerHTML = uni.concat(cus).join("");
+}
+for (const c of document.querySelectorAll('.ep-cell[aria-label=":smiling_face_with_hearts:"]')) c.classList.add("is-hover");
+document.addEventListener("mouseover", e => {
+  const cell = e.target.closest(".ep-cell"); if (!cell) return;
+  const picker = cell.closest(".picker");
+  for (const x of picker.querySelectorAll(".ep-cell.is-hover")) x.classList.remove("is-hover");
+  cell.classList.add("is-hover");
+  picker.querySelector(".ep-foot .e").innerHTML = cell.innerHTML;
+  picker.querySelector(".ep-foot b").textContent = cell.getAttribute("aria-label");
+  picker.querySelector(".ep-foot small").textContent = cell.dataset.src;
+});
+</script>
 </body>
 </html>

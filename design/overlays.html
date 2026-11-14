@@ -257,7 +257,7 @@
       <div class="toast" data-tone="success"><i class="ph-fill ph-check-circle"></i><p>Mira joined Night Shift<small>Sent from your invite</small></p><button class="btn btn--sm">Say hi</button></div>
       <div class="toast" data-tone="info"><i class="ph-fill ph-broadcast"></i><p>Theo went live<small>Hades II in Lounge</small></p><button class="btn btn--sm">Watch</button></div>
       <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>Couldn't send your message<small>You're offline. Retry once you reconnect.</small></p><button class="btn btn--sm" data-loading="Sending…">Retry</button></div>
-      <div class="toast" data-tone="undo" style="--life: 6s"><i class="ph-fill ph-trash"></i><p>Deleted 3 messages</p><button class="btn btn--sm">Undo</button><button class="iconbtn" aria-label="Dismiss"><i class="ph ph-x"></i></button><span class="timer"></span></div>
+      <div class="toast" data-tone="undo" style="--life: 6s"><i class="ph-fill ph-trash"></i><p>Deleted 3 messages</p><button class="btn btn--sm">Undo</button><button class="iconbtn" aria-label="Dismiss"><i class="ph ph-x"></i></button></div>
       <div class="toast" data-tone="success"><i class="ph-fill ph-check-circle"></i><p>Moved Bartholomew Featherstonehaugh-Wright to A channel with a very long name for late night chat</p></div>
     </div>
     <div class="stack" style="gap: var(--space-4)">
@@ -566,7 +566,7 @@ const TOASTS = {
   success: { icon: "ph-check-circle", title: "Mira joined Night Shift", desc: "Sent from your invite", action: "Say hi" },
   info: { icon: "ph-broadcast", title: "Theo went live", desc: "Hades II in Lounge", action: "Watch" },
   error: { icon: "ph-warning-circle", title: "Couldn't send your message", desc: "You're offline. Retry once you reconnect.", action: "Retry", sticky: true },
-  undo: { icon: "ph-trash", title: "Message deleted", action: "Undo", life: 6000, timer: true },
+  undo: { icon: "ph-trash", title: "Message deleted", action: "Undo", life: 6000 },
 };
 function dismiss(t) {
   if (!t.isConnected || t.classList.contains("out")) return;
@@ -579,7 +579,7 @@ function toast(kind) {
   t.className = "toast";
   t.dataset.tone = kind;
   t.style.setProperty("--life", (d.life || 5000) + "ms");
-  t.innerHTML = `<i class="ph-fill ${d.icon}"></i><p>${d.title}${d.desc ? `<small>${d.desc}</small>` : ""}</p><button class="btn btn--sm">${d.action}</button><button class="iconbtn" aria-label="Dismiss"><i class="ph ph-x"></i></button>${d.timer ? '<span class="timer"></span>' : ""}`;
+  t.innerHTML = `<i class="ph-fill ${d.icon}"></i><p>${d.title}${d.desc ? `<small>${d.desc}</small>` : ""}</p><button class="btn btn--sm">${d.action}</button><button class="iconbtn" aria-label="Dismiss"><i class="ph ph-x"></i></button>`;
   host.append(t);
   const live = [...host.querySelectorAll(".toast:not(.out)")];
   if (live.length > 3) dismiss(live[0]);

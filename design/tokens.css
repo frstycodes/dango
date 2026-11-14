@@ -118,7 +118,7 @@
   --text-strong: oklch(0.20 0.015 350);
   --text: oklch(0.30 0.015 350);
   --text-muted: oklch(0.46 0.015 350);
-  --text-faint: oklch(0.54 0.014 350);
+  --text-faint: oklch(0.51 0.014 350);
   --accent-ink: #b81f55;
   --accent-soft: oklch(0.6 0.22 5 / 0.10);
   --danger-ink: oklch(0.50 0.19 30);
@@ -154,7 +154,7 @@
     --text-strong: oklch(0.20 0.015 350);
     --text: oklch(0.30 0.015 350);
     --text-muted: oklch(0.46 0.015 350);
-    --text-faint: oklch(0.54 0.014 350);
+    --text-faint: oklch(0.51 0.014 350);
     --accent-ink: #b81f55;
     --accent-soft: oklch(0.6 0.22 5 / 0.10);
     --danger-ink: oklch(0.50 0.19 30);
