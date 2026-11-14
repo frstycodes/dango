@@ -18,7 +18,7 @@ use crate::{
     icons::Glyph,
     mascot::Mood,
     palette::{self, Level},
-    ui,
+    ui::{self, Squircle},
 };
 
 #[derive(Default)]
@@ -230,7 +230,7 @@ impl Rustcord {
             .px(px(16.))
             .flex()
             .gap(px(16.))
-            .rounded(px(ui::RADIUS_LG))
+            .squircle(ui::RADIUS_LG)
             .bg(sidebar)
             .border_1()
             .border_color(palette::line(cx))

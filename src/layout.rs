@@ -15,7 +15,7 @@ use crate::{
     icons::Glyph,
     login, palette,
     sidebar::{Nav, render_face, server_face},
-    ui,
+    ui::{self, Squircle},
 };
 
 pub const TITLE_HEIGHT: f32 = 36.;
@@ -303,7 +303,7 @@ impl Rustcord {
             .p_1()
             .my(px(-4.))
             .ml(px(-4.))
-            .rounded(px(ui::RADIUS_SM))
+            .squircle(ui::RADIUS_SM)
             .flex()
             .items_center()
             .gap_2()
@@ -329,7 +329,7 @@ impl Rustcord {
             .flex_none()
             .mx_2()
             .mb_2()
-            .rounded(px(ui::RADIUS_MD))
+            .squircle(ui::RADIUS_MD)
             .overflow_hidden()
             .bg(rail)
             .flex()
@@ -363,8 +363,8 @@ impl Rustcord {
         let (w, h) = (item.width * scale, item.height * scale);
         let url = item.url.clone();
         let stage = match &item.kind {
-            MediaKind::Image => crate::chat::animated_image(item.url.clone()).w(px(w)).h(px(h)).rounded(px(6.)).into_any_element(),
-            MediaKind::Gif { poster } => div().w(px(w)).h(px(h)).rounded(px(6.)).overflow_hidden().child(crate::gif::tile(format!("viewer-{}", item.url), &item.url, poster, cx)).into_any_element(),
+            MediaKind::Image => crate::chat::animated_image(item.url.clone()).w(px(w)).h(px(h)).squircle(ui::RADIUS_MD).into_any_element(),
+            MediaKind::Gif { poster } => div().w(px(w)).h(px(h)).squircle(ui::RADIUS_MD).overflow_hidden().child(crate::gif::tile(format!("viewer-{}", item.url), &item.url, poster, cx)).into_any_element(),
             // ponytail: video plays in the system player; an in-app AVPlayer view is the upgrade.
             MediaKind::Video { poster } => {
                 let open = item.url.clone();
@@ -374,7 +374,7 @@ impl Rustcord {
                     .w(px(w))
                     .h(px(h))
                     .cursor_pointer()
-                    .child(img(poster.clone()).size_full().rounded(px(6.)))
+                    .child(img(poster.clone()).size_full().squircle(ui::RADIUS_MD))
                     .child(
                         div().absolute().inset_0().flex().items_center().justify_center().child(
                             div()
@@ -424,7 +424,7 @@ impl Rustcord {
                     .id("viewer-open")
                     .h(px(32.))
                     .px_3()
-                    .rounded(px(8.))
+                    .squircle(ui::RADIUS_SM)
                     .flex()
                     .items_center()
                     .gap_1p5()
@@ -440,7 +440,7 @@ impl Rustcord {
                 div()
                     .id("viewer-close")
                     .size(px(32.))
-                    .rounded(px(8.))
+                    .squircle(ui::RADIUS_SM)
                     .flex()
                     .items_center()
                     .justify_center()
@@ -495,7 +495,7 @@ pub fn nameplate(plate: &discord::Nameplate, surface: Hsla, member_row: bool, da
     div()
         .absolute()
         .inset_0()
-        .rounded(px(8.))
+        .squircle(ui::RADIUS_XS)
         .overflow_hidden()
         .bg(linear_gradient(90., linear_color_stop(tint.opacity(0.1), 0.), linear_color_stop(tint.opacity(0.4), 1.)))
         .child(art)
@@ -562,7 +562,7 @@ fn title_button(id: &'static str, glyph: Glyph, enabled: bool, label: &'static s
         .relative()
         .size(px(28.))
         .flex_none()
-        .rounded(px(ui::RADIUS_SM))
+        .squircle(ui::RADIUS_SM)
         .flex()
         .items_center()
         .justify_center()
@@ -597,7 +597,7 @@ fn me_button(id: &'static str, glyph: Nav, on: bool, label: &'static str, cx: &A
         .id(id)
         .size(px(30.))
         .flex_none()
-        .rounded(px(ui::RADIUS_SM))
+        .squircle(ui::RADIUS_SM)
         .flex()
         .items_center()
         .justify_center()

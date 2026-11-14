@@ -425,7 +425,7 @@ impl Rustcord {
             .my(px(-4.))
             .px(px(6.))
             .py(px(4.))
-            .rounded(px(RADIUS_SM))
+            .squircle(RADIUS_SM)
             .cursor_pointer()
             .hover(move |s| s.bg(hover))
             .when(self.connection_info, |d| d.bg(hover))
@@ -461,7 +461,7 @@ impl Rustcord {
             .flex()
             .flex_col()
             .gap(px(8.))
-            .rounded_t(px(RADIUS_MD))
+            .rounded_t(px(RADIUS_MD)).corner_shape(ui::SQUIRCLE)
             .bg(palette::surface(palette::Level::Rail, cx))
             .border_b_1()
             .border_color(palette::line(cx))
@@ -481,7 +481,7 @@ impl Rustcord {
                 .flex()
                 .items_center()
                 .gap(px(8.))
-                .rounded_t(px(RADIUS_MD))
+                .rounded_t(px(RADIUS_MD)).corner_shape(ui::SQUIRCLE)
                 .bg(palette::surface(palette::Level::Rail, cx))
                 .border_b_1()
                 .border_color(palette::line(cx))
@@ -795,7 +795,7 @@ impl Rustcord {
                 .top(px(wy))
                 .w(px(w))
                 .h(px(h))
-                .rounded(px(RADIUS_LG))
+                .squircle(RADIUS_LG)
                 .bg(if lit { palette::accent().opacity(0.18) } else { stage::wash(0.05) })
                 .border(px(if lit { 2. } else { 1.5 }))
                 .border_color(if lit { palette::accent() } else { stage::wash(0.24) })
@@ -803,7 +803,7 @@ impl Rustcord {
         });
         let frame: AnyElement = match &call.self_view {
             Some((frame, _)) => ui::media(ImageSource::Render(frame.clone()), ui::all(RADIUS_LG)).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
-            None => div().size_full().rounded(px(RADIUS_LG)).bg(stage::page()).into_any_element(),
+            None => div().size_full().squircle(RADIUS_LG).bg(stage::page()).into_any_element(),
         };
         // .pip: 0 10px 28px black 55% under a 1px white edge; deeper while lifted.
         let lift = if dragging { (18., 40., 0.6, 0.18) } else { (10., 28., 0.55, 0.12) };
@@ -821,7 +821,7 @@ impl Rustcord {
             .top(px(y))
             .w(px(w))
             .h(px(h))
-            .rounded(px(RADIUS_LG))
+            .squircle(RADIUS_LG)
             .shadow(shadow)
             .cursor(if dragging { gpui_kit::CursorStyle::ClosedHand } else { gpui_kit::CursorStyle::OpenHand })
             .child(frame)
@@ -834,7 +834,7 @@ impl Rustcord {
                     .top(px(4.))
                     .right(px(4.))
                     .size(px(24.))
-                    .rounded(px(RADIUS_XS))
+                    .squircle(RADIUS_XS)
                     .flex()
                     .items_center()
                     .justify_center()
@@ -875,7 +875,7 @@ impl Rustcord {
             .h(px(32.))
             .pl(px(10.))
             .pr(px(12.))
-            .rounded(px(RADIUS_MD))
+            .squircle(RADIUS_MD)
             .flex()
             .items_center()
             .gap(px(6.))
@@ -971,7 +971,7 @@ impl Rustcord {
             .h(px(22.))
             .px(px(8.))
             .flex_none()
-            .rounded(px(RADIUS_XS))
+            .squircle(RADIUS_XS)
             .flex()
             .items_center()
             .gap(px(6.))
@@ -990,7 +990,7 @@ impl Rustcord {
             .pl(px(4.))
             .pr(px(8.))
             .flex_none()
-            .rounded(px(RADIUS_SM))
+            .squircle(RADIUS_SM)
             .flex()
             .items_center()
             .gap(px(6.))
@@ -1159,7 +1159,7 @@ impl Rustcord {
             .w(px(w))
             .h(px(h))
             .flex_none()
-            .rounded(px(RADIUS_LG))
+            .squircle(RADIUS_LG)
             .bg(gpui_kit::black())
             .child(body)
             .child(scrim_top(RADIUS_LG))
@@ -1233,7 +1233,7 @@ impl Rustcord {
                 div()
                     .w(px(w))
                     .h(px(w * 9. / 16.))
-                    .rounded(px(RADIUS_LG))
+                    .squircle(RADIUS_LG)
                     .bg(stage::ended())
                     .relative()
                     .flex()
@@ -1287,7 +1287,7 @@ impl Rustcord {
             (false, Some(frame)) => ui::media(ImageSource::Render(frame.clone()), ui::all(RADIUS_LG)).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
             (false, None) => div()
                 .size_full()
-                .rounded(px(RADIUS_LG))
+                .squircle(RADIUS_LG)
                 .bg(self.tile_fill(&state.user_id))
                 .flex()
                 .items_center()
@@ -1322,7 +1322,7 @@ impl Rustcord {
             .w(px(w))
             .h(px(h))
             .flex_none()
-            .rounded(px(RADIUS_LG))
+            .squircle(RADIUS_LG)
             .child(face)
             .when(media, |d| d.child(scrim_top(RADIUS_LG)).child(scrim_bottom(RADIUS_LG)))
             .when(is_stream, |d| d.child(div().absolute().left(px(8.)).top(px(8.)).child(ui::live_badge())))
@@ -1335,7 +1335,7 @@ impl Rustcord {
                         div()
                             .absolute()
                             .inset_0()
-                            .rounded(px(RADIUS_LG))
+                            .squircle(RADIUS_LG)
                             .bg(gpui_kit::black().opacity(0.45))
                             .flex()
                             .items_center()
@@ -1512,7 +1512,7 @@ impl Rustcord {
         let graph = div()
             .h(px(56.))
             .p(px(6.))
-            .rounded(px(RADIUS_SM))
+            .squircle(RADIUS_SM)
             .bg(palette::surface(palette::Level::Page, cx))
             .flex()
             .items_end()
@@ -1550,7 +1550,7 @@ impl Rustcord {
             .bottom(px(self.panel_stack_height() + 16.))
             .w(px(300.))
             .p(px(16.))
-            .rounded(px(RADIUS_LG))
+            .squircle(RADIUS_LG)
             .bg(palette::surface(palette::Level::Overlay, cx))
             .shadow(pop_shadow(palette::line_strong(cx), cx))
             .flex()
@@ -1676,7 +1676,7 @@ impl Rustcord {
             .bottom(px((f32::from(viewport.height) - f32::from(menu.at.y) + 12.).max(8.)))
             .w(px(300.))
             .p(px(6.))
-            .rounded(px(RADIUS_LG))
+            .squircle(RADIUS_LG)
             .bg(ink.overlay)
             .shadow(pop_shadow(ink.line_strong, cx))
             .flex()
@@ -1920,7 +1920,7 @@ fn panel_action(id: &'static str, glyph: Glyph, tip: &'static str, enabled: bool
         .flex_1()
         .min_w_0()
         .h(px(32.))
-        .rounded(px(RADIUS_SM))
+        .squircle(RADIUS_SM)
         .flex()
         .items_center()
         .justify_center()
@@ -1938,7 +1938,7 @@ fn stage_icon_button(id: &'static str, glyph: Glyph, tip: &'static str, pressed:
         .id(id)
         .size(px(32.))
         .flex_none()
-        .rounded(px(RADIUS_SM))
+        .squircle(RADIUS_SM)
         .flex()
         .items_center()
         .justify_center()
@@ -1958,7 +1958,7 @@ fn stage_button(id: &'static str, label: &'static str) -> Stateful<Div> {
         .h(px(30.))
         .px(px(10.))
         .flex_none()
-        .rounded(px(RADIUS_SM))
+        .squircle(RADIUS_SM)
         .flex()
         .items_center()
         .gap(px(8.))
@@ -1977,7 +1977,7 @@ pub(crate) fn watch_button(label: &'static str) -> Div {
     div()
         .h(px(30.))
         .px(px(10.))
-        .rounded(px(RADIUS_SM))
+        .squircle(RADIUS_SM)
         .flex()
         .items_center()
         .gap(px(8.))
@@ -2044,12 +2044,12 @@ fn tile_name(content: Div) -> Div {
 // The tile's edge, drawn above its media so a stream can't hide it: a faint 1px line, or while
 // speaking a 2px accent ring with a dark inner line (neutral when they're muted for you).
 fn tile_ring(speaking: bool, local_muted: bool) -> Div {
-    let ring = div().absolute().inset_0().rounded(px(RADIUS_LG));
+    let ring = div().absolute().inset_0().squircle(RADIUS_LG);
     if !speaking {
         return ring.border_1().border_color(stage::wash(0.06));
     }
     let color = if local_muted { stage::wash(0.42) } else { palette::accent() };
-    ring.border(px(2.)).border_color(color).child(div().absolute().inset_0().rounded(px(RADIUS_LG - 2.)).border(px(2.)).border_color(stage::bg().opacity(0.6)))
+    ring.border(px(2.)).border_color(color).child(div().absolute().inset_0().squircle(RADIUS_LG - 2.).border(px(2.)).border_color(stage::bg().opacity(0.6)))
 }
 
 // .tile.has-media::before: a smooth scrim under the labels, never a hard strip.
@@ -2069,7 +2069,7 @@ fn viewer_chip(viewers: usize) -> Div {
         .top(px(8.))
         .h(px(20.))
         .px(px(7.))
-        .rounded(px(RADIUS_XS))
+        .squircle(RADIUS_XS)
         .flex()
         .items_center()
         .gap(px(4.))
@@ -2096,7 +2096,7 @@ fn vmark(glyph: Glyph, words: Option<&'static str>, kind: MarkKind) -> Div {
         .h(px(18.))
         .min_w(px(18.))
         .flex_none()
-        .rounded(px(4.))
+        .squircle(6.)
         .flex()
         .items_center()
         .justify_center()
@@ -2127,7 +2127,7 @@ fn face_stack(urls: Vec<String>, size: f32, ring: Hsla) -> Div {
 // .tile.stream: a stream before its first preview arrives.
 pub(crate) fn stream_fill(radius: f32) -> Div {
     let glow = gpui_kit::linear_gradient(135., gpui_kit::linear_color_stop(Hsla::from(rgb(0x0097A1)).opacity(0.7), 0.), gpui_kit::linear_color_stop(Hsla::from(rgb(0x9D2398)).opacity(0.7), 1.));
-    div().relative().rounded(px(radius)).bg(rgb(0x1D1E39)).child(div().absolute().inset_0().rounded(px(radius)).bg(glow))
+    div().relative().squircle(radius).bg(rgb(0x1D1E39)).child(div().absolute().inset_0().squircle(radius).bg(glow))
 }
 
 // .mlabel
@@ -2143,7 +2143,7 @@ fn menu_rule(ink: &Inks) -> Div {
 // .choice.vrow: a 34px menu row holding a radio or a switch.
 fn choice_row(id: impl Into<ElementId>, ink: &Inks) -> Stateful<Div> {
     let hover = ink.hover;
-    div().id(id).min_h(px(34.)).px(px(10.)).py(px(6.)).rounded(px(RADIUS_SM)).flex().items_center().gap(px(10.)).cursor_pointer().hover(move |s| s.bg(hover))
+    div().id(id).min_h(px(34.)).px(px(10.)).py(px(6.)).squircle(RADIUS_SM).flex().items_center().gap(px(10.)).cursor_pointer().hover(move |s| s.bg(hover))
 }
 
 // .vrow .radio: 18px; on is a 5px accent band.

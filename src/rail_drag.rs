@@ -1,12 +1,12 @@
 // Dragging servers and folders in the rail, as in Discord: the top and bottom quarter of a target
 // reorder, the middle combines (server on server makes a folder, server on folder joins it).
-use gpui_kit::{Context, IntoElement, Render, SharedString, Window, div, prelude::*, px};
+use gpui_kit::{Context, IntoElement, Render, SharedString, Window, div, prelude::*};
 
 use crate::{
     Rustcord,
     discord::Folder,
     sidebar::{Face, initials, render_face},
-    ui,
+    ui::{self, Squircle},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -46,7 +46,7 @@ impl Render for RailDrag {
             (Some(url), _) => Face::Icon(url.clone()),
             (None, _) => Face::Letters(initials(&self.label)),
         };
-        div().rounded(px(ui::RADIUS_LG)).shadow_lg().child(render_face(face, 44., ui::RADIUS_LG, false, 0., cx))
+        div().squircle(ui::RADIUS_LG).shadow_lg().child(render_face(face, 44., ui::RADIUS_LG, false, 0., cx))
     }
 }
 
