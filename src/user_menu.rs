@@ -63,7 +63,7 @@ impl Rustcord {
     }
 
     // Closes a DM (Discord's DELETE on the channel only hides it from the list for us).
-    fn close_dm(&mut self, channel_id: &str, cx: &mut Context<Self>) {
+    pub(crate) fn close_dm(&mut self, channel_id: &str, cx: &mut Context<Self>) {
         let id = channel_id.to_owned();
         self.dms.retain(|d| d.id != id);
         if self.channel.as_ref().is_some_and(|c| c.id == id) {
@@ -385,7 +385,7 @@ impl Rustcord {
     }
 
     // Friends, blocks and requests change at once; Discord's refusal restores the old relationship.
-    fn relation_optimistic(&mut self, user_id: &str, next: Option<(User, Relation)>, method: Method, body: Option<serde_json::Value>, cx: &mut Context<Self>) {
+    pub(crate) fn relation_optimistic(&mut self, user_id: &str, next: Option<(User, Relation)>, method: Method, body: Option<serde_json::Value>, cx: &mut Context<Self>) {
         let before = self.relationships.iter().find(|r| r.user.id == user_id).cloned();
         let (a, b) = (user_id.to_owned(), user_id.to_owned());
         self.rest_optimistic(
