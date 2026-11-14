@@ -21,10 +21,6 @@ const BAR_WIDTH: f32 = 8.;
 const GAP: f32 = 5.;
 const HEIGHT: f32 = 66.;
 
-pub fn mascot(id: impl Into<ElementId>, mood: Mood, cx: &App) -> AnyElement {
-    mascot_at(id, mood, 1., cx)
-}
-
 // The mascot drawn at `scale` (1 is 64px wide), for tighter places such as the splash window.
 pub fn mascot_at(id: impl Into<ElementId>, mood: Mood, scale: f32, cx: &App) -> AnyElement {
     let frame = move || div().h(px(HEIGHT * scale)).flex().items_center().gap(px(GAP * scale)).flex_none();
