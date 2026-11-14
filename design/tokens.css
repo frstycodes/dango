@@ -1,0 +1,155 @@
+/* Wave design tokens: the source of truth `src/palette.rs` and `src/ui.rs` are ported from.
+   Themes: [data-theme=dark|light] on <html>, following the system when unset.
+   Neutrals: [data-neutral=ink|plum|graphite]; ink is the proposal, the others are for comparison. */
+
+:root {
+  /* Brand */
+  --logo: #e8326f;
+  --accent: #db2b65;
+  --accent-hover: #c2215a;
+  --accent-press: #a81c4e;
+  --on-accent: #fff;
+
+  /* Type */
+  --font-ui: "Gabarito", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --text-xs: 12px;   /* timestamps, section labels, badges */
+  --text-sm: 14px;   /* rows, menus, buttons */
+  --text-md: 16px;   /* message body */
+  --text-lg: 20px;   /* panel and dialog titles */
+  --text-xl: 28px;   /* empty states, onboarding */
+  --leading-tight: 1.2;
+  --leading-body: 1.45;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Space: 4px scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  /* Radius: controls 10, surfaces 14, dialogs 20; pills only for counts, status and the wave's bars */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 999px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-move: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  /* Touch-driven spring: ~0.3 bounce that settles inside 250ms. */
+  --ease-spring: linear(0, 0.42 12%, 0.82 25%, 1.06 40%, 1.1 48%, 1.04 62%, 0.99 78%, 1);
+  --dur-press: 120ms;
+  --dur-hover: 150ms;
+  --dur-pop: 200ms;
+  --dur-panel: 260ms;
+
+  /* Status: hue never alone, always with a shape (dot, moon, bar, minus) */
+  --online: oklch(0.74 0.16 155);
+  --idle: oklch(0.80 0.15 78);
+  --dnd: oklch(0.65 0.20 32);
+  --offline: oklch(0.62 0.01 350);
+  --danger: oklch(0.55 0.20 30);
+  --danger-hover: oklch(0.50 0.19 30);
+  --success: oklch(0.52 0.13 155);
+  --warning: oklch(0.80 0.15 78);
+}
+
+/* Dark: depth from lighter surfaces, never shadows. */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --n-h: 350;
+  --n-c: 0.010;
+  --bg-rail: oklch(0.150 var(--n-c) var(--n-h));
+  --bg-sidebar: oklch(0.180 var(--n-c) var(--n-h));
+  --bg-page: oklch(0.210 var(--n-c) var(--n-h));
+  --bg-raised: oklch(0.250 calc(var(--n-c) * 1.2) var(--n-h));
+  --bg-overlay: oklch(0.275 calc(var(--n-c) * 1.2) var(--n-h));
+  --hover: oklch(1 0 0 / 0.05);
+  --press: oklch(1 0 0 / 0.09);
+  --selected: oklch(1 0 0 / 0.08);
+  --line: oklch(1 0 0 / 0.08);
+  --line-strong: oklch(1 0 0 / 0.14);
+  --text-strong: oklch(0.97 0.004 var(--n-h));
+  --text: oklch(0.88 0.008 var(--n-h));
+  --text-muted: oklch(0.72 0.012 var(--n-h));
+  --text-faint: oklch(0.62 0.012 var(--n-h));
+  --accent-ink: #ff6b9c;
+  --accent-soft: oklch(0.65 0.22 5 / 0.14);
+  --danger-ink: oklch(0.74 0.16 32);
+  --online-ink: oklch(0.78 0.15 155);
+  --shadow-pop: 0 12px 32px oklch(0 0 0 / 0.45), 0 0 0 1px var(--line-strong);
+  --scrim: oklch(0.08 0.01 350 / 0.7);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --n-h: 75;
+  --n-c: 0.012;
+  --bg-rail: oklch(0.905 calc(var(--n-c) * 1.2) var(--n-h));
+  --bg-sidebar: oklch(0.948 var(--n-c) var(--n-h));
+  --bg-page: oklch(0.982 calc(var(--n-c) * 0.6) var(--n-h));
+  --bg-raised: oklch(0.995 calc(var(--n-c) * 0.3) var(--n-h));
+  --bg-overlay: oklch(0.998 calc(var(--n-c) * 0.2) var(--n-h));
+  --hover: oklch(0.35 0.03 40 / 0.06);
+  --press: oklch(0.35 0.03 40 / 0.1);
+  --selected: oklch(0.35 0.03 40 / 0.09);
+  --line: oklch(0.35 0.03 40 / 0.1);
+  --line-strong: oklch(0.35 0.03 40 / 0.18);
+  --text-strong: oklch(0.20 0.015 350);
+  --text: oklch(0.30 0.015 350);
+  --text-muted: oklch(0.46 0.015 350);
+  --text-faint: oklch(0.54 0.014 350);
+  --accent-ink: #b81f55;
+  --accent-soft: oklch(0.6 0.22 5 / 0.10);
+  --danger-ink: oklch(0.50 0.19 30);
+  --online-ink: oklch(0.48 0.13 155);
+  --online: oklch(0.62 0.16 155);
+  --idle: oklch(0.72 0.15 75);
+  --shadow-pop: 0 12px 32px oklch(0.3 0.03 40 / 0.16), 0 0 0 1px var(--line-strong);
+  --scrim: oklch(0.2 0.02 350 / 0.4);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --n-h: 75;
+    --n-c: 0.012;
+    --bg-rail: oklch(0.905 calc(var(--n-c) * 1.2) var(--n-h));
+    --bg-sidebar: oklch(0.948 var(--n-c) var(--n-h));
+    --bg-page: oklch(0.982 calc(var(--n-c) * 0.6) var(--n-h));
+    --bg-raised: oklch(0.995 calc(var(--n-c) * 0.3) var(--n-h));
+    --bg-overlay: oklch(0.998 calc(var(--n-c) * 0.2) var(--n-h));
+    --hover: oklch(0.35 0.03 40 / 0.06);
+    --press: oklch(0.35 0.03 40 / 0.1);
+    --selected: oklch(0.35 0.03 40 / 0.09);
+    --line: oklch(0.35 0.03 40 / 0.1);
+    --line-strong: oklch(0.35 0.03 40 / 0.18);
+    --text-strong: oklch(0.20 0.015 350);
+    --text: oklch(0.30 0.015 350);
+    --text-muted: oklch(0.46 0.015 350);
+    --text-faint: oklch(0.54 0.014 350);
+    --accent-ink: #b81f55;
+    --accent-soft: oklch(0.6 0.22 5 / 0.10);
+    --danger-ink: oklch(0.50 0.19 30);
+    --online-ink: oklch(0.48 0.13 155);
+    --online: oklch(0.62 0.16 155);
+    --idle: oklch(0.72 0.15 75);
+    --shadow-pop: 0 12px 32px oklch(0.3 0.03 40 / 0.16), 0 0 0 1px var(--line-strong);
+    --scrim: oklch(0.2 0.02 350 / 0.4);
+  }
+}
+
+/* Neutral alternatives, for comparison only. */
+:root[data-neutral="plum"] { --n-h: 350 !important; --n-c: 0.022 !important; }
+:root[data-neutral="graphite"] { --n-h: 260 !important; --n-c: 0.004 !important; }

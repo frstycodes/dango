@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wave Design System</title>
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Geist+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<style>
+@font-face { font-family: "gg sans"; src: url(/assets/discord/fonts/gg-sans-Regular.ttf); font-weight: 400; }
+@font-face { font-family: "gg sans"; src: url(/assets/discord/fonts/gg-sans-Medium.ttf); font-weight: 500; }
+@font-face { font-family: "gg sans"; src: url(/assets/discord/fonts/gg-sans-SemiBold.ttf); font-weight: 600; }
+@font-face { font-family: "gg sans"; src: url(/assets/discord/fonts/gg-sans-Bold.ttf); font-weight: 700; }
+
+* { box-sizing: border-box; margin: 0; }
+html { -webkit-font-smoothing: antialiased; }
+body { background: var(--bg-page); color: var(--text); font: var(--weight-regular) var(--text-sm)/var(--leading-body) var(--font-ui); }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; }
+:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+i.ph, i.ph-bold, i.ph-fill { font-size: 18px; line-height: 1; flex: none; }
+.mono { font-family: var(--font-mono); }
+.muted { color: var(--text-muted); }
+.faint { color: var(--text-faint); }
+.strong { color: var(--text-strong); }
+.row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.stack { display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* Page chrome */
+.top { position: sticky; top: 0; z-index: 200; display: flex; align-items: center; gap: var(--space-4); padding: 10px var(--space-6); background: color-mix(in oklch, var(--bg-page) 88%, transparent); backdrop-filter: blur(16px) saturate(160%); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.top .brand { display: flex; align-items: center; gap: 10px; color: var(--text-strong); font-weight: var(--weight-bold); font-size: 17px; }
+.top .brand span { color: var(--text-faint); font-weight: var(--weight-medium); }
+.top .tools { margin-left: auto; display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
+.select { height: 32px; padding: 0 28px 0 10px; border-radius: var(--radius-sm); background: var(--selected) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%23999' stroke-width='1.6'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E") no-repeat right 10px center; border: 0; appearance: none; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--text-strong); }
+.layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); max-width: 1320px; margin: 0 auto; }
+.toc { position: sticky; top: 57px; align-self: start; padding: var(--space-6) var(--space-4); display: flex; flex-direction: column; gap: 2px; height: calc(100vh - 57px); overflow: auto; }
+.toc a { color: var(--text-muted); text-decoration: none; font-weight: var(--weight-medium); padding: 6px 10px; border-radius: var(--radius-sm); transition: background var(--dur-hover), color var(--dur-hover); }
+.toc a:hover { background: var(--hover); color: var(--text-strong); }
+.toc a.on { background: var(--selected); color: var(--text-strong); }
+main { padding: var(--space-6) var(--space-6) 120px; min-width: 0; }
+section { padding: var(--space-8) 0; border-bottom: 1px solid var(--line); scroll-margin-top: 64px; }
+section:last-child { border: 0; }
+h1 { font-size: var(--text-xl); line-height: var(--leading-tight); color: var(--text-strong); font-weight: var(--weight-bold); letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-size: var(--text-lg); line-height: var(--leading-tight); color: var(--text-strong); font-weight: var(--weight-bold); margin-bottom: var(--space-1); }
+h3 { font-size: var(--text-sm); color: var(--text-strong); font-weight: var(--weight-semibold); margin: var(--space-6) 0 var(--space-3); }
+.lede { color: var(--text-muted); max-width: 68ch; text-wrap: pretty; margin-bottom: var(--space-4); }
+.board { background: var(--bg-sidebar); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-6); }
+.grid { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); }
+.note { font-size: var(--text-xs); color: var(--text-faint); }
+
+/* Identity */
+.hero { display: grid; grid-template-columns: auto 1fr; gap: var(--space-8); align-items: center; }
+.principles { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); margin-top: var(--space-6); }
+.principle { padding: var(--space-4); border-radius: var(--radius-lg); background: var(--bg-sidebar); border: 1px solid var(--line); }
+.principle b { display: block; color: var(--text-strong); font-weight: var(--weight-semibold); margin-bottom: 2px; }
+.principle p { color: var(--text-muted); }
+.icons-row { display: flex; gap: var(--space-4); flex-wrap: wrap; }
+.icons-row figure { display: grid; gap: 6px; justify-items: center; font-size: var(--text-xs); color: var(--text-muted); }
+.icons-row img { width: 72px; height: 72px; }
+.mascot { display: flex; align-items: center; gap: calc(5px * var(--s, 1)); height: calc(66px * var(--s, 1)); }
+.mascot i { display: block; width: calc(8px * var(--s, 1)); border-radius: 99px; background: var(--logo); height: calc(var(--h) * var(--s, 1)); animation: var(--mood) var(--period) ease-in-out infinite; animation-delay: calc(var(--n) * var(--lag)); }
+.mascot i:nth-child(1) { --h: 24px; --n: 0; } .mascot i:nth-child(2) { --h: 45px; --n: 1; } .mascot i:nth-child(3) { --h: 64px; --n: 2; } .mascot i:nth-child(4) { --h: 39px; --n: 3; } .mascot i:nth-child(5) { --h: 22px; --n: 4; }
+.mascot.idle { --mood: breathe; --period: 2.6s; --lag: -0.16s; }
+.mascot.waiting { --mood: ripple; --period: 2.2s; --lag: -0.32s; }
+.mascot.happy { --mood: speak; --period: 0.9s; --lag: -0.19s; }
+@keyframes breathe { 50% { transform: scaleY(0.78); } }
+@keyframes ripple { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.42); } }
+@keyframes speak { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.35); } }
+
+/* Swatches */
+.swatch { border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--line); background: var(--bg-raised); }
+.swatch .chip { height: 64px; display: flex; align-items: flex-end; justify-content: flex-end; padding: 6px 8px; font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.swatch .meta { padding: 8px 10px; display: grid; gap: 2px; }
+.swatch .meta b { color: var(--text-strong); font-weight: var(--weight-semibold); font-family: var(--font-mono); font-size: var(--text-xs); }
+.swatch .meta span { color: var(--text-faint); font-size: var(--text-xs); }
+.ramp { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--line); }
+.ramp div { height: 92px; padding: 10px; display: flex; flex-direction: column; justify-content: flex-end; font-size: var(--text-xs); color: var(--text-muted); }
+.ramp div b { color: var(--text-strong); font-family: var(--font-mono); font-weight: var(--weight-semibold); }
+.textramp { display: grid; gap: 6px; }
+.textramp div { display: flex; justify-content: space-between; gap: var(--space-4); align-items: baseline; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--bg-page); }
+.pass { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-faint); white-space: nowrap; }
+
+/* Type */
+.specimen { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: var(--space-4); padding: var(--space-3) 0; border-top: 1px solid var(--line); align-items: baseline; }
+.specimen:first-child { border: 0; }
+.specimen .note { font-family: var(--font-mono); }
+
+/* Space, radius */
+.spaces { display: grid; gap: 6px; }
+.spaces div { display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: var(--space-3); font-size: var(--text-xs); color: var(--text-faint); font-family: var(--font-mono); }
+.spaces span { height: 12px; background: var(--accent); border-radius: 3px; opacity: 0.8; }
+.radii { display: flex; gap: var(--space-4); flex-wrap: wrap; }
+.radii figure { display: grid; gap: 6px; justify-items: center; font-size: var(--text-xs); color: var(--text-faint); }
+.radii div { width: 76px; height: 76px; background: var(--bg-raised); border: 1.5px solid var(--line-strong); }
+
+/* Motion demos */
+.motion { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); }
+.motion .board { display: grid; gap: var(--space-3); padding: var(--space-4); }
+.track { position: relative; height: 40px; border-radius: var(--radius-md); background: var(--bg-page); }
+.track .dot { position: absolute; top: 8px; left: 8px; width: 24px; height: 24px; border-radius: 8px; background: var(--accent); transition: transform var(--d) var(--e); }
+.track.go .dot { transform: translateX(calc(var(--w, 180px) - 40px)); }
+
+/* Buttons */
+.btn { --bg: var(--selected); --fg: var(--text-strong); --bg-h: var(--press); display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); height: 36px; padding: 0 14px; border-radius: var(--radius-md); background: var(--bg); color: var(--fg); font-size: var(--text-sm); font-weight: var(--weight-semibold); white-space: nowrap; transition: background var(--dur-hover) var(--ease-out), transform var(--dur-press) var(--ease-out); }
+.btn:hover { background: var(--bg-h); }
+.btn:active { transform: scale(0.97); }
+.btn--primary { --bg: var(--accent); --bg-h: var(--accent-hover); --fg: var(--on-accent); }
+.btn--primary:active { background: var(--accent-press); }
+.btn--ghost { --bg: transparent; --bg-h: var(--hover); --fg: var(--text); }
+.btn--danger { --bg: var(--danger); --bg-h: var(--danger-hover); --fg: #fff; }
+.btn--sm { height: 30px; padding: 0 10px; border-radius: var(--radius-sm); }
+.btn--lg { height: 44px; padding: 0 20px; font-size: var(--text-md); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.btn:disabled:hover { background: var(--bg); }
+.btn .bars { --c: currentColor; }
+.iconbtn { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: var(--radius-sm); color: var(--text-muted); transition: background var(--dur-hover), color var(--dur-hover), transform var(--dur-press) var(--ease-out); }
+.iconbtn:hover { background: var(--hover); color: var(--text-strong); }
+.iconbtn:active { transform: scale(0.92); background: var(--press); }
+.iconbtn.on { color: var(--danger-ink); }
+.iconbtn i { font-size: 20px; }
+
+/* Mini wave: loading, speaking, typing, live */
+.bars { display: inline-flex; align-items: center; gap: 2px; height: 12px; }
+.bars i { width: 3px; height: 100%; border-radius: 9px; background: var(--c, var(--accent-ink)); animation: speak 0.9s ease-in-out infinite; }
+.bars i:nth-child(1) { height: 55%; animation-delay: -0.3s; } .bars i:nth-child(2) { animation-delay: -0.6s; } .bars i:nth-child(3) { height: 70%; animation-delay: -0.1s; }
+.bars.still i { animation: none; }
+
+/* Inputs */
+.field { display: grid; gap: 6px; min-width: 0; }
+.field label { font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--text-muted); }
+.input { display: flex; align-items: center; gap: var(--space-2); height: 40px; padding: 0 12px; border-radius: var(--radius-md); background: var(--bg-page); border: 1px solid var(--line-strong); color: var(--text-faint); transition: border-color var(--dur-hover), box-shadow var(--dur-hover); }
+.input input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--text-strong); font-size: var(--text-md); }
+.input input::placeholder { color: var(--text-faint); }
+.input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.input.error { border-color: var(--danger-ink); }
+.field .err { font-size: var(--text-xs); color: var(--danger-ink); display: flex; gap: 4px; align-items: center; }
+.field .err i { font-size: 14px; }
+
+.switch { position: relative; width: 38px; height: 22px; border-radius: 99px; background: var(--line-strong); transition: background var(--dur-hover); flex: none; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px oklch(0 0 0 / 0.3); transition: transform var(--dur-pop) var(--ease-spring); }
+.switch[aria-checked="true"] { background: var(--accent); }
+.switch[aria-checked="true"]::after { transform: translateX(16px); }
+.check { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--line-strong); display: grid; place-items: center; color: transparent; transition: background var(--dur-hover), border-color var(--dur-hover), transform var(--dur-press); flex: none; }
+.check i { font-size: 13px; opacity: 0; transform: scale(0.5); transition: opacity var(--dur-hover), transform var(--dur-pop) var(--ease-spring); }
+.check[aria-checked="true"] i { opacity: 1; transform: none; }
+.check[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.check:active { transform: scale(0.9); }
+.radio { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--line-strong); transition: border-width var(--dur-pop) var(--ease-spring), border-color var(--dur-hover); flex: none; }
+.radio[aria-checked="true"] { border: 6px solid var(--accent); }
+.choice { display: flex; gap: var(--space-3); align-items: center; padding: 10px 12px; border-radius: var(--radius-md); cursor: pointer; transition: background var(--dur-hover); text-align: left; width: 100%; }
+.choice:hover { background: var(--hover); }
+.choice b { display: block; color: var(--text-strong); font-weight: var(--weight-medium); }
+.choice span { color: var(--text-muted); font-size: var(--text-xs); }
+.choice > div { flex: 1; min-width: 0; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--radius-md); background: var(--selected); }
+.seg button { height: 28px; padding: 0 12px; border-radius: 7px; font-weight: var(--weight-semibold); color: var(--text-muted); transition: background var(--dur-hover), color var(--dur-hover); }
+.seg button:hover { color: var(--text-strong); }
+.seg button[aria-pressed="true"] { background: var(--bg-overlay); color: var(--text-strong); box-shadow: 0 1px 3px oklch(0 0 0 / 0.18); }
+.range { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 9px; background: linear-gradient(var(--accent), var(--accent)) 0 / var(--v, 60%) 100% no-repeat, var(--line-strong); }
+.range::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px oklch(0 0 0 / 0.35); transition: transform var(--dur-press); }
+.range:active::-webkit-slider-thumb { transform: scale(1.15); }
+
+/* Badges, avatars, status */
+.count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--accent); color: #fff; font-size: var(--text-xs); font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; line-height: 1; }
+.tag { display: inline-flex; align-items: center; gap: 3px; height: 18px; padding: 0 6px; border-radius: var(--radius-xs); background: var(--accent-soft); color: var(--accent-ink); font-size: 11px; font-weight: var(--weight-bold); letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.tag i { font-size: 11px; }
+.live { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: var(--radius-xs); background: var(--accent); color: #fff; font-size: 11px; font-weight: var(--weight-bold); letter-spacing: 0.06em; }
+.live .bars { --c: #fff; height: 9px; gap: 1.5px; }
+.live .bars i { width: 2px; }
+.av { --size: 32px; position: relative; width: var(--size); height: var(--size); border-radius: 50%; flex: none; display: grid; place-items: center; color: #fff; font-weight: var(--weight-bold); font-size: calc(var(--size) * 0.38); background: linear-gradient(135deg, oklch(0.56 0.12 var(--hue)), oklch(0.42 0.13 calc(var(--hue) + 35))); user-select: none; }
+.av.speaking { box-shadow: 0 0 0 2px var(--bg-ring, var(--bg-page)), 0 0 0 4px var(--accent); }
+.status { position: absolute; right: -1px; bottom: -1px; width: calc(var(--size) * 0.32); height: calc(var(--size) * 0.32); min-width: 9px; min-height: 9px; border-radius: 50%; box-shadow: 0 0 0 2px var(--bg-ring, var(--bg-page)); }
+.status.online { background: var(--online); }
+.status.idle { background: radial-gradient(circle at 28% 28%, var(--bg-ring, var(--bg-page)) 34%, var(--idle) 35%); }
+.status.dnd { background: linear-gradient(var(--bg-ring, var(--bg-page)), var(--bg-ring, var(--bg-page))) center / 55% 22% no-repeat, var(--dnd); }
+.status.offline { background: var(--bg-ring, var(--bg-page)); box-shadow: inset 0 0 0 2.5px var(--offline), 0 0 0 2px var(--bg-ring, var(--bg-page)); }
+.stackav { display: flex; }
+.stackav .av { margin-left: -6px; box-shadow: 0 0 0 2px var(--bg-sidebar); }
+.stackav .av:first-child { margin-left: 0; }
+
+/* Overlays */
+.tooltip { display: inline-block; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--text-strong); color: var(--bg-page); font-size: var(--text-xs); font-weight: var(--weight-semibold); position: relative; }
+.tooltip kbd { font: inherit; opacity: 0.6; margin-left: 6px; }
+.menu { width: 248px; padding: 6px; border-radius: var(--radius-lg); background: var(--bg-overlay); box-shadow: var(--shadow-pop); display: grid; gap: 1px; }
+.menu hr { border: 0; height: 1px; background: var(--line); margin: 4px 8px; }
+.mi { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 6px 10px; border-radius: var(--radius-sm); color: var(--text); font-weight: var(--weight-medium); text-align: left; width: 100%; transition: background var(--dur-hover); }
+.mi:hover { background: var(--hover); color: var(--text-strong); }
+.mi i { color: var(--text-muted); }
+.mi > div { flex: 1; min-width: 0; }
+.mi small { display: block; color: var(--text-faint); font-size: var(--text-xs); font-weight: var(--weight-regular); }
+.mi kbd { font: var(--weight-medium) var(--text-xs) var(--font-ui); color: var(--text-faint); }
+.mi.danger, .mi.danger i { color: var(--danger-ink); }
+.mi.danger:hover { background: var(--danger); color: #fff; }
+.mi.danger:hover i { color: #fff; }
+.toast { display: flex; align-items: center; gap: var(--space-3); padding: 10px 10px 10px 14px; border-radius: var(--radius-lg); background: var(--bg-overlay); box-shadow: var(--shadow-pop); max-width: 380px; }
+.toast > i { color: var(--online-ink); font-size: 20px; }
+.toast p { flex: 1; color: var(--text-strong); font-weight: var(--weight-medium); }
+.dialog { width: min(100%, 420px); border-radius: var(--radius-xl); background: var(--bg-raised); box-shadow: var(--shadow-pop); padding: var(--space-6); display: grid; gap: var(--space-4); }
+.dialog h4 { font-size: var(--text-lg); color: var(--text-strong); display: flex; gap: 10px; align-items: center; }
+.dialog h4 i { color: var(--danger-ink); font-size: 22px; }
+.dialog p { color: var(--text-muted); }
+.dialog footer { display: flex; justify-content: flex-end; gap: var(--space-2); }
+dialog.real { border: 0; padding: 0; background: none; margin: auto; overflow: visible; }
+dialog.real::backdrop { background: var(--scrim); }
+dialog.real[open] .dialog { animation: pop var(--dur-panel) var(--ease-out); }
+@keyframes pop { from { opacity: 0; transform: scale(0.95); } }
+
+/* App shell */
+.shellwrap { overflow-x: auto; border-radius: var(--radius-lg); border: 1px solid var(--line-strong); }
+.shell { display: grid; grid-template-columns: 68px 240px minmax(0, 1fr) 232px; height: 620px; min-width: 980px; background: var(--bg-page); }
+.rail { background: var(--bg-rail); padding: 12px 0; display: flex; flex-direction: column; align-items: center; gap: 10px; --bg-ring: var(--bg-rail); }
+.rail hr { width: 28px; border: 0; height: 2px; border-radius: 2px; background: var(--line-strong); }
+.srv { position: relative; width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; font-weight: var(--weight-bold); color: #fff; transition: transform var(--dur-press) var(--ease-spring); }
+.srv:hover { transform: translateY(-1px); }
+.srv:active { transform: scale(0.94); }
+.srv.sel { box-shadow: 0 0 0 2px var(--bg-rail), 0 0 0 4px var(--text-strong); }
+.srv.unread::before { content: ""; position: absolute; left: -14px; top: 50%; width: 4px; height: 8px; margin-top: -4px; border-radius: 0 4px 4px 0; background: var(--text-strong); }
+.srv .count { position: absolute; right: -5px; bottom: -4px; box-shadow: 0 0 0 3px var(--bg-rail); }
+.srv.home { background: var(--bg-sidebar); }
+.srv.add { background: var(--bg-sidebar); color: var(--accent-ink); }
+.side { background: var(--bg-sidebar); display: flex; flex-direction: column; min-height: 0; --bg-ring: var(--bg-sidebar); }
+.side header { height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--line); color: var(--text-strong); font-weight: var(--weight-bold); font-size: 15px; }
+.side header i { margin-left: auto; color: var(--text-muted); }
+.chlist { flex: 1; padding: 10px 8px; overflow: auto; display: grid; align-content: start; gap: 1px; }
+.cat { display: flex; align-items: center; gap: 4px; height: 28px; margin-top: 12px; padding: 0 6px; font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--text-faint); }
+.cat:first-child { margin-top: 0; }
+.cat i { font-size: 11px; }
+.ch { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border-radius: var(--radius-sm); color: var(--text-muted); font-weight: var(--weight-medium); position: relative; transition: background var(--dur-hover), color var(--dur-hover); cursor: pointer; }
+.ch:hover { background: var(--hover); color: var(--text); }
+.ch i { color: var(--text-faint); font-size: 18px; }
+.ch.sel { background: var(--selected); color: var(--text-strong); }
+.ch.unread { color: var(--text-strong); font-weight: var(--weight-semibold); }
+.ch.unread::before { content: ""; position: absolute; left: -8px; width: 4px; height: 8px; border-radius: 0 4px 4px 0; background: var(--text-strong); }
+.ch .count { margin-left: auto; }
+.vp { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px 0 30px; border-radius: var(--radius-sm); color: var(--text-muted); font-weight: var(--weight-medium); }
+.vp:hover { background: var(--hover); }
+.vp .av { --size: 22px; }
+.vp.speaking { color: var(--text-strong); }
+.vp .end { margin-left: auto; display: flex; gap: 4px; color: var(--text-faint); }
+.vp .end i { font-size: 15px; }
+.vp .live { height: 18px; padding: 0 5px; font-size: 10px; }
+.voicebar { margin: 0 8px; padding: 10px; border-radius: var(--radius-md) var(--radius-md) 0 0; background: var(--bg-rail); border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+.voicebar .top-line { display: flex; align-items: center; gap: 8px; }
+.voicebar b { color: var(--online-ink); font-weight: var(--weight-semibold); display: flex; align-items: center; gap: 6px; }
+.voicebar .bars { --c: var(--online-ink); }
+.voicebar .chan { color: var(--text-faint); font-size: var(--text-xs); }
+.voicebar .acts { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.voicebar .acts .btn { height: 32px; padding: 0; }
+.me { display: flex; align-items: center; gap: 8px; padding: 8px 8px 10px; margin: 0 8px 8px; border-radius: 0 0 var(--radius-md) var(--radius-md); background: var(--bg-rail); --bg-ring: var(--bg-rail); }
+.me > div { flex: 1; min-width: 0; line-height: 1.25; }
+.me b { display: block; color: var(--text-strong); font-weight: var(--weight-semibold); }
+.me span { color: var(--text-faint); font-size: var(--text-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.me .iconbtn { width: 30px; height: 30px; }
+.chat { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.chat header { height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--line); }
+.chat header b { color: var(--text-strong); font-weight: var(--weight-bold); font-size: 15px; }
+.chat header .topic { color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 10px; margin-left: 2px; border-left: 1px solid var(--line-strong); }
+.chat header .acts { margin-left: auto; display: flex; gap: 2px; }
+.feed { flex: 1; overflow: auto; padding: 12px 0 4px; display: flex; flex-direction: column; }
+.day { display: flex; align-items: center; gap: 10px; margin: 8px 16px; color: var(--text-faint); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.day::before, .day::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.msg { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 14px; padding: 4px 16px; margin: 0 8px; border-radius: var(--radius-md); position: relative; transition: background var(--dur-hover); }
+.msg:hover { background: var(--hover); }
+.msg.first { margin-top: 12px; }
+.msg .av { --size: 40px; margin-top: 2px; }
+.msg .head { display: flex; align-items: baseline; gap: 8px; }
+.msg .name { color: var(--text-strong); font-weight: var(--weight-semibold); font-size: 15px; }
+.msg .time { color: var(--text-faint); font-size: var(--text-xs); }
+.msg .gutter { font-size: 11px; color: var(--text-faint); opacity: 0; text-align: right; padding-top: 3px; }
+.msg:hover .gutter { opacity: 1; }
+.msg .body { color: var(--text); font-size: var(--text-md); line-height: 1.45; overflow-wrap: anywhere; }
+.msg.mention { background: var(--accent-soft); }
+.msg.mention:hover { background: color-mix(in oklch, var(--accent-soft), var(--accent) 6%); }
+.at { color: var(--accent-ink); background: var(--accent-soft); padding: 0 3px; border-radius: 4px; font-weight: var(--weight-medium); }
+.reply { grid-column: 2; display: flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--text-faint); margin-bottom: 2px; min-width: 0; }
+.reply i { font-size: 14px; }
+.reply .av { --size: 16px; font-size: 7px; margin: 0; }
+.reply b { color: var(--text-muted); font-weight: var(--weight-semibold); }
+.reply span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.reacts { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.react { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border-radius: var(--radius-sm); background: var(--selected); border: 1px solid transparent; font-weight: var(--weight-semibold); color: var(--text-muted); font-variant-numeric: tabular-nums; transition: transform var(--dur-press) var(--ease-spring), background var(--dur-hover); }
+.react:hover { border-color: var(--line-strong); }
+.react:active { transform: scale(0.92); }
+.react.mine { background: var(--accent-soft); border-color: color-mix(in oklch, var(--accent) 55%, transparent); color: var(--accent-ink); }
+.react .e { font-size: 15px; }
+.embed { margin-top: 8px; max-width: 432px; padding: 12px 14px; border-radius: var(--radius-lg); background: var(--bg-sidebar); border: 1px solid var(--line); display: grid; gap: 6px; }
+.embed .site { display: flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--text-faint); font-weight: var(--weight-medium); }
+.embed .site span { width: 14px; height: 14px; border-radius: 4px; background: oklch(0.6 0.15 250); }
+.embed a { color: var(--accent-ink); font-weight: var(--weight-semibold); text-decoration: none; }
+.embed a:hover { text-decoration: underline; }
+.embed p { color: var(--text-muted); font-size: var(--text-sm); }
+.media { margin-top: 8px; width: 300px; aspect-ratio: 16/10; border-radius: var(--radius-lg); background: radial-gradient(120% 90% at 20% 10%, oklch(0.78 0.12 60), transparent 60%), radial-gradient(120% 100% at 90% 100%, oklch(0.55 0.18 330), transparent 60%), oklch(0.4 0.08 280); box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.08); }
+.typing { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 24px; font-size: var(--text-xs); color: var(--text-muted); }
+.typing b { color: var(--text-strong); font-weight: var(--weight-semibold); }
+.composer { margin: 0 16px; display: flex; align-items: center; gap: 4px; min-height: 48px; padding: 0 6px; border-radius: var(--radius-lg); background: var(--bg-raised); border: 1px solid var(--line); }
+.composer input { flex: 1; min-width: 0; height: 46px; background: none; border: 0; outline: 0; font-size: var(--text-md); color: var(--text-strong); padding: 0 6px; }
+.composer input::placeholder { color: var(--text-faint); }
+.members { background: var(--bg-sidebar); padding: 12px 8px; overflow: auto; --bg-ring: var(--bg-sidebar); }
+.mem { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 8px; border-radius: var(--radius-sm); transition: background var(--dur-hover); cursor: pointer; }
+.mem:hover { background: var(--hover); }
+.mem > div { min-width: 0; line-height: 1.25; }
+.mem b { display: flex; gap: 6px; align-items: center; color: var(--text-strong); font-weight: var(--weight-medium); white-space: nowrap; }
+.mem span { display: flex; align-items: center; gap: 4px; color: var(--text-faint); font-size: var(--text-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mem span i { font-size: 13px; }
+.mem.off { opacity: 0.5; }
+
+/* Call */
+.call { background: oklch(0.13 0.01 350); border-radius: var(--radius-lg); padding: var(--space-4); display: grid; gap: var(--space-4); color: #fff; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 10px; }
+.tile { position: relative; aspect-ratio: 16/9; border-radius: var(--radius-lg); display: grid; place-items: center; background: oklch(0.24 0.02 var(--hue)); overflow: hidden; transition: box-shadow var(--dur-hover); }
+.tile .av { --size: 64px; --bg-ring: oklch(0.24 0.02 var(--hue)); }
+.tile.speaking { box-shadow: inset 0 0 0 2px var(--accent), inset 0 0 0 4px oklch(0.13 0.01 350 / 0.6); }
+.tile.stream { background: radial-gradient(90% 120% at 10% 0%, oklch(0.6 0.14 200), transparent 55%), radial-gradient(100% 100% at 100% 100%, oklch(0.5 0.2 330), transparent 60%), oklch(0.25 0.05 280); }
+.tile .name { position: absolute; left: 8px; bottom: 8px; display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: var(--radius-sm); background: oklch(0 0 0 / 0.55); backdrop-filter: blur(8px); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.tile .name i { font-size: 14px; color: oklch(0.75 0.16 32); }
+.tile .name .bars { --c: #fff; height: 10px; }
+.tile .live { position: absolute; left: 8px; top: 8px; }
+.tile .viewers { position: absolute; right: 8px; top: 8px; display: flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: var(--radius-xs); background: oklch(0 0 0 / 0.55); font-size: 11px; font-weight: var(--weight-bold); }
+.tile .viewers i { font-size: 12px; }
+.controls { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.cbtn { width: 52px; height: 48px; border-radius: 16px; display: grid; place-items: center; background: oklch(1 0 0 / 0.1); color: #fff; transition: background var(--dur-hover), transform var(--dur-press) var(--ease-spring); }
+.cbtn:hover { background: oklch(1 0 0 / 0.16); }
+.cbtn:active { transform: scale(0.92); }
+.cbtn i { font-size: 22px; }
+.cbtn.off { background: oklch(0.65 0.20 32 / 0.2); color: oklch(0.78 0.15 32); }
+.cbtn.active { background: var(--accent); }
+.cbtn.leave { width: 68px; background: var(--danger); }
+.cbtn.leave:hover { background: var(--danger-hover); }
+
+@media (max-width: 860px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .toc { position: static; height: auto; flex-direction: row; overflow-x: auto; padding: var(--space-3) var(--space-4) 0; }
+  .toc a { white-space: nowrap; }
+  main { padding: var(--space-4) var(--space-4) 80px; }
+  .top { padding: 10px var(--space-4); }
+  .hero { grid-template-columns: 1fr; }
+  .specimen { grid-template-columns: 1fr; gap: 2px; }
+  .ramp { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><svg width="22" height="22" viewBox="0 0 64 66" aria-hidden="true"><g fill="#e8326f"><rect x="2" y="21" width="8" height="24" rx="4"/><rect x="15" y="10.5" width="8" height="45" rx="4"/><rect x="28" y="1" width="8" height="64" rx="4"/><rect x="41" y="13.5" width="8" height="39" rx="4"/><rect x="54" y="22" width="8" height="22" rx="4"/></g></svg>Wave <span>Design system</span></div>
+  <div class="tools">
+    <div class="seg" role="group" aria-label="Theme" id="theme">
+      <button aria-pressed="true" data-v="">System</button><button aria-pressed="false" data-v="light">Light</button><button aria-pressed="false" data-v="dark">Dark</button>
+    </div>
+    <select class="select" id="font" aria-label="Typeface">
+      <option value='"Gabarito"'>Gabarito</option>
+      <option value='"Onest"'>Onest</option>
+      <option value='"Figtree"'>Figtree</option>
+      <option value='"Rubik"'>Rubik</option>
+      <option value='"gg sans"'>gg sans (current)</option>
+    </select>
+    <select class="select" id="neutral" aria-label="Neutrals">
+      <option value="">Ink and bone</option>
+      <option value="plum">Plum</option>
+      <option value="graphite">Graphite</option>
+    </select>
+  </div>
+</header>
+
+<div class="layout">
+<nav class="toc" id="toc">
+  <a href="#overview">Overview</a><a href="#identity">Identity</a><a href="#colour">Colour</a><a href="#type">Type</a><a href="#space">Space and shape</a><a href="#motion">Motion</a><a href="#icons">Icons</a><a href="#controls">Controls</a><a href="#status">Status and people</a><a href="#overlays">Overlays</a><a href="#messages">Messages</a><a href="#voice">Voice and streams</a>
+</nav>
+<main>
+
+<section id="overview" style="padding-top: var(--space-2)">
+  <h1>Wave, at a glance</h1>
+  <p class="lede">Every piece below, put together. Hover rows, press buttons and react to messages: each state is real.</p>
+  <div class="shellwrap"><div class="shell">
+    <nav class="rail" aria-label="Servers">
+      <button class="srv home" aria-label="Direct messages"><svg width="22" height="22" viewBox="0 0 64 66" aria-hidden="true"><g fill="#e8326f"><rect x="2" y="21" width="8" height="24" rx="4"/><rect x="15" y="10.5" width="8" height="45" rx="4"/><rect x="28" y="1" width="8" height="64" rx="4"/><rect x="41" y="13.5" width="8" height="39" rx="4"/><rect x="54" y="22" width="8" height="22" rx="4"/></g></svg><span class="count">3</span></button>
+      <hr>
+      <button class="srv sel" style="background: linear-gradient(135deg, oklch(0.58 0.17 20), oklch(0.44 0.17 350))" aria-label="Night Shift">NS</button>
+      <button class="srv unread" style="background: linear-gradient(135deg, oklch(0.55 0.12 220), oklch(0.42 0.13 250))" aria-label="Pixel Club">PC</button>
+      <button class="srv" style="background: linear-gradient(135deg, oklch(0.56 0.13 140), oklch(0.42 0.12 165))" aria-label="Garden">G<span class="count">12</span></button>
+      <button class="srv" style="background: linear-gradient(135deg, oklch(0.58 0.14 55), oklch(0.46 0.15 35))" aria-label="Lowkey">L</button>
+      <button class="srv add" aria-label="Add a server"><i class="ph-bold ph-plus"></i></button>
+    </nav>
+    <aside class="side">
+      <header>Night Shift <i class="ph-bold ph-caret-down"></i></header>
+      <div class="chlist">
+        <div class="cat"><i class="ph-bold ph-caret-down"></i>Text</div>
+        <div class="ch"><i class="ph ph-megaphone"></i>announcements</div>
+        <div class="ch sel"><i class="ph ph-hash"></i>general</div>
+        <div class="ch unread"><i class="ph ph-hash"></i>clips</div>
+        <div class="ch"><i class="ph ph-hash"></i>looking-for-group<span class="count">2</span></div>
+        <div class="cat"><i class="ph-bold ph-caret-down"></i>Voice</div>
+        <div class="ch strong"><i class="ph ph-speaker-high"></i>Lounge</div>
+        <div class="vp speaking"><span class="av speaking" data-av="Mira"></span>Mira<span class="end"><span class="bars"><i></i><i></i><i></i></span></span></div>
+        <div class="vp"><span class="av" data-av="Theo"></span>Theo<span class="end"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span></span></div>
+        <div class="vp"><span class="av" data-av="You"></span>You<span class="end"><i class="ph-fill ph-microphone-slash"></i></span></div>
+        <div class="ch"><i class="ph ph-speaker-high"></i>Ranked grind</div>
+      </div>
+      <div class="voicebar">
+        <div class="top-line"><div style="flex:1;min-width:0"><b><span class="bars still"><i></i><i></i><i></i></span>Voice connected</b><div class="chan">Lounge · Night Shift</div></div><button class="iconbtn" aria-label="Disconnect" title="Disconnect"><i class="ph-bold ph-phone-x"></i></button></div>
+        <div class="acts"><button class="btn btn--sm" aria-label="Camera"><i class="ph-bold ph-video-camera"></i></button><button class="btn btn--sm" aria-label="Share your screen"><i class="ph-bold ph-screencast"></i></button><button class="btn btn--sm" aria-label="Soundboard"><i class="ph-bold ph-waveform"></i></button></div>
+      </div>
+      <div class="me"><span class="av" data-av="You"><span class="status online"></span></span><div><b>you</b><span>Online</span></div><button class="iconbtn on" aria-label="Unmute" title="Unmute"><i class="ph-bold ph-microphone-slash"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="Settings" title="Settings"><i class="ph-bold ph-gear-six"></i></button></div>
+    </aside>
+    <div class="chat">
+      <header><i class="ph ph-hash faint" style="font-size:20px"></i><b>general</b><span class="topic">late-night games and bad takes</span><div class="acts"><button class="iconbtn" aria-label="Threads"><i class="ph ph-chats-circle"></i></button><button class="iconbtn" aria-label="Pinned messages"><i class="ph ph-push-pin"></i></button><button class="iconbtn" aria-label="Member list"><i class="ph ph-users"></i></button><button class="iconbtn" aria-label="Search"><i class="ph ph-magnifying-glass"></i></button></div></header>
+      <div class="feed">
+        <div class="day">Today</div>
+        <div class="msg first"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">9:41 PM</span></div><div class="body">anyone up for a few rounds after dinner?</div></div></div>
+        <div class="msg"><span class="gutter">9:41</span><div class="body">bringing snacks this time, promise</div></div>
+        <div class="msg first mention"><span class="reply"><i class="ph ph-arrow-bend-up-right"></i><span class="av" data-av="Mira"></span><b>Mira</b><span>anyone up for a few rounds after dinner?</span></span><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="tag"><i class="ph-bold ph-crown-simple"></i>Host</span><span class="time">9:44 PM</span></div><div class="body">yes, <span class="at">@you</span> you in? starting a stream in Lounge</div>
+          <div class="reacts"><button class="react mine"><span class="e">🔥</span>4</button><button class="react"><span class="e">🎮</span>2</button><button class="react" aria-label="Add reaction"><i class="ph ph-smiley-sticker"></i></button></div></div></div>
+        <div class="msg first"><span class="av" data-av="Ana"></span><div><div class="head"><span class="name">Ana</span><span class="time">9:47 PM</span></div><div class="body">patch notes are out</div>
+          <div class="embed"><div class="site"><span></span>store.example</div><a href="#">Season 7: the long night</a><p>New map, two heroes and a reworked ranked ladder.</p></div></div></div>
+      </div>
+      <div class="typing"><span class="bars"><i></i><i></i><i></i></span><span><b>Mira</b> is typing…</span></div>
+      <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><input placeholder="Message #general" aria-label="Message #general"><button class="iconbtn" aria-label="GIFs"><i class="ph ph-gif"></i></button><button class="iconbtn" aria-label="Stickers"><i class="ph ph-sticker"></i></button><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+      <div style="height:16px"></div>
+    </div>
+    <aside class="members">
+      <div class="cat">Host · 1</div>
+      <div class="mem"><span class="av" data-av="Theo"><span class="status dnd"></span></span><div><b>Theo</b><span><i class="ph-fill ph-broadcast"></i>Streaming Hades II</span></div></div>
+      <div class="cat">Online · 3</div>
+      <div class="mem"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span><i class="ph-fill ph-game-controller"></i>Playing Balatro</span></div></div>
+      <div class="mem"><span class="av" data-av="Ana"><span class="status idle"></span></span><div><b>Ana</b><span>brb, pizza</span></div></div>
+      <div class="mem"><span class="av" data-av="Wavebot"><span class="status online"></span></span><div><b>Wavebot<span class="tag">App</span></b><span>Listening to /play</span></div></div>
+      <div class="cat">Offline · 2</div>
+      <div class="mem off"><span class="av" data-av="Jun"><span class="status offline"></span></span><div><b>Jun</b></div></div>
+      <div class="mem off"><span class="av" data-av="Rosa"><span class="status offline"></span></span><div><b>Rosa</b></div></div>
+    </aside>
+  </div></div>
+</section>
+
+<section id="identity">
+  <h2>Identity</h2>
+  <p class="lede">The voice wave is the whole idea: five rounded bars. It is the logo, the mascot, and the app's own marks for speaking, typing, loading and live.</p>
+  <div class="hero board">
+    <div class="mascot happy"><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="stack">
+      <div style="font-size: 40px; font-weight: 800; letter-spacing: -0.02em; color: var(--text-strong); line-height: 1">Wave</div>
+      <div class="muted">Voice, chat and streams with your people.</div>
+      <div class="row" style="margin-top:8px"><span class="mascot idle" style="--s:.3"><i></i><i></i><i></i><i></i><i></i></span><span class="note">Idle</span><span class="mascot waiting" style="--s:.3; margin-left:12px"><i></i><i></i><i></i><i></i><i></i></span><span class="note">Waiting</span><span class="mascot happy" style="--s:.3; margin-left:12px"><i></i><i></i><i></i><i></i><i></i></span><span class="note">Speaking</span></div>
+    </div>
+  </div>
+  <h3>App icons</h3>
+  <div class="icons-row" id="appicons"></div>
+  <h3>Principles</h3>
+  <div class="principles">
+    <div class="principle"><b>The wave is the voice</b><p>Speaking, typing, loading and live all draw the bars, never a generic spinner or ring.</p></div>
+    <div class="principle"><b>Magenta means you</b><p>Accent goes to your actions, your selection and what asks for you: mentions, live, unread counts.</p></div>
+    <div class="principle"><b>Ink and bone</b><p>Warm neutrals: plum-tinted ink at night, paper bone by day. No cool blue-greys.</p></div>
+    <div class="principle"><b>Soft, not round</b><p>Squircles for servers, buttons and tiles; pills only for counts, status and the bars.</p></div>
+  </div>
+</section>
+
+<section id="colour">
+  <h2>Colour</h2>
+  <p class="lede">Restrained: warm neutrals plus one magenta. Depth in the dark theme comes from lighter surfaces, never shadows. Contrast figures are measured live against the page.</p>
+  <h3>Surfaces, deepest to highest</h3>
+  <div class="ramp" id="surfaces"></div>
+  <h3>Text</h3>
+  <div class="textramp board" id="texts" style="padding: var(--space-3)"></div>
+  <h3>Accent and status</h3>
+  <div class="grid" id="accents"></div>
+</section>
+
+<section id="type">
+  <h2>Type</h2>
+  <p class="lede">One family for the interface, a mono for code. Switch the typeface at the top to compare; Gabarito is the proposal: geometric and friendly like the bars, and nobody else's.</p>
+  <div class="board" id="specimens">
+    <div class="specimen"><span class="note">28 · bold · 1.2</span><span style="font-size:28px;font-weight:700;color:var(--text-strong);line-height:1.2;letter-spacing:-0.01em">Welcome to Night Shift</span></div>
+    <div class="specimen"><span class="note">20 · bold · 1.2</span><span style="font-size:20px;font-weight:700;color:var(--text-strong)">Voice and video</span></div>
+    <div class="specimen"><span class="note">16 · regular · 1.45</span><span style="font-size:16px;line-height:1.45">anyone up for a few rounds after dinner? bringing snacks this time, promise</span></div>
+    <div class="specimen"><span class="note">14 · medium</span><span style="font-weight:500">general · looking-for-group · Lounge</span></div>
+    <div class="specimen"><span class="note">12 · semibold</span><span style="font-size:12px;font-weight:600;color:var(--text-faint)">Today at 9:41 PM · Online · 3</span></div>
+    <div class="specimen"><span class="note">mono 14</span><span class="mono">cargo run --release</span></div>
+  </div>
+</section>
+
+<section id="space">
+  <h2>Space and shape</h2>
+  <p class="lede">A 4px scale. Controls 10, surfaces 14, dialogs 20; nested corners stay concentric.</p>
+  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr))">
+    <div class="board spaces" id="spaces"></div>
+    <div class="board"><div class="radii" id="radii"></div></div>
+  </div>
+</section>
+
+<section id="motion">
+  <h2>Motion</h2>
+  <p class="lede">Quick and a little springy. Things you touch overshoot slightly and settle inside 250ms; nothing that happens a hundred times a day animates more than a fade. Click a card to play it.</p>
+  <div class="motion" id="motions"></div>
+</section>
+
+<section id="icons">
+  <h2>Icons</h2>
+  <p class="lede">Phosphor, regular for rows and chrome, bold for buttons, fill for state (on, live, playing). Rounded joins match the bars.</p>
+  <div class="board"><div class="row" id="iconset" style="gap: var(--space-4); font-size: 22px; color: var(--text)"></div></div>
+</section>
+
+<section id="controls">
+  <h2>Controls</h2>
+  <p class="lede">Verb plus object on every button. Hover, press, focus (Tab to it), disabled and loading are all live.</p>
+  <h3>Buttons</h3>
+  <div class="board stack" style="gap: var(--space-4)">
+    <div class="row"><button class="btn btn--primary">Join voice</button><button class="btn">Invite friends</button><button class="btn btn--ghost">Mark as read</button><button class="btn btn--danger">Leave server</button><button class="btn btn--primary" disabled>Join voice</button><button class="btn btn--primary" id="loadbtn"><span>Save changes</span></button></div>
+    <div class="row"><button class="btn btn--primary btn--lg"><i class="ph-bold ph-broadcast"></i>Go live</button><button class="btn"><i class="ph-bold ph-user-plus"></i>Add friend</button><button class="btn btn--sm">Small</button><button class="iconbtn" aria-label="Pin"><i class="ph ph-push-pin"></i></button><button class="iconbtn" aria-label="Reply"><i class="ph ph-arrow-bend-up-left"></i></button><button class="iconbtn on" aria-label="Unmute"><i class="ph-bold ph-microphone-slash"></i></button></div>
+  </div>
+  <h3>Inputs</h3>
+  <div class="board grid">
+    <div class="field"><label for="f1">Display name</label><div class="input"><input id="f1" value="you"></div></div>
+    <div class="field"><label for="f2">Search</label><div class="input"><i class="ph ph-magnifying-glass"></i><input id="f2" placeholder="Search Night Shift"></div></div>
+    <div class="field"><label for="f3">Invite link</label><div class="input error"><input id="f3" value="wave.gg/nght" aria-describedby="f3e"></div><span class="err" id="f3e"><i class="ph-fill ph-warning-circle"></i>This invite has expired. Ask for a new one.</span></div>
+  </div>
+  <h3>Choices</h3>
+  <div class="board grid">
+    <div class="stack">
+      <button class="choice" data-toggle="switch"><div><b>Noise suppression</b><span>Removes background sound from your mic</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+      <button class="choice" data-toggle="switch"><div><b>Echo cancellation</b><span>Stops others hearing themselves</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+    </div>
+    <div class="stack">
+      <button class="choice" data-toggle="check"><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span><div><b>Show game activity</b><span>Lets friends see what you play</span></div></button>
+      <button class="choice" data-toggle="check"><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span><div><b>Allow DMs from server members</b></div></button>
+    </div>
+    <div class="stack" role="radiogroup" aria-label="Input mode">
+      <button class="choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="true"></span><div><b>Voice activity</b><span>Transmits when you speak</span></div></button>
+      <button class="choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div><b>Push to talk</b><span>Hold a key to transmit</span></div></button>
+    </div>
+    <div class="stack" style="gap: var(--space-4)">
+      <div class="seg" role="group" aria-label="Quality"><button aria-pressed="false">720p</button><button aria-pressed="true">1080p</button><button aria-pressed="false">Source</button></div>
+      <div class="field"><label for="vol">Mira's volume</label><input id="vol" class="range" type="range" value="60"></div>
+    </div>
+  </div>
+</section>
+
+<section id="status">
+  <h2>Status and people</h2>
+  <p class="lede">Status is never colour alone: online is a dot, idle a moon, do not disturb a bar, offline a ring. Speaking is the accent ring plus the bars.</p>
+  <div class="board stack" style="gap: var(--space-6)">
+    <div class="row" style="gap: var(--space-6)">
+      <div class="row"><span class="av" style="--size:40px" data-av="Mira"><span class="status online"></span></span><span class="muted">Online</span></div>
+      <div class="row"><span class="av" style="--size:40px" data-av="Ana"><span class="status idle"></span></span><span class="muted">Idle</span></div>
+      <div class="row"><span class="av" style="--size:40px" data-av="Theo"><span class="status dnd"></span></span><span class="muted">Do not disturb</span></div>
+      <div class="row"><span class="av" style="--size:40px" data-av="Jun"><span class="status offline"></span></span><span class="muted">Offline</span></div>
+      <div class="row"><span class="av speaking" style="--size:40px; --bg-ring: var(--bg-sidebar)" data-av="Rosa"></span><span class="muted">Speaking</span></div>
+    </div>
+    <div class="row" style="gap: var(--space-4)"><span class="count">3</span><span class="count">99+</span><span class="tag">App</span><span class="tag"><i class="ph-bold ph-crown-simple"></i>Host</span><span class="tag">New</span><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><div class="stackav" style="--bg-ring: var(--bg-sidebar)"><span class="av" style="--size:24px" data-av="Mira"></span><span class="av" style="--size:24px" data-av="Theo"></span><span class="av" style="--size:24px" data-av="Ana"></span></div><span class="muted">3 watching</span></div>
+  </div>
+</section>
+
+<section id="overlays">
+  <h2>Overlays</h2>
+  <p class="lede">Menus and popovers rise from their trigger; dialogs scale from the centre over a scrim. Descriptions sit under their titles.</p>
+  <div class="board" style="display:flex; gap: var(--space-8); flex-wrap: wrap; align-items: flex-start">
+    <div class="menu" role="menu">
+      <button class="mi" role="menuitem"><i class="ph ph-arrow-bend-up-left"></i><div>Reply</div><kbd>R</kbd></button>
+      <button class="mi" role="menuitem"><i class="ph ph-smiley"></i><div>Add reaction</div></button>
+      <button class="mi" role="menuitem"><i class="ph ph-chats-circle"></i><div>Create thread<small>Keep the side chat out of #general</small></div></button>
+      <button class="mi" role="menuitem"><i class="ph ph-copy"></i><div>Copy text</div><kbd>⌘C</kbd></button>
+      <hr>
+      <button class="mi danger" role="menuitem"><i class="ph ph-trash"></i><div>Delete message</div></button>
+    </div>
+    <div class="stack" style="gap: var(--space-6); align-items: flex-start">
+      <span class="tooltip">Mute<kbd>= Backspace</kbd></span>
+      <div class="toast"><i class="ph-fill ph-check-circle"></i><p>Message deleted</p><button class="btn btn--sm btn--ghost">Undo</button></div>
+      <button class="btn" id="opendialog">Open dialog</button>
+    </div>
+    <div class="dialog" role="dialog" aria-labelledby="dlg1"><h4 id="dlg1"><i class="ph-fill ph-warning"></i>Delete #clips?</h4><p>Everyone loses the channel and its 1,204 messages. This can't be undone.</p><footer><button class="btn btn--ghost">Keep channel</button><button class="btn btn--danger">Delete channel</button></footer></div>
+  </div>
+  <dialog class="real" id="dialog"><div class="dialog"><h4><i class="ph-fill ph-warning"></i>Leave Night Shift?</h4><p>You can rejoin with a new invite.</p><footer><button class="btn btn--ghost" data-close>Stay</button><button class="btn btn--danger" data-close>Leave server</button></footer></div></dialog>
+</section>
+
+<section id="messages">
+  <h2>Messages</h2>
+  <p class="lede">A mention tints the whole row, with no stripe. Reactions you added carry the accent. Embeds lead with the site, never a coloured bar.</p>
+  <div class="board" style="padding: var(--space-3) 0; background: var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Rosa"></span><div><div class="head"><span class="name">Rosa</span><span class="time">Yesterday at 11:02 PM</span></div><div class="body">caught this on stream last night</div><div class="media"></div></div></div>
+    <div class="msg"><span class="gutter">11:03</span><div class="body">the timing on that dodge 😭</div><div class="reacts" style="grid-column:2"><button class="react"><span class="e">😭</span>6</button><button class="react mine"><span class="e">👏</span>3</button></div></div>
+    <div class="msg first mention"><span class="av" data-av="Jun"></span><div><div class="head"><span class="name">Jun</span><span class="time">Yesterday at 11:10 PM</span></div><div class="body"><span class="at">@you</span> send me the clip? I want it for the montage. Code block next:</div><div class="body mono" style="font-size:14px; margin-top:6px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--bg-sidebar); border: 1px solid var(--line)">ffmpeg -ss 00:41 -t 12 -i clip.mp4 out.gif</div></div></div>
+  </div>
+</section>
+
+<section id="voice">
+  <h2>Voice and streams</h2>
+  <p class="lede">The call stage stays dark in both themes, so streams read like a screen. Controls are squircles; off-states turn coral, sharing turns magenta, leaving is the one red fill.</p>
+  <div class="call">
+    <div class="tiles">
+      <div class="tile speaking" style="--hue: 20"><span class="av" data-av="Mira"></span><span class="name"><span class="bars"><i></i><i></i><i></i></span>Mira</span></div>
+      <div class="tile stream" style="--hue: 280"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="viewers"><i class="ph-bold ph-eye"></i>3</span><span class="name">Theo · Hades II</span></div>
+      <div class="tile" style="--hue: 200"><span class="av" data-av="You"></span><span class="name"><i class="ph-fill ph-microphone-slash"></i>You</span></div>
+    </div>
+    <div class="controls">
+      <button class="cbtn off" aria-label="Unmute"><i class="ph-fill ph-microphone-slash"></i></button>
+      <button class="cbtn" aria-label="Deafen"><i class="ph-fill ph-headphones"></i></button>
+      <button class="cbtn" aria-label="Turn on camera"><i class="ph-fill ph-video-camera"></i></button>
+      <button class="cbtn active" aria-label="Stop sharing"><i class="ph-fill ph-screencast"></i></button>
+      <button class="cbtn" aria-label="Open chat"><i class="ph-fill ph-chat-circle"></i></button>
+      <button class="cbtn leave" aria-label="Leave call"><i class="ph-fill ph-phone-x"></i></button>
+    </div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+const root = document.documentElement;
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+
+// Avatars: initials on a hue picked from the name.
+for (const el of $$("[data-av]")) {
+  const name = el.dataset.av;
+  const hue = [...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+  el.style.setProperty("--hue", hue);
+  el.prepend(name === "You" ? "Y" : name[0]);
+}
+
+// Controls on the page chrome.
+$("#theme").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  for (const x of $$("#theme button")) x.setAttribute("aria-pressed", x === b);
+  b.dataset.v ? root.dataset.theme = b.dataset.v : delete root.dataset.theme;
+  measure();
+});
+$("#font").addEventListener("change", e => root.style.setProperty("--font-ui", `${e.target.value}, system-ui, sans-serif`));
+$("#neutral").addEventListener("change", e => { e.target.value ? root.dataset.neutral = e.target.value : delete root.dataset.neutral; measure(); });
+
+// App icons.
+$("#appicons").innerHTML = ["glass", "bone", "brand", "graphite", "paper", "blueprint", "riso", "pixel", "sticker", "peek", "sleepy"]
+  .map(n => `<figure><img src="/assets/brand/icons/${n}.png" alt=""><figcaption>${n === "brand" ? "Magenta" : n[0].toUpperCase() + n.slice(1)}</figcaption></figure>`).join("");
+
+// Colour: swatches plus live WCAG contrast.
+const surfaces = [["--bg-rail", "Rail"], ["--bg-sidebar", "Sidebar"], ["--bg-page", "Page"], ["--bg-raised", "Raised"], ["--bg-overlay", "Overlay"]];
+$("#surfaces").innerHTML = surfaces.map(([v, n]) => `<div style="background:var(${v})"><b>${n}</b>${v}</div>`).join("");
+const texts = [["--text-strong", "Strong", "Names, titles, selected rows"], ["--text", "Default", "Message body"], ["--text-muted", "Muted", "Channel rows, descriptions"], ["--text-faint", "Faint", "Timestamps, placeholders"], ["--accent-ink", "Accent ink", "Links, mentions"], ["--danger-ink", "Danger ink", "Errors, destructive rows"]];
+$("#texts").innerHTML = texts.map(([v, n, use]) => `<div><span style="color:var(${v}); font-weight:600">${n} <span class="faint" style="font-weight:400">· ${use}</span></span><span class="pass" data-fg="${v}" data-bg="--bg-page"></span></div>`).join("");
+const accents = [["--accent", "Accent", "Primary buttons, counts, live", "#fff"], ["--accent-hover", "Accent hover", "", "#fff"], ["--logo", "Logo", "The mark only", "#fff"], ["--danger", "Danger", "Leave, delete", "#fff"], ["--online", "Online", "Dot, voice connected", ""], ["--idle", "Idle", "Moon", ""], ["--dnd", "Do not disturb", "Bar", ""], ["--offline", "Offline", "Ring", ""]];
+$("#accents").innerHTML = accents.map(([v, n, use, on]) => `<div class="swatch"><div class="chip" style="background:var(${v}); color:${on || "transparent"}">${on ? `<span class="pass" style="color:#fff" data-fg="#fff" data-raw-bg="${v}"></span>` : ""}</div><div class="meta"><b>${v}</b><span>${n}${use ? " · " + use : ""}</span></div></div>`).join("");
+
+const probe = document.createElement("i"); document.body.append(probe);
+const ctx = Object.assign(document.createElement("canvas"), { width: 1, height: 1 }).getContext("2d", { willReadFrequently: true });
+function rgb(color) {
+  probe.style.color = color;
+  ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = getComputedStyle(probe).color; ctx.fillRect(0, 0, 1, 1);
+  return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3);
+}
+const lum = c => { const [r, g, b] = c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+function measure() {
+  requestAnimationFrame(() => {
+    for (const el of $$("[data-fg]")) {
+      const fg = el.dataset.fg.startsWith("--") ? `var(${el.dataset.fg})` : el.dataset.fg;
+      const bg = `var(${el.dataset.bg || el.dataset.rawBg})`;
+      const r = ratio(rgb(fg), rgb(bg));
+      el.textContent = `${r.toFixed(2)}:1 ${r >= 4.5 ? "AA" : r >= 3 ? "AA large" : "fails"}`;
+    }
+  });
+}
+measure();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", measure);
+
+// Space and radius.
+$("#spaces").innerHTML = [4, 8, 12, 16, 24, 32, 48].map(n => `<div>${n}px<span style="width:${n * 3}px"></span></div>`).join("");
+$("#radii").innerHTML = [["xs", 6, "Tags, tooltips"], ["sm", 8, "Rows, menu items"], ["md", 10, "Buttons, inputs"], ["lg", 14, "Cards, tiles, servers"], ["xl", 20, "Dialogs"]]
+  .map(([n, r, use]) => `<figure><div style="border-radius:${r}px"></div><b class="strong mono" style="font-size:12px">${n} · ${r}</b><span>${use}</span></figure>`).join("");
+
+// Motion cards.
+const motions = [["Press", "120ms · ease-out · scale 0.97", "var(--dur-press)", "var(--ease-out)"], ["Hover", "150ms · ease-out · colour only", "var(--dur-hover)", "var(--ease-out)"], ["Pop", "200ms · ease-out · from 0.95", "var(--dur-pop)", "var(--ease-out)"], ["Spring", "250ms · touch-driven, ~0.3 bounce", "250ms", "var(--ease-spring)"], ["Panel", "260ms · drawer curve", "var(--dur-panel)", "var(--ease-drawer)"], ["Move", "on-screen movement", "400ms", "var(--ease-move)"]];
+$("#motions").innerHTML = motions.map(([n, d, dur, e]) => `<button class="board" style="text-align:left"><b class="strong">${n}</b><span class="note">${d}</span><div class="track" style="--d:${dur}; --e:${e}"><span class="dot"></span></div></button>`).join("");
+for (const card of $$("#motions .board")) card.addEventListener("click", () => {
+  const t = $(".track", card); t.style.setProperty("--w", t.clientWidth + "px"); t.classList.toggle("go");
+});
+
+// Icons.
+$("#iconset").innerHTML = ["hash", "speaker-high", "microphone", "microphone-slash", "headphones", "screencast", "video-camera", "broadcast", "phone-x", "users", "chats-circle", "push-pin", "magnifying-glass", "gear-six", "smiley", "gif", "sticker", "plus-circle", "arrow-bend-up-left", "trash", "bell", "game-controller", "crown-simple", "eye"]
+  .map(n => `<i class="ph ph-${n}" title="${n}"></i>`).join("");
+
+// Live toggles.
+document.addEventListener("click", e => {
+  const c = e.target.closest(".choice"); if (c) {
+    const mark = $("[aria-checked]", c), kind = c.dataset.toggle;
+    if (kind === "radio") for (const r of $$("[role=radio]", c.parentElement)) r.setAttribute("aria-checked", r === mark);
+    else mark.setAttribute("aria-checked", mark.getAttribute("aria-checked") !== "true");
+  }
+  const seg = e.target.closest(".seg:not(#theme) button"); if (seg) for (const b of $$("button", seg.parentElement)) b.setAttribute("aria-pressed", b === seg);
+  const re = e.target.closest(".react:not([aria-label])"); if (re) {
+    const mine = re.classList.toggle("mine"); const n = re.lastChild; n.textContent = +n.textContent + (mine ? 1 : -1);
+  }
+  if (e.target.closest("[data-close]")) $("#dialog").close();
+});
+$("#opendialog").addEventListener("click", () => $("#dialog").showModal());
+$("#dialog").addEventListener("click", e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+$("#loadbtn").addEventListener("click", e => {
+  const b = e.currentTarget; if (b.dataset.busy) return; b.dataset.busy = 1;
+  const label = b.innerHTML; b.innerHTML = `<span class="bars" style="--c:#fff"><i></i><i></i><i></i></span>Saving…`;
+  setTimeout(() => { b.innerHTML = label; delete b.dataset.busy; }, 1400);
+});
+const vol = $("#vol"); vol.addEventListener("input", () => vol.style.setProperty("--v", vol.value + "%"));
+
+// Table of contents follows the scroll.
+const links = $$("#toc a");
+const io = new IntersectionObserver(entries => {
+  for (const en of entries) if (en.isIntersecting) for (const a of links) a.classList.toggle("on", a.hash === "#" + en.target.id);
+}, { rootMargin: "-40% 0px -55% 0px" });
+for (const s of $$("main section")) io.observe(s);
+</script>
+</body>
+</html>
