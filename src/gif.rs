@@ -1,15 +1,18 @@
 // Discord's GIFs (Tenor, Klipy, Giphy) arrive as silent looping MP4s, which Discord plays inline.
 // gpui animates multi-frame images, so each MP4 is decoded once (OpenH264) into one, scaled to the
 // size it is shown at, and cached as a gpui asset.
-use std::{io::Cursor, sync::Arc};
+use std::{ops::ControlFlow, sync::Arc, time::Duration};
 
 use gpui_kit::{App, Asset, RenderImage};
-use image::{Delay, Frame, RgbaImage, imageops::FilterType};
-use openh264::{decoder::Decoder, formats::YUVSource};
+use image::{Delay, Frame};
+
+use crate::h264::{Track, bgra};
 
 // Wide enough for Discord's largest inline GIF; keeps a 200-frame GIF around 100 MB at worst.
 const MAX_WIDTH: u32 = 400;
-const MAX_FRAMES: u32 = 300;
+const MAX_FRAMES: usize = 300;
+// gpui would spin on a zero delay; no GIF shows a frame for less.
+const MIN_DELAY: Duration = Duration::from_millis(10);
 
 pub enum Gif {}
 
@@ -44,71 +47,31 @@ pub fn source(url: String) -> gpui_kit::ImageSource {
 }
 
 pub fn decode(bytes: &[u8]) -> Result<Vec<Frame>, String> {
-    let err = |e: mp4::Error| e.to_string();
-    let mut reader = mp4::Mp4Reader::read_header(Cursor::new(bytes), bytes.len() as u64).map_err(err)?;
-    let track = reader.tracks().values().find(|t| matches!(t.media_type(), Ok(mp4::MediaType::H264))).ok_or("no H.264 track")?;
-    let (id, timescale, count) = (track.track_id(), track.timescale().max(1), track.sample_count());
-    let mut header = Vec::new();
-    for set in [track.sequence_parameter_set().map_err(err)?, track.picture_parameter_set().map_err(err)?] {
-        header.extend_from_slice(&[0, 0, 0, 1]);
-        header.extend_from_slice(set);
-    }
-    let mut decoder = Decoder::new().map_err(|e| e.to_string())?;
-    // The decoder can hold pictures back (reordered frames), so whatever it still holds is flushed
-    // at the end. It can't decode B-frames (High-profile clips have them): those are skipped, and
-    // the clip's full length is spread over the frames that did decode, so it plays at true speed.
-    let mut total: u64 = 0;
+    let mut track = Track::open(bytes)?;
     let mut pictures = Vec::new();
-    for sample_id in 1..=count.min(MAX_FRAMES) {
-        let Some(sample) = reader.read_sample(id, sample_id).map_err(err)? else { continue };
-        total += u64::from(sample.duration);
-        let mut unit = if sample_id == 1 { header.clone() } else { Vec::new() };
-        unit.extend(annex_b(&sample.bytes));
-        if let Ok(Some(yuv)) = decoder.decode(&unit) {
-            pictures.extend(picture(&yuv));
-        }
-    }
-    for yuv in decoder.flush_remaining().unwrap_or_default() {
-        pictures.extend(picture(&yuv));
-    }
-    let ms = (total * 1000 / u64::from(timescale) / pictures.len().max(1) as u64).clamp(20, 1000) as u32;
-    let frames: Vec<Frame> = pictures.into_iter().map(|p| Frame::from_parts(p, 0, 0, Delay::from_numer_denom_ms(ms, 1))).collect();
-    if frames.is_empty() {
+    track.decode(0, |at, yuv| {
+        pictures.extend(bgra(yuv, MAX_WIDTH).map(|p| (at, p)));
+        if pictures.len() >= MAX_FRAMES { ControlFlow::Break(()) } else { ControlFlow::Continue(()) }
+    })?;
+    if pictures.is_empty() {
         return Err("no frames decoded".into());
     }
-    Ok(frames)
-}
-
-fn picture(yuv: &openh264::decoder::DecodedYUV) -> Option<RgbaImage> {
-    let (w, h) = yuv.dimensions();
-    let mut pixels = vec![0u8; yuv.rgba8_len()];
-    yuv.write_rgba8(&mut pixels);
-    let mut picture = RgbaImage::from_raw(w as u32, h as u32, pixels)?;
-    if picture.width() > MAX_WIDTH {
-        let height = picture.height() * MAX_WIDTH / picture.width();
-        picture = image::imageops::resize(&picture, MAX_WIDTH, height.max(1), FilterType::Triangle);
-    }
-    // gpui draws RenderImage pixels as BGRA.
-    picture.pixels_mut().for_each(|p| p.0.swap(0, 2));
-    Some(picture)
-}
-
-// MP4 stores NAL units behind 4-byte big-endian lengths; the decoder wants start codes.
-fn annex_b(mut avcc: &[u8]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(avcc.len() + 16);
-    while avcc.len() >= 4 {
-        let len = u32::from_be_bytes([avcc[0], avcc[1], avcc[2], avcc[3]]) as usize;
-        let Some(unit) = avcc.get(4..4 + len) else { break };
-        out.extend_from_slice(&[0, 0, 0, 1]);
-        out.extend_from_slice(unit);
-        avcc = &avcc[4 + len..];
-    }
-    out
+    // Each picture stays up until the next one's time; the last until the clip ends.
+    let ends: Vec<Duration> = pictures.iter().skip(1).map(|(at, _)| *at).chain([track.duration()]).collect();
+    Ok(pictures
+        .into_iter()
+        .zip(ends)
+        .map(|((at, picture), end)| Frame::from_parts(picture, 0, 0, Delay::from_saturating_duration(end.saturating_sub(at).max(MIN_DELAY))))
+        .collect())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn total_ms(frames: &[Frame]) -> f64 {
+        frames.iter().map(|f| f.delay().numer_denom_ms()).map(|(n, d)| f64::from(n) / f64::from(d)).sum()
+    }
 
     // A Discord-style GIF: H.264 in MP4, 480 wide, 15 frames over one second.
     #[test]
@@ -116,21 +79,16 @@ mod tests {
         let frames = decode(include_bytes!("../testdata/gifv.mp4")).expect("decodes");
         assert_eq!(frames.len(), 15);
         assert_eq!((frames[0].buffer().width(), frames[0].buffer().height()), (400, 225));
-        assert_eq!(frames[0].delay().numer_denom_ms(), (66, 1));
+        let (n, d) = frames[0].delay().numer_denom_ms();
+        assert!((f64::from(n) / f64::from(d) - 66.67).abs() < 0.1, "{n}/{d}");
+        assert!((total_ms(&frames) - 1000.).abs() < 1., "{}", total_ms(&frames));
     }
 
-    // With B-frames only some frames decode, but the clip still lasts its full second.
+    // Reordered B-frames used to make the decoder bail halfway; now every frame plays, at true speed.
     #[test]
-    fn b_frame_clips_keep_their_length() {
+    fn b_frame_clips_play_every_frame() {
         let frames = decode(include_bytes!("../testdata/gifv-bframes.mp4")).expect("decodes");
-        assert!(frames.len() >= 8, "{}", frames.len());
-        let total: u32 = frames.iter().map(|f| f.delay().numer_denom_ms().0).sum();
-        assert!((900..=1100).contains(&total), "{total} ms");
-    }
-
-    #[test]
-    fn avcc_to_annex_b() {
-        assert_eq!(annex_b(&[0, 0, 0, 2, 9, 9, 0, 0, 0, 1, 7]), [0, 0, 0, 1, 9, 9, 0, 0, 0, 1, 7]);
-        assert_eq!(annex_b(&[0, 0, 0, 9, 1]), Vec::<u8>::new());
+        assert_eq!(frames.len(), 15);
+        assert!((total_ms(&frames) - 1000.).abs() < 1., "{}", total_ms(&frames));
     }
 }

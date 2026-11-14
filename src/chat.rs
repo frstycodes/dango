@@ -792,7 +792,7 @@ fn content(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &App) -> Option
     // A message of only custom emoji renders them big, as Discord's "jumbo" emoji.
     let emoji = custom_emoji(&message.content);
     if !emoji.is_empty() && strip_emoji(&message.content).trim().is_empty() && emoji.len() <= 27 {
-        return Some(div().flex().flex_wrap().gap_1().children(emoji.into_iter().filter_map(|e| e.url()).map(|url| img(url).size(px(48.)))).into_any_element());
+        return Some(div().flex().flex_wrap().gap_1().children(emoji.into_iter().filter_map(|e| e.url()).enumerate().map(|(i, url)| img(url).id(("jumbo", i)).size(px(48.)))).into_any_element());
     }
     // Spoilers stay covered until the message is clicked; "-# " lines are Discord's small grey subtext.
     let revealed = ctx.revealed.borrow().contains(&message.id);
@@ -919,10 +919,16 @@ fn thread_chip(thread: &crate::discord::Channel, ctx: &std::rc::Rc<RowContext>, 
         .into_any_element()
 }
 
+// gpui only advances an animated image's frames when the img has an id to keep its frame state under,
+// so every img that may hold a GIF (or animated WebP) gets one.
+pub(crate) fn animated_image(source: impl Into<gpui_kit::ImageSource>) -> gpui_kit::Stateful<gpui_kit::Img> {
+    img(source).id("animated")
+}
+
 // A GIF plays as soon as it's decoded; the still shows meanwhile and if decoding fails.
-pub(crate) fn gif_image(url: &str, poster: &str) -> gpui_kit::Img {
+pub(crate) fn gif_image(url: &str, poster: &str) -> gpui_kit::Stateful<gpui_kit::Img> {
     let (loading, fallback) = (poster.to_owned(), poster.to_owned());
-    img(crate::gif::source(url.to_owned()))
+    animated_image(crate::gif::source(url.to_owned()))
         .with_loading(move || img(loading.clone()).size_full().rounded(px(8.)).into_any_element())
         .with_fallback(move || img(fallback.clone()).size_full().rounded(px(8.)).into_any_element())
 }
@@ -937,7 +943,7 @@ fn media_grid(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &App) -> Opt
         let (w, h) = (item.width * scale, item.height * scale);
         let (this, url) = (ctx.this.clone(), item.url.clone());
         let picture = match &item.kind {
-            MediaKind::Image => img(item.url.clone()).size_full().rounded(px(8.)).into_any_element(),
+            MediaKind::Image => animated_image(item.url.clone()).size_full().rounded(px(8.)).into_any_element(),
             MediaKind::Gif { poster } => gif_image(&item.url, poster).size_full().rounded(px(8.)).into_any_element(),
             MediaKind::Video { poster } => div()
                 .relative()

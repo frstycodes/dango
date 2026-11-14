@@ -15,6 +15,7 @@ mod mascot;
 mod material;
 mod forum;
 mod gif;
+mod h264;
 mod home;
 mod overlays;
 mod menu;
