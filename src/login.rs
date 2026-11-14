@@ -15,7 +15,7 @@ use crate::{
     icons::{self, Glyph},
     mascot::{Mood, mascot_at},
     motion, palette,
-    ui::{self, Tone},
+    ui::{self, Squircle, Tone},
 };
 
 // The code card: 204 square with 14 of white around the modules.
@@ -62,7 +62,7 @@ pub fn render(login: &Login, _: &mut Window, cx: &mut Context<Rustcord>) -> AnyE
     let lead = match login {
         Login::Preparing | Login::Captcha(_) => Some(mascot_at("login", Mood::Waiting, 0.6, cx)),
         Login::Failed(_) => Some(mascot_at("login", Mood::Idle, 0.6, cx)),
-        Login::Scanned(user) => Some(arrive("card-scanned", avatar_pop(user))),
+        Login::Scanned(user) => Some(arrive("card-scanned", avatar_pop(user, cx))),
         Login::Qr(_) => None,
     };
     let card = match login {
@@ -73,8 +73,10 @@ pub fn render(login: &Login, _: &mut Window, cx: &mut Context<Rustcord>) -> AnyE
             let open = ui::button("open-captcha", Tone::Primary, cx).child(Icon::new(Glyph::Open).size(px(16.))).child("Open captcha again").on_click(move |_, _, cx| cx.open_url(&url));
             Some(arrive("card-captcha", div().flex().flex_col().items_center().gap(px(12.)).child(waiting("captcha-wait", "Waiting for the captcha\u{2026}", cx)).child(open)))
         }
-        // GAP: the design's arrow-clockwise glyph isn't in icons.rs, so Try again has no icon.
-        Login::Failed(_) => Some(arrive("card-failed", ui::button("retry", Tone::Primary, cx).child("Try again").on_click(cx.listener(|this, _, _, cx| this.sign_in(cx))))),
+        Login::Failed(_) => Some(arrive(
+            "card-failed",
+            ui::button("retry", Tone::Primary, cx).child(Icon::new(Glyph::TryAgain).size(px(16.))).child("Try again").on_click(cx.listener(|this, _, _, cx| this.sign_in(cx))),
+        )),
         Login::Scanned(_) => None,
     };
     let muted = palette::muted(cx);
@@ -161,7 +163,7 @@ fn blank_card(cx: &App) -> AnyElement {
     div()
         .relative()
         .size(px(QR_SIDE))
-        .rounded(px(ui::RADIUS_LG))
+        .squircle(ui::RADIUS_LG)
         .bg(palette::selected(cx))
         // GAP: gpui clips to rectangles, so the sweep's corners show faintly past the card's rounding.
         .overflow_hidden()
@@ -206,7 +208,7 @@ fn qr_card(modules: Rc<Modules>, cx: &App) -> AnyElement {
         .relative()
         .size(px(QR_SIDE))
         .p(px(QR_PAD))
-        .rounded(px(ui::RADIUS_LG))
+        .squircle(ui::RADIUS_LG)
         .bg(gpui_kit::white())
         .shadow(shadow)
         .child(code)
@@ -237,7 +239,7 @@ fn steps(cx: &App) -> Div {
             .flex()
             .items_center()
             .gap(px(8.))
-            .child(div().size(px(20.)).flex_none().rounded(px(ui::RADIUS_XS)).bg(palette::selected(cx)).text_color(strong).text_size(px(12.)).font_weight(FontWeight::BOLD).flex().items_center().justify_center().child(n))
+            .child(div().size(px(20.)).flex_none().squircle(ui::RADIUS_XS).bg(palette::selected(cx)).text_color(strong).text_size(px(12.)).font_weight(FontWeight::BOLD).flex().items_center().justify_center().child(n))
             .child(StyledText::new(text).with_highlights([(range, HighlightStyle { color: Some(strong), font_weight: Some(FontWeight::SEMIBOLD), ..Default::default() })]))
     };
     div()
@@ -261,24 +263,39 @@ fn link(id: &'static str, text: &'static str, cx: &App) -> gpui_kit::Stateful<Di
     div().id(id).cursor_pointer().font_weight(FontWeight::SEMIBOLD).text_color(palette::accent_ink(cx)).hover(|s| s.underline()).child(text)
 }
 
-// The account that scanned springs in, 0.5 to 1.
-// PATCH(transform): scale the avatar instead of growing its box, so the layout under it holds still.
-// GAP: the design's phone badge on the avatar needs a device-mobile glyph icons.rs doesn't have.
-fn avatar_pop(user: &User) -> AnyElement {
-    img(user.avatar.clone())
-        .size(px(96.))
+// The account that scanned springs in from half size, the phone it's approving on badged at its foot.
+fn avatar_pop(user: &User, cx: &App) -> AnyElement {
+    let badge = div()
+        .absolute()
+        .right(px(-2.))
+        .bottom(px(-2.))
+        .size(px(32.))
         .rounded_full()
-        .with_animation("avatar-pop", Animation::new(Duration::from_millis(320)).with_easing(motion::back_out), |avatar, t| avatar.size(px(96. * (0.5 + 0.5 * t))))
+        .bg(palette::surface(palette::Level::Page, cx))
+        .text_color(palette::strong(cx))
+        .shadow(vec![BoxShadow { color: palette::line_strong(cx), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false }])
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(Icon::new(Glyph::DeviceMobile).size(px(18.)));
+    let spring = motion::ease_spring();
+    div()
+        .relative()
+        .size(px(96.))
+        .child(img(user.avatar.clone()).size_full().rounded_full())
+        .child(badge)
+        .with_animation("avatar-pop", Animation::new(Duration::from_millis(320)).with_easing(move |t| spring.sample(t)), |avatar, t| avatar.scale(0.5 + 0.5 * t).opacity(t.clamp(0., 1.)))
         .into_any_element()
 }
 
-// Each phase's card arrives from 12px below, fading in on the spring.
-// PATCH(transform): add scale 0.97 → 1 to the arrival.
+// Each phase's card arrives from 12px below and scale 0.97, fading in on the spring.
 fn arrive(id: impl Into<ElementId>, card: impl IntoElement) -> AnyElement {
+    let spring = motion::ease_spring();
     div()
-        .relative()
         .child(card)
-        .with_animation(id, Animation::new(Duration::from_millis(260)).with_easing(motion::back_out), |el, t| el.top(px(12. * (1. - t))).opacity(t.clamp(0., 1.)))
+        .with_animation(id, Animation::new(Duration::from_millis(260)).with_easing(move |t| spring.sample(t)), |el, t| {
+            el.translate_y(px(12. * (1. - t))).scale(0.97 + 0.03 * t).opacity(t.clamp(0., 1.))
+        })
         .into_any_element()
 }
 

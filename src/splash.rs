@@ -8,7 +8,8 @@ use gpui_kit::{
 
 use crate::{
     mascot::{Mood, mascot_at},
-    palette, ui,
+    palette,
+    ui::{self, Squircle},
 };
 
 // Signing in, loading your servers, opening Wave.
@@ -49,14 +50,14 @@ pub fn open(cx: &mut App) -> Option<WindowHandle<Splash>> {
 impl Render for Splash {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let card = if cx.theme().is_dark() { &MIDNIGHT } else { &BONE };
-        let dots = (0..STAGES).map(|i| div().size(px(6.)).rounded(px(3.)).bg(if i <= self.step { palette::accent() } else { rgb(card.rest).into() }));
+        let dots = (0..STAGES).map(|i| div().size(px(6.)).rounded_full().bg(if i <= self.step { palette::accent() } else { rgb(card.rest).into() }));
         // Opened without gpui-kit's root view, so the app font is set here.
         // GAP: the design's 0 18 40 drop shadow falls outside this borderless window's bounds.
         div().size_full().font_family(cx.theme().font_family.clone()).child(
             div()
                 .size_full()
                 .px_4()
-                .rounded(px(ui::RADIUS_MD))
+                .squircle(ui::RADIUS_MD)
                 .bg(rgb(card.bg))
                 .border_1()
                 .border_color(card.edge)
