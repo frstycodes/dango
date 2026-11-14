@@ -2615,8 +2615,8 @@ mod tests {
     use super::*;
     use gpui::{
         BorderStyle, ColorSpace, ContentMask, Corners, Edges, Hsla, MonochromeSprite,
-        PolychromeSprite, Quad, Shadow, Size, SubpixelSprite, Underline, linear_color_stop,
-        linear_gradient,
+        PolychromeSprite, Quad, Shadow, Size, SubpixelSprite, TransformationMatrix, Underline,
+        linear_color_stop, linear_gradient,
     };
     #[cfg(target_os = "linux")]
     use gpui::{DevicePixels, PlatformHeadlessRenderer, Scene};
@@ -2650,6 +2650,7 @@ mod tests {
             border_color: color,
             corner_radii: Corners::default(),
             border_widths: Edges::default(),
+            ..Quad::default()
         }
     }
 
@@ -2799,14 +2800,14 @@ mod tests {
 
     #[test]
     fn webgl_record_sizes_match_shader_word_strides() {
-        assert_eq!(std::mem::size_of::<Quad>(), 40 * 4);
-        assert_eq!(std::mem::size_of::<Shadow>(), 28 * 4);
+        assert_eq!(std::mem::size_of::<Quad>(), 48 * 4);
+        assert_eq!(std::mem::size_of::<Shadow>(), 36 * 4);
         assert_eq!(std::mem::size_of::<PathRasterizationVertex>(), 26 * 4);
         assert_eq!(std::mem::size_of::<PathSprite>(), 4 * 4);
-        assert_eq!(std::mem::size_of::<Underline>(), 16 * 4);
+        assert_eq!(std::mem::size_of::<Underline>(), 22 * 4);
         assert_eq!(std::mem::size_of::<MonochromeSprite>(), 28 * 4);
         assert_eq!(std::mem::size_of::<SubpixelSprite>(), 28 * 4);
-        assert_eq!(std::mem::size_of::<PolychromeSprite>(), 24 * 4);
+        assert_eq!(std::mem::size_of::<PolychromeSprite>(), 32 * 4);
     }
 
     #[test]
@@ -2876,6 +2877,12 @@ mod tests {
                 bottom: 32.0.into(),
                 left: 33.0.into(),
             },
+            transformation: TransformationMatrix {
+                rotation_scale: [[34.0, 35.0], [36.0, 37.0]],
+                translation: [38.0, 39.0],
+            },
+            corner_exponent: 40.0,
+            pad: 0,
         };
 
         let bytes = unsafe { WgpuRendererCore::instance_bytes(std::slice::from_ref(&quad)) };
@@ -2923,6 +2930,14 @@ mod tests {
                 31.0_f32.to_bits(),
                 32.0_f32.to_bits(),
                 33.0_f32.to_bits(),
+                34.0_f32.to_bits(),
+                35.0_f32.to_bits(),
+                36.0_f32.to_bits(),
+                37.0_f32.to_bits(),
+                38.0_f32.to_bits(),
+                39.0_f32.to_bits(),
+                40.0_f32.to_bits(),
+                0,
             ]
         );
     }
