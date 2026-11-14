@@ -474,13 +474,14 @@ impl Rustcord {
 
     fn set_ignored(&mut self, user_id: String, ignore: bool, cx: &mut Context<Self>) {
         let method = if ignore { Method::PUT } else { Method::DELETE };
-        let id = user_id.clone();
-        self.rest(method, format!("/users/@me/relationships/{user_id}/ignore"), None, move |this, _| {
-            match ignore {
+        let (a, b) = (user_id.clone(), user_id.clone());
+        let flip = |this: &mut Rustcord, id: String, on: bool| {
+            match on {
                 true => this.ignored.insert(id),
                 false => this.ignored.remove(&id),
             };
-        }, cx);
+        };
+        self.rest_optimistic(method, format!("/users/@me/relationships/{user_id}/ignore"), None, move |this| flip(this, a, ignore), move |this| flip(this, b, !ignore), cx);
     }
 
     // Opens (or creates) our DM with `user_id` and joins its call; it rings once connected.

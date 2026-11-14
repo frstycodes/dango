@@ -112,6 +112,8 @@ Tokens: `docs/discord-tokens.json` (Discord web, Midnight, read 2026-11-14).
 - [x] Owner crown in the member list (--text-feedback-warning, 14px)
 - [x] Stream previews: thumbnails on call tiles and a hover card on LIVE voice rows (GET /streams/{key}/preview, refreshed each minute)
 - [x] A message that is only a GIF or image link shows just the embed
+- [x] Drag people between voice channels (Move Members) and drag channels to reorder or into a category (Manage Channels)
+- [x] Optimistic actions: settings, pins, reactions, roles, voice moderation, relationships, ignore, nicknames, channel and thread edits, deletes, leaving a server; rolled back with a toast if Discord refuses
 - [x] Right-click menus rebuilt from Discord's own menu code: user (server, voice, DM, friends), message, channel, voice channel, category, server icon, folder, server dropdown
 - [ ] Menu items for features not built yet: Forward, Translate, Bookmarks/Reminders, Apps, Report, Favorites, Activities, Mod View, Server Settings, Create Event
 - [ ] Edit Channel and Folder Settings: Discord opens full settings screens; ours rename only
