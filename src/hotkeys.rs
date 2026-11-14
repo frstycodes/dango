@@ -15,12 +15,24 @@ pub enum Action {
     ToggleDeafen,
     ToggleVoiceMode,
     Disconnect,
+    ToggleScreenShare,
     Unassigned,
 }
 
+// Toggle Screen Share's default: ⌘⇧L on macOS, Ctrl+Shift+L elsewhere.
+pub const SHARE_KEYS: &str = if cfg!(target_os = "macos") { "shift+cmd+l" } else { "ctrl+shift+l" };
+
 impl Action {
-    pub const ALL: [Action; 7] =
-        [Action::Unassigned, Action::PushToTalk, Action::PushToMute, Action::ToggleVoiceMode, Action::ToggleMute, Action::ToggleDeafen, Action::Disconnect];
+    pub const ALL: [Action; 8] = [
+        Action::Unassigned,
+        Action::PushToTalk,
+        Action::PushToMute,
+        Action::ToggleVoiceMode,
+        Action::ToggleMute,
+        Action::ToggleDeafen,
+        Action::Disconnect,
+        Action::ToggleScreenShare,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -30,6 +42,7 @@ impl Action {
             Action::ToggleDeafen => "Toggle Deafen",
             Action::ToggleVoiceMode => "Toggle Voice Activity Mode",
             Action::Disconnect => "Disconnect From Voice",
+            Action::ToggleScreenShare => "Toggle Screen Share",
             Action::Unassigned => "Unassigned",
         }
     }
@@ -130,5 +143,7 @@ mod tests {
         let (cmd, alt) = if cfg!(target_os = "macos") { ("CMD", "OPTION") } else { ("WIN", "ALT") };
         assert_eq!(display("shift+cmd+m"), format!("SHIFT + {cmd} + M"));
         assert_eq!(display("alt+ArrowUp"), format!("{alt} + UP"));
+        let recorded = k(if cfg!(target_os = "macos") { "cmd-shift-l" } else { "ctrl-shift-l" });
+        assert_eq!(recorded.as_deref(), Some(SHARE_KEYS), "the default reads as if it had been recorded");
     }
 }

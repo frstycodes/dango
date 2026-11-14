@@ -118,9 +118,16 @@ pub struct Prefs {
     pub stream_resolution: u32,
     pub stream_fps: u32,
     pub stream_audio: bool,
-    // What we last went live with, preselected in the picker.
+    // What we last went live with: preselected in the picker, reused by the Toggle Screen Share keybind.
     pub last_share: Option<crate::go_live::LastShare>,
+    // Generations of default keybinds this file has been given. A file from before the field reads 0
+    // (the field's own default, not `Prefs::default`'s), so it gets newer defaults once; deleting one
+    // afterwards sticks.
+    #[serde(default)]
+    pub keybinds_version: u32,
 }
+
+const KEYBINDS_VERSION: u32 = 1;
 
 impl Default for Prefs {
     fn default() -> Self {
@@ -141,7 +148,7 @@ impl Default for Prefs {
             push_to_talk: false,
             ptt_release_ms: 20,
             silenced_cues: Vec::new(),
-            keybinds: vec![Keybind { action: Action::PushToTalk, keys: Some("`".into()) }],
+            keybinds: vec![Keybind { action: Action::PushToTalk, keys: Some("`".into()) }, share_keybind()],
             user_volumes: HashMap::new(),
             local_mutes: Vec::new(),
             soundboard_mutes: Vec::new(),
@@ -151,13 +158,30 @@ impl Default for Prefs {
             stream_fps: 30,
             stream_audio: true,
             last_share: None,
+            keybinds_version: KEYBINDS_VERSION,
         }
     }
 }
 
+fn share_keybind() -> Keybind {
+    Keybind { action: Action::ToggleScreenShare, keys: Some(hotkeys::SHARE_KEYS.into()) }
+}
+
 impl Prefs {
     pub fn load() -> Self {
-        prefs_file().and_then(|path| std::fs::read_to_string(path).ok()).and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default()
+        let mut prefs: Self = prefs_file().and_then(|path| std::fs::read_to_string(path).ok()).and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default();
+        prefs.add_new_keybinds();
+        prefs
+    }
+
+    fn add_new_keybinds(&mut self) {
+        if self.keybinds_version >= KEYBINDS_VERSION {
+            return;
+        }
+        if !self.keybinds.iter().any(|k| k.action == Action::ToggleScreenShare) {
+            self.keybinds.push(share_keybind());
+        }
+        self.keybinds_version = KEYBINDS_VERSION;
     }
 
     pub(crate) fn save(&self) {
@@ -410,6 +434,7 @@ impl Rustcord {
             Action::ToggleMute => self.toggle_mute(cx),
             Action::ToggleDeafen => self.toggle_deafen(cx),
             Action::ToggleVoiceMode => self.update_prefs(cx, |p| p.push_to_talk = !p.push_to_talk),
+            Action::ToggleScreenShare => self.toggle_share_keybind(cx),
             Action::Disconnect => self.leave_voice(cx),
             Action::Unassigned => {}
         }
@@ -1514,9 +1539,24 @@ mod tests {
         assert!(!prefs.noise_suppression, "Custom keeps the last switches");
         let text = serde_json::to_string(&prefs).unwrap();
         assert_eq!(serde_json::from_str::<Prefs>(&text).unwrap(), prefs);
-        assert_eq!(serde_json::from_str::<Prefs>("{}").unwrap(), Prefs::default());
+        let mut empty = serde_json::from_str::<Prefs>("{}").unwrap();
+        empty.add_new_keybinds();
+        assert_eq!(empty, Prefs::default());
         Slider::Sensitivity.set(&mut prefs, 0.4);
         assert_eq!(prefs.sensitivity_db, -60.);
         assert!((Slider::Sensitivity.fraction(&prefs) - 0.4).abs() < 1e-6);
+    }
+
+    #[test]
+    fn older_prefs_get_the_share_keybind_once() {
+        let shares = |p: &Prefs| p.keybinds.iter().filter(|k| **k == share_keybind()).count();
+        let mut old = serde_json::from_str::<Prefs>(r#"{"keybinds":[{"action":"ToggleMute","keys":"alt+m"}]}"#).unwrap();
+        assert_eq!(old.keybinds_version, 0);
+        old.add_new_keybinds();
+        assert_eq!(shares(&old), 1);
+        old.keybinds.retain(|k| k.action != Action::ToggleScreenShare);
+        let mut reread = serde_json::from_str::<Prefs>(&serde_json::to_string(&old).unwrap()).unwrap();
+        reread.add_new_keybinds();
+        assert_eq!(shares(&reread), 0, "a deleted default stays deleted");
     }
 }

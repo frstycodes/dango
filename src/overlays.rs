@@ -617,7 +617,12 @@ impl Rustcord {
             )
     }
 
+    // Points at the Toggle Screen Share keybind while one works; otherwise says who can watch.
     fn share_hint(&self) -> String {
+        let keybind = self.prefs.keybinds.iter().filter(|k| k.action == crate::hotkeys::Action::ToggleScreenShare).find_map(|k| k.keys.as_ref()).filter(|keys| !self.keybind_errors.contains(keys));
+        if let Some(keys) = keybind {
+            return format!("Press {} in any app to start or stop streaming.", crate::hotkeys::display(keys));
+        }
         match &self.call {
             Some(call) => format!("Everyone in {} can watch.", call.channel.name),
             None => "Everyone in the voice channel can watch.".into(),
