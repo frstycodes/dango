@@ -300,7 +300,7 @@ impl Rustcord {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .child(div().text_size(px(14.)).text_color(theme.muted_foreground).child("Loading preview…"))
+                    .child(div().text_size(px(14.)).text_color(gpui_kit::white().opacity(0.7)).child("Loading preview…"))
                     .children(preview.map(|url| {
                         crate::ui::media(url, crate::ui::top(crate::ui::RADIUS_LG))
                             .absolute()

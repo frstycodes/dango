@@ -722,7 +722,7 @@ impl Rustcord {
                 roles.into_iter().map(|r| (r.name.clone(), if r.color == 0 { theme.muted_foreground } else { rgb(r.color).into() })).collect()
             })
             .unwrap_or_default();
-        let name_color = self.role_color(card.guild_id.as_ref(), &user.id, Some(&profile.roles)).unwrap_or(theme.foreground);
+        let name_color = self.role_color(card.guild_id.as_ref(), &user.id, Some(&profile.roles), theme.is_dark()).unwrap_or(theme.foreground);
         let is_me = self.me.as_ref().is_some_and(|me| me.id == user.id);
         let (dm_user, mention) = (user.id.clone(), user.clone());
         let banner = match &profile.banner {

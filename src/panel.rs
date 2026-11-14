@@ -71,7 +71,7 @@ impl Rustcord {
     fn member_row(&self, member: &Member, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
         let offline = member.presence.status == Status::Offline;
-        let color = self.role_color(self.guild_id.as_ref(), &member.user.id, Some(&member.roles)).unwrap_or(theme.foreground);
+        let color = self.role_color(self.guild_id.as_ref(), &member.user.id, Some(&member.roles), theme.is_dark()).unwrap_or(theme.foreground);
         let surface = theme.sidebar;
         let nameplate = member.user.nameplate.as_ref().map(|plate| nameplate(plate, surface, true, theme.is_dark()));
         let owner = self.guild().is_some_and(|g| g.owner_id.as_ref() == Some(&member.user.id));
