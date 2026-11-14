@@ -384,3 +384,66 @@ body.is-grabbing.is-blocked, body.is-grabbing.is-blocked * { cursor: not-allowed
   .dragpill.is-floating { animation: none; }
 }
 @keyframes fade-only { from { opacity: 0; } }
+
+/* Whimsical voice drag: people and voice channels picked up, carried on a spring, and landed with a squash.
+   Ghosts are driven by site script physics (flows-voice.html); everything here is the look of each state. */
+.vd { --lift: 0 10px 28px oklch(0 0 0 / 0.32), 0 0 0 1px var(--line-strong); position: relative; width: 280px; max-width: 100%; padding: var(--space-2); border-radius: var(--radius-lg); background: var(--bg-sidebar); box-shadow: inset 0 0 0 1px var(--line); user-select: none; -webkit-user-select: none; touch-action: none; }
+.vd-cat + .vd-cat { margin-top: var(--space-3); }
+.vd-list { display: grid; gap: 2px; min-height: 8px; padding-bottom: 2px; }
+.vd-chan { position: relative; display: grid; gap: 1px; border-radius: var(--radius-sm); }
+.vd-chan > .ch { cursor: grab; }
+.vd-people { display: grid; gap: 1px; }
+.vd .vp { cursor: grab; touch-action: none; }
+.vd .vp:focus-visible, .vd .ch:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: -2px; }
+.vd .ch .vd-cap { margin-left: auto; font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.vd .ch .vd-lock { margin-left: auto; color: var(--text-faint); }
+.vd-cat.is-locked .cat::after { content: ""; }
+
+/* The hole left behind: a soft dashed shadow of where they were. */
+.vd .is-hole { opacity: 0.32; background: none; box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--text-faint) 55%, transparent); }
+.vd .is-hole * { visibility: hidden; }
+.vd-chan.is-hole { padding: 0; }
+
+/* Target states: the channel opens its arms, or shakes its head. */
+.vd-chan.is-target > .ch { background: var(--accent-soft); color: var(--text-strong); }
+.vd-chan.is-target > .ch i { color: var(--accent-ink); animation: vd-wiggle 420ms var(--ease-spring); }
+.vd-chan.is-nope > .ch { background: oklch(0.6 0.2 30 / 0.12); color: var(--danger-ink); animation: vd-nope 360ms ease-in-out; }
+.vd-chan.is-nope > .ch i { color: var(--danger-ink); }
+.vd-cat.is-target > .cathead .cat { color: var(--accent-ink); }
+.vd-cat.is-nope > .cathead { animation: vd-nope 360ms ease-in-out; }
+.vd-slot { height: 30px; margin-left: 32px; border-radius: var(--radius-sm); box-shadow: inset 0 0 0 1.5px var(--accent); background: var(--accent-soft); }
+@keyframes vd-wiggle { 30% { transform: rotate(-14deg) scale(1.15); } 60% { transform: rotate(10deg); } }
+@keyframes vd-nope { 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
+
+/* Ghost: the lifted copy. Transforms come from the spring each frame. */
+.vd-ghost { position: fixed; left: 0; top: 0; z-index: 900; pointer-events: none; border-radius: var(--radius-sm); background: var(--bg-overlay); box-shadow: var(--lift); will-change: transform; transform-origin: var(--ox, 30%) var(--oy, 50%); }
+.vd-ghost.vp { width: 240px; padding-left: var(--space-2); color: var(--text-strong); }
+.vd-ghost.vd-chan { width: 264px; padding: 2px; border-radius: var(--radius-md); }
+.vd-ghost .vd-tag { position: absolute; left: 100%; top: 50%; margin: -11px 0 0 10px; height: 22px; padding: 0 8px; border-radius: var(--radius-xs); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: var(--text-xs); font-weight: var(--weight-semibold); background: var(--text-strong); color: var(--bg-page); opacity: 0; transform: translateX(-4px) scale(0.95); transition: opacity var(--dur-hover), transform var(--dur-pop) var(--ease-out); }
+.vd-ghost .vd-tag.is-on { opacity: 1; transform: none; }
+.vd-ghost .vd-tag.is-bad { background: var(--danger); color: #fff; }
+.vd-ghost .vd-tag i { font-size: 13px; }
+.vd-ghost.vd-chan .vd-tag { top: 16px; }
+
+/* A keyboard move (no ghost to watch) ends with a soft accent glow that fades; dragged moves end with no extra motion. */
+.vd .is-landed { animation: vd-land 600ms var(--ease-out); }
+@keyframes vd-land { from { background: var(--accent-soft); } }
+.vd .vp.is-picked { background: var(--accent-soft); color: var(--text-strong); box-shadow: inset 0 0 0 1.5px var(--accent); }
+
+/* The playground beside its live log and toast. */
+.vd-play { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-6); align-items: start; }
+.vd-side { display: grid; gap: var(--space-3); min-width: 0; }
+.vd-log { display: grid; gap: 6px; padding: 0; margin: 0; list-style: none; font-size: var(--text-sm); color: var(--text-muted); }
+.vd-log li { display: flex; gap: 8px; align-items: baseline; }
+.vd-log li::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; corner-shape: round; background: var(--line-strong); transform: translateY(-1px); }
+.vd-log li.is-ok::before { background: var(--online); }
+.vd-log li.is-bad::before { background: var(--dnd); }
+.vd-toast { justify-self: start; }
+@media (max-width: 860px) { .vd-play { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .vd *, .vd-ghost { animation: none !important; } }
+
+/* Storyboard copies of the ghost: same look, held still in place. */
+.vd-ghost.is-static { position: relative; left: auto; top: auto; z-index: 1; transform: rotate(var(--rot, -4deg)) scale(1.04); margin: 2px 6px 4px; }
+.vd-ghost.is-static .vd-tag { left: auto; right: 6px; top: -12px; margin: 0; }
+.vd .vp.is-nope-wiggle { animation: vd-nope 360ms ease-in-out 2; }
+.vd.is-frame { padding: 6px 4px; }
