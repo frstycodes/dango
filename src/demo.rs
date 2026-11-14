@@ -109,6 +109,16 @@ fn demo_call(chord: &mut Rustcord) {
     chord.restore = None;
 }
 
+fn demo_thread() -> Channel {
+    let mut thread = channel("t1", "gpui list virtualisation", ChannelKind::Thread, Some("general"));
+    thread.thread = Some(crate::discord::ThreadMeta { joined: true, message_count: 12, ..Default::default() });
+    thread
+}
+
+fn first_thread_chip(message: &mut Message) {
+    message.thread = Some(demo_thread());
+}
+
 fn user(id: &str, name: &str) -> User {
     User { id: id.into(), name: name.into(), avatar: avatar_url(id, None), ..Default::default() }
 }
@@ -124,6 +134,7 @@ fn channel(id: &str, name: &str, kind: ChannelKind, parent: Option<&str>) -> Cha
         last_message_id: None,
         private: false,
         recipient: None,
+        thread: None,
     }
 }
 
@@ -147,6 +158,7 @@ fn ready(me: User) -> Ready {
         channels,
         roles: roles.clone(),
         voice_states,
+        threads: Vec::new(),
         owner_id: Some("4194304".into()),
         my_roles: Vec::new(),
         emojis: Vec::new(),
@@ -179,7 +191,11 @@ fn ready(me: User) -> Ready {
         custom_status: None,
         session_id: String::new(),
         guilds: vec![
-            guild("1", "We are Sandesh Pandey", channels, lounge_states),
+            {
+                let mut g = guild("1", "We are Sandesh Pandey", channels, lounge_states);
+                g.threads = vec![demo_thread()];
+                g
+            },
             guild("2", "gpui", vec![channel("g2", "general", ChannelKind::Text, None)], vec![]),
             guild("3", "Zed Industries", vec![], vec![]),
             guild("4", "Bevy", vec![], vec![]),
@@ -261,6 +277,7 @@ fn messages() -> Vec<Message> {
         timestamp: Some("2026-11-14T08:12:00Z".into()),
         ..Default::default()
     }];
+    first_thread_chip(&mut image);
     let mut reply = message("103", me.clone(), &["r1"], "2026-11-14T08:15:00Z", "discord on rust <@8388608>, check <#media>");
     reply.reply_to = Some("101".into());
     reply.reply = Some(Box::new(first.clone()));

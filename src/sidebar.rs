@@ -614,7 +614,62 @@ impl Rustcord {
             })
             .into_any_element(),
         );
+        rows.extend(self.thread_rows(channel, guild, cx));
         rows
+    }
+
+    // Discord lists the threads you've joined (and the one you have open) under their channel,
+    // hung off a curved spine.
+    fn thread_rows(&self, channel: &Channel, guild: &Guild, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let theme = cx.theme().clone();
+        let open = self.channel.as_ref().map(|c| c.id.clone());
+        let threads: Vec<&Channel> = guild
+            .threads
+            .iter()
+            .filter(|t| t.parent_id.as_ref() == Some(&channel.id))
+            .filter(|t| open.as_ref() == Some(&t.id) || t.thread.as_ref().is_some_and(|m| m.joined && !m.archived))
+            .collect();
+        let count = threads.len();
+        threads
+            .into_iter()
+            .enumerate()
+            .map(|(i, thread)| {
+                let selected = open.as_ref() == Some(&thread.id);
+                let unread = self.unread(&thread.id);
+                let target = thread.clone();
+                let (menu_thread, guild_id) = (thread.clone(), guild.id.clone());
+                // The spine: a vertical line down from the channel, curving into each thread.
+                let spine = div()
+                    .absolute()
+                    .left(px(16.))
+                    .top(px(-ROW_GAP - 14.))
+                    .w(px(12.))
+                    .h(px(ROW_GAP + 14. + 16.))
+                    .border_l_1()
+                    .border_b_1()
+                    .rounded_bl(px(8.))
+                    .border_color(Hsla::from(gpui_kit::rgb(0x97979F)).opacity(0.4));
+                let rail = (i + 1 < count).then(|| div().absolute().left(px(16.)).top(px(16.)).bottom(px(-ROW_GAP)).w(px(1.)).bg(Hsla::from(gpui_kit::rgb(0x97979F)).opacity(0.4)));
+                let row = div()
+                    .id(SharedString::from(format!("thread-{}", thread.id)))
+                    .relative()
+                    .h(px(ROW_HEIGHT))
+                    .flex_none()
+                    .ml(px(32.))
+                    .px_2()
+                    .flex()
+                    .items_center()
+                    .rounded(px(8.))
+                    .cursor_pointer()
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(if selected || unread { crate::palette::strong(cx) } else { gpui_kit::rgb(0x7A7B83).into() })
+                    .child(div().flex_1().truncate().child(thread.name.clone()))
+                    .on_click(cx.listener(move |this, _, window, cx| this.open_channel(target.clone(), window, cx)))
+                    .on_mouse_down(gpui_kit::MouseButton::Right, cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_thread_menu(menu_thread.clone(), guild_id.clone(), e.position, cx)));
+                let row = if selected { row.bg(theme.sidebar_accent) } else { row.hover(|s| s.bg(theme.sidebar_accent.opacity(0.6)).text_color(theme.foreground)) };
+                div().relative().child(spine).children(rail).child(row).into_any_element()
+            })
+            .collect()
     }
 
     fn dm_row(&self, channel: &Channel, cx: &mut Context<Self>) -> AnyElement {

@@ -49,7 +49,25 @@ impl Rustcord {
             .border_b_1()
             .border_color(theme.sidebar_border)
             .window_control_area(WindowControlArea::Drag)
-            .child(Icon::new(if channel.kind == ChannelKind::Dm { Glyph::User } else { Glyph::Hashtag }).text_color(theme.muted_foreground))
+            .children(self.thread_parent(&channel).map(|parent| {
+                div()
+                    .id("thread-parent")
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .cursor_pointer()
+                    .text_color(theme.muted_foreground)
+                    .hover(|s| s.text_color(theme.foreground))
+                    .child(Icon::new(Glyph::Hashtag))
+                    .child(div().font_weight(FontWeight::MEDIUM).child(parent.name.clone()))
+                    .child(Icon::new(Glyph::ChevronRight).size(px(16.)))
+                    .on_click(cx.listener(move |this, _, window, cx| this.open_channel(parent.clone(), window, cx)))
+            }))
+            .child(Icon::new(match channel.kind {
+                ChannelKind::Dm => Glyph::User,
+                ChannelKind::Thread => Glyph::Thread,
+                _ => Glyph::Hashtag,
+            }).text_color(theme.muted_foreground))
             .child(div().flex_none().font_weight(FontWeight::MEDIUM).text_color(crate::palette::strong(cx)).child(channel.name.clone()))
             .children(channel.topic.clone().map(|topic| {
                 div()
@@ -62,6 +80,25 @@ impl Rustcord {
                     .child(div().flex_1().min_w_0().truncate().text_size(px(14.)).text_color(theme.muted_foreground).child(topic))
             }))
             .when(channel.topic.is_none(), |h| h.child(div().flex_1()))
+            .when(channel.kind == ChannelKind::Text && self.guild_id.is_some(), |h| {
+                let id = channel.id.clone();
+                h.child(
+                    div()
+                        .id("threads-button")
+                        .size(px(32.))
+                        .flex_none()
+                        .rounded(px(8.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .cursor_pointer()
+                        .text_color(theme.muted_foreground)
+                        .hover(|s| s.text_color(theme.foreground))
+                        .child(Icon::new(Glyph::Thread).size(px(20.)))
+                        .tooltip(|window, cx| Tooltip::new("Threads").build(window, cx))
+                        .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_threads_popout(id.clone(), e.position, cx))),
+                )
+            })
             .child(
                 div()
                     .id("pins-button")
@@ -606,6 +643,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &std::rc::Rc<RowConte
         .children(content(message, ctx, cx))
         .children(media_grid(message, ctx, cx))
         .children(message.embeds.iter().enumerate().map(|(i, e)| embed_card(e, format!("embed-{}-{i}", message.id), ctx, cx)))
+        .children(message.thread.as_ref().map(|t| thread_chip(t, ctx, cx)))
         .children(files(message, cx))
         .children(reactions(message, ctx, cx))
         .when(message.state == SendState::Failed, |b| {
@@ -845,6 +883,42 @@ fn hide_spoilers(text: &str, revealed: bool) -> String {
 
 // Images and videos sized like Discord's: one fills up to 400×320, several tile smaller. A click opens
 // the gallery at that item.
+// Discord's thread chip under the message that started a thread: its name and message count.
+fn thread_chip(thread: &crate::discord::Channel, ctx: &std::rc::Rc<RowContext>, cx: &App) -> AnyElement {
+    let theme = cx.theme();
+    let count = thread.thread.as_ref().map_or(0, |t| t.message_count);
+    let (this, open) = (ctx.this.clone(), thread.clone());
+    div()
+        .id(SharedString::from(format!("thread-chip-{}", thread.id)))
+        .mt_1()
+        .max_w(px(480.))
+        .px_3()
+        .py_2()
+        .rounded(px(8.))
+        .border_1()
+        .border_color(Hsla::from(gpui_kit::rgb(0x97979F)).opacity(0.2))
+        .bg(if theme.is_dark() { gpui_kit::rgb(0x0A0A0C).into() } else { theme.muted })
+        .flex()
+        .items_center()
+        .gap_2()
+        .cursor_pointer()
+        .text_size(px(14.))
+        .child(Icon::new(Glyph::Thread).size(px(16.)).text_color(theme.muted_foreground))
+        .child(div().min_w_0().truncate().font_weight(FontWeight::SEMIBOLD).text_color(crate::palette::strong(cx)).child(thread.name.clone()))
+        .child(
+            div()
+                .flex_none()
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(theme.link)
+                .child(format!("{count} {} ›", if count == 1 { "Message" } else { "Messages" })),
+        )
+        .hover(|s| s.bg(Hsla::from(gpui_kit::rgb(0x97979F)).opacity(0.08)))
+        .on_click(move |_, window, cx| {
+            this.update(cx, |this, cx| this.open_channel(open.clone(), window, cx)).ok();
+        })
+        .into_any_element()
+}
+
 // A GIF plays as soon as it's decoded; the still shows meanwhile and if decoding fails.
 pub(crate) fn gif_image(url: &str, poster: &str) -> gpui_kit::Img {
     let (loading, fallback) = (poster.to_owned(), poster.to_owned());

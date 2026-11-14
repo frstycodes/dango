@@ -512,6 +512,129 @@ impl Rustcord {
     }
 }
 
+impl Rustcord {
+    // Discord's thread menu (navId "thread-context"): read state, join, close, lock, mute and
+    // notifications for the thread, delete, leave, and its ID.
+    pub(crate) fn open_thread_menu(&mut self, thread: Channel, guild_id: String, at: Point<Pixels>, cx: &mut Context<Self>) {
+        let meta = thread.thread.clone().unwrap_or_default();
+        let me = self.me.as_ref().map(|m| m.id.clone()).unwrap_or_default();
+        let manage = self.can_guild(&guild_id, perm::MANAGE_THREADS);
+        let owner = meta.owner_id.as_deref() == Some(me.as_str());
+        let mut out = Vec::new();
+
+        let id = thread.id.clone();
+        let read = item("Mark As Read", move |this, _, cx| this.mark_channel_read(&id, cx));
+        out.push(if self.unread(&thread.id) { read } else { read.disabled() }.entry());
+        out.push(Entry::Separator);
+
+        if !meta.joined {
+            let id = thread.id.clone();
+            out.push(item("Join Thread", move |this, _, cx| {
+                let joined = id.clone();
+                this.rest(Method::PUT, format!("/channels/{id}/thread-members/@me"), None, move |this, cx| this.on_event(crate::discord::Event::ThreadJoined { id: joined.clone(), joined: true }, cx), cx);
+            })
+            .entry());
+        }
+        if manage || (owner && !meta.locked) {
+            let (id, archived) = (thread.id.clone(), meta.archived);
+            out.push(item(if archived { "Open Thread" } else { "Close Thread" }, move |this, _, cx| this.rest(Method::PATCH, format!("/channels/{id}"), Some(json!({ "archived": !archived })), |_, _| {}, cx)).entry());
+        }
+        if manage {
+            let (id, locked) = (thread.id.clone(), meta.locked);
+            out.push(item(if locked { "Unlock Thread" } else { "Lock Thread" }, move |this, _, cx| this.rest(Method::PATCH, format!("/channels/{id}"), Some(json!({ "locked": !locked })), |_, _| {}, cx)).entry());
+        }
+        let link = format!("https://discord.com/channels/{guild_id}/{}", thread.id);
+        out.push(item("Copy Link", move |this, _, cx| this.copy_text(link.clone(), cx)).entry());
+        out.push(Entry::Separator);
+
+        match meta.joined {
+            true => {
+                let id = thread.id.clone();
+                out.push(self.mute_entry("Mute Thread", "Unmute Thread", false, None, move |this, body, cx| {
+                    this.rest(Method::PATCH, format!("/channels/{id}/thread-members/@me/settings"), Some(body), |_, _| {}, cx);
+                }));
+                let rows: Vec<Entry> = [("All Messages", 2), ("Only @mentions", 4), ("Nothing", 8)]
+                    .into_iter()
+                    .map(|(label, flag)| {
+                        let id = thread.id.clone();
+                        item(label, move |this, _, cx| this.rest(Method::PATCH, format!("/channels/{id}/thread-members/@me/settings"), Some(json!({ "flags": flag })), |_, _| {}, cx)).entry()
+                    })
+                    .collect();
+                out.push(submenu("Notification Settings", rows).entry());
+            }
+            false => {
+                out.push(item("Mute Thread", |_, _, _| {}).disabled().entry());
+                out.push(item("Notification Settings", |_, _, _| {}).disabled().entry());
+            }
+        }
+        out.push(Entry::Separator);
+
+        if manage {
+            out.push(self.delete_channel_entry(&thread, "Delete Thread"));
+            out.push(Entry::Separator);
+        }
+        if meta.joined {
+            let id = thread.id.clone();
+            out.push(item("Leave Thread", move |this, _, cx| {
+                let left = id.clone();
+                this.rest(Method::DELETE, format!("/channels/{id}/thread-members/@me"), None, move |this, cx| this.on_event(crate::discord::Event::ThreadJoined { id: left.clone(), joined: false }, cx), cx);
+            })
+            .entry());
+            out.push(Entry::Separator);
+        }
+        if self.developer_mode {
+            let id = thread.id.clone();
+            out.push(item("Copy Thread ID", move |this, _, cx| this.copy_text(id.clone(), cx)).icon(Glyph::Id).entry());
+        }
+        self.open_menu(at, out, cx);
+    }
+
+    // The header's Threads button: the channel's active threads, each opening on click.
+    pub(crate) fn open_threads_popout(&mut self, channel_id: String, at: Point<Pixels>, cx: &mut Context<Self>) {
+        let threads: Vec<Channel> = self.guilds.iter().flat_map(|g| g.threads.iter()).filter(|t| t.parent_id.as_ref() == Some(&channel_id) && !t.thread.as_ref().is_some_and(|m| m.archived)).cloned().collect();
+        let mut out: Vec<Entry> = threads
+            .into_iter()
+            .map(|t| {
+                let count = t.thread.as_ref().map_or(0, |m| m.message_count);
+                let open = t.clone();
+                item(t.name.clone(), move |this, window, cx| this.open_channel(open.clone(), window, cx)).hint(format!("{count} {}", if count == 1 { "message" } else { "messages" })).icon(Glyph::Thread).entry()
+            })
+            .collect();
+        if out.is_empty() {
+            out.push(item("There are no active threads.", |_, _, _| {}).disabled().entry());
+        }
+        self.open_menu(at, out, cx);
+    }
+
+    // Discord's Create Thread from a message: name it, then open it.
+    pub(crate) fn create_thread(&mut self, message: crate::discord::Message, window: &mut Window, cx: &mut Context<Self>) {
+        let default: String = message.content.chars().take(40).collect();
+        let default = if default.trim().is_empty() { "New Thread".to_owned() } else { default };
+        self.prompt("Create Thread", "Thread name", &default, "Create", move |this, name, window, cx| {
+            let Some(client) = this.client.clone() else { return };
+            let (channel, id, guild_id) = (message.channel_id.clone(), message.id.clone(), message.guild_id.clone());
+            let name = if name.trim().is_empty() { "New Thread".to_owned() } else { name.trim().to_owned() };
+            cx.spawn_in(window, async move |this, cx| {
+                let created = client.call(Method::POST, format!("/channels/{channel}/messages/{id}/threads"), Some(json!({ "name": name, "auto_archive_duration": 4320 }))).await;
+                this.update_in(cx, |this, window, cx| match created.ok().and_then(|t| crate::discord::parse_thread(&t, guild_id.as_deref().unwrap_or_default())) {
+                    Some(mut thread) => {
+                        if let Some(meta) = thread.thread.as_mut() {
+                            meta.joined = true;
+                        }
+                        if let Some(guild_id) = guild_id.clone() {
+                            this.on_event(crate::discord::Event::ChannelUpsert { guild_id, channel: thread.clone() }, cx);
+                        }
+                        this.open_channel(thread, window, cx);
+                    }
+                    None => this.show_toast("Couldn't create the thread", cx),
+                })
+                .ok();
+            })
+            .detach();
+        }, window, cx);
+    }
+}
+
 fn rail_key(entry: &crate::RailEntry) -> String {
     match entry {
         crate::RailEntry::Guild(g) => g.id.clone(),

@@ -39,7 +39,9 @@ Order: features first (most used at the top), then polish. `[x]` done, `[~]` par
 - [x] GIF picker (Discord's Tenor search) and sticker picker
 - [x] Pins popover from the header
 - [x] Inbox (mentions, unreads) from the title bar
-- [ ] Threads: thread chips under messages, threads list, thread view in a split pane
+- [x] Threads: thread chips under messages, joined threads nested under their channel, a Threads popout in the header, Create Thread, Discord's thread menu (join, close, lock, mute, notifications, delete, leave)
+- [ ] Threads open in the main view with a breadcrumb; Discord opens them in a split pane beside the channel
+- [ ] Threads popout lists active threads only; Discord also searches older and archived ones
 - [ ] Forum channels (post list)
 - [x] Friends page (Online, All, Pending) as the Direct Messages home
 - [x] System notifications for DMs and mentions (Discord's rules: DND, muted servers and channels, notification levels, suppressed @everyone and roles), plus a Dock badge (macOS; Windows taskbar badge open)
@@ -109,7 +111,7 @@ Tokens: `docs/discord-tokens.json` (Discord web, Midnight, read 2026-11-14).
 - [x] Stream previews: thumbnails on call tiles and a hover card on LIVE voice rows (GET /streams/{key}/preview, refreshed each minute)
 - [x] A message that is only a GIF or image link shows just the embed
 - [x] Right-click menus rebuilt from Discord's own menu code: user (server, voice, DM, friends), message, channel, voice channel, category, server icon, folder, server dropdown
-- [ ] Menu items for features not built yet: Forward, Create Thread, Translate, Bookmarks/Reminders, Apps, Report, Favorites, Activities, Mod View, Server Settings, Create Event
+- [ ] Menu items for features not built yet: Forward, Translate, Bookmarks/Reminders, Apps, Report, Favorites, Activities, Mod View, Server Settings, Create Event
 - [ ] Edit Channel and Folder Settings: Discord opens full settings screens; ours rename only
 - [x] GIFs play inline (MP4 decoded with OpenH264; clips with B-frames play at true speed with fewer frames)
 - [x] Embeds: markdown descriptions and fields, author icon, footer icon and timestamp, Discord's card styling

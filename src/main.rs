@@ -586,6 +586,43 @@ impl Rustcord {
                 self.presences = ready.presences.into_iter().collect();
                 self.status = Status::Online;
             }
+            Event::Batch(events) => {
+                for event in events {
+                    self.on_event(event, cx);
+                }
+            }
+            Event::ChannelUpsert { guild_id, channel } => {
+                let Some(guild) = self.guilds.iter_mut().find(|g| g.id == guild_id) else { return };
+                let list = if channel.kind == ChannelKind::Thread { &mut guild.threads } else { &mut guild.channels };
+                match list.iter_mut().find(|c| c.id == channel.id) {
+                    Some(existing) => {
+                        // THREAD_UPDATE carries no membership: keep whether we'd joined.
+                        let joined = existing.thread.as_ref().is_some_and(|t| t.joined);
+                        *existing = channel;
+                        if let Some(thread) = existing.thread.as_mut() {
+                            thread.joined |= joined;
+                        }
+                    }
+                    None => list.push(channel),
+                }
+                guild.channels.sort_by_key(|c| c.position);
+            }
+            Event::ChannelDelete { guild_id, id } => {
+                if let Some(guild) = self.guilds.iter_mut().find(|g| g.id == guild_id) {
+                    guild.channels.retain(|c| c.id != id);
+                    guild.threads.retain(|c| c.id != id);
+                }
+                if self.channel.as_ref().is_some_and(|c| c.id == id) {
+                    self.channel = None;
+                }
+            }
+            Event::ThreadJoined { id, joined } => {
+                for thread in self.guilds.iter_mut().flat_map(|g| g.threads.iter_mut()).filter(|t| t.id == id) {
+                    if let Some(meta) = thread.thread.as_mut() {
+                        meta.joined = joined;
+                    }
+                }
+            }
             Event::GuildSettings((key, settings)) => {
                 self.guild_settings.insert(key, settings);
             }
@@ -1439,6 +1476,15 @@ impl Rustcord {
     fn mentions_me(&self, message: &Message) -> bool {
         let Some(me) = &self.me else { return false };
         message.mention_everyone || message.mentions.iter().any(|u| u.id == me.id) || self.mentions_role(message)
+    }
+
+    // A thread's parent channel, for the header breadcrumb and the sidebar.
+    fn thread_parent(&self, channel: &Channel) -> Option<Channel> {
+        if channel.kind != ChannelKind::Thread {
+            return None;
+        }
+        let parent = channel.parent_id.as_ref()?;
+        self.guilds.iter().flat_map(|g| g.channels.iter()).find(|c| &c.id == parent).cloned()
     }
 
     // Whether the message pings one of our roles in its server.
