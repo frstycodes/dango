@@ -225,7 +225,7 @@ impl Rustcord {
         )
     }
 
-    fn render_messages(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    pub(crate) fn render_messages(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let Some(channel) = &self.channel else { return div().into_any_element() };
         let Some(feed) = self.feeds.get(&channel.id) else { return div().into_any_element() };
         let messages: std::rc::Rc<Vec<Message>> = std::rc::Rc::new(feed.messages.clone());
@@ -303,7 +303,7 @@ impl Rustcord {
         .into_any_element()
     }
 
-    fn render_composer(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    pub(crate) fn render_composer(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
         let attach = div()
             .id("attach")

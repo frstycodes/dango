@@ -376,6 +376,8 @@ pub struct Rustcord {
     preview_generation: u64,
     // The call view filling the screen on its own, as Discord's full screen does.
     call_fullscreen: bool,
+    // The voice channel's own chat, open beside the call.
+    call_chat: bool,
     // Voice channel → when its current session began (Unix seconds), from CHANNEL_INFO.
     voice_start: HashMap<String, u64>,
     // Servers whose channel info we've asked for since connecting.
@@ -535,6 +537,7 @@ impl Rustcord {
             stream_volumes: HashMap::new(),
             pip_snap: None,
             call_fullscreen: false,
+            call_chat: false,
             voice_start: HashMap::new(),
             channel_info_requested: HashSet::new(),
             avatar_colors: HashMap::new(),
