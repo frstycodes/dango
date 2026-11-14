@@ -604,7 +604,7 @@ impl Rustcord {
         let gif_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search Tenor"));
         cx.subscribe_in(&gif_search, window, Self::on_gif_search).detach();
         cx.subscribe_in(&switcher_input, window, Self::on_switcher_input).detach();
-        let settings_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search"));
+        let settings_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search settings"));
         let dialog_input = cx.new(|cx| SearchState::new(window, cx));
         cx.subscribe(&settings_search, |_, _, _: &InputEvent, cx| cx.notify()).detach();
         #[allow(unused_mut)]
