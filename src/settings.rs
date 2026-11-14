@@ -171,6 +171,10 @@ impl Prefs {
     pub fn load() -> Self {
         let mut prefs: Self = prefs_file().and_then(|path| std::fs::read_to_string(path).ok()).and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default();
         prefs.add_new_keybinds();
+        // 480p left the picker; the nearest offered quality takes its place.
+        if prefs.stream_resolution == 480 {
+            prefs.stream_resolution = 720;
+        }
         prefs
     }
 
