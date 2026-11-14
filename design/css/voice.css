@@ -18,7 +18,7 @@
   --text-strong: oklch(0.97 0.004 350);
   --text: oklch(0.88 0.008 350);
   --text-muted: oklch(0.72 0.012 350);
-  --text-faint: oklch(0.62 0.012 350);
+  --text-faint: oklch(0.65 0.012 350);
   --accent-ink: #ff6b9c;
   --accent-soft: oklch(0.65 0.22 5 / 0.14);
   --danger-ink: oklch(0.74 0.16 32);

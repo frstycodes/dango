@@ -62,7 +62,7 @@
   --offline: oklch(0.62 0.01 350);
   --danger: oklch(0.55 0.20 30);
   --danger-hover: oklch(0.50 0.19 30);
-  --success: oklch(0.52 0.13 155);
+  --success: oklch(0.49 0.13 155);
   --warning: oklch(0.80 0.15 78);
 }
 
@@ -85,7 +85,7 @@
   --text-strong: oklch(0.97 0.004 var(--n-h));
   --text: oklch(0.88 0.008 var(--n-h));
   --text-muted: oklch(0.72 0.012 var(--n-h));
-  --text-faint: oklch(0.62 0.012 var(--n-h));
+  --text-faint: oklch(0.65 0.012 var(--n-h));
   --accent-ink: #ff6b9c;
   --accent-soft: oklch(0.65 0.22 5 / 0.14);
   --danger-ink: oklch(0.74 0.16 32);
