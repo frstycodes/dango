@@ -11,6 +11,7 @@ mod layout;
 mod login;
 mod mascot;
 mod material;
+mod forum;
 mod gif;
 mod home;
 mod overlays;
@@ -289,6 +290,8 @@ pub struct Rustcord {
     menu: Option<menu::OpenMenu>,
     // Go Live thumbnails by streamer: the CDN url and when it was fetched.
     stream_previews: HashMap<String, (String, Instant)>,
+    // Forum channels' archived posts and post previews, by forum id.
+    forums: HashMap<String, forum::ForumState>,
     developer_mode: bool,
     // Notification settings per server, "@me" for DMs.
     guild_settings: HashMap<String, discord::GuildSettings>,
@@ -435,6 +438,7 @@ impl Rustcord {
             device_menu: None,
             menu: None,
             stream_previews: HashMap::new(),
+            forums: HashMap::new(),
             developer_mode: false,
             guild_settings: HashMap::new(),
             ignored: HashSet::new(),
@@ -869,6 +873,12 @@ impl Rustcord {
         // Cached channels show at once; every open also refreshes in the background.
         // Messages after this sit under Discord's red NEW line until the channel is left.
         self.unread_marker = self.unread(&id).then(|| self.read_states.get(&id).map(|r| r.last_read)).flatten();
+        if self.channel.as_ref().is_some_and(|c| c.kind == ChannelKind::Forum) {
+            if !self.forums.contains_key(&id) {
+                self.load_forum(id, cx);
+            }
+            return cx.notify();
+        }
         let count = self.feeds.get(&id).map_or(0, |f| f.messages.len());
         self.list.reset(count);
         self.fetch_latest(&id, cx);

@@ -66,6 +66,10 @@ impl Render for Rustcord {
             .child(match self.call_view.then(|| self.render_call(window, cx)).flatten() {
                 Some(call) => div().flex_1().min_w_0().h_full().child(call).into_any_element(),
                 None if self.guild_id.is_none() && self.channel.is_none() => self.render_home(cx),
+                None if self.channel.as_ref().is_some_and(|c| c.kind == discord::ChannelKind::Forum) => {
+                    let forum = self.channel.clone().expect("checked above");
+                    self.render_forum(forum, cx)
+                }
                 None => self.render_chat(window, cx).into_any_element(),
             })
             .children(self.me.clone().map(|me| self.user_panel(me, cx)));

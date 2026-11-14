@@ -283,6 +283,8 @@ pub enum ChannelKind {
     Dm,
     // A thread or forum post; `Channel::thread` carries its state.
     Thread,
+    // A forum or media channel: a list of posts, each a thread.
+    Forum,
     Other,
 }
 
@@ -575,7 +577,7 @@ impl Client {
     pub fn request_member_list(&self, guild_id: &str, channel_id: &str) {
         self.gateway(json!({
             "op": 14,
-            "d": { "guild_id": guild_id, "typing": true, "activities": true, "threads": false, "channels": { channel_id: [[0, 99]] } }
+            "d": { "guild_id": guild_id, "typing": true, "activities": true, "threads": true, "channels": { channel_id: [[0, 99]] } }
         }));
     }
 
@@ -1076,6 +1078,7 @@ fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
         2 | 13 => ChannelKind::Voice,
         4 => ChannelKind::Category,
         10..=12 => ChannelKind::Thread,
+        15 | 16 => ChannelKind::Forum,
         _ => ChannelKind::Other,
     };
     let meta = &c["thread_metadata"];

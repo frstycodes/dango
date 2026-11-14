@@ -481,6 +481,7 @@ impl Rustcord {
         let mentions = self.mention_count(&channel.id);
         let glyph = match (channel.kind, channel.private) {
             (ChannelKind::Voice, _) => Glyph::VolumeHigh,
+            (ChannelKind::Forum, _) => Glyph::Forum,
             (_, true) => Glyph::HashtagLock,
             _ => Glyph::Hashtag,
         };
@@ -730,7 +731,7 @@ fn mention_badge(count: u32, cx: &App) -> AnyElement {
 }
 
 pub(crate) fn channel_sections(guild: &Guild) -> Vec<(Option<Channel>, Vec<Channel>)> {
-    let visible = |c: &&Channel| matches!(c.kind, ChannelKind::Text | ChannelKind::Voice);
+    let visible = |c: &&Channel| matches!(c.kind, ChannelKind::Text | ChannelKind::Voice | ChannelKind::Forum);
     let uncategorised: Vec<Channel> = guild.channels.iter().filter(visible).filter(|c| c.parent_id.is_none()).cloned().collect();
     let mut sections = vec![(None, uncategorised)];
     for category in guild.channels.iter().filter(|c| c.kind == ChannelKind::Category) {
@@ -745,7 +746,6 @@ pub fn initials(name: &str) -> String {
     name.split_whitespace().filter_map(|w| w.chars().next()).take(3).collect()
 }
 
-// A lit tile like an app icon: a mid-to-deep gradient of the id's hue with the label in white.
 // Discord's drop cues: a bar in the gap to reorder, a ring around the server to combine.
 fn drop_marker(drop: Drop, side: f32, radius: f32, color: Hsla) -> Div {
     let bar = || div().absolute().w(px(side)).h(px(4.)).rounded_full().bg(color);
@@ -756,6 +756,7 @@ fn drop_marker(drop: Drop, side: f32, radius: f32, color: Hsla) -> Div {
     }
 }
 
+// A lit tile like an app icon: a mid-to-deep gradient of the id's hue with the label in white.
 pub fn identity_tile(id: &str, label: impl Into<SharedString>, text_size: f32) -> Div {
     let hue = identity_hue(id);
     div()
