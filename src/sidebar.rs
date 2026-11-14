@@ -544,7 +544,9 @@ impl Rustcord {
             let watching = self.call.as_ref().and_then(|c| c.watching.as_ref()).map(|w| w.streamer_id.clone());
             let connected = self.call.as_ref().is_some_and(|c| c.connected && in_call);
             let can_drag_people = self.can_move_people(&guild.id);
-            let present: Vec<&crate::discord::VoiceState> = guild.voice_states.iter().filter(|v| v.channel_id.as_ref() == Some(&channel.id)).collect();
+            let mut present: Vec<&crate::discord::VoiceState> = guild.voice_states.iter().filter(|v| v.channel_id.as_ref() == Some(&channel.id)).collect();
+            // Whoever is streaming leads the list; the rest keep their order (a stable sort).
+            present.sort_by_key(|v| !v.streaming);
             if self.hidden_voice_names.contains(&channel.id) && !present.is_empty() {
                 rows.push(
                     div()
