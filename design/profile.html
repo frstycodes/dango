@@ -35,10 +35,1082 @@
 <main>
 <section id="intro">
   <h1>Profile and privacy</h1>
-  <p class="lede">Editing your profile and status, and the privacy, safety, connections and devices settings.</p>
+  <p class="lede">Editing your profile and status, and the privacy, safety, connections and devices settings. These are pages of the <a href="settings.html#window" style="color: var(--accent-ink)">settings window</a> and use its rows, groups and captions; only what's new lives here.</p>
 </section>
+
+<!-- Profile editor -->
+<section id="profile-editor">
+  <h2>Profile editor</h2>
+  <p class="lede">Edit on the left, see exactly what others see on the right as you type. Changes stay local until you save; the bar at the bottom names what changed.</p>
+  <div class="board set-sheet pf-editor-wrap">
+    <div class="set-page pf-wide" id="pe">
+      <h4 class="set-h">Profiles</h4>
+      <div class="tabs" role="tablist" aria-label="Which profile" id="pe-tabs"><button class="tab" role="tab" aria-selected="true" data-pane="pe-main">Main profile</button><button class="tab" role="tab" aria-selected="false" data-pane="pe-server">Server profiles</button></div>
+      <div class="pf-editor">
+        <div class="pf-form" id="pe-main">
+          <div class="set-group">
+            <h5>Name</h5>
+            <div class="set-card pf-fields">
+              <div class="pf-two">
+                <div class="field"><label for="pe-name">Display name</label><div class="input"><input id="pe-name" value="Juno" maxlength="32" autocomplete="off" data-count="32"></div><span class="hint"><span>Shown everywhere instead of your username</span><span class="pf-count">4/32</span></span></div>
+                <div class="field"><label for="pe-pron">Pronouns</label><div class="input"><input id="pe-pron" value="she/they" maxlength="40" autocomplete="off" data-count="40" placeholder="Add your pronouns"></div><span class="hint"><span>Optional</span><span class="pf-count">8/40</span></span></div>
+              </div>
+              <div class="field"><label for="pe-user">Username</label><div class="input" id="pe-user-box"><span class="affix">@</span><input id="pe-user" value="juno.wav" maxlength="32" autocomplete="username" spellcheck="false" aria-describedby="pe-avail"></div><span class="pf-avail" id="pe-avail" role="status">You can change it twice an hour</span></div>
+            </div>
+          </div>
+          <div class="set-group">
+            <h5>Look</h5>
+            <div class="set-card pf-fields">
+              <div class="field"><label>Avatar</label>
+                <div class="pf-media"><span class="av" data-av="Juno" id="pe-av" style="--bg-ring: var(--bg-raised)"><span class="pf-deco" data-deco="halo"></span></span><div><div class="ctl"><button class="btn btn--sm" data-open="dlg-crop"><i class="ph-bold ph-upload-simple"></i>Change avatar</button><button class="btn btn--sm btn--ghost">Remove avatar</button></div><small>PNG, JPG or GIF up to 10 MB. You can also drop a file on the avatar.</small></div></div>
+              </div>
+              <div class="field"><label>Avatar decoration</label>
+                <div class="pf-media"><div><div class="ctl"><button class="btn btn--sm" data-open="dlg-deco"><i class="ph-bold ph-sparkle"></i>Change decoration</button><button class="btn btn--sm btn--ghost" id="pe-deco-rm">Remove decoration</button></div><small id="pe-deco-name">Halo, drawn around your avatar everywhere it's 40px or larger</small></div></div>
+              </div>
+              <div class="field"><label>Banner</label>
+                <div class="pf-media"><span class="pf-bannerthumb" id="pe-bthumb"></span><div><div class="ctl"><button class="btn btn--sm"><i class="ph-bold ph-image"></i>Upload banner</button></div><div class="swatches" id="pe-banners" role="group" aria-label="Banner colour">
+                  <button aria-pressed="true" aria-label="Dusk" style="--c: linear-gradient(135deg, oklch(0.6 0.14 300), oklch(0.45 0.15 340))"><i class="ph-bold ph-check"></i></button>
+                  <button aria-pressed="false" aria-label="Ember" style="--c: linear-gradient(135deg, oklch(0.68 0.16 40), oklch(0.52 0.18 15))"><i class="ph-bold ph-check"></i></button>
+                  <button aria-pressed="false" aria-label="Moss" style="--c: linear-gradient(135deg, oklch(0.62 0.12 150), oklch(0.45 0.1 185))"><i class="ph-bold ph-check"></i></button>
+                  <button aria-pressed="false" aria-label="Tide" style="--c: linear-gradient(135deg, oklch(0.62 0.12 235), oklch(0.46 0.13 270))"><i class="ph-bold ph-check"></i></button>
+                  <button aria-pressed="false" aria-label="Sand" style="--c: linear-gradient(135deg, oklch(0.8 0.08 80), oklch(0.66 0.1 55))"><i class="ph-bold ph-check"></i></button>
+                </div></div></div>
+              </div>
+              <div class="field"><div class="pf-labelrow"><label>Profile theme</label><button class="btn btn--link pf-reset" id="pe-theme-reset">Reset theme</button></div>
+                <div class="pf-wells">
+                  <label class="pf-well"><span style="--c: #c2215a" id="pe-c1-sw"></span><span>Primary <small id="pe-c1-hex">#C2215A</small></span><input type="color" value="#c2215a" id="pe-c1" class="sr" aria-label="Primary colour"></label>
+                  <label class="pf-well"><span style="--c: #5b3fd1" id="pe-c2-sw"></span><span>Accent <small id="pe-c2-hex">#5B3FD1</small></span><input type="color" value="#5b3fd1" id="pe-c2" class="sr" aria-label="Accent colour"></label>
+                </div>
+                <span class="hint"><span>Tints your whole popout. Text keeps its contrast whatever you pick.</span></span>
+              </div>
+            </div>
+          </div>
+          <div class="set-group">
+            <h5>About me</h5>
+            <div class="set-card pf-fields">
+              <div class="field">
+                <div class="pf-labelrow"><label for="pe-about">About me</label><div class="seg" role="group" aria-label="About me view" id="pe-about-mode"><button aria-pressed="true" data-v="write">Write</button><button aria-pressed="false" data-v="preview">Preview</button></div></div>
+                <textarea class="textarea" id="pe-about" maxlength="190" data-count="190">**Montage editor** for Night Shift. Clips, speedruns and *too much* coffee.
+DM me your best `frame-perfect` moments. Spoiler: ||it's always the dodge||</textarea>
+                <div class="pf-md pf-rich" id="pe-about-md" hidden></div>
+                <span class="hint"><span>**bold**, *italic*, `code`, ||spoiler|| and links work</span><span class="pf-count" id="pe-about-count">0/190</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pf-form" id="pe-server" hidden>
+          <div class="pf-srvpick"><button class="dropdown" aria-haspopup="listbox"><span class="pf-srvtile" style="--hue: 300">N</span><span>Night Shift</span><i class="ph ph-caret-down"></i></button><span class="pf-inherit"><i class="ph ph-eye"></i>Only Night Shift members see these</span></div>
+          <div class="set-group">
+            <h5>Night Shift profile</h5>
+            <div class="set-card pf-fields">
+              <div class="field"><label for="pe-nick">Server nickname</label><div class="input"><input id="pe-nick" placeholder="Juno" maxlength="32" autocomplete="off" data-count="32"></div><span class="hint"><span class="pf-inherit"><i class="ph ph-arrow-bend-up-left"></i>Empty uses your display name, Juno</span><span class="pf-count">0/32</span></span></div>
+              <div class="field"><label>Server avatar</label>
+                <div class="pf-media"><span class="av" data-av="Juno" style="--hue: 40"></span><div><div class="ctl"><button class="btn btn--sm"><i class="ph-bold ph-upload-simple"></i>Change server avatar</button><button class="btn btn--sm btn--ghost">Use main avatar</button></div><small>Shown only in Night Shift. Your main avatar stays everywhere else.</small></div></div>
+              </div>
+              <div class="field"><label>Server banner</label>
+                <div class="pf-media"><span class="pf-bannerthumb" style="opacity: 0.5"></span><div><div class="ctl"><button class="btn btn--sm"><i class="ph-bold ph-image"></i>Upload server banner</button></div><span class="pf-inherit"><i class="ph ph-arrow-bend-up-left"></i>Using your main banner</span></div></div>
+              </div>
+              <div class="field"><label for="pe-sabout">Server about me</label><textarea class="textarea" id="pe-sabout" maxlength="190" placeholder="Empty uses your main About me" style="min-height: 64px"></textarea></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pf-aside">
+          <b id="pe-prev-label">Preview: how others see you</b>
+          <div class="pop profile pf-themed pf-preview" id="pe-prev" style="--c1: #c2215a; --c2: #5b3fd1">
+            <div class="banner"></div>
+            <div class="who"><span class="av" data-av="Juno" id="pv-av"><span class="pf-deco" data-deco="halo"></span><span class="status dnd"></span></span></div>
+            <div class="body">
+              <div class="name"><b id="pv-name">Juno</b><span id="pv-sub">juno.wav · she/they</span></div>
+              <div class="cstatus"><span>🎧</span><span>editing the montage</span></div>
+              <div class="pblock"><b>About me</b><p class="pf-rich" id="pv-about"></p></div>
+              <div class="pblock"><b>Connections</b><div class="pf-conns"><span class="pf-chip"><i class="ph ph-music-notes"></i>Spotify</span><span class="pf-chip"><i class="ph ph-game-controller"></i>Steam</span></div></div>
+              <div class="pblock"><b>Member since</b><div class="since"><span><i class="ph ph-waveform"></i>Nov 2, 2020</span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="pf-unsaved-dock" id="pe-dock"><div class="pf-unsaved" role="status" id="pe-bar"><i class="ph-fill ph-warning-circle"></i><p><span id="pe-bar-t">You have unsaved changes</span><small id="pe-bar-s">Display name</small></p><div class="ctl"><button class="btn btn--ghost" id="pe-reset">Reset</button><button class="btn btn--primary" id="pe-save">Save changes</button></div></div></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: var(--space-3)">Live: type in any field, pick a banner or theme colour, switch About me to Preview. Then try Server profiles with changes pending: the bar shakes and asks you to save or reset first. Preview is the real popout from <a href="overlays.html#popovers" style="color: var(--accent-ink)">Overlays</a>, tinted by the theme at 30% over the surface.</p>
+
+  <h3>Username check</h3>
+  <div class="board">
+    <div class="pf-states">
+      <div class="field"><label>Checking</label><div class="input"><span class="affix">@</span><input value="juno.wave" aria-label="Username, checking"></div><span class="pf-avail" role="status"><span class="bars"><i></i><i></i><i></i></span>Checking juno.wave…</span></div>
+      <div class="field"><label>Available</label><div class="input is-ok"><span class="affix">@</span><input value="juno.waves" aria-label="Username, available"></div><span class="pf-avail is-ok" role="status"><i class="ph-bold ph-check-circle"></i>juno.waves is available</span></div>
+      <div class="field"><label>Taken</label><div class="input error"><span class="affix">@</span><input value="juno" aria-label="Username, taken"></div><span class="pf-avail is-taken" role="status"><i class="ph-bold ph-x-circle"></i>juno is taken. Try <span class="pf-sugg"><button>juno.wv</button><button>junowav</button></span></span></div>
+      <div class="field"><label>Not allowed</label><div class="input error"><span class="affix">@</span><input value="Juno Okafor!" aria-label="Username, invalid"></div><span class="pf-avail is-invalid" role="status"><i class="ph-bold ph-warning-circle"></i>Use lowercase letters, numbers, _ and . only</span></div>
+    </div>
+    <p class="note" style="margin-top: var(--space-3)">Checks 400ms after you stop typing. The status line is reserved, so the form never jumps. Suggestions fill the field in one click.</p>
+  </div>
+
+  <h3>Avatar upload</h3>
+  <div class="board">
+    <div class="pf-uploads">
+      <div class="drop"><i class="ph ph-image-square"></i><b>Drop an image or GIF</b><small>or <button class="btn btn--link" style="font-size: inherit">choose a file</button></small></div>
+      <div class="drop over"><i class="ph ph-upload-simple"></i><b>Drop to upload</b><small>montage-cover.gif</small></div>
+      <div class="pf-upload"><div class="row"><span class="icontile"><i class="ph ph-gif"></i></span><div><b>montage-cover.gif</b><span>Uploading 3.1 of 4.8 MB</span></div></div><div class="progress" style="--v: 64%"><span></span></div></div>
+      <div class="pf-upload is-error" role="alert"><div class="row"><span class="icontile"><i class="ph ph-warning-circle"></i></span><div><b>raw-footage.gif is 24 MB</b><span>Avatars can be up to 10 MB. Trim the GIF or pick a still.</span></div></div><button class="btn btn--sm" style="justify-self: start">Choose another file</button></div>
+    </div>
+  </div>
+
+  <h3>Crop and zoom</h3>
+  <div class="board">
+    <div class="dialog dialog--md" role="dialog" aria-labelledby="crop-h" data-live="dlg-crop">
+      <div class="dhead"><h4 id="crop-h">Crop your avatar</h4><p>Drag to move, slide to zoom.</p><button class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="pf-crop" aria-label="Avatar crop area"><span class="pf-photo"></span><span class="mask"></span><span class="hint"><i class="ph ph-arrows-out-cardinal"></i>Drag to reposition</span></div>
+      <div class="pf-zoom"><i class="ph ph-magnifying-glass-minus"></i><input class="range pf-zoomr" type="range" min="100" max="300" value="140" aria-label="Zoom"><i class="ph ph-magnifying-glass-plus"></i></div>
+      <div class="callout callout--info"><i class="ph-fill ph-gif"></i><div><b>GIFs stay animated</b>The crop applies to every frame. Animated avatars play on hover in chat and always on your profile.</div></div>
+      <footer><button class="btn" data-close>Cancel</button><button class="btn btn--primary" data-close>Apply crop</button></footer>
+    </div>
+  </div>
+
+  <h3>Avatar decoration</h3>
+  <div class="board">
+    <div class="dialog dialog--lg" role="dialog" aria-labelledby="deco-h" data-live="dlg-deco">
+      <div class="dhead"><h4 id="deco-h">Avatar decoration</h4><p>Drawn around your avatar, never over your face or status.</p><button class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="pf-decoprev"><span class="av" data-av="Juno"><span class="pf-deco" data-deco="halo"></span><span class="status online"></span></span><b class="pf-deconame">Halo</b></div>
+      <div class="pf-decos" role="radiogroup" aria-label="Decoration">
+        <button class="pf-decopick" role="radio" aria-checked="false" data-deco=""><span class="none"><i class="ph ph-prohibit"></i></span>None</button>
+        <button class="pf-decopick" role="radio" aria-checked="true" data-deco="halo"><span class="av" data-av="Juno"><span class="pf-deco" data-deco="halo"></span></span>Halo</button>
+        <button class="pf-decopick" role="radio" aria-checked="false" data-deco="wave"><span class="av" data-av="Juno"><span class="pf-deco" data-deco="wave"><span class="bars still"><i></i><i></i><i></i></span></span></span>Wave</button>
+        <button class="pf-decopick" role="radio" aria-checked="false" data-deco="headset"><span class="av" data-av="Juno"><span class="pf-deco" data-deco="headset"><i class="ph-fill ph-headphones"></i></span></span>Headset</button>
+        <button class="pf-decopick" role="radio" aria-checked="false" data-deco="sprout"><span class="av" data-av="Juno"><span class="pf-deco" data-deco="sprout"><i class="ph-fill ph-plant"></i></span></span>Sprout</button>
+        <button class="pf-decopick" role="radio" aria-checked="false" data-deco="stars"><span class="av" data-av="Juno"><span class="pf-deco" data-deco="stars"><i class="ph-fill ph-sparkle"></i><i class="ph-fill ph-sparkle"></i></span></span>Stars</button>
+        <button class="pf-decopick" role="radio" aria-checked="false" data-deco="crown"><span class="av" data-av="Juno"><span class="pf-deco" data-deco="crown"><i class="ph-fill ph-crown-simple"></i></span></span>Crown</button>
+        <button class="pf-decopick" role="radio" aria-checked="false" data-deco="moon"><span class="av" data-av="Juno"><span class="pf-deco" data-deco="moon"><i class="ph-fill ph-moon-stars"></i></span></span>Night owl</button>
+      </div>
+      <footer><button class="btn" data-close>Cancel</button><button class="btn btn--primary pf-deco-apply" data-close>Use decoration</button></footer>
+    </div>
+    <p class="note" style="margin-top: var(--space-3)">Decorations sit in a ring 9% outside the avatar and avoid the bottom-right corner, where the status mark lives. Hidden below 40px, where they'd crowd the row.</p>
+  </div>
+
+  <h3>Unsaved changes bar</h3>
+  <div class="board stack" style="gap: var(--space-4)">
+    <div class="pf-unsaved" role="status"><i class="ph-fill ph-warning-circle"></i><p>You have 3 unsaved changes<small>Display name, banner and About me</small></p><div class="ctl"><button class="btn btn--ghost">Reset</button><button class="btn btn--primary">Save changes</button></div></div>
+    <div class="pf-unsaved is-blocked" role="alert" id="bar-shake"><i class="ph-fill ph-warning-circle"></i><p>Save or reset before you leave<small>Display name, banner and About me</small></p><div class="ctl"><button class="btn btn--ghost">Reset</button><button class="btn btn--primary">Save changes</button></div></div>
+    <div class="row"><button class="btn btn--sm" id="bar-shake-go"><i class="ph-bold ph-play"></i>Replay the shake</button><span class="note">Shakes 360ms, then stays in the danger tint until you act. Reduced motion: tint only.</span></div>
+  </div>
+</section>
+
+<!-- Custom status -->
+<section id="custom-status">
+  <h2>Custom status</h2>
+  <p class="lede">One dialog sets both your presence and a custom status, opened from your avatar in the user area. The user area then shows your custom status in place of the presence word.</p>
+  <div class="board row" style="gap: var(--space-6); align-items: flex-start">
+    <form class="dialog dialog--md" role="dialog" aria-labelledby="cs-h" data-live="dlg-status" onsubmit="return false">
+      <div class="dhead"><h4 id="cs-h">Set your status</h4><p>Shown on your profile and in member lists.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="dbody">
+        <div class="field"><label for="cs-text">Custom status</label><div class="input pf-statusfield"><button type="button" class="pf-emoji" aria-label="Pick an emoji: headphones">🎧</button><input id="cs-text" value="editing the montage" maxlength="128" placeholder="What's happening?" class="pf-cs-text"><span class="pf-count">19/128</span><button type="button" class="iconbtn pf-cs-clear" aria-label="Clear text"><i class="ph ph-x-circle"></i></button></div></div>
+        <div class="field"><label>Clear after</label>
+          <div class="pf-clearafter"><button type="button" class="dropdown" aria-haspopup="listbox" aria-expanded="false"><i class="ph ph-hourglass-medium"></i><span>4 hours</span><i class="ph ph-caret-down"></i></button>
+            <div class="menu" role="listbox" aria-label="Clear after">
+              <button type="button" class="mi" role="option" aria-selected="false"><i class="ph ph-infinity"></i><div>Don't clear</div></button>
+              <button type="button" class="mi" role="option" aria-selected="false"><i class="ph ph-timer"></i><div>30 minutes</div></button>
+              <button type="button" class="mi" role="option" aria-selected="false"><i class="ph ph-clock"></i><div>1 hour</div></button>
+              <button type="button" class="mi" role="option" aria-selected="true"><i class="ph ph-hourglass-medium"></i><div>4 hours</div></button>
+              <button type="button" class="mi" role="option" aria-selected="false"><i class="ph ph-moon"></i><div>Today<small>Until midnight</small></div></button>
+              <button type="button" class="mi" role="option" aria-selected="false"><i class="ph ph-calendar-blank"></i><div>This week<small>Until Sunday night</small></div></button>
+            </div>
+          </div>
+        </div>
+        <div class="field"><label>Status</label>
+          <div class="pf-statuses" role="radiogroup" aria-label="Status">
+            <button type="button" class="choice" data-toggle="radio" data-status="online"><span class="pf-smark"><span class="status online"></span></span><div><b>Online</b></div><span class="radio" role="radio" aria-checked="false"></span></button>
+            <button type="button" class="choice" data-toggle="radio" data-status="idle"><span class="pf-smark"><span class="status idle"></span></span><div><b>Idle</b><span>Also set when you've been away for 10 minutes</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+            <button type="button" class="choice" data-toggle="radio" data-status="dnd"><span class="pf-smark"><span class="status dnd"></span></span><div><b>Do not disturb</b><span>Mutes notifications. Mentions still count up.</span></div><span class="radio" role="radio" aria-checked="true"></span></button>
+            <button type="button" class="choice" data-toggle="radio" data-status="offline"><span class="pf-smark"><span class="status offline"></span></span><div><b>Invisible</b><span>You look offline but can use Wave as normal</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+          </div>
+        </div>
+      </div>
+      <footer><button type="button" class="btn btn--ghost pf-cs-clearall" style="margin-right: auto">Clear status</button><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary pf-cs-save" data-close>Save status</button></footer>
+    </form>
+    <div class="stack" style="gap: var(--space-6); flex: 1 1 280px; min-width: 0">
+      <div class="stack" style="gap: 6px"><span class="note">Clear after, open</span>
+        <div class="menu" role="listbox" aria-label="Clear after" style="--menu-w: 240px">
+          <button class="mi" role="option" aria-selected="false"><i class="ph ph-infinity"></i><div>Don't clear</div></button>
+          <button class="mi" role="option" aria-selected="false"><i class="ph ph-timer"></i><div>30 minutes</div></button>
+          <button class="mi" role="option" aria-selected="false"><i class="ph ph-clock"></i><div>1 hour</div></button>
+          <button class="mi" role="option" aria-selected="true" style="background: var(--selected); color: var(--text-strong)"><i class="ph ph-hourglass-medium"></i><div>4 hours</div></button>
+          <button class="mi" role="option" aria-selected="false"><i class="ph ph-moon"></i><div>Today<small>Until midnight</small></div></button>
+          <button class="mi" role="option" aria-selected="false"><i class="ph ph-calendar-blank"></i><div>This week<small>Until Sunday night</small></div></button>
+        </div>
+      </div>
+      <div class="pf-mearea">
+        <figure><div class="me"><button class="who"><span class="av" data-av="Juno"><span class="status online"></span></span><div><b>Juno</b><span>Online</span></div></button><button class="iconbtn" aria-label="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings"><i class="ph-bold ph-gear-six"></i></button></div><figcaption>No custom status: the presence word</figcaption></figure>
+        <figure><div class="me"><button class="who" title="Clears in 4 hours"><span class="av" data-av="Juno"><span class="status dnd"></span></span><div><b>Juno</b><span>🎧 editing the montage</span></div></button><button class="iconbtn" aria-label="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings"><i class="ph-bold ph-gear-six"></i></button></div><figcaption>Saved: emoji and text replace it; the tooltip says when it clears</figcaption></figure>
+        <figure><div class="me"><button class="who"><span class="av" data-av="Juno"><span class="status offline"></span></span><div><b>Juno</b><span>☕ rendering a 40 minute montage at 4K, back when the progress bar stops lying</span></div></button><button class="iconbtn" aria-label="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings"><i class="ph-bold ph-gear-six"></i></button></div><figcaption>Long status truncates; invisible keeps the hollow ring</figcaption></figure>
+        <figure><div class="me" id="me-live"><button class="who" data-open="dlg-status"><span class="av" data-av="Juno"><span class="status online"></span></span><div><b>Juno</b><span>Online</span></div></button><button class="iconbtn" aria-label="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings"><i class="ph-bold ph-gear-six"></i></button></div><figcaption>Live: click your avatar, set a status, save</figcaption></figure>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: var(--space-3)">The emoji button opens the <a href="messages.html#emoji-picker" style="color: var(--accent-ink)">emoji picker</a>; in this demo it cycles a few. Count turns amber at 110 of 128.</p>
+</section>
+
+<!-- Privacy and safety -->
+<section id="privacy">
+  <h2>Privacy and safety</h2>
+  <p class="lede">Grouped by what each setting protects you from, each group with one caption. Three-way choices are segments you can read at a glance, not dropdowns.</p>
+  <div class="board set-sheet">
+    <div class="set-page">
+      <h4 class="set-h">Privacy and safety</h4>
+      <div class="set-group">
+        <h5>Spam filter for direct messages</h5>
+        <div class="set-card" role="radiogroup" aria-label="Spam filter">
+          <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div class="t"><b>Filter all direct messages</b><span>Including from friends</span></div></button>
+          <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="true"></span><div class="t"><b>Filter messages from people who aren't friends</b><span>Recommended</span></div></button>
+          <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div class="t"><b>Don't filter</b></div></button>
+        </div>
+        <p class="set-cap">Filtered messages wait in a Spam folder in your DMs for 30 days. Nothing is deleted without you seeing it.</p>
+      </div>
+      <div class="set-group">
+        <h5>Who can message you</h5>
+        <div class="set-card">
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Allow DMs from server members</b><span>New servers you join follow this; change one server from its menu</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Send first messages from strangers to Message requests</b><span>You read them there and choose to accept, ignore or block</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          <div class="set-row"><div class="t"><b>Server exceptions</b><span>Clip Club and Hades Speedrun allow DMs; 12 others don't</span></div><button class="btn btn--sm">Edit exceptions</button></div>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5>Sensitive media</h5>
+        <div class="set-card">
+          <div class="set-row"><div class="t"><b>From friends</b></div><div class="seg" role="group" aria-label="Sensitive media from friends"><button aria-pressed="true">Show</button><button aria-pressed="false">Blur</button><button aria-pressed="false">Block</button></div></div>
+          <div class="set-row"><div class="t"><b>From others in DMs</b></div><div class="seg" role="group" aria-label="Sensitive media from others in DMs"><button aria-pressed="false">Show</button><button aria-pressed="true">Blur</button><button aria-pressed="false">Block</button></div></div>
+          <div class="set-row"><div class="t"><b>In server channels</b></div><div class="seg" role="group" aria-label="Sensitive media in servers"><button aria-pressed="false">Show</button><button aria-pressed="true">Blur</button><button aria-pressed="false">Block</button></div></div>
+        </div>
+        <p class="set-cap">Blur opens with one click. Block hides it with a line saying something was hidden. Age-restricted channels follow the server.</p>
+      </div>
+      <div class="set-group">
+        <h5>How your data is used</h5>
+        <div class="set-card">
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Let Discord use my data to improve its service</b></div><span class="switch" role="switch" aria-checked="false"></span></button>
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Personalise my suggestions</b><span>Servers, friends and activities based on what you do</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Send Wave crash reports</b><span>Stack trace and app version only. Wave collects nothing else.</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+        </div>
+        <p class="set-cap">The first two are your Discord account's settings; the last is Wave's own.</p>
+      </div>
+      <div class="set-group">
+        <h5>Your data</h5>
+        <div class="set-card" id="data-req">
+          <div class="set-row"><span class="icontile"><i class="ph ph-tray-arrow-down"></i></span><div class="t"><b>Request a copy of your data</b><span>Messages, servers, account details and activity, as a .zip</span></div><button class="btn btn--sm" id="data-req-btn">Request data</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <h3>Data request states</h3>
+  <div class="board stack" style="gap: var(--space-3)">
+    <div class="set-card"><div class="set-row"><span class="icontile"><i class="ph ph-hourglass-medium"></i></span><div class="t"><b>Your data is being prepared</b><span>Requested Nov 15. It arrives by email to j••••••••••@hey.com, usually within a week and at most 30 days.</span></div><span class="pf-pending"><span class="bars"><i></i><i></i><i></i></span>Preparing</span></div></div>
+    <div class="set-card"><div class="set-row"><span class="icontile" style="--ink: var(--online-ink)"><i class="ph-fill ph-check-circle"></i></span><div class="t"><b>Your data is ready</b><span>412 MB. The link works until Dec 14. You can request again from Dec 15.</span></div><button class="btn btn--sm btn--primary"><i class="ph-bold ph-download-simple"></i>Download data</button></div></div>
+  </div>
+</section>
+
+<!-- Friend requests, blocked and ignored -->
+<section id="friends-blocking">
+  <h2>Friend requests, blocked and ignored</h2>
+  <p class="lede">Who can reach you, then the people you've shut out. Block and ignore sit side by side with exactly what each does; unblocking acts at once and offers Undo.</p>
+  <div class="board set-sheet">
+    <div class="set-page">
+      <h4 class="set-h">Friend requests</h4>
+      <div class="set-group">
+        <h5>Who can send you a friend request</h5>
+        <div class="set-card" id="fr-who">
+          <button class="set-row choice" data-toggle="check" data-all><span class="check" role="checkbox" aria-checked="mixed"><i class="ph-bold ph-check"></i></span><div class="t"><b>Everyone</b></div></button>
+          <button class="set-row choice pf-sub" data-toggle="check"><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span><div class="t"><b>Friends of friends</b></div></button>
+          <button class="set-row choice pf-sub" data-toggle="check"><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span><div class="t"><b>Server members</b><span>Anyone in a server you share</span></div></button>
+        </div>
+        <p class="set-cap">With none ticked, people can still accept a request you send them.</p>
+      </div>
+      <div class="set-group">
+        <div class="pf-listhead"><h5>Blocked · 3</h5><div class="input"><i class="ph ph-magnifying-glass"></i><input aria-label="Search blocked people" placeholder="Search blocked"></div></div>
+        <div class="set-card" data-undo-list>
+          <div class="pf-person"><span class="av" data-av="Kestrel"></span><div><b>Kestrel</b><span>kestrel_xx · Blocked 3 days ago</span></div><button class="btn btn--sm" data-undoable="Unblocked Kestrel. They can message you and see you online again.">Unblock</button></div>
+          <div class="pf-person"><span class="av" data-av="Bartholomew"></span><div><b>Bartholomew Featherstonehaugh-Wright</b><span>bartholomew.featherstonehaugh.wright · Blocked Mar 2, 2024</span></div><button class="btn btn--sm" data-undoable="Unblocked Bartholomew Featherstonehaugh-Wright. They can message you and see you online again.">Unblock</button></div>
+          <div class="pf-undo" role="status"><i class="ph-fill ph-check-circle"></i><span>Unblocked Rosa. They can message you and see you online again.</span><button class="btn btn--sm btn--ghost">Undo</button></div>
+          <div class="pf-person"><span class="av" style="--hue: 0; background: var(--selected); color: var(--text-muted)"><i class="ph ph-user"></i></span><div><b>Deleted user</b><span>deleted_user_8f2c · Blocked Jan 9, 2023</span></div><button class="btn btn--sm" data-undoable="Unblocked Deleted user.">Unblock</button></div>
+        </div>
+      </div>
+      <div class="set-group">
+        <div class="pf-listhead"><h5>Ignored · 1</h5></div>
+        <div class="set-card" data-undo-list>
+          <div class="pf-person"><span class="av" data-av="Ana"></span><div><b>Ana</b><span>ana.k · Ignored 2 weeks ago</span></div><button class="btn btn--sm" data-undoable="Stopped ignoring Ana. Her messages show again.">Stop ignoring</button></div>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5>Block or ignore?</h5>
+        <div class="set-card">
+          <div class="pf-cmp">
+            <div><b><i class="ph ph-prohibit"></i>Block</b><ul><li>They can't DM you or send friend requests</li><li>Their messages in servers are hidden behind a line</li><li>They see you as offline and can tell they're blocked</li></ul></div>
+            <div><b><i class="ph ph-eye-slash"></i>Ignore</b><ul><li>Their messages collapse; their DMs go quiet</li><li>No notifications from them</li><li>They aren't told and can still message you</li></ul></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <h3>Empty</h3>
+  <div class="board">
+    <div class="set-card" style="max-width: 680px"><div class="empty"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>No one blocked</b><p>When you block someone from their profile or a message, they show up here.</p></div></div>
+  </div>
+</section>
+
+<!-- Connections -->
+<section id="connections">
+  <h2>Connections</h2>
+  <p class="lede">Link other accounts to show them on your profile or as your activity. Each connected account gets one card with its own switches; connecting waits for the browser in the open, with a way back.</p>
+  <div class="board set-sheet">
+    <div class="set-page">
+      <h4 class="set-h">Connections</h4>
+      <div class="set-group">
+        <h5>Add an account</h5>
+        <div class="pf-svcs">
+          <button class="pf-svc is-linked"><span class="icontile"><i class="ph ph-game-controller"></i></span>Steam<small>Connected</small></button>
+          <button class="pf-svc" data-connect="Twitch"><span class="icontile"><i class="ph ph-broadcast"></i></span>Twitch<small>Connect</small></button>
+          <button class="pf-svc" data-connect="YouTube"><span class="icontile"><i class="ph ph-play"></i></span>YouTube<small>Connect</small></button>
+          <button class="pf-svc is-linked"><span class="icontile"><i class="ph ph-music-notes"></i></span>Spotify<small>Connected</small></button>
+          <button class="pf-svc is-waiting" data-connect="GitHub"><span class="icontile"><i class="ph ph-code"></i></span>GitHub<small><span class="bars" style="--c: var(--text-muted); height: 9px"><i></i><i></i><i></i></span>Waiting…</small></button>
+          <button class="pf-svc" data-connect="Xbox"><span class="icontile"><i class="ph ph-joystick"></i></span>Xbox<small>Connect</small></button>
+        </div>
+        <p class="set-cap">Click a service to connect. Services show as plain tiles here; the real build uses each service's own mark.</p>
+      </div>
+      <div class="set-group">
+        <h5>Connected accounts</h5>
+        <div class="stack" style="gap: var(--space-3)" data-undo-list>
+          <div class="set-card pf-acct">
+            <div class="pf-accthead"><span class="icontile" style="--tile: var(--bg-page)"><i class="ph ph-music-notes"></i></span><div><b>Spotify</b><span>juno.wav · Connected Aug 3, 2023</span></div><button class="btn btn--sm set-dangerbtn" data-undoable="Disconnected Spotify (juno.wav). It's gone from your profile.">Disconnect</button></div>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Show on profile</b></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Show what you're listening to as your activity</b><span>"Listening to Spotify" under your name</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          </div>
+          <div class="set-card pf-acct">
+            <div class="pf-accthead"><span class="icontile" style="--tile: var(--bg-page)"><i class="ph ph-game-controller"></i></span><div><b>Steam</b><span>JunoPlaysThingsLateAtNightAgain · Connected Feb 11, 2022</span></div><button class="btn btn--sm set-dangerbtn" data-undoable="Disconnected Steam (JunoPlaysThingsLateAtNightAgain). It's gone from your profile.">Disconnect</button></div>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Show on profile</b></div><span class="switch" role="switch" aria-checked="false"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Show what you're playing as your activity</b></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          </div>
+          <div class="set-card"><div class="pf-undo" role="status"><i class="ph-fill ph-check-circle"></i><span>Disconnected Twitch (junowav). It's gone from your profile.</span><button class="btn btn--sm btn--ghost">Undo</button></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <h3>Connect flow</h3>
+  <div class="board">
+    <div class="pf-flow" data-flow="flow-connect">
+      <div class="dialog" role="dialog" aria-labelledby="cn1" data-auto-next="2600">
+        <div class="dhead"><h4 id="cn1"><span>Connect <span class="pf-svcname">GitHub</span></span></h4><button class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+        <div class="pf-handshake"><span class="icontile icontile--accent"><i class="ph-bold ph-waveform"></i></span><span class="bars"><i></i><i></i><i></i></span><span class="icontile"><i class="ph ph-code"></i></span></div>
+        <div class="pf-centre" role="status"><b>Waiting for <span class="pf-svcname">GitHub</span>…</b><p>Sign in from the browser window that opened. This window updates by itself.</p></div>
+        <footer><button class="btn" data-close>Cancel</button><button class="btn"><i class="ph-bold ph-arrow-square-out"></i>Open browser again</button></footer>
+      </div>
+      <div class="dialog" role="dialog" aria-labelledby="cn2">
+        <div class="dhead"><h4 id="cn2"><span><span class="pf-svcname">GitHub</span> connected</span></h4><button class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+        <div class="pf-handshake is-done"><span class="icontile icontile--accent"><i class="ph-bold ph-waveform"></i></span><i class="ph-bold ph-check-circle ok"></i><span class="icontile"><i class="ph ph-code"></i></span></div>
+        <div class="pf-centre"><b>Linked as juno-okafor</b><p>Decide now whether it shows; you can change it any time under Connections.</p></div>
+        <button class="choice" data-toggle="switch" style="padding: 10px 0"><div><b>Show on profile</b></div><span class="switch" role="switch" aria-checked="true"></span></button>
+        <footer><button class="btn btn--primary" data-close>Finish</button></footer>
+      </div>
+    </div>
+    <h3>Didn't connect</h3>
+    <div class="dialog" role="dialog" aria-labelledby="cn3">
+      <div class="dhead"><h4 id="cn3">Connect GitHub</h4><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+      <div class="pf-handshake is-failed"><span class="icontile icontile--accent"><i class="ph-bold ph-waveform"></i></span><span class="bars"><i></i><i></i><i></i></span><span class="icontile"><i class="ph ph-code"></i></span></div>
+      <div class="pf-centre" role="alert"><b>GitHub didn't connect</b><p>The browser window closed before sign-in finished. Nothing was linked.</p></div>
+      <footer><button class="btn">Cancel</button><button class="btn btn--primary"><i class="ph-bold ph-arrow-clockwise"></i>Try again</button></footer>
+    </div>
+  </div>
+</section>
+
+<!-- Devices -->
+<section id="devices">
+  <h2>Devices</h2>
+  <p class="lede">Everywhere you're signed in, this device first. A sign-in from somewhere new says so and offers the next step; logging out all others confirms with the count.</p>
+  <div class="board set-sheet">
+    <div class="set-page" id="dev">
+      <h4 class="set-h">Devices</h4>
+      <div class="set-group">
+        <h5>This device</h5>
+        <div class="set-card">
+          <div class="set-row pf-device"><span class="icontile"><i class="ph ph-laptop"></i></span><div class="t"><b>MacBook Pro<span class="tag pf-tag-neutral">This device</span></b><span>macOS 15.1 · Wave 0.4.2 · Lisbon, Portugal · Active now</span></div></div>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5 id="dev-count">Other devices · 4</h5>
+        <div class="set-card" id="dev-list">
+          <div class="set-row pf-device is-new"><span class="icontile"><i class="ph ph-browser"></i></span><div class="t"><b>Chrome on Linux</b><span>Berlin, Germany · Active 2 hours ago</span><span class="pf-new"><i class="ph-fill ph-warning"></i>New location. Not you? Log it out and change your password.</span></div><div class="ctl"><button class="btn btn--sm" data-logout>Log out</button></div></div>
+          <div class="set-row pf-device"><span class="icontile"><i class="ph ph-device-mobile"></i></span><div class="t"><b>iPhone 15</b><span>Discord for iOS · Lisbon, Portugal · Active 3 hours ago</span></div><div class="ctl"><button class="btn btn--sm" data-logout>Log out</button></div></div>
+          <div class="set-row pf-device"><span class="icontile"><i class="ph ph-desktop"></i></span><div class="t"><b>Gaming PC</b><span>Windows 11 · Discord · Porto, Portugal · Active 2 days ago</span></div><div class="ctl"><button class="btn btn--sm" disabled><span class="bars" style="--c: currentColor"><i></i><i></i><i></i></span>Logging out…</button></div></div>
+          <div class="set-row pf-device"><span class="icontile"><i class="ph ph-browser"></i></span><div class="t"><b>Firefox on Windows</b><span>São Paulo, Brazil · Last active Oct 5</span></div><div class="ctl"><button class="btn btn--sm" data-logout>Log out</button></div></div>
+        </div>
+        <div class="row" style="justify-content: space-between; padding: 0 4px"><p class="set-cap" style="padding: 0">Locations are approximate, from the network.</p><button class="btn btn--sm set-dangerbtn" data-open="dlg-logout-all" id="dev-all"><i class="ph-bold ph-sign-out"></i>Log out all other devices</button></div>
+      </div>
+    </div>
+  </div>
+  <h3>Log out all others</h3>
+  <div class="board">
+    <div class="dialog" role="dialog" aria-labelledby="lo-h" data-live="dlg-logout-all">
+      <h4 id="lo-h">Log out of 4 other devices?</h4>
+      <p>Chrome on Linux, iPhone 15, Gaming PC and Firefox on Windows sign out right away. You stay signed in on this MacBook Pro.</p>
+      <footer><button class="btn" data-close>Stay signed in</button><button class="btn btn--danger pf-logout-all" data-close>Log out 4 devices</button></footer>
+    </div>
+  </div>
+</section>
+
+<!-- Authorized apps -->
+<section id="authorized-apps">
+  <h2>Authorized apps</h2>
+  <p class="lede">Apps that can act for you, each with what it's allowed to do. Powerful permissions stand out, and apps you haven't used in months say so.</p>
+  <div class="board set-sheet">
+    <div class="set-page">
+      <h4 class="set-h">Authorized apps</h4>
+      <div class="set-group">
+      <div class="set-card" style="padding: 0" data-undo-list>
+        <div class="pf-app">
+          <div class="pf-apphead"><span class="av" data-av="Wavebot"></span><div><b>Wavebot</b><span>Authorized Mar 2, 2025 · Used 2 hours ago</span></div><button class="btn btn--sm set-dangerbtn" data-undoable="Deauthorized Wavebot. It can't act for you anymore.">Deauthorize</button></div>
+          <ul class="pf-scopes"><li><i class="ph ph-user-circle"></i>Know your username and avatar</li><li><i class="ph ph-users-three"></i>See which servers you're in</li><li class="is-power"><i class="ph ph-sign-in"></i>Join servers for you</li></ul>
+        </div>
+        <div class="pf-app">
+          <div class="pf-apphead"><span class="av" data-av="Clipr"></span><div><b>Clipr: highlight reels</b><span>Authorized Jan 18, 2024 · <span class="is-stale">Not used in 8 months</span></span></div><button class="btn btn--sm set-dangerbtn" data-undoable="Deauthorized Clipr: highlight reels. It can't act for you anymore.">Deauthorize</button></div>
+          <ul class="pf-scopes"><li><i class="ph ph-user-circle"></i>Know your username and avatar</li><li class="is-power"><i class="ph ph-envelope-simple"></i>Know your email address</li><li><i class="ph ph-plugs-connected"></i>See your connected accounts</li><li class="is-power"><i class="ph ph-chat-teardrop-text"></i>Read messages in your group DMs</li></ul>
+        </div>
+        <div class="pf-undo" role="status"><i class="ph-fill ph-check-circle"></i><span>Deauthorized Statbot. It can't act for you anymore.</span><button class="btn btn--sm btn--ghost">Undo</button></div>
+      </div>
+      <p class="set-cap">Amber marks permissions that let an app act as you or see private details. Deauthorizing doesn't remove a bot from servers you manage.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Account security -->
+<section id="account-security">
+  <h2>Account security</h2>
+  <p class="lede">Password, two-factor and leaving. The entry rows live in <a href="settings.html#window" style="color: var(--accent-ink)">My account</a> and its <a href="settings.html#danger-zone" style="color: var(--accent-ink)">danger zone</a>; these are the flows they open.</p>
+  <div class="board row" style="gap: var(--space-2)">
+    <button class="btn" data-open="dlg-pw"><i class="ph-bold ph-password"></i>Change password</button>
+    <button class="btn" data-open="flow-2fa"><i class="ph-bold ph-shield-check"></i>Turn on 2FA</button>
+    <button class="btn" data-open="dlg-2fa-off"><i class="ph-bold ph-shield-slash"></i>Remove 2FA</button>
+    <button class="btn" data-open="flow-leave"><i class="ph-bold ph-user-minus"></i>Disable or delete account</button>
+  </div>
+
+  <h3>Change password</h3>
+  <div class="board">
+    <div class="pf-flow">
+      <form class="dialog dialog--md" role="dialog" aria-labelledby="pw-h" data-live="dlg-pw" onsubmit="return false">
+        <div class="dhead"><h4 id="pw-h">Change your password</h4><p>Other devices stay signed in. To sign them out, use Devices.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+        <div class="dbody">
+          <div class="field"><label for="pw-cur">Current password</label><div class="input"><input id="pw-cur" type="password" autocomplete="current-password" value="hunter22"></div></div>
+          <div class="field"><label for="pw-new">New password</label><div class="input"><input id="pw-new" type="password" autocomplete="new-password" class="pf-pw-new" value="montage"><button type="button" class="iconbtn pf-pw-eye" aria-label="Show password"><i class="ph ph-eye"></i></button></div>
+            <div class="pf-strength" data-level="1"><div class="segs"><i></i><i></i><i></i><i></i></div><p><b class="pf-pw-label">Weak</b><span class="pf-pw-tip">Add a few more words. Length beats symbols.</span></p></div>
+          </div>
+          <div class="field"><label for="pw-conf">Confirm new password</label><div class="input error"><input id="pw-conf" type="password" autocomplete="new-password" class="pf-pw-conf" value="montag" aria-describedby="pw-conf-err"></div><span class="err pf-pw-match" id="pw-conf-err"><i class="ph-bold ph-warning-circle"></i>Doesn't match the new password yet</span></div>
+        </div>
+        <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-loading="Saving…">Change password</button></footer>
+      </form>
+      <div class="dialog dialog--md" role="dialog" aria-labelledby="pw-h2">
+        <div class="dhead"><h4 id="pw-h2">Change your password</h4><p>Other devices stay signed in. To sign them out, use Devices.</p><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+        <div class="dbody">
+          <div class="field"><label>Current password</label><div class="input"><input type="password" value="hunter22" aria-label="Current password"></div></div>
+          <div class="field"><label>New password</label><div class="input"><input type="password" value="frame perfect dodge at dawn" aria-label="New password"><button class="iconbtn" aria-label="Show password"><i class="ph ph-eye"></i></button></div>
+            <div class="pf-strength" data-level="4"><div class="segs"><i></i><i></i><i></i><i></i></div><p><b>Strong</b><span>Would take centuries to guess</span></p></div>
+          </div>
+          <div class="field"><label>Confirm new password</label><div class="input is-ok"><input type="password" value="frame perfect dodge at dawn" aria-label="Confirm new password"></div><span class="ok"><i class="ph-bold ph-check-circle"></i>Matches</span></div>
+        </div>
+        <footer><button class="btn">Cancel</button><button class="btn btn--primary" disabled><span class="bars" style="--c: currentColor"><i></i><i></i><i></i></span>Saving…</button></footer>
+      </div>
+    </div>
+    <p class="note" style="margin-top: var(--space-3)">Submit stays enabled; the mismatch shows on blur or submit, never while you're still typing the first time. Wrong current password: the field errors with "That's not your current password" and keeps what you typed.</p>
+  </div>
+
+  <h3>Turn on two-factor</h3>
+  <div class="board">
+    <div class="pf-flow" data-flow="flow-2fa">
+      <div class="dialog dialog--md" role="dialog" aria-labelledby="tf1">
+        <div class="pf-steps"><i class="is-done"></i><i></i><i></i><i></i><span>Step 1 of 4</span></div>
+        <div class="dhead"><h4 id="tf1">How do you want to confirm sign-ins?</h4><button class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+        <div class="pf-pickcard" role="radiogroup" aria-label="Method">
+          <button class="choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="true"></span><div><b>Authenticator app</b><span>Any app that makes 6-digit codes. Works offline.</span></div></button>
+          <button class="choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div><b>Security key or passkey</b><span>A touch or a fingerprint instead of a code</span></div></button>
+        </div>
+        <footer><button class="btn" data-close>Cancel</button><button class="btn btn--primary" data-next>Continue</button></footer>
+      </div>
+      <div class="dialog dialog--md" role="dialog" aria-labelledby="tf2">
+        <div class="pf-steps"><i class="is-done"></i><i class="is-done"></i><i></i><i></i><span>Step 2 of 4</span></div>
+        <div class="dhead"><h4 id="tf2">Scan this with your app</h4><button class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+        <div class="pf-qrrow"><div class="pf-qr" aria-label="QR code for your authenticator app" role="img"></div><div><p>Can't scan? Type this key into your app instead.</p><span class="pf-secret">JBSW Y3DP EHPK 3PXP</span><button class="btn btn--sm" style="justify-self: start" data-copy-text="JBSWY3DPEHPK3PXP"><i class="ph-bold ph-copy"></i>Copy key</button></div></div>
+        <footer><button class="btn btn--ghost" data-back style="margin-right: auto">Back</button><button class="btn btn--primary" data-next>I've added it</button></footer>
+      </div>
+      <div class="dialog dialog--md" role="dialog" aria-labelledby="tf3">
+        <div class="pf-steps"><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i></i><span>Step 3 of 4</span></div>
+        <div class="dhead"><h4 id="tf3">Enter the code from your app</h4><button class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+        <div class="field"><label>6-digit code</label><div class="otp"><input inputmode="numeric" maxlength="1" aria-label="Digit 1" value="4"><input inputmode="numeric" maxlength="1" aria-label="Digit 2" value="1"><input inputmode="numeric" maxlength="1" aria-label="Digit 3" value="9"><input inputmode="numeric" maxlength="1" aria-label="Digit 4"><input inputmode="numeric" maxlength="1" aria-label="Digit 5"><input inputmode="numeric" maxlength="1" aria-label="Digit 6"></div><span class="hint"><span>A new code appears every 30 seconds. Pasting works.</span></span></div>
+        <footer><button class="btn btn--ghost" data-back style="margin-right: auto">Back</button><button class="btn btn--primary" data-next data-loading="Checking…">Turn on 2FA</button></footer>
+      </div>
+      <div class="dialog dialog--md" role="dialog" aria-labelledby="tf4">
+        <div class="pf-steps"><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><span>Step 4 of 4</span></div>
+        <div class="dhead"><h4 id="tf4">2FA is on. Save your backup codes</h4><p>If you lose your phone, each code signs you in once. Wave won't show them again without your password.</p></div>
+        <div class="pf-codes" aria-label="Backup codes"><code>4k7q-2m9x</code><code>p8vn-3jr6</code><code>t2wd-7c4h</code><code>9mbe-q5zk</code><code>x6fa-8n2p</code><code>r3ys-k7tv</code><code>h5gu-1wd8</code><code>c9pm-4ex3</code><code>v2lq-6bt9</code><code>j7rz-3hn5</code></div>
+        <div class="row"><button class="btn btn--sm pf-dl-codes"><i class="ph-bold ph-download-simple"></i>Download codes</button><button class="btn btn--sm" data-copy-text="4k7q-2m9x p8vn-3jr6 t2wd-7c4h 9mbe-q5zk x6fa-8n2p r3ys-k7tv h5gu-1wd8 c9pm-4ex3 v2lq-6bt9 j7rz-3hn5"><i class="ph-bold ph-copy"></i>Copy codes</button></div>
+        <footer><button class="btn btn--primary" data-close>Finish</button></footer>
+      </div>
+    </div>
+    <h3>Wrong code</h3>
+    <div class="dialog dialog--md" role="dialog" aria-labelledby="tf5">
+      <div class="pf-steps"><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i></i><span>Step 3 of 4</span></div>
+      <div class="dhead"><h4 id="tf5">Enter the code from your app</h4><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
+      <div class="field"><label>6-digit code</label><div class="otp is-error"><input value="4" aria-label="Digit 1"><input value="1" aria-label="Digit 2"><input value="9" aria-label="Digit 3"><input value="2" aria-label="Digit 4"><input value="0" aria-label="Digit 5"><input value="7" aria-label="Digit 6"></div><span class="err" role="alert"><i class="ph-bold ph-warning-circle"></i>That code didn't match. It may have just expired; try the newest one.</span></div>
+      <footer><button class="btn btn--ghost" style="margin-right: auto">Back</button><button class="btn btn--primary">Turn on 2FA</button></footer>
+    </div>
+  </div>
+
+  <h3>Remove two-factor</h3>
+  <div class="board">
+    <form class="dialog dialog--md" role="dialog" aria-labelledby="rf-h" data-live="dlg-2fa-off" onsubmit="return false">
+      <div class="dhead"><h4 id="rf-h"><i class="ph-fill ph-warning"></i>Remove two-factor?</h4><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <ul class="pf-conseq">
+        <li class="is-gone"><i class="ph ph-shield-slash"></i><span>Signing in needs only your password again</span></li>
+        <li class="is-gone"><i class="ph ph-gavel"></i><span>You lose moderator tools in Night Shift and Clip Club, which require 2FA</span></li>
+        <li class="is-gone"><i class="ph ph-key"></i><span>Your 8 unused backup codes stop working</span></li>
+      </ul>
+      <div class="field"><label>Code from your authenticator app</label><div class="otp"><input inputmode="numeric" maxlength="1" aria-label="Digit 1"><input inputmode="numeric" maxlength="1" aria-label="Digit 2"><input inputmode="numeric" maxlength="1" aria-label="Digit 3"><input inputmode="numeric" maxlength="1" aria-label="Digit 4"><input inputmode="numeric" maxlength="1" aria-label="Digit 5"><input inputmode="numeric" maxlength="1" aria-label="Digit 6"></div><span class="hint"><button type="button" class="btn btn--link" style="font-size: inherit">Use a backup code instead</button></span></div>
+      <footer><button type="button" class="btn" data-close>Keep 2FA</button><button class="btn btn--danger" data-loading="Removing…">Remove 2FA</button></footer>
+    </form>
+  </div>
+
+  <h3>Disable or delete your account</h3>
+  <div class="board">
+    <div class="pf-flow" data-flow="flow-leave">
+      <div class="dialog dialog--md" role="dialog" aria-labelledby="dl1">
+        <div class="pf-steps"><i class="is-done"></i><i></i><i></i><i></i><span>Step 1 of 4</span></div>
+        <div class="dhead"><h4 id="dl1">Take a break or leave for good?</h4><button class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+        <div class="pf-pickcard" role="radiogroup" aria-label="What to do">
+          <button class="choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div><b>Disable account</b><span>Your profile hides and DMs pause. Log in any time to come back exactly as you left.</span></div></button>
+          <button class="choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="true"></span><div><b>Delete account</b><span>Gone after 14 days. Log in before then to cancel.</span></div></button>
+        </div>
+        <footer><button class="btn" data-close>Keep account</button><button class="btn btn--primary" data-next>Continue</button></footer>
+      </div>
+      <div class="dialog dialog--md" role="dialog" aria-labelledby="dl2">
+        <div class="pf-steps"><i class="is-done"></i><i class="is-done"></i><i></i><i></i><span>Step 2 of 4</span></div>
+        <div class="dhead"><h4 id="dl2">Hand over your 3 servers</h4><p>A deleted account can't own a server. Pick a new owner for each, or delete the server.</p><button class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+        <div class="pf-owned">
+          <div class="pf-person is-set"><span class="pf-srvtile" style="--hue: 300">N</span><div><b>Night Shift</b><span>1,284 members</span></div><button class="dropdown" aria-haspopup="listbox"><span class="av" data-av="Mira" style="--size: 20px; font-size: 9px"></span><span>Mira</span><i class="ph ph-caret-down"></i></button></div>
+          <div class="pf-person is-set"><span class="pf-srvtile" style="--hue: 40">C</span><div><b>Clip Club</b><span>86 members</span></div><button class="dropdown" aria-haspopup="listbox"><span class="av" data-av="Theo" style="--size: 20px; font-size: 9px"></span><span>Theo</span><i class="ph ph-caret-down"></i></button></div>
+          <div class="pf-person"><span class="pf-srvtile" style="--hue: 160">J</span><div><b>juno's test server</b><span>Only you</span></div><button class="dropdown" aria-haspopup="listbox"><i class="ph ph-trash" style="color: var(--danger-ink); font-size: 16px"></i><span>Delete server</span><i class="ph ph-caret-down"></i></button></div>
+        </div>
+        <p class="set-cap" style="padding: 0">New owners get a request; they have until your account is deleted to accept.</p>
+        <footer><button class="btn btn--ghost" data-back style="margin-right: auto">Back</button><button class="btn btn--primary" data-next>Continue</button></footer>
+      </div>
+      <form class="dialog dialog--md" role="dialog" aria-labelledby="dl3" onsubmit="return false">
+        <div class="pf-steps"><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i></i><span>Step 3 of 4</span></div>
+        <div class="dhead"><h4 id="dl3"><i class="ph-fill ph-warning"></i>Delete Juno's account?</h4><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+        <ul class="pf-conseq">
+          <li class="is-gone"><i class="ph ph-x-circle"></i><span>Your profile, 41 friends and all DMs, on Nov 29</span></li>
+          <li class="is-gone"><i class="ph ph-x-circle"></i><span>juno's test server and its 212 messages</span></li>
+          <li class="is-gone"><i class="ph ph-x-circle"></i><span>Spotify and Steam connections, and 2 authorized apps</span></li>
+          <li class="is-kept"><i class="ph ph-check-circle"></i><span>Messages you sent in servers stay, signed "Deleted user"</span></li>
+          <li class="is-kept"><i class="ph ph-check-circle"></i><span>Night Shift goes to Mira and Clip Club to Theo</span></li>
+        </ul>
+        <div class="field"><label for="dl-pw">Password</label><div class="input"><input id="dl-pw" type="password" autocomplete="current-password"></div></div>
+        <footer><button type="button" class="btn btn--ghost" data-back style="margin-right: auto">Back</button><button type="button" class="btn" data-close>Keep account</button><button class="btn btn--danger" data-next data-loading="Deleting…">Delete account</button></footer>
+      </form>
+      <div class="dialog dialog--md" role="dialog" aria-labelledby="dl4">
+        <div class="pf-done"><i class="ph-fill ph-calendar-x" style="color: var(--text-muted)"></i><b id="dl4">Deletion scheduled for Nov 29</b><p>You're logged out everywhere. Log in before Nov 29 and Wave asks if you want to keep your account.</p></div>
+        <footer><button class="btn btn--primary" data-close>Log out</button></footer>
+      </div>
+    </div>
+    <p class="note" style="margin-top: var(--space-3)">Disable skips step 2: servers keep you as owner while you're away. The flow never dead-ends on "transfer your servers first"; you do it here.</p>
+  </div>
+</section>
+
+<!-- Report -->
+<section id="report">
+  <h2>Report flow</h2>
+  <p class="lede">Reporting a message or a person. A reason row moves you on in one click, the message stays in view, and blocking is offered on the same screen as Submit.</p>
+  <div class="board row" style="gap: var(--space-2)"><button class="btn" data-open="flow-report"><i class="ph-bold ph-flag"></i>Report message</button></div>
+  <div class="board" style="margin-top: var(--space-4)">
+    <div class="pf-flow" data-flow="flow-report">
+      <div class="dialog dialog--md" role="dialog" aria-labelledby="rp1">
+        <div class="dhead"><h4 id="rp1">Report this message</h4><p>Pick the closest reason.</p><button class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+        <div class="pf-quote"><span class="av" data-av="Kestrel"></span><b>Kestrel<small>Today at 9:41 PM</small></b><p>nobody asked for your montage, log off before I find your address</p></div>
+        <div class="pf-reasons">
+          <button class="pf-reason" data-next><i class="ph ph-megaphone"></i><div>Spam<small>Ads, scams, links you didn't ask for</small></div><i class="ph ph-caret-right"></i></button>
+          <button class="pf-reason" data-next aria-current="true"><i class="ph ph-hand"></i><div>Harassment or threats<small>Aimed at you or someone else</small></div><i class="ph ph-caret-right"></i></button>
+          <button class="pf-reason" data-next><i class="ph ph-heart-break"></i><div>Hate<small>Attacks on who someone is</small></div><i class="ph ph-caret-right"></i></button>
+          <button class="pf-reason" data-next><i class="ph ph-first-aid"></i><div>Self-harm<small>Someone may be at risk</small></div><i class="ph ph-caret-right"></i></button>
+          <button class="pf-reason" data-next><i class="ph ph-warning"></i><div>Graphic or illegal content</div><i class="ph ph-caret-right"></i></button>
+          <button class="pf-reason" data-next><i class="ph ph-dots-three"></i><div>Something else</div><i class="ph ph-caret-right"></i></button>
+        </div>
+      </div>
+      <div class="dialog dialog--md" role="dialog" aria-labelledby="rp2">
+        <div class="dhead"><button class="btn btn--ghost btn--sm pf-back" data-back><i class="ph-bold ph-arrow-left"></i>Harassment or threats</button><h4 id="rp2">Who is it aimed at?</h4><button class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+        <div class="pf-reasons">
+          <button class="pf-reason" data-next aria-current="true"><i class="ph ph-user"></i><div>Me</div><i class="ph ph-caret-right"></i></button>
+          <button class="pf-reason" data-next><i class="ph ph-users"></i><div>Someone else</div><i class="ph ph-caret-right"></i></button>
+          <button class="pf-reason" data-next><i class="ph ph-users-three"></i><div>A group pile-on</div><i class="ph ph-caret-right"></i></button>
+          <button class="pf-reason" data-next><i class="ph ph-sword"></i><div>A threat of real-world harm<small>Includes threats to find where someone lives</small></div><i class="ph ph-caret-right"></i></button>
+        </div>
+      </div>
+      <form class="dialog dialog--md" role="dialog" aria-labelledby="rp3" onsubmit="return false">
+        <div class="dhead"><button type="button" class="btn btn--ghost btn--sm pf-back" data-back><i class="ph-bold ph-arrow-left"></i>Harassment · Aimed at me</button><h4 id="rp3">Anything else we should know?</h4><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+        <div class="pf-quote"><span class="av" data-av="Kestrel"></span><b>Kestrel<small>Today at 9:41 PM</small></b><p>nobody asked for your montage, log off before I find your address</p></div>
+        <div class="field"><label for="rp-more">Details (optional)</label><textarea class="textarea" id="rp-more" maxlength="500" placeholder="Context helps, like earlier messages or other accounts" style="min-height: 72px"></textarea></div>
+        <button type="button" class="choice" data-toggle="check" style="padding: 8px 0"><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span><div><b>Also block Kestrel</b><span>They won't be told</span></div></button>
+        <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-next data-loading="Sending…">Send report</button></footer>
+      </form>
+      <div class="dialog dialog--md" role="dialog" aria-labelledby="rp4">
+        <div class="pf-done"><i class="ph-fill ph-check-circle"></i><b id="rp4">Report sent</b><p>Discord's safety team reviews it, usually within a day. Kestrel is blocked and won't know you reported them.</p></div>
+        <div class="callout callout--info"><i class="ph-fill ph-info"></i><div>If you think you're in danger, contact local emergency services. Threats to find your address are taken seriously.</div></div>
+        <footer><button class="btn btn--primary" data-close>Back to chat</button></footer>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Better than Discord -->
+<section id="better-than-discord">
+  <h2>Better than Discord</h2>
+  <p class="lede">Same features, fewer weak spots. Each row links to its demo.</p>
+  <div class="pf-btd">
+    <div class="h"><span style="color: inherit">Discord does</span><span style="color: inherit">Wave does</span><span style="color: inherit">Why</span></div>
+    <div><span>Unsaved-changes bar says only that something changed, and shakes when you try to leave</span><b>The bar names what changed and stays tinted until you save or reset</b><span>You know what Reset throws away. <a href="#profile-editor">Demo</a></span></div>
+    <div><span>Username availability shows after you submit</span><b>Checked as you type, with one-click suggestions when it's taken</b><span>No submit-fail-retry loop. <a href="#profile-editor">Demo</a></span></div>
+    <div><span>Profile preview is a small card that skips parts of the real popout</span><b>The preview is the real popout, markdown rendered, theme applied at a contrast-safe tint</b><span>What you see is what others see. <a href="#profile-editor">Demo</a></span></div>
+    <div><span>Server profile fields are blank with no hint of what shows instead</span><b>Each empty field names the main-profile value it falls back to</b><span>No guessing what Night Shift sees. <a href="#profile-editor">Demo</a></span></div>
+    <div><span>Presence and custom status are set from two separate menus</span><b>One dialog sets both; the user area shows the result and tells you when it clears</b><span>One place for one idea. <a href="#custom-status">Demo</a></span></div>
+    <div><span>Sensitive media choices hide in dropdowns</span><b>Show, Blur and Block as a segment per context</b><span>All three choices readable at a glance. <a href="#privacy">Demo</a></span></div>
+    <div><span>Data request gives a one-off confirmation</span><b>The row shows Preparing with the date, then the download, in place</b><span>You can see the request is still alive. <a href="#privacy">Demo</a></span></div>
+    <div><span>Blocked people live in the Friends tab; Ignore's effects are unexplained</span><b>Blocked and ignored lists sit together in settings, with what each does side by side</b><span>You pick the right tool. <a href="#friends-blocking">Demo</a></span></div>
+    <div><span>Unblock, disconnect and deauthorize are final</span><b>They act at once and leave an Undo in the row</b><span>Undo beats a confirm for reversible things. <a href="#connections">Demo</a></span></div>
+    <div><span>Connecting an account opens the browser and the app gives little sign it's waiting</span><b>A waiting state names the service, can reopen the browser, and asks about profile display on success</b><span>No silent limbo. <a href="#connections">Demo</a></span></div>
+    <div><span>Sessions list doesn't flag a sign-in from somewhere new</span><b>A new location is marked in amber with the next step</b><span>The one row that matters stands out. <a href="#devices">Demo</a></span></div>
+    <div><span>Authorized apps list scopes as equal-weight text</span><b>Powerful scopes in amber, and "Not used in 8 months" on stale apps</b><span>Easy to spot what to remove. <a href="#authorized-apps">Demo</a></span></div>
+    <div><span>Deleting an account fails if you own servers, sending you off to transfer each one</span><b>The flow lets you pick a new owner per server, then lists what goes and what stays</b><span>No dead end halfway through. <a href="#account-security">Demo</a></span></div>
+    <div><span>Report flow asks for a reason and Next on every screen</span><b>A reason row moves you on in one click; the message stays visible; Block is a tick on the last step</b><span>Fewer steps when someone is already upset. <a href="#report">Demo</a></span></div>
+  </div>
+</section>
+
 </main>
 </div>
 <script src="site.js"></script>
+<script>
+const plural = new Intl.PluralRules("en");
+const list = new Intl.ListFormat("en", { type: "conjunction" });
+const BARS = '<span class="bars" style="--c: currentColor"><i></i><i></i><i></i></span>';
+
+// QR placeholder: finder squares plus seeded modules. Drawn before the dialogs are cloned.
+function drawQrs() {
+  for (const el of $$(".pf-qr")) {
+    const n = 25; let seed = 7;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const inFinder = (x, y) => (x < 8 && y < 8) || (x > n - 9 && y < 8) || (x < 8 && y > n - 9);
+    const rects = [];
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (!inFinder(x, y) && rnd() > 0.52) rects.push(`<rect x="${x}" y="${y}" width="1" height="1"/>`);
+    for (const [x, y] of [[0, 0], [n - 7, 0], [0, n - 7]]) rects.push(`<path d="M${x} ${y}h7v7h-7zM${x + 1} ${y + 1}v5h5v-5zM${x + 2} ${y + 2}h3v3h-3z" fill-rule="evenodd" style="fill: oklch(0.22 0.015 350)"/>`);
+    el.innerHTML = `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" aria-hidden="true">${rects.join("")}</svg>`;
+  }
+}
+drawQrs();
+
+// Live dialogs: each .dialog[data-live] becomes a real <dialog>; each [data-flow] board becomes one dialog that steps through its panels.
+function cloneInto(dlg, panel) {
+  const c = panel.cloneNode(true);
+  c.removeAttribute("data-live");
+  const ids = new Map();
+  for (const el of [c, ...c.querySelectorAll("[id]")]) if (el.id) { ids.set(el.id, el.id + "-live"); el.id += "-live"; }
+  for (const el of c.querySelectorAll("[for], [aria-labelledby], [aria-describedby], [aria-controls]"))
+    for (const a of ["for", "aria-labelledby", "aria-describedby", "aria-controls"]) if (ids.has(el.getAttribute(a))) el.setAttribute(a, ids.get(el.getAttribute(a)));
+  dlg.append(c);
+  return c;
+}
+function makeDialog(id, panels, stepper) {
+  const dlg = document.createElement("dialog");
+  dlg.className = "real" + (stepper ? " pf-stepper" : "");
+  dlg.id = id;
+  for (const p of panels) cloneInto(dlg, p);
+  document.body.append(dlg);
+  return dlg;
+}
+for (const d of $$(".dialog[data-live]")) makeDialog(d.dataset.live, [d]);
+for (const f of $$("[data-flow]")) makeDialog(f.dataset.flow, [...f.children], true);
+
+function showStep(dlg, i, back) {
+  const steps = [...dlg.children];
+  if (i < 0 || i >= steps.length) return;
+  steps.forEach((s, n) => { s.hidden = n !== i; s.classList.toggle("is-stepped", back !== undefined); s.classList.toggle("is-back", !!back); });
+  dlg.dataset.step = i;
+  const auto = +steps[i].dataset.autoNext;
+  if (auto) setTimeout(() => { if (dlg.open && +dlg.dataset.step === i) showStep(dlg, i + 1, false); }, auto);
+}
+document.addEventListener("click", e => {
+  const opener = e.target.closest("[data-open]");
+  const target = opener && document.getElementById(opener.dataset.open);
+  if (target?.classList.contains("pf-stepper")) showStep(target, 0);
+  const dlg = e.target.closest("dialog.pf-stepper");
+  if (!dlg) return;
+  const i = +dlg.dataset.step;
+  const next = e.target.closest("[data-next]"), back = e.target.closest("[data-back]");
+  if (next?.matches(".pf-reason")) for (const r of $$(".pf-reason", next.parentElement)) r === next ? r.setAttribute("aria-current", "true") : r.removeAttribute("aria-current");
+  if (next) setTimeout(() => showStep(dlg, i + 1, false), next.dataset.loading ? 1100 : 0);
+  if (back) showStep(dlg, i - 1, true);
+});
+
+// Connect tiles open the connect flow for that service.
+document.addEventListener("click", e => {
+  const tile = e.target.closest("[data-connect]");
+  if (!tile) return;
+  const dlg = $("#flow-connect");
+  for (const s of $$(".pf-svcname", dlg)) s.textContent = tile.dataset.connect;
+  for (const t of $$(".pf-handshake .icontile:last-child", dlg)) t.innerHTML = $(".icontile", tile).innerHTML;
+  dlg.showModal();
+  showStep(dlg, 0);
+});
+
+// Character counts: amber near the limit, danger at it.
+function count(input) {
+  const out = input.closest(".field, .input")?.querySelector(".pf-count");
+  if (!out) return;
+  const max = +(input.dataset.count || input.maxLength), len = input.value.length;
+  out.textContent = `${len}/${max}`;
+  out.classList.toggle("is-near", len >= max * 0.86 && len < max);
+  out.classList.toggle("is-over", len >= max);
+}
+
+// Markdown, as the popout renders it.
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const md = s => esc(s)
+  .replace(/`([^`]+)`/g, "<code>$1</code>")
+  .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+  .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+  .replace(/\|\|([^|]+)\|\|/g, '<span class="spoiler" role="button" tabindex="0" aria-label="Spoiler, click to reveal">$1</span>')
+  .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+document.addEventListener("click", e => e.target.closest(".spoiler")?.classList.add("is-shown"));
+
+// Profile editor: live preview, dirty tracking, unsaved bar.
+const F = { name: $("#pe-name"), pron: $("#pe-pron"), user: $("#pe-user"), about: $("#pe-about"), nick: $("#pe-nick"), sabout: $("#pe-sabout"), c1: $("#pe-c1"), c2: $("#pe-c2") };
+const LABEL = { name: "Display name", pron: "Pronouns", user: "Username", about: "About me", nick: "Server nickname", sabout: "Server about me", c1: "Profile theme", c2: "Profile theme", banner: "Banner", deco: "Avatar decoration" };
+const DECO_NAME = { "": "None", halo: "Halo", wave: "Wave", headset: "Headset", sprout: "Sprout", stars: "Stars", crown: "Crown", moon: "Night owl" };
+const DECO_HTML = Object.fromEntries($$("#profile-editor .board .pf-decopick").map(b => [b.dataset.deco, $(".pf-deco", b)?.innerHTML ?? ""]));
+const state = { banner: 0, deco: "halo" };
+const snapshot = () => ({ ...Object.fromEntries(Object.entries(F).map(([k, el]) => [k, el.value])), ...state });
+let saved = snapshot();
+const onServer = () => !$("#pe-server").hidden;
+
+function setDeco(av, kind) {
+  const d = $(".pf-deco", av);
+  d.dataset.deco = kind;
+  d.innerHTML = DECO_HTML[kind] ?? "";
+}
+function renderPreview() {
+  const s = snapshot(), prev = $("#pe-prev");
+  $("#pv-name").textContent = (onServer() && s.nick) || s.name || s.user;
+  $("#pv-sub").textContent = s.user + (s.pron ? ` · ${s.pron}` : "");
+  $("#pv-about").innerHTML = md((onServer() && s.sabout) || s.about);
+  $("#pe-about-md").innerHTML = md(s.about);
+  prev.style.setProperty("--c1", s.c1);
+  prev.style.setProperty("--c2", s.c2);
+  const banner = $$("#pe-banners button")[s.banner].style.getPropertyValue("--c");
+  prev.style.setProperty("--pf-banner", banner);
+  $("#pe-bthumb").style.setProperty("--pf-banner", banner);
+  for (const k of ["c1", "c2"]) { $(`#pe-${k}-sw`).style.setProperty("--c", s[k]); $(`#pe-${k}-hex`).textContent = s[k].toUpperCase(); }
+  setDeco($("#pv-av"), s.deco);
+  setDeco($("#pe-av"), s.deco);
+  $("#pe-deco-name").textContent = s.deco ? `${DECO_NAME[s.deco]}, drawn around your avatar everywhere it's 40px or larger` : "No decoration";
+  $("#pe-prev-label").textContent = onServer() ? "Preview: how Night Shift sees you" : "Preview: how others see you";
+}
+function changes() {
+  const now = snapshot();
+  return [...new Set(Object.keys(now).filter(k => now[k] !== saved[k]).map(k => LABEL[k]))];
+}
+function refresh() {
+  renderPreview();
+  const ch = changes(), bar = $("#pe-bar");
+  $("#pe-dock").classList.toggle("is-dirty", ch.length > 0);
+  if (!ch.length) { bar.classList.remove("is-blocked"); return; }
+  if (!bar.classList.contains("is-blocked")) $("#pe-bar-t").textContent = `You have ${ch.length} unsaved ${plural.select(ch.length) === "one" ? "change" : "changes"}`;
+  $("#pe-bar-s").textContent = list.format(ch);
+}
+function shake(bar, title) {
+  bar.classList.add("is-blocked");
+  if (title) title.textContent = "Save or reset before you leave";
+  bar.classList.remove("is-shaking");
+  void bar.offsetWidth;
+  bar.classList.add("is-shaking");
+}
+document.addEventListener("animationend", e => e.target.classList.remove("is-shaking"));
+for (const el of Object.values(F)) el.addEventListener("input", () => { count(el); refresh(); });
+for (const el of $$("[data-count]")) count(el);
+
+$("#pe-tabs").addEventListener("click", e => {
+  const tab = e.target.closest("[role=tab]");
+  if (!tab || tab.getAttribute("aria-selected") === "true") return;
+  if (changes().length) {
+    e.stopPropagation();
+    shake($("#pe-bar"), $("#pe-bar-t"));
+    $("#pe-dock").scrollIntoView({ block: "nearest", behavior: "smooth" });
+    return;
+  }
+  for (const t of $$("[role=tab]", e.currentTarget)) $("#" + t.dataset.pane).hidden = t !== tab;
+  renderPreview();
+}, true);
+
+$("#pe-reset").addEventListener("click", () => {
+  for (const [k, el] of Object.entries(F)) { el.value = saved[k]; count(el); }
+  Object.assign(state, { banner: saved.banner, deco: saved.deco });
+  $$("#pe-banners button").forEach((b, i) => b.setAttribute("aria-pressed", i === state.banner));
+  checkUser();
+  refresh();
+});
+$("#pe-save").addEventListener("click", e => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  btn.innerHTML = BARS + "Saving…";
+  setTimeout(() => { saved = snapshot(); btn.disabled = false; btn.textContent = "Save changes"; refresh(); }, 700);
+});
+$("#pe-banners").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  const all = $$("button", e.currentTarget);
+  all.forEach(x => x.setAttribute("aria-pressed", x === b));
+  state.banner = all.indexOf(b);
+  refresh();
+});
+$("#pe-theme-reset").addEventListener("click", () => { F.c1.value = saved.c1; F.c2.value = saved.c2; refresh(); });
+$("#pe-deco-rm").addEventListener("click", () => { state.deco = ""; refresh(); });
+$("#pe-about-mode").addEventListener("click", e => {
+  const v = e.target.closest("button")?.dataset.v;
+  if (!v) return;
+  F.about.hidden = v === "preview";
+  $("#pe-about-md").hidden = v !== "preview";
+});
+$("#bar-shake-go").addEventListener("click", () => shake($("#bar-shake")));
+
+// Username: checks 400ms after typing stops; the status line is reserved.
+const TAKEN = ["juno", "mira", "theo", "admin", "wave"];
+let userTimer;
+function checkUser() {
+  const v = F.user.value, line = $("#pe-avail"), box = $("#pe-user-box");
+  clearTimeout(userTimer);
+  box.classList.remove("error", "is-ok");
+  line.className = "pf-avail";
+  if (v === saved.user) { line.textContent = "You can change it twice an hour"; return; }
+  line.innerHTML = `<span class="bars"><i></i><i></i><i></i></span>Checking ${esc(v)}…`;
+  userTimer = setTimeout(() => {
+    if (!/^[a-z0-9_.]{2,32}$/.test(v)) {
+      box.classList.add("error"); line.classList.add("is-invalid");
+      line.innerHTML = '<i class="ph-bold ph-warning-circle"></i>' + (v.length < 2 ? "Use at least 2 characters" : "Use lowercase letters, numbers, _ and . only");
+    } else if (TAKEN.includes(v)) {
+      box.classList.add("error"); line.classList.add("is-taken");
+      line.innerHTML = `<i class="ph-bold ph-x-circle"></i>${esc(v)} is taken. Try <span class="pf-sugg"><button>${esc(v)}.wv</button><button>${esc(v)}_${new Date().getFullYear() % 100}</button></span>`;
+    } else {
+      box.classList.add("is-ok"); line.classList.add("is-ok");
+      line.innerHTML = `<i class="ph-bold ph-check-circle"></i>${esc(v)} is available`;
+    }
+  }, 400);
+}
+F.user.addEventListener("input", checkUser);
+$("#pe-avail").addEventListener("click", e => {
+  const b = e.target.closest(".pf-sugg button");
+  if (!b) return;
+  F.user.value = b.textContent;
+  F.user.dispatchEvent(new Event("input"));
+});
+
+// Decoration picker (static board and live dialog): the pick previews; Use decoration applies it.
+document.addEventListener("click", e => {
+  const pick = e.target.closest(".pf-decopick");
+  const dlg = e.target.closest(".dialog");
+  if (pick) {
+    for (const p of $$(".pf-decopick", dlg)) p.setAttribute("aria-checked", p === pick);
+    setDeco($(".pf-decoprev .av", dlg), pick.dataset.deco);
+    $(".pf-deconame", dlg).textContent = DECO_NAME[pick.dataset.deco];
+  }
+  if (e.target.closest(".pf-deco-apply")) {
+    state.deco = $('.pf-decopick[aria-checked="true"]', dlg)?.dataset.deco ?? "";
+    refresh();
+  }
+});
+
+// Crop: drag the photo, slide to zoom.
+document.addEventListener("input", e => {
+  if (e.target.matches(".pf-zoomr")) $(".pf-photo", e.target.closest(".dialog")).style.setProperty("--zoom", e.target.value / 100);
+});
+for (const r of $$(".pf-zoomr")) $(".pf-photo", r.closest(".dialog")).style.setProperty("--zoom", r.value / 100);
+document.addEventListener("pointerdown", e => {
+  const stage = e.target.closest(".pf-crop");
+  if (!stage) return;
+  const photo = $(".pf-photo", stage);
+  const x0 = e.clientX - (parseFloat(photo.style.getPropertyValue("--px")) || 0);
+  const y0 = e.clientY - (parseFloat(photo.style.getPropertyValue("--py")) || 0);
+  const clamp = v => Math.max(-90, Math.min(90, v));
+  stage.setPointerCapture(e.pointerId);
+  stage.classList.add("is-dragging");
+  const move = m => { photo.style.setProperty("--px", clamp(m.clientX - x0) + "px"); photo.style.setProperty("--py", clamp(m.clientY - y0) + "px"); };
+  const up = () => { stage.classList.remove("is-dragging"); stage.removeEventListener("pointermove", move); };
+  stage.addEventListener("pointermove", move);
+  stage.addEventListener("pointerup", up, { once: true });
+});
+
+// Custom status dialog.
+const EMOJI = ["🎧", "☕", "🎮", "🌙", "✂️", ""];
+const STATUS_WORD = { online: "Online", idle: "Idle", dnd: "Do not disturb", offline: "Invisible" };
+function setEmoji(btn, em) {
+  btn.innerHTML = em || '<i class="ph ph-smiley"></i>';
+  btn.dataset.e = em;
+  btn.setAttribute("aria-label", em ? `Pick an emoji: ${em}` : "Pick an emoji");
+}
+document.addEventListener("click", e => {
+  const dlg = e.target.closest(".dialog");
+  const emoji = e.target.closest(".pf-emoji");
+  if (emoji) setEmoji(emoji, EMOJI[(EMOJI.indexOf(emoji.dataset.e ?? emoji.textContent) + 1) % EMOJI.length]);
+  if (e.target.closest(".pf-cs-clear")) { const t = $(".pf-cs-text", dlg); t.value = ""; count(t); t.focus(); }
+  if (e.target.closest(".pf-cs-clearall")) { const t = $(".pf-cs-text", dlg); t.value = ""; count(t); setEmoji($(".pf-emoji", dlg), ""); }
+  const drop = e.target.closest(".pf-clearafter .dropdown");
+  if (drop) { const open = drop.parentElement.classList.toggle("is-open"); drop.setAttribute("aria-expanded", open); }
+  const opt = e.target.closest(".pf-clearafter .mi");
+  if (opt) {
+    const wrap = opt.closest(".pf-clearafter"), d = $(".dropdown", wrap);
+    for (const m of $$(".mi", wrap)) m.setAttribute("aria-selected", m === opt);
+    $("span", d).textContent = $("div", opt).firstChild.textContent;
+    d.firstElementChild.className = $("i", opt).className;
+    wrap.classList.remove("is-open");
+    d.setAttribute("aria-expanded", false);
+  }
+  if (e.target.closest(".pf-cs-save")) {
+    const me = $("#me-live"), em = $(".pf-emoji", dlg).dataset.e ?? $(".pf-emoji", dlg).textContent, text = $(".pf-cs-text", dlg).value.trim();
+    const status = $('.pf-statuses [aria-checked="true"]', dlg).closest("[data-status]").dataset.status;
+    const after = $(".pf-clearafter .dropdown span", dlg).textContent;
+    $(".status", me).className = "status " + status;
+    $(".who span:not(.av):not(.status)", me).textContent = text || em ? [em, text].filter(Boolean).join(" ") : STATUS_WORD[status];
+    $(".who", me).title = text ? (after === "Don't clear" ? "Custom status" : `Clears after ${after.toLowerCase()}`) : STATUS_WORD[status];
+  }
+});
+document.addEventListener("input", e => { if (e.target.matches(".pf-cs-text")) count(e.target); });
+
+// Who can add you: Everyone is a tri-state parent of the options under it.
+$("#fr-who").addEventListener("click", e => {
+  const row = e.target.closest(".choice");
+  if (!row) return;
+  const all = $("[data-all] .check", e.currentTarget), subs = $$(".pf-sub .check", e.currentTarget);
+  if (row.hasAttribute("data-all")) subs.forEach(s => s.setAttribute("aria-checked", all.getAttribute("aria-checked") === "true"));
+  const on = subs.filter(s => s.getAttribute("aria-checked") === "true").length;
+  all.setAttribute("aria-checked", on === subs.length ? "true" : on ? "mixed" : "false");
+});
+
+// Data request: pending in place.
+$("#data-req-btn").addEventListener("click", () => {
+  const today = new Date().toLocaleDateString("en", { month: "short", day: "numeric" });
+  $("#data-req").innerHTML = `<div class="set-row" role="status"><span class="icontile"><i class="ph ph-hourglass-medium"></i></span><div class="t"><b>Your data is being prepared</b><span>Requested ${today}. It arrives by email to j••••••••••@hey.com, usually within a week and at most 30 days.</span></div><span class="pf-pending">${BARS}Preparing</span></div>`;
+});
+
+// Unblock, stop ignoring, disconnect, deauthorize: act at once, leave Undo in the row.
+document.addEventListener("click", e => {
+  const btn = e.target.closest("[data-undoable]");
+  if (btn) {
+    const row = btn.closest(".pf-person, .pf-acct, .pf-app");
+    const undo = document.createElement("div");
+    undo.className = "pf-undo";
+    undo.setAttribute("role", "status");
+    undo.innerHTML = `<i class="ph-fill ph-check-circle"></i><span></span><button class="btn btn--sm btn--ghost">Undo</button>`;
+    undo.querySelector("span").textContent = btn.dataset.undoable;
+    let node = undo;
+    if (row.classList.contains("pf-acct")) { node = document.createElement("div"); node.className = "set-card"; node.append(undo); }
+    node.pfRestore = row;
+    row.replaceWith(node);
+    return;
+  }
+  const undo = e.target.closest(".pf-undo .btn");
+  if (!undo) return;
+  const holder = undo.closest(".pf-undo").parentElement.pfRestore ? undo.closest(".pf-undo").parentElement : undo.closest(".pf-undo");
+  if (holder.pfRestore) holder.replaceWith(holder.pfRestore);
+  else holder.remove();
+});
+
+// Devices: log out one, or all others.
+function updateDevices() {
+  const n = $$("#dev-list .pf-device:not(.is-leaving)").length;
+  $("#dev-count").textContent = `Other devices · ${n}`;
+  if (n) return;
+  $("#dev-list").innerHTML = '<div class="set-row"><div class="t"><b>No other devices</b><span>You\'re only signed in on this MacBook Pro.</span></div></div>';
+  $("#dev-all").hidden = true;
+}
+function logOut(row) {
+  const btn = $(".ctl .btn", row);
+  btn.disabled = true;
+  btn.innerHTML = BARS + "Logging out…";
+  setTimeout(() => {
+    row.classList.add("is-leaving");
+    row.addEventListener("animationend", () => { row.remove(); updateDevices(); }, { once: true });
+    setTimeout(() => { if (row.isConnected) { row.remove(); updateDevices(); } }, 400);
+  }, 900);
+}
+document.addEventListener("click", e => {
+  const one = e.target.closest("[data-logout]");
+  if (one) logOut(one.closest(".pf-device"));
+  if (e.target.closest(".pf-logout-all")) $$("#dev-list .pf-device").forEach(logOut);
+});
+
+// Password: strength as you type, match checked once you've left the confirm field.
+const TIPS = ["", "Add a few more words. Length beats symbols.", "Getting there. Another word or two.", "Good. A little longer makes it strong.", "Would take centuries to guess"];
+function pwCheck(form) {
+  const pw = $(".pf-pw-new", form).value, conf = $(".pf-pw-conf", form), meter = $(".pf-strength", form);
+  const variety = [/[a-z]/, /[A-Z]/, /\d/, /[^\w]/].filter(r => r.test(pw)).length;
+  const level = !pw ? 0 : Math.max(1, Math.min(4, Math.floor(pw.length / 5) + (variety > 2 ? 1 : 0)));
+  meter.dataset.level = level;
+  $(".pf-pw-label", meter).textContent = ["Too short", "Weak", "Fair", "Good", "Strong"][level];
+  $(".pf-pw-tip", meter).textContent = TIPS[level] || "At least 8 characters";
+  const line = $(".pf-pw-match", form), box = conf.closest(".input");
+  const match = conf.value && conf.value === pw;
+  box.classList.toggle("is-ok", !!match);
+  box.classList.toggle("error", !match && !!conf.dataset.touched && !!conf.value);
+  line.className = match ? "ok pf-pw-match" : "err pf-pw-match";
+  line.innerHTML = match ? '<i class="ph-bold ph-check-circle"></i>Matches' : conf.dataset.touched && conf.value ? '<i class="ph-bold ph-warning-circle"></i>Doesn\'t match the new password yet' : "";
+}
+document.addEventListener("input", e => { const f = e.target.closest("form"); if (f && e.target.matches(".pf-pw-new, .pf-pw-conf")) pwCheck(f); });
+document.addEventListener("focusout", e => { if (e.target.matches(".pf-pw-conf")) { e.target.dataset.touched = 1; pwCheck(e.target.closest("form")); } });
+document.addEventListener("click", e => {
+  const eye = e.target.closest(".pf-pw-eye");
+  if (!eye) return;
+  const input = $("input", eye.parentElement), show = input.type === "password";
+  input.type = show ? "text" : "password";
+  eye.setAttribute("aria-label", show ? "Hide password" : "Show password");
+  $("i", eye).className = "ph " + (show ? "ph-eye-slash" : "ph-eye");
+});
+for (const f of $$("form:has(.pf-pw-new)")) { $(".pf-pw-conf", f).dataset.touched = 1; pwCheck(f); }
+
+// One-time codes: typing moves on, Backspace moves back, paste fills every box.
+document.addEventListener("input", e => {
+  if (!e.target.closest(".otp")) return;
+  e.target.value = e.target.value.replace(/\D/g, "").slice(-1);
+  if (e.target.value) e.target.nextElementSibling?.focus();
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Backspace" && e.target.closest(".otp") && !e.target.value) e.target.previousElementSibling?.focus();
+});
+document.addEventListener("paste", e => {
+  const otp = e.target.closest(".otp");
+  if (!otp) return;
+  e.preventDefault();
+  const digits = e.clipboardData.getData("text").replace(/\D/g, "");
+  $$("input", otp).forEach((inp, i) => { inp.value = digits[i] ?? ""; });
+  $$("input", otp)[Math.min(digits.length, 5)].focus();
+});
+
+// Copy and download.
+document.addEventListener("click", async e => {
+  const copy = e.target.closest("[data-copy-text]");
+  if (copy) {
+    try { await navigator.clipboard.writeText(copy.dataset.copyText); } catch {}
+    const label = copy.innerHTML;
+    copy.classList.add("copied");
+    copy.innerHTML = '<i class="ph-bold ph-check"></i>Copied';
+    setTimeout(() => { copy.classList.remove("copied"); copy.innerHTML = label; }, 1600);
+  }
+  if (e.target.closest(".pf-dl-codes")) {
+    const codes = $$("code", e.target.closest(".dialog")).map(c => c.textContent).join("\n");
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([`Wave backup codes for juno.wav\nEach works once.\n\n${codes}\n`], { type: "text/plain" })), download: "wave-backup-codes.txt" });
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+});
+
+refresh();
+</script>
 </body>
 </html>
