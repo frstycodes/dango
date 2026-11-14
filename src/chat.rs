@@ -1,10 +1,6 @@
 // The middle column: channel header, transcript and composer, ported from design/messages.html and
 // design/navigation.html (channel header).
 //
-// GAP: glyphs the design uses that icons.rs doesn't ship yet stand in with the nearest one it has:
-// plus-circle (Plus), arrow-bend-up-right (Reply), arrow-up and arrow-down (ChevronUp, ChevronDown),
-// at (a plain "@"), dots-three-vertical (More), chats-teardrop (Thread), file and download-simple
-// (Copy, Open), image, clock and warning-circle (left out).
 // GAP: hover fades (row fill, toolbar, 150ms) are instant: gpui's `.hover` styles don't transition.
 use std::{collections::HashMap, f32::consts::TAU, rc::Rc, time::Duration};
 
@@ -202,7 +198,7 @@ impl Rustcord {
                         .flex_1()
                         .min_w_0()
                         .ml(px(-8.))
-                        .child(Icon::new(Glyph::ChevronUp).size(px(16.)))
+                        .child(Icon::new(Glyph::ArrowUp).size(px(16.)))
                         .child(div().min_w_0().truncate().child(label))
                         .on_click(cx.listener(move |this, _, _, cx| this.jump_to(first_id.clone(), cx))),
                 )
@@ -360,7 +356,7 @@ impl Rustcord {
             .flex()
             .items_end()
             .gap(px(4.))
-            .child(ui::icon_button("attach", Glyph::Plus, "Upload a File", cx).on_click(cx.listener(|this, _, window, cx| this.upload(window, cx))))
+            .child(ui::icon_button("attach", Glyph::PlusCircle, "Upload a File", cx).on_click(cx.listener(|this, _, window, cx| this.upload(window, cx))))
             // XSmall gives the editor 0/4px padding of its own; with these, the design's 4/6.
             .child(div().flex_1().min_w_0().child(Textarea::new(&self.composer).appearance(false).with_size(Size::XSmall).py(px(4.)).px(px(2.)).text_size(px(16.)).line_height(px(24.)).text_color(strong)))
             .child(ui::icon_button("composer-gif", Glyph::Gif, "Open GIF picker", cx).on_click(cx.listener(|this, _, window, cx| this.open_gifs(window, cx))))
@@ -423,19 +419,19 @@ impl Rustcord {
             .bg(overlay)
             .shadow(shadow_pop(cx))
             .cursor_pointer()
+            .active(|s| s.scale(0.97))
             .whitespace_nowrap()
             .text_size(px(14.))
             .font_weight(FontWeight::SEMIBOLD)
             .text_color(palette::strong(cx))
             .hover(move |s| s.bg(hover))
-            .child(Icon::new(Glyph::ChevronDown).size(px(16.)))
+            .child(Icon::new(Glyph::ArrowDown).size(px(16.)))
             .child("Jump to present")
             .on_click(cx.listener(|this, _, _, cx| {
                 this.list.scroll_to_end();
                 this.scrolled_up = false;
                 cx.notify();
             }));
-        // PATCH(transform): press scales the capsule to 0.97 on --ease-out.
         Some(div().absolute().left_0().right_0().top(px(-44.)).flex().justify_center().child(capsule).with_animation(
             "jump-to-present-in",
             Animation::new(ui::DUR_POP).with_easing(gpui_kit::ease_out_quint()),
@@ -489,7 +485,7 @@ impl Rustcord {
             .font_weight(FontWeight::BOLD)
             .text_color(if on { palette::accent_ink(cx) } else { palette::faint(cx) })
             .hover(move |s| s.bg(hover))
-            .child(div().text_size(px(16.)).child("@"))
+            .child(Icon::new(Glyph::At).size(px(16.)))
             .child(if on { "On" } else { "Off" })
             .tooltip(|window, cx| Tooltip::new("Mention the author of this message").build(window, cx))
             .on_click(cx.listener(|this, _, _, cx| {
@@ -511,7 +507,7 @@ impl Rustcord {
             let is_image = matches!(path.extension().and_then(|e| e.to_str()).map(str::to_lowercase).as_deref(), Some("png" | "jpg" | "jpeg" | "gif" | "webp"));
             let preview = match is_image {
                 true => ui::media(path.clone(), ui::all(RADIUS_XS)).size(px(40.)).flex_none().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
-                false => div().size(px(40.)).flex_none().rounded(px(RADIUS_XS)).bg(raised).text_color(muted).flex().items_center().justify_center().child(Icon::new(Glyph::Copy).size(px(24.))).into_any_element(),
+                false => div().size(px(40.)).flex_none().rounded(px(RADIUS_XS)).bg(raised).text_color(muted).flex().items_center().justify_center().child(Icon::new(Glyph::File).size(px(24.))).into_any_element(),
             };
             chips.push(
                 div()
@@ -599,7 +595,7 @@ impl Rustcord {
                     this.accept_suggestion(window, cx);
                 }))
         });
-        // PATCH(transform): scale from 0.95 at the bottom centre as it rises (design: msg-pop).
+        // msg-pop: it grows from 95% at its bottom centre as it fades in.
         Some(
             div()
                 .absolute()
@@ -618,7 +614,8 @@ impl Rustcord {
                 .text_size(px(14.))
                 .child(div().pt(px(6.)).px(px(10.)).pb(px(4.)).text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(muted).child(heading))
                 .children(rows)
-                .with_animation("autocomplete", Animation::new(ui::DUR_POP).with_easing(gpui_kit::ease_out_quint()), |el, t| el.opacity(t).mb(px(9. - 6. * (1. - t)))),
+                .transform_origin(point(gpui_kit::relative(0.5), gpui_kit::relative(1.)))
+                .with_animation("autocomplete", Animation::new(ui::DUR_POP).with_easing(gpui_kit::ease_out_quint()), |el, t| el.opacity(t).scale(0.95 + 0.05 * t)),
         )
     }
 }
@@ -700,9 +697,10 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
             .text_size(px(12.))
             .text_color(palette::faint(cx))
             .whitespace_nowrap()
-            .invisible()
-            .group_hover(group, |s| s.visible())
-            .child(gutter_clock(&message.timestamp));
+            .map(|g| match message.state {
+                SendState::Sending => g.child(Icon::new(Glyph::Clock).size(px(14.)).mt(px(4.))),
+                _ => g.invisible().group_hover(group, |s| s.visible()).child(gutter_clock(&message.timestamp)),
+            });
         return inset(with_message_menu(row.child(div().flex().gap(px(16.)).child(gutter).child(body)), message, ctx));
     }
     let row = row
@@ -787,7 +785,7 @@ fn with_message_menu(row: Stateful<Div>, message: &Message, ctx: &Rc<RowContext>
 fn reply_preview(reply: &Message, target: Option<String>, ctx: &Rc<RowContext>, cx: &App) -> AnyElement {
     let (faint, muted, text) = (palette::faint(cx), palette::muted(cx), palette::text(cx));
     let snippet = match reply.content.is_empty() {
-        true => div().flex_none().text_color(muted).child(attachment_kind(reply)),
+        true => div().flex_none().flex().items_center().gap(px(4.)).text_color(muted).child(Icon::new(attachment_glyph(reply)).size(px(14.))).child(attachment_kind(reply)),
         false => div().min_w_0().truncate().child(plain(&readable_with(&reply.content, ctx, false))),
     };
     let this = ctx.this.clone();
@@ -803,8 +801,7 @@ fn reply_preview(reply: &Message, target: Option<String>, ctx: &Rc<RowContext>, 
         .text_size(px(14.))
         .text_color(faint)
         .hover(move |s| s.text_color(text))
-        // PATCH(transform): mirror horizontally; the design's arrow bends up to the right.
-        .child(Icon::new(Glyph::Reply).size(px(14.)))
+        .child(Icon::new(Glyph::ReplyRight).size(px(14.)))
         .child(ui::avatar(reply.author.avatar.clone(), 16.))
         .child(div().flex_none().font_weight(FontWeight::SEMIBOLD).text_color(muted).child(reply.author.name.clone()))
         .child(snippet)
@@ -823,6 +820,13 @@ fn attachment_kind(message: &Message) -> &'static str {
         Some(MediaKind::Gif { .. }) => "GIF",
         None if !message.files.is_empty() => "File",
         None => "Attachment",
+    }
+}
+
+fn attachment_glyph(message: &Message) -> Glyph {
+    match message.media.is_empty() && !message.files.is_empty() {
+        true => Glyph::File,
+        false => Glyph::Image,
     }
 }
 
@@ -947,6 +951,7 @@ fn send_failure(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> AnyElement
         .text_size(px(14.))
         .font_weight(FontWeight::MEDIUM)
         .text_color(palette::danger_ink(cx))
+        .child(Icon::new(Glyph::WarningCircle).size(px(16.)))
         .child("Not sent.")
         .child(action(format!("retry-{}", message.id), "Resend message").on_click(move |_, _, cx| {
             retry_this.update(cx, |this, cx| this.retry(retry.clone(), cx)).ok();
@@ -964,9 +969,9 @@ fn thread_card(thread: &Channel, ctx: &Rc<RowContext>, cx: &App) -> AnyElement {
     let archived = meta.is_some_and(|t| t.archived);
     let (this, open) = (ctx.this.clone(), thread.clone());
     let edge = palette::line_strong(cx);
-    // PATCH(transform): press scales the card to 0.99.
     div()
         .id(SharedString::from(format!("thread-card-{}", thread.id)))
+        .active(|s| s.scale(0.99))
         .mt(px(8.))
         .w_full()
         .max_w(px(COLUMN))
@@ -1252,7 +1257,7 @@ fn files(message: &Message, cx: &App) -> Vec<AnyElement> {
                 .border_1()
                 .border_color(palette::line(cx))
                 .when(message.state != SendState::Sent, |d| d.opacity(0.6))
-                .child(div().w(px(40.)).flex_none().flex().justify_center().text_color(muted).child(Icon::new(Glyph::Copy).size(px(36.))))
+                .child(div().w(px(40.)).flex_none().flex().justify_center().text_color(muted).child(Icon::new(Glyph::File).size(px(36.))))
                 .child(
                     div()
                         .flex_1()
@@ -1273,7 +1278,7 @@ fn files(message: &Message, cx: &App) -> Vec<AnyElement> {
                         )
                         .child(div().text_size(px(12.)).text_color(faint).child(format_size(file.size))),
                 )
-                .child(ui::icon_button(SharedString::from(format!("download-{}-{}", message.id, file.name)), Glyph::Open, "Download", cx).on_click(move |_, _, cx| cx.open_url(&download)))
+                .child(ui::icon_button(SharedString::from(format!("download-{}-{}", message.id, file.name)), Glyph::Download, "Download", cx).on_click(move |_, _, cx| cx.open_url(&download)))
                 .into_any_element()
         })
         .collect()
@@ -1333,11 +1338,11 @@ fn reactions(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyEle
     Some(div().mt(px(6.)).flex().flex_wrap().gap(px(6.)).children(pills).child(add).into_any_element())
 }
 
-// PATCH(transform): press springs the pill to 0.92 (--ease-spring).
 fn reaction_pill(id: SharedString, mine: bool, cx: &App) -> Stateful<Div> {
     let edge = palette::line_strong(cx);
     div()
         .id(id)
+        .active(|s| s.scale(0.92))
         .h(px(28.))
         .flex()
         .items_center()
@@ -1401,7 +1406,6 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, group: &SharedSt
                 Some(url) => img(url).size(px(20.)).into_any_element(),
                 None => div().text_size(px(18.)).line_height(px(18.)).child(quick.name.clone()).into_any_element(),
             };
-            // PATCH(transform): press scales the quick reaction to 0.92.
             bar = bar.child(
                 div()
                     .id(SharedString::from(format!("quick-{}-{}", message.id, quick.name)))
@@ -1412,6 +1416,7 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, group: &SharedSt
                     .rounded(px(RADIUS_SM))
                     .cursor_pointer()
                     .hover(move |s| s.bg(hover))
+                    .active(|s| s.scale(0.92))
                     .child(face)
                     .tooltip(|window, cx| Tooltip::new("Click to react").build(window, cx))
                     .on_click(move |_, _, cx| {
@@ -1432,13 +1437,13 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, group: &SharedSt
         }));
         if ctx.threads && message.thread.is_none() {
             let (this, msg) = (ctx.this.clone(), message.clone());
-            bar = bar.child(ui::icon_button(SharedString::from(format!("thread-{}", message.id)), Glyph::Thread, "Create Thread", cx).on_click(move |_, window, cx| {
+            bar = bar.child(ui::icon_button(SharedString::from(format!("thread-{}", message.id)), Glyph::ThreadNew, "Create Thread", cx).on_click(move |_, window, cx| {
                 this.update(cx, |this, cx| this.create_thread(msg.clone(), window, cx)).ok();
             }));
         }
     }
     let (this, msg) = (ctx.this.clone(), message.clone());
-    bar = bar.child(ui::icon_button(SharedString::from(format!("more-{}", message.id)), Glyph::More, "More", cx).on_click(move |event, _, cx| {
+    bar = bar.child(ui::icon_button(SharedString::from(format!("more-{}", message.id)), Glyph::MoreVertical, "More", cx).on_click(move |event, _, cx| {
         let at = event.position();
         this.update(cx, |this, cx| this.open_message_menu(msg.clone(), at, cx)).ok();
     }));

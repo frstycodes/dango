@@ -20,7 +20,7 @@ use crate::{
     menu::{Entry, item, submenu},
     palette,
     settings::Page,
-    ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XS},
+    ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XS, Squircle},
     voice::{self, Stage},
 };
 
@@ -811,9 +811,10 @@ impl Rustcord {
             BoxShadow { color: gpui_kit::black().opacity(lift.2), offset: point(px(0.), px(lift.0)), blur_radius: px(lift.1), spread_radius: px(0.), inset: false },
             BoxShadow { color: stage::wash(lift.3), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false },
         ];
-        // PATCH(transform): scale the self-view to 1.04 while dragged (.pip.is-dragging), easing back on release.
+        let grow = gpui_kit::base::transition("self-view-lift", if dragging { 1.04 } else { 1. }, gpui_kit::base::Transition::new(ui::DUR_PRESS).easing(crate::motion::ease_out()), window, cx);
         let pip = div()
             .id("self-view")
+            .scale(grow)
             .group("self-view")
             .absolute()
             .left(px(x))
@@ -1371,21 +1372,21 @@ impl Rustcord {
         let mic_state = if muted { Control::Off } else { Control::Rest };
         let camera_state = if call.camera_on { Control::On } else { Control::Rest };
         let mic = split_control(
-            control("call-mic", if muted { Glyph::MicOff } else { Glyph::Mic }, if muted { "Unmute" } else { "Mute" }, mic_state, true).on_click(cx.listener(|this, _, _, cx| this.toggle_mute(cx))),
-            control("call-mic-devices", Glyph::ChevronUp, "Microphone options", if menu_open(DeviceKind::Input) { Control::Open } else { mic_state }, true)
+            control("call-mic", if muted { Glyph::MicOffFill } else { Glyph::MicFill }, if muted { "Unmute" } else { "Mute" }, mic_state, true).on_click(cx.listener(|this, _, _, cx| this.toggle_mute(cx))),
+            control("call-mic-devices", Glyph::ChevronUpBold, "Microphone options", if menu_open(DeviceKind::Input) { Control::Open } else { mic_state }, true)
                 .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stage_device_menu(DeviceKind::Input, e.position, cx))),
         );
         let camera = split_control(
-            control("call-camera", if call.camera_on { Glyph::Video } else { Glyph::VideoOff }, if call.camera_on { "Turn off camera" } else { "Turn on camera" }, camera_state, connected)
+            control("call-camera", if call.camera_on { Glyph::VideoFill } else { Glyph::VideoOffFill }, if call.camera_on { "Turn off camera" } else { "Turn on camera" }, camera_state, connected)
                 .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_camera(cx)))),
-            control("call-camera-devices", Glyph::ChevronUp, "Camera options", if menu_open(DeviceKind::Camera) { Control::Open } else { camera_state }, true)
+            control("call-camera-devices", Glyph::ChevronUpBold, "Camera options", if menu_open(DeviceKind::Camera) { Control::Open } else { camera_state }, true)
                 .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stage_device_menu(DeviceKind::Camera, e.position, cx))),
         );
         let share = match sharing {
-            true => control("call-share", Glyph::ShareScreen, "Stream options", Control::Active, true).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stream_menu(e.position, cx))),
-            false => control("call-share", Glyph::ShareScreen, "Share your screen", Control::Rest, connected).when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx)))),
+            true => control("call-share", Glyph::ShareScreenFill, "Stream options", Control::Active, true).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stream_menu(e.position, cx))),
+            false => control("call-share", Glyph::ShareScreenFill, "Share your screen", Control::Rest, connected).when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx)))),
         };
-        let activities = control("call-activities", Glyph::Activities, "Activities and soundboard", Control::Rest, connected)
+        let activities = control("call-activities", Glyph::ActivitiesFill, "Activities and soundboard", Control::Rest, connected)
             .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities and the soundboard aren't in Wave yet", cx))));
         let more = control("call-more", Glyph::More, "More options", Control::Rest, true).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_call_more(e.position, cx)));
         let leave = control("call-hang-up", Glyph::CallEnd, "Leave call", Control::Leave, true).w(px(68.)).on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx)));
@@ -2001,9 +2002,7 @@ enum Control {
     Leave,
 }
 
-// .cbtn: 52x48, a squircle; icons 22px (the chevron 14px).
-// GAP: the design's icons here are Phosphor's fill weight; Wave bundles the regular ones only.
-// PATCH(transform): scale to 0.92 while pressed (.cbtn:active), on the touch spring.
+// .cbtn: 52x48, a squircle; icons 22px (the chevron 14px). Pressed, it sinks to 92%.
 fn control(id: &'static str, glyph: Glyph, tip: &'static str, state: Control, enabled: bool) -> Stateful<Div> {
     let (fill, hover, ink) = match state {
         Control::Rest => (stage::wash(0.1), stage::wash(0.16), gpui_kit::white()),
@@ -2013,20 +2012,20 @@ fn control(id: &'static str, glyph: Glyph, tip: &'static str, state: Control, en
         Control::Open => (stage::wash(0.2), stage::wash(0.2), gpui_kit::white()),
         Control::Leave => (palette::danger(), palette::danger_hover(), gpui_kit::white()),
     };
-    let chevron = matches!(glyph, Glyph::ChevronUp);
+    let chevron = matches!(glyph, Glyph::ChevronUpBold);
     div()
         .id(id)
         .w(px(if chevron { 26. } else { 52. }))
         .h(px(CONTROLS_HEIGHT))
         .flex_none()
-        .rounded(px(12.))
+        .squircle(16.)
         .flex()
         .items_center()
         .justify_center()
         .bg(fill)
         .text_color(ink)
         .child(Icon::new(glyph).size(px(if chevron { 14. } else { 22. })))
-        .when(enabled, |b| b.cursor_pointer().hover(move |s| s.bg(hover)))
+        .when(enabled, |b| b.cursor_pointer().hover(move |s| s.bg(hover)).active(|s| s.scale(0.92)))
         .when(!enabled, |b| b.opacity(0.4).cursor(gpui_kit::CursorStyle::OperationNotAllowed))
         .tooltip(move |window, cx| Tooltip::new(tip).build(window, cx))
 }
@@ -2063,7 +2062,6 @@ fn scrim_bottom(radius: f32) -> Div {
 }
 
 // .tile .viewers: the watch count, top right.
-// GAP: the design's eye glyph isn't bundled; the people glyph stands in.
 fn viewer_chip(viewers: usize) -> Div {
     div()
         .absolute()
@@ -2080,7 +2078,7 @@ fn viewer_chip(viewers: usize) -> Div {
         .text_size(px(11.))
         .font_weight(FontWeight::BOLD)
         .font_features(tabular())
-        .child(Icon::new(Glyph::Users).size(px(12.)))
+        .child(Icon::new(Glyph::EyeBold).size(px(12.)))
         .child(viewers.to_string())
 }
 
