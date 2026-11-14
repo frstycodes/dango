@@ -7,7 +7,7 @@ pub const CLYDE_WHITE: &str = "brand/discord-symbol-white.svg";
 
 // Discord's own icons, extracted from its web app for the user's personal use (assets/discord/README.md:
 // never redistribute). Order matches `Glyph`.
-const GLYPHS: [(&str, &[u8]); 59] = [
+const GLYPHS: [(&str, &[u8]); 61] = [
     ("icons/hashtag.svg", include_bytes!("../assets/discord/icons/hashtag.svg")),
     ("icons/hashtag-lock.svg", include_bytes!("../assets/discord/icons/hashtag-lock.svg")),
     ("icons/volume-high.svg", include_bytes!("../assets/discord/icons/volume-high.svg")),
@@ -67,6 +67,8 @@ const GLYPHS: [(&str, &[u8]); 59] = [
     ("icons/more.svg", include_bytes!("../assets/discord/icons/more.svg")),
     ("icons/thread.svg", include_bytes!("../assets/discord/icons/thread.svg")),
     ("icons/forum.svg", include_bytes!("../assets/discord/icons/forum.svg")),
+    ("icons/soundboard.svg", include_bytes!("../assets/discord/icons/soundboard.svg")),
+    ("icons/activities.svg", include_bytes!("../assets/discord/icons/activities.svg")),
 ];
 
 // Discord's symbol (Clyde) in its blurple and white versions, unmodified from discord.com/branding.
@@ -136,6 +138,8 @@ pub enum Glyph {
     More,
     Thread,
     Forum,
+    Soundboard,
+    Activities,
 }
 
 impl IconNamed for Glyph {

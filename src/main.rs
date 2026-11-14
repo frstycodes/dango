@@ -180,6 +180,8 @@ struct Call {
     watching: Option<Watching>,
     // Our own Go Live; dropping it ends the stream.
     sharing: Option<voice::GoLive>,
+    // What we're sharing, as the Go Live panel names it ("Screen 1", an app, a window).
+    share_label: Option<String>,
     joined_at: Instant,
     _events: Task<()>,
 }
@@ -316,6 +318,7 @@ pub struct Rustcord {
     share_picker: Option<Option<Result<Vec<voice::ShareableWindow>, SharedString>>>,
     // The source picked in the Go Live window, waiting for "Go Live".
     share_choice: Option<voice::ShareSource>,
+    share_choice_label: Option<String>,
     pins: Option<Option<Result<Vec<Message>, SharedString>>>,
     // Messages whose spoilers were clicked open.
     revealed: Rc<RefCell<HashSet<String>>>,
@@ -456,6 +459,7 @@ impl Rustcord {
             toast: None,
             share_picker: None,
             share_choice: None,
+            share_choice_label: None,
             pins: None,
             revealed: Rc::default(),
             relationships: Vec::new(),
@@ -1663,7 +1667,7 @@ impl Rustcord {
             }
         })
         .detach();
-        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: None, sharing: None, joined_at: Instant::now(), _events: task });
+        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: None, sharing: None, share_label: None, joined_at: Instant::now(), _events: task });
         cx.notify();
     }
 
@@ -1784,6 +1788,7 @@ impl Rustcord {
         }
         self.share_picker = Some(None);
         self.share_choice = Some(voice::ShareSource::Screen);
+        self.share_choice_label = Some("Screen 1".into());
         cx.notify();
         let windows = cx.background_spawn(async { voice::shareable_windows() });
         cx.spawn(async move |this, cx| {
@@ -1806,6 +1811,7 @@ impl Rustcord {
         match call.session.go_live_with_options(source, options) {
             Ok(live) => {
                 call.sharing = Some(live);
+                call.share_label = self.share_choice_label.take();
                 sounds::play(sounds::Cue::StreamStarted);
             }
             Err(error) => self.voice_error = Some(error.into()),

@@ -397,6 +397,7 @@ impl Rustcord {
         let theme = cx.theme().clone();
         let choice = self.share_choice;
         let tile = |id: String, title: String, subtitle: String, source: crate::voice::ShareSource| {
+            let label = if matches!(source, crate::voice::ShareSource::Screen) { "Screen 1".to_owned() } else { title.clone() };
             let selected = choice == Some(source);
             div()
                 .id(SharedString::from(id))
@@ -415,6 +416,7 @@ impl Rustcord {
                 .child(div().flex_1().min_w_0().flex().flex_col().child(div().truncate().font_weight(FontWeight::MEDIUM).child(title)).child(div().truncate().text_size(px(12.)).text_color(theme.muted_foreground).child(subtitle)))
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.share_choice = Some(source);
+                    this.share_choice_label = Some(label.clone());
                     cx.notify();
                 }))
         };
