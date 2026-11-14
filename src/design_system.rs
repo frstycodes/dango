@@ -232,7 +232,7 @@ impl DesignSystem {
         };
         div()
             .child(div().pt(px(32.)).text_size(px(28.)).line_height(relative(1.2)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child("Primitives"))
-            .child(lede("The small parts every screen is built from. Everything here is live: hover, press, Tab to focus, toggle.", cx).mt(px(4.)))
+            .child(lede("The small parts every screen is built from. Everything here is live: hover, press, Tab to focus, toggle.", cx).mt(px(4.)).mb(px(16.)))
             .child(
                 section("Buttons", "Verb plus object, sentence case. One primary per surface; secondary is the quiet fill, ghost for low-stakes actions in dense rows, danger only for the destructive step itself.", cx)
                     .pt(px(0.))
@@ -311,7 +311,7 @@ impl DesignSystem {
     fn fields_section(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let f = &self.fields;
         let focus = |state: &Entity<InputState>, cx: &App| state.read(cx).focus_handle(cx);
-        let input = |id: &'static str, state: &Entity<InputState>, cx: &App| ui::text_field(id, Input::new(state).appearance(false), &focus(state, cx));
+        let input = |id: &'static str, state: &Entity<InputState>, cx: &App| ui::text_field(id, Input::new(state).appearance(false).px_0().text_size(px(16.)), &focus(state, cx));
         let swatches = [(0.6, 0.2, 5.), (0.62, 0.17, 35.), (0.7, 0.15, 80.), (0.6, 0.14, 155.), (0.58, 0.12, 220.), (0.55, 0.17, 290.)];
         let sidebar = palette::surface(Level::Sidebar, cx);
         section("Fields", "Labels above, help and errors below. Focus is the accent border plus a soft ring. Errors say what happened and how to fix it, and keep what the user typed.", cx).child(
@@ -330,14 +330,14 @@ impl DesignSystem {
                     .child(
                         ui::field("About me", cx)
                             .col_span(2)
-                            .child(ui::text_area("f-about", Textarea::new(&f.about).appearance(false), &f.about.read(cx).focus_handle(cx)))
+                            .child(ui::text_area("f-about", Textarea::new(&f.about).appearance(false).px_0().text_size(px(16.)), &f.about.read(cx).focus_handle(cx)))
                             .child(ui::field_hint("Markdown and emoji work here", Some("0/190".into()), cx)),
                     )
                     .child(ui::field("Input device", cx).child(div().flex_1().flex().items_center().child(ui::select("f-device", Some(Glyph::Mic), "MacBook Pro Microphone (Built-in)", self.device_open, cx).on_click(cx.listener(|this, _, _, cx| {
                         this.device_open = !this.device_open;
                         cx.notify();
                     })))))
-                    .child(ui::field("Slowmode", cx).child(div().flex().child(ui::stepper(
+                    .child(ui::field("Slowmode", cx).child(ui::stepper(
                         "f-slowmode",
                         format!("{}s", self.slowmode),
                         cx.listener(|this, _, _, cx| {
@@ -349,8 +349,8 @@ impl DesignSystem {
                             cx.notify();
                         }),
                         cx,
-                    ))))
-                    .child(ui::field("Two-factor code", cx).child(div().flex().gap(px(8.)).children([Some('4'), Some('8'), Some('1'), None, None, None].into_iter().enumerate().map(|(i, digit)| ui::code_cell(digit, i == 3, cx)))))
+                    )))
+                    .child(ui::field("Two-factor code", cx).child(div().flex().gap(px(8.)).children([Some('4'), Some('8'), Some('1'), None, None, None].into_iter().map(|digit| ui::code_cell(digit, false, cx)))))
                     .child(ui::field("Role colour", cx).child(div().flex().flex_wrap().gap(px(8.)).children(swatches.into_iter().enumerate().map(|(i, (l, c, h))| {
                         ui::swatch(("swatch", i), palette::oklch(l, c, h), i == self.role_colour, sidebar).on_click(cx.listener(move |this, _, _, cx| {
                             this.role_colour = i;
@@ -408,34 +408,34 @@ impl DesignSystem {
                     .gap(px(16.))
                     .child(
                         stack()
-                            .child(ui::choice_row("c-noise", "Noise suppression", Some("Removes background sound from your mic".into()), cx).child(noise).on_click(cx.listener(|this, _, _, cx| {
+                            .child(ui::toggle_row("c-noise", "Noise suppression", Some("Removes background sound from your mic".into()), noise, cx).on_click(cx.listener(|this, _, _, cx| {
                                 this.noise = !this.noise;
                                 cx.notify();
                             })))
-                            .child(ui::choice_row("c-echo", "Echo cancellation", Some("Stops others hearing themselves".into()), cx).child(echo).on_click(cx.listener(|this, _, _, cx| {
+                            .child(ui::toggle_row("c-echo", "Echo cancellation", Some("Stops others hearing themselves".into()), echo, cx).on_click(cx.listener(|this, _, _, cx| {
                                 this.echo = !this.echo;
                                 cx.notify();
                             }))),
                     )
                     .child(
                         stack()
-                            .child(ui::choice_row("c-k0", "Show game activity", Some("Lets friends see what you play".into()), cx).child(check_0).on_click(cx.listener(|this, _, _, cx| {
+                            .child(ui::pick_row("c-k0", check_0, "Show game activity", Some("Lets friends see what you play".into()), cx).on_click(cx.listener(|this, _, _, cx| {
                                 this.checks[0] = !this.checks[0];
                                 cx.notify();
                             })))
-                            .child(ui::choice_row("c-k1", "Allow DMs from server members", None, cx).child(check_1).on_click(cx.listener(|this, _, _, cx| {
+                            .child(ui::pick_row("c-k1", check_1, "Allow DMs from server members", None, cx).on_click(cx.listener(|this, _, _, cx| {
                                 this.checks[1] = !this.checks[1];
                                 cx.notify();
                             })))
-                            .child(ui::choice_row("c-k2", "Notify for every channel", Some("Some channels on, some off".into()), cx).child(check_2)),
+                            .child(ui::pick_row("c-k2", check_2, "Notify for every channel", Some("Some channels on, some off".into()), cx)),
                     )
                     .child(
                         stack()
-                            .child(ui::choice_row("c-r0", "Voice activity", Some("Transmits when you speak".into()), cx).child(radio_0).on_click(cx.listener(|this, _, _, cx| {
+                            .child(ui::pick_row("c-r0", radio_0, "Voice activity", Some("Transmits when you speak".into()), cx).on_click(cx.listener(|this, _, _, cx| {
                                 this.voice_mode = 0;
                                 cx.notify();
                             })))
-                            .child(ui::choice_row("c-r1", "Push to talk", Some("Hold a key to transmit".into()), cx).child(radio_1).on_click(cx.listener(|this, _, _, cx| {
+                            .child(ui::pick_row("c-r1", radio_1, "Push to talk", Some("Hold a key to transmit".into()), cx).on_click(cx.listener(|this, _, _, cx| {
                                 this.voice_mode = 1;
                                 cx.notify();
                             }))),
@@ -453,7 +453,7 @@ impl DesignSystem {
                             )
                             .child(row().children([("Images", Glyph::Folder), ("Links", Glyph::Open), ("Files", Glyph::Copy)].into_iter().enumerate().map(|(i, (name, icon))| {
                                 // GAP: the design's image, link and file glyphs aren't among the app's icons; near ones stand in.
-                                ui::chip(("chip", i), name, self.chips[i], cx).child(Icon::new(icon).size(px(15.))).on_click(cx.listener(move |this, _, _, cx| {
+                                ui::chip(("chip", i), Some(icon), name, self.chips[i], cx).on_click(cx.listener(move |this, _, _, cx| {
                                     this.chips[i] = !this.chips[i];
                                     cx.notify();
                                 }))
@@ -593,12 +593,12 @@ fn section(title: &'static str, lede_text: &'static str, cx: &App) -> gpui_kit::
 }
 
 fn lede(text: &'static str, cx: &App) -> gpui_kit::Div {
-    div().max_w(px(560.)).text_color(palette::muted(cx)).child(text)
+    div().max_w(px(520.)).text_color(palette::muted(cx)).child(text)
 }
 
 // The design page's board: the sidebar fill, a hairline, the card radius, 24px in.
 fn board(cx: &App) -> gpui_kit::Div {
-    div().p(px(24.)).rounded(px(ui::RADIUS_XL)).bg(palette::surface(Level::Sidebar, cx)).border_1().border_color(palette::line(cx)).flex().flex_col().gap(px(16.))
+    div().p(px(24.)).rounded(px(ui::RADIUS_LG)).bg(palette::surface(Level::Sidebar, cx)).border_1().border_color(palette::line(cx)).flex().flex_col().gap(px(16.))
 }
 
 // A titled group inside a board.
@@ -654,14 +654,14 @@ fn colour(cx: &App) -> impl IntoElement {
         .child(
             div()
                 .flex()
-                .rounded(px(ui::RADIUS_XL))
+                .rounded(px(ui::RADIUS_LG))
                 .border_1()
                 .border_color(palette::line(cx))
-                .child(surface("Rail", "--bg-rail", Level::Rail).rounded_l(px(ui::RADIUS_XL - 1.)))
+                .child(surface("Rail", "--bg-rail", Level::Rail).rounded_l(px(ui::RADIUS_LG - 1.)))
                 .child(surface("Sidebar", "--bg-sidebar", Level::Sidebar))
                 .child(surface("Page", "--bg-page", Level::Page))
                 .child(surface("Raised", "--bg-raised", Level::Raised))
-                .child(surface("Overlay", "--bg-overlay", Level::Overlay).rounded_r(px(ui::RADIUS_XL - 1.))),
+                .child(surface("Overlay", "--bg-overlay", Level::Overlay).rounded_r(px(ui::RADIUS_LG - 1.))),
         )
         .child(h3("Text", cx))
         .child(
@@ -771,7 +771,7 @@ fn space(cx: &App) -> impl IntoElement {
             .gap(px(16.))
             .child(board(cx).gap(px(6.)).children([4., 8., 12., 16., 24., 32., 48.].map(bar)))
             .child(
-                board(cx).col_span(2).child(
+                board(cx).child(
                     row()
                         .gap(px(16.))
                         .items_start()
@@ -885,7 +885,7 @@ fn avatars(cx: &App) -> impl IntoElement {
             .child(
                 row()
                     .gap(px(12.))
-                    .child(ui::stacked([ui::monogram("Mira", 24.).into_any_element(), ui::monogram("Theo", 24.).into_any_element(), ui::monogram("Ana", 24.).into_any_element(), more.into_any_element()], ring))
+                    .child(ui::stacked([ui::monogram("Mira", 24.).into_any_element(), ui::monogram("Theo", 24.).into_any_element(), ui::monogram("Ana", 24.).into_any_element(), more.into_any_element()], 24., ring))
                     .child(div().text_color(palette::muted(cx)).child("6 watching")),
             ),
     )
@@ -907,9 +907,9 @@ fn layout(cx: &App) -> impl IntoElement {
             .child(
                 ui::surface(cx)
                     .w(px(248.))
-                    .child(ui::menu_row("m-reply", cx).child(glyph(Glyph::Reply)).child(div().flex_1().child("Reply")))
-                    .child(ui::menu_row("m-react", cx).child(glyph(Glyph::EmojiAdd)).child(div().flex_1().child("Add reaction")))
-                    .child(ui::menu_row("m-copy", cx).child(glyph(Glyph::Copy)).child(div().flex_1().child("Copy text")))
+                    .child(ui::menu_row("m-reply", cx).child(div().text_color(palette::muted(cx)).child(glyph(Glyph::Reply))).child(div().flex_1().child("Reply")))
+                    .child(ui::menu_row("m-react", cx).child(div().text_color(palette::muted(cx)).child(glyph(Glyph::EmojiAdd))).child(div().flex_1().child("Add reaction")))
+                    .child(ui::menu_row("m-copy", cx).child(div().text_color(palette::muted(cx)).child(glyph(Glyph::Copy))).child(div().flex_1().child("Copy text")))
                     .child(ui::menu_row("m-mark", cx).child(div().flex_1().child("Mark as unread")).child(ui::check(Check::On, cx).size(px(18.))))
                     .child(ui::menu_row("m-mode", cx).child(div().flex_1().child("Push to talk")).child(ui::radio(false, cx).size(px(18.))))
                     .child(div().my(px(4.)).mx(px(8.)).h(px(1.)).bg(palette::line(cx)))
