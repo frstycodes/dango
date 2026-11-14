@@ -13,6 +13,8 @@ use gpui_kit::{
 use crate::{Rustcord, icons::Glyph, palette, settings::Fill};
 
 pub type Act = Rc<dyn Fn(&mut Rustcord, &mut Window, &mut Context<Rustcord>)>;
+type Build = Rc<dyn Fn(&Rustcord) -> Vec<Entry>>;
+type OnConfirm = Rc<dyn Fn(&mut Rustcord, String, &mut Window, &mut Context<Rustcord>)>;
 type SetValue = Rc<dyn Fn(&mut Rustcord, f32, &mut Context<Rustcord>)>;
 
 const WIDTH: f32 = 220.;
@@ -24,6 +26,7 @@ const SLIDER_ROW: f32 = 60.;
 const EMOJI_ROW: f32 = 44.;
 const PADDING: f32 = 8.;
 
+#[derive(Clone)]
 pub enum Entry {
     Item(Item),
     Separator,
@@ -32,6 +35,7 @@ pub enum Entry {
     Slider { label: SharedString, key: SharedString, value: f32, on_set: SetValue },
 }
 
+#[derive(Clone)]
 pub struct Item {
     label: SharedString,
     hint: Option<SharedString>,
@@ -133,10 +137,13 @@ pub fn tidy(entries: Vec<Entry>) -> Vec<Entry> {
     out
 }
 
+// An open menu rebuilds its entries from current state every frame, so checkboxes, sliders and
+// labels stay true after each click (Discord keeps checkbox menus open).
 pub struct OpenMenu {
     at: Point<Pixels>,
-    entries: Vec<Entry>,
-    sub: Option<usize>,
+    build: Build,
+    // The open submenu at each level, as indexes from the top-level entries down.
+    sub: Vec<usize>,
 }
 
 // A one-field dialog (nickname, note) or a confirmation (kick, ban, remove friend).
@@ -146,19 +153,34 @@ pub struct Dialog {
     confirm: SharedString,
     danger: bool,
     input: bool,
-    on_confirm: Rc<dyn Fn(&mut Rustcord, String, &mut Window, &mut Context<Rustcord>)>,
+    on_confirm: OnConfirm,
 }
 
 impl Rustcord {
     pub(crate) fn open_menu(&mut self, at: Point<Pixels>, entries: Vec<Entry>, cx: &mut Context<Self>) {
-        self.menu = Some(OpenMenu { at, entries: tidy(entries), sub: None });
+        self.open_live_menu(at, move |_| entries.clone(), cx);
+    }
+
+    // A menu built from state each time it's drawn, e.g. one whose checkboxes change.
+    pub(crate) fn open_live_menu(&mut self, at: Point<Pixels>, build: impl Fn(&Rustcord) -> Vec<Entry> + 'static, cx: &mut Context<Self>) {
+        self.menu = Some(OpenMenu { at, build: Rc::new(move |this| tidy(build(this))), sub: Vec::new() });
         cx.notify();
+    }
+
+    // Demo scenes open a submenu chain without hovering.
+    #[cfg(debug_assertions)]
+    pub(crate) fn open_submenus(&mut self, path: Vec<usize>) {
+        if let Some(menu) = &mut self.menu {
+            menu.sub = path;
+        }
     }
 
     pub(crate) fn close_menu(&mut self) -> bool {
         self.menu.take().is_some() | self.dialog.take().is_some()
     }
 
+    // gpui's window and context ride along with the dialog's five fields.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn prompt(
         &mut self,
         title: impl Into<SharedString>,
@@ -201,7 +223,8 @@ impl Rustcord {
 
     fn run_menu_item(&mut self, path: &[usize], window: &mut Window, cx: &mut Context<Self>) {
         let Some(menu) = &self.menu else { return };
-        let mut entries = &menu.entries;
+        let top = (menu.build)(self);
+        let mut entries = &top;
         let mut found: Option<&Item> = None;
         for &i in path {
             let Some(Entry::Item(item)) = entries.get(i) else { return };
@@ -221,22 +244,28 @@ impl Rustcord {
 
     pub(crate) fn render_menu(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let menu = self.menu.as_ref()?;
+        let entries = (menu.build)(self);
         let viewport = window.viewport_size();
-        let height = menu.entries.iter().map(Entry::height).sum::<f32>() + PADDING * 2. + 2.;
-        let x = f32::from(menu.at.x).min(f32::from(viewport.width) - WIDTH - 8.).max(8.);
-        let y = f32::from(menu.at.y).min(f32::from(viewport.height) - height - 8.).max(8.);
-        let max_h = f32::from(viewport.height) - 16.;
-        let card = self.menu_card(&menu.entries, &[], menu.sub, cx).left(px(x)).top(px(y)).max_h(px(max_h)).overflow_y_scroll();
-        let flyout = menu.sub.and_then(|i| match menu.entries.get(i) {
-            Some(Entry::Item(item)) if !item.sub.is_empty() => {
-                let offset: f32 = menu.entries[..i].iter().map(Entry::height).sum::<f32>() + PADDING;
-                let sub_height = item.sub.iter().map(Entry::height).sum::<f32>() + PADDING * 2. + 2.;
-                let left = if x + WIDTH * 2. + 4. < f32::from(viewport.width) { x + WIDTH + 4. } else { x - WIDTH - 4. };
-                let top = (y + offset - PADDING).min(f32::from(viewport.height) - sub_height - 8.).max(8.);
-                Some(self.menu_card(&item.sub, &[i], None, cx).left(px(left)).top(px(top)))
+        let (vw, vh) = (f32::from(viewport.width), f32::from(viewport.height));
+        let height = entries.iter().map(Entry::height).sum::<f32>() + PADDING * 2. + 2.;
+        let x = f32::from(menu.at.x).min(vw - WIDTH - 8.).max(8.);
+        let y = f32::from(menu.at.y).min(vh - height - 8.).max(8.);
+        let mut cards = vec![self.menu_card(&entries, &[], menu.sub.first().copied(), cx).left(px(x)).top(px(y)).max_h(px(vh - 16.)).overflow_y_scroll().into_any_element()];
+        // One flyout per open level, each beside its parent row; it flips left at the window edge.
+        let (mut level, mut card_x, mut card_y) = (&entries, x, y);
+        for (depth, &i) in menu.sub.iter().enumerate() {
+            let Some(Entry::Item(item)) = level.get(i) else { break };
+            if item.sub.is_empty() {
+                break;
             }
-            _ => None,
-        });
+            let offset: f32 = level[..i].iter().map(Entry::height).sum::<f32>();
+            let sub_height = item.sub.iter().map(Entry::height).sum::<f32>() + PADDING * 2. + 2.;
+            card_x = if card_x + WIDTH * 2. + 4. < vw { card_x + WIDTH + 4. } else { card_x - WIDTH - 4. };
+            card_y = (card_y + offset).min(vh - sub_height - 8.).max(8.);
+            let path = &menu.sub[..=depth];
+            cards.push(self.menu_card(&item.sub, path, menu.sub.get(depth + 1).copied(), cx).left(px(card_x)).top(px(card_y)).into_any_element());
+            level = &item.sub;
+        }
         Some(
             div()
                 .id("menu-backdrop")
@@ -251,8 +280,7 @@ impl Rustcord {
                     this.menu = None;
                     cx.notify();
                 }))
-                .child(card)
-                .children(flyout)
+                .children(cards)
                 .into_any_element(),
         )
     }
@@ -338,8 +366,6 @@ impl Rustcord {
             _ => palette::strong(cx),
         };
         let hover_bg = if item.danger { danger.opacity(0.08) } else { wash(0.12) };
-        let top_level = path.len() == 1;
-        let index = path[0];
         let has_sub = !item.sub.is_empty();
         let checkbox = item.check.map(|on| {
             div()
@@ -384,19 +410,20 @@ impl Rustcord {
             .children(checkbox)
             .children(item.icon.map(|glyph| Icon::new(glyph).size(px(18.))))
             .when(has_sub, |d| d.child(Icon::new(Glyph::ChevronRight).size(px(16.))))
-            .when(top_level, |d| {
-                d.on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
+            // Hovering a row opens its submenu and closes any deeper one from a sibling.
+            .on_hover({
+                let path = path.clone();
+                cx.listener(move |this, hovered: &bool, _, cx| {
                     let Some(menu) = &mut this.menu else { return };
-                    let next = match (*hovered, has_sub) {
-                        (true, true) => Some(index),
-                        (true, false) => None,
-                        (false, _) => return,
-                    };
+                    if !*hovered {
+                        return;
+                    }
+                    let next = if has_sub { path.clone() } else { path[..path.len() - 1].to_vec() };
                     if menu.sub != next {
                         menu.sub = next;
                         cx.notify();
                     }
-                }))
+                })
             })
             .on_click(cx.listener(move |this, _, window, cx| this.run_menu_item(&run_path, window, cx)))
     }

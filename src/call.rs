@@ -731,7 +731,8 @@ impl Rustcord {
             nameplate: None,
             decoration: None,
         });
-        let surface = if guild_id.is_some() { crate::user_menu::Surface::ServerVoice } else { crate::user_menu::Surface::Dm };
+        // Anyone in voice, server or DM call, gets Discord's voice items (volume, local mute).
+        let surface = crate::user_menu::Surface::ServerVoice;
         self.open_user_menu(user, guild_id, surface, at, cx);
     }
 

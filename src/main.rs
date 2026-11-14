@@ -622,6 +622,29 @@ impl Rustcord {
                     self.channel = None;
                 }
             }
+            Event::MemberUpdate { guild_id, user, roles } => {
+                if self.me.as_ref().is_some_and(|me| me.id == user.id)
+                    && let Some(guild) = self.guilds.iter_mut().find(|g| g.id == guild_id)
+                {
+                    guild.my_roles = roles.clone();
+                }
+                self.member_roles.entry(guild_id.clone()).or_default().insert(user.id.clone(), roles);
+                self.members.entry(guild_id.clone()).or_default().insert(user.id.clone(), user);
+                self.apply_members(&guild_id);
+            }
+            Event::RelationshipChange { user_id, relationship } => {
+                // An update may arrive without the user object; keep the one we have.
+                let known = self.relationships.iter().find(|r| r.user.id == user_id).map(|r| r.user.clone());
+                self.relationships.retain(|r| r.user.id != user_id);
+                if let Some(mut relationship) = relationship {
+                    if relationship.user.name.is_empty()
+                        && let Some(user) = known
+                    {
+                        relationship.user = user;
+                    }
+                    self.relationships.push(relationship);
+                }
+            }
             Event::ThreadJoined { id, joined } => {
                 for thread in self.guilds.iter_mut().flat_map(|g| g.threads.iter_mut()).filter(|t| t.id == id) {
                     if let Some(meta) = thread.thread.as_mut() {
@@ -632,10 +655,31 @@ impl Rustcord {
             Event::GuildSettings((key, settings)) => {
                 self.guild_settings.insert(key, settings);
             }
-            Event::GuildCreate(guild) => match self.guilds.iter_mut().find(|g| g.id == guild.id) {
-                Some(existing) => *existing = guild,
-                None => self.guilds.push(guild),
-            },
+            Event::GuildCreate(mut guild) => {
+                // GUILD_CREATE carries no member entry for us: keep the roles we know (READY, or
+                // GUILD_MEMBER_UPDATE), or take them from the member cache, so permissions hold.
+                let me = self.me.as_ref().map(|m| m.id.clone()).unwrap_or_default();
+                let known_roles = self.member_roles.get(&guild.id).and_then(|r| r.get(&me)).cloned();
+                match self.guilds.iter_mut().find(|g| g.id == guild.id) {
+                    Some(existing) => {
+                        if guild.my_roles.is_empty() {
+                            guild.my_roles = std::mem::take(&mut existing.my_roles);
+                        }
+                        for thread in existing.threads.drain(..) {
+                            if !guild.threads.iter().any(|t| t.id == thread.id) {
+                                guild.threads.push(thread);
+                            }
+                        }
+                        *existing = guild;
+                    }
+                    None => {
+                        if guild.my_roles.is_empty() {
+                            guild.my_roles = known_roles.unwrap_or_default();
+                        }
+                        self.guilds.push(guild);
+                    }
+                }
+            }
             Event::MessageCreate(message) => self.on_message(*message, cx),
             Event::MessageUpdate(patch) => {
                 let (channel_id, id) = (patch["channel_id"].as_str().unwrap_or_default(), patch["id"].as_str().unwrap_or_default());
