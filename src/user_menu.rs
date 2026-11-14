@@ -42,14 +42,14 @@ impl Rustcord {
         let mut entries = Vec::new();
         let unread = self.unread(&channel.id);
         let id = channel.id.clone();
-        let read = item("Mark as read", move |this, _, cx| this.mark_channel_read(&id, cx));
+        let read = item("Mark as read", move |this, _, cx| this.mark_channel_read(&id, cx)).icon(Glyph::Checks);
         entries.push(if unread { read } else { read.disabled() }.entry());
         entries.push(Entry::Separator);
         if let Some(user) = channel.recipient.clone() {
             entries.extend(self.user_menu(&user, None, Surface::Dm, at).into_iter().filter(|e| !e.is_copy_id()));
         }
         let id = channel.id.clone();
-        entries.push(item("Close DM", move |this, _, cx| this.close_dm(&id, cx)).entry());
+        entries.push(item("Close DM", move |this, _, cx| this.close_dm(&id, cx)).icon(Glyph::X).entry());
         entries.push(Entry::Separator);
         if self.developer_mode {
             if let Some(user) = &channel.recipient {
@@ -108,10 +108,10 @@ impl Rustcord {
 
         // G2: profile and social.
         let profile_user = user.clone();
-        out.push(item("Profile", move |this, _, cx| this.open_profile(profile_user.clone(), at, cx)).icon(Glyph::User).entry());
+        out.push(item("Profile", move |this, _, cx| this.open_profile(profile_user.clone(), at, cx)).icon(Glyph::UserCircle).entry());
         if surface == Surface::ServerChat && self.channel.is_some() {
             let mention = user.clone();
-            out.push(item("Mention", move |this, window, cx| this.mention_user(&mention, window, cx)).entry());
+            out.push(item("Mention", move |this, window, cx| this.mention_user(&mention, window, cx)).icon(Glyph::At).entry());
         }
         if !is_me && surface != Surface::Dm {
             let id = target.clone();
@@ -120,16 +120,16 @@ impl Rustcord {
         let in_dm_call = self.call.as_ref().is_some_and(|c| c.channel.kind == ChannelKind::Dm && c.channel.recipient.as_ref().is_some_and(|r| r.id == target));
         if !is_me && !user.bot && !in_dm_call {
             let id = target.clone();
-            let start = item("Call", move |this, window, cx| this.start_call(id.clone(), window, cx));
+            let start = item("Call", move |this, window, cx| this.start_call(id.clone(), window, cx)).icon(Glyph::Phone);
             out.push(if blocked { start.disabled() } else { start }.entry());
         }
         if !is_me {
             let (id, who) = (target.clone(), name.clone());
-            out.push(item("Add note", move |this, window, cx| this.edit_note(id.clone(), who.clone(), window, cx)).hint("Only you can see it").entry());
+            out.push(item("Add note", move |this, window, cx| this.edit_note(id.clone(), who.clone(), window, cx)).hint("Only you can see it").icon(Glyph::Note).entry());
         }
         if friend {
             let (id, who) = (target.clone(), name.clone());
-            out.push(item("Add friend nickname", move |this, window, cx| this.edit_friend_nickname(id.clone(), who.clone(), window, cx)).entry());
+            out.push(item("Add friend nickname", move |this, window, cx| this.edit_friend_nickname(id.clone(), who.clone(), window, cx)).icon(Glyph::Tag).entry());
         }
         out.push(Entry::Separator);
 
@@ -151,7 +151,7 @@ impl Rustcord {
             out.push(item("Mute", move |this, _, cx| this.toggle_local_mute(&id, cx)).checked(self.prefs.local_mutes.contains(&target)).icon(Glyph::MicOff).entry());
             let id = target.clone();
             out.push(
-                item("Mute soundboard", move |this, _, cx| this.update_prefs(cx, |p| toggle(&mut p.soundboard_mutes, &id))).checked(self.prefs.soundboard_mutes.contains(&target)).icon(Glyph::VolumeOff).entry(),
+                item("Mute soundboard", move |this, _, cx| this.update_prefs(cx, |p| toggle(&mut p.soundboard_mutes, &id))).checked(self.prefs.soundboard_mutes.contains(&target)).icon(Glyph::SoundboardOff).entry(),
             );
             let id = target.clone();
             out.push(item("Hide video", move |this, _, cx| this.update_prefs(cx, |p| toggle(&mut p.hidden_video, &id))).checked(self.prefs.hidden_video.contains(&target)).icon(Glyph::VideoOff).entry());
@@ -160,10 +160,10 @@ impl Rustcord {
             let gid = guild.id.clone();
             if is_me {
                 let current = self.members.get(&gid).and_then(|m| m.get(&me.id)).map(|u| u.name.clone()).unwrap_or_default();
-                out.push(item("Edit per-server profile", move |this, window, cx| this.edit_nickname(gid.clone(), "@me".into(), current.clone(), window, cx)).icon(Glyph::Pen).entry());
+                out.push(item("Edit per-server profile", move |this, window, cx| this.edit_nickname(gid.clone(), "@me".into(), current.clone(), window, cx)).icon(Glyph::UserGear).entry());
             } else if self.can_manage(&guild.id, &target, perm::MANAGE_NICKNAMES) {
                 let (id, current) = (target.clone(), name.clone());
-                out.push(item("Change nickname", move |this, window, cx| this.edit_nickname(gid.clone(), id.clone(), current.clone(), window, cx)).icon(Glyph::Pen).entry());
+                out.push(item("Change nickname", move |this, window, cx| this.edit_nickname(gid.clone(), id.clone(), current.clone(), window, cx)).icon(Glyph::Signature).entry());
             }
         }
         if !is_me && !user.bot && !blocked && !ignored {
@@ -177,7 +177,7 @@ impl Rustcord {
                 })
                 .collect();
             if !invites.is_empty() {
-                out.push(submenu("Invite to server", invites).icon(Glyph::GroupPlus).entry());
+                out.push(submenu("Invite to server", invites).icon(Glyph::PaperPlane).entry());
             }
         }
         if !is_me && !user.bot {
@@ -190,34 +190,36 @@ impl Rustcord {
                         this.relation_optimistic(&id, None, Method::DELETE, None, cx);
                     }, cx);
                 })
+                .icon(Glyph::UserMinus)
                 .entry(),
                 Some(Relation::Incoming) => {
                     let friend = user.clone();
-                    item("Accept friend request", move |this, _, cx| this.relation_optimistic(&id, Some((friend.clone(), Relation::Friend)), Method::PUT, Some(json!({})), cx)).entry()
+                    item("Accept friend request", move |this, _, cx| this.relation_optimistic(&id, Some((friend.clone(), Relation::Friend)), Method::PUT, Some(json!({})), cx)).icon(Glyph::GroupPlus).entry()
                 }
-                Some(Relation::Outgoing) => item("Friend request sent", |_, _, _| {}).disabled().entry(),
-                Some(Relation::Blocked) => item("Add friend", |_, _, _| {}).disabled().entry(),
+                Some(Relation::Outgoing) => item("Friend request sent", |_, _, _| {}).icon(Glyph::GroupPlus).disabled().entry(),
+                Some(Relation::Blocked) => item("Add friend", |_, _, _| {}).icon(Glyph::GroupPlus).disabled().entry(),
                 None => {
                     let friend = user.clone();
-                    item("Add friend", move |this, _, cx| this.relation_optimistic(&id, Some((friend.clone(), Relation::Outgoing)), Method::PUT, Some(json!({})), cx)).entry()
+                    item("Add friend", move |this, _, cx| this.relation_optimistic(&id, Some((friend.clone(), Relation::Outgoing)), Method::PUT, Some(json!({})), cx)).icon(Glyph::GroupPlus).entry()
                 }
             });
         }
         if !is_me && !blocked {
             let (id, who) = (target.clone(), name.clone());
             out.push(match ignored {
-                true => item("Unignore", move |this, _, cx| this.set_ignored(id.clone(), false, cx)).entry(),
+                true => item("Unignore", move |this, _, cx| this.set_ignored(id.clone(), false, cx)).icon(Glyph::EyeSlash).entry(),
                 false => item("Ignore", move |this, _, cx| {
                     let id = id.clone();
                     this.confirm(format!("Ignore {who}?"), "You won't see their messages or be notified by them, and they won't know.", "Ignore", move |this, _, cx| this.set_ignored(id.clone(), true, cx), cx);
                 })
+                .icon(Glyph::EyeSlash)
                 .entry(),
             });
         }
         if !is_me {
             let (id, who, blockee) = (target.clone(), name.clone(), user.clone());
             out.push(match blocked {
-                true => item("Unblock", move |this, _, cx| this.relation_optimistic(&id, None, Method::DELETE, None, cx)).entry(),
+                true => item("Unblock", move |this, _, cx| this.relation_optimistic(&id, None, Method::DELETE, None, cx)).icon(Glyph::Prohibit).entry(),
                 false => item("Block", move |this, _, cx| {
                     let id = id.clone();
                     let blockee = blockee.clone();
@@ -226,7 +228,7 @@ impl Rustcord {
                     }, cx);
                 })
                 .danger()
-                .icon(Glyph::ScreenOff)
+                .icon(Glyph::Prohibit)
                 .entry(),
             });
         }
@@ -272,7 +274,7 @@ impl Rustcord {
                 let mut held: Vec<_> = guild.roles.iter().filter(|r| theirs.contains(&r.id)).collect();
                 held.sort_by_key(|r| std::cmp::Reverse(r.position));
                 let names = held.iter().map(|r| r.name.as_str()).collect::<Vec<_>>().join(", ");
-                let roles = submenu(label, rows).icon(Glyph::ShieldLock);
+                let roles = submenu(label, rows).icon(Glyph::Shield);
                 out.push(if names.is_empty() { roles } else { roles.hint(names) }.entry());
             }
         }
@@ -298,7 +300,7 @@ impl Rustcord {
                 })
                 .collect();
             if can_move && !channels.is_empty() {
-                out.push(submenu("Move to", channels).entry());
+                out.push(submenu("Move to", channels).icon(Glyph::MoveTo).entry());
             }
         }
         out.push(Entry::Separator);
@@ -316,7 +318,7 @@ impl Rustcord {
             }
             if !is_me && guild.can(&me.id, perm::MOVE_MEMBERS) {
                 let (gid, uid) = (gid.clone(), target.clone());
-                out.push(item("Disconnect", move |this, _, cx| this.server_voice_optimistic(&gid, &uid, json!({ "channel_id": null }), |v| v.channel_id = None, cx)).danger().icon(Glyph::CallEnd).entry());
+                out.push(item("Disconnect", move |this, _, cx| this.server_voice_optimistic(&gid, &uid, json!({ "channel_id": null }), |v| v.channel_id = None, cx)).danger().icon(Glyph::PhoneDisconnect).entry());
             }
         }
         if let Some(guild) = guild.filter(|_| !is_me) {
@@ -334,7 +336,7 @@ impl Rustcord {
                         .entry()
                     })
                     .collect();
-                out.push(submenu(format!("Timeout {name}"), lengths).danger().entry());
+                out.push(submenu(format!("Timeout {name}"), lengths).danger().icon(Glyph::Timer).entry());
             }
             if self.can_manage(&guild.id, &target, perm::KICK_MEMBERS) {
                 let (gid, uid, who) = (guild.id.clone(), target.clone(), name.clone());
@@ -346,7 +348,7 @@ impl Rustcord {
                         }, cx);
                     })
                     .danger()
-                    .icon(Glyph::DoorExit)
+                    .icon(Glyph::DoorOpen)
                     .entry(),
                 );
             }
@@ -360,7 +362,7 @@ impl Rustcord {
                         }, cx);
                     })
                     .danger()
-                    .icon(Glyph::ScreenOff)
+                    .icon(Glyph::Gavel)
                     .entry(),
                 );
             }

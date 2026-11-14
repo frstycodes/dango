@@ -8,7 +8,7 @@ use gpui_kit::{
         ActiveTheme, Icon,
         input::{Input, InputEvent},
     },
-    div, img, prelude::*, px, relative, rgb,
+    div, img, point, prelude::*, px, relative, rgb,
 };
 
 use crate::{
@@ -17,6 +17,7 @@ use crate::{
     icons::Glyph,
     layout::{TITLE_HEIGHT, avatar_with_status},
     menu, palette,
+    ui::{RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XL, RADIUS_XS, Squircle},
 };
 
 const PROFILE_WIDTH: f32 = 320.;
@@ -287,7 +288,7 @@ impl Rustcord {
                     div()
                         .id(SharedString::from(format!("inbox-{}", m.id)))
                         .p_3()
-                        .rounded(px(8.))
+                        .squircle(RADIUS_XS)
                         .bg(theme.background)
                         .border_1()
                         .border_color(theme.border)
@@ -348,12 +349,13 @@ impl Rustcord {
                         .id(SharedString::from(format!("gif-{i}")))
                         .w(px(column_width))
                         .h(px(height))
-                        .rounded(px(6.))
+                        .squircle(RADIUS_MD)
                         .overflow_hidden()
                         .bg(theme.background)
                         .cursor_pointer()
                         .hover(|s| s.opacity(0.85))
-                        .child(img(g.preview.clone()).size_full().object_fit(gpui_kit::ObjectFit::Cover).rounded(px(6.)))
+                        .active(|s| s.scale(0.97))
+                        .child(img(g.preview.clone()).size_full().object_fit(gpui_kit::ObjectFit::Cover).squircle(RADIUS_MD))
                         .on_click(cx.listener(move |this, _, window, cx| this.send_gif(url.clone(), window, cx)))
                 }))
                 .into_any_element(),
@@ -371,7 +373,7 @@ impl Rustcord {
                         .w(px(PICKER_SIZE.0))
                         .max_h(px(PICKER_SIZE.1 + 80.))
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .child(div().p_2().child(div().h(px(34.)).px_2().rounded(px(6.)).bg(theme.background).flex().items_center().child(Input::new(&self.gif_search).appearance(false))))
+                        .child(div().p_2().child(div().h(px(34.)).px_2().squircle(RADIUS_MD).bg(theme.background).flex().items_center().child(Input::new(&self.gif_search).appearance(false))))
                         .child(div().id("gif-scroll").flex_1().min_h_0().overflow_y_scroll().px_2().pb_2().child(body)),
                 )
                 .into_any_element(),
@@ -395,7 +397,7 @@ impl Rustcord {
                     div()
                         .id(SharedString::from(format!("pin-{}", m.id)))
                         .p_3()
-                        .rounded(px(8.))
+                        .squircle(RADIUS_XS)
                         .bg(theme.background)
                         .border_1()
                         .border_color(theme.border)
@@ -469,14 +471,14 @@ impl Rustcord {
         let x = f32::from(card.at.x).clamp(8., f32::from(viewport.width) - PROFILE_WIDTH - 8.);
         let y = f32::from(card.at.y).clamp(TITLE_HEIGHT + 8., (f32::from(viewport.height) - height - 8.).max(TITLE_HEIGHT + 8.));
         let banner = match (&profile.banner, profile.accent) {
-            (Some(url), _) => crate::ui::media(url.clone(), crate::ui::top(crate::ui::RADIUS_LG)).w_full().h(px(64.)).object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
+            (Some(url), _) => crate::ui::media(url.clone(), crate::ui::top(RADIUS_LG)).corner_shape(crate::ui::SQUIRCLE).w_full().h(px(64.)).object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
             (None, Some(accent)) => {
                 let accent: Hsla = rgb(accent).into();
                 let deep = Hsla { l: accent.l * 0.78, ..accent };
-                crate::ui::edge(div().w_full().h(px(64.)).bg(gpui_kit::linear_gradient(135., gpui_kit::linear_color_stop(accent, 0.), gpui_kit::linear_color_stop(deep, 1.))), crate::ui::top(crate::ui::RADIUS_LG)).into_any_element()
+                crate::ui::edge(div().w_full().h(px(64.)).bg(gpui_kit::linear_gradient(135., gpui_kit::linear_color_stop(accent, 0.), gpui_kit::linear_color_stop(deep, 1.))), crate::ui::top(RADIUS_LG)).corner_shape(crate::ui::SQUIRCLE).into_any_element()
             }
             // No banner colour: the neutral fill, as the design's worst case.
-            (None, None) => crate::ui::edge(div().w_full().h(px(64.)).bg(palette::selected(cx)), crate::ui::top(crate::ui::RADIUS_LG)).into_any_element(),
+            (None, None) => crate::ui::edge(div().w_full().h(px(64.)).bg(palette::selected(cx)), crate::ui::top(RADIUS_LG)).corner_shape(crate::ui::SQUIRCLE).into_any_element(),
         };
         let who = div()
             .px_4()
@@ -515,7 +517,7 @@ impl Rustcord {
                     ))
                     .when(!handle.is_empty(), |n| n.child(div().truncate().text_color(palette::muted(cx)).child(handle))),
             )
-            .children(doing.map(|line| div().py(px(8.)).px(px(10.)).rounded(px(crate::ui::RADIUS_MD)).bg(palette::selected(cx)).text_color(palette::text(cx)).child(line)))
+            .children(doing.map(|line| div().py(px(8.)).px(px(10.)).squircle(RADIUS_MD).bg(palette::selected(cx)).text_color(palette::text(cx)).child(line)))
             .children(profile.bio.clone().map(|bio| block("About me").child(div().text_color(palette::text(cx)).line_clamp(6).child(bio))))
             .when(!roles.is_empty(), |b| b.child(block("Roles").child(div().flex().flex_wrap().gap_1().children(roles.into_iter().map(|(name, color)| role_chip(name, color, cx))))))
             .when(!is_me, |b| {
@@ -534,14 +536,16 @@ impl Rustcord {
             .left(px(x))
             .top(px(y))
             .w(px(PROFILE_WIDTH))
-            .rounded(px(crate::ui::RADIUS_LG))
+            .squircle(RADIUS_LG)
             .bg(overlay)
             .shadow(menu::pop_shadow(cx))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(banner)
             .child(who)
             .child(body);
-        Some(backdrop("profile-backdrop", cx).child(menu::rise(card_el, format!("profile-{}", user.id), Duration::ZERO)).into_any_element())
+        // It rises from the corner nearest where it was asked for: pushed in from an edge, from that side.
+        let origin = menu::corner(x < f32::from(card.at.x), y < f32::from(card.at.y));
+        Some(backdrop("profile-backdrop", cx).child(menu::rise(card_el, format!("profile-{}", user.id), origin, Duration::ZERO)).into_any_element())
     }
 
     // Your presence, as a menu of radio rows each led by its mark (auth.html's status menu).
@@ -564,7 +568,7 @@ impl Rustcord {
             .bottom(px(self.panel_stack_height() + 16.))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .children(rows);
-        Some(backdrop("status-backdrop", cx).child(menu::rise(card, "status-menu".into(), Duration::ZERO)).into_any_element())
+        Some(backdrop("status-backdrop", cx).child(menu::rise(card, "status-menu".into(), menu::corner(false, true), Duration::ZERO)).into_any_element())
     }
 
     // The emoji picker (messages.css `.picker`): search on top, categories down the left, the grid in
@@ -590,25 +594,30 @@ impl Rustcord {
             .overflow_y_scroll()
             .border_r_1()
             .border_color(palette::line(cx))
-            .children(sections.iter().enumerate().map(|(i, section)| {
-                let (selected, hover) = (palette::selected(cx), palette::hover(cx));
+            .children(sections.iter().enumerate().flat_map(|(i, section)| {
+                let (selected, hover, strong) = (palette::selected(cx), palette::hover(cx), palette::strong(cx));
                 let scroll = scroll.clone();
-                div()
+                // A line sets the server's own emoji apart from the Unicode groups after them.
+                let after_server = i > 0 && matches!(sections[i - 1].lead, SectionLead::Server { .. }) && !matches!(section.lead, SectionLead::Server { .. });
+                let line = after_server.then(|| div().w(px(20.)).h(px(1.)).my(px(4.)).flex_none().bg(palette::line(cx)).into_any_element());
+                let tab = div()
                     .id(("emoji-cat", i))
                     .size(px(36.))
                     .flex_none()
-                    .rounded(px(crate::ui::RADIUS_SM))
+                    .squircle(RADIUS_SM)
                     .flex()
                     .items_center()
                     .justify_center()
                     .cursor_pointer()
+                    .text_color(if i == in_view { strong } else { palette::muted(cx) })
                     .when(i == in_view, |d| d.bg(selected))
-                    .when(i != in_view, |d| d.hover(move |s| s.bg(hover)))
+                    .when(i != in_view, |d| d.hover(move |s| s.bg(hover).text_color(strong)))
                     .child(section.lead.render(cx))
                     .on_click(cx.listener(move |_, _, _, cx| {
                         scroll.scroll_to_top_of_item(i);
                         cx.notify();
-                    }))
+                    }));
+                line.into_iter().chain([tab.into_any_element()])
             }));
         let cell = |emoji: Emoji, source: SharedString, key: String| {
             let face = match emoji.url() {
@@ -621,7 +630,7 @@ impl Rustcord {
                 .id(SharedString::from(key))
                 .w(relative(1. / 9.))
                 .h(px(40.))
-                .rounded(px(crate::ui::RADIUS_SM))
+                .squircle(RADIUS_SM)
                 .flex()
                 .items_center()
                 .justify_center()
@@ -703,7 +712,7 @@ impl Rustcord {
             div()
                 .h(px(36.))
                 .px(px(12.))
-                .rounded(px(crate::ui::RADIUS_MD))
+                .squircle(RADIUS_MD)
                 .bg(palette::surface(palette::Level::Page, cx))
                 .flex()
                 .items_center()
@@ -720,7 +729,7 @@ impl Rustcord {
             .top(px((f32::from(viewport.height) - PICKER_SIZE.1 - 90.).max(TITLE_HEIGHT + 8.)))
             .w(px(PICKER_SIZE.0))
             .h(px(PICKER_SIZE.1))
-            .rounded(px(crate::ui::RADIUS_LG))
+            .squircle(RADIUS_LG)
             .bg(palette::surface(palette::Level::Overlay, cx))
             .shadow(menu::pop_shadow(cx))
             .flex()
@@ -729,7 +738,7 @@ impl Rustcord {
             .child(head)
             .child(div().flex_1().min_h_0().flex().child(rail).child(grid))
             .child(foot);
-        Some(backdrop("emoji-backdrop", cx).child(menu::rise(picker, "emoji-picker".into(), Duration::ZERO)).into_any_element())
+        Some(backdrop("emoji-backdrop", cx).child(menu::rise(picker, "emoji-picker".into(), menu::corner(true, true), Duration::ZERO)).into_any_element())
     }
 
     // What the picker lists for the current search: recent (only before you search), the server's own, then Unicode by group.
@@ -739,7 +748,7 @@ impl Rustcord {
         let mut sections = Vec::new();
         if query.is_empty() {
             let recent = self.prefs.frequent_emojis(18, &crate::message_menu::QUICK_PAD);
-            sections.push(EmojiSection { lead: SectionLead::Emoji("🕘"), name: "Recently used".into(), source: unicode.clone(), items: recent });
+            sections.push(EmojiSection { lead: SectionLead::Glyph(Glyph::Recent), name: "Recently used".into(), source: unicode.clone(), items: recent });
         }
         if let Some(guild) = self.guild() {
             let custom: Vec<Emoji> = guild.emojis.iter().filter(|e| query.is_empty() || e.name.to_lowercase().contains(&query)).cloned().collect();
@@ -755,8 +764,8 @@ impl Rustcord {
                 .map(|e| Emoji::unicode(e.as_str()))
                 .collect();
             if !items.is_empty() {
-                let (name, face) = group_name(group);
-                sections.push(EmojiSection { lead: SectionLead::Emoji(face), name: name.into(), source: unicode.clone(), items });
+                let (name, glyph) = group_name(group);
+                sections.push(EmojiSection { lead: SectionLead::Glyph(glyph), name: name.into(), source: unicode.clone(), items });
             }
         }
         sections
@@ -783,7 +792,7 @@ impl Rustcord {
             .h(px(52.))
             .px(px(14.))
             .flex_none()
-            .rounded(px(crate::ui::RADIUS_MD))
+            .squircle(RADIUS_MD)
             .bg(palette::surface(palette::Level::Page, cx))
             .border_1()
             .border_color(palette::accent())
@@ -821,7 +830,7 @@ impl Rustcord {
             .id("switcher")
             .w(px(SWITCHER_WIDTH))
             .p(px(10.))
-            .rounded(px(crate::ui::RADIUS_XL))
+            .squircle(RADIUS_XL)
             .bg(palette::surface(palette::Level::Overlay, cx))
             .shadow(menu::pop_shadow(cx))
             .flex()
@@ -835,7 +844,7 @@ impl Rustcord {
         Some(
             backdrop("switcher-backdrop", cx)
                 .bg(menu::scrim(cx))
-                .child(div().absolute().top(px(120.)).left_0().right_0().flex().justify_center().child(menu::rise(card, "switcher".into(), Duration::ZERO)))
+                .child(div().absolute().top(px(120.)).left_0().right_0().flex().justify_center().child(menu::rise(card, "switcher".into(), point(relative(0.5), relative(0.5)), Duration::ZERO)))
                 .into_any_element(),
         )
     }
@@ -866,7 +875,7 @@ impl Rustcord {
             .h(px(36.))
             .px(px(10.))
             .flex_none()
-            .rounded(px(crate::ui::RADIUS_SM))
+            .squircle(RADIUS_SM)
             .flex()
             .items_center()
             .gap(px(10.))
@@ -893,24 +902,23 @@ struct EmojiSection {
     items: Vec<Emoji>,
 }
 
-// GAP: the design marks Unicode groups with Phosphor icons (clock, leaf, hamburger…) that aren't in
-// `icons.rs` yet; each group shows its own first emoji instead.
+// Recent and the Unicode groups are marked by an icon, a server's own emoji by its icon.
 enum SectionLead {
-    Emoji(&'static str),
+    Glyph(Glyph),
     Server { icon: Option<String>, name: String },
 }
 
 impl SectionLead {
     fn render(&self, cx: &App) -> AnyElement {
         match self {
-            SectionLead::Emoji(face) => div().text_size(px(20.)).line_height(px(20.)).child(*face).into_any_element(),
-            SectionLead::Server { icon, name } => menu::server_icon(icon.as_deref(), name, 24., crate::ui::RADIUS_XS, cx),
+            SectionLead::Glyph(glyph) => Icon::new(*glyph).size(px(18.)).into_any_element(),
+            SectionLead::Server { icon, name } => menu::server_icon(icon.as_deref(), name, 24., RADIUS_XS, cx),
         }
     }
 
     fn small(&self, cx: &App) -> AnyElement {
         match self {
-            SectionLead::Emoji(face) => div().text_size(px(14.)).line_height(px(14.)).child(*face).into_any_element(),
+            SectionLead::Glyph(glyph) => Icon::new(*glyph).size(px(14.)).into_any_element(),
             SectionLead::Server { icon, name } => menu::server_icon(icon.as_deref(), name, 16., 5., cx),
         }
     }
@@ -938,7 +946,7 @@ fn role_chip(name: String, color: Hsla, cx: &App) -> gpui_kit::Div {
         .flex()
         .items_center()
         .gap(px(6.))
-        .rounded(px(crate::ui::RADIUS_XS))
+        .squircle(RADIUS_XS)
         .bg(palette::selected(cx))
         .text_size(px(12.))
         .font_weight(FontWeight::SEMIBOLD)
@@ -957,19 +965,19 @@ fn backdrop(id: &'static str, cx: &mut Context<Rustcord>) -> gpui_kit::Stateful<
     )
 }
 
-// A Unicode group's name, and the emoji that stands for it in the picker's rail.
-fn group_name(group: emojis::Group) -> (&'static str, &'static str) {
+// A Unicode group's name, and the icon that marks it in the picker's rail.
+fn group_name(group: emojis::Group) -> (&'static str, Glyph) {
     use emojis::Group::*;
     match group {
-        SmileysAndEmotion => ("Smileys & Emotion", "😀"),
-        PeopleAndBody => ("People", "👋"),
-        AnimalsAndNature => ("Nature", "🌿"),
-        FoodAndDrink => ("Food & Drink", "🍔"),
-        TravelAndPlaces => ("Travel & Places", "✈️"),
-        Activities => ("Activities", "⚽"),
-        Objects => ("Objects", "💡"),
-        Symbols => ("Symbols", "❤️"),
-        Flags => ("Flags", "🏁"),
+        SmileysAndEmotion => ("Smileys & Emotion", Glyph::Emoji),
+        PeopleAndBody => ("People", Glyph::HandWaving),
+        AnimalsAndNature => ("Nature", Glyph::Leaf),
+        FoodAndDrink => ("Food & Drink", Glyph::Hamburger),
+        TravelAndPlaces => ("Travel & Places", Glyph::Airplane),
+        Activities => ("Activities", Glyph::SoccerBall),
+        Objects => ("Objects", Glyph::Lightbulb),
+        Symbols => ("Symbols", Glyph::Heart),
+        Flags => ("Flags", Glyph::Flag),
     }
 }
 

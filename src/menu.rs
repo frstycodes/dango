@@ -6,9 +6,9 @@
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, App, BoxShadow, Context, Div, FocusHandle, FontWeight, Hsla, KeyDownEvent, MouseButton, Pixels, Point, SharedString, Stateful, Window,
+    Animation, AnimationExt, AnyElement, App, BoxShadow, Context, DefiniteLength, Div, FocusHandle, FontWeight, Hsla, KeyDownEvent, MouseButton, Pixels, Point, SharedString, Stateful, Window,
     component::{ActiveTheme, Icon, input::Input},
-    div, img, point, prelude::*, px,
+    div, img, point, prelude::*, px, relative,
 };
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
     icons::Glyph,
     palette,
     settings::Fill,
-    ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XL, RADIUS_XS, SURFACE_INSET},
+    ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XL, RADIUS_XS, SURFACE_INSET, Squircle},
 };
 
 pub type Act = Rc<dyn Fn(&mut Rustcord, &mut Window, &mut Context<Rustcord>)>;
@@ -282,6 +282,8 @@ pub struct Dialog {
     body: SharedString,
     confirm: SharedString,
     danger: bool,
+    // Leads the title with the warning mark: for what can't be undone.
+    warn: bool,
     input: bool,
     on_confirm: OnConfirm,
 }
@@ -335,7 +337,7 @@ impl Rustcord {
             state.set_value(value.to_owned(), window, cx);
             state.focus(window, cx);
         });
-        self.dialog = Some(Dialog { title: title.into(), body: body.into(), confirm: confirm.into(), danger: false, input: true, on_confirm: Rc::new(on_confirm) });
+        self.dialog = Some(Dialog { title: title.into(), body: body.into(), confirm: confirm.into(), danger: false, warn: false, input: true, on_confirm: Rc::new(on_confirm) });
         cx.notify();
     }
 
@@ -354,10 +356,26 @@ impl Rustcord {
             body: body.into(),
             confirm: confirm.into(),
             danger: true,
+            warn: false,
             input: false,
             on_confirm: Rc::new(move |this, _, window, cx| on_confirm(this, window, cx)),
         });
         cx.notify();
+    }
+
+    // A confirm for a deletion that can't be undone: the title leads with the warning mark.
+    pub(crate) fn confirm_delete(
+        &mut self,
+        title: impl Into<SharedString>,
+        body: impl Into<SharedString>,
+        confirm: impl Into<SharedString>,
+        on_confirm: impl Fn(&mut Rustcord, &mut Window, &mut Context<Rustcord>) + 'static,
+        cx: &mut Context<Self>,
+    ) {
+        self.confirm(title, body, confirm, on_confirm, cx);
+        if let Some(dialog) = &mut self.dialog {
+            dialog.warn = true;
+        }
     }
 
     fn run_menu_item(&mut self, path: &[usize], window: &mut Window, cx: &mut Context<Self>) {
@@ -426,12 +444,15 @@ impl Rustcord {
         let entries = (menu.build)(self);
         let viewport = window.viewport_size();
         let (vw, vh) = (f32::from(viewport.width), f32::from(viewport.height));
-        let x = f32::from(menu.at.x).min(vw - WIDTH - 8.).max(8.);
-        let y = f32::from(menu.at.y).min(vh - card_height(&entries) - 8.).max(8.);
+        // Opens toward the side with room, rising from the corner at the pointer (overlays.html's live menu).
+        let (at_x, at_y, height) = (f32::from(menu.at.x), f32::from(menu.at.y), card_height(&entries));
+        let (flip_x, flip_y) = (at_x + WIDTH > vw - 8., at_y + height > vh - 8.);
+        let x = if flip_x { (at_x - WIDTH).max(8.) } else { at_x };
+        let y = if flip_y { (at_y - height).max(8.) } else { at_y };
         // Keyed by where it opened, so a fresh right-click replays the rise.
-        let open_key = format!("{:.0}-{:.0}", f32::from(menu.at.x), f32::from(menu.at.y));
+        let open_key = format!("{at_x:.0}-{at_y:.0}");
         let top = self.menu_card(&entries, &[], menu.sub.first().copied(), menu.cursor.filter(|_| menu.sub.is_empty()), WIDTH, cx).left(px(x)).top(px(y)).max_h(px(vh - 16.)).overflow_y_scroll();
-        let mut cards = vec![rise(top, format!("menu-rise-{open_key}"), Duration::ZERO).into_any_element()];
+        let mut cards = vec![rise(top, format!("menu-rise-{open_key}"), corner(flip_x, flip_y), Duration::ZERO).into_any_element()];
         // One flyout per open level beside its parent row, its first row level with that row; it
         // flips to the left at the window's edge.
         let (mut level, mut card_x, mut card_y, mut card_w) = (&entries, x, y, WIDTH);
@@ -441,13 +462,14 @@ impl Rustcord {
                 break;
             }
             let sub_w = if item.sub.iter().any(Entry::has_check) { SUB_WIDE } else { SUB_WIDTH };
-            card_x = if card_x + card_w + 4. + sub_w < vw { card_x + card_w + 4. } else { card_x - sub_w - 4. };
+            let flip = card_x + card_w + 4. + sub_w >= vw;
+            card_x = if flip { card_x - sub_w - 4. } else { card_x + card_w + 4. };
             card_y = (card_y + offset(level, i)).min(vh - card_height(&item.sub) - 8.).max(8.);
             card_w = sub_w;
             let path = &menu.sub[..=depth];
             let cursor = menu.cursor.filter(|_| depth + 1 == menu.sub.len());
             let card = self.menu_card(&item.sub, path, menu.sub.get(depth + 1).copied(), cursor, sub_w, cx).left(px(card_x)).top(px(card_y));
-            cards.push(rise(card, format!("menu-rise-{open_key}-{path:?}"), SUB_DELAY).into_any_element());
+            cards.push(rise(card, format!("menu-rise-{open_key}-{path:?}"), corner(flip, false), SUB_DELAY).into_any_element());
             level = &item.sub;
         }
         Some(
@@ -545,16 +567,25 @@ impl Rustcord {
             .id("dialog")
             .w(px(420.))
             .p(px(24.))
-            .rounded(px(RADIUS_XL))
+            .squircle(RADIUS_XL)
             .bg(palette::surface(palette::Level::Raised, cx))
             .shadow(pop_shadow(cx))
             .flex()
             .flex_col()
             .gap(px(16.))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            // GAP: a destructive confirm leads its title with Phosphor's filled warning in danger ink;
-            // that glyph isn't in `icons.rs` yet.
-            .child(div().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child(dialog.title.clone()))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(10.))
+                    .text_size(px(20.))
+                    .line_height(px(24.))
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(palette::strong(cx))
+                    .when(dialog.warn, |d| d.child(div().text_color(palette::danger_ink(cx)).child(Icon::new(Glyph::Warning).size(px(22.)))))
+                    .child(dialog.title.clone()),
+            )
             .child(div().text_size(px(14.)).line_height(px(20.)).text_color(palette::muted(cx)).child(dialog.body.clone()))
             .when(dialog.input, |d| d.child(field(cx).child(div().flex_1().min_w_0().child(Input::new(&self.dialog_input).appearance(false)))))
             .child(
@@ -568,8 +599,8 @@ impl Rustcord {
                     })))
                     .child(ui::button("dialog-confirm", tone, cx).child(dialog.confirm.clone()).on_click(submit)),
             );
-        // PATCH(transform): the card pops from scale 0.95 with its fade (CSS `pop`, 260ms ease-out).
-        let card = card.with_animation("dialog-pop", Animation::new(ui::DUR_PANEL).with_easing(ease_out), |card, t| card.opacity(t));
+        // Pops from the centre: scale 0.95 with its fade (CSS `pop`, 260ms ease-out).
+        let card = card.with_animation("dialog-pop", Animation::new(ui::DUR_PANEL).with_easing(ease_out), |card, t| card.opacity(t).scale(0.95 + 0.05 * t));
         Some(
             div()
                 .id("dialog-backdrop")
@@ -594,8 +625,7 @@ impl Rustcord {
 // MOVE(ui): menu_surface
 pub(crate) fn menu_surface(width: f32, cx: &App) -> Div {
     // The hairline is the shadow's 1px ring outside the edge, as in CSS, not a border inside it.
-    // PATCH(squircle): the card's corners are the design's 20px squircle.
-    ui::surface(cx).border_0().w(px(width)).rounded(px(RADIUS_LG)).shadow(pop_shadow(cx)).gap(px(GAP))
+    ui::surface(cx).border_0().w(px(width)).squircle(RADIUS_LG).shadow(pop_shadow(cx)).gap(px(GAP))
 }
 
 // The look of one menu row, without its behaviour: callers add `.on_click` (and hover for submenus).
@@ -623,7 +653,7 @@ pub(crate) fn menu_item_row(id: SharedString, item: &Item, sub_open: bool, lead_
         .py(px(6.))
         .px(px(10.))
         .flex_none()
-        .rounded(px(RADIUS_SM))
+        .squircle(RADIUS_SM)
         .flex()
         .items_center()
         .gap(px(10.))
@@ -706,7 +736,7 @@ fn menu_header(lead: &HeadLead, title: SharedString, subtitle: Option<SharedStri
     let lead = match lead {
         HeadLead::Avatar { url, status } => crate::layout::avatar_with_status(url, 32., *status, overlay),
         HeadLead::Server { icon, name } => server_icon(icon.as_deref(), name, 32., RADIUS_XS, cx),
-        HeadLead::Tile(glyph) => div().size(px(32.)).rounded(px(RADIUS_SM)).bg(palette::selected(cx)).text_color(palette::strong(cx)).flex().items_center().justify_center().child(Icon::new(*glyph).size(px(18.))).into_any_element(),
+        HeadLead::Tile(glyph) => div().size(px(32.)).squircle(RADIUS_SM).bg(palette::selected(cx)).text_color(palette::strong(cx)).flex().items_center().justify_center().child(Icon::new(*glyph).size(px(18.))).into_any_element(),
     };
     div()
         .h(px(HEADER))
@@ -732,11 +762,11 @@ fn menu_header(lead: &HeadLead, title: SharedString, subtitle: Option<SharedStri
 // A server's icon, or its initials on a tile until it has one.
 pub(crate) fn server_icon(icon: Option<&str>, name: &str, size: f32, radius: f32, cx: &App) -> AnyElement {
     if let Some(url) = icon {
-        return img(url.to_owned()).size(px(size)).rounded(px(radius)).into_any_element();
+        return img(url.to_owned()).size(px(size)).squircle(radius).into_any_element();
     }
     div()
         .size(px(size))
-        .rounded(px(radius))
+        .squircle(radius)
         .bg(palette::selected(cx))
         .text_color(palette::strong(cx))
         .text_size(px((size * 0.38).round()))
@@ -755,7 +785,7 @@ fn quick_reactions(quick: &[(Emoji, Act)], more: Act, cx: &mut Context<Rustcord>
             .id(id)
             .flex_1()
             .h(px(38.))
-            .rounded(px(RADIUS_SM))
+            .squircle(RADIUS_SM)
             .flex()
             .items_center()
             .justify_center()
@@ -763,10 +793,10 @@ fn quick_reactions(quick: &[(Emoji, Act)], more: Act, cx: &mut Context<Rustcord>
             .bg(fill)
             .text_color(muted)
             .hover(move |s| s.bg(press).text_color(ink))
+            .active(|s| s.scale(0.97))
     };
     let faces = quick.iter().enumerate().map(|(j, (emoji, act))| {
         let act = act.clone();
-        // PATCH(transform): the button presses to scale 0.97.
         cell(SharedString::from(format!("menu-emoji-{j}")), strong).child(emoji_face(emoji, 20.)).on_click(cx.listener(move |this, _, window, cx| {
             this.shut_menu(window, cx);
             act(this, window, cx);
@@ -788,13 +818,21 @@ fn emoji_face(emoji: &Emoji, size: f32) -> AnyElement {
     }
 }
 
-// A floating surface's entrance: a 200ms ease-out fade, after `delay` (a submenu's intent delay).
+// A floating surface's entrance (CSS `rise`): from scale 0.95 at `origin`, the corner nearest its
+// trigger, with a 200ms ease-out fade, after `delay` (a submenu's intent delay).
 // MOVE(ui): rise
-pub(crate) fn rise<E: IntoElement + Styled + 'static>(el: E, id: String, delay: Duration) -> gpui_kit::AnimationElement<E> {
+pub(crate) fn rise<E: IntoElement + Styled + 'static>(el: E, id: String, origin: Point<DefiniteLength>, delay: Duration) -> gpui_kit::AnimationElement<E> {
     let lead = delay.as_secs_f32() / (delay + ui::DUR_POP).as_secs_f32();
-    // PATCH(transform): scale from 0.95 at the corner nearest the trigger (top left for a context
-    // menu, the parent row's side for a submenu) alongside this fade.
-    el.with_animation(SharedString::from(id), Animation::new(delay + ui::DUR_POP), move |el, t| el.opacity(ease_out(((t - lead) / (1. - lead)).clamp(0., 1.))))
+    el.transform_origin(origin).with_animation(SharedString::from(id), Animation::new(delay + ui::DUR_POP), move |el, t| {
+        let t = ease_out(((t - lead) / (1. - lead)).clamp(0., 1.));
+        el.opacity(t).scale(0.95 + 0.05 * t)
+    })
+}
+
+// A transform origin at one of an element's corners.
+// MOVE(ui): corner
+pub(crate) fn corner(right: bool, bottom: bool) -> Point<DefiniteLength> {
+    point(relative(if right { 1. } else { 0. }), relative(if bottom { 1. } else { 0. }))
 }
 
 // The pop shadow: a soft drop and a 1px hairline ring (tokens.css --shadow-pop).
@@ -820,7 +858,7 @@ pub(crate) fn field_frame(cx: &App) -> Div {
     div()
         .h(px(40.))
         .px(px(12.))
-        .rounded(px(RADIUS_MD))
+        .squircle(RADIUS_MD)
         .bg(palette::surface(palette::Level::Page, cx))
         .border_1()
         .border_color(palette::line_strong(cx))
@@ -927,7 +965,7 @@ impl Rustcord {
             .py(px(10.))
             .pl(px(14.))
             .pr(px(10.))
-            .rounded(px(RADIUS_LG))
+            .squircle(RADIUS_LG)
             .bg(palette::surface(palette::Level::Overlay, cx))
             .shadow(pop_shadow(cx))
             .flex()
@@ -937,19 +975,12 @@ impl Rustcord {
             .font_weight(FontWeight::MEDIUM)
             .text_color(palette::strong(cx))
             .child(text.clone());
-        // Rises 8px into place with its fade (CSS `toast-in`, 240ms).
-        // PATCH(transform): also from scale 0.97, and from blur(4px) once gpui has a filter blur.
-        Some(
-            div()
-                .absolute()
-                .left_0()
-                .right_0()
-                .flex()
-                .justify_center()
-                .child(toast)
-                .with_animation(SharedString::from(format!("toast-{text}")), Animation::new(Duration::from_millis(240)).with_easing(ease_out), |wrap, t| wrap.bottom(px(24. - 8. * (1. - t))).opacity(t))
-                .into_any_element(),
-        )
+        // Rises 8px into place from scale 0.97 with its fade (CSS `toast-in`, 240ms).
+        // GAP: and from blur(4px); gpui has no filter blur on an element's own painting.
+        let toast = toast.with_animation(SharedString::from(format!("toast-{text}")), Animation::new(Duration::from_millis(240)).with_easing(ease_out), |toast, t| {
+            toast.translate_y(px(8. * (1. - t))).scale(0.97 + 0.03 * t).opacity(t)
+        });
+        Some(div().absolute().left_0().right_0().bottom(px(24.)).flex().justify_center().child(toast).into_any_element())
     }
 }
 
