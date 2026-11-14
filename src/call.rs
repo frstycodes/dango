@@ -839,6 +839,24 @@ impl Rustcord {
             .when(!several, |b| {
                 b.children(quality.map(|q| div().h(px(18.)).px_1().rounded(px(4.)).bg(gpui_kit::white().opacity(0.16)).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child(q)))
                     .child(live_badge())
+                    .when(!watching.arrivals.is_empty(), |b| b.child({
+                        let (health, fps) = stream_health(&watching.arrivals, Instant::now());
+                        let (label, color): (&str, Hsla) = match health {
+                            Health::Smooth => ("Smooth", rgb(0x41A063).into()),
+                            Health::Choppy => ("Choppy", rgb(0xCE8100).into()),
+                            Health::Stalled => ("Stalled", rgb(0xEB5F5E).into()),
+                        };
+                        div()
+                            .id("stream-health")
+                            .flex()
+                            .items_center()
+                            .gap_1()
+                            .text_size(px(12.))
+                            .text_color(gpui_kit::white().opacity(0.75))
+                            .child(div().size(px(8.)).rounded_full().bg(color))
+                            .child(label)
+                            .tooltip(move |window, cx| Tooltip::new(format!("{label}: {fps:.0} frames per second")).build(window, cx))
+                    }))
                     .when(!viewers.is_empty(), |b| {
                         b.child(div().pl(px(6.)).flex().items_center().children(avatars).when(viewers.len() > 3, |d| d.child(div().pl_1().text_size(px(12.)).font_weight(FontWeight::BOLD).child(format!("+{}", viewers.len() - 3)))))
                     })
@@ -1708,5 +1726,46 @@ mod pip_tests {
         assert_eq!(clock(3729), "1:02:09");
         assert_eq!(quality_label(1080, 60), "1080p 60");
         assert_eq!(quality_label(0, 30), "Source 30");
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Health {
+    Smooth,
+    Choppy,
+    Stalled,
+}
+
+// How a watched stream is doing, from when its last frames arrived: no frame for a second is
+// stalled; under 15 frames a second over the last two is choppy.
+// ponytail: frame rate only; add decode lag once the engine reports it.
+pub fn stream_health(arrivals: &std::collections::VecDeque<Instant>, now: Instant) -> (Health, f32) {
+    let Some(last) = arrivals.back() else { return (Health::Stalled, 0.) };
+    let window = Duration::from_secs(2);
+    let recent = arrivals.iter().filter(|t| now.duration_since(**t) <= window).count();
+    let fps = recent as f32 / window.as_secs_f32();
+    let health = match () {
+        _ if now.duration_since(*last) > Duration::from_secs(1) => Health::Stalled,
+        _ if fps < 15. => Health::Choppy,
+        _ => Health::Smooth,
+    };
+    (health, fps)
+}
+
+#[cfg(test)]
+mod health_tests {
+    use super::*;
+
+    #[test]
+    fn health_from_arrivals() {
+        let now = Instant::now();
+        let at = |ms: u64| now - Duration::from_millis(ms);
+        let smooth: std::collections::VecDeque<Instant> = (0..60).map(|i| at(i * 33)).rev().collect();
+        assert_eq!(stream_health(&smooth, now).0, Health::Smooth);
+        let choppy: std::collections::VecDeque<Instant> = (0..10).map(|i| at(i * 200)).rev().collect();
+        assert_eq!(stream_health(&choppy, now).0, Health::Choppy);
+        let stalled: std::collections::VecDeque<Instant> = [at(1500)].into();
+        assert_eq!(stream_health(&stalled, now).0, Health::Stalled);
+        assert_eq!(stream_health(&Default::default(), now).0, Health::Stalled);
     }
 }
