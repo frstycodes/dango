@@ -12,10 +12,10 @@
 use std::time::Duration;
 
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, App, Corners, Div, ElementId, FontWeight, Hsla, ImageSource, Img, InteractiveElement, IntoElement, ParentElement, Pixels, SharedString, Stateful,
+    Animation, AnimationExt, AnyElement, App, BoxShadow, Corners, Div, ElementId, FontWeight, Hsla, ImageSource, Img, InteractiveElement, IntoElement, ParentElement, Pixels, SharedString, Stateful,
     StatefulInteractiveElement, Styled, Window,
     component::{Icon, tooltip::Tooltip},
-    div, img, prelude::FluentBuilder, px,
+    div, img, point, prelude::FluentBuilder, px, relative,
 };
 
 use crate::{discord::Status, icons::Glyph, mascot, palette};
@@ -177,6 +177,8 @@ pub fn kbd(key: impl Into<SharedString>, cx: &App) -> Div {
         .bg(palette::surface(palette::Level::Raised, cx))
         .border_1()
         .border_color(palette::line_strong(cx))
+        // A deeper bottom edge, so the cap reads as a key you could press.
+        .shadow(vec![BoxShadow { color: palette::line_strong(cx), offset: point(px(0.), px(-1.)), blur_radius: px(0.), spread_radius: px(0.), inset: true }])
         .text_color(palette::strong(cx))
         .text_size(px(12.))
         .font_weight(FontWeight::SEMIBOLD)
@@ -510,3 +512,115 @@ pub fn bottom(radius: f32) -> Corners<Pixels> {
 pub fn edge<E: Styled>(el: E, corners: Corners<Pixels>) -> E {
     el.rounded_tl(corners.top_left).rounded_tr(corners.top_right).rounded_bl(corners.bottom_left).rounded_br(corners.bottom_right)
 }
+
+// Motion: the design's touch spring (small overshoot, settled inside ~250ms), from gpui-base. Keyed per
+// element and retargeted from wherever it is, keeping its velocity, so a reversed toggle never jumps.
+const TOUCH: gpui_kit::base::Spring = gpui_kit::base::Spring::new(Duration::from_millis(260)).with_damping(0.62);
+
+pub fn spring(id: impl Into<gpui_kit::base::TransitionId>, target: f32, window: &mut Window, cx: &mut App) -> f32 {
+    gpui_kit::base::spring(id, target, TOUCH, window, cx)
+}
+
+// The switch, alive: the knob springs across, and while pressed it swells into a glassy capsule.
+pub fn switch_live(id: &'static str, on: bool, window: &mut Window, cx: &mut App) -> Stateful<Div> {
+    let travel = spring((id, "knob"), if on { 1. } else { 0. }, window, cx);
+    let group: SharedString = format!("switch-{id}").into();
+    let (track_off, accent) = (palette::track(cx), palette::accent());
+    let knob_shadow = vec![BoxShadow { color: gpui_kit::black().opacity(0.22), offset: point(px(0.), px(2.)), blur_radius: px(6.), spread_radius: px(0.), inset: false }];
+    let glass = vec![
+        BoxShadow { color: gpui_kit::white().opacity(0.7), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: true },
+        BoxShadow { color: gpui_kit::black().opacity(0.25), offset: point(px(0.), px(4.)), blur_radius: px(12.), spread_radius: px(0.), inset: false },
+    ];
+    div()
+        .id(id)
+        .group(group.clone())
+        .w(px(52.))
+        .h(px(28.))
+        .flex_none()
+        .relative()
+        .rounded_full()
+        .cursor_pointer()
+        // The fill fades with the knob's travel rather than flipping.
+        .bg(mix(track_off, accent, travel.clamp(0., 1.)))
+        .child(
+            div()
+                .id((id, 1usize))
+                .absolute()
+                .top(px(2.))
+                .left(px(2. + 20. * travel))
+                .w(px(28.))
+                .h(px(24.))
+                .rounded_full()
+                .bg(gpui_kit::white())
+                .shadow(knob_shadow)
+                .group_active(group, move |s| s.bg(gpui_kit::white().opacity(0.55)).shadow(glass.clone())),
+        )
+}
+
+// A segmented control whose raised thumb slides between equal options on the spring.
+pub fn segmented_live(id: &'static str, labels: &[&'static str], selected: usize, on_select: impl Fn(usize, &mut Window, &mut App) + Clone + 'static, window: &mut Window, cx: &mut App) -> Div {
+    let n = labels.len().max(1) as f32;
+    let at = spring((id, "thumb"), selected as f32, window, cx);
+    let (thumb, strong, muted) = (palette::seg_thumb(cx), palette::strong(cx), palette::muted(cx));
+    let dark = cx.theme_is_dark();
+    let lift = if dark {
+        vec![
+            BoxShadow { color: gpui_kit::black().opacity(0.4), offset: point(px(0.), px(1.)), blur_radius: px(3.), spread_radius: px(0.), inset: false },
+            BoxShadow { color: gpui_kit::white().opacity(0.14), offset: point(px(0.), px(0.5)), blur_radius: px(0.), spread_radius: px(0.), inset: true },
+        ]
+    } else {
+        vec![
+            BoxShadow { color: gpui_kit::black().opacity(0.14), offset: point(px(0.), px(1.)), blur_radius: px(3.), spread_radius: px(0.), inset: false },
+            BoxShadow { color: gpui_kit::black().opacity(0.06), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(0.5), inset: false },
+        ]
+    };
+    segmented(cx).relative().child(
+        // The thumb lives in a layer inset by the track's padding, so its fraction maps onto the options.
+        div().absolute().top(px(3.)).bottom(px(3.)).left(px(3.)).right(px(3.)).child(
+            div().absolute().top_0().bottom_0().left(relative(at / n)).w(relative(1. / n)).rounded(px(RADIUS_MD - 3.)).bg(thumb).shadow(lift),
+        ),
+    )
+    .children(labels.iter().enumerate().map(move |(i, label)| {
+        let on = i == selected;
+        div()
+            .id((id, i + 1))
+            .relative()
+            .flex_1()
+            .min_w_0()
+            .h(px(28.))
+            .px_3()
+            .flex()
+            .items_center()
+            .justify_center()
+            .cursor_pointer()
+            .text_size(px(14.))
+            .font_weight(FontWeight::SEMIBOLD)
+            .whitespace_nowrap()
+            .text_color(if on { strong } else { muted })
+            .when(!on, |s| s.hover(move |s| s.text_color(strong)))
+            .on_click({
+                let on_select = on_select.clone();
+                move |_, window, cx| on_select(i, window, cx)
+            })
+            .child(*label)
+    }))
+}
+
+trait ThemeIsDark {
+    fn theme_is_dark(&self) -> bool;
+}
+
+impl ThemeIsDark for App {
+    fn theme_is_dark(&self) -> bool {
+        use gpui_kit::component::ActiveTheme;
+        self.theme().is_dark()
+    }
+}
+
+// Linear mix of two colours in RGB, for fills that follow a spring.
+fn mix(from: Hsla, to: Hsla, t: f32) -> Hsla {
+    let (a, b) = (gpui_kit::Rgba::from(from), gpui_kit::Rgba::from(to));
+    let lerp = |x: f32, y: f32| x + (y - x) * t;
+    gpui_kit::Rgba { r: lerp(a.r, b.r), g: lerp(a.g, b.g), b: lerp(a.b, b.b), a: lerp(a.a, b.a) }.into()
+}
+
