@@ -1,10 +1,11 @@
 // Discord voice and video: main-gateway handshake, voice gateway v8, UDP transport, DAVE E2EE,
-// Opus audio with echo/noise/gain processing, H.264 cameras and Go Live (watching and, on macOS,
+// Opus audio with Discord's voice processing (docs/discord-audio.md), H.264 cameras and Go Live (watching and, on macOS,
 // streaming). Voice, watching a Go Live and the stream ops 19/20 were checked against Discord
 // live; going live (main ops 18/22, voice op 12, soundshare speaking flag) and sending a camera
 // are from memory of what official clients send — Not verified.
 // `RUSTCORD_VOICE_DEBUG=1` logs gateway traffic and undecodable packets to stderr.
 
+mod attenuation;
 mod audio;
 mod camera;
 #[cfg(target_os = "macos")]
@@ -16,6 +17,7 @@ mod dave;
 mod dsp;
 mod media;
 mod rtp;
+mod vad;
 mod video;
 #[cfg(target_os = "windows")]
 mod video_mf;
@@ -23,8 +25,8 @@ mod video_mf;
 use std::{
     collections::{HashMap, VecDeque},
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        Arc, Mutex, Weak,
+        atomic::{AtomicBool, AtomicU8, Ordering},
     },
     thread,
     time::Duration,
@@ -35,6 +37,7 @@ use serde_json::{Value, json};
 use tokio::sync::broadcast;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
+pub use attenuation::{Attenuation, SUPPORTED as ATTENUATION_SUPPORTED};
 pub use audio::{Device, input_devices, output_devices};
 pub use camera::cameras;
 pub use dsp::NoiseSuppression;
@@ -43,6 +46,9 @@ pub use video::VideoFrame;
 const SERVER_TIMEOUT: Duration = Duration::from_secs(10);
 const STATS_EVERY: Duration = Duration::from_secs(2);
 const PINGS_KEPT: usize = 20;
+const DUCK_TICK: Duration = Duration::from_millis(20);
+// DSCP Expedited Forwarding in the IPv4 TOS byte: the "high packet priority" Quality of Service asks for.
+const QOS_TOS: u32 = 0xb8;
 
 pub enum VoiceEvent {
     Connected,
@@ -96,8 +102,9 @@ pub struct Stats {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum InputMode {
-    // `auto` learns the background noise; otherwise the mic opens above `threshold_db` (-100..0).
-    VoiceActivity { auto: bool, threshold_db: f32 },
+    // `auto` lets a detector decide: Advanced Voice Activity's speech probability when `advanced`,
+    // else WebRTC's VAD. Otherwise the mic opens above `threshold_db` (-100..0).
+    VoiceActivity { auto: bool, threshold_db: f32, advanced: bool },
     // Transmits while the talk key is held, plus `release_delay_ms` after release.
     PushToTalk { release_delay_ms: u32 },
 }
@@ -116,6 +123,9 @@ pub struct VoiceSettings {
     pub echo_cancellation: bool,
     pub noise_suppression: NoiseSuppression,
     pub auto_gain: bool,
+    pub attenuation: Attenuation,
+    // Mark voice packets high priority (DSCP EF).
+    pub qos: bool,
 }
 
 impl Default for VoiceSettings {
@@ -125,13 +135,19 @@ impl Default for VoiceSettings {
             output_device: None,
             input_volume: 1.0,
             output_volume: 1.0,
-            input_mode: InputMode::VoiceActivity { auto: true, threshold_db: -60.0 },
+            input_mode: DEFAULT_INPUT_MODE,
             echo_cancellation: true,
             noise_suppression: NoiseSuppression::Advanced,
             auto_gain: true,
+            attenuation: Attenuation::default(),
+            qos: false,
         }
     }
 }
+
+// Discord's defaults: voice activity, automatic sensitivity with Advanced Voice Activity, -60 dB
+// for when it's manual.
+const DEFAULT_INPUT_MODE: InputMode = InputMode::VoiceActivity { auto: true, threshold_db: -60.0, advanced: true };
 
 impl VoiceSettings {
     fn audio(&self) -> audio::AudioSettings {
@@ -320,6 +336,13 @@ struct Shared {
     stream_volume: Mutex<HashMap<String, f32>>,
     // The camera the user wants on (None = off); the voice connection follows it.
     camera: Mutex<Option<String>>,
+    attenuation: Mutex<Attenuation>,
+    qos: bool,
+    // Who is speaking right now, for attenuation.
+    self_speaking: AtomicBool,
+    others_speaking: AtomicBool,
+    // "No Audio Detected": 0 not known yet, 1 detected, 2 not detected.
+    input_detected: AtomicU8,
 }
 
 impl Shared {
@@ -342,7 +365,13 @@ impl Shared {
     }
 
     fn input_mode(&self) -> InputMode {
-        self.input_mode.lock().map(|m| *m).unwrap_or(InputMode::VoiceActivity { auto: true, threshold_db: -60.0 })
+        self.input_mode.lock().map(|m| *m).unwrap_or(DEFAULT_INPUT_MODE)
+    }
+
+    // The volume factor for other applications right now.
+    fn attenuation_target(&self) -> f32 {
+        let attenuation = self.attenuation.lock().map(|a| *a).unwrap_or_default();
+        attenuation.target(self.self_speaking.load(Ordering::Relaxed), self.others_speaking.load(Ordering::Relaxed))
     }
 
     // The gain to play `user_id` at: their local volume, 0 when locally muted or deafened.
@@ -398,7 +427,16 @@ pub fn join(
         listening: Mutex::new(HashMap::new()),
         stream_volume: Mutex::new(HashMap::new()),
         camera: Mutex::new(None),
+        attenuation: Mutex::new(settings.attenuation),
+        qos: settings.qos,
+        self_speaking: AtomicBool::new(false),
+        others_speaking: AtomicBool::new(false),
+        input_detected: AtomicU8::new(0),
     });
+    if ATTENUATION_SUPPORTED {
+        let weak = Arc::downgrade(&shared);
+        let _ = thread::Builder::new().name("rustcord-attenuation".into()).spawn(move || duck_other_apps(&weak));
+    }
     let (leave_tx, leave_rx) = oneshot::channel();
     crate::discord::runtime().spawn(run(shared.clone(), leave_rx));
     (VoiceSession { shared, _leave: leave_tx }, rx)
@@ -481,6 +519,22 @@ impl VoiceSession {
         self.shared.audio.processor.set(None, None, Some(on));
     }
 
+    pub fn set_attenuation(&self, attenuation: Attenuation) {
+        if let Ok(mut current) = self.shared.attenuation.lock() {
+            *current = attenuation;
+        }
+    }
+
+    // Discord's "No Audio Detected" state for this call: None until known.
+    pub fn input_detected(&self) -> Option<bool> {
+        detected_from(self.shared.input_detected.load(Ordering::Relaxed))
+    }
+
+    // True once the Advanced suppressor fell back to RNNoise because this CPU can't run it in real time.
+    pub fn noise_suppression_degraded(&self) -> bool {
+        self.shared.audio.processor.degraded()
+    }
+
     // Camera id from `cameras()`; None turns the camera off. Our own frames come back as
     // `StreamFrame { source: Camera }` with our user id.
     pub fn set_camera(&self, id: Option<String>) -> Result<(), String> {
@@ -531,6 +585,40 @@ impl VoiceSession {
     pub fn leave(self) {}
 }
 
+// Lowers other applications while someone speaks, until the session is gone.
+fn duck_other_apps(shared: &Weak<Shared>) {
+    let mut ducking = attenuation::Ducking::new();
+    let mut ramp = attenuation::Ramp::default();
+    let mut applied = 1.0;
+    while let Some(target) = shared.upgrade().map(|s| s.attenuation_target()) {
+        let factor = ramp.step(target, DUCK_TICK);
+        if factor != applied {
+            ducking.apply(factor);
+            applied = factor;
+        }
+        thread::sleep(DUCK_TICK);
+    }
+}
+
+fn detected_from(state: u8) -> Option<bool> {
+    match state {
+        1 => Some(true),
+        2 => Some(false),
+        _ => None,
+    }
+}
+
+// What the mic test reports about 25 times a second.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MicLevel {
+    // dBFS after processing.
+    pub db: f32,
+    // Whether this would transmit (the voice-activity gate is open).
+    pub speaking: bool,
+    // Discord's "isn't detecting any input from your mic": None until known.
+    pub input_detected: Option<bool>,
+}
+
 // Discord's "Let's Check": plays the processed mic back and reports its level. Drop to stop.
 pub struct MicTest {
     stop: Arc<AtomicBool>,
@@ -543,10 +631,10 @@ impl Drop for MicTest {
     }
 }
 
-// Works outside a call. `device` overrides `settings.input_device`. Levels (dBFS) arrive about
-// 25 times a second.
-pub fn mic_test(device: Option<String>, settings: &VoiceSettings) -> Result<(MicTest, mpsc::UnboundedReceiver<f32>), String> {
+// Works outside a call. `device` overrides `settings.input_device`.
+pub fn mic_test(device: Option<String>, settings: &VoiceSettings) -> Result<(MicTest, mpsc::UnboundedReceiver<MicLevel>), String> {
     let settings = VoiceSettings { input_device: device.or_else(|| settings.input_device.clone()), ..settings.clone() };
+    let input_mode = settings.input_mode;
     let audio = Arc::new(settings.audio());
     let mixer = Arc::new(audio::Mixer::default());
     let (engine, pcm) = audio::start(audio.clone(), mixer.clone(), true)?;
@@ -555,7 +643,7 @@ pub fn mic_test(device: Option<String>, settings: &VoiceSettings) -> Result<(Mic
     let flag = stop.clone();
     thread::Builder::new()
         .name("rustcord-mic-test".into())
-        .spawn(move || media::mic_test_loop(&audio, &mixer, &pcm, &levels_tx, &flag))
+        .spawn(move || media::mic_test_loop(&audio, &mixer, &pcm, input_mode, &levels_tx, &flag))
         .map_err(|e| e.to_string())?;
     Ok((MicTest { stop, _engine: engine }, levels))
 }
@@ -1008,6 +1096,11 @@ mod tests {
             listening: Mutex::new(HashMap::new()),
             stream_volume: Mutex::new(HashMap::new()),
             camera: Mutex::new(None),
+            attenuation: Mutex::new(Attenuation { strength: 40, ..Attenuation::default() }),
+            qos: false,
+            self_speaking: AtomicBool::new(false),
+            others_speaking: AtomicBool::new(false),
+            input_detected: AtomicU8::new(0),
         };
         (shared, rx)
     }
@@ -1037,6 +1130,18 @@ mod tests {
         assert_eq!(shared.listening_gain("u"), 0.0, "locally muted");
         shared.deafened.store(true, Ordering::Relaxed);
         assert_eq!(shared.listening_gain("v"), 0.0, "deafened hears no one");
+    }
+
+    #[test]
+    fn attenuation_follows_who_is_speaking() {
+        let (shared, _rx) = shared();
+        assert_eq!(shared.attenuation_target(), 1.0);
+        shared.others_speaking.store(true, Ordering::Relaxed);
+        assert!((shared.attenuation_target() - 0.6).abs() < 1e-6, "40% while others speak");
+        shared.others_speaking.store(false, Ordering::Relaxed);
+        shared.self_speaking.store(true, Ordering::Relaxed);
+        assert_eq!(shared.attenuation_target(), 1.0, "not while only I speak, by default");
+        assert_eq!(detected_from(shared.input_detected.load(Ordering::Relaxed)), None);
     }
 
     #[test]

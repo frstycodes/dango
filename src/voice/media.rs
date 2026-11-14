@@ -22,10 +22,11 @@ use serde_json::json;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
 use super::{
-    GoLiveOptions, InputMode, Role, ShareSource, Shared, Ssrcs, VideoKind, VideoSource, VoiceEvent,
-    audio::{self, AudioSettings, FRAME_LEN, FRAME_SAMPLES, Mixer, SAMPLE_RATE},
+    GoLiveOptions, InputMode, MicLevel, QOS_TOS, Role, ShareSource, Shared, Ssrcs, VideoKind, VideoSource, VoiceEvent,
+    audio::{AudioSettings, FRAME_LEN, FRAME_SAMPLES, Mixer, SAMPLE_RATE},
     camera::{self, CameraCapture},
     rtp::{self, Cipher, Received},
+    vad::{Gate, InputWatch, PreRoll},
     video::{self, Depacketizer, VideoDecoder, VideoEncoder, VideoFrame},
 };
 
@@ -33,10 +34,6 @@ const DAVE_MARKER: [u8; 2] = [0xfa, 0xfa];
 const MAX_FRAME_SAMPLES: usize = 5760;
 const SILENCE_FRAMES: u8 = 5;
 const BITRATE: i32 = 64_000;
-// Automatic voice activity: speech must clear this level and the tracked noise floor by this margin.
-const VOICE_THRESHOLD_DB: f32 = -40.0;
-const NOISE_MARGIN_DB: f32 = 9.5;
-const HANGOVER_FRAMES: u32 = 15;
 const QUIET_AFTER: Duration = Duration::from_millis(250);
 const POLL: Duration = Duration::from_millis(100);
 const CAMERA_POLL: Duration = Duration::from_millis(200);
@@ -188,7 +185,11 @@ impl Media {
             }
             Role::Voice => {
                 let shared = &link.shared;
-                let (engine, pcm) = audio::start(shared.audio.clone(), shared.mixer.clone(), true)?;
+                let tos = if shared.qos { QOS_TOS } else { 0 };
+                if let Err(e) = socket2::SockRef::from(&link.socket).set_tos_v4(tos) {
+                    eprintln!("voice: quality of service: {e}");
+                }
+                let (engine, pcm) = super::audio::start(shared.audio.clone(), shared.mixer.clone(), true)?;
                 let (l, s) = (link.clone(), stop.clone());
                 spawn("rustcord-voice-send", move || send_loop(&l, pcm, &s))?;
                 let (l, s) = (link.clone(), stop.clone());
@@ -232,9 +233,12 @@ fn send_loop(link: &Link, pcm: Receiver<Vec<f32>>, stop: &AtomicBool) {
     let _ = encoder.set_bitrate(opus::Bitrate::Bits(BITRATE));
     let mut out = RtpOut { sequence: rand::random(), timestamp: rand::random() };
     let mut pending: Vec<f32> = Vec::with_capacity(FRAME_LEN * 2);
+    let mut frame = [0f32; FRAME_LEN];
     let mut opus_buf = [0u8; 4000];
     let (mut speaking, mut silence_left) = (false, 0u8);
-    let mut gate = InputGate::default();
+    let mut gate = Gate::default();
+    let mut pre_roll = PreRoll::<FRAME_LEN>::default();
+    let mut watch = InputWatch::default();
     let mut last_sent = Instant::now();
     let mut frames = 0u32;
 
@@ -245,24 +249,31 @@ fn send_loop(link: &Link, pcm: Receiver<Vec<f32>>, stop: &AtomicBool) {
             Err(RecvTimeoutError::Disconnected) => return,
         }
         while pending.len() >= FRAME_LEN {
-            let mut frame: Vec<f32> = pending.drain(..FRAME_LEN).collect();
-            let db = link.shared.audio.process_mic(&mut frame);
+            frame.copy_from_slice(&pending[..FRAME_LEN]);
+            pending.drain(..FRAME_LEN);
+            let audio = &link.shared.audio;
+            let mic = audio.process_mic(&mut frame);
+            let detected = watch.update(mic.raw_db);
+            link.shared.input_detected.store(detected.map_or(0, |d| if d { 1 } else { 2 }), Ordering::Relaxed);
             let held = link.shared.talk_key_held.load(Ordering::Relaxed);
-            let open = gate.update(link.shared.input_mode(), db, held);
+            let open = gate.update(link.shared.input_mode(), audio.processor.gain(), &mic.blocks, held);
             frames = frames.wrapping_add(1);
             if frames.is_multiple_of(LEVEL_EVERY) {
-                let _ = link.events.unbounded_send(VoiceEvent::InputLevel { db, gate_open: open });
+                let _ = link.events.unbounded_send(VoiceEvent::InputLevel { db: mic.db, gate_open: open });
             }
             let wants = link.shared.may_transmit() && open;
 
             if wants != speaking {
                 speaking = wants;
+                link.shared.self_speaking.store(speaking, Ordering::Relaxed);
                 silence_left = if speaking { 0 } else { SILENCE_FRAMES };
                 let op = json!({ "op": 5, "d": { "speaking": u8::from(speaking), "delay": 0, "ssrc": link.ssrc } });
                 let _ = link.ws.unbounded_send(WsMessage::Text(op.to_string()));
                 let _ = link.events.unbounded_send(VoiceEvent::Speaking { user_id: link.my_id.clone(), speaking });
+                if speaking {
+                    send_pre_roll(link, &mut out, &mut encoder, &mut pre_roll, &mut opus_buf);
+                }
             }
-
             let opus: &[u8] = if speaking {
                 match encoder.encode_float(&frame, &mut opus_buf) {
                     Ok(n) => &opus_buf[..n],
@@ -271,12 +282,19 @@ fn send_loop(link: &Link, pcm: Receiver<Vec<f32>>, stop: &AtomicBool) {
                         &OPUS_SILENCE_PACKET
                     }
                 }
-            } else if silence_left > 0 {
-                silence_left -= 1;
-                &OPUS_SILENCE_PACKET
-            } else if last_sent.elapsed() >= KEEPALIVE {
+            } else if silence_left > 0 || last_sent.elapsed() >= KEEPALIVE {
+                silence_left = silence_left.saturating_sub(1);
+                pre_roll.clear();
                 &OPUS_SILENCE_PACKET
             } else {
+                // Only unsent, unmuted voice-activity audio may lead a later onset: never what came
+                // before an unmute or a push-to-talk press.
+                let voice_activity = matches!(link.shared.input_mode(), InputMode::VoiceActivity { .. });
+                if voice_activity && link.shared.may_transmit() {
+                    pre_roll.push(&frame);
+                } else {
+                    pre_roll.clear();
+                }
                 out.timestamp = out.timestamp.wrapping_add(FRAME_SAMPLES as u32);
                 continue;
             };
@@ -288,9 +306,36 @@ fn send_loop(link: &Link, pcm: Receiver<Vec<f32>>, stop: &AtomicBool) {
     }
 }
 
-// The mic test: the same mic chain as a call, played straight back, with levels reported.
-pub fn mic_test_loop(audio: &AudioSettings, mixer: &Mixer, pcm: &Receiver<Vec<f32>>, levels: &UnboundedSender<f32>, stop: &AtomicBool) {
+// At a voice onset, sends the frames that led up to it (Discord's leading blocks) with their own
+// timestamps, just behind the current frame. The pre-roll only ever holds the unsent frames right
+// before this one, so timestamps never repeat or go backwards.
+fn send_pre_roll(link: &Link, out: &mut RtpOut, encoder: &mut Encoder, pre_roll: &mut PreRoll<FRAME_LEN>, opus_buf: &mut [u8]) {
+    let behind = pre_roll.len() as u32 * FRAME_SAMPLES as u32;
+    let current = out.timestamp;
+    out.timestamp = current.wrapping_sub(behind);
+    for frame in pre_roll.drain() {
+        if let Ok(n) = encoder.encode_float(frame, opus_buf)
+            && let Some(packet) = seal(link, out, &opus_buf[..n])
+        {
+            let _ = link.socket.send(&packet);
+        }
+    }
+    out.timestamp = current;
+}
+
+// The mic test: the same mic chain and voice-activity gate as a call, played straight back.
+pub fn mic_test_loop(
+    audio: &AudioSettings,
+    mixer: &Mixer,
+    pcm: &Receiver<Vec<f32>>,
+    mode: InputMode,
+    levels: &UnboundedSender<MicLevel>,
+    stop: &AtomicBool,
+) {
     let mut pending: Vec<f32> = Vec::with_capacity(FRAME_LEN * 2);
+    let mut frame = [0f32; FRAME_LEN];
+    let mut gate = Gate::default();
+    let mut watch = InputWatch::default();
     let mut frames = 0u32;
     while !stop.load(Ordering::Relaxed) {
         match pcm.recv_timeout(POLL) {
@@ -299,11 +344,14 @@ pub fn mic_test_loop(audio: &AudioSettings, mixer: &Mixer, pcm: &Receiver<Vec<f3
             Err(RecvTimeoutError::Disconnected) => return,
         }
         while pending.len() >= FRAME_LEN {
-            let mut frame: Vec<f32> = pending.drain(..FRAME_LEN).collect();
-            let db = audio.process_mic(&mut frame);
+            frame.copy_from_slice(&pending[..FRAME_LEN]);
+            pending.drain(..FRAME_LEN);
+            let mic = audio.process_mic(&mut frame);
+            let input_detected = watch.update(mic.raw_db);
+            let speaking = gate.update(mode, audio.processor.gain(), &mic.blocks, false);
             mixer.push(0, &frame, 1.0);
             frames = frames.wrapping_add(1);
-            if frames.is_multiple_of(LEVEL_EVERY) && levels.unbounded_send(db).is_err() {
+            if frames.is_multiple_of(LEVEL_EVERY) && levels.unbounded_send(MicLevel { db: mic.db, speaking, input_detected }).is_err() {
                 return;
             }
         }
@@ -328,42 +376,6 @@ fn seal(link: &Link, out: &mut RtpOut, opus: &[u8]) -> Option<Vec<u8>> {
     out.sequence = out.sequence.wrapping_add(1);
     out.timestamp = out.timestamp.wrapping_add(FRAME_SAMPLES as u32);
     Some(packet)
-}
-
-// Decides when the mic transmits, per `InputMode`. Automatic voice activity tracks the background
-// noise floor (falls fast, rises over ~4 s); both voice-activity modes hold open briefly so word
-// endings aren't clipped.
-struct InputGate {
-    noise_floor_db: f32,
-    hangover: u32,
-    last_held: Option<Instant>,
-}
-
-impl Default for InputGate {
-    fn default() -> Self {
-        Self { noise_floor_db: VOICE_THRESHOLD_DB - NOISE_MARGIN_DB, hangover: 0, last_held: None }
-    }
-}
-
-impl InputGate {
-    fn update(&mut self, mode: InputMode, db: f32, key_held: bool) -> bool {
-        match mode {
-            InputMode::PushToTalk { release_delay_ms } => {
-                if key_held {
-                    self.last_held = Some(Instant::now());
-                }
-                let delay = Duration::from_millis(release_delay_ms as u64);
-                key_held || self.last_held.is_some_and(|at| at.elapsed() < delay)
-            }
-            InputMode::VoiceActivity { auto, threshold_db } => {
-                let voiced = if auto { db > VOICE_THRESHOLD_DB.max(self.noise_floor_db + NOISE_MARGIN_DB) } else { db > threshold_db };
-                let rate = if db < self.noise_floor_db { 0.5 } else { 0.005 };
-                self.noise_floor_db += (db - self.noise_floor_db) * rate;
-                self.hangover = if voiced { HANGOVER_FRAMES } else { self.hangover.saturating_sub(1) };
-                self.hangover > 0
-            }
-        }
-    }
 }
 
 // Follows `Shared::camera`: starts and stops the camera, its encoder and the op 12 announcement.
@@ -472,6 +484,9 @@ fn recv_loop(link: &Link, socket: &UdpSocket, stop: &AtomicBool, users: &Mutex<H
             }
             talking
         });
+        if speaking_events {
+            link.shared.others_speaking.store(!heard.is_empty(), Ordering::Relaxed);
+        }
     }
 }
 
@@ -728,37 +743,6 @@ impl AudioIn {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    const AUTO: InputMode = InputMode::VoiceActivity { auto: true, threshold_db: 0.0 };
-
-    #[test]
-    fn auto_gate_learns_steady_noise_but_hears_speech() {
-        let mut gate = InputGate::default();
-        let noise = audio::level_db(&[0.03; 4]);
-        let noisy: Vec<bool> = (0..300).map(|_| gate.update(AUTO, noise, false)).collect();
-        assert!(noisy[0], "unknown noise first counts as voice");
-        assert!(!noisy[299], "steady fan noise stops counting as speech");
-        assert!(gate.update(AUTO, audio::level_db(&[0.3; 4]), false), "speech over the noise is heard");
-        let held = (1..HANGOVER_FRAMES).all(|_| gate.update(AUTO, audio::SILENCE_DB, false));
-        assert!(held, "hangover keeps word endings");
-        assert!(!gate.update(AUTO, audio::SILENCE_DB, false));
-    }
-
-    #[test]
-    fn manual_threshold_and_push_to_talk() {
-        let mut gate = InputGate::default();
-        let manual = InputMode::VoiceActivity { auto: false, threshold_db: -30.0 };
-        assert!(!gate.update(manual, -35.0, false));
-        assert!(gate.update(manual, -25.0, false));
-
-        let ptt = InputMode::PushToTalk { release_delay_ms: 60_000 };
-        let mut gate = InputGate::default();
-        assert!(!gate.update(ptt, 0.0, false), "loud but key not held");
-        assert!(gate.update(ptt, -100.0, true), "key held, even silent");
-        assert!(gate.update(ptt, -100.0, false), "still within the release delay");
-        let instant = InputMode::PushToTalk { release_delay_ms: 0 };
-        assert!(!gate.update(instant, -100.0, false));
-    }
 
     #[test]
     fn counters_report_inbound_loss() {
