@@ -1214,8 +1214,11 @@ impl Rustcord {
             .items_center()
             .gap_2()
             .child(
+                // Button and chevron sit 1px apart: the stage shows through as their divider, so the
+                // two translucent fills never overlap into a lighter strip.
                 div()
                     .flex()
+                    .gap(px(1.))
                     .child(
                         split_button("call-mic", if muted { Glyph::MicOff } else { Glyph::Mic }, if muted { "Unmute" } else { "Mute" }, muted, cx)
                             .on_click(cx.listener(|this, _, _, cx| this.toggle_mute(cx))),
@@ -1223,8 +1226,11 @@ impl Rustcord {
                     .child(chevron("call-mic-devices", cx).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(DeviceKind::Input, e.position, cx)))),
             )
             .child(
+                // Button and chevron sit 1px apart: the stage shows through as their divider, so the
+                // two translucent fills never overlap into a lighter strip.
                 div()
                     .flex()
+                    .gap(px(1.))
                     .child(
                         split_button("call-camera", if call.camera_on { Glyph::Video } else { Glyph::VideoOff }, if call.camera_on { "Turn Off Camera" } else { "Turn On Camera" }, !call.camera_on, cx)
                             .when(!connected, |b| b.opacity(0.5))
@@ -1595,12 +1601,9 @@ fn split_button(id: &'static str, glyph: Glyph, label: &'static str, off: bool, 
 fn chevron(id: &'static str, _cx: &mut Context<Rustcord>) -> Stateful<Div> {
     div()
         .id(id)
-        .ml(px(-11.))
-        .w(px(24.))
+        .w(px(28.))
         .h(px(48.))
         .rounded_r(px(12.))
-        .border_l_1()
-        .border_color(gpui_kit::black().opacity(0.4))
         .flex()
         .items_center()
         .justify_center()
