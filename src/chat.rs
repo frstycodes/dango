@@ -626,7 +626,8 @@ struct RowContext {
     manage_messages: bool,
 }
 
-fn message_row(message: &Message, starts_group: bool, ctx: &std::rc::Rc<RowContext>, cx: &App) -> AnyElement {
+fn message_row(message: &Message, starts_group: bool, ctx: &std::rc::Rc<RowContext>, cx: &mut App) -> AnyElement {
+    let media = media_grid(message, ctx, cx);
     let theme = cx.theme();
     let group = SharedString::from(format!("msg-{}", message.id));
     let mine = ctx.me.as_ref().is_some_and(|me| me.id == message.author.id);
@@ -641,7 +642,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &std::rc::Rc<RowConte
         .gap(px(2.))
         .when(message.state != SendState::Sent, |b| b.opacity(0.55))
         .children(content(message, ctx, cx))
-        .children(media_grid(message, ctx, cx))
+        .children(media)
         .children(message.embeds.iter().enumerate().map(|(i, e)| embed_card(e, format!("embed-{}-{i}", message.id), ctx, cx)))
         .children(message.thread.as_ref().map(|t| thread_chip(t, ctx, cx)))
         .children(files(message, cx))
@@ -933,42 +934,29 @@ pub(crate) fn gif_image(url: &str, poster: &str) -> gpui_kit::Stateful<gpui_kit:
         .with_fallback(move || img(fallback.clone()).size_full().rounded(px(8.)).into_any_element())
 }
 
-fn media_grid(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &App) -> Option<AnyElement> {
+fn media_grid(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &mut App) -> Option<AnyElement> {
     if message.media.is_empty() {
         return None;
     }
     let max = if message.media.len() == 1 { MAX_IMAGE } else { (240., 240.) };
-    let tiles = message.media.iter().enumerate().map(|(i, item)| {
+    let mut tiles = Vec::with_capacity(message.media.len());
+    for (i, item) in message.media.iter().enumerate() {
         let scale = (max.0 / item.width).min(max.1 / item.height).min(1.);
-        let (w, h) = (item.width * scale, item.height * scale);
-        let (this, url) = (ctx.this.clone(), item.url.clone());
+        let tile = div().id(SharedString::from(format!("media-{}-{i}", message.id))).w(px(item.width * scale)).h(px(item.height * scale)).rounded(px(8.)).bg(cx.theme().muted);
+        // A video plays where it is; clicks on it belong to its player.
+        if let MediaKind::Video { poster } = &item.kind {
+            tiles.push(tile.child(crate::video::tile(format!("{}-{i}", message.id), &item.url, poster, cx)));
+            continue;
+        }
         let picture = match &item.kind {
-            MediaKind::Image => animated_image(item.url.clone()).size_full().rounded(px(8.)).into_any_element(),
             MediaKind::Gif { poster } => gif_image(&item.url, poster).size_full().rounded(px(8.)).into_any_element(),
-            MediaKind::Video { poster } => div()
-                .relative()
-                .size_full()
-                .child(img(poster.clone()).size_full().rounded(px(8.)))
-                .child(
-                    div().absolute().inset_0().flex().items_center().justify_center().child(
-                        div().size(px(48.)).rounded_full().bg(gpui_kit::black().opacity(0.6)).flex().items_center().justify_center().text_color(gpui_kit::white()).child(Icon::new(Glyph::Play).size(px(24.))),
-                    ),
-                )
-                .into_any_element(),
+            _ => animated_image(item.url.clone()).size_full().rounded(px(8.)).into_any_element(),
         };
-        div()
-            .id(SharedString::from(format!("media-{}-{i}", message.id)))
-            .w(px(w))
-            .h(px(h))
-            .rounded(px(8.))
-            .bg(cx.theme().muted)
-            .cursor_pointer()
-            .hover(|s| s.opacity(0.92))
-            .child(picture)
-            .on_click(move |_, window, cx| {
-                this.update(cx, |this, cx| this.open_viewer(&url, window, cx)).ok();
-            })
-    });
+        let (this, url) = (ctx.this.clone(), item.url.clone());
+        tiles.push(tile.cursor_pointer().hover(|s| s.opacity(0.92)).child(picture).on_click(move |_, window, cx| {
+            this.update(cx, |this, cx| this.open_viewer(&url, window, cx)).ok();
+        }));
+    }
     Some(div().mt_1().flex().flex_wrap().gap_1().max_w(px(MAX_IMAGE.0 + 8.)).children(tiles).into_any_element())
 }
 
