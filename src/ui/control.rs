@@ -104,7 +104,11 @@ pub fn round_button(id: impl Into<ElementId>, glyph: Glyph, tooltip: impl Into<S
 }
 
 // A filter or toggle chip; pressed takes the accent tint and a half-accent edge.
-pub fn chip(id: impl Into<ElementId>, label: impl Into<SharedString>, on: bool, cx: &App) -> Control {
+pub fn chip(id: impl Into<ElementId>, glyph: Option<Glyph>, label: impl Into<SharedString>, on: bool, cx: &App) -> Control {
+    chip_look(id, on, cx).when_some(glyph, |c, glyph| c.child(Icon::new(glyph).size(px(15.)))).child(label.into())
+}
+
+fn chip_look(id: impl Into<ElementId>, on: bool, cx: &App) -> Control {
     let look = if on {
         let soft = palette::accent_soft(cx);
         let edge = palette::accent().opacity(0.5);
@@ -113,7 +117,7 @@ pub fn chip(id: impl Into<ElementId>, label: impl Into<SharedString>, on: bool, 
         let edge = palette::line_strong(cx);
         Look { rest: gpui_kit::transparent_black(), hover: palette::hover(cx), press: palette::press(cx), ink: palette::text(cx), ink_hover: palette::text(cx), edge: Some((edge, edge)) }
     };
-    Control::new(id, Kind::Chip, look).child(label.into())
+    Control::new(id, Kind::Chip, look)
 }
 
 // A colour choice (role colours): a filled square, ringed and ticked when chosen. `ring` is the surface behind it.
@@ -275,7 +279,7 @@ impl RenderOnce for Control {
             .flex()
             .when(caller.align_items.is_none(), |b| b.items_center())
             .when(caller.justify_content.is_none(), |b| b.justify_center())
-            .whitespace_nowrap()
+            .when(type_and_padding.is_some(), |b| b.whitespace_nowrap())
             .when(caller.size.height.is_none(), |b| b.h(px(height)))
             .when(square && caller.size.width.is_none(), |b| b.w(px(height)))
             .when(caller.corner_radii.top_left.is_none(), |b| b.rounded(px(radius)))

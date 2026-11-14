@@ -380,19 +380,25 @@ fn radio_ring(band: f32, cx: &App) -> Div {
     div().size(px(20.)).flex_none().rounded_full().border(px((1.5 + 4.5 * band).max(1.))).border_color(color)
 }
 
-// A row that holds a choice (a switch, check or radio) with its title and a line of detail; the whole
-// row is the hit area and fills on hover.
-pub fn choice_row(id: impl Into<ElementId>, title: impl Into<SharedString>, detail: Option<SharedString>, cx: &App) -> Control {
-    let (strong, muted) = (palette::strong(cx), palette::muted(cx));
-    control::choice(id, cx).child(
-        div()
-            .flex_1()
-            .min_w_0()
-            .flex()
-            .flex_col()
-            .child(div().font_weight(FontWeight::MEDIUM).text_color(strong).child(title.into()))
-            .when_some(detail, |d, detail| d.child(div().text_size(px(12.)).text_color(muted).child(detail))),
-    )
+// A setting that applies at once: its title and a line of detail, the switch at the end. The whole row
+// is the hit area and fills on hover; the caller toggles on click.
+pub fn toggle_row(id: impl Into<ElementId>, title: impl Into<SharedString>, detail: Option<SharedString>, switch: impl IntoElement, cx: &App) -> Control {
+    control::choice(id, cx).child(choice_text(title, detail, cx)).child(switch)
+}
+
+// One of a set to pick from: the check or radio first, then its title and detail.
+pub fn pick_row(id: impl Into<ElementId>, mark: impl IntoElement, title: impl Into<SharedString>, detail: Option<SharedString>, cx: &App) -> Control {
+    control::choice(id, cx).child(mark).child(choice_text(title, detail, cx))
+}
+
+fn choice_text(title: impl Into<SharedString>, detail: Option<SharedString>, cx: &App) -> Div {
+    div()
+        .flex_1()
+        .min_w_0()
+        .flex()
+        .flex_col()
+        .child(div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(title.into()))
+        .when_some(detail, |d, detail| d.child(div().text_size(px(12.)).text_color(palette::muted(cx)).child(detail)))
 }
 
 // A photo avatar.
@@ -438,13 +444,13 @@ pub fn speaking_ring(ring: Hsla) -> Vec<BoxShadow> {
 
 // Overlapping avatars, each ringed in `ring` (the surface colour) so they read apart.
 pub fn avatar_stack(urls: impl IntoIterator<Item = String>, size: f32, ring: Hsla) -> Div {
-    stacked(urls.into_iter().map(move |url| avatar(url, size).into_any_element()), ring)
+    stacked(urls.into_iter().map(move |url| avatar(url, size).into_any_element()), size, ring)
 }
 
-// Any avatars (photos, monograms, a "+3"), overlapped 6px and ringed in the surface's colour.
-pub fn stacked(avatars: impl IntoIterator<Item = AnyElement>, ring: Hsla) -> Div {
+// Avatars of one `size` (photos, monograms, a "+3"), overlapped 6px and ringed in the surface's colour.
+pub fn stacked(avatars: impl IntoIterator<Item = AnyElement>, size: f32, ring: Hsla) -> Div {
     div().flex().items_center().children(avatars.into_iter().enumerate().map(move |(i, avatar)| {
-        div().flex_none().rounded_full().when(i > 0, |d| d.ml(px(-6.))).shadow(vec![shadow(ring, 0., 0., 0., 2., false)]).child(avatar)
+        div().size(px(size)).flex_none().rounded_full().when(i > 0, |d| d.ml(px(-6.))).shadow(vec![shadow(ring, 0., 0., 0., 2., false)]).child(avatar)
     }))
 }
 

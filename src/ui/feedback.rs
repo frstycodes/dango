@@ -250,25 +250,40 @@ pub fn ring(fraction: f32, cx: &App) -> impl IntoElement {
     .flex_none()
 }
 
-// One arc from `from` percent round the circle (0 at the top, clockwise) for `len` percent, with round caps.
+// One 4px arc from `from` percent round the circle (0 at the top, clockwise) for `len` percent, round-capped.
+// Filled as one outline, caps included, so a translucent colour never doubles where a cap meets the stroke.
 fn paint_arc(window: &mut Window, centre: gpui_kit::Point<Pixels>, radius: f32, from: f32, len: f32, color: Hsla) {
-    let at = |pct: f32| {
-        let angle = pct / 100. * TAU - TAU / 4.;
-        centre + point(px(radius * angle.cos()), px(radius * angle.sin()))
+    const HALF: f32 = 2.;
+    let angle = |pct: f32| pct / 100. * TAU - TAU / 4.;
+    let at = |a: f32, r: f32| centre + point(px(r * a.cos()), px(r * a.sin()));
+    let (start, end) = (angle(from), angle(from + len));
+    // Short segments keep the curve smooth at 40px.
+    let steps = (len.ceil() as usize * 2).max(2);
+    let edge = |r: f32, forward: bool| {
+        (0..=steps).map(move |i| {
+            let t = i as f32 / steps as f32;
+            at(start + (end - start) * if forward { t } else { 1. - t }, r)
+        })
     };
-    let mut path = PathBuilder::stroke(px(4.));
-    path.move_to(at(from));
-    // Short segments keep the curve smooth at 40px; lyon flattens arcs no better.
-    let steps = (len.ceil() as usize).max(1);
-    for i in 1..=steps {
-        path.line_to(at(from + len * i as f32 / steps as f32));
+    // Half a turn about the cap's centre, outer edge to inner, bulging forward (`dir` 1) or back (-1).
+    let cap = |a: f32, dir: f32| {
+        (1..12).map(move |i| {
+            let th = i as f32 / 12. * TAU / 2.;
+            let (cos, sin) = (th.cos(), dir * th.sin());
+            at(a, radius) + point(px(HALF * (cos * a.cos() - sin * a.sin())), px(HALF * (cos * a.sin() + sin * a.cos())))
+        })
+    };
+    let start_cap: Vec<_> = cap(start, -1.).collect();
+    let mut outline = edge(radius + HALF, true).chain(cap(end, 1.)).chain(edge(radius - HALF, false)).chain(start_cap.into_iter().rev());
+    let mut path = PathBuilder::fill();
+    let Some(first) = outline.next() else { return };
+    path.move_to(first);
+    for p in outline {
+        path.line_to(p);
     }
+    path.close();
     if let Ok(path) = path.build() {
         window.paint_path(path, color);
-    }
-    for end in [from, from + len] {
-        let c = at(end);
-        window.paint_quad(fill(Bounds::new(c - point(px(2.), px(2.)), size(px(4.), px(4.))), color).corner_radii(px(2.)));
     }
 }
 
@@ -313,5 +328,35 @@ fn paint_sweep(window: &mut Window, bounds: Bounds<Pixels>, radius: f32, shimmer
             window.paint_quad(fill(column, shimmer.opacity(strength)));
         }
         x += COLUMN;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui_kit::{Bounds, point, px, size};
+
+    #[test]
+    fn slider_value_follows_the_thumb_centre_and_clamps() {
+        let track = Bounds::new(point(px(100.), px(0.)), size(px(206.), px(24.)));
+        assert_eq!(super::at(px(103.), track), 0.);
+        assert_eq!(super::at(px(203.), track), 0.5);
+        assert_eq!(super::at(px(303.), track), 1.);
+        assert_eq!(super::at(px(0.), track), 0.);
+        assert_eq!(super::at(px(900.), track), 1.);
+    }
+
+    #[test]
+    fn travel_hits_the_design_keyframes() {
+        let close = |(a, b): (f32, f32), (x, y): (f32, f32)| (a - x).abs() < 1e-3 && (b - y).abs() < 1e-3;
+        assert!(close(super::travel(0.), (0., 0.)));
+        assert!(close(super::travel(0.6), (0.45, 1.)));
+        assert!(close(super::travel(0.9999), (1., 1.)));
+    }
+
+    #[test]
+    fn sweep_crosses_then_rests() {
+        assert!((super::sweep(0.) + 1.).abs() < 1e-4);
+        assert!((super::sweep(0.48) - 1.).abs() < 1e-4);
+        assert!((super::sweep(0.9) - 1.).abs() < 1e-4);
     }
 }
