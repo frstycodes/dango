@@ -20,6 +20,10 @@ const PAGES = [
   ["community.html", "Servers and invites"],
   ["server-settings.html", "Server settings"],
   ["flows.html", "Flows"],
+  ["flows-account.html", "Flows: account"],
+  ["flows-messaging.html", "Flows: messaging"],
+  ["flows-voice.html", "Flows: voice and calls"],
+  ["flows-community.html", "Flows: people and servers"],
 ];
 const FONTS = [["Gabarito", "Gabarito"], ["Onest", "Onest"], ["Figtree", "Figtree"], ["Rubik", "Rubik"], ["gg sans", "gg sans (current)"]];
 const NEUTRALS = [["", "Ink and bone"], ["plum", "Plum"], ["graphite", "Graphite"]];
