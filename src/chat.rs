@@ -25,7 +25,7 @@ use crate::{
     mascot::Mood,
     motion,
     palette::{self, Level},
-    ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XS},
+    ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XS, Squircle},
 };
 
 // Messages from one author closer together than this share a header, like Discord.
@@ -155,7 +155,7 @@ impl Rustcord {
             .flex()
             .items_center()
             .gap(px(6.))
-            .rounded(px(RADIUS_SM))
+            .squircle(RADIUS_SM)
             .bg(palette::surface(Level::Rail, cx))
             .border_1()
             .border_color(if focused { palette::accent() } else { gpui_kit::transparent_black() })
@@ -174,7 +174,7 @@ impl Rustcord {
         let label = format!("{} new {} since {}", fresh.len(), if fresh.len() == 1 { "message" } else { "messages" }, clock(&first.timestamp));
         let tint = mix(palette::surface(Level::Page, cx), palette::accent(), 0.16);
         let press = palette::accent().opacity(0.14);
-        let button = move |id: &'static str| div().id(id).h(px(28.)).px(px(8.)).flex().items_center().gap(px(6.)).rounded(px(RADIUS_XS)).cursor_pointer().hover(move |s| s.bg(press));
+        let button = move |id: &'static str| div().id(id).h(px(28.)).px(px(8.)).flex().items_center().gap(px(6.)).squircle(RADIUS_XS).cursor_pointer().hover(move |s| s.bg(press));
         let (first_id, channel_id) = (first.id.clone(), channel_id.to_owned());
         Some(
             div()
@@ -188,7 +188,7 @@ impl Rustcord {
                 .flex()
                 .items_center()
                 .gap(px(8.))
-                .rounded(px(RADIUS_SM))
+                .squircle(RADIUS_SM)
                 .bg(tint)
                 .text_size(px(14.))
                 .font_weight(FontWeight::SEMIBOLD)
@@ -221,7 +221,7 @@ impl Rustcord {
                 let (max_w, max_h) = (f32::from(viewport.width) - self.channels_width - 400., f32::from(viewport.height) - 260.);
                 let (w, h) = (frame.size(0).width.0 as f32, frame.size(0).height.0 as f32);
                 let scale = (max_w / w).min(max_h / h).clamp(0.1, 2.);
-                img(gpui_kit::ImageSource::Render(frame.clone())).w(px(w * scale)).h(px(h * scale)).rounded(px(8.)).into_any_element()
+                img(gpui_kit::ImageSource::Render(frame.clone())).w(px(w * scale)).h(px(h * scale)).squircle(RADIUS_XS).into_any_element()
             }
             None => div().text_color(gpui_kit::white().opacity(0.7)).child(format!("Joining {name}'s stream…")).into_any_element(),
         };
@@ -240,14 +240,14 @@ impl Rustcord {
                         .items_center()
                         .gap_2()
                         .text_color(gpui_kit::white())
-                        .child(div().h(px(18.)).px_1().rounded(px(4.)).bg(theme.danger).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child("LIVE"))
+                        .child(div().h(px(18.)).px_1().squircle(RADIUS_XS).bg(theme.danger).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child("LIVE"))
                         .child(div().flex_1().truncate().font_weight(FontWeight::SEMIBOLD).child(format!("{name}'s screen")))
                         .child(
                             div()
                                 .id("stop-watching")
                                 .h(px(30.))
                                 .px_3()
-                                .rounded(px(8.))
+                                .squircle(RADIUS_SM)
                                 .flex()
                                 .items_center()
                                 .cursor_pointer()
@@ -366,7 +366,7 @@ impl Rustcord {
             .mx(px(16.))
             .flex()
             .flex_col()
-            .rounded(px(RADIUS_LG))
+            .squircle(RADIUS_LG)
             .bg(palette::surface(Level::Raised, cx))
             .border_1()
             .border_color(if focused { palette::line_strong(cx) } else { palette::line(cx) })
@@ -479,7 +479,7 @@ impl Rustcord {
             .flex()
             .items_center()
             .gap(px(4.))
-            .rounded(px(RADIUS_XS))
+            .squircle(RADIUS_XS)
             .cursor_pointer()
             .text_size(px(12.))
             .font_weight(FontWeight::BOLD)
@@ -507,7 +507,7 @@ impl Rustcord {
             let is_image = matches!(path.extension().and_then(|e| e.to_str()).map(str::to_lowercase).as_deref(), Some("png" | "jpg" | "jpeg" | "gif" | "webp"));
             let preview = match is_image {
                 true => ui::media(path.clone(), ui::all(RADIUS_XS)).size(px(40.)).flex_none().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
-                false => div().size(px(40.)).flex_none().rounded(px(RADIUS_XS)).bg(raised).text_color(muted).flex().items_center().justify_center().child(Icon::new(Glyph::File).size(px(24.))).into_any_element(),
+                false => div().size(px(40.)).flex_none().squircle(RADIUS_XS).bg(raised).text_color(muted).flex().items_center().justify_center().child(Icon::new(Glyph::File).size(px(24.))).into_any_element(),
             };
             chips.push(
                 div()
@@ -519,7 +519,7 @@ impl Rustcord {
                     .flex()
                     .items_center()
                     .gap(px(10.))
-                    .rounded(px(RADIUS_MD))
+                    .squircle(RADIUS_MD)
                     .bg(selected)
                     .child(preview)
                     .child(
@@ -581,7 +581,7 @@ impl Rustcord {
                 .flex()
                 .items_center()
                 .gap(px(10.))
-                .rounded(px(RADIUS_SM))
+                .squircle(RADIUS_SM)
                 .cursor_pointer()
                 .text_color(text)
                 .when(i == auto.selected, |r| r.bg(selected))
@@ -608,7 +608,7 @@ impl Rustcord {
                 .flex_col()
                 .gap(px(2.))
                 .max_h(px(340.))
-                .rounded(px(RADIUS_LG))
+                .squircle(RADIUS_LG)
                 .bg(palette::surface(Level::Overlay, cx))
                 .shadow(shadow_pop(cx))
                 .text_size(px(14.))
@@ -680,7 +680,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .w_full()
         .px(px(16.))
         .py(px(2.))
-        .rounded(px(RADIUS_SM))
+        .squircle(RADIUS_SM)
         .flex()
         .flex_col()
         .line_height(gpui_kit::relative(1.45))
@@ -981,7 +981,7 @@ fn thread_card(thread: &Channel, ctx: &Rc<RowContext>, cx: &App) -> AnyElement {
         .items_center()
         .gap(px(8.))
         .min_w_0()
-        .rounded(px(RADIUS_LG))
+        .squircle(RADIUS_LG)
         .bg(palette::surface(Level::Sidebar, cx))
         .border_1()
         .border_color(palette::line(cx))
@@ -1089,7 +1089,7 @@ fn media_tile(message: &Message, i: usize, (w, h): (f32, f32), corners: Corners<
 
 // A label over media (GIF, a duration): fixed dark values, since it sits on pictures in both themes.
 fn media_tag(text: &'static str) -> Div {
-    div().absolute().h(px(20.)).px(px(6.)).flex().items_center().gap(px(4.)).rounded(px(RADIUS_XS)).bg(on_media(0.72)).text_color(gpui_kit::white()).text_size(px(11.)).font_weight(FontWeight::BOLD).child(text)
+    div().absolute().h(px(20.)).px(px(6.)).flex().items_center().gap(px(4.)).squircle(RADIUS_XS).bg(on_media(0.72)).text_color(gpui_kit::white()).text_size(px(11.)).font_weight(FontWeight::BOLD).child(text)
 }
 
 // The design's media scrim, oklch(0.14 0.01 350), at `alpha`.
@@ -1156,7 +1156,7 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
     let md = |part: &str, text: &str| markdown(SharedString::from(format!("{key}-{part}")), readable(text, ctx), ctx);
     let site = embed.provider.clone().map(|provider| {
         let mark: Hsla = embed.color.filter(|c| *c != 0).map(|c| gpui_kit::rgb(c).into()).unwrap_or(palette::info_ink(cx));
-        div().flex().items_center().gap(px(6.)).min_w_0().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(faint).child(div().size(px(14.)).flex_none().rounded(px(4.)).bg(mark)).child(div().min_w_0().truncate().child(provider))
+        div().flex().items_center().gap(px(6.)).min_w_0().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(faint).child(div().size(px(14.)).flex_none().squircle(4.).bg(mark)).child(div().min_w_0().truncate().child(provider))
     });
     let author = embed.author.clone().map(|name| {
         let url = embed.author_url.clone();
@@ -1202,7 +1202,7 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
         // The card's inner width: the column less its padding and border.
         let w = m.width.min(COLUMN - 30.);
         let h = w * m.height / m.width;
-        img(crate::discord::sized_image(&m.url, w, h, (m.width, m.height))).w(px(w)).h(px(h)).mt(px(4.)).rounded(px(RADIUS_SM))
+        img(crate::discord::sized_image(&m.url, w, h, (m.width, m.height))).w(px(w)).h(px(h)).mt(px(4.)).squircle(RADIUS_SM)
     });
     let text = div()
         .flex_1()
@@ -1227,12 +1227,12 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
         .flex()
         .items_start()
         .gap(px(14.))
-        .rounded(px(RADIUS_LG))
+        .squircle(RADIUS_LG)
         .bg(palette::surface(Level::Sidebar, cx))
         .border_1()
         .border_color(palette::line(cx))
         .child(text)
-        .children(small.map(|m| img(m.url.clone()).size(px(80.)).flex_none().rounded(px(RADIUS_SM)).object_fit(gpui_kit::ObjectFit::Cover)))
+        .children(small.map(|m| img(m.url.clone()).size(px(80.)).flex_none().squircle(RADIUS_SM).object_fit(gpui_kit::ObjectFit::Cover)))
         .into_any_element()
 }
 
@@ -1252,7 +1252,7 @@ fn files(message: &Message, cx: &App) -> Vec<AnyElement> {
                 .flex()
                 .items_center()
                 .gap(px(12.))
-                .rounded(px(RADIUS_LG))
+                .squircle(RADIUS_LG)
                 .bg(palette::surface(Level::Sidebar, cx))
                 .border_1()
                 .border_color(palette::line(cx))
@@ -1296,7 +1296,7 @@ fn copy_button(code: String, copied: bool, this: WeakEntity<Rustcord>, cx: &App)
         .justify_center()
         .flex()
         .items_center()
-        .rounded(px(RADIUS_XS))
+        .squircle(RADIUS_XS)
         .cursor_pointer()
         .text_color(if copied { palette::positive_ink(cx) } else { palette::muted(cx) })
         .when(copied, |b| b.hover(move |s| s.bg(hover)))
@@ -1347,7 +1347,7 @@ fn reaction_pill(id: SharedString, mine: bool, cx: &App) -> Stateful<Div> {
         .flex()
         .items_center()
         .gap(px(6.))
-        .rounded(px(RADIUS_SM))
+        .squircle(RADIUS_SM)
         .border_1()
         .cursor_pointer()
         .text_size(px(14.))
@@ -1371,7 +1371,7 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, group: &SharedSt
         .flex()
         .items_center()
         .gap(px(2.))
-        .rounded(px(RADIUS_MD))
+        .squircle(RADIUS_MD)
         .bg(palette::surface(Level::Overlay, cx))
         .shadow(shadow_pop(cx))
         .invisible()
@@ -1413,7 +1413,7 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, group: &SharedSt
                     .flex()
                     .items_center()
                     .justify_center()
-                    .rounded(px(RADIUS_SM))
+                    .squircle(RADIUS_SM)
                     .cursor_pointer()
                     .hover(move |s| s.bg(hover))
                     .active(|s| s.scale(0.92))
@@ -1629,7 +1629,7 @@ fn skeleton(cx: &App) -> AnyElement {
             .flex()
             .gap(px(16.))
             .child(div().size(px(AVATAR)).flex_none().rounded_full().bg(bar))
-            .child(div().flex_1().flex().flex_col().gap_2().pt_1().child(div().w(px(120.)).h(px(12.)).rounded(px(6.)).bg(bar)).child(div().w(px(w)).h(px(12.)).rounded(px(6.)).bg(bar)))
+            .child(div().flex_1().flex().flex_col().gap_2().pt_1().child(div().w(px(120.)).h(px(12.)).rounded_full().bg(bar)).child(div().w(px(w)).h(px(12.)).rounded_full().bg(bar)))
     };
     div()
         .size_full()
@@ -1739,7 +1739,7 @@ fn crumb(id: &'static str, cx: &App) -> Stateful<Div> {
         .flex()
         .items_center()
         .gap(px(6.))
-        .rounded(px(RADIUS_SM))
+        .squircle(RADIUS_SM)
         .cursor_pointer()
         .whitespace_nowrap()
         .font_weight(FontWeight::MEDIUM)
@@ -1754,7 +1754,7 @@ fn icon_button_sm(id: impl Into<gpui_kit::ElementId>, glyph: Glyph, tooltip: &'s
         .id(id)
         .size(px(24.))
         .flex_none()
-        .rounded(px(RADIUS_XS))
+        .squircle(RADIUS_XS)
         .flex()
         .items_center()
         .justify_center()

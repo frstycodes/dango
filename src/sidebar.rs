@@ -16,7 +16,7 @@ use crate::{
     layout::{RAIL_WIDTH, avatar_with_status},
     motion, palette,
     rail_drag::{Drop, RailDrag},
-    ui,
+    ui::{self, Squircle},
 };
 
 // Rail geometry: 44px tiles 8px apart, centred in the 68px rail, so the state pill sits on its edge.
@@ -185,7 +185,7 @@ impl Rustcord {
             .w(px(RAIL_WIDTH))
             .h(px(TILE + motion.trip * count as f32 * (TILE + RAIL_GAP)))
             .flex_none()
-            .child(div().absolute().top_0().bottom_0().left(px(TILE_X)).w(px(TILE)).rounded(px(ui::RADIUS_LG)).bg(tint.opacity(0.18 * motion.trip)))
+            .child(div().absolute().top_0().bottom_0().left(px(TILE_X)).w(px(TILE)).squircle(ui::RADIUS_LG).bg(tint.opacity(0.18 * motion.trip)))
             .children(servers)
             .child(head)
             .into_any_element()
@@ -298,7 +298,7 @@ impl Rustcord {
                 div()
                     .absolute()
                     .inset_0()
-                    .rounded(px(ui::RADIUS_MD))
+                    .squircle(ui::RADIUS_MD)
                     .bg(gpui_kit::black().opacity(0.45))
                     .flex()
                     .items_center()
@@ -342,7 +342,7 @@ impl Rustcord {
                 cx.notify();
             }))
             .p(px(6.))
-            .rounded(px(ui::RADIUS_LG))
+            .squircle(ui::RADIUS_LG)
             .bg(overlay)
             .shadow(crate::call::pop_shadow(palette::line_strong(cx), cx))
             .flex()
@@ -403,7 +403,7 @@ impl Rustcord {
                     .mb_2()
                     .px_3()
                     .py_2()
-                    .rounded(px(ui::RADIUS_MD))
+                    .squircle(ui::RADIUS_MD)
                     .bg(warning.opacity(0.12))
                     .text_size(px(12.))
                     .flex()
@@ -454,7 +454,7 @@ impl Rustcord {
             .min_w_0()
             .h_full()
             .px_2()
-            .rounded(px(ui::RADIUS_SM))
+            .squircle(ui::RADIUS_SM)
             .flex()
             .items_center()
             .gap_2()
@@ -662,7 +662,7 @@ impl Rustcord {
                     .flex()
                     .items_center()
                     .gap_2()
-                    .rounded(px(ui::RADIUS_SM))
+                    .squircle(ui::RADIUS_SM)
                     .font_weight(FontWeight::MEDIUM)
                     .text_color(if talking { palette::strong(cx) } else { palette::muted(cx) })
                     .hover(move |s| s.bg(hover).text_color(text))
@@ -859,7 +859,7 @@ pub(crate) fn channel_row(id: SharedString, group: SharedString, state: RowState
         .flex()
         .items_center()
         .gap_2()
-        .rounded(px(ui::RADIUS_SM))
+        .squircle(ui::RADIUS_SM)
         .cursor_pointer()
         .font_weight(if unread { FontWeight::SEMIBOLD } else { FontWeight::MEDIUM })
         .text_color(ink)
@@ -878,7 +878,7 @@ fn category_head(group: SharedString, label: Stateful<Div>, static_: bool, cx: &
             .min_w_0()
             .h(px(28.))
             .px(px(6.))
-            .rounded(px(ui::RADIUS_SM))
+            .squircle(ui::RADIUS_SM)
             .flex()
             .items_center()
             .gap_1()
@@ -899,7 +899,7 @@ fn cat_add(id: impl Into<gpui_kit::ElementId>, reveal_on: Option<SharedString>, 
         .absolute()
         .right(px(2.))
         .size(px(24.))
-        .rounded(px(ui::RADIUS_XS))
+        .squircle(ui::RADIUS_XS)
         .flex()
         .items_center()
         .justify_center()
@@ -917,7 +917,7 @@ fn row_action(id: SharedString, icon: Icon, tooltip: &'static str, cx: &App) -> 
     div()
         .id(id)
         .size(px(24.))
-        .rounded(px(ui::RADIUS_XS))
+        .squircle(ui::RADIUS_XS)
         .flex()
         .items_center()
         .justify_center()
@@ -970,7 +970,7 @@ fn dm_find(cx: &App) -> Stateful<Div> {
         .w_full()
         .h(px(32.))
         .px(px(10.))
-        .rounded(px(ui::RADIUS_SM))
+        .squircle(ui::RADIUS_SM)
         .flex()
         .items_center()
         .gap_2()
@@ -1061,7 +1061,7 @@ fn flying_tile(mini: &Mini, i: usize, t: f32, cx: &App) -> AnyElement {
     let lerp = |a: f32, b: f32| a + (b - a) * t;
     let size = lerp(from.2, to.2);
     let face = match &mini.icon {
-        Some(url) => img(url.clone()).size(px(size)).rounded(px(lerp(ui::RADIUS_XS, ui::RADIUS_LG))).into_any_element(),
+        Some(url) => img(url.clone()).size(px(size)).squircle(lerp(ui::RADIUS_XS, ui::RADIUS_LG)).into_any_element(),
         None => letters_tile(&mini.letters, size, lerp(ui::RADIUS_XS, ui::RADIUS_LG), cx).into_any_element(),
     };
     div().absolute().left(px(lerp(from.0, to.0))).top(px(lerp(from.1, to.1))).child(face).into_any_element()
@@ -1080,9 +1080,9 @@ fn mini(guild: &Guild) -> Mini {
 
 // A tile's face at `size`. `open` trades a folder's minis for the folder glyph.
 pub(crate) fn render_face(face: Face, size: f32, radius: f32, selected: bool, open: f32, cx: &App) -> AnyElement {
-    let tile = || div().size(px(size)).flex_none().rounded(px(radius)).flex().items_center().justify_center();
+    let tile = || div().size(px(size)).flex_none().squircle(radius).flex().items_center().justify_center();
     match face {
-        Face::Icon(url) => img(url).size(px(size)).flex_none().rounded(px(radius)).into_any_element(),
+        Face::Icon(url) => img(url).size(px(size)).flex_none().squircle(radius).into_any_element(),
         Face::Letters(label) => letters_tile(&label, size, radius, cx).into_any_element(),
         Face::Home => tile()
             .bg(if selected { palette::accent() } else { palette::surface(palette::Level::Sidebar, cx) })
@@ -1100,9 +1100,9 @@ pub(crate) fn render_face(face: Face, size: f32, radius: f32, selected: bool, op
 fn minis_grid(minis: Vec<Mini>, cx: &App) -> Div {
     let sidebar = palette::surface(palette::Level::Sidebar, cx);
     let cells = (0..4).map(|i| match minis.get(i) {
-        Some(Mini { icon: Some(url), .. }) => img(url.clone()).size(px(MINI)).rounded(px(ui::RADIUS_XS)).into_any_element(),
+        Some(Mini { icon: Some(url), .. }) => img(url.clone()).size(px(MINI)).squircle(ui::RADIUS_XS).into_any_element(),
         Some(Mini { letters, .. }) => letters_tile(letters, MINI, ui::RADIUS_XS, cx).into_any_element(),
-        None => div().size(px(MINI)).rounded(px(ui::RADIUS_XS)).bg(sidebar).into_any_element(),
+        None => div().size(px(MINI)).squircle(ui::RADIUS_XS).bg(sidebar).into_any_element(),
     });
     div().absolute().left(px(MINI_INSET)).top(px(MINI_INSET)).w(px(2. * MINI + MINI_GAP)).flex().flex_wrap().gap(px(MINI_GAP)).children(cells)
 }
@@ -1113,7 +1113,7 @@ fn letters_tile(label: &str, size: f32, radius: f32, cx: &App) -> Div {
     div()
         .size(px(size))
         .flex_none()
-        .rounded(px(radius))
+        .squircle(radius)
         .bg(palette::surface(palette::Level::Sidebar, cx))
         .text_color(palette::strong(cx))
         // Minis keep a readable letter rather than scaling the tile's 14px down to nothing.
@@ -1137,7 +1137,7 @@ fn rail_action(id: &'static str, glyph: Nav, tooltip: &'static str, cx: &App) ->
         .id(id)
         .size(px(TILE))
         .flex_none()
-        .rounded(px(ui::RADIUS_LG))
+        .squircle(ui::RADIUS_LG)
         .flex()
         .items_center()
         .justify_center()
@@ -1185,7 +1185,7 @@ fn drop_marker(drop: Drop) -> Div {
     match drop {
         Drop::Before => bar().top(px(-(RAIL_GAP + 4.) / 2.)),
         Drop::After => bar().bottom(px(-(RAIL_GAP + 4.) / 2.)),
-        Drop::Into => div().absolute().left(px(TILE_X - 4.)).top(px(-4.)).size(px(TILE + 8.)).rounded(px(ui::RADIUS_LG + 4.)).border_2().border_color(accent),
+        Drop::Into => div().absolute().left(px(TILE_X - 4.)).top(px(-4.)).size(px(TILE + 8.)).squircle(ui::RADIUS_LG + 4.).border_2().border_color(accent),
     }
 }
 

@@ -18,7 +18,7 @@ use crate::{
     mascot::Mood,
     palette,
     sidebar::{Nav, RowState, channel_row},
-    ui::{self, Tone},
+    ui::{self, Squircle, Tone},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -289,7 +289,7 @@ impl Rustcord {
             .flex()
             .items_center()
             .gap_3()
-            .rounded(px(ui::RADIUS_MD))
+            .squircle(ui::RADIUS_MD)
             .hover(move |s| s.bg(hover))
             .child(avatar_with_status(&user.avatar, 32., status, page))
             .child(
@@ -318,7 +318,7 @@ fn friends_tab(tab: FriendsTab, label: &'static str, selected: bool, count: Opti
         .occlude()
         .h(px(30.))
         .px_3()
-        .rounded(px(ui::RADIUS_SM))
+        .squircle(ui::RADIUS_SM)
         .flex()
         .items_center()
         .gap(px(6.))
@@ -340,7 +340,7 @@ fn friend_action(id: (&'static str, &str), icon: Icon, tooltip: &'static str, to
         .id(SharedString::from(format!("{}-{}", id.0, id.1)))
         .size(px(36.))
         .flex_none()
-        .rounded(px(ui::RADIUS_MD))
+        .squircle(ui::RADIUS_MD)
         .border_1()
         .border_color(palette::line(cx))
         .bg(palette::surface(palette::Level::Raised, cx))

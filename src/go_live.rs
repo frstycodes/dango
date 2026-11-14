@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Rustcord,
     icons::Glyph,
-    palette, ui,
+    palette,
+    ui::{self, Squircle},
     voice::{self, ShareSource, ShareableScreen, ShareableWindow},
 };
 
@@ -296,7 +297,7 @@ impl Rustcord {
             .w(px(DIALOG_WIDTH))
             .max_h(relative(0.92))
             .p(px(24.))
-            .rounded(px(ui::RADIUS_XL))
+            .squircle(ui::RADIUS_XL)
             .bg(palette::surface(palette::Level::Raised, cx))
             .shadow(crate::call::pop_shadow(palette::line_strong(cx), cx))
             .flex()
@@ -402,7 +403,7 @@ impl Rustcord {
             .relative()
             .w_full()
             .aspect_ratio(16. / 10.)
-            .rounded(px(ui::RADIUS_MD))
+            .squircle(ui::RADIUS_MD)
             .bg(palette::surface(palette::Level::Rail, cx))
             .border_1()
             .border_color(palette::line(cx))
@@ -420,7 +421,7 @@ impl Rustcord {
             .min_w_0()
             .p(px(4.))
             .m(px(-4.))
-            .rounded(px(ui::RADIUS_LG))
+            .squircle(ui::RADIUS_LG)
             .flex()
             .flex_col()
             .gap(px(6.))
@@ -536,7 +537,7 @@ fn glyph(source: ShareSource) -> Glyph {
 // .src[aria-pressed] .shot: a 2px gap in the dialog's colour, then a 2px accent ring. A user's pick
 // springs out from the still's edge, overshooting a touch; the preselection lands still.
 fn selection_ring(key: &str, animate: bool, gap: Hsla) -> AnyElement {
-    let ring = div().absolute().border_2().border_color(palette::accent()).child(div().absolute().inset_0().rounded(px(ui::RADIUS_MD + 2.)).border_2().border_color(gap));
+    let ring = div().absolute().border_2().border_color(palette::accent()).child(div().absolute().inset_0().squircle(ui::RADIUS_MD + 2.).border_2().border_color(gap));
     if !animate {
         return place_ring(ring, 1., 1.).into_any_element();
     }
@@ -545,7 +546,7 @@ fn selection_ring(key: &str, animate: bool, gap: Hsla) -> AnyElement {
 
 fn place_ring(ring: Div, grow: f32, alpha: f32) -> Div {
     let offset = 1. - 5. * grow;
-    ring.top(px(offset)).left(px(offset)).right(px(offset)).bottom(px(offset)).rounded(px(ui::RADIUS_MD - offset)).opacity(alpha)
+    ring.top(px(offset)).left(px(offset)).right(px(offset)).bottom(px(offset)).squircle(ui::RADIUS_MD - offset).opacity(alpha)
 }
 
 // --ease-out, near enough: cubic, landing softly.
