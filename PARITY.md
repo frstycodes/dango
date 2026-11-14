@@ -49,7 +49,8 @@ Order: features first (most used at the top), then polish. `[x]` done, `[~]` par
 - [x] Server dropdown (header chevron): mark as read, notification settings, leave server
 - [ ] Notification bell in the channel header: per-channel notification level
 - [x] Mark channel read with Esc; Alt+↑/↓ to move between channels
-- [ ] Message search filters (from:, in:, has:)
+- [x] Message search filters: from:, mentions:, has:, in:, before:, after:, during:, pinned: (and search inside DMs)
+- [ ] Search autocomplete popout (Discord suggests filters and names as you type)
 - [x] Persist the message cache to disk so a cold start shows the last messages instantly (newest 50 per channel)
 
 ### Rare (skip unless asked)
