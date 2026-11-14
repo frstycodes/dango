@@ -1,13 +1,9 @@
 // Dragging servers and folders in the rail, as in Discord: the top and bottom quarter of a target
-// reorder, the middle combines (server on server makes a folder, server on folder joins it).
-use gpui_kit::{Context, IntoElement, Render, SharedString, Window, div, prelude::*};
+// reorder, the middle combines (server on server makes a folder, server on folder joins it). The
+// tile itself is carried like any dragged row (drag.rs).
+use gpui_kit::Context;
 
-use crate::{
-    Rustcord,
-    discord::Folder,
-    sidebar::{Face, initials, render_face},
-    ui::{self, Squircle},
-};
+use crate::{Rustcord, discord::Folder};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Drop {
@@ -33,21 +29,6 @@ impl Drop {
 #[derive(Clone)]
 pub struct RailDrag {
     pub key: String,
-    pub icon: Option<String>,
-    pub label: SharedString,
-}
-
-// The dragged tile hangs from the grab point with the pop shadow (.srv.dragging).
-// PATCH(transform): rotate(-4deg) scale(1.04) from the grab point.
-impl Render for RailDrag {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let face = match (&self.icon, self.key.starts_with("folder-")) {
-            (_, true) => Face::Folder { tint: crate::palette::faint(cx), minis: Vec::new() },
-            (Some(url), _) => Face::Icon(url.clone()),
-            (None, _) => Face::Letters(initials(&self.label)),
-        };
-        div().squircle(ui::RADIUS_LG).shadow_lg().child(render_face(face, 44., ui::RADIUS_LG, false, 0., cx))
-    }
 }
 
 impl Rustcord {
