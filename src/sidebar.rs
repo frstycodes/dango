@@ -556,6 +556,7 @@ impl Rustcord {
             div().flex_none().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::positive_ink(cx)).child(format!("{}:{:02}", secs / 60, secs % 60))
         });
         let group: SharedString = format!("ch-{}", channel.id).into();
+        let hovered = self.hovered_row.as_deref() == Some(channel.id.as_str());
         let meta = match (muted, channel.private) {
             (true, _) => Some(Nav::BellSlash.icon()),
             (false, true) => Some(Icon::new(Glyph::HashtagLock)),
@@ -577,20 +578,16 @@ impl Rustcord {
                 }))
                 .child(div().flex_1().min_w_0().truncate().child(channel.name.clone()))
                 .children(elapsed)
-                .children(meta.filter(|_| !selected).map(|icon| div().flex_none().flex().text_color(faint).group_hover(group.clone(), |s| s.hidden()).child(icon.size(px(15.)))))
-                .child(self.row_actions(channel, guild, group.clone(), selected, cx))
+                .children(meta.filter(|_| !selected && !hovered).map(|icon| div().flex_none().flex().text_color(faint).child(icon.size(px(15.)))))
+                .when(selected || hovered, |r| r.child(self.row_actions(channel, guild, cx)))
                 .when(mentions > 0, |r| r.child(ui::count_badge(mentions))),
         };
-        let row = self.channel_draggable(row, channel, guild, cx);
+        let is_voice = channel.kind == ChannelKind::Voice;
+        let row = self.track_row_hover(self.channel_draggable(row, channel, guild, cx), &channel.id, !is_voice, cx);
         let keep = selected || unread;
-        if channel.kind != ChannelKind::Voice {
-            let (open, hover_id) = (channel.clone(), channel.id.clone());
+        if !is_voice {
+            let open = channel.clone();
             let row = row
-                .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
-                    if *hovered {
-                        this.prefetch(&hover_id, cx);
-                    }
-                }))
                 .on_click(cx.listener(move |this, _, window, cx| this.open_channel(open.clone(), window, cx)))
                 .on_mouse_down(gpui_kit::MouseButton::Right, {
                     let (channel, guild_id) = (channel.clone(), guild.id.clone());
@@ -662,8 +659,24 @@ impl Rustcord {
             .collect()
     }
 
+    // Rows show their hover-only controls from this, not from `group_hover`: gpui resolves group hover
+    // only while painting, so a `display` toggled by it paints children that were never prepainted.
+    fn track_row_hover(&self, row: Stateful<Div>, id: &str, prefetch: bool, cx: &mut Context<Self>) -> Stateful<Div> {
+        let id = id.to_owned();
+        row.on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
+            match *hovered {
+                true if prefetch => this.prefetch(&id, cx),
+                true => {}
+                false if this.hovered_row.as_deref() != Some(id.as_str()) => return,
+                false => {}
+            }
+            this.hovered_row = hovered.then(|| id.clone());
+            cx.notify();
+        }))
+    }
+
     // Invite and options, shown in the row's meta slot while it's hovered or selected.
-    fn row_actions(&self, channel: &Channel, guild: &Guild, group: SharedString, selected: bool, cx: &mut Context<Self>) -> Div {
+    fn row_actions(&self, channel: &Channel, guild: &Guild, cx: &mut Context<Self>) -> Div {
         let (gid, cid) = (guild.id.clone(), channel.id.clone());
         let (menu_channel, menu_guild) = (channel.clone(), guild.id.clone());
         let invite = row_action(SharedString::from(format!("invite-{}", channel.id)), Icon::new(Glyph::GroupPlus), "Invite people", cx)
@@ -677,9 +690,8 @@ impl Rustcord {
         );
         div()
             .flex_none()
+            .flex()
             .gap(px(2.))
-            .when(selected, |a| a.flex())
-            .when(!selected, |a| a.hidden().group_hover(group, |s| s.flex()))
             .child(invite)
             .child(options)
     }
@@ -878,18 +890,18 @@ impl Rustcord {
             (false, None) => None,
         };
         let state = RowState { selected, unread, muted: false, strong: false };
-        let (open, hover_id, close_id) = (channel.clone(), channel.id.clone(), channel.id.clone());
+        let (open, close_id) = (channel.clone(), channel.id.clone());
         let group: SharedString = format!("dm-{}", channel.id).into();
+        let hovered = self.hovered_row.as_deref() == Some(channel.id.as_str());
         // Hovered, the close button takes the count's place.
         let close = row_action(SharedString::from(format!("dm-close-{}", channel.id)), Nav::Close.icon(), "Close", cx)
             .flex_none()
-            .hidden()
-            .group_hover(group.clone(), |s| s.flex())
             .on_click(cx.listener(move |this, _, _, cx| {
                 cx.stop_propagation();
                 this.close_dm(&close_id, cx);
             }));
-        channel_row(SharedString::from(channel.id.clone()), group.clone(), state, cx)
+        let row = channel_row(SharedString::from(channel.id.clone()), group.clone(), state, cx);
+        self.track_row_hover(row, &channel.id, true, cx)
             .h(px(44.))
             .gap(px(10.))
             .font_weight(FontWeight::NORMAL)
@@ -903,13 +915,8 @@ impl Rustcord {
                     .child(div().truncate().font_weight(if unread { FontWeight::SEMIBOLD } else { FontWeight::MEDIUM }).child(channel.name.clone()))
                     .children(line.map(|l| l.flex().items_center().gap_1().min_w_0().text_size(px(12.)).text_color(faint))),
             )
-            .when(mentions > 0, |r| r.child(div().group_hover(group, |s| s.hidden()).child(ui::count_badge(mentions))))
-            .child(close)
-            .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
-                if *hovered {
-                    this.prefetch(&hover_id, cx);
-                }
-            }))
+            .when(mentions > 0 && !hovered, |r| r.child(ui::count_badge(mentions)))
+            .when(hovered, |r| r.child(close))
             .on_click(cx.listener(move |this, _, window, cx| this.open_channel(open.clone(), window, cx)))
             .on_mouse_down(gpui_kit::MouseButton::Right, {
                 let channel = channel.clone();
