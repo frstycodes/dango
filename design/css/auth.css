@@ -1,15 +1,21 @@
 /* Sign in and states: the splash, QR sign-in, captcha hand-off, accounts, and the app-wide empty, loading, error and offline states. */
 
-/* Splash: the borderless launch card. It opens before the main window, so it carries its own two
-   materials like the call stage: midnight in dark, warm bone in light (src/splash.rs). */
-.au-splash { --sp-bg: oklch(0.13 0.008 350); --sp-ink: oklch(0.97 0.004 350); --sp-muted: oklch(0.74 0.012 350); --sp-rest: oklch(0.50 0.012 350); --sp-edge: oklch(1 0 0 / 0.16); width: 220px; height: 248px; flex: none; border-radius: var(--radius-md); background: var(--sp-bg); box-shadow: inset 0 0 0 1px var(--sp-edge), 0 18px 40px oklch(0 0 0 / 0.3); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 0 var(--space-4); }
-.au-splash[data-tone="light"] { --sp-bg: oklch(0.962 0.012 80); --sp-ink: oklch(0.20 0.015 350); --sp-muted: oklch(0.46 0.015 350); --sp-rest: oklch(0.62 0.014 350); --sp-edge: oklch(0.35 0.03 40 / 0.16); box-shadow: inset 0 0 0 1px var(--sp-edge), 0 18px 40px oklch(0.3 0.03 40 / 0.18); }
-.au-splash .mascot { --s: 0.6; }
-.au-splash b { margin-top: var(--space-1); color: var(--sp-ink); font-size: var(--text-lg); font-weight: 800; letter-spacing: -0.01em; line-height: 1; }
-.au-splash span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sp-muted); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
-.au-steps { display: flex; gap: 5px; }
-.au-steps i { width: 6px; height: 6px; border-radius: 3px; background: var(--sp-rest); transition: background var(--dur-pop) var(--ease-out); }
-.au-steps i.is-done { background: var(--accent); }
+/* Splash: the borderless launch card on the app's own page neutral (graphite), so launch reads as
+   the app arriving. The wave mark and the name are carved into the card, not printed on it: the same
+   material sunk a step, lit from above (a shade on the upper inner edge, a catch of light below). One
+   accent thing only: the progress bar. Dark and light carry their own values, since the card opens
+   before the main window (src/splash.rs). */
+.au-splash { --sp-bg: oklch(0.210 0.004 260); --sp-carve: oklch(0.180 0.004 260); --sp-shade: oklch(0 0 0 / 0.55); --sp-light: oklch(1 0 0 / 0.07); --sp-muted: oklch(0.72 0.008 260); --sp-track: oklch(1 0 0 / 0.08); --sp-edge: oklch(1 0 0 / 0.10);
+  width: 220px; height: 248px; flex: none; border-radius: var(--radius-md); background: var(--sp-bg); box-shadow: inset 0 0 0 1px var(--sp-edge), 0 18px 40px oklch(0 0 0 / 0.3); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 var(--space-4); }
+.au-splash[data-tone="light"] { --sp-bg: oklch(0.982 0.0024 260); --sp-carve: oklch(0.935 0.004 260); --sp-shade: oklch(0.30 0.01 260 / 0.28); --sp-light: oklch(1 0 0 / 0.95); --sp-muted: oklch(0.46 0.010 260); --sp-track: oklch(0.30 0.01 260 / 0.10); --sp-edge: oklch(0.30 0.01 260 / 0.12); box-shadow: inset 0 0 0 1px var(--sp-edge), 0 18px 40px oklch(0.3 0.01 260 / 0.16); }
+/* The mark at the logo's own proportions (bars 96, 180, 260, 156, 90 of 260; 40 wide, 16 apart), static. */
+.au-mark { display: flex; align-items: center; gap: 4px; height: 52px; }
+.au-mark i { width: 8px; border-radius: 4px; background: var(--sp-carve); box-shadow: inset 0 2px 2px var(--sp-shade), inset 0 -1px 0 var(--sp-light); }
+.au-mark i:nth-child(1) { height: 19px; } .au-mark i:nth-child(2) { height: 36px; } .au-mark i:nth-child(3) { height: 52px; } .au-mark i:nth-child(4) { height: 31px; } .au-mark i:nth-child(5) { height: 18px; }
+.au-splash b { margin-top: 14px; color: var(--sp-carve); font-size: 22px; font-weight: 800; letter-spacing: -0.01em; line-height: 1; text-shadow: 0 -1px 0 var(--sp-shade), 0 1px 0 var(--sp-light); }
+.au-splash span { margin-top: 18px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sp-muted); font-size: var(--text-xs); font-weight: var(--weight-medium); }
+.au-progress { margin-top: 10px; width: 120px; height: 4px; border-radius: 2px; background: var(--sp-track); overflow: hidden; }
+.au-progress i { display: block; height: 100%; border-radius: 2px; background: var(--accent); transition: width var(--dur-panel) var(--ease-out); }
 .au-splashes { display: flex; gap: var(--space-4); flex-wrap: wrap; }
 
 /* Window frame: a demo window holding a whole sign-in or app state */
