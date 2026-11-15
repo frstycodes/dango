@@ -113,6 +113,7 @@ impl Rustcord {
             .children(items)
             .child(rail_rule(cx))
             .child(rail_action("rail-discover", Nav::Compass, "Discover servers", cx).on_click(|_, _, cx| cx.open_url("https://discord.com/servers")))
+            .child(div().flex_none().h(self.user_panel_clearance()))
     }
 
     fn guild_tile(&self, guild: &Guild, badge_scale: f32) -> RailTile {
@@ -424,7 +425,6 @@ impl Rustcord {
             Some(guild) => self.server_header(guild.name.clone().into(), cx).into_any_element(),
             None => dm_find(cx).on_click(cx.listener(|this, _, window, cx| this.open_switcher(window, cx))).into_any_element(),
         };
-        let user_panel = self.me.clone().map(|me| self.user_panel(me, cx));
         div()
             .relative()
             .w(px(self.channels_width))
@@ -449,7 +449,7 @@ impl Rustcord {
             )
             .child(div().id("channels").flex_1().min_h_0().overflow_y_scroll().p_2().flex().flex_col().gap(px(ROW_GAP)).children(rows))
             .child(banner)
-            .children(user_panel)
+            .child(div().flex_none().h(self.user_panel_clearance()))
     }
 
     // The server name as the header's one button; it drops the server menu.
