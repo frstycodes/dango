@@ -150,11 +150,13 @@ fn update_then_open(signed_in: bool, cx: &mut gpui_kit::App) {
             if signed_in {
                 return open_main(splash, cx);
             }
-            // Signing in happens in the main window, so the splash steps aside.
+            // Signing in happens in the main window, so the splash steps aside, after the main
+            // window exists: on Windows gpui quits when its last window closes, and closing the
+            // splash first left none open for a moment, so signed-out starts quit at once.
+            open_main(None, cx);
             if let Some(splash) = splash {
                 splash.update(cx, |_, window, _| window.remove_window()).ok();
             }
-            open_main(None, cx);
         });
     })
     .detach();
