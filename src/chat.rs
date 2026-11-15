@@ -285,6 +285,7 @@ impl Rustcord {
             role_names: self.guild().map(|g| g.roles.iter().map(|r| (r.id.clone(), r.name.clone())).collect()).unwrap_or_default(),
             flash: self.flash.clone(),
             editing: self.editing.as_ref().map(|m| m.id.clone()),
+            hovered: self.hovered_message.clone(),
             copied: self.copied.clone(),
             revealed: self.revealed.clone(),
             unread_marker: self.unread_marker,
@@ -627,6 +628,7 @@ struct RowContext {
     role_names: HashMap<String, String>,
     flash: Option<String>,
     editing: Option<String>,
+    hovered: Option<String>,
     copied: Option<String>,
     revealed: Rc<std::cell::RefCell<std::collections::HashSet<String>>>,
     unread_marker: Option<u64>,
@@ -649,6 +651,8 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
     let mention = ctx.mentions_me.contains(&message.id);
     // Held at the hover fill while it's being edited, or flashed after a jump to it.
     let held = ctx.flash.as_ref() == Some(&message.id) || ctx.editing.as_ref() == Some(&message.id);
+    // From state, not `group_hover`, which gpui resolves only while painting (see `track_row_hover`).
+    let hovered = ctx.hovered.as_deref() == Some(message.id.as_str());
     let (hover, soft) = (palette::hover(cx), palette::accent_soft(cx));
     let mention_hover = Hsla { a: soft.a * 0.94 + 0.06, ..soft };
     let ink = match message.state {
@@ -684,7 +688,8 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .line_height(gpui_kit::relative(1.45))
         .when(mention, |r| r.bg(soft).hover(move |s| s.bg(mention_hover)))
         .when(!mention, |r| r.when(held, |r| r.bg(hover)).hover(move |s| s.bg(hover)))
-        .child(actions(message, mine, ctx, &group, cx));
+        .on_hover(track_message_hover(message, ctx))
+        .when(hovered, |r| r.child(actions(message, mine, ctx, cx)));
     if !starts_group {
         let gutter = div()
             .w(px(AVATAR))
@@ -697,7 +702,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
             .whitespace_nowrap()
             .map(|g| match message.state {
                 SendState::Sending => g.child(Icon::new(Glyph::Clock).size(px(14.)).mt(px(4.))),
-                _ => g.invisible().group_hover(group, |s| s.visible()).child(gutter_clock(&message.timestamp)),
+                _ => g.when(hovered, |g| g.child(gutter_clock(&message.timestamp))),
             });
         return inset(with_message_menu(row.child(div().flex().gap(px(16.)).child(gutter).child(body)), message, ctx));
     }
@@ -773,6 +778,20 @@ fn profile_trigger(id: String, user: &User, ctx: &Rc<RowContext>) -> Stateful<Di
 }
 
 // Right-click opens the same list as the toolbar's More.
+fn track_message_hover(message: &Message, ctx: &Rc<RowContext>) -> impl Fn(&bool, &mut Window, &mut App) + 'static {
+    let (this, id) = (ctx.this.clone(), message.id.clone());
+    move |hovered, _, cx| {
+        this.update(cx, |this, cx| {
+            if !*hovered && this.hovered_message.as_ref() != Some(&id) {
+                return;
+            }
+            this.hovered_message = hovered.then(|| id.clone());
+            cx.notify();
+        })
+        .ok();
+    }
+}
+
 fn with_message_menu(row: Stateful<Div>, message: &Message, ctx: &Rc<RowContext>) -> AnyElement {
     let (this, message) = (ctx.this.clone(), message.clone());
     row.on_mouse_down(gpui_kit::MouseButton::Right, move |event, _, cx| {
@@ -875,7 +894,8 @@ fn content(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyEleme
                     .flex_wrap()
                     .items_baseline()
                     // Capped at the row's width so long lines wrap instead of running off the side.
-                    .when(!body.trim().is_empty(), |c| c.child(div().min_w_0().max_w_full().child(view)))
+                    // A code block spans the message's width, as Discord's do; plain text wraps to its own.
+                    .when(!body.trim().is_empty(), |c| c.child(div().min_w_0().max_w_full().when(body.contains("```"), |d| d.w_full()).child(view)))
                     .when(message.edited, |c| c.child(div().ml(px(4.)).whitespace_nowrap().text_size(px(12.)).text_color(faint).child("(edited)"))),
             )
             .children(subtext.into_iter().map(|line| div().text_size(px(12.)).text_color(faint).child(line)))
@@ -1357,7 +1377,7 @@ fn reaction_pill(id: SharedString, mine: bool, cx: &App) -> ui::Pressable {
 
 // The hover toolbar: three quick reactions, then react, reply, thread and more. With Shift held, edit
 // and delete take the quick reactions' place behind a Shift keycap; the rest stay put.
-fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, group: &SharedString, cx: &App) -> AnyElement {
+fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, cx: &App) -> AnyElement {
     let (hover, line) = (palette::hover(cx), palette::line(cx));
     let sep = || div().w(px(1.)).h(px(20.)).mx(px(2.)).bg(line);
     let sent = message.state == SendState::Sent;
@@ -1372,9 +1392,7 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, group: &SharedSt
         .gap(px(2.))
         .squircle(RADIUS_MD)
         .bg(palette::surface(Level::Overlay, cx))
-        .shadow(ui::shadow_pop(cx))
-        .invisible()
-        .group_hover(group.clone(), |s| s.visible());
+        .shadow(ui::shadow_pop(cx));
     if shifted || message.state == SendState::Failed {
         if shifted {
             bar = bar.child(ui::kbd("Shift", cx).ml(px(6.)).mr(px(4.)));
@@ -1444,8 +1462,9 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, group: &SharedSt
         let at = event.position();
         this.update(cx, |this, cx| this.open_message_menu(msg.clone(), at, cx)).ok();
     }));
-    // Deferred so it paints above the next message's images and embeds, which come later in the list.
-    gpui_kit::deferred(bar).with_priority(1).into_any_element()
+    // GAP: not `deferred`: inside the chat list a deferred bar never painted. It overlaps only the message
+    // above, which the list paints first, so it draws on top without it.
+    bar.into_any_element()
 }
 
 /// Discord's wire syntax made readable: mentions become links the transcript styles and routes,
