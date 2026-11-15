@@ -114,6 +114,21 @@ impl Rustcord {
             .child(div().flex_none().h(self.user_panel_clearance()))
     }
 
+    // Who's in the server's voice channels and who's live there, by avatar, for its hover card.
+    fn server_preview(&self, guild_id: &str, name: SharedString) -> ServerPreview {
+        let Some(guild) = self.guilds.iter().find(|g| g.id == guild_id) else { return ServerPreview { name, voice: Vec::new(), live: Vec::new() } };
+        let members = self.members.get(guild_id);
+        let avatar = |state: &crate::discord::VoiceState| {
+            state.user.as_ref().or_else(|| members.and_then(|m| m.get(&state.user_id))).map(|u| u.avatar.clone())
+        };
+        let present = guild.voice_states.iter().filter(|v| v.channel_id.is_some());
+        ServerPreview {
+            name,
+            voice: present.clone().filter_map(avatar).collect(),
+            live: present.filter(|v| v.streaming).filter_map(avatar).collect(),
+        }
+    }
+
     fn guild_tile(&self, guild: &Guild, badge_scale: f32) -> RailTile {
         let (unread, mentions) = self.guild_badge(guild);
         RailTile {
@@ -211,6 +226,7 @@ impl Rustcord {
             RowDrag::Hidden => div().size(px(TILE)).into_any_element(),
         };
         let hover_key = key.clone();
+        let preview = guild_id.as_deref().map(|id| self.server_preview(id, name.clone()));
         let item = ui::pressable(div().id(item_id.clone()), 0.97)
             .children(self.drag_motion.spot(&item_id))
             .relative()
@@ -226,7 +242,10 @@ impl Rustcord {
             .children(drop_hint.map(drop_marker))
             .tooltip({
                 let name = name.clone();
-                move |window, cx| Tooltip::new(name.clone()).build(window, cx)
+                move |window, cx| match preview.clone().filter(ServerPreview::has_activity) {
+                    Some(preview) => cx.new(|_| preview).into(),
+                    None => Tooltip::new(name.clone()).build(window, cx),
+                }
             })
             .on_hover(cx.listener(move |this, hovered: &bool, _, cx| this.set_hovered(&hover_key, *hovered, cx)))
             .when_some(guild_id.clone(), |item, guild_id| item.on_click(cx.listener(move |this, _, window, cx| this.open_guild(Some(guild_id.clone()), window, cx))))
@@ -1223,6 +1242,43 @@ fn letters_tile(label: &str, size: f32, radius: f32, cx: &App) -> Div {
 
 // The hairline between home, the servers and the actions.
 // Add and Discover: a quiet tile that lifts to the raised tone on hover.
+// A server's hover card, as Discord's: its name, then who's talking in voice and who's live.
+#[derive(Clone)]
+struct ServerPreview {
+    name: SharedString,
+    voice: Vec<String>,
+    live: Vec<String>,
+}
+
+impl ServerPreview {
+    fn has_activity(&self) -> bool {
+        !self.voice.is_empty() || !self.live.is_empty()
+    }
+}
+
+impl Render for ServerPreview {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let surface = palette::surface(palette::Level::Overlay, cx);
+        let muted = palette::muted(cx);
+        // Six faces at most per row; the card stays a glance, not a roster.
+        let row = |glyph: Glyph, avatars: &[String]| {
+            div()
+                .flex()
+                .items_center()
+                .gap(px(10.))
+                .child(Icon::new(glyph).size(px(20.)).text_color(muted))
+                .child(ui::avatar_stack(avatars.iter().take(6).cloned(), 28., surface))
+        };
+        ui::surface(cx)
+            .max_w(px(280.))
+            .p(px(12.))
+            .gap(px(10.))
+            .child(div().truncate().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(self.name.clone()))
+            .when(!self.voice.is_empty(), |c| c.child(row(Glyph::VolumeHigh, &self.voice)))
+            .when(!self.live.is_empty(), |c| c.child(row(Glyph::ShareScreen, &self.live)))
+    }
+}
+
 fn rail_action(id: &'static str, glyph: Nav, tooltip: &'static str, cx: &App) -> Stateful<Div> {
     let (raised, strong) = (palette::surface(palette::Level::Raised, cx), palette::strong(cx));
     div()
