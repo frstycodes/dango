@@ -51,6 +51,11 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+      # The macOS image is nearly full; a release build plus the .dmg ran out of space. Wave never
+      # uses the preinstalled Android SDK.
+      - name: Free disk space
+        if: runner.os == 'macOS'
+        run: df -h / && sudo rm -rf "$HOME/Library/Android" && df -h /
       - run: rustup target add ${{ matrix.target }}
       # One cache per target for all of CI: a run can restore caches saved on its own ref or on main,
       # never another tag's, so only main saves and every other ref (tags, branches) reads it.
