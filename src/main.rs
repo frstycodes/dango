@@ -93,8 +93,8 @@ fn main() {
                     include_bytes!("../assets/fonts/Gabarito-SemiBold.ttf"),
                     include_bytes!("../assets/fonts/Gabarito-Bold.ttf"),
                     include_bytes!("../assets/fonts/Gabarito-ExtraBold.ttf"),
-                    include_bytes!("../assets/discord/fonts/gg-mono-Regular.ttf"),
-                    include_bytes!("../assets/discord/fonts/gg-mono-Bold.ttf"),
+                    include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"),
+                    include_bytes!("../assets/fonts/RobotoMono-Bold.ttf"),
                 ]
                 .map(std::borrow::Cow::Borrowed)
                 .to_vec(),
