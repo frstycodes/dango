@@ -1,4 +1,5 @@
-# Push a `v*` tag matching Cargo.toml's version to build and publish a release. Asset names must
+# Push a `v*` tag matching Cargo.toml's version to build and publish a release: installers (.dmg,
+# setup .exe) for people, plus the zipped .app and bare .exe the updater swaps in. Asset names must
 # match `asset_name` in src/updater.rs; each asset gets a `<name>.sha256` the updater verifies.
 name: Release
 
@@ -33,9 +34,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-14, target: aarch64-apple-darwin, asset: wave-macos-aarch64.zip }
-          - { os: macos-14, target: x86_64-apple-darwin, asset: wave-macos-x86_64.zip }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: wave-windows-x86_64.exe }
+          # `asset` is what the updater downloads; `installer` is what people install from.
+          - { os: macos-14, target: aarch64-apple-darwin, asset: wave-macos-aarch64.zip, installer: wave-macos-aarch64.dmg }
+          - { os: macos-14, target: x86_64-apple-darwin, asset: wave-macos-x86_64.zip, installer: wave-macos-x86_64.dmg }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: wave-windows-x86_64.exe, installer: wave-windows-x86_64-setup.exe }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -73,14 +75,27 @@ jobs:
           EOF
           codesign --force --deep --sign - $app
           ditto -c -k --keepParent $app ${{ matrix.asset }}
+          mkdir dmg && cp -R $app dmg/ && ln -s /Applications dmg/Applications
+          hdiutil create -volname Wave -srcfolder dmg -format UDZO -ov ${{ matrix.installer }}
 
       - name: Package exe
         if: runner.os == 'Windows'
         run: cp target/${{ matrix.target }}/release/rustcord.exe ${{ matrix.asset }}
 
+      - name: Build setup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          & $iscc "/DVersion=$($env:TAG.TrimStart('v'))" "/DExe=$PWD\${{ matrix.asset }}" "/O$PWD" packaging\windows\wave.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Upload
         run: |
           # Git Bash on Windows has sha256sum; macOS has shasum. Both print "<hex> <name>".
           if command -v sha256sum >/dev/null; then sum="sha256sum"; else sum="shasum -a 256"; fi
-          $sum ${{ matrix.asset }} > ${{ matrix.asset }}.sha256
-          gh release upload "$TAG" ${{ matrix.asset }} ${{ matrix.asset }}.sha256 --clobber
+          for file in ${{ matrix.asset }} ${{ matrix.installer }}; do
+            $sum "$file" > "$file.sha256"
+            gh release upload "$TAG" "$file" "$file.sha256" --clobber
+          done

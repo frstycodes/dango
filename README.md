@@ -41,9 +41,13 @@ Release builds update themselves at launch from this repository's GitHub Release
    git push origin v0.2.0
    ```
 
-`.github/workflows/release.yml` checks the tag matches `Cargo.toml`, creates the release, and attaches
-`wave-macos-aarch64.zip`, `wave-macos-x86_64.zip` (zipped `Wave.app`) and `wave-windows-x86_64.exe`, each with a
-`.sha256`. Running copies older than the tag download theirs on next launch and restart into it.
+`.github/workflows/release.yml` checks the tag matches `Cargo.toml`, creates the release, and attaches, each with
+a `.sha256`:
+
+- installers: `wave-macos-aarch64.dmg`, `wave-macos-x86_64.dmg`, `wave-windows-x86_64-setup.exe` (per-user, no admin)
+- what the updater downloads: `wave-macos-*.zip` (zipped `Wave.app`) and `wave-windows-x86_64.exe`
+
+Running copies older than the tag download theirs on next launch and restart into it.
 
 ## Where things are
 
