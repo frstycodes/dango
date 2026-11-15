@@ -21,7 +21,7 @@ const BAR_WIDTH: f32 = 8.;
 const GAP: f32 = 5.;
 const HEIGHT: f32 = 66.;
 
-// The mascot drawn at `scale` (1 is 64px wide), for tighter places such as the splash window.
+// The mascot drawn at `scale` (1 is 64px wide), for tighter places such as the login card.
 pub fn mascot_at(id: impl Into<ElementId>, mood: Mood, scale: f32, cx: &App) -> AnyElement {
     let frame = move || div().h(px(HEIGHT * scale)).flex().items_center().gap(px(GAP * scale)).flex_none();
     let bars = move |heights: [f32; 5]| heights.map(|h| div().w(px(BAR_WIDTH * scale)).h(px(h * scale)).flex_none().rounded_full().bg(palette::accent()));
