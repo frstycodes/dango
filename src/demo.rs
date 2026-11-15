@@ -63,6 +63,19 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         }
         "appearance" => chord.open_settings(crate::settings::Page::Appearance, window, cx),
         "unread" => chord.unread_marker = Some(103),
+        // A bare `@` in the composer: every member, in the suggestion popup.
+        // Typed once the window is up: the composer's events aren't wired while the app is being built.
+        "mention" => cx
+            .spawn_in(window, async move |this, cx| {
+                cx.background_executor().timer(std::time::Duration::from_millis(500)).await;
+                this.update_in(cx, |this, window, cx| {
+                    this.composer.update(cx, |state, cx| state.set_value("@", window, cx));
+                    this.autocomplete = this.suggest("@");
+                    cx.notify();
+                })
+                .ok();
+            })
+            .detach(),
         "hover" => chord.hovered_message = Some("105".into()),
         "home" => {
             chord.restore = None;

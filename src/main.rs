@@ -555,6 +555,8 @@ pub struct Rustcord {
     editing: Option<Message>,
     mention_wire: HashMap<String, String>,
     autocomplete: Option<Autocomplete>,
+    // The suggestion list's scroll, kept on the highlighted row.
+    autocomplete_scroll: gpui_kit::ScrollHandle,
     flash: Option<String>,
     muted: bool,
     deafened: bool,
@@ -744,6 +746,7 @@ impl Rustcord {
             editing: None,
             mention_wire: HashMap::new(),
             autocomplete: None,
+            autocomplete_scroll: gpui_kit::ScrollHandle::new(),
             flash: None,
             muted: false,
             deafened: false,
@@ -1868,7 +1871,8 @@ impl Rustcord {
     }
 
     fn suggest(&self, text: &str) -> Option<Autocomplete> {
-        let token = text.rsplit(char::is_whitespace).next().filter(|t| t.len() > 1 && (t.starts_with('@') || t.starts_with('#')))?;
+        // A bare `@` or `#` already lists everyone or every channel, as Discord does.
+        let token = text.rsplit(char::is_whitespace).next().filter(|t| t.starts_with('@') || t.starts_with('#'))?;
         let query = token[1..].to_lowercase();
         let mut items: Vec<Suggestion> = Vec::new();
         if token.starts_with('#') {
@@ -1902,6 +1906,7 @@ impl Rustcord {
     fn move_suggestion(&mut self, delta: isize, cx: &mut Context<Self>) {
         let Some(auto) = &mut self.autocomplete else { return };
         auto.selected = (auto.selected as isize + delta).rem_euclid(auto.items.len() as isize) as usize;
+        self.autocomplete_scroll.scroll_to_item(auto.selected);
         cx.notify();
     }
 
