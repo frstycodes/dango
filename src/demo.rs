@@ -60,7 +60,7 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         "stream-card" => {
             let key = "guild:1:lounge:12582912".to_owned();
             let blender = Activity { kind: ActivityKind::Playing, text: "Blender".into(), more: 0 };
-            chord.presences.insert("12582912".into(), Presence { status: Presence_::Online, activity: Some(blender) });
+            chord.presences.insert("12582912".into(), Presence { status: Presence_::Online, activity: Some(blender), rich: None });
             let since = std::time::Instant::now().checked_sub(std::time::Duration::from_secs(24 * 60)).unwrap_or_else(std::time::Instant::now);
             chord.stream_live_since.insert(key.clone(), since);
             chord.on_event(Event::StreamViewers { key, viewers: vec!["8388608".into(), "16777216".into(), "20971520".into(), "4194304".into()] }, cx);
@@ -263,7 +263,7 @@ fn ready(me: User) -> Ready {
             ("media".into(), ReadState { last_read: 100, mentions: 0 }),
             ("staff".into(), ReadState { last_read: 100, mentions: 2 }),
         ],
-        presences: vec![("8388608".into(), Presence { status: Presence_::Online, activity: None })],
+        presences: vec![("8388608".into(), Presence { status: Presence_::Online, activity: None, rich: None })],
         relationships: vec![
             Relationship { user: user("8388608", "Zoë"), kind: Relation::Friend },
             Relationship { user: user("12582912", "abyss reverie"), kind: Relation::Friend },
@@ -280,7 +280,7 @@ fn members() -> Vec<ListItem> {
         if id == "4194304" {
             user.nameplate = Some(crate::discord::Nameplate { art: "brand/icons/glass.png".into(), tint: (0x2D6A4F, 0x95D5B2) });
         }
-        ListItem::Member(Member { user, roles: roles.iter().map(|r| r.to_string()).collect(), presence: Presence { status, activity: activity.map(|(kind, text)| Activity { kind, text: text.into(), more: 0 }) } })
+        ListItem::Member(Member { user, roles: roles.iter().map(|r| r.to_string()).collect(), presence: Presence { status, activity: activity.map(|(kind, text)| Activity { kind, text: text.into(), more: 0 }), rich: None } })
     };
     vec![
         ListItem::Group { id: "r1".into(), count: 2 },

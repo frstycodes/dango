@@ -90,6 +90,22 @@ impl Status {
 pub struct Presence {
     pub status: Status,
     pub activity: Option<Activity>,
+    // The first non-custom activity in full, for the profile's rich presence card.
+    pub rich: Option<RichPresence>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RichPresence {
+    pub kind: ActivityKind,
+    pub name: String,
+    pub details: Option<String>,
+    pub state: Option<String>,
+    pub image: Option<String>,
+    // (current, max) party size.
+    pub party: Option<(u64, u64)>,
+    // Unix milliseconds the activity started.
+    pub started: Option<i64>,
+    pub joinable: bool,
 }
 
 // What Discord's member list shows under a name: an icon by kind, the text, and "+N" for more.
@@ -100,9 +116,10 @@ pub struct Activity {
     pub more: usize,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ActivityKind {
     Custom,
+    #[default]
     Playing,
     Streaming,
     Listening,
@@ -487,6 +504,21 @@ pub struct Profile {
     pub banner: Option<String>,
     pub accent: Option<u32>,
     pub roles: Vec<String>,
+    pub decoration: Option<String>,
+    // The card's gradient, top to bottom (`user_profile.theme_colors`); None paints the plain surface.
+    pub theme: Option<(u32, u32)>,
+    pub badges: Vec<Badge>,
+    pub mutual_friends: Vec<User>,
+    pub mutual_friend_count: usize,
+    pub mutual_server_count: usize,
+    // GAP: the API field behind Discord's Game Collection is unknown, so only the demo fills this (icon URLs).
+    pub games: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Badge {
+    pub description: String,
+    pub icon: String,
 }
 
 #[derive(Clone, Debug)]
@@ -749,24 +781,12 @@ impl Client {
     }
 
     pub async fn profile(&self, user_id: &str, guild_id: Option<&str>) -> Result<Profile, String> {
-        let mut path = format!("/users/{user_id}/profile?with_mutual_guilds=false");
+        let mut path = format!("/users/{user_id}/profile?with_mutual_guilds=true&with_mutual_friends=true");
         if let Some(guild) = guild_id {
             path.push_str(&format!("&guild_id={guild}"));
         }
         let body = self.run(self.request(reqwest::Method::GET, &path)).await?;
-        let user = &body["user"];
-        let banner = user["banner"].as_str().map(|hash| {
-            let ext = if hash.starts_with("a_") { "gif" } else { "png" };
-            format!("{CDN}/banners/{user_id}/{hash}.{ext}?size=600")
-        });
-        Ok(Profile {
-            username: user["username"].as_str().unwrap_or_default().to_owned(),
-            bio: body["user_profile"]["bio"].as_str().or(user["bio"].as_str()).filter(|b| !b.is_empty()).map(str::to_owned),
-            pronouns: body["user_profile"]["pronouns"].as_str().filter(|p| !p.is_empty()).map(str::to_owned),
-            banner,
-            accent: user["accent_color"].as_u64().or(user["banner_color"].as_str().and_then(|c| u32::from_str_radix(c.trim_start_matches('#'), 16).ok().map(u64::from))).map(|c| c as u32),
-            roles: strings(&body["guild_member"]["roles"]),
-        })
+        Ok(parse_profile(user_id, &body))
     }
 
     /// Opens (or finds) the DM channel with a user.
@@ -1471,7 +1491,79 @@ fn parse_presence(p: &Value) -> Presence {
         };
         Some(Activity { kind, text: text.to_owned(), more: others.len() - 1 })
     });
-    Presence { status: Status::parse(p["status"].as_str().unwrap_or("offline")), activity: custom.or(first) }
+    let rich = others.first().and_then(|a| parse_rich(a));
+    Presence { status: Status::parse(p["status"].as_str().unwrap_or("offline")), activity: custom.or(first), rich }
+}
+
+// Field names from the diself crate's model (src/model/user.rs), not from Discord's docs (the endpoint is undocumented).
+fn parse_profile(user_id: &str, body: &Value) -> Profile {
+    let user = &body["user"];
+    let profile = &body["user_profile"];
+    let banner = user["banner"].as_str().map(|hash| {
+        let ext = if hash.starts_with("a_") { "gif" } else { "png" };
+        format!("{CDN}/banners/{user_id}/{hash}.{ext}?size=600")
+    });
+    let theme = match profile["theme_colors"].as_array().map(|c| c.iter().filter_map(Value::as_u64).collect::<Vec<_>>()).as_deref() {
+        Some([top, bottom]) => Some((*top as u32, *bottom as u32)),
+        _ => None,
+    };
+    let badges = body["badges"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|b| Some(Badge { description: b["description"].as_str().unwrap_or_default().to_owned(), icon: format!("{CDN}/badge-icons/{}.png", b["icon"].as_str()?) }))
+        .collect();
+    let mutual_friends: Vec<User> = body["mutual_friends"].as_array().into_iter().flatten().map(parse_user).collect();
+    let mutual_friend_count = body["mutual_friend_count"].as_u64().or(body["mutual_friends_count"].as_u64()).map_or(mutual_friends.len(), |n| n as usize);
+    Profile {
+        username: user["username"].as_str().unwrap_or_default().to_owned(),
+        bio: profile["bio"].as_str().or(user["bio"].as_str()).filter(|b| !b.is_empty()).map(str::to_owned),
+        pronouns: profile["pronouns"].as_str().filter(|p| !p.is_empty()).map(str::to_owned),
+        banner,
+        accent: user["accent_color"].as_u64().or(user["banner_color"].as_str().and_then(|c| u32::from_str_radix(c.trim_start_matches('#'), 16).ok().map(u64::from))).map(|c| c as u32),
+        roles: strings(&body["guild_member"]["roles"]),
+        decoration: user.is_object().then(|| parse_user(user).decoration).flatten(),
+        theme,
+        badges,
+        mutual_friends,
+        mutual_friend_count,
+        mutual_server_count: body["mutual_guilds"].as_array().map_or(0, Vec::len),
+        games: Vec::new(),
+    }
+}
+
+// Large asset keys: "mp:…" is a media proxy path, anything else an app asset id.
+fn activity_image(a: &Value) -> Option<String> {
+    let key = a["assets"]["large_image"].as_str()?;
+    if let Some(path) = key.strip_prefix("mp:") {
+        return Some(format!("https://media.discordapp.net/{path}"));
+    }
+    Some(format!("{CDN}/app-assets/{}/{key}.png", a["application_id"].as_str()?))
+}
+
+fn parse_rich(a: &Value) -> Option<RichPresence> {
+    const JOIN: u64 = 1 << 1;
+    let text = |k: &str| a[k].as_str().filter(|t| !t.is_empty()).map(str::to_owned);
+    let size = a["party"]["size"].as_array().map(|s| s.iter().filter_map(Value::as_u64).collect::<Vec<_>>());
+    Some(RichPresence {
+        kind: match a["type"].as_u64() {
+            Some(1) => ActivityKind::Streaming,
+            Some(2) => ActivityKind::Listening,
+            Some(3) => ActivityKind::Watching,
+            Some(5) => ActivityKind::Competing,
+            _ => ActivityKind::Playing,
+        },
+        name: text("name")?,
+        details: text("details"),
+        state: text("state"),
+        image: activity_image(a),
+        party: match size.as_deref() {
+            Some([current, max]) => Some((*current, *max)),
+            _ => None,
+        },
+        started: a["timestamps"]["start"].as_i64(),
+        joinable: a["party"]["id"].is_string() && (a["flags"].as_u64().unwrap_or(0) & JOIN != 0 || a["secrets"]["join"].is_string()),
+    })
 }
 
 fn parse_list_op(op: &Value, guild_id: Option<&str>) -> Option<ListOp> {
@@ -1654,6 +1746,49 @@ mod tests {
         assert_eq!(p.activity.unwrap().text, "m!help");
         let p = parse_presence(&json!({ "status": "idle", "activities": [{ "type": 2, "name": "Spotify", "state": "Hozier" }, { "type": 0, "name": "Apex" }] }));
         assert_eq!(p.activity, Some(Activity { kind: ActivityKind::Listening, text: "Hozier".into(), more: 1 }));
+    }
+
+    #[test]
+    fn parses_profile() {
+        let body = json!({
+            "user": { "id": "9", "username": "aayurene", "global_name": "Aayurene", "banner": "a_b", "avatar_decoration_data": { "asset": "deco" } },
+            "user_profile": { "bio": "LUCKY VICKY <a:aWonUwu:1328465377218269257>", "pronouns": "WON/YOUNG", "theme_colors": [4980812, 11558570] },
+            "badges": [{ "id": "premium", "description": "Subscriber since", "icon": "2ba85e8026a8614b640c2837bcdfe21b", "link": "https://discord.com/settings/premium" }, { "id": "broken" }],
+            "mutual_friends": [{ "id": "1", "username": "a" }, { "id": "2", "username": "b" }],
+            "mutual_friend_count": 5,
+            "mutual_guilds": [{ "id": "g", "nick": null }],
+            "guild_member": { "roles": ["r"] },
+        });
+        let p = parse_profile("9", &body);
+        assert_eq!(p.username, "aayurene");
+        assert_eq!(p.pronouns.as_deref(), Some("WON/YOUNG"));
+        assert_eq!(p.banner.as_deref(), Some("https://cdn.discordapp.com/banners/9/a_b.gif?size=600"));
+        assert_eq!(p.theme, Some((0x4C004C, 0xB05EAA)));
+        assert_eq!(p.badges.len(), 1);
+        assert_eq!(p.badges[0].icon, "https://cdn.discordapp.com/badge-icons/2ba85e8026a8614b640c2837bcdfe21b.png");
+        assert_eq!((p.mutual_friends.len(), p.mutual_friend_count, p.mutual_server_count), (2, 5, 1));
+        assert!(p.decoration.unwrap().contains("/avatar-decoration-presets/deco.png"));
+        assert_eq!(p.roles, ["r"]);
+        let bare = parse_profile("9", &json!({ "user": { "id": "9" }, "user_profile": { "theme_colors": [1] } }));
+        assert_eq!((bare.theme, bare.mutual_friend_count, bare.badges.len()), (None, 0, 0));
+    }
+
+    #[test]
+    fn parses_rich_presence() {
+        let p = parse_presence(&json!({ "status": "dnd", "activities": [
+            { "type": 4, "state": "busy" },
+            { "type": 0, "name": "PUBG: BATTLEGROUNDS", "application_id": "530196305138417685", "details": "Normal, Erangel, 58/99", "state": "4 Squad",
+              "party": { "id": "p", "size": [4, 4] }, "timestamps": { "start": 1700000000000i64 }, "flags": 2, "assets": { "large_image": "123" } },
+        ]}));
+        let rich = p.rich.unwrap();
+        assert_eq!(rich.name, "PUBG: BATTLEGROUNDS");
+        assert_eq!(rich.party, Some((4, 4)));
+        assert_eq!(rich.started, Some(1700000000000));
+        assert!(rich.joinable);
+        assert_eq!(rich.image.as_deref(), Some("https://cdn.discordapp.com/app-assets/530196305138417685/123.png"));
+        let proxied = parse_rich(&json!({ "name": "x", "assets": { "large_image": "mp:external/abc/https/x.png" } })).unwrap();
+        assert_eq!(proxied.image.as_deref(), Some("https://media.discordapp.net/external/abc/https/x.png"));
+        assert!(!proxied.joinable);
     }
 
     #[test]
