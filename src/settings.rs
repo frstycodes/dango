@@ -461,7 +461,6 @@ impl Rustcord {
     pub(crate) fn apply_prefs(&mut self) {
         sounds::silence(&self.prefs.silenced_cues);
         if let Some(hotkeys) = &mut self.hotkeys {
-            // A push-to-talk key is only taken from other apps while push to talk is on.
             let active: Vec<Keybind> = self.prefs.keybinds.iter().filter(|k| self.prefs.push_to_talk || k.action != Action::PushToTalk).cloned().collect();
             self.keybind_errors = hotkeys.bind(&active);
         }
@@ -471,12 +470,12 @@ impl Rustcord {
     }
 
     pub(crate) fn start_hotkeys(&mut self, cx: &mut Context<Self>) {
-        let Some((hotkeys, mut events)) = hotkeys::Hotkeys::new() else { return };
+        let (hotkeys, mut events) = hotkeys::Hotkeys::start();
         self.hotkeys = Some(hotkeys);
         self.apply_prefs();
         cx.spawn(async move |this, cx| {
-            while let Some((id, pressed)) = futures::StreamExt::next(&mut events).await {
-                if this.update(cx, |this, cx| this.on_hotkey(id, pressed, cx)).is_err() {
+            while let Some(held) = futures::StreamExt::next(&mut events).await {
+                if this.update(cx, |this, cx| this.on_keys_held(held, cx)).is_err() {
                     break;
                 }
             }
@@ -484,8 +483,43 @@ impl Rustcord {
         .detach();
     }
 
-    fn on_hotkey(&mut self, id: u32, pressed: bool, cx: &mut Context<Self>) {
-        let Some(action) = self.hotkeys.as_ref().and_then(|h| h.action(id)) else { return };
+    // While a keybind is recording, held keys record it instead of firing anything but releases.
+    fn on_keys_held(&mut self, held: Vec<&'static str>, cx: &mut Context<Self>) {
+        let recording = self.settings.as_ref().and_then(|s| s.recording);
+        let Some(hotkeys) = &mut self.hotkeys else { return };
+        let was_listening = hotkeys.listening;
+        let mut changes = hotkeys.update(held);
+        let recorded = hotkeys.record(recording.is_some());
+        if recording.is_some() {
+            changes.retain(|(_, pressed)| !pressed);
+        }
+        if let (Some(index), Some(keys)) = (recording, recorded) {
+            self.finish_recording(index, keys, cx);
+        }
+        for (action, pressed) in changes {
+            self.on_hotkey(action, pressed, cx);
+        }
+        if !was_listening {
+            cx.notify();
+        }
+    }
+
+    // Escape alone cancels, as in Discord.
+    fn finish_recording(&mut self, index: usize, keys: String, cx: &mut Context<Self>) {
+        if let Some(settings) = &mut self.settings {
+            settings.recording = None;
+        }
+        if keys == "escape" {
+            return cx.notify();
+        }
+        self.update_prefs(cx, |prefs| {
+            if let Some(bind) = prefs.keybinds.get_mut(index) {
+                bind.keys = Some(keys);
+            }
+        });
+    }
+
+    fn on_hotkey(&mut self, action: Action, pressed: bool, cx: &mut Context<Self>) {
         if !pressed && !action.held() {
             return;
         }
@@ -556,25 +590,17 @@ impl Rustcord {
         cx.notify();
     }
 
-    // While a keybind is recording, the next keystroke with a key in it becomes the binding.
+    // While a keybind is recording the key hook records it (on_keys_held); keystrokes here only
+    // cancel on Escape and are kept from the rest of the app.
     pub(crate) fn record_keystroke(&mut self, keystroke: &gpui_kit::Keystroke, cx: &mut Context<Self>) -> bool {
-        let Some(index) = self.settings.as_ref().and_then(|s| s.recording) else { return false };
+        let Some(settings) = &mut self.settings else { return false };
+        if settings.recording.is_none() {
+            return false;
+        }
         if keystroke.key == "escape" && !keystroke.modifiers.modified() {
-            if let Some(s) = &mut self.settings {
-                s.recording = None;
-            }
-            cx.notify();
-            return true;
-        }
-        let Some(keys) = hotkeys::from_keystroke(keystroke) else { return true };
-        if let Some(settings) = &mut self.settings {
             settings.recording = None;
+            cx.notify();
         }
-        self.update_prefs(cx, |prefs| {
-            if let Some(bind) = prefs.keybinds.get_mut(index) {
-                bind.keys = Some(keys);
-            }
-        });
         true
     }
 
@@ -1287,7 +1313,7 @@ impl Rustcord {
             })));
         let mut lines = Hairlines::default();
         let rows: Vec<AnyElement> = self.prefs.keybinds.iter().enumerate().map(|(index, keybind)| self.keybind_row(index, keybind, lines.next(), window, cx)).collect();
-        let yours = ui::settings_group("Your keybinds", cx).when(!rows.is_empty(), |g| g.child(ui::settings_card(cx).children(rows)));
+        let yours = ui::settings_group("Your keybinds", cx).children(self.input_monitoring_notice(cx)).when(!rows.is_empty(), |g| g.child(ui::settings_card(cx).children(rows)));
         let mut lines = Hairlines::default();
         let defaults = DEFAULT_KEYBINDS.iter().map(|&(action, combos)| {
             ui::settings_row(SharedString::from(format!("default-{action}")), lines.next(), cx).min_h(px(48.)).child(row_text(action, None::<&str>, cx)).child(combo_caps(combos, cx))
@@ -1300,9 +1326,29 @@ impl Rustcord {
         ]
     }
 
+    // macOS keeps keys from Wave until it's allowed Input Monitoring; the hook starts once it is.
+    fn input_monitoring_notice(&self, cx: &mut Context<Self>) -> Option<Div> {
+        if !self.keys_unheard() {
+            return None;
+        }
+        let open = ui::button("keys-system", Tone::Secondary, cx).small().child("Open System Settings").on_click(|_, _, cx| cx.open_url(MAC_INPUT_PRIVACY));
+        Some(ui::callout_with(
+            ui::Notice::Warning,
+            Glyph::Keyboard,
+            "Keybinds need Input Monitoring",
+            "Turn on Wave in System Settings, under Privacy & Security, Input Monitoring. Keybinds start working as soon as you do.",
+            div().mt(px(8.)).flex().child(open),
+            cx,
+        ))
+    }
+
+    fn keys_unheard(&self) -> bool {
+        cfg!(target_os = "macos") && self.hotkeys.as_ref().is_some_and(|h| !h.listening)
+    }
+
     // Action picker, recorder, and a remove button that's always there.
     fn keybind_row(&self, index: usize, keybind: &Keybind, line: bool, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let refused = keybind.keys.as_ref().is_some_and(|k| self.keybind_errors.contains(k));
+        let unknown = keybind.keys.as_ref().is_some_and(|k| self.keybind_errors.contains(k));
         let actions: Vec<(String, String)> = Action::ALL.iter().map(|a| (format!("{a:?}"), sentence(a.label()))).collect();
         let action = self.select_field(Select::Action(index), None, &actions, &format!("{:?}", keybind.action), sentence(keybind.action.label()).into(), 36., window, cx);
         let (danger, hover, press) = (palette::danger_ink(cx), palette::hover(cx), palette::press(cx));
@@ -1337,7 +1383,7 @@ impl Rustcord {
             .child(div().flex_grow(1.).flex_basis(px(0.)).min_w_0().child(action))
             .child(self.keybind_recorder(index, cx).flex_grow(1.25).flex_basis(px(0.)))
             .child(remove)
-            .children(refused.then(|| error_line("Another app already uses this shortcut. Record a different one, or change it in that app.", cx).w_full()))
+            .children(unknown.then(|| error_line("Wave can't listen for this shortcut. Record it again.", cx).w_full()))
             .into_any_element()
     }
 
@@ -1346,7 +1392,7 @@ impl Rustcord {
     fn keybind_recorder(&self, index: usize, cx: &mut Context<Self>) -> Div {
         let recording = self.settings.as_ref().and_then(|s| s.recording) == Some(index);
         let keys = self.prefs.keybinds.get(index).and_then(|k| k.keys.clone());
-        let refused = keys.as_ref().is_some_and(|k| self.keybind_errors.contains(k));
+        let unknown = keys.as_ref().is_some_and(|k| self.keybind_errors.contains(k));
         let value = match (&keys, recording) {
             (_, true) => div()
                 .flex()
@@ -1354,12 +1400,12 @@ impl Rustcord {
                 .gap(px(6.))
                 .text_color(palette::muted(cx))
                 .child(div().text_color(palette::accent_ink(cx)).child(Icon::new(Glyph::Record).size(px(14.))))
-                .child("Press a key\u{2026}")
+                .child(if self.keys_unheard() { "Allow Input Monitoring first" } else { "Press keys\u{2026}" })
                 .into_any_element(),
             (Some(keys), false) => key_caps(keys, cx).into_any_element(),
             (None, false) => div().text_color(palette::muted(cx)).font_weight(FontWeight::NORMAL).child("No keybind set").into_any_element(),
         };
-        let border = match (recording, refused) {
+        let border = match (recording, unknown) {
             (true, _) => palette::accent(),
             (false, true) => palette::danger_ink(cx),
             (false, false) => palette::line_strong(cx),
@@ -1758,6 +1804,7 @@ const COPIED_FOR: Duration = Duration::from_secs(2);
 const UNDO_FOR: Duration = Duration::from_secs(8);
 const WHY_VAD: &str = "Works with automatic sensitivity in voice activity mode";
 const MAC_MIC_PRIVACY: &str = "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone";
+const MAC_INPUT_PRIVACY: &str = "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent";
 // The account banner's gradient: oklch(0.6 0.14 300) to oklch(0.45 0.15 340).
 const BANNER: (u32, u32) = (0x8E6AC7, 0x88296F);
 
@@ -2043,10 +2090,13 @@ fn key_name(key: &str) -> SharedString {
         "alt" => "Alt",
         "ctrl" if mac => "\u{2303}",
         "ctrl" => "Ctrl",
-        "ArrowUp" => "\u{2191}",
-        "ArrowDown" => "\u{2193}",
-        "ArrowLeft" => "\u{2190}",
-        "ArrowRight" => "\u{2192}",
+        "ArrowUp" | "up" => "\u{2191}",
+        "ArrowDown" | "down" => "\u{2193}",
+        "ArrowLeft" | "left" => "\u{2190}",
+        "ArrowRight" | "right" => "\u{2192}",
+        "backspace" if mac => "\u{232B}",
+        "pageup" => "Page Up",
+        "pagedown" => "Page Down",
         "escape" => "Esc",
         "enter" => "Return",
         key => {
