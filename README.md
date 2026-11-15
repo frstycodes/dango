@@ -1,11 +1,11 @@
 # Wave
 
-A lightweight Discord client in Rust and gpui (repository and data folders still use its first name, Rustcord).
+A lightweight Discord client in Rust and gpui (the crate and data folders still use its first name, Rustcord).
 
 A lightweight Discord desktop client in Rust and [gpui](https://www.gpui.rs): messaging, voice, video and Go Live.
 
-Personal project. `assets/discord/` holds Discord's own icons and sounds, taken for personal use only: keep this
-repository private and never ship a build that contains them (see `assets/discord/README.md`).
+Personal project. `assets/discord/` holds Discord's own icons and fonts, kept for reference only: no build compiles
+them in, and none may (see `assets/discord/README.md`).
 
 ## Build
 
