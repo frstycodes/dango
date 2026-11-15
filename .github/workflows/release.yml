@@ -1,0 +1,113 @@
+# Push a `v*` tag matching Cargo.toml's version to build and publish a release: installers (.dmg,
+# setup .exe) for people, plus the zipped .app and bare .exe the updater swaps in. Asset names must
+# match `asset_name` in src/updater.rs; each asset gets a `<name>.sha256` the updater verifies.
+# Pushes to main run the same builds and packaging without publishing, which keeps every target
+# building and fills the shared cache.
+name: Build and release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ github.ref_name }}
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  create:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag matches Cargo.toml
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::tag $TAG does not match Cargo.toml version $version"
+            exit 1
+          fi
+      - run: gh release create "$TAG" --title "Wave $TAG" --generate-notes
+
+  build:
+    needs: create
+    # Runs on main too, where `create` is skipped.
+    if: ${{ !failure() && !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # `asset` is what the updater downloads; `installer` is what people install from.
+          - { os: macos-14, target: aarch64-apple-darwin, asset: wave-macos-aarch64.zip, installer: wave-macos-aarch64.dmg }
+          - { os: macos-14, target: x86_64-apple-darwin, asset: wave-macos-x86_64.zip, installer: wave-macos-x86_64.dmg }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: wave-windows-x86_64.exe, installer: wave-windows-x86_64-setup.exe }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup target add ${{ matrix.target }}
+      # One cache per target for all of CI: a run can restore caches saved on its own ref or on main,
+      # never another tag's, so only main saves and every other ref (tags, branches) reads it.
+      # Any new workflow should use the same shared-key and save-if, and build the release profile.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wave-${{ matrix.target }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: echo "VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)" >> "$GITHUB_ENV"
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package Wave.app
+        if: runner.os == 'macOS'
+        run: |
+          app=Wave.app
+          mkdir -p $app/Contents/MacOS $app/Contents/Resources
+          cp target/${{ matrix.target }}/release/rustcord $app/Contents/MacOS/rustcord
+          cat > $app/Contents/Info.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleName</key><string>Wave</string>
+            <key>CFBundleDisplayName</key><string>Wave</string>
+            <key>CFBundleIdentifier</key><string>com.frstycodes.wave</string>
+            <key>CFBundleExecutable</key><string>rustcord</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>$VERSION</string>
+            <key>CFBundleVersion</key><string>$VERSION</string>
+            <key>LSMinimumSystemVersion</key><string>14.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+            <key>NSMicrophoneUsageDescription</key><string>Wave uses the microphone for voice calls.</string>
+            <key>NSCameraUsageDescription</key><string>Wave uses the camera for video calls.</string>
+          </dict></plist>
+          EOF
+          codesign --force --deep --sign - $app
+          ditto -c -k --keepParent $app ${{ matrix.asset }}
+          mkdir dmg && cp -R $app dmg/ && ln -s /Applications dmg/Applications
+          hdiutil create -volname Wave -srcfolder dmg -format UDZO -ov ${{ matrix.installer }}
+
+      - name: Package exe
+        if: runner.os == 'Windows'
+        run: cp target/${{ matrix.target }}/release/rustcord.exe ${{ matrix.asset }}
+
+      - name: Build setup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          & $iscc "/DVersion=$env:VERSION" "/DExe=$PWD\${{ matrix.asset }}" "/O$PWD" packaging\windows\wave.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          # Git Bash on Windows has sha256sum; macOS has shasum. Both print "<hex> <name>".
+          if command -v sha256sum >/dev/null; then sum="sha256sum"; else sum="shasum -a 256"; fi
+          for file in ${{ matrix.asset }} ${{ matrix.installer }}; do
+            $sum "$file" > "$file.sha256"
+            gh release upload "$TAG" "$file" "$file.sha256" --clobber
+          done
