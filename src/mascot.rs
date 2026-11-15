@@ -21,16 +21,17 @@ const BAR_WIDTH: f32 = 8.;
 const GAP: f32 = 5.;
 const HEIGHT: f32 = 66.;
 
-pub fn mascot(id: impl Into<ElementId>, mood: Mood, cx: &App) -> AnyElement {
-    let frame = || div().h(px(HEIGHT)).flex().items_center().gap(px(GAP)).flex_none();
-    let bars = |heights: [f32; 5]| heights.map(|h| div().w(px(BAR_WIDTH)).h(px(h)).flex_none().rounded_full().bg(palette::accent()));
+// The mascot drawn at `scale` (1 is 64px wide), for tighter places such as the splash window.
+pub fn mascot_at(id: impl Into<ElementId>, mood: Mood, scale: f32, cx: &App) -> AnyElement {
+    let frame = move || div().h(px(HEIGHT * scale)).flex().items_center().gap(px(GAP * scale)).flex_none();
+    let bars = move |heights: [f32; 5]| heights.map(|h| div().w(px(BAR_WIDTH * scale)).h(px(h * scale)).flex_none().rounded_full().bg(palette::accent()));
     if cx.reduce_motion() {
         return frame().children(bars(BARS)).into_any_element();
     }
     let period = match mood {
         Mood::Idle => 2.6,
         Mood::Waiting => 2.2,
-        Mood::Happy => 0.9,
+        Mood::Happy => 1.8,
     };
     frame()
         .with_animation(id, Animation::new(Duration::from_secs_f32(period)).repeat(), move |el, t| el.children(bars(heights(mood, t))))
@@ -45,7 +46,7 @@ fn heights(mood: Mood, t: f32) -> [f32; 5] {
         let scale = match mood {
             Mood::Idle => 0.88 + 0.12 * (t * TAU + phase * 0.4).sin(),
             Mood::Waiting => 0.7 + 0.3 * (t * TAU - phase * 0.9).sin(),
-            Mood::Happy => 0.45 + 0.55 * (t * TAU * 2. + phase * 1.3).sin().abs(),
+            Mood::Happy => 0.45 + 0.55 * (t * TAU + phase * 1.3).sin().abs(),
         };
         *h = (*h * scale).max(BAR_WIDTH);
     }

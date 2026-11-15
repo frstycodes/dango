@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wave Sign in</title>
+<meta name="description" content="Signing in, and the app-wide empty, loading, error and offline states.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<link rel="stylesheet" href="css/navigation.css">
+<link rel="stylesheet" href="css/messages.css">
+<link rel="stylesheet" href="css/voice.css">
+<link rel="stylesheet" href="css/overlays.css">
+<link rel="stylesheet" href="css/settings.css">
+<link rel="stylesheet" href="css/menus.css">
+<link rel="stylesheet" href="css/panels.css">
+<link rel="stylesheet" href="css/media.css">
+<link rel="stylesheet" href="css/auth.css">
+<link rel="stylesheet" href="css/profile.css">
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+<section id="intro">
+  <h1>Sign in and states</h1>
+  <p class="lede">Signing in, and the app-wide empty, loading, error and offline states. Every wait shows the mascot or the mini wave and names what it waits on; every failure says what happened and offers one way forward.</p>
+</section>
+
+<!-- Splash -->
+<section id="splash">
+  <h2>Splash</h2>
+  <p class="lede">The small borderless card Wave opens at launch while the hidden main window signs in and loads. The mascot speaks, and one line names the real stage.</p>
+  <div class="board stack" style="gap: var(--space-6)">
+    <div class="stack" style="gap: var(--space-3)">
+      <h3 style="margin: 0">Dark</h3>
+      <div class="au-splashes">
+        <div class="au-splash" role="status" aria-label="Wave, signing in"><div class="mascot happy" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Signing in…</span><div class="au-steps" aria-hidden="true"><i class="is-done"></i><i></i><i></i></div></div>
+        <div class="au-splash" role="status" aria-label="Wave, loading your servers"><div class="mascot happy" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Loading your servers…</span><div class="au-steps" aria-hidden="true"><i class="is-done"></i><i class="is-done"></i><i></i></div></div>
+        <div class="au-splash" role="status" aria-label="Wave, opening"><div class="mascot happy" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Opening Wave…</span><div class="au-steps" aria-hidden="true"><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i></div></div>
+      </div>
+    </div>
+    <div class="stack" style="gap: var(--space-3)">
+      <h3 style="margin: 0">Light</h3>
+      <div class="au-splashes">
+        <div class="au-splash" data-tone="light" role="status" aria-label="Wave, signing in"><div class="mascot happy" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Signing in…</span><div class="au-steps" aria-hidden="true"><i class="is-done"></i><i></i><i></i></div></div>
+        <div class="au-splash" data-tone="light" role="status" aria-label="Wave, loading your servers"><div class="mascot happy" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Loading your servers…</span><div class="au-steps" aria-hidden="true"><i class="is-done"></i><i class="is-done"></i><i></i></div></div>
+        <div class="au-splash" data-tone="light" role="status" aria-label="Wave, opening"><div class="mascot happy" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Opening Wave…</span><div class="au-steps" aria-hidden="true"><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i></div></div>
+      </div>
+    </div>
+    <p class="note">220×248, radius 14 (--radius-md), no window controls, not movable. Follows the system theme: midnight card in dark, warm bone in light, both with a 16% hairline. Mascot happy at 0.6; "Wave" 20 heavy; stage 12 semibold, one line, truncated. Step dots fill with accent as stages pass. Stages advance 320ms apart once servers arrive so each one registers; the card never outstays 25s. A drop during launch sets the line back to "Reconnecting…" on the first dot.</p>
+  </div>
+</section>
+
+<!-- Sign-in window -->
+<section id="sign-in">
+  <h2>Sign-in window</h2>
+  <p class="lede">Signing in happens on your phone: Wave shows a code, Discord's app scans it, and you approve there. Each phase's card springs up into place so every step feels like it arrived. The whole window drags.</p>
+  <div class="board au-wins">
+    <figure>
+      <div class="au-win"><div class="titlebar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div></div>
+        <div class="au-login" aria-busy="true">
+          <div class="mascot waiting" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          <h4>Sign in with your phone</h4>
+          <p>Getting a fresh code from Discord…</p>
+          <div class="au-card au-qr is-blank" role="img" aria-label="Sign-in code loading"></div>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Wave never sees your password.</p>
+        </div>
+      </div>
+      <figcaption class="au-cap"><b>Preparing.</b> The mascot ripples while the code card shimmers at its final size.</figcaption>
+    </figure>
+    <figure>
+      <div class="au-win"><div class="titlebar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div></div>
+        <div class="au-login">
+          <h4>Sign in with your phone</h4>
+          <p>Scan with the Discord app on your phone.</p>
+          <div class="au-card au-qr" data-qr role="img" aria-label="Sign-in code for the Discord app"></div>
+          <ol class="au-how"><li><span>In Discord, open <b>Settings</b></span></li><li><span>Choose <b>Scan QR Code</b> and point it here</span></li></ol>
+          <details class="au-alt"><summary><i class="ph-bold ph-caret-right"></i>Sign in with a token instead</summary><div class="au-altbody"><p class="note">Opened in the next section.</p></div></details>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Wave never sees your password.</p>
+        </div>
+      </div>
+      <figcaption class="au-cap"><b>Ready.</b> The code takes the mascot's place; the steps name where the scanner lives. A fresh code arrives on its own before this one expires.</figcaption>
+    </figure>
+    <figure>
+      <div class="au-win"><div class="titlebar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div></div>
+        <div class="au-login" role="status">
+          <div class="au-hello au-card"><span class="av" data-av="Mira" style="--size: 96px"><span class="au-badge"><i class="ph-bold ph-device-mobile"></i></span></span></div>
+          <h4>Hi, Mira!</h4>
+          <p>Approve the sign-in on your phone to finish.</p>
+          <span class="au-wait"><span class="bars"><i></i><i></i><i></i></span>Check your phone</span>
+          <button class="btn btn--link" style="margin-top: var(--space-2)">Not you? Get a new code</button>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Wave never sees your password.</p>
+        </div>
+      </div>
+      <figcaption class="au-cap"><b>Scanned.</b> The account that scanned springs in (0.5 to 1 on --ease-spring) and replaces the mascot. First name only.</figcaption>
+    </figure>
+    <figure>
+      <div class="au-win"><div class="titlebar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div></div>
+        <div class="au-login" role="status">
+          <div class="mascot waiting" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          <h4>One more step</h4>
+          <p>Discord wants a quick check. Solve the captcha in your browser and Wave will finish signing in.</p>
+          <div class="au-card stack" style="align-items: center; gap: var(--space-3)">
+            <span class="au-wait"><span class="bars"><i></i><i></i><i></i></span>Waiting for the captcha…</span>
+            <button class="btn btn--primary"><i class="ph-bold ph-arrow-square-out"></i>Open captcha again</button>
+          </div>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Wave never sees your password.</p>
+        </div>
+      </div>
+      <figcaption class="au-cap"><b>One more step.</b> The browser opened the check already; the button is for a tab you closed.</figcaption>
+    </figure>
+    <figure>
+      <div class="au-win"><div class="titlebar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div></div>
+        <div class="au-login" role="status">
+          <div class="au-hello au-card"><span class="av" data-av="Mira" style="--size: 96px"><span class="au-badge is-ok"><i class="ph-bold ph-check"></i></span></span></div>
+          <h4>You're in, Mira</h4>
+          <span class="au-wait"><span class="bars"><i></i><i></i><i></i></span>Loading your servers…</span>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Signed in on this computer only.</p>
+        </div>
+      </div>
+      <figcaption class="au-cap"><b>Signed in.</b> A beat of confirmation, then this window becomes the app: the avatar travels to the user panel (FLIP) as the layout slides in around it.</figcaption>
+    </figure>
+    <figure>
+      <div class="au-win"><div class="titlebar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div></div>
+        <div class="au-login">
+          <h4>Sign in with your phone</h4>
+          <p>This code expired while Wave was in the background.</p>
+          <div class="au-card au-qr is-expired" data-qr>
+            <div class="au-over"><i class="ph ph-clock-countdown"></i>Code expired<button class="btn btn--primary btn--sm" data-loading="Getting code…"><i class="ph-bold ph-arrow-clockwise"></i>Get a new code</button></div>
+          </div>
+          <ol class="au-how"><li><span>In Discord, open <b>Settings</b></span></li><li><span>Choose <b>Scan QR Code</b> and point it here</span></li></ol>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Wave never sees your password.</p>
+        </div>
+      </div>
+      <figcaption class="au-cap"><b>Expired.</b> Only when the window slept through a refresh. The old code blurs out of reach so no one scans it; the fix sits on top of it.</figcaption>
+    </figure>
+    <figure>
+      <div class="au-win"><div class="titlebar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div></div>
+        <div class="au-login" role="alert">
+          <div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          <h4>Sign-in didn't finish</h4>
+          <p>Discord ended the sign-in before it was approved. Get a new code and scan it again.</p>
+          <p class="au-why">Discord said: <b>Invalid ticket</b></p>
+          <button class="btn btn--primary au-card" data-loading="Getting code…"><i class="ph-bold ph-arrow-clockwise"></i>Try again</button>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Wave never sees your password.</p>
+        </div>
+      </div>
+      <figcaption class="au-cap"><b>Failed.</b> What happened in plain words, then Discord's own reason verbatim, then one way forward.</figcaption>
+    </figure>
+  </div>
+  <p class="note" style="margin-top: var(--space-3)">Title 20 bold, one line; detail muted, 34ch. Mascot moods: preparing and captcha wait (ripple), ready and failed breathe, scanned and signed in show the person instead. The QR card is white in both themes or phones can't read it; modules are warm ink squircles with the wave mark in the cleared centre (high error correction covers it). Cards arrive from 12px below at 0.97 over 260ms on --ease-spring; reduced motion shows them in place.</p>
+</section>
+
+<!-- Token and two-factor -->
+<section id="sign-in-other">
+  <h2>Token and two-factor</h2>
+  <p class="lede">The other way in sits behind a disclosure under the code, with the risk spelled out before the field. Two-factor asks for six digits in one paste.</p>
+  <div class="board au-wins">
+    <figure>
+      <div class="au-win"><div class="titlebar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div></div>
+        <div class="au-login" style="justify-content: flex-start">
+          <h4>Sign in with your phone</h4>
+          <div class="au-qr" data-qr role="img" aria-label="Sign-in code for the Discord app" style="width: 132px; height: 132px; padding: 10px"></div>
+          <details class="au-alt" open><summary><i class="ph-bold ph-caret-right"></i>Sign in with a token instead</summary>
+            <form class="au-altbody" onsubmit="return false">
+              <div class="callout callout--warning"><i class="ph-fill ph-warning"></i><div><b>Only use your own token</b>Anyone with it can read and send messages as you. Never paste one someone sent you.</div></div>
+              <div class="field"><label for="tok-1">Token</label><div class="input"><i class="ph ph-key"></i><input id="tok-1" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your token"><button type="button" class="iconbtn" aria-label="Show token" aria-pressed="false" data-reveal><i class="ph ph-eye"></i></button></div></div>
+              <button class="btn btn--primary btn--block" data-loading="Signing in…">Sign in with token</button>
+            </form>
+          </details>
+        </div>
+      </div>
+      <figcaption class="au-cap"><b>Token, open.</b> The code shrinks but stays scannable. Wave keeps the token in the system keychain.</figcaption>
+    </figure>
+    <figure>
+      <div class="au-win"><div class="titlebar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div></div>
+        <div class="au-login" style="justify-content: flex-start">
+          <h4>Sign in with your phone</h4>
+          <div class="au-qr" data-qr role="img" aria-label="Sign-in code for the Discord app" style="width: 132px; height: 132px; padding: 10px"></div>
+          <details class="au-alt" open><summary><i class="ph-bold ph-caret-right"></i>Sign in with a token instead</summary>
+            <form class="au-altbody" onsubmit="return false">
+              <div class="callout callout--warning"><i class="ph-fill ph-warning"></i><div><b>Only use your own token</b>Anyone with it can read and send messages as you. Never paste one someone sent you.</div></div>
+              <div class="field"><label for="tok-2">Token</label><div class="input error"><i class="ph ph-key"></i><input id="tok-2" type="password" autocomplete="off" spellcheck="false" value="MTA4Njc2NDQ5NzI0OTk0MzU1Ng.Gx" aria-describedby="tok-2-err" aria-invalid="true"><button type="button" class="iconbtn" aria-label="Show token" aria-pressed="false" data-reveal><i class="ph ph-eye"></i></button></div>
+                <span class="err" id="tok-2-err"><i class="ph-fill ph-warning-circle"></i>Discord didn't accept that token. Copy all of it and paste again.</span></div>
+              <button class="btn btn--primary btn--block" data-loading="Signing in…">Sign in with token</button>
+            </form>
+          </details>
+        </div>
+      </div>
+      <figcaption class="au-cap"><b>Token, rejected.</b> The field keeps what you pasted; the error sits under it.</figcaption>
+    </figure>
+    <figure>
+      <div class="au-win"><div class="titlebar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div></div>
+        <form class="au-login" onsubmit="return false" data-otp-form>
+          <span class="icontile" style="width: 48px; height: 48px; border-radius: var(--radius-lg)"><i class="ph-bold ph-shield-check" style="font-size: 26px"></i></span>
+          <h4>Enter your code</h4>
+          <p>Open your authenticator app and enter the 6-digit code for <b>Mira</b>.</p>
+          <div class="au-otp au-card" role="group" aria-label="6-digit code" data-otp>
+            <div class="otp"><input inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="Digit 1 of 6" value="4"><input inputmode="numeric" maxlength="1" aria-label="Digit 2 of 6" value="8"><input inputmode="numeric" maxlength="1" aria-label="Digit 3 of 6" value="1"></div><i aria-hidden="true"></i>
+            <div class="otp"><input inputmode="numeric" maxlength="1" aria-label="Digit 4 of 6" value="9"><input inputmode="numeric" maxlength="1" aria-label="Digit 5 of 6"><input inputmode="numeric" maxlength="1" aria-label="Digit 6 of 6"></div>
+          </div>
+          <p class="au-why" data-otp-line role="status">Paste the whole code or type it; Wave checks it on the last digit.</p>
+          <button type="button" class="btn btn--link">Use a backup code instead</button>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Wave never sees your password.</p>
+        </form>
+      </div>
+      <figcaption class="au-cap"><b>Two-factor, live.</b> Type or paste: focus advances, Backspace steps back, the sixth digit checks at once. No submit button.</figcaption>
+    </figure>
+    <figure>
+      <div class="au-win"><div class="titlebar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div></div>
+        <form class="au-login" onsubmit="return false">
+          <span class="icontile" style="width: 48px; height: 48px; border-radius: var(--radius-lg)"><i class="ph-bold ph-shield-check" style="font-size: 26px"></i></span>
+          <h4>Enter your code</h4>
+          <p>Open your authenticator app and enter the 6-digit code for <b>Mira</b>.</p>
+          <div class="au-otp is-error" role="group" aria-label="6-digit code" aria-describedby="otp-err">
+            <div class="otp"><input inputmode="numeric" maxlength="1" aria-label="Digit 1 of 6" value="4"><input inputmode="numeric" maxlength="1" aria-label="Digit 2 of 6" value="8"><input inputmode="numeric" maxlength="1" aria-label="Digit 3 of 6" value="1"></div><i aria-hidden="true"></i>
+            <div class="otp"><input inputmode="numeric" maxlength="1" aria-label="Digit 4 of 6" value="9"><input inputmode="numeric" maxlength="1" aria-label="Digit 5 of 6" value="0"><input inputmode="numeric" maxlength="1" aria-label="Digit 6 of 6" value="2"></div>
+          </div>
+          <p class="au-err" id="otp-err" role="alert"><i class="ph-fill ph-warning-circle"></i>That code didn't work. Codes change every 30 seconds, so enter the newest one.</p>
+          <button type="button" class="btn btn--link">Use a backup code instead</button>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Wave never sees your password.</p>
+        </form>
+      </div>
+      <figcaption class="au-cap"><b>Two-factor, wrong code.</b> Digits stay and are selected, so typing replaces them.</figcaption>
+    </figure>
+  </div>
+  <p class="note" style="margin-top: var(--space-3)">Disclosure: one chevron, right when closed and turned down when open; the content folds as one block (height and fade, 200ms, --ease-out). Warning callout before the field, never after. GAP: src/login.rs has no token or two-factor step today; these are the screens for when Discord answers a sign-in with an MFA ticket and for a pasted token.</p>
+</section>
+
+<!-- Captcha -->
+<section id="captcha">
+  <h2>Captcha hand-off</h2>
+  <p class="lede">Wave can't host Discord's captcha, so it opens a one-off local page in your browser. The page wears Wave's look, says why it's there, and finishes the sign-in on its own.</p>
+  <div class="board au-wins" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr))">
+    <figure>
+      <div class="au-browser">
+        <div class="au-bbar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div><div class="au-url"><i class="ph ph-globe-simple"></i><span>127.0.0.1:52314/3f9c0a…</span></div></div>
+        <div class="au-bpage"><div class="au-ccard">
+          <div class="mascot waiting" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          <h4>One more step</h4>
+          <p>Discord wants a quick check before signing Wave in.</p>
+          <div class="au-challenge"><i class="ph ph-shield-check"></i><span>The hCaptcha check loads here</span></div>
+          <div class="au-status" role="status"></div>
+        </div></div>
+      </div>
+      <figcaption class="au-cap"><b>Challenge.</b> Card on the page's own neutrals, following the system theme. The challenge takes its 304×78 slot from the start so nothing jumps when it loads.</figcaption>
+    </figure>
+    <figure>
+      <div class="au-browser">
+        <div class="au-bbar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div><div class="au-url"><i class="ph ph-globe-simple"></i><span>127.0.0.1:52314/3f9c0a…</span></div></div>
+        <div class="au-bpage"><div class="au-ccard">
+          <div class="mascot happy" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          <h4>You're all set</h4>
+          <p>Wave is finishing your sign-in.</p>
+          <div class="au-status is-ok" role="status"><i class="ph-fill ph-check-circle"></i>Done. You can close this tab.</div>
+          <button class="btn btn--primary"><i class="ph-bold ph-arrow-u-up-left"></i>Return to Wave</button>
+        </div></div>
+      </div>
+      <figcaption class="au-cap"><b>Solved.</b> Wave carries on by itself; the button only brings its window forward.</figcaption>
+    </figure>
+  </div>
+  <h3>Status line</h3>
+  <div class="board stack" style="gap: var(--space-3)">
+    <div class="au-status"><span class="bars"><i></i><i></i><i></i></span>Sending to Wave…</div>
+    <div class="au-status is-ok"><i class="ph-fill ph-check-circle"></i>Done. You can close this tab.</div>
+    <div class="au-status is-bad"><i class="ph-fill ph-warning-circle"></i>The check expired. Solve it again.</div>
+    <div class="au-status is-bad"><i class="ph-fill ph-warning-circle"></i>Couldn't reach Wave. Make sure it's still open, then solve the check again.</div>
+    <p class="note">The page lives at a random path on 127.0.0.1 and answers once. GAP: "Return to Wave" needs a URL scheme the app doesn't register yet; until then the button is hidden and the line alone says to go back. The shipped page in src/captcha.rs still says "Rustcord" and uses its own colours; port these.</p>
+  </div>
+</section>
+
+<!-- Your menu: status, then accounts -->
+<section id="accounts">
+  <h2>Status and accounts</h2>
+  <p class="lede">Your name in the panel opens one menu: your presence first, then every signed-in account with what waits for you there. Logging out of one is instant, with Undo.</p>
+  <div class="board" style="display: flex; flex-wrap: wrap; gap: var(--space-8); align-items: flex-end">
+    <div class="au-acctwrap">
+      <div class="menu au-accts" role="menu" aria-label="Status and accounts">
+        <button class="mi" role="menuitem" onclick="location.href='profile.html#custom-status'"><i class="ph ph-smiley"></i><div>Set a custom status</div></button>
+        <div role="group" aria-label="Presence">
+          <button class="mi" role="menuitemradio" aria-checked="true" data-presence="online"><span class="pf-smark" style="--bg-ring: var(--bg-overlay)"><span class="status online"></span></span><div>Online</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false" data-presence="idle"><span class="pf-smark" style="--bg-ring: var(--bg-overlay)"><span class="status idle"></span></span><div>Idle</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false" data-presence="dnd"><span class="pf-smark" style="--bg-ring: var(--bg-overlay)"><span class="status dnd"></span></span><div>Do not disturb</div></button>
+          <button class="mi" role="menuitemradio" aria-checked="false" data-presence="offline"><span class="pf-smark" style="--bg-ring: var(--bg-overlay)"><span class="status offline"></span></span><div>Invisible</div></button>
+        </div>
+        <hr>
+        <div class="mlabel">Accounts</div>
+        <div class="au-acct" aria-current="true"><span class="av" data-av="Mira"><span class="status online"></span></span><button class="nm" role="menuitemradio" aria-checked="true"><b>Mira</b><span>Online</span></button></div>
+        <div class="au-acct"><span class="av" data-av="Theo"><span class="status idle"></span></span><button class="nm" role="menuitemradio" aria-checked="false"><b>juno.alt</b><span>Idle</span></button><span class="au-end"><span class="count" aria-label="3 mentions">3</span><button class="iconbtn iconbtn--sm au-out" aria-label="Log out of juno.alt" title="Log out of juno.alt"><i class="ph ph-sign-out"></i></button></span></div>
+        <div class="au-acct"><span class="av" data-av="Bartholomew"><span class="status dnd"></span></span><button class="nm" role="menuitemradio" aria-checked="false"><b>Bartholomew Featherstonehaugh-Wright</b><span>Do Not Disturb</span></button><span class="au-end"><span class="count" aria-label="99+ mentions">99+</span><button class="iconbtn iconbtn--sm au-out" aria-label="Log out of Bartholomew Featherstonehaugh-Wright" title="Log out"><i class="ph ph-sign-out"></i></button></span></div>
+        <div class="au-acct"><span class="av" data-av="Rosa" style="opacity: 0.6"><span class="status offline"></span></span><button class="nm" role="menuitem"><b>rosa_work</b><span class="is-needs">Signed out. Sign in again</span></button><span class="au-end"><button class="iconbtn iconbtn--sm au-out" aria-label="Remove rosa_work" title="Remove rosa_work"><i class="ph ph-x"></i></button></span></div>
+        <hr>
+        <button class="mi" role="menuitem"><i class="ph ph-plus"></i><div>Add an account</div></button>
+      </div>
+      <div class="me" id="me-acct"><button class="who" aria-label="Your status and accounts" aria-expanded="true"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>Online</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div>
+    </div>
+    <div class="stack" style="flex: 1; min-width: min(100%, 260px); gap: var(--space-4)">
+      <div class="toasts stack" id="acct-toasts" role="status" aria-live="polite" style="gap: var(--space-2); min-height: 56px; justify-items: start"></div>
+      <p class="note">Opens from the name in your panel, rising from it (0.95 and fade, 200ms). Presence changes in one click and the panel follows at once; Set a custom status opens its dialog (<a href="profile.html#custom-status" style="color: var(--accent-ink)">Profile: custom status</a>). The chosen presence and the current account take the selected fill, no check or dot. Mentions use the accent count because they ask for you; on hover or focus the count gives its slot to Log out. A signed-out account says so in the warning tone and signs in again on click. Add an account opens the sign-in window beside the app; nothing you're doing closes. Try logging out of a row.</p>
+    </div>
+  </div>
+</section>
+
+<!-- App-wide states -->
+<section id="states">
+  <h2>App-wide states</h2>
+  <p class="lede">Empty, loading, error and offline states, each in the region of the layout it takes over. The rest of the window keeps working: one part failing never blocks the others.</p>
+  <div class="au-apps">
+    <div id="st-no-channel-open">
+      <h3>No channel open</h3>
+      <div class="au-app"><div class="au-appbody"><aside class="side" data-side></aside>
+        <div class="chat"><header></header>
+          <div class="empty"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>No channel open</b><p>Pick a channel on the left, or jump anywhere with <span class="keys"><span class="kbd">⌘</span><span class="kbd">K</span></span></p><button class="btn"><i class="ph-bold ph-hash"></i>Open #general</button></div>
+        </div></div></div>
+      <p class="au-cap">The button reopens the last channel you read.</p>
+    </div>
+    <div id="st-no-messages-yet">
+      <h3>No messages yet</h3>
+      <div class="au-app"><div class="au-appbody"><aside class="side" data-side="clips"></aside>
+        <div class="chat"><header><i class="ph ph-hash faint" style="font-size: 20px"></i><b>clips</b><span class="topic">best plays only</span></header>
+          <div class="feed">
+            <div class="au-welcome"><span class="icontile"><i class="ph ph-hash"></i></span><h4>clips</h4><p>Best plays only. Post the clip, then the story.</p><div class="row"><span class="av" data-av="Theo"></span>Theo made this channel on 14 November 2026</div></div>
+            <div class="au-firstline"><span class="mascot happy" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>No messages yet. Be the first to say something.</div>
+          </div>
+          <div class="typing"></div>
+          <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><input placeholder="Message #clips" aria-label="Message #clips"><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+        </div></div></div>
+      <p class="au-cap">The welcome is where the channel's history begins, so it scrolls away as messages arrive.</p>
+    </div>
+    <div id="st-couldnt-load-messages">
+      <h3>Couldn't load messages</h3>
+      <div class="au-app"><div class="au-appbody"><aside class="side" data-side="general"></aside>
+        <div class="chat"><header><i class="ph ph-hash faint" style="font-size: 20px"></i><b>general</b><span class="topic">late-night games and bad takes</span></header>
+          <div class="empty" role="alert"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Couldn't load messages</b><p>Discord didn't answer in time. Check your connection, then try again.</p><button class="btn btn--primary" data-loading="Loading…"><i class="ph-bold ph-arrow-clockwise"></i>Retry</button></div>
+          <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><input placeholder="Message #general" aria-label="Message #general"><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+        </div></div></div>
+      <p class="au-cap">The composer stays: you can write while the history retries.</p>
+    </div>
+    <div id="st-members-loading">
+      <h3>Members loading</h3>
+      <div class="au-app"><div class="au-appbody au-appbody--members">
+        <div class="chat"><header><i class="ph ph-hash faint" style="font-size: 20px"></i><b>general</b></header>
+          <div class="feed">
+            <div class="msg first"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">9:41 PM</span></div><div class="body">anyone up for a few rounds after dinner?</div></div></div>
+            <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="time">9:44 PM</span></div><div class="body">yes, starting a stream in Lounge</div></div></div>
+          </div>
+          <div class="typing"></div>
+          <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><input placeholder="Message #general" aria-label="Message #general"><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+        </div>
+        <aside class="members" aria-label="Members, loading" aria-busy="true">
+          <div class="cat">Online</div>
+          <div class="mem skel"><span class="skeleton circle" style="width: 32px; height: 32px; flex: none"></span><div class="stack" style="gap: 6px; flex: 1"><span class="skeleton line" style="width: 70%"></span><span class="skeleton line" style="width: 45%; height: 8px"></span></div></div>
+          <div class="mem skel"><span class="skeleton circle" style="width: 32px; height: 32px; flex: none"></span><div class="stack" style="gap: 6px; flex: 1"><span class="skeleton line" style="width: 52%"></span></div></div>
+          <div class="mem skel"><span class="skeleton circle" style="width: 32px; height: 32px; flex: none"></span><div class="stack" style="gap: 6px; flex: 1"><span class="skeleton line" style="width: 80%"></span><span class="skeleton line" style="width: 60%; height: 8px"></span></div></div>
+          <div class="mem skel"><span class="skeleton circle" style="width: 32px; height: 32px; flex: none"></span><div class="stack" style="gap: 6px; flex: 1"><span class="skeleton line" style="width: 40%"></span></div></div>
+        </aside></div></div>
+      <p class="au-cap">The member list's own skeleton (<a href="navigation.html#member-list">Navigation</a>): static label, no false count. In a narrow window the panel is hidden.</p>
+    </div>
+    <div id="st-connection-lost">
+      <h3>Connection lost</h3>
+      <div class="au-app"><div class="banner banner--lost" role="status"><span class="bars"><i></i><i></i><i></i></span>Connection lost. Reconnecting in 4s…<button class="btn btn--sm">Reconnect now</button></div>
+        <div class="au-appbody"><aside class="side" data-side="general"></aside>
+        <div class="chat"><header><i class="ph ph-hash faint" style="font-size: 20px"></i><b>general</b></header>
+          <div class="feed">
+            <div class="msg first"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">9:41 PM</span></div><div class="body">anyone up for a few rounds after dinner?</div></div></div>
+            <div class="msg first pending"><span class="av" data-av="You"></span><div><div class="head"><span class="name">You</span><span class="time">9:52 PM</span><i class="ph ph-clock state" role="img" aria-label="Queued"></i></div><div class="body">on my way, give me five</div><div class="msg-foot"><i class="ph ph-clock"></i>Sends when you're back</div></div></div>
+          </div>
+          <div class="typing"></div>
+          <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><input placeholder="Message #general" aria-label="Message #general"><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+        </div></div></div>
+      <p class="au-cap">Everything already loaded stays readable. The composer keeps working and queues; voice and live features grey out until the connection returns.</p>
+    </div>
+    <div id="st-offline-at-launch">
+      <h3>Offline at launch</h3>
+      <div class="au-app"><div class="titlebar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div></div>
+        <div class="au-full" role="status"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>You're offline</b><p>Wave can't reach Discord. It opens by itself as soon as your connection is back.</p>
+          <div class="row"><span class="au-wait"><span class="bars"><i></i><i></i><i></i></span>Waiting for a connection</span><button class="btn" data-loading="Trying…"><i class="ph-bold ph-arrow-clockwise"></i>Retry</button></div></div></div>
+      <p class="au-cap">Full window, no countdown: Wave listens for the network instead of polling on a timer. The splash hands over here after a few seconds rather than sitting on "Signing in…".</p>
+    </div>
+    <div id="st-rate-limited">
+      <h3>Rate limited</h3>
+      <div class="au-app"><div class="au-appbody"><aside class="side" data-side="general"></aside>
+        <div class="chat"><header><i class="ph ph-hash faint" style="font-size: 20px"></i><b>general</b></header>
+          <div class="feed">
+            <div class="msg first"><span class="av" data-av="You"></span><div><div class="head"><span class="name">You</span><span class="time">9:58 PM</span></div><div class="body">gg</div></div></div>
+            <div class="msg"><span class="gutter">9:58</span><div class="body">GG</div></div>
+            <div class="msg"><span class="gutter">9:58</span><div class="body">gggggg</div></div>
+          </div>
+          <div class="typing"></div>
+          <div data-rate="8"><div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><input value="ok last one I promise" aria-label="Message #general"><span class="cslow" role="timer"><i class="ph ph-timer"></i><span data-rate-clock>0:08</span></span><button class="send" aria-label="Send message" disabled><i class="ph-bold ph-arrow-up"></i></button></div>
+            <p class="cnote" data-rate-note><i class="ph ph-timer"></i><span>Slow down. You can send again in <span data-rate-words>8 seconds</span>.</span></p></div>
+        </div></div></div>
+      <p class="au-cap">Live: the wait counts down on the composer and your text stays put. At zero the note goes and Send wakes.</p>
+    </div>
+    <div id="st-no-permission">
+      <h3>No permission</h3>
+      <div class="au-app"><div class="au-appbody"><aside class="side" data-side="mod-log"></aside>
+        <div class="chat"><header><i class="ph ph-lock-simple faint" style="font-size: 20px"></i><b>mod-log</b></header>
+          <div class="empty"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>You can't read #mod-log</b><p>Only people with the Moderator role can see this channel. You followed a link to it.</p><button class="btn"><i class="ph-bold ph-hash"></i>Back to #general</button></div>
+        </div></div></div>
+      <p class="au-cap">Names the role when Discord tells us which one grants access; otherwise "You don't have access to this channel".</p>
+    </div>
+    <div id="st-server-unavailable">
+      <h3>Server unavailable</h3>
+      <div class="au-app"><div class="au-appbody"><aside class="side"><header>Night Shift <i class="ph ph-cloud-slash" style="color: var(--warning-ink)" role="img" aria-label="Unavailable"></i></header><div class="chlist"><div class="cat">Channels</div><span class="skeleton line au-still" style="width: 70%; margin: 10px 8px"></span><span class="skeleton line au-still" style="width: 55%; margin: 10px 8px"></span><span class="skeleton line au-still" style="width: 62%; margin: 10px 8px"></span></div></aside>
+        <div class="chat"><header></header>
+          <div class="empty" role="status"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Night Shift is unavailable</b><p>Discord is having an outage for this server. Wave opens it by itself when it's back; your other servers work as usual.</p><a class="btn btn--ghost" href="https://discordstatus.com" target="_blank" rel="noreferrer"><i class="ph-bold ph-arrow-square-out"></i>Check Discord status</a></div>
+        </div></div></div>
+      <p class="au-cap">The server's rail icon dims and carries the same cloud mark, and says why on hover; clicking it lands here.</p>
+    </div>
+    <div id="st-update-ready">
+      <h3>Update ready</h3>
+      <div class="au-app"><div class="banner banner--update" role="status"><i class="ph-fill ph-arrow-circle-up"></i>Wave 0.5 is ready to install.<button class="btn btn--primary btn--sm">Restart now</button><button class="iconbtn x" aria-label="Remind me later" title="Remind me later"><i class="ph ph-x"></i></button></div>
+        <div class="au-appbody"><aside class="side" data-side="general"></aside>
+        <div class="chat"><header><i class="ph ph-hash faint" style="font-size: 20px"></i><b>general</b></header>
+          <div class="feed">
+            <div class="msg first"><span class="av" data-av="Ana"></span><div><div class="head"><span class="name">Ana</span><span class="time">9:47 PM</span></div><div class="body">patch notes are out</div></div></div>
+          </div>
+          <div class="typing"></div>
+          <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><input placeholder="Message #general" aria-label="Message #general"><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+        </div></div></div>
+      <div style="margin-top: var(--space-3); border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--line)"><div class="banner banner--update" role="status"><i class="ph-fill ph-arrow-circle-up"></i>Wave 0.5 is ready. You're in a call.<button class="btn btn--primary btn--sm" aria-pressed="false">Restart after call</button></div></div>
+      <p class="au-cap">Downloaded in the background; launch never waits on it. During a call the action defers to hang-up instead of dropping you. The banner component lives in <a href="overlays.html#banners">Overlays</a>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Error toasts -->
+<section id="toasts">
+  <h2>Error toasts</h2>
+  <p class="lede">When something you did fails after it already showed as done, a toast says what happened and offers the one action that fixes it. Errors stay until dismissed or acted on.</p>
+  <div class="board" style="display: grid; gap: var(--space-6); grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); align-items: start">
+    <div class="stack au-toasts" style="gap: var(--space-3)">
+      <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>Couldn't find jhon<small>Searched without that name. Check the spelling.</small></p><button class="btn btn--sm">Edit search</button></div>
+      <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>Couldn't send: Discord didn't answer<small>Your message is still in the feed.</small></p><button class="btn btn--sm" data-loading="Sending…">Retry</button></div>
+      <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>Couldn't save your edit<small>The message is back as it was. Your changes are kept.</small></p><button class="btn btn--sm">Edit again</button></div>
+      <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>Couldn't delete that message<small>It's back in the feed.</small></p><button class="btn btn--sm" data-loading="Deleting…">Try again</button></div>
+    </div>
+    <div class="stack" style="gap: var(--space-3)">
+      <h3 style="margin: 0">Worst case</h3>
+      <div class="toast au-toasts" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>Couldn't find bartholomew_featherstonehaugh_wright, xX_n1ghtsh1ft_Xx, jun_the_third<small>Searched without those names. Check the spelling.</small></p><button class="btn btn--sm">Edit search</button></div>
+      <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>Couldn't send: You can only send 10 MB files without Nitro<small>Your message is still in the feed.</small></p><button class="btn btn--sm">Send as link</button></div>
+      <p class="note au-note">Copy: the app's own strings (src/main.rs) as titles; the muted line says what state things are in now. "Couldn't send: {error}" carries Discord's reason verbatim. Actions: Edit search reopens the search with the unknown names selected; Retry and Try again turn into their outcome in the same toast; Edit again reopens the editor with your changes. Toast component, stacking and timing: <a href="overlays.html#toasts">Overlays</a>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Better than Discord -->
+<section id="better-than-discord">
+  <h2>Better than Discord</h2>
+  <p class="lede">Where Discord's sign-in and states leave you guessing, Wave says what's happening and keeps the rest of the app working.</p>
+  <p class="note" style="margin-top: var(--space-3)">Discord's side is described from its desktop client as remembered, not re-checked for this page.</p>
+  <div class="btd">
+    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
+    <div><p>Launch shows a spinner, tips and "Checking for updates…", and can sit there with no end in sight.</p><p><b><a href="#splash">Splash</a></b>Names the real stage with three step dots, and opens the main window after 25 seconds at most.</p><p>You can tell a slow network from a stuck app, and launch never waits on an update.</p></div>
+    <div><p>"Scan this with the Discord mobile app", with no hint where the scanner is.</p><p><b><a href="#sign-in">Ready</a></b>Two short steps name the path: Settings, then Scan QR Code.</p><p>The scanner is buried in mobile settings; saying where saves the hunt.</p></div>
+    <div><p>A failed QR sign-in falls back to a generic error.</p><p><b><a href="#sign-in">Failed</a></b>Says what happened in plain words, shows Discord's reason verbatim under it, and offers one Try again.</p><p>Errors say what happened and how to fix it; the verbatim reason is what support needs.</p></div>
+    <div><p>Two-factor is one plain text field and a separate Log in button.</p><p><b><a href="#sign-in-other">Two-factor</a></b>Six boxes take a pasted code whole and check it on the last digit; a wrong code explains that codes change every 30 seconds.</p><p>One step fewer, and the error names the usual cause.</p></div>
+    <div><p>No way to sign in with a token, so people paste scripts from strangers into the console.</p><p><b><a href="#sign-in-other">Token</a></b>A token field behind a disclosure, with the risk spelled out before it, stored in the system keychain.</p><p>The risky path exists for people who need it without being the obvious one.</p></div>
+    <div><p>Switch accounts is a dialog behind the user menu; it doesn't show which account has mentions, and logging out asks to confirm.</p><p><b><a href="#accounts">Accounts</a></b>A menu rising from your panel: status and mention count per account, signed-out accounts say so, and logging out is instant with Undo.</p><p>Switching takes a glance and a click; Undo beats a confirm for something reversible.</p></div>
+    <div><p>A new channel opens on "Welcome to #clips! This is the start of the #clips channel", the name twice.</p><p><b><a href="#st-no-messages-yet">No messages yet</a></b>The name once, then the topic and who made it, then one line inviting the first message.</p><p>Every line says something new.</p></div>
+    <div><p>A long drop puts a full-window "Connecting" screen over the chat you were reading.</p><p><b><a href="#st-connection-lost">Connection lost</a></b>The chat stays readable under a banner with the countdown and Reconnect now; what you send queues and goes out when you're back.</p><p>One part failing never blocks the rest, and what you typed is never lost.</p></div>
+    <div><p>Offline at launch, it stays on the splash.</p><p><b><a href="#st-offline-at-launch">Offline at launch</a></b>Opens a window that says you're offline and opens Wave by itself when the network returns; Retry for the impatient.</p><p>A wait says what it's waiting on.</p></div>
+    <div><p>Sending too fast gets a bot message, and the message can fail.</p><p><b><a href="#st-rate-limited">Rate limited</a></b>Counts down on the composer and keeps your text until you can send.</p><p>You know exactly when you can send, and nothing is lost.</p></div>
+    <div><p>A link to a hidden channel lands on "no access" with no reason.</p><p><b><a href="#st-no-permission">No permission</a></b>Names the role that can read it and offers the way back.</p><p>Permission states explain themselves.</p></div>
+    <div><p>An unavailable server is a greyed icon that explains itself only in a hover tooltip.</p><p><b><a href="#st-server-unavailable">Server unavailable</a></b>The server opens to a page saying it's Discord's outage, that your other servers work, and that it reopens by itself.</p><p>Nothing is reachable only by hover, and you aren't left wondering whether Wave broke.</p></div>
+    <div><p>Updates download at launch before you can do anything.</p><p><b><a href="#st-update-ready">Update ready</a></b>Downloads in the background; a banner offers Restart now, and during a call it waits until you hang up.</p><p>Launch is never held up, and an update never drops a call.</p></div>
+    <div><p>A failed edit or delete can quietly snap back.</p><p><b><a href="#toasts">Error toasts</a></b>Each failure is a toast saying what happened, with its one action: Retry, Edit again, Try again, Edit search.</p><p>Optimistic actions need a visible way back when they fail.</p></div>
+  </div>
+</section>
+</main>
+</div>
+<script src="site.js"></script>
+<script>
+// Channel sidebars for the state frames; data-side names the selected channel.
+const CHANNELS = [["hash", "general"], ["hash", "clips"], ["hash", "looking-for-group"], ["lock-simple", "mod-log"], ["speaker-high", "Lounge"]];
+for (const side of $$("[data-side]")) {
+  const sel = side.dataset.side;
+  side.innerHTML = `<header>Night Shift <i class="ph-bold ph-caret-down"></i></header><div class="chlist"><div class="cat"><i class="ph-bold ph-caret-down"></i>Text</div>${CHANNELS.map(([icon, name]) => `<div class="ch${name === sel ? " sel" : ""}"><i class="ph ph-${icon}"></i>${name}</div>`).join("")}</div>`;
+}
+
+// QR codes: an illustrative pattern (not a real code) drawn with squircle modules and the wave mark.
+const N = 29;
+function squircle(cx, cy, r, points = 20) {
+  let d = "";
+  for (let i = 0; i < points; i++) {
+    const t = (i / points) * 2 * Math.PI, c = Math.cos(t), s = Math.sin(t);
+    const x = cx + r * Math.sign(c) * Math.abs(c) ** 0.5, y = cy + r * Math.sign(s) * Math.abs(s) ** 0.5;
+    d += `${i ? "L" : "M"}${x.toFixed(2)} ${y.toFixed(2)}`;
+  }
+  return d + "Z";
+}
+function qrSvg() {
+  let seed = 7;
+  const rand = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  const inBox = (x, y, x0, y0, size) => x >= x0 && x < x0 + size && y >= y0 && y < y0 + size;
+  const reserved = (x, y) => inBox(x, y, 0, 0, 8) || inBox(x, y, N - 8, 0, 8) || inBox(x, y, 0, N - 8, 8) || inBox(x, y, 20, 20, 5) || inBox(x, y, 10, 10, 9) || x === 6 || y === 6;
+  let ink = "";
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (!reserved(x, y) && rand() < 0.48) ink += squircle(x + 0.5, y + 0.5, 0.44);
+  for (let i = 8; i < N - 8; i += 2) ink += squircle(i + 0.5, 6.5, 0.44) + squircle(6.5, i + 0.5, 0.44);
+  let paper = "", core = "";
+  for (const [x, y] of [[0, 0], [N - 7, 0], [0, N - 7]]) {
+    ink += squircle(x + 3.5, y + 3.5, 3.5, 48);
+    paper += squircle(x + 3.5, y + 3.5, 2.5, 48);
+    core += squircle(x + 3.5, y + 3.5, 1.5, 40);
+  }
+  ink += squircle(22.5, 22.5, 2.5, 40); paper += squircle(22.5, 22.5, 1.5, 40); core += squircle(22.5, 22.5, 0.5);
+  const bars = [[2, 21, 24], [15, 10.5, 45], [28, 1, 64], [41, 13.5, 39], [54, 22, 22]].map(([x, y, h]) => `<rect x="${x}" y="${y}" width="8" height="${h}" rx="4"/>`).join("");
+  return `<svg viewBox="0 0 ${N} ${N}" aria-hidden="true"><path class="ink" d="${ink}"/><path class="paper" d="${paper}"/><path class="ink" d="${core}"/><path class="paper" d="${squircle(14.5, 14.5, 4.4, 48)}"/><g class="mark" transform="translate(11.3 11.2) scale(0.1)">${bars}</g></svg>`;
+}
+const QR = qrSvg();
+for (const el of $$("[data-qr]")) el.insertAdjacentHTML("afterbegin", QR);
+
+// Token field: the eye button shows and hides what was pasted.
+document.addEventListener("click", e => {
+  const eye = e.target.closest("[data-reveal]");
+  if (!eye) return;
+  const shown = eye.getAttribute("aria-pressed") === "true";
+  eye.previousElementSibling.type = shown ? "text" : "password";
+  eye.setAttribute("aria-label", shown ? "Hide token" : "Show token");
+  eye.firstElementChild.className = shown ? "ph ph-eye-slash" : "ph ph-eye";
+});
+
+// Two-factor: focus advances, Backspace steps back, a paste fills every box, the sixth digit checks.
+for (const group of $$("[data-otp]")) {
+  const boxes = $$("input", group), line = $("[data-otp-line]", group.closest("form")), hint = line.innerHTML;
+  const check = () => {
+    if (boxes.some(b => !b.value)) { line.innerHTML = hint; return; }
+    line.innerHTML = `<span class="au-wait"><span class="bars"><i></i><i></i><i></i></span>Checking…</span>`;
+    setTimeout(() => { line.innerHTML = `<span class="au-status is-ok" style="justify-content:center"><i class="ph-fill ph-check-circle"></i>Code accepted</span>`; }, 1200);
+  };
+  boxes.forEach((box, i) => {
+    box.addEventListener("input", () => {
+      box.value = box.value.replace(/\D/g, "").slice(-1);
+      if (box.value && boxes[i + 1]) boxes[i + 1].focus();
+      check();
+    });
+    box.addEventListener("keydown", e => {
+      if (e.key === "Backspace" && !box.value && boxes[i - 1]) { boxes[i - 1].focus(); boxes[i - 1].value = ""; e.preventDefault(); check(); }
+    });
+    box.addEventListener("paste", e => {
+      const digits = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, boxes.length - i);
+      if (!digits) return;
+      e.preventDefault();
+      [...digits].forEach((d, k) => { boxes[i + k].value = d; });
+      boxes[Math.min(i + digits.length, boxes.length - 1)].focus();
+      check();
+    });
+    box.addEventListener("focus", () => box.select());
+  });
+}
+
+// Rate limit: the wait counts down on the composer, then Send wakes.
+const seconds = new Intl.PluralRules("en");
+for (const rate of $$("[data-rate]")) {
+  let left = +rate.dataset.rate;
+  const clock = $("[data-rate-clock]", rate), words = $("[data-rate-words]", rate), note = $("[data-rate-note]", rate), timer = $(".cslow", rate), send = $(".send", rate);
+  const tick = setInterval(() => {
+    left -= 1;
+    clock.textContent = `0:${String(left).padStart(2, "0")}`;
+    words.textContent = `${left} ${seconds.select(left) === "one" ? "second" : "seconds"}`;
+    if (left > 0) return;
+    clearInterval(tick);
+    note.hidden = true; timer.hidden = true; send.disabled = false;
+  }, 1000);
+}
+
+// Presence: one click, the panel follows.
+const PRESENCE = { online: "Online", idle: "Idle", dnd: "Do not disturb", offline: "Invisible" };
+document.addEventListener("click", e => {
+  const row = e.target.closest(".mi[data-presence]");
+  if (!row) return;
+  for (const r of $$(".mi[data-presence]", row.parentElement)) r.setAttribute("aria-checked", r === row);
+  const me = $("#me-acct");
+  $(".who .status", me).className = "status " + row.dataset.presence;
+  $(".who div span", me).textContent = PRESENCE[row.dataset.presence];
+});
+
+// Accounts: logging out of one is instant; the toast offers Undo.
+const acctToasts = $("#acct-toasts");
+document.addEventListener("click", e => {
+  const out = e.target.closest(".au-out");
+  if (!out) return;
+  const row = out.closest(".au-acct"), name = $(".nm b", row).textContent;
+  row.classList.add("is-leaving");
+  setTimeout(() => { row.hidden = true; }, 200);
+  const toast = document.createElement("div");
+  toast.className = "toast"; toast.dataset.tone = "undo";
+  toast.innerHTML = `<i class="ph-fill ph-sign-out"></i><p>Logged out of ${name}</p><button class="btn btn--sm">Undo</button>`;
+  $("button", toast).addEventListener("click", () => {
+    row.hidden = false;
+    requestAnimationFrame(() => requestAnimationFrame(() => row.classList.remove("is-leaving")));
+    toast.remove();
+  });
+  acctToasts.prepend(toast);
+  paintAvatars();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wave Server Settings</title>
+<meta name="description" content="Everything a server owner or moderator configures.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<link rel="stylesheet" href="css/navigation.css">
+<link rel="stylesheet" href="css/messages.css">
+<link rel="stylesheet" href="css/voice.css">
+<link rel="stylesheet" href="css/overlays.css">
+<link rel="stylesheet" href="css/settings.css">
+<link rel="stylesheet" href="css/menus.css">
+<link rel="stylesheet" href="css/panels.css">
+<link rel="stylesheet" href="css/media.css">
+<link rel="stylesheet" href="css/auth.css">
+<link rel="stylesheet" href="css/profile.css">
+<link rel="stylesheet" href="css/community.css">
+<link rel="stylesheet" href="css/server-settings.css">
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+  <symbol id="ce-wave" viewBox="0 0 64 66"><g fill="#e8326f"><rect x="2" y="21" width="8" height="24" rx="4"/><rect x="15" y="10.5" width="8" height="45" rx="4"/><rect x="28" y="1" width="8" height="64" rx="4"/><rect x="41" y="13.5" width="8" height="39" rx="4"/><rect x="54" y="22" width="8" height="22" rx="4"/></g></symbol>
+  <symbol id="ce-nod" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#f2c14e"/><circle cx="11" cy="13" r="2.2" fill="#3a2614"/><circle cx="21" cy="13" r="2.2" fill="#3a2614"/><path d="M10 19.5q6 6 12 0" stroke="#3a2614" stroke-width="2.4" fill="none" stroke-linecap="round"/></symbol>
+  <symbol id="ce-heart" viewBox="0 0 32 32"><path d="M16 28S4 21 4 12.5A6.5 6.5 0 0 1 16 9a6.5 6.5 0 0 1 12 3.5C28 21 16 28 16 28z" fill="#ff7a59"/><path d="M9 11.5a3 3 0 0 1 3-2.5" stroke="#fff" stroke-opacity=".6" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
+  <symbol id="ce-gg" viewBox="0 0 32 32"><rect x="2" y="2" width="28" height="28" rx="9" fill="#2a9d8a"/><text x="16" y="21" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="800" font-size="12" fill="#fff">GG</text></symbol>
+</svg>
+
+<section id="window">
+  <h2>Server settings window</h2>
+  <p class="lede">Server settings take the whole window like user settings: the server heads the nav and pages group by job. Edits collect in one save bar that follows you between pages, and pages with a draft carry a dot.</p>
+  <div class="set-wrap">
+    <div class="set is-pushed" id="ss-win">
+      <nav class="set-nav" aria-label="Server settings">
+        <div class="set-me"><span class="av ss-srvav" data-av="Night Shift"></span><div><b>Night Shift</b><span>Server settings</span></div></div>
+        <button class="set-navi" aria-current="page" data-page="overview"><i class="ph ph-info"></i><span>Overview</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="roles"><i class="ph ph-identification-badge"></i><span>Roles</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="emoji"><i class="ph ph-smiley"></i><span>Emoji</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="stickers"><i class="ph ph-sticker"></i><span>Stickers</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="soundboard"><i class="ph ph-speaker-simple-high"></i><span>Soundboard</span><i class="ph ph-caret-right chev"></i></button>
+        <h5>Moderation</h5>
+        <button class="set-navi" data-page="safety"><i class="ph ph-shield-check"></i><span>Safety setup</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="automod"><i class="ph ph-robot"></i><span>AutoMod</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="audit"><i class="ph ph-scroll"></i><span>Audit log</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="bans"><i class="ph ph-prohibit"></i><span>Bans</span><i class="ph ph-caret-right chev"></i></button>
+        <h5>Community</h5>
+        <button class="set-navi" data-page="community"><i class="ph ph-users-three"></i><span>Overview</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="onboarding"><i class="ph ph-door-open"></i><span>Onboarding</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="guide"><i class="ph ph-book-open-text"></i><span>Server guide</span><i class="ph ph-caret-right chev"></i></button>
+        <h5>Apps</h5>
+        <button class="set-navi" data-page="integrations"><i class="ph ph-plugs-connected"></i><span>Integrations</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="webhooks"><i class="ph ph-webhooks-logo"></i><span>Webhooks</span><i class="ph ph-caret-right chev"></i></button>
+        <h5>People</h5>
+        <button class="set-navi" data-page="members"><i class="ph ph-users"></i><span>Members</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="invites"><i class="ph ph-link"></i><span>Invites</span><i class="ph ph-caret-right chev"></i></button>
+        <hr>
+        <button class="set-navi danger" data-open="dlg-delete-server"><i class="ph ph-trash"></i><span>Delete server</span></button>
+      </nav>
+      <div class="set-main">
+        <div class="set-bar"><button class="set-back" data-ss-back><i class="ph-bold ph-caret-left"></i>Server settings</button><button class="iconbtn" aria-label="Close server settings" data-ss-close><i class="ph-bold ph-x"></i></button></div>
+        <div class="set-close"><button aria-label="Close server settings" data-ss-close><i class="ph-bold ph-x"></i></button>Esc</div>
+        <div class="set-page ss-page" data-page="overview">
+          <h4 class="set-h">Overview</h4>
+          <div class="set-group">
+            <h5>Icon and banner</h5>
+            <div class="set-card">
+              <div class="set-row"><div class="ss-up" style="flex: 1">
+                <button class="ss-iconbtn" aria-label="Change server icon"><span class="ss-icon"><span class="pic" style="--h: 330"></span><span>NS</span></span><i class="ph-bold ph-camera"></i></button>
+                <div><b class="strong" style="font-weight: var(--weight-medium)">Server icon</b><span>Square, at least 512 × 512. Shows in the server list and on invites.</span><div class="row"><button class="btn btn--sm" data-field="Icon"><i class="ph-bold ph-upload-simple"></i>Upload icon</button><button class="btn btn--sm btn--ghost">Remove</button></div></div>
+              </div></div>
+              <div class="set-row"><div class="ss-up" style="flex: 1">
+                <div class="ss-banner"><span class="pic" style="--h: 20"></span><b>Night Shift<i class="ph ph-caret-down"></i></b></div>
+                <div><b class="strong" style="font-weight: var(--weight-medium)">Banner</b><span>16:9, at least 960 × 540. Sits behind the server name above your channels, as shown.</span><div class="row"><button class="btn btn--sm"><i class="ph-bold ph-upload-simple"></i>Upload banner</button><button class="btn btn--sm btn--ghost">Remove</button></div></div>
+              </div></div>
+            </div>
+          </div>
+          <div class="set-group">
+            <h5>Name</h5>
+            <div class="set-card" style="padding: var(--space-4)">
+              <div class="field"><label for="ss-name">Server name</label><div class="input"><input id="ss-name" value="Night Shift" data-field="Server name" autocomplete="off" maxlength="100"></div></div>
+            </div>
+            <p class="set-cap">Edit it to see the save bar. Clear it and save to see the error.</p>
+          </div>
+          <div class="set-group">
+            <h5>Inactive voice</h5>
+            <div class="set-card">
+              <div class="set-row"><div class="t"><b>Inactive channel</b><span>Where idle members are moved, muted</span></div><button class="dropdown" aria-haspopup="listbox"><i class="ph ph-speaker-simple-slash"></i><span>AFK</span><i class="ph ph-caret-down"></i></button></div>
+              <div class="set-row"><div class="t"><b>Move after</b><span>Counted from their last sound</span></div><button class="dropdown" aria-haspopup="listbox"><span>5 minutes</span><i class="ph ph-caret-down"></i></button></div>
+            </div>
+          </div>
+          <div class="set-group">
+            <h5>System messages</h5>
+            <div class="set-card">
+              <div class="set-row"><div class="t"><b>Post them in</b></div><button class="dropdown" aria-haspopup="listbox"><i class="ph ph-hash"></i><span>welcome</span><i class="ph ph-caret-down"></i></button></div>
+              <button class="set-row choice" data-toggle="switch" data-field="Welcome messages"><div class="t"><b>Welcome people when they join</b><span>A random greeting with their name</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+              <button class="set-row choice" data-toggle="switch" data-field="Sticker replies"><div class="t"><b>Suggest a sticker reply to welcomes</b><span>Members see a wave button under the greeting</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+              <button class="set-row choice" data-toggle="switch" data-field="Boost messages"><div class="t"><b>Thank people who boost</b></div><span class="switch" role="switch" aria-checked="true"></span></button>
+              <button class="set-row choice" data-toggle="switch" data-field="Setup tips"><div class="t"><b>Send setup tips</b><span>Only you and admins see them</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+            </div>
+          </div>
+          <div class="set-group">
+            <h5>Default notifications</h5>
+            <div class="set-card" role="radiogroup" aria-label="Default notifications">
+              <button class="set-row choice" data-toggle="radio" data-field="Default notifications"><span class="radio" role="radio" aria-checked="false"></span><div class="t"><b>All messages</b><span>Every new message counts as unread</span></div></button>
+              <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="true"></span><div class="t"><b>Only @mentions</b><span>Recommended once a server has more than a few dozen people</span></div></button>
+            </div>
+            <p class="set-cap">New members start here; anyone can change it for themselves.</p>
+          </div>
+        </div>
+        <div class="ss-savebar" id="ss-savebar" role="status" hidden></div>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: var(--space-3)">Every nav item is live and opens the page built further down. Shell, groups and rows are Settings' <code>set-*</code>; this page adds <code>ss-savebar</code>. Under 680px the nav is a list that pushes into each page, as in Settings. The bar floats 16px above the page bottom on <code>--bg-overlay</code> with <code>--shadow-pop</code>, rising 260ms when the first change lands.</p>
+
+  <h3>Save bar</h3>
+  <div class="board stack" style="gap: var(--space-3)">
+    <div class="ss-savebar is-static"><i class="ph-fill ph-pencil-simple"></i><p>2 unsaved changes<small>Server name and Banner, on Overview</small></p><div class="ctl"><button class="btn btn--ghost">Reset</button><button class="btn btn--primary">Save changes</button></div></div>
+    <div class="ss-savebar is-static is-saving"><span class="bars"><i></i><i></i><i></i></span><p>Saving 2 changes…</p><div class="ctl"><button class="btn btn--ghost" disabled>Reset</button><button class="btn btn--primary" disabled>Save changes</button></div></div>
+    <div class="ss-savebar is-static is-error" role="alert"><i class="ph-fill ph-warning-circle"></i><p>Couldn't save<small>Server name can't be empty. Type a name, then save again.</small></p><div class="ctl"><button class="btn btn--ghost">Reset</button><button class="btn btn--primary">Save changes</button></div></div>
+    <div class="ss-savebar is-static" style="box-shadow: var(--shadow-pop), 0 0 0 2px var(--accent)"><i class="ph-fill ph-pencil-simple"></i><p>Save before you close?<small>2 changes on Overview and Roles are lost otherwise.</small></p><div class="ctl"><button class="btn btn--ghost">Discard changes</button><button class="btn btn--primary">Save and close</button></div></div>
+  </div>
+  <p class="note" style="margin-top: var(--space-2)">Unsaved, saving, failed, and closing with a draft. Switching pages never blocks: the draft rides along and only closing asks.</p>
+
+  <h3>Upload states</h3>
+  <div class="board set-sheet">
+    <div class="set-page">
+      <div class="set-card">
+        <div class="set-row"><div class="ss-up" style="flex: 1"><button class="ss-iconbtn" aria-label="Upload server icon"><span class="ss-icon" style="background: var(--bg-page); color: var(--text-strong); box-shadow: inset 0 0 0 1.5px var(--line-strong)"><span>NS</span></span><i class="ph-bold ph-camera"></i></button><div><b class="strong" style="font-weight: var(--weight-medium)">No icon yet</b><span>Members see your initials until you add one.</span><div class="row"><button class="btn btn--sm"><i class="ph-bold ph-upload-simple"></i>Upload icon</button></div></div></div></div>
+        <div class="set-row stack"><div class="drop"><i class="ph ph-image"></i><b>Drop a banner here or browse</b><span>PNG, JPG or GIF, 16:9, up to 10 MB</span></div></div>
+        <div class="set-row stack"><div class="drop over"><i class="ph ph-image"></i><b>Drop to use as banner</b><span>sunset-stream.png, 2.4 MB</span></div></div>
+        <div class="set-row stack"><div class="callout callout--danger" role="alert"><i class="ph-fill ph-warning-circle"></i><div><b>That banner is 14 MB</b>Banners can be up to 10 MB. Export it smaller and try again.</div><button class="btn btn--sm">Choose another</button></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="roles">
+  <h2>Roles</h2>
+  <p class="lede">Roles in rank order, highest first: a member shows the colour of their highest role, and higher roles win ties. Drag the grip or use the arrow keys on it to reorder; a drop says what it did and offers Undo.</p>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="roles">
+      <div class="ss-hrow"><h4 class="set-h">Roles</h4><button class="btn btn--primary"><i class="ph-bold ph-plus"></i>Create role</button></div>
+      <div class="set-group">
+        <h5>Highest first</h5>
+        <div class="ss-roles" data-roles>
+          <div class="set-row ss-role" style="--role: #e5534b"><button class="ss-grip" aria-label="Move Admin. Drag, or press the up and down arrows"><i class="ph-bold ph-dots-six-vertical"></i></button><span class="ss-rdot"></span><div class="t"><b><button class="ss-roleopen">Admin</button></b><span class="ss-warn"><i class="ph-fill ph-warning"></i>Administrator: skips every channel rule</span></div><span class="ss-mcount"><i class="ph ph-user"></i>2</span><i class="ph ph-caret-right faint"></i></div>
+          <div class="set-row ss-role" style="--role: #3fb95f"><button class="ss-grip" aria-label="Move Moderator. Drag, or press the up and down arrows"><i class="ph-bold ph-dots-six-vertical"></i></button><span class="ss-rdot"></span><div class="t"><b><button class="ss-roleopen">Moderator</button></b><span>Kick, ban, time out, manage messages</span></div><span class="ss-mcount"><i class="ph ph-user"></i>6</span><i class="ph ph-caret-right faint"></i></div>
+          <div class="set-row ss-role" style="--role: #4a8fe0"><button class="ss-grip" aria-label="Move Streamers. Drag, or press the up and down arrows"><i class="ph-bold ph-dots-six-vertical"></i></button><span class="ss-rdot"></span><div class="t"><b><button class="ss-roleopen">Streamers</button></b><span>Go live in any voice channel</span></div><span class="ss-mcount"><i class="ph ph-user"></i>14</span><i class="ph ph-caret-right faint"></i></div>
+          <div class="set-row ss-role" style="--role: #9b6ce0"><button class="ss-grip" aria-label="Move Clipper. Drag, or press the up and down arrows"><i class="ph-bold ph-dots-six-vertical"></i></button><span class="ss-rdot"></span><div class="t"><b><button class="ss-roleopen">Clipper</button></b><span>Picked in onboarding</span></div><span class="ss-mcount"><i class="ph ph-user"></i>38</span><i class="ph ph-caret-right faint"></i></div>
+          <div class="set-row ss-role" style="--role: #99a0a6"><button class="ss-grip" aria-label="Move Member. Drag, or press the up and down arrows"><i class="ph-bold ph-dots-six-vertical"></i></button><span class="ss-rdot"></span><div class="t"><b><button class="ss-roleopen">Member</button></b><span>Given after onboarding</span></div><span class="ss-mcount"><i class="ph ph-user"></i>1,201</span><i class="ph ph-caret-right faint"></i></div>
+          <div class="set-row ss-role" style="--role: #6a7f8c"><button class="ss-grip" aria-label="Move Muted. Drag, or press the up and down arrows"><i class="ph-bold ph-dots-six-vertical"></i></button><span class="ss-rdot"></span><div class="t"><b><button class="ss-roleopen">Muted for repeatedly breaking rule 4 about spoilers in general chat</button></b><span>Can't send or speak anywhere</span></div><span class="ss-mcount"><i class="ph ph-user"></i>3</span><i class="ph ph-caret-right faint"></i></div>
+        </div>
+        <p class="ss-dragnote" role="status" aria-live="polite"></p>
+      </div>
+      <div class="set-group">
+        <h5>Everyone</h5>
+        <div class="set-card"><button class="set-row" data-goto="role-edit"><span class="icontile"><i class="ph ph-at"></i></span><div class="t"><b>@everyone</b><span>All 1,284 members. What anyone can do before other roles add to it.</span></div><i class="ph ph-caret-right faint"></i></button></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Dragging</h3>
+  <div class="board set-sheet">
+    <div class="set-page ss-page">
+      <div class="ss-roles" style="padding-bottom: 4px">
+        <div class="set-row ss-role" style="--role: #e5534b"><span class="ss-grip"><i class="ph-bold ph-dots-six-vertical"></i></span><span class="ss-rdot"></span><div class="t"><b>Admin</b></div><span class="ss-mcount"><i class="ph ph-user"></i>2</span></div>
+        <div class="set-row ss-role is-gap" style="--role: #9b6ce0"><span class="ss-grip"></span><span class="ss-rdot"></span><div class="t"><b>Clipper</b></div></div>
+        <div class="set-row ss-role is-dragging" style="--role: #9b6ce0; --dy: 0px; --tilt: 1deg; position: absolute; left: 6px; right: 2px; top: 76px"><span class="ss-grip"><i class="ph-bold ph-dots-six-vertical"></i></span><span class="ss-rdot"></span><div class="t"><b>Clipper</b><span>Picked in onboarding</span></div><span class="ss-mcount"><i class="ph ph-user"></i>38</span></div>
+        <div class="set-row ss-role" style="--role: #3fb95f"><span class="ss-grip"><i class="ph-bold ph-dots-six-vertical"></i></span><span class="ss-rdot"></span><div class="t"><b>Moderator</b></div><span class="ss-mcount"><i class="ph ph-user"></i>6</span></div>
+        <div class="set-row ss-role" style="--role: #4a8fe0"><span class="ss-grip"><i class="ph-bold ph-dots-six-vertical"></i></span><span class="ss-rdot"></span><div class="t"><b>Streamers</b></div><span class="ss-mcount"><i class="ph ph-user"></i>14</span></div>
+      </div>
+      <p class="ss-dragnote"><i class="ph ph-arrows-down-up"></i>Drop to place Clipper above Moderator</p>
+      <p class="ss-dragnote"><i class="ph ph-check"></i>Moved Clipper above Moderator. Clipper members now outrank Moderators in colour. <button class="btn btn--link">Undo</button></p>
+    </div>
+  </div>
+  <p class="note" style="margin-top: var(--space-2)">The lifted row hangs about 1° from the grip on <code>--bg-overlay</code>; its slot stays as an outlined gap. Others slide 260ms on <code>--ease-out</code>; on drop the row glides into the slot, then the list reorders.</p>
+
+  <h3>Seen by a moderator</h3>
+  <div class="board set-sheet">
+    <div class="set-page ss-page">
+      <div class="ss-roles">
+        <div class="set-row ss-role is-locked" style="--role: #e5534b"><button class="ss-grip" aria-disabled="true" aria-label="Admin is locked: it ranks above your highest role"><i class="ph ph-lock-simple"></i></button><span class="ss-rdot"></span><div class="t"><b>Admin</b><span class="why"><i class="ph ph-lock-simple"></i>Ranks above Moderator, your highest role</span></div><span class="ss-mcount"><i class="ph ph-user"></i>2</span></div>
+        <div class="set-row ss-role is-locked" style="--role: #3fb95f"><button class="ss-grip" aria-disabled="true" aria-label="Moderator is locked: it's your highest role"><i class="ph ph-lock-simple"></i></button><span class="ss-rdot"></span><div class="t"><b>Moderator</b><span class="why"><i class="ph ph-lock-simple"></i>Your highest role. Only roles below it are yours to edit.</span></div><span class="ss-mcount"><i class="ph ph-user"></i>6</span></div>
+        <div class="set-row ss-role" style="--role: #4a8fe0"><button class="ss-grip" aria-label="Move Streamers"><i class="ph-bold ph-dots-six-vertical"></i></button><span class="ss-rdot"></span><div class="t"><b><button class="ss-roleopen">Streamers</button></b><span>Go live in any voice channel</span></div><span class="ss-mcount"><i class="ph ph-user"></i>14</span><i class="ph ph-caret-right faint"></i></div>
+        <div class="set-row ss-role" style="--role: #9b6ce0"><button class="ss-grip" aria-label="Move Clipper"><i class="ph-bold ph-dots-six-vertical"></i></button><span class="ss-rdot"></span><div class="t"><b><button class="ss-roleopen">Clipper</button></b><span>Picked in onboarding</span></div><span class="ss-mcount"><i class="ph ph-user"></i>38</span><i class="ph ph-caret-right faint"></i></div>
+      </div>
+      <p class="set-cap" style="margin-top: var(--space-2)">Locked rows stay at full ink and say why. Dragging below them works; dragging above them stops at the lock.</p>
+    </div>
+  </div>
+</section>
+
+<section id="role-editor">
+  <h2>Role editor</h2>
+  <p class="lede">One role at a time, in three tabs. Permissions open on a plain-language summary of what the role can do, are searchable, and mark the dangerous ones in the warning tone with what they really allow.</p>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="role-edit">
+      <div class="ss-ehead" style="--role: #3fb95f"><button class="iconbtn ss-back" aria-label="Back to roles" data-goto="roles"><i class="ph ph-arrow-left"></i></button><span class="ss-rdot"></span><h4 class="set-h">Moderator</h4><button class="btn btn--sm" data-goto="view-as"><i class="ph-bold ph-eye"></i>View server as role</button></div>
+      <div class="tabs ss-tabs" role="tablist" aria-label="Edit Moderator">
+        <button class="tab" role="tab" aria-selected="true" data-panel="display">Display</button>
+        <button class="tab" role="tab" aria-selected="false" data-panel="perms">Permissions <small class="muted" data-on-count>18</small></button>
+        <button class="tab" role="tab" aria-selected="false" data-panel="members">Manage members <small class="muted">6</small></button>
+      </div>
+
+      <div class="ss-panel" data-panel-id="display">
+        <div class="field"><label for="ss-rname">Role name</label><div class="input"><input id="ss-rname" value="Moderator" autocomplete="off"></div></div>
+        <div class="set-group">
+          <h5>Colour</h5>
+          <div class="set-card" style="padding: var(--space-4); gap: var(--space-4)">
+            <div class="swatches ss-swatches" role="group" aria-label="Role colour">
+              <button class="ss-none" aria-pressed="false" aria-label="No colour" data-c=""><i class="ph-bold ph-prohibit"></i></button>
+              <button style="--c: #2bb5a0" aria-pressed="false" aria-label="Teal" data-c="#2bb5a0"><i class="ph-bold ph-check"></i></button>
+              <button style="--c: #3fb95f" aria-pressed="true" aria-label="Green" data-c="#3fb95f"><i class="ph-bold ph-check"></i></button>
+              <button style="--c: #4a8fe0" aria-pressed="false" aria-label="Blue" data-c="#4a8fe0"><i class="ph-bold ph-check"></i></button>
+              <button style="--c: #9b6ce0" aria-pressed="false" aria-label="Violet" data-c="#9b6ce0"><i class="ph-bold ph-check"></i></button>
+              <button style="--c: #e0468a" aria-pressed="false" aria-label="Pink" data-c="#e0468a"><i class="ph-bold ph-check"></i></button>
+              <button style="--c: #e8c547" aria-pressed="false" aria-label="Yellow" data-c="#e8c547"><i class="ph-bold ph-check"></i></button>
+              <button style="--c: #ec8a3a" aria-pressed="false" aria-label="Orange" data-c="#ec8a3a"><i class="ph-bold ph-check"></i></button>
+              <button style="--c: #e5534b" aria-pressed="false" aria-label="Red" data-c="#e5534b"><i class="ph-bold ph-check"></i></button>
+              <button style="--c: #99a0a6" aria-pressed="false" aria-label="Grey" data-c="#99a0a6"><i class="ph-bold ph-check"></i></button>
+              <button class="ss-custom" aria-pressed="false" aria-label="Custom colour"><i class="ph-bold ph-eyedropper"></i><input type="color" value="#3fb95f" aria-label="Pick a custom colour"></button>
+            </div>
+            <div class="ss-cprevs">
+              <div class="ss-cprev"><span class="av" data-av="Mira" style="--size: 32px"></span><b><span>Mira</span><small>Dark</small></b><p>brackets are up for saturday</p></div>
+              <div class="ss-cprev ss-cprev--light"><span class="av" data-av="Mira" style="--size: 32px"></span><b><span>Mira</span><small>Light</small></b><p>brackets are up for saturday</p></div>
+            </div>
+          </div>
+          <p class="set-cap" data-contrast>Names keep the hue you pick; Wave deepens or lightens them per theme until they read at 4.5:1.</p>
+        </div>
+        <div class="set-group">
+          <h5>Role icon</h5>
+          <div class="set-card"><div class="set-row"><span class="ss-roleicon" aria-label="Current icon: shield">🛡️</span><div class="t"><b>Shown beside names in chat</b><span>An image at least 64 × 64, or any emoji</span></div><div class="ctl"><button class="btn btn--sm"><i class="ph-bold ph-upload-simple"></i>Upload image</button><button class="btn btn--sm"><i class="ph-bold ph-smiley"></i>Pick emoji</button></div></div></div>
+        </div>
+        <div class="set-group">
+          <h5>In the member list</h5>
+          <div class="set-card">
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>List members under their own heading</b><span>Moderators show apart from online members</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Let anyone @mention this role</b><span>People with Mention @everyone can always mention it</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ss-panel ss-perms" data-panel-id="perms" hidden>
+        <div class="ss-psum">
+          <p><b>Moderator can</b> kick, ban and time out members, delete and pin messages, change nicknames, mute and move people in voice, read the audit log, and ping everyone.</p>
+          <div class="row"><span class="stat"><span><i class="ph ph-toggle-right"></i><span data-on>18</span> of 24 on</span><span class="w"><i class="ph-fill ph-warning"></i><span data-danger>1 dangerous</span></span></span><button class="btn btn--sm btn--ghost" data-clear-perms><i class="ph-bold ph-eraser"></i>Clear permissions</button></div>
+        </div>
+        <div class="input"><i class="ph ph-magnifying-glass"></i><input placeholder="Search permissions" aria-label="Search permissions" data-perm-search></div>
+        <p class="ss-status" role="status" aria-live="polite"></p>
+        <div class="set-group">
+          <h5>Server</h5>
+          <div class="set-card">
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>View channels</b><span>See channels, unless a channel says otherwise</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch" data-danger><div class="t"><b>Manage channels</b><span>Create, edit and delete channels</span><span class="ss-warn"><i class="ph-fill ph-warning"></i>Can delete any channel and its history for everyone</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+            <button class="set-row choice" data-toggle="switch" data-danger><div class="t"><b>Manage roles</b><span>Create roles and edit the ones below this one</span><span class="ss-warn"><i class="ph-fill ph-warning"></i>Can hand out any permission this role has</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Manage expressions</b><span>Add, rename and remove emoji, stickers and sounds</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>View audit log</b><span>See who changed what in this server</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch" data-danger><div class="t"><b>Manage webhooks</b><span>Create, edit and delete webhooks</span><span class="ss-warn"><i class="ph-fill ph-warning"></i>Webhooks can post under any name and avatar</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+            <button class="set-row choice" data-toggle="switch" data-danger><div class="t"><b>Manage server</b><span>Change the name, icon, banner and these settings</span><span class="ss-warn"><i class="ph-fill ph-warning"></i>Can rename the server and change its safety settings</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+          </div>
+        </div>
+        <div class="set-group">
+          <h5>Members</h5>
+          <div class="set-card">
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Create invites</b><span>Invite people to the server</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Change own nickname</b><span>Pick a different name for this server</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Manage nicknames</b><span>Change other members' nicknames</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Kick members</b><span>Remove people; they can rejoin with an invite</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Ban members</b><span>Remove people for good and delete their recent messages</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Time out members</b><span>Stop someone chatting, reacting and speaking for a while</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          </div>
+        </div>
+        <div class="set-group">
+          <h5>Text</h5>
+          <div class="set-card">
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Send messages</b><span>Post in text channels and threads</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Embed links</b><span>Show previews for links they post</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Attach files</b><span>Upload images, clips and files</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch" data-danger><div class="t"><b>Mention @everyone, @here and all roles</b><span>Ping every member at once</span><span class="ss-warn"><i class="ph-fill ph-warning"></i>One message notifies all 1,284 members</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Manage messages</b><span>Delete and pin other people's messages</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          </div>
+        </div>
+        <div class="set-group">
+          <h5>Voice</h5>
+          <div class="set-card">
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Connect</b><span>Join voice channels</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Speak</b><span>Talk in voice channels</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Video and screen share</b><span>Share a camera, a screen or a game</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Mute members</b><span>Mute someone for everyone in the call</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+            <button class="set-row choice" data-toggle="switch"><div class="t"><b>Move members</b><span>Drag people between voice channels or disconnect them</span><span class="ss-incl"><i class="ph ph-check-circle"></i>Included in Administrator</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          </div>
+        </div>
+        <div class="set-group">
+          <h5>Advanced</h5>
+          <div class="set-card set-card--danger">
+            <button class="set-row choice ss-admin" data-toggle="switch" data-danger><div class="t"><b>Administrator</b><span>Every permission, in every channel</span><span class="ss-warn"><i class="ph-fill ph-warning"></i>Skips every channel rule. Give it to as few people as you can.</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+          </div>
+        </div>
+        <div class="ss-noresult" hidden><i class="ph ph-magnifying-glass"></i><b>No permissions match “<span data-q></span>”</b><span>Try a shorter word, like “ban” or “voice”.</span><button class="btn btn--sm" data-clear-search>Clear search</button></div>
+      </div>
+
+      <div class="ss-panel" data-panel-id="members" hidden>
+        <div class="ss-tools"><div class="input"><i class="ph ph-magnifying-glass"></i><input placeholder="Search Moderators" aria-label="Search members with this role"></div><button class="btn btn--primary" data-open="dlg-add-members"><i class="ph-bold ph-user-plus"></i>Add members</button></div>
+        <div class="ss-list">
+          <div class="ss-person"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>mira.wav</span></div><div class="ctl"><button class="iconbtn rm" aria-label="Remove Mira from Moderator" data-retire="Removed Mira from Moderator."><i class="ph ph-x"></i></button></div></div>
+          <div class="ss-person"><span class="av" data-av="Rosa"><span class="status idle"></span></span><div><b>Rosa</b><span>rosa</span></div><div class="ctl"><button class="iconbtn rm" aria-label="Remove Rosa from Moderator" data-retire="Removed Rosa from Moderator."><i class="ph ph-x"></i></button></div></div>
+          <div class="ss-person"><span class="av" data-av="Bartholomew"><span class="status offline"></span></span><div><b>Bartholomew Featherstonehaugh-Wright</b><span>bartholomew.featherstonehaugh.wright</span></div><div class="ctl"><button class="iconbtn rm" aria-label="Remove Bartholomew from Moderator" data-retire="Removed Bartholomew from Moderator."><i class="ph ph-x"></i></button></div></div>
+          <div class="ss-person is-gone"><span class="av" data-av="Jun"></span><div><b>Removed Jun from Moderator.</b></div><div class="ctl"><button class="btn btn--sm btn--ghost">Undo</button></div></div>
+          <div class="ss-person"><span class="av" data-av="Kai"><span class="status dnd"></span></span><div><b>Kai</b><span>kai.exe</span></div><div class="ctl"><button class="iconbtn rm" aria-label="Remove Kai from Moderator" data-retire="Removed Kai from Moderator."><i class="ph ph-x"></i></button></div></div>
+          <div class="ss-person"><span class="av" data-av="Ana"><span class="status online"></span></span><div><b>Ana</b><span>ana.k</span></div><div class="ctl"><button class="iconbtn rm" aria-label="Remove Ana from Moderator" data-retire="Removed Ana from Moderator."><i class="ph ph-x"></i></button></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: var(--space-2)">All three tabs are live. Turn on Administrator to see every other row read “Included in Administrator”; Clear permissions undoes in one click.</p>
+
+  <h3>Permissions, searched</h3>
+  <div class="board set-sheet">
+    <div class="set-page ss-page">
+      <div class="input"><i class="ph ph-magnifying-glass"></i><input value="ban" aria-label="Search permissions" readonly></div>
+      <div class="set-group"><h5>Members</h5><div class="set-card"><div class="set-row"><div class="t"><b><mark style="background: color-mix(in oklch, var(--accent) 24%, transparent); color: var(--text-strong); border-radius: 3px">Ban</mark> members</b><span>Remove people for good and delete their recent messages</span></div><span class="switch" role="switch" aria-checked="true"></span></div></div></div>
+      <div class="ss-noresult"><i class="ph ph-magnifying-glass"></i><b>No permissions match “nitro”</b><span>Try a shorter word, like “ban” or “voice”.</span><button class="btn btn--sm">Clear search</button></div>
+    </div>
+  </div>
+
+  <h3>Manage members, empty</h3>
+  <div class="board">
+    <div class="empty"><div class="mascot idle"><i></i><i></i><i></i><i></i><i></i></div><b>Nobody has Clipper yet</b><p>Members get it by picking “Sharing clips” in onboarding, or you can add people yourself.</p><button class="btn btn--primary" data-open="dlg-add-members"><i class="ph-bold ph-user-plus"></i>Add members</button></div>
+  </div>
+
+  <dialog class="real" id="dlg-add-members"><form class="dialog dialog--md" onsubmit="return false" aria-labelledby="dam">
+    <div class="dhead"><h4 id="dam">Add members to Moderator</h4><p>They get every permission Moderator has.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+    <div class="input"><i class="ph ph-magnifying-glass"></i><input aria-label="Search members" placeholder="Search members"></div>
+    <div class="dscroll stack" style="gap: 2px" data-addlist>
+      <button type="button" class="choice" data-toggle="check"><span class="av" data-av="Theo" style="--size: 32px"></span><div><b>Theo</b><span>theo_ · Member, Streamers</span></div><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+      <button type="button" class="choice" data-toggle="check"><span class="av" data-av="Lena" style="--size: 32px"></span><div><b>Lena</b><span>lena.mp4 · Member, Clipper</span></div><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+      <button type="button" class="choice" data-toggle="check"><span class="av" data-av="Oscar" style="--size: 32px"></span><div><b>Oscar</b><span>oscar · Member</span></div><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+      <button type="button" class="choice" data-toggle="check"><span class="av" data-av="Priya" style="--size: 32px"></span><div><b>Priya</b><span>priya.p · Member</span></div><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+    </div>
+    <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-loading="Adding…" data-addbtn>Add 2 members</button></footer>
+  </form></dialog>
+</section>
+
+<section id="view-as">
+  <h2>View server as role</h2>
+  <p class="lede">Check a role by looking through its eyes. The whole window carries a warning-tone banner while you do, and Wave lists what the role can't see and which rule hides it, instead of silently dropping channels.</p>
+  <div class="board set-sheet">
+    <div class="ss-page">
+      <div class="ss-viewas">
+        <div class="banner"><i class="ph-fill ph-eye"></i>Viewing Night Shift as Member<button class="btn btn--sm">Stop viewing</button></div>
+        <div class="ss-vside" aria-label="Channels as Member sees them">
+          <h6>Info</h6>
+          <div class="ss-vch"><i class="ph ph-hash"></i><span>welcome</span><i class="ph ph-lock-simple" aria-label="Read only"></i></div>
+          <div class="ss-vch"><i class="ph ph-hash"></i><span>rules</span><i class="ph ph-lock-simple" aria-label="Read only"></i></div>
+          <div class="ss-vch"><i class="ph ph-megaphone"></i><span>announcements</span><i class="ph ph-lock-simple" aria-label="Read only"></i></div>
+          <h6>Hangout</h6>
+          <div class="ss-vch"><i class="ph ph-hash"></i><span>general</span></div>
+          <div class="ss-vch"><i class="ph ph-hash"></i><span>clips</span></div>
+          <div class="ss-vch"><i class="ph ph-speaker-high"></i><span>Lounge</span></div>
+          <h6>Staff</h6>
+          <div class="ss-vch is-hidden"><i class="ph ph-eye-slash"></i><span>mod-log</span></div>
+          <div class="ss-vch is-hidden"><i class="ph ph-eye-slash"></i><span>mod-chat</span></div>
+          <div class="ss-vch is-hidden"><i class="ph ph-eye-slash"></i><span>Staff voice</span></div>
+        </div>
+        <div class="ss-vmain">
+          <div class="field"><label>Viewing as</label><div class="row"><button class="dropdown" aria-haspopup="listbox" style="flex: 1 1 160px"><span class="ss-rdot" style="--role: #99a0a6"></span><span>Member</span><i class="ph ph-caret-down"></i></button><button class="btn"><i class="ph-bold ph-plus"></i>Add a role</button></div></div>
+          <h5>Hidden from Member</h5>
+          <div class="set-card">
+            <div class="set-row"><span class="icontile"><i class="ph ph-eye-slash"></i></span><div class="t"><b>Staff category, 3 channels</b><span>@everyone can't View channels on Staff, and Member doesn't allow it</span></div></div>
+          </div>
+          <h5>Read only for Member</h5>
+          <div class="set-card">
+            <div class="set-row"><span class="icontile"><i class="ph ph-lock-simple"></i></span><div class="t"><b>#welcome, #rules, #announcements</b><span>@everyone can't Send messages on the Info category</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: var(--space-2)">Banner is Overlays' <code>.banner</code> in the warning tone (an elevated mode, never accent). Hidden channels stay listed, faint and struck through, with an eye-slash.</p>
+</section>
+
+<section id="overrides">
+  <h2>Channel overrides</h2>
+  <p class="lede">Per channel, pick a role or member and set each permission to deny, inherit or allow. Every row says what it inherits and from where, so the middle state is never a mystery; a notice says whether the channel still matches its category.</p>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="channel-perms">
+      <div class="ss-hrow"><h4 class="set-h">#clips permissions</h4></div>
+      <div class="callout callout--info" data-sync><i class="ph-fill ph-link-simple"></i><div><b>Synced with Clips</b>Changes to the Clips category apply here too.</div></div>
+      <div class="ss-ovr">
+        <div class="ss-targets" role="tablist" aria-label="Roles and members with changes on #clips">
+          <header>Roles and members<button class="iconbtn iconbtn--sm" aria-label="Add a role or member"><i class="ph ph-plus"></i></button></header>
+          <button class="ss-target" role="tab" aria-selected="false"><span class="ss-rdot" style="--role: var(--offline)"></span><span>@everyone</span><small>2</small></button>
+          <button class="ss-target" role="tab" aria-selected="true"><span class="ss-rdot" style="--role: #4a8fe0"></span><span>Streamers</span><small>1</small></button>
+          <button class="ss-target" role="tab" aria-selected="false"><span class="ss-rdot" style="--role: #6a7f8c"></span><span>Muted for repeatedly breaking rule 4</span><small>2</small></button>
+          <button class="ss-target" role="tab" aria-selected="false"><span class="av" data-av="Theo"></span><span>Theo</span><small>1</small></button>
+        </div>
+        <div class="stack" style="gap: var(--space-6); min-width: 0">
+          <div class="ss-legend"><span><i class="ph-bold ph-x"></i>Deny</span><span><i class="ph-bold ph-line-segment"></i>Inherit</span><span><i class="ph-bold ph-check"></i>Allow</span></div>
+          <div class="set-group">
+            <h5>Streamers on #clips</h5>
+            <div class="set-card">
+              <div class="set-row" data-inherit="Inherits allow from @everyone on Clips" data-from="allow"><div class="t"><b>View channel</b><span class="ss-src"><i class="ph ph-arrow-elbow-left-up"></i>Inherits allow from @everyone on Clips</span></div><div class="ss-tri" role="radiogroup" aria-label="View channel"><button role="radio" data-v="deny" aria-checked="false" aria-label="Deny"><i class="ph-bold ph-x"></i></button><button role="radio" data-v="inherit" aria-checked="true" aria-label="Inherit"><i class="ph-bold ph-line-segment"></i></button><button role="radio" data-v="allow" aria-checked="false" aria-label="Allow"><i class="ph-bold ph-check"></i></button></div></div>
+              <div class="set-row" data-inherit="Inherits allow from Member, a server role"><div class="t"><b>Send messages</b><span class="ss-src"><i class="ph ph-arrow-elbow-left-up"></i>Inherits allow from Member, a server role</span></div><div class="ss-tri" role="radiogroup" aria-label="Send messages"><button role="radio" data-v="deny" aria-checked="false" aria-label="Deny"><i class="ph-bold ph-x"></i></button><button role="radio" data-v="inherit" aria-checked="true" aria-label="Inherit"><i class="ph-bold ph-line-segment"></i></button><button role="radio" data-v="allow" aria-checked="false" aria-label="Allow"><i class="ph-bold ph-check"></i></button></div></div>
+              <div class="set-row" data-inherit="Inherits deny from @everyone on #clips"><div class="t"><b>Attach files</b><span class="ss-src is-allow"><i class="ph-bold ph-check"></i>Allowed for Streamers here, over @everyone's deny</span></div><div class="ss-tri" role="radiogroup" aria-label="Attach files"><button role="radio" data-v="deny" aria-checked="false" aria-label="Deny"><i class="ph-bold ph-x"></i></button><button role="radio" data-v="inherit" aria-checked="false" aria-label="Inherit"><i class="ph-bold ph-line-segment"></i></button><button role="radio" data-v="allow" aria-checked="true" aria-label="Allow"><i class="ph-bold ph-check"></i></button></div></div>
+              <div class="set-row" data-inherit="Inherits allow from Member, a server role"><div class="t"><b>Embed links</b><span class="ss-src"><i class="ph ph-arrow-elbow-left-up"></i>Inherits allow from Member, a server role</span></div><div class="ss-tri" role="radiogroup" aria-label="Embed links"><button role="radio" data-v="deny" aria-checked="false" aria-label="Deny"><i class="ph-bold ph-x"></i></button><button role="radio" data-v="inherit" aria-checked="true" aria-label="Inherit"><i class="ph-bold ph-line-segment"></i></button><button role="radio" data-v="allow" aria-checked="false" aria-label="Allow"><i class="ph-bold ph-check"></i></button></div></div>
+              <div class="set-row" data-inherit="Inherits deny: no role of theirs allows it"><div class="t"><b>Manage messages</b><span class="ss-src"><i class="ph ph-arrow-elbow-left-up"></i>Inherits deny: no role of theirs allows it</span></div><div class="ss-tri" role="radiogroup" aria-label="Manage messages"><button role="radio" data-v="deny" aria-checked="false" aria-label="Deny"><i class="ph-bold ph-x"></i></button><button role="radio" data-v="inherit" aria-checked="true" aria-label="Inherit"><i class="ph-bold ph-line-segment"></i></button><button role="radio" data-v="allow" aria-checked="false" aria-label="Allow"><i class="ph-bold ph-check"></i></button></div></div>
+              <div class="set-row" data-inherit="Inherits deny: no role of theirs allows it"><div class="t"><b>Mention @everyone, @here and all roles</b><span class="ss-src is-deny"><i class="ph-bold ph-x"></i>Denied for Streamers here</span><span class="ss-warn"><i class="ph-fill ph-warning"></i>Allowing it lets Streamers ping all 1,284 members</span></div><div class="ss-tri" role="radiogroup" aria-label="Mention @everyone"><button role="radio" data-v="deny" aria-checked="true" aria-label="Deny"><i class="ph-bold ph-x"></i></button><button role="radio" data-v="inherit" aria-checked="false" aria-label="Inherit"><i class="ph-bold ph-line-segment"></i></button><button role="radio" data-v="allow" aria-checked="false" aria-label="Allow"><i class="ph-bold ph-check"></i></button></div></div>
+            </div>
+          </div>
+          <div class="row" style="justify-content: space-between"><button class="btn btn--sm btn--ghost"><i class="ph-bold ph-arrow-counter-clockwise"></i>Reset Streamers to inherit</button><button class="btn btn--sm set-dangerbtn"><i class="ph-bold ph-trash"></i>Remove Streamers</button></div>
+        </div>
+      </div>
+
+      <div class="set-group">
+        <h5>Check a member</h5>
+        <div class="set-card ss-eff" style="padding: var(--space-3)">
+          <div class="row" style="padding: 0 4px; justify-content: space-between"><button class="dropdown" aria-haspopup="listbox" style="width: min(100%, 260px)"><span class="av" data-av="Theo" style="--size: 22px; font-size: 9px"></span><span>Theo</span><i class="ph ph-caret-down"></i></button><span class="muted" style="font-size: var(--text-xs)">Roles: Member, Streamers, Muted</span></div>
+          <div>
+            <details class="ss-why can"><summary><i class="ph-fill ph-check-circle" aria-label="Can"></i><b>View channel</b><span>@everyone can see the Clips category</span><i class="ph ph-caret-right chev"></i></summary>
+              <ol class="ss-steps"><li class="is-decides"><span>Server roles</span><span>@everyone allows it</span><em>Decides</em></li><li class="is-skip"><span>Clips category</span><span>No change for Theo's roles</span><em></em></li><li class="is-skip"><span>#clips</span><span>No change for Theo</span><em></em></li></ol></details>
+            <details class="ss-why cant" open><summary><i class="ph-fill ph-x-circle" aria-label="Can't"></i><b>Send messages</b><span>Muted denies it on the Clips category, and nothing on #clips allows it back</span><i class="ph ph-caret-right chev"></i></summary>
+              <ol class="ss-steps"><li><span>Server roles</span><span>Member allows it</span><em>Allow</em></li><li class="is-decides"><span>Clips category</span><span><span class="role" style="--role: #6a7f8c">Muted</span> denies it</span><em>Decides</em></li><li class="is-skip"><span>#clips</span><span>Synced, nothing to add</span><em></em></li></ol>
+              <div class="ss-fix"><p>To let Theo talk here, take Muted off Theo, or allow Send messages for Theo on #clips.</p><button class="btn btn--sm"><i class="ph-bold ph-user-minus"></i>Remove Muted from Theo</button></div></details>
+            <details class="ss-why can"><summary><i class="ph-fill ph-check-circle" aria-label="Can"></i><b>Attach files</b><span>Streamers allows it on #clips, which beats @everyone's deny there</span><i class="ph ph-caret-right chev"></i></summary>
+              <ol class="ss-steps"><li><span>Server roles</span><span>Member allows it</span><em>Allow</em></li><li><span>#clips, @everyone</span><span>@everyone denies it</span><em>Deny</em></li><li class="is-decides"><span>#clips, roles</span><span><span class="role" style="--role: #4a8fe0">Streamers</span> allows it; a role allow beats @everyone</span><em>Decides</em></li></ol></details>
+            <details class="ss-why cant"><summary><i class="ph-fill ph-x-circle" aria-label="Can't"></i><b>Manage messages</b><span>None of Theo's roles have it anywhere</span><i class="ph ph-caret-right chev"></i></summary>
+              <ol class="ss-steps"><li class="is-decides"><span>Server roles</span><span>Member, Streamers and Muted don't allow it</span><em>Decides</em></li><li class="is-skip"><span>Clips category</span><span>No change</span><em></em></li><li class="is-skip"><span>#clips</span><span>No change</span><em></em></li></ol></details>
+          </div>
+        </div>
+        <p class="set-cap">Order Wave checks, top to bottom: server roles, then @everyone on the channel, then roles on the channel, then the member. The last rule that says something decides. Owners and Administrator skip all of it.</p>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: var(--space-2)">Three-state control <code>ss-tri</code>: joined 36 × 30 segments; the chosen one is tinted by meaning (danger, neutral, online) and keeps its icon, so it never relies on colour. Click one to see the row explain itself and the notice fall out of sync.</p>
+
+  <h3>Sync notice</h3>
+  <div class="board stack" style="gap: var(--space-3)">
+    <div class="callout callout--info"><i class="ph-fill ph-link-simple"></i><div><b>Synced with Clips</b>Changes to the Clips category apply here too.</div></div>
+    <div class="callout callout--warning"><i class="ph-fill ph-link-simple-break"></i><div><b>Not synced with Clips</b>2 permissions differ from the category: Attach files for Streamers, and Theo's own Send messages.</div><button class="btn btn--sm">Sync with Clips</button></div>
+  </div>
+</section>
+
+<section id="expressions">
+  <h2>Emoji, stickers and soundboard</h2>
+  <p class="lede">Uploads in a grid with the slots used against the limit. Names change in place like a file rename: click, type, Enter keeps it, Esc puts it back. Deleting leaves an Undo where the tile was.</p>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="emoji">
+      <div class="ss-hrow"><h4 class="set-h">Emoji</h4><button class="btn btn--primary"><i class="ph-bold ph-upload-simple"></i>Upload emoji</button></div>
+      <div class="ss-slots">
+        <div class="ss-slot"><div><span>Static</span><output>47 of 50</output></div><div class="progress" style="--v: 94%"><span></span></div></div>
+        <div class="ss-slot is-full"><div><span>Animated</span><output>50 of 50, full</output></div><div class="progress" style="--v: 100%"><span></span></div></div>
+      </div>
+      <p class="set-cap" style="margin-top: calc(var(--space-6) * -1)">Night Shift is at boost level 1. Level 2 adds 50 of each, 3 boosts away.</p>
+      <div class="ss-xgrid">
+        <div class="ss-x"><div class="ss-art"><svg class="cemoji" role="img" aria-label="wave"><use href="#ce-wave"/></svg></div><label class="ss-rename"><span>:</span><input value="wave" aria-label="Emoji name" spellcheck="false" autocomplete="off"><span>:</span></label><div class="ss-by"><span class="av" data-av="Mira"></span><span>Mira</span></div><button class="iconbtn ss-xdel" aria-label="Delete :wave:" data-retire="Deleted :wave:"><i class="ph ph-trash"></i></button></div>
+        <div class="ss-x is-hover"><div class="ss-art"><svg class="cemoji" role="img" aria-label="nod"><use href="#ce-nod"/></svg></div><label class="ss-rename"><span>:</span><input value="nod" aria-label="Emoji name" spellcheck="false" autocomplete="off"><span>:</span></label><div class="ss-by"><span class="av" data-av="Theo"></span><span>Theo</span></div><button class="iconbtn ss-xdel" aria-label="Delete :nod:" data-retire="Deleted :nod:"><i class="ph ph-trash"></i></button></div>
+        <div class="ss-x"><span class="ss-kind">GIF</span><div class="ss-art"><svg class="cemoji" role="img" aria-label="heart"><use href="#ce-heart"/></svg></div><label class="ss-rename"><span>:</span><input value="heart_beat" aria-label="Emoji name" spellcheck="false" autocomplete="off"><span>:</span></label><div class="ss-by"><span class="av" data-av="Ana"></span><span>Ana</span></div><button class="iconbtn ss-xdel" aria-label="Delete :heart_beat:" data-retire="Deleted :heart_beat:"><i class="ph ph-trash"></i></button></div>
+        <div class="ss-x is-renaming"><div class="ss-art"><svg class="cemoji" role="img" aria-label="gg"><use href="#ce-gg"/></svg></div><label class="ss-rename"><span>:</span><input value="gg_wp" aria-label="Emoji name" spellcheck="false" autocomplete="off"><span>:</span></label><div class="ss-by"><span class="av" data-av="Juno"></span><span>You</span></div><button class="iconbtn ss-xdel" aria-label="Delete :gg_wp:" data-retire="Deleted :gg_wp:"><i class="ph ph-trash"></i></button></div>
+        <div class="ss-x"><div class="ss-art">🦆</div><label class="ss-rename"><span>:</span><input value="quack_but_louder_than_usual" aria-label="Emoji name" spellcheck="false" autocomplete="off"><span>:</span></label><div class="ss-by"><span class="av" data-av="Bartholomew"></span><span>Bartholomew Featherstonehaugh-Wright</span></div><button class="iconbtn ss-xdel" aria-label="Delete :quack_but_louder_than_usual:" data-retire="Deleted :quack_but_louder_than_usual:"><i class="ph ph-trash"></i></button></div>
+        <div class="ss-x is-invalid"><div class="ss-art">🍵</div><label class="ss-rename"><span>:</span><input value="tea time!" aria-label="Emoji name" spellcheck="false" autocomplete="off" aria-invalid="true"><span>:</span></label><p class="ss-xerr"><i class="ph-fill ph-warning-circle"></i>Use letters, numbers and _ only</p><button class="iconbtn ss-xdel" aria-label="Delete :tea:" data-retire="Deleted :tea:"><i class="ph ph-trash"></i></button></div>
+        <div class="ss-x is-busy" aria-busy="true"><div class="ss-art">🫡</div><small>salute.png</small><div class="progress" style="--v: 62%"><span></span></div><small>Uploading… 62%</small></div>
+        <div class="ss-x is-failed"><div class="ss-art">💀</div><p class="ss-xerr"><i class="ph-fill ph-warning-circle"></i>dead.gif is 410 KB. Emoji can be up to 256 KB.</p><button class="btn btn--sm">Choose another</button></div>
+        <div class="ss-x is-gone"><b>Deleted :lfg:</b><button class="btn btn--link">Undo</button></div>
+      </div>
+      <p class="set-cap">Tiles in order: default, hover, animated, renaming, longest name and uploader, invalid name, uploading, failed, deleted. Click any name to rename; delete any tile.</p>
+    </div>
+  </div>
+
+  <h3>Stickers</h3>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="stickers">
+      <div class="ss-hrow"><h4 class="set-h">Stickers</h4><button class="btn btn--primary"><i class="ph-bold ph-upload-simple"></i>Upload sticker</button></div>
+      <div class="ss-slots"><div class="ss-slot"><div><span>Stickers</span><output>4 of 15</output></div><div class="progress" style="--v: 27%"><span></span></div></div></div>
+      <div class="ss-xgrid ss-xgrid--lg">
+        <div class="ss-x"><div class="ss-art">🐸</div><label class="ss-rename"><input value="it is wednesday" aria-label="Sticker name" spellcheck="false" autocomplete="off"></label><small>Suggests for 🐸 and 📅</small><div class="ss-by"><span class="av" data-av="Mira"></span><span>Mira</span></div><button class="iconbtn ss-xdel" aria-label="Delete it is wednesday" data-retire="Deleted it is wednesday"><i class="ph ph-trash"></i></button></div>
+        <div class="ss-x"><span class="ss-kind">APNG</span><div class="ss-art">🎉</div><label class="ss-rename"><input value="clip of the week" aria-label="Sticker name" spellcheck="false" autocomplete="off"></label><small>Suggests for 🎉</small><div class="ss-by"><span class="av" data-av="Theo"></span><span>Theo</span></div><button class="iconbtn ss-xdel" aria-label="Delete clip of the week" data-retire="Deleted clip of the week"><i class="ph ph-trash"></i></button></div>
+        <div class="ss-x"><div class="ss-art">😴</div><label class="ss-rename"><input value="night shift ending" aria-label="Sticker name" spellcheck="false" autocomplete="off"></label><small>Suggests for 😴 and 🌙</small><div class="ss-by"><span class="av" data-av="Juno"></span><span>You</span></div><button class="iconbtn ss-xdel" aria-label="Delete night shift ending" data-retire="Deleted night shift ending"><i class="ph ph-trash"></i></button></div>
+        <div class="ss-x"><div class="ss-art">👋</div><label class="ss-rename"><input value="welcome wave" aria-label="Sticker name" spellcheck="false" autocomplete="off"></label><small>Sent from the welcome reply button</small><div class="ss-by"><span class="av" data-av="Rosa"></span><span>Rosa</span></div><button class="iconbtn ss-xdel" aria-label="Delete welcome wave" data-retire="Deleted welcome wave"><i class="ph ph-trash"></i></button></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Soundboard</h3>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="soundboard">
+      <div class="ss-hrow"><h4 class="set-h">Soundboard</h4><button class="btn btn--primary"><i class="ph-bold ph-upload-simple"></i>Upload sound</button></div>
+      <div class="ss-slots"><div class="ss-slot"><div><span>Sounds</span><output>5 of 24</output></div><div class="progress" style="--v: 21%"><span></span></div></div></div>
+      <div class="ss-xgrid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr))">
+        <div class="ss-x"><div class="ss-sound"><span class="e">📯</span><label class="ss-rename"><input value="airhorn" aria-label="Sound name" spellcheck="false" autocomplete="off"></label><button class="iconbtn ss-play" aria-label="Play airhorn" data-sound="/assets/discord/sounds/stream_started.mp3"><i class="ph-fill ph-play"></i><span class="bars"><i></i><i></i><i></i></span></button><div class="ss-by"><span class="av" data-av="Theo"></span><span>Theo · 0:02 · 80%</span></div></div></div>
+        <div class="ss-x"><div class="ss-sound"><span class="e">🦗</span><label class="ss-rename"><input value="crickets" aria-label="Sound name" spellcheck="false" autocomplete="off"></label><button class="iconbtn ss-play is-playing" aria-label="Stop crickets" data-sound="/assets/discord/sounds/user_moved.mp3"><i class="ph-fill ph-play"></i><span class="bars"><i></i><i></i><i></i></span></button><div class="ss-by"><span class="av" data-av="Mira"></span><span>Mira · 0:04 · 100%</span></div></div></div>
+        <div class="ss-x"><div class="ss-sound"><span class="e">🥁</span><label class="ss-rename"><input value="ba dum tss" aria-label="Sound name" spellcheck="false" autocomplete="off"></label><button class="iconbtn ss-play" aria-label="Play ba dum tss" data-sound="/assets/discord/sounds/user_join.mp3"><i class="ph-fill ph-play"></i><span class="bars"><i></i><i></i><i></i></span></button><div class="ss-by"><span class="av" data-av="Ana"></span><span>Ana · 0:01 · 60%</span></div></div></div>
+        <div class="ss-x"><div class="ss-sound"><span class="e">👋</span><label class="ss-rename"><input value="goodnight everyone" aria-label="Sound name" spellcheck="false" autocomplete="off"></label><button class="iconbtn ss-play" aria-label="Play goodnight everyone" data-sound="/assets/discord/sounds/user_leave.mp3"><i class="ph-fill ph-play"></i><span class="bars"><i></i><i></i><i></i></span></button><div class="ss-by"><span class="av" data-av="Juno"></span><span>You · 0:03 · 100%</span></div></div></div>
+        <div class="ss-x"><div class="ss-sound"><span class="e">🔔</span><label class="ss-rename"><input value="ding" aria-label="Sound name" spellcheck="false" autocomplete="off"></label><button class="iconbtn ss-play" aria-label="Play ding" data-sound="/assets/discord/sounds/message1.mp3"><i class="ph-fill ph-play"></i><span class="bars"><i></i><i></i><i></i></span></button><div class="ss-by"><span class="av" data-av="Rosa"></span><span>Rosa · 0:01 · 100%</span></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Empty</h3>
+  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr))">
+    <div class="board"><div class="empty" style="padding-block: var(--space-4)"><div class="mascot idle"><i></i><i></i><i></i><i></i><i></i></div><b>No emoji yet</b><p>Server emoji work for every member here. PNG or GIF, up to 256 KB.</p><button class="btn btn--primary"><i class="ph-bold ph-upload-simple"></i>Upload emoji</button></div></div>
+    <div class="board"><div class="empty" style="padding-block: var(--space-4)"><div class="mascot idle"><i></i><i></i><i></i><i></i><i></i></div><b>No stickers yet</b><p>Big reactions anyone here can send. PNG, APNG or GIF, up to 512 KB.</p><button class="btn btn--primary"><i class="ph-bold ph-upload-simple"></i>Upload sticker</button></div></div>
+    <div class="board"><div class="empty" style="padding-block: var(--space-4)"><div class="mascot idle"><i></i><i></i><i></i><i></i><i></i></div><b>No sounds yet</b><p>Short clips people play in voice. MP3 or OGG, 5 seconds at most.</p><button class="btn btn--primary"><i class="ph-bold ph-upload-simple"></i>Upload sound</button></div></div>
+  </div>
+</section>
+
+<section id="members">
+  <h2>Members</h2>
+  <p class="lede">Everyone in the server, searchable and filtered by role, join date and account age. Row actions sit in one menu; select several and the header turns into the bulk bar in place, so nothing below moves.</p>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="members">
+      <div class="ss-hrow"><h4 class="set-h">Members<small>1,284</small></h4></div>
+      <div class="stack" style="gap: var(--space-3)">
+        <div class="ss-tools">
+          <div class="input"><i class="ph ph-magnifying-glass"></i><input placeholder="Search by name or username" aria-label="Search members" data-member-search></div>
+          <button class="chip" aria-haspopup="listbox"><span class="ss-rdot" style="width: 10px; height: 10px"></span>Any role<i class="ph-bold ph-caret-down"></i></button>
+        </div>
+        <div class="ss-tools" role="group" aria-label="Filters">
+          <button class="chip" aria-pressed="false" data-filter="week"><i class="ph ph-calendar-blank"></i>Joined this week</button>
+          <button class="chip" aria-pressed="false" data-filter="new"><i class="ph ph-baby"></i>New accounts</button>
+          <button class="chip" aria-pressed="false" data-filter="timeout"><i class="ph ph-timer"></i>Timed out</button>
+        </div>
+        <div class="ss-table ss-table--members" data-table>
+          <div class="ss-tr ss-thead">
+            <button class="ss-check" aria-label="Select all members on this page" data-selall><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+            <span>Member</span>
+            <button class="ss-sortbtn">Joined<i class="ph-bold ph-arrow-down"></i></button>
+            <span>Roles</span>
+            <span></span>
+            <div class="ss-bulk"><b data-bulk-count>0 selected</b><button class="btn btn--sm"><i class="ph-bold ph-plus"></i>Add role</button><button class="btn btn--sm" data-open="dlg-timeout"><i class="ph-bold ph-timer"></i>Time out</button><button class="btn btn--sm set-dangerbtn" data-open="dlg-ban"><i class="ph-bold ph-prohibit"></i>Ban</button><button class="iconbtn" aria-label="Clear selection" data-clearsel><i class="ph ph-x"></i></button></div>
+          </div>
+          <div class="ss-tr"><button class="ss-check" aria-label="Select Mira"><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button><div class="ss-who"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>mira.wav</span></div></div><div class="ss-when">2 years ago<span>12 Mar 2024</span></div><div class="ss-roles-cell"><span class="role" style="--role: #3fb95f">Moderator</span><span class="role" style="--role: #4a8fe0">Streamers</span></div><button class="iconbtn" aria-label="Actions for Mira" data-rowmenu="Mira"><i class="ph ph-dots-three-vertical"></i></button></div>
+          <div class="ss-tr" data-timeout><button class="ss-check" aria-label="Select Theo"><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button><div class="ss-who"><span class="av" data-av="Theo"><span class="status dnd"></span></span><div><b>Theo</b><span class="ss-flag"><i class="ph-fill ph-timer"></i>Timed out, 42m left</span></div></div><div class="ss-when">3 months ago<span>14 Aug 2026</span></div><div class="ss-roles-cell"><span class="role" style="--role: #4a8fe0">Streamers</span><span class="role" style="--role: #99a0a6">Member</span><span class="ss-more">+1</span></div><button class="iconbtn" aria-label="Actions for Theo" data-rowmenu="Theo"><i class="ph ph-dots-three-vertical"></i></button></div>
+          <div class="ss-tr" data-week><button class="ss-check" aria-label="Select Ana"><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button><div class="ss-who"><span class="av" data-av="Ana"><span class="status idle"></span></span><div><b>Ana</b><span>ana.k</span></div></div><div class="ss-when">5 days ago<span>10 Nov 2026</span></div><div class="ss-roles-cell"><span class="role" style="--role: #99a0a6">Member</span></div><button class="iconbtn" aria-label="Actions for Ana" data-rowmenu="Ana"><i class="ph ph-dots-three-vertical"></i></button></div>
+          <div class="ss-tr" data-week data-new><button class="ss-check" aria-label="Select Bartholomew"><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button><div class="ss-who"><span class="av" data-av="Bartholomew"><span class="status offline"></span></span><div><b>Bartholomew Featherstonehaugh-Wright</b><span>bartholomew.featherstonehaugh.wright</span></div></div><div class="ss-when">2 hours ago<span class="ss-flag"><i class="ph-fill ph-warning"></i>Account 2 days old</span></div><div class="ss-roles-cell"><span class="muted" style="font-size: var(--text-xs)">No roles yet</span></div><button class="iconbtn" aria-label="Actions for Bartholomew" data-rowmenu="Bartholomew"><i class="ph ph-dots-three-vertical"></i></button></div>
+          <div class="ss-tr"><button class="ss-check" aria-label="Select Jun"><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button><div class="ss-who"><span class="av" data-av="Jun"><span class="status offline"></span></span><div><b>Jun</b><span>jun</span></div></div><div class="ss-when">1 year ago<span>2 Oct 2025</span></div><div class="ss-roles-cell"><span class="role" style="--role: #9b6ce0">Clipper</span><span class="role" style="--role: #99a0a6">Member</span></div><button class="iconbtn" aria-label="Actions for Jun" data-rowmenu="Jun"><i class="ph ph-dots-three-vertical"></i></button></div>
+          <div class="ss-tr"><button class="ss-check" aria-label="Select Rosa"><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button><div class="ss-who"><span class="av" data-av="Rosa"><span class="status idle"></span></span><div><b>Rosa</b><span>rosa</span></div></div><div class="ss-when">8 months ago<span>3 Mar 2026</span></div><div class="ss-roles-cell"><span class="role" style="--role: #e5534b">Admin</span></div><button class="iconbtn" aria-label="Actions for Rosa" data-rowmenu="Rosa"><i class="ph ph-dots-three-vertical"></i></button></div>
+          <div class="ss-tr" data-week data-new><button class="ss-check" aria-label="Select free_nitro_drop"><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button><div class="ss-who"><span class="av" data-av="free_nitro_drop"><span class="status online"></span></span><div><b>free_nitro_drop</b><span>free_nitro_drop</span></div></div><div class="ss-when">6 minutes ago<span class="ss-flag"><i class="ph-fill ph-warning"></i>Account 1 hour old</span></div><div class="ss-roles-cell"><span class="muted" style="font-size: var(--text-xs)">No roles yet</span></div><button class="iconbtn" aria-label="Actions for free_nitro_drop" data-rowmenu="free_nitro_drop"><i class="ph ph-dots-three-vertical"></i></button></div>
+          <div class="ss-noresult" hidden><i class="ph ph-magnifying-glass"></i><b>No members match</b><span>Try another name, or turn off a filter.</span><button class="btn btn--sm" data-clear-filters>Clear search and filters</button></div>
+        </div>
+        <div class="ss-pager"><div class="ss-pages"><button aria-label="Previous page" disabled><i class="ph-bold ph-caret-left"></i></button><button aria-current="page">1</button><button>2</button><button>3</button><span>…</span><button>52</button><button aria-label="Next page"><i class="ph-bold ph-caret-right"></i></button></div><span>1–25 of 1,284</span></div>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: var(--space-2)">Live: tick rows for the bulk bar and the tri-state select-all, type to search, toggle the filters, open a row's menu. Pager sits bottom left so it never moves as counts change. Below 600px the joined and roles columns drop.</p>
+
+  <h3>Bulk selection</h3>
+  <div class="board set-sheet">
+    <div class="set-page ss-page">
+      <div class="ss-table ss-table--members is-bulk">
+        <div class="ss-tr ss-thead"><span class="ss-check"><span class="check" aria-checked="mixed"><i class="ph-bold ph-check"></i></span></span><span>Member</span><span>Joined</span><span>Roles</span><span></span><div class="ss-bulk"><b>2 selected</b><button class="btn btn--sm"><i class="ph-bold ph-plus"></i>Add role</button><button class="btn btn--sm"><i class="ph-bold ph-timer"></i>Time out</button><button class="btn btn--sm set-dangerbtn"><i class="ph-bold ph-prohibit"></i>Ban</button><button class="iconbtn" aria-label="Clear selection"><i class="ph ph-x"></i></button></div></div>
+        <div class="ss-tr is-selected"><span class="ss-check"><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></span><div class="ss-who"><span class="av" data-av="Bartholomew"></span><div><b>Bartholomew Featherstonehaugh-Wright</b><span>bartholomew.featherstonehaugh.wright</span></div></div><div class="ss-when">2 hours ago<span class="ss-flag"><i class="ph-fill ph-warning"></i>Account 2 days old</span></div><div class="ss-roles-cell"><span class="muted" style="font-size: var(--text-xs)">No roles yet</span></div><span></span></div>
+        <div class="ss-tr"><span class="ss-check"><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></span><div class="ss-who"><span class="av" data-av="Jun"></span><div><b>Jun</b><span>jun</span></div></div><div class="ss-when">1 year ago<span>2 Oct 2025</span></div><div class="ss-roles-cell"><span class="role" style="--role: #9b6ce0">Clipper</span></div><span></span></div>
+        <div class="ss-tr is-selected"><span class="ss-check"><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></span><div class="ss-who"><span class="av" data-av="free_nitro_drop"></span><div><b>free_nitro_drop</b><span>free_nitro_drop</span></div></div><div class="ss-when">6 minutes ago<span class="ss-flag"><i class="ph-fill ph-warning"></i>Account 1 hour old</span></div><div class="ss-roles-cell"><span class="muted" style="font-size: var(--text-xs)">No roles yet</span></div><span></span></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Row menu and its dialogs</h3>
+  <div class="board" style="display: flex; gap: var(--space-6); flex-wrap: wrap; align-items: flex-start; --bg-ring: var(--bg-overlay)">
+    <div class="menu" role="menu" aria-label="Theo">
+      <div class="mhead"><span class="av" data-av="Theo" style="--size: 32px"></span><div><b>Theo</b><span>Timed out, 42m left</span></div></div>
+      <button class="mi" role="menuitem"><i class="ph ph-user-circle"></i><div>Profile</div></button>
+      <div class="has-sub open">
+        <button class="mi" role="menuitem" aria-haspopup="menu" aria-expanded="true"><i class="ph ph-identification-badge"></i><div>Roles</div><i class="ph ph-caret-right chev"></i></button>
+        <div class="menu" role="menu" aria-label="Roles">
+          <button class="mi" role="menuitemcheckbox" aria-checked="false"><span class="ss-rdot" style="--role: #3fb95f"></span><div>Moderator</div><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+          <button class="mi" role="menuitemcheckbox" aria-checked="true"><span class="ss-rdot" style="--role: #4a8fe0"></span><div>Streamers</div><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+          <button class="mi" role="menuitemcheckbox" aria-checked="false"><span class="ss-rdot" style="--role: #9b6ce0"></span><div>Clipper</div><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></button>
+          <button class="mi" role="menuitemcheckbox" aria-checked="true"><span class="ss-rdot" style="--role: #99a0a6"></span><div>Member</div><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+          <button class="mi" role="menuitemcheckbox" aria-checked="true"><span class="ss-rdot" style="--role: #6a7f8c"></span><div>Muted</div><span class="check" aria-checked="true"><i class="ph-bold ph-check"></i></span></button>
+          <button class="mi" role="menuitem" aria-disabled="true"><span class="ss-rdot" style="--role: #e5534b"></span><div>Admin<small>Ranks above your highest role</small></div></button>
+        </div>
+      </div>
+      <button class="mi" role="menuitem"><i class="ph ph-timer"></i><div>Remove timeout</div></button>
+      <hr>
+      <button class="mi danger" role="menuitem"><i class="ph ph-sign-out"></i><div>Kick Theo</div></button>
+      <button class="mi danger" role="menuitem"><i class="ph ph-prohibit"></i><div>Ban Theo</div></button>
+    </div>
+    <div style="width: 210px" aria-hidden="true"></div>
+    <form class="dialog dialog--md" role="dialog" aria-labelledby="dto" data-live="dlg-timeout" onsubmit="return false"><div class="dhead"><h4 id="dto"><span>Time out <span data-who>Theo</span></span></h4><p>They can read but can't send messages, react or talk in voice until it ends.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="field"><label>For</label><div class="typechoice cm-grid" role="radiogroup" aria-label="Timeout length" data-timeout>
+        <button type="button" class="choice" data-toggle="radio"><div><b>60 seconds</b><span>Ends 8:42 PM</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+        <button type="button" class="choice" data-toggle="radio"><div><b>5 minutes</b><span>Ends 8:46 PM</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+        <button type="button" class="choice" data-toggle="radio"><div><b>10 minutes</b><span>Ends 8:51 PM</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+        <button type="button" class="choice" data-toggle="radio"><div><b>1 hour</b><span>Ends 9:41 PM</span></div><span class="radio" role="radio" aria-checked="true"></span></button>
+        <button type="button" class="choice" data-toggle="radio"><div><b>1 day</b><span>Ends tomorrow at 8:41 PM</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+        <button type="button" class="choice" data-toggle="radio"><div><b>1 week</b><span>Ends Nov 22 at 8:41 PM</span></div><span class="radio" role="radio" aria-checked="false"></span></button>
+      </div></div>
+      <div class="field"><label for="to-reason">Reason (optional)</label><div class="input"><input id="to-reason" placeholder="Shows in the audit log"></div></div>
+      <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--danger" data-loading="Timing out…" data-timeout-go>Time out for 1 hour</button></footer>
+    </form>
+    <form class="dialog dialog--md" role="dialog" aria-labelledby="dbn" data-live="dlg-ban" onsubmit="return false">
+      <h4 id="dbn"><i class="ph-fill ph-prohibit"></i><span>Ban <span data-who>Theo</span>?</span></h4>
+      <p>They leave now and can't rejoin with any invite until someone unbans them.</p>
+      <div class="field"><label>Delete their messages from</label><div class="seg" role="group" aria-label="Delete messages from"><button type="button" aria-pressed="true">Nothing</button><button type="button" aria-pressed="false">Last hour</button><button type="button" aria-pressed="false">Last day</button><button type="button" aria-pressed="false">Last week</button></div></div>
+      <div class="field"><label for="ban-reason">Reason</label><textarea class="textarea" id="ban-reason" placeholder="Other moderators see this in Bans and the audit log" style="min-height: 64px"></textarea></div>
+      <footer><button type="button" class="btn" data-close><span>Keep <span data-who>Theo</span></span></button><button class="btn btn--danger" data-loading="Banning…"><span>Ban <span data-who>Theo</span></span></button></footer>
+    </form>
+  </div>
+
+  <h3>Loading and no results</h3>
+  <div class="board set-sheet">
+    <div class="set-page ss-page">
+      <div class="ss-table ss-table--members" aria-busy="true" aria-label="Loading members">
+        <div class="ss-tr ss-thead"><span class="ss-check"><span class="check" aria-checked="false"><i class="ph-bold ph-check"></i></span></span><span>Member</span><span>Joined</span><span>Roles</span><span></span></div>
+        <div class="ss-tr"><span></span><div class="ss-who"><span class="skeleton circle" style="width: 32px; height: 32px"></span><div style="gap: 6px; width: 100%"><span class="skeleton line" style="width: 46%"></span><span class="skeleton line" style="width: 30%; height: 10px"></span></div></div><span class="skeleton line" style="width: 70%"></span><span class="skeleton" style="width: 90px; height: 24px"></span><span></span></div>
+        <div class="ss-tr"><span></span><div class="ss-who"><span class="skeleton circle" style="width: 32px; height: 32px"></span><div style="gap: 6px; width: 100%"><span class="skeleton line" style="width: 62%"></span><span class="skeleton line" style="width: 40%; height: 10px"></span></div></div><span class="skeleton line" style="width: 55%"></span><span class="skeleton" style="width: 120px; height: 24px"></span><span></span></div>
+        <div class="ss-tr"><span></span><div class="ss-who"><span class="skeleton circle" style="width: 32px; height: 32px"></span><div style="gap: 6px; width: 100%"><span class="skeleton line" style="width: 38%"></span><span class="skeleton line" style="width: 26%; height: 10px"></span></div></div><span class="skeleton line" style="width: 64%"></span><span class="skeleton" style="width: 70px; height: 24px"></span><span></span></div>
+      </div>
+      <div class="ss-table ss-table--members"><div class="ss-noresult"><i class="ph ph-magnifying-glass"></i><b>No members match “zz” with New accounts on</b><span>Try another name, or turn off a filter.</span><button class="btn btn--sm">Clear search and filters</button></div></div>
+    </div>
+  </div>
+
+  <div class="menu" popover id="ss-rowmenu" role="menu" style="--origin: top right">
+    <div class="mhead"><span class="av" style="--size: 32px" data-rowav></span><div><b data-who>Mira</b><span>Member since this year</span></div></div>
+    <button class="mi" role="menuitem"><i class="ph ph-user-circle"></i><div>Profile</div></button>
+    <button class="mi" role="menuitem" aria-haspopup="menu"><i class="ph ph-identification-badge"></i><div>Roles</div><i class="ph ph-caret-right chev"></i></button>
+    <button class="mi" role="menuitem" data-open="dlg-timeout"><i class="ph ph-timer"></i><div>Time out…</div></button>
+    <hr>
+    <button class="mi danger" role="menuitem" data-open="dlg-kick"><i class="ph ph-sign-out"></i><div>Kick <span data-who>Mira</span></div></button>
+    <button class="mi danger" role="menuitem" data-open="dlg-ban"><i class="ph ph-prohibit"></i><div>Ban <span data-who>Mira</span></div></button>
+  </div>
+  <dialog class="real" id="dlg-kick"><form class="dialog" onsubmit="return false" aria-labelledby="dk"><h4 id="dk"><i class="ph-fill ph-sign-out"></i><span>Kick <span data-who>Mira</span>?</span></h4><p><span data-who>Mira</span> leaves now and can rejoin with an invite. Their messages stay.</p><footer><button type="button" class="btn" data-close><span>Keep <span data-who>Mira</span></span></button><button class="btn btn--danger" data-loading="Kicking…"><span>Kick <span data-who>Mira</span></span></button></footer></form></dialog>
+</section>
+
+<section id="invites">
+  <h2>Invites</h2>
+  <p class="lede">Every live invite with who made it, how often it's been used and when it runs out. Revoke is a visible button with Undo; pausing takes a length so it can't be forgotten on.</p>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="invites">
+      <div class="ss-hrow"><h4 class="set-h">Invites<small>4</small></h4><button class="btn btn--primary"><i class="ph-bold ph-link"></i>Create invite</button></div>
+      <div class="set-group">
+        <div class="set-card ss-pause">
+          <button class="set-row choice" data-toggle="switch" data-pause><div class="t"><b>Pause invites</b><span>Nobody can join with a link while paused. Members already here aren't affected.</span><span class="ss-flag ss-pauseline"><i class="ph-fill ph-pause-circle"></i>Paused for 23h 59m. Invites below don't work until then.</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+          <div class="set-row ss-pauselen"><div class="t"><b>Pause for</b></div><div class="seg" role="group" aria-label="Pause for"><button aria-pressed="false">1 hour</button><button aria-pressed="true">24 hours</button><button aria-pressed="false">Until I resume</button></div></div>
+        </div>
+      </div>
+      <div class="ss-table ss-table--inv">
+        <div class="ss-tr ss-thead"><span>Invite</span><span>Uses</span><span>Expires</span><span></span></div>
+        <div class="ss-tr"><div class="ss-who"><span class="av" data-av="Mira"></span><div><b>wave.gg/nightshift</b><span>Mira · #welcome</span></div></div><div class="ss-uses">412</div><div class="ss-when">Never</div><button class="btn btn--sm" data-revoke="wave.gg/nightshift">Revoke</button></div>
+        <div class="ss-tr"><div class="ss-who"><span class="av" data-av="Theo"></span><div><b>wave.gg/7Kq2xQ</b><span>Theo · #clips</span></div></div><div class="ss-uses">12 of 25<div class="progress" style="--v: 48%"><span></span></div></div><div class="ss-when">in 3 days<span>18 Nov, 22:10</span></div><button class="btn btn--sm" data-revoke="wave.gg/7Kq2xQ">Revoke</button></div>
+        <div class="ss-tr"><div class="ss-who"><span class="av" data-av="Juno"></span><div><b>wave.gg/Hm93Lp</b><span>You · #general</span></div></div><div class="ss-uses">1 of 1<div class="progress" style="--v: 100%"><span></span></div></div><div class="ss-when">in 42m<span>Today, 01:12</span></div><button class="btn btn--sm" data-revoke="wave.gg/Hm93Lp">Revoke</button></div>
+        <div class="ss-tr"><div class="ss-who"><span class="av" data-av="Bartholomew"></span><div><b>wave.gg/zP0aWq8rTt4Y</b><span>Bartholomew Featherstonehaugh-Wright · #lfg</span></div></div><div class="ss-uses">0 of 10<div class="progress" style="--v: 0%"><span></span></div></div><div class="ss-when">in 7 days<span>22 Nov, 14:00</span></div><button class="btn btn--sm" data-revoke="wave.gg/zP0aWq8rTt4Y">Revoke</button></div>
+        <div class="ss-tr"><div class="ss-gone" style="grid-column: 1 / -1; color: var(--text-muted)">Revoked <b class="strong">wave.gg/Tt5mN2</b>. <button class="btn btn--link">Undo</button></div></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Paused, and empty</h3>
+  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr))">
+    <div class="board set-sheet" style="padding: var(--space-4)"><div class="set-card"><div class="set-row"><div class="t"><b>Pause invites</b><span>Nobody can join with a link while paused. Members already here aren't affected.</span><span class="ss-flag"><i class="ph-fill ph-pause-circle"></i>Paused for 23h 59m. Invites below don't work until then.</span></div><span class="switch" role="switch" aria-checked="true"></span></div></div></div>
+    <div class="board"><div class="empty" style="padding-block: var(--space-4)"><div class="mascot idle"><i></i><i></i><i></i><i></i><i></i></div><b>No invites out</b><p>Make one to bring people in. You pick how long it lasts and how many times it works.</p><button class="btn btn--primary"><i class="ph-bold ph-link"></i>Create invite</button></div></div>
+  </div>
+</section>
+
+<section id="bans">
+  <h2>Bans</h2>
+  <p class="lede">Who's banned, why, who did it and when, all on the row: no digging through the audit log. Unban acts at once and offers Undo.</p>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="bans">
+      <div class="ss-hrow"><h4 class="set-h">Bans<small>4</small></h4></div>
+      <div class="input"><i class="ph ph-magnifying-glass"></i><input placeholder="Search bans by name or reason" aria-label="Search bans" data-ban-search></div>
+      <div class="ss-list" data-bans>
+        <div class="ss-person"><span class="av" data-av="Kev"></span><div><b>Kev<small>kev.v2</small></b><span class="reason">Kept posting the same server invite after two warnings, including in #clips during the Friday stream</span><span>Banned by Mira · 2d</span></div><div class="ctl"><button class="btn btn--sm" data-retire="Unbanned Kev. They can rejoin with an invite.">Unban</button></div></div>
+        <div class="ss-person"><span class="av" data-av="free_nitro_giveaway"></span><div><b>free_nitro_giveaway<small>free_nitro_giveaway</small></b><span class="reason">Scam links in 6 channels</span><span>Banned by AutoMod · Keyword filter · 3h</span></div><div class="ctl"><button class="btn btn--sm" data-retire="Unbanned free_nitro_giveaway.">Unban</button></div></div>
+        <div class="ss-person"><span class="av" data-av="Xander"></span><div><b>Xander<small>xndr</small></b><span class="reason muted">No reason given</span><span>Banned by Rosa · 4 months ago</span></div><div class="ctl"><button class="btn btn--sm" data-retire="Unbanned Xander.">Unban</button></div></div>
+        <div class="ss-person"><span class="av" data-av="Lux"></span><div><b>Lux<small>luxlux</small></b><span class="reason">Ban evasion (alt of Kev)</span><span>Banned by Mira · 1d</span></div><div class="ctl"><button class="btn btn--sm" data-retire="Unbanned Lux.">Unban</button></div></div>
+        <div class="ss-noresult" hidden><i class="ph ph-magnifying-glass"></i><b>No bans match “<span data-q></span>”</b><span>Search covers names, usernames and reasons.</span><button class="btn btn--sm" data-clear-search>Clear search</button></div>
+      </div>
+    </div>
+  </div>
+  <h3>Empty</h3>
+  <div class="board"><div class="empty"><div class="mascot idle"><i></i><i></i><i></i><i></i><i></i></div><b>Nobody's banned</b><p>When you ban someone they show up here with the reason, so other moderators know why.</p></div></div>
+</section>
+
+<section id="audit-log">
+  <h2>Audit log</h2>
+  <p class="lede">What changed, as sentences: who did what to whom, with a short age. Bursts fold into one counted line, and any entry with changes opens to before and after in place.</p>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="audit">
+      <div class="ss-hrow"><h4 class="set-h">Audit log</h4></div>
+      <div class="ss-tools"><button class="chip" aria-haspopup="listbox"><i class="ph ph-user"></i>Anyone<i class="ph-bold ph-caret-down"></i></button><button class="chip" aria-haspopup="listbox"><i class="ph ph-funnel"></i>Any action<i class="ph-bold ph-caret-down"></i></button></div>
+      <div class="ss-logday">
+        <div class="divider">Today</div>
+        <details class="ss-log" open><summary><span class="icontile is-update"><i class="ph ph-shield-check"></i></span><p><b>Mira</b> changed 3 permissions on <span class="role" style="--role: #3fb95f">Moderator</span></p><time datetime="2026-11-15T00:26" title="15 Nov 2026, 00:26">4m<i class="ph ph-caret-right"></i></time></summary>
+          <div class="ss-diff">
+            <div><span>Ban members</span><span class="ss-change"><del><span class="ss-off"><i class="ph-bold ph-x"></i>Off</span></del><i class="ph ph-arrow-right" aria-label="to"></i><ins><span class="ss-on"><i class="ph-bold ph-check"></i>On</span></ins></span></div>
+            <div><span>Mention @everyone</span><span class="ss-change"><del><span class="ss-off"><i class="ph-bold ph-x"></i>Off</span></del><i class="ph ph-arrow-right" aria-label="to"></i><ins><span class="ss-on"><i class="ph-bold ph-check"></i>On</span></ins></span></div>
+            <div><span>Manage webhooks</span><span class="ss-change"><del><span class="ss-on"><i class="ph-bold ph-check"></i>On</span></del><i class="ph ph-arrow-right" aria-label="to"></i><ins><span class="ss-off"><i class="ph-bold ph-x"></i>Off</span></ins></span></div>
+          </div></details>
+        <details class="ss-log"><summary><span class="icontile is-update"><i class="ph ph-hash"></i></span><p><b>Theo</b> renamed <b>#clip-dump</b> to <b>#clips</b></p><time datetime="2026-11-14T23:30" title="14 Nov 2026, 23:30">1h<i class="ph ph-caret-right"></i></time></summary>
+          <div class="ss-diff">
+            <div><span>Name</span><span class="ss-change"><del>clip-dump</del><i class="ph ph-arrow-right" aria-label="to"></i><ins>clips</ins></span></div>
+            <div><span>Slow mode</span><span class="ss-change"><del>Off</del><i class="ph ph-arrow-right" aria-label="to"></i><ins>10 seconds</ins></span></div>
+            <div><span>Topic</span><span class="ss-change"><del>dump your clips here</del><i class="ph ph-arrow-right" aria-label="to"></i><ins>Best moments from the Friday stream. One clip per message, under 60 seconds, credit whoever was playing.</ins></span></div>
+          </div></details>
+        <div class="ss-log"><div class="ss-logrow"><span class="icontile is-delete"><i class="ph ph-robot"></i></span><p><b>AutoMod</b> blocked a message from <b>free_nitro_giveaway</b> in <b>#general</b></p><time datetime="2026-11-14T22:30" title="14 Nov 2026, 22:30">2h</time><span class="meta">Keyword filter matched “free nitro”</span></div></div>
+        <div class="ss-log"><div class="ss-logrow"><span class="icontile is-delete"><i class="ph ph-trash"></i></span><p><b>Mira</b> deleted 12 messages from <b>Kev</b> in <b>#general</b></p><time datetime="2026-11-14T21:04" title="14 Nov 2026, 21:02 to 21:04">3h</time><span class="meta">12 times between 21:02 and 21:04 · Reason: spam</span></div></div>
+        <div class="divider">Yesterday</div>
+        <details class="ss-log"><summary><span class="icontile is-create"><i class="ph ph-identification-badge"></i></span><p><b>Juno</b> created the role <span class="role" style="--role: #9b6ce0">Clipper</span></p><time datetime="2026-11-14T22:14" title="14 Nov 2026, 22:14">1d<i class="ph ph-caret-right"></i></time></summary>
+          <div class="ss-diff">
+            <div><span>Name</span><span class="ss-change"><ins>Clipper</ins></span></div>
+            <div><span>Colour</span><span class="ss-change"><ins><span class="ss-rdot" style="--role: #9b6ce0; width: 10px; height: 10px; display: inline-block; vertical-align: -1px; margin-right: 4px"></span>Violet</ins></span></div>
+            <div><span>Permissions</span><span class="ss-change"><ins>6 on, same as Member plus Attach files</ins></span></div>
+          </div></details>
+        <details class="ss-log"><summary><span class="icontile is-delete"><i class="ph ph-prohibit"></i></span><p><b>Mira</b> banned <b>Kev</b></p><time datetime="2026-11-13T18:40" title="13 Nov 2026, 18:40">2d<i class="ph ph-caret-right"></i></time><span class="meta">Reason: Kept posting the same server invite after two warnings</span></summary>
+          <div class="ss-diff"><div><span>Deleted messages</span><span class="ss-change"><ins>Last day, 31 messages</ins></span></div></div></details>
+        <div class="ss-log"><div class="ss-logrow"><span class="icontile is-create"><i class="ph ph-link"></i></span><p><b>Theo</b> created the invite <b>wave.gg/7Kq2xQ</b></p><time datetime="2026-11-13T22:10" title="13 Nov 2026, 22:10">2d</time><span class="meta">Expires in 7 days, works 25 times</span></div></div>
+      </div>
+      <button class="btn ss-loadmore" data-loading="Loading…">Load older entries</button>
+    </div>
+  </div>
+  <p class="note" style="margin-top: var(--space-2)">Icon tiles carry the kind: created in online ink, changed in info ink, removed in danger ink, each with its own glyph. The disclosure is the app's one chevron, turning down; content folds as one block, 200ms on <code>--ease-out</code>.</p>
+</section>
+
+<section id="automod">
+  <h2>AutoMod</h2>
+  <p class="lede">Rules in a list with a switch each; a rule that needs you says why on its second line. The editor ends with a test box that shows exactly which rule fires and what would happen, before any member trips it.</p>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="automod">
+      <div class="ss-hrow"><h4 class="set-h">AutoMod</h4><button class="btn btn--primary"><i class="ph-bold ph-plus"></i>Create rule</button></div>
+      <div class="set-group">
+        <h5>Rules</h5>
+        <div class="set-card">
+          <div class="set-row"><span class="icontile"><i class="ph ph-text-aa"></i></span><div class="t"><b>Keyword filter</b><span>Blocks 6 words and phrases · Alerts #mod-log</span></div><div class="ctl"><button class="btn btn--sm" data-goto="automod-edit">Edit</button><button class="switch" role="switch" aria-checked="true" aria-label="Keyword filter"></button></div></div>
+          <div class="set-row"><span class="icontile"><i class="ph ph-at"></i></span><div class="t"><b>Mention spam</b><span>More than 5 mentions in a message · Times out for 10 minutes</span></div><div class="ctl"><button class="btn btn--sm" data-goto="automod-edit">Edit</button><button class="switch" role="switch" aria-checked="true" aria-label="Mention spam"></button></div></div>
+          <div class="set-row"><span class="icontile"><i class="ph ph-copy"></i></span><div class="t"><b>Spam content</b><span>Repeated links and copy-paste floods</span></div><div class="ctl"><button class="btn btn--sm" data-goto="automod-edit">Edit</button><button class="switch" role="switch" aria-checked="true" aria-label="Spam content"></button></div></div>
+          <div class="set-row"><span class="icontile"><i class="ph ph-link-break"></i></span><div class="t"><b>Scam links</b><span>Blocks 41 domains</span><span class="restart"><i class="ph-fill ph-warning"></i>Its alert channel #mod-alerts was deleted. Pick a new one.</span></div><div class="ctl"><button class="btn btn--sm" data-goto="automod-edit">Pick channel</button><button class="switch" role="switch" aria-checked="true" aria-label="Scam links"></button></div></div>
+          <div class="set-row"><span class="icontile"><i class="ph ph-flag"></i></span><div class="t"><b>Commonly flagged words</b><span>Wave's lists for slurs, sexual content and insults</span></div><div class="ctl"><button class="btn btn--sm" data-goto="automod-edit">Edit</button><button class="switch" role="switch" aria-checked="false" aria-label="Commonly flagged words"></button></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Rule editor</h3>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="automod-edit">
+      <div class="ss-ehead"><button class="iconbtn ss-back" aria-label="Back to AutoMod" data-goto="automod"><i class="ph ph-arrow-left"></i></button><h4 class="set-h">Keyword filter</h4><button class="switch" role="switch" aria-checked="true" aria-label="Keyword filter on"></button></div>
+      <div class="set-group">
+        <h5>Block messages with</h5>
+        <div class="ss-chips" data-kw="block"><span class="ss-kw"><span>free nitro</span><button aria-label="Remove free nitro"><i class="ph-bold ph-x"></i></button></span><span class="ss-kw"><span>*nitro.gift*</span><button aria-label="Remove *nitro.gift*"><i class="ph-bold ph-x"></i></button></span><span class="ss-kw"><span>steamcommunlty</span><button aria-label="Remove steamcommunlty"><i class="ph-bold ph-x"></i></button></span><span class="ss-kw"><span>claim your prize</span><button aria-label="Remove claim your prize"><i class="ph-bold ph-x"></i></button></span><span class="ss-kw"><span>spoiler*</span><button aria-label="Remove spoiler*"><i class="ph-bold ph-x"></i></button></span><span class="ss-kw"><span>dm me for</span><button aria-label="Remove dm me for"><i class="ph-bold ph-x"></i></button></span><input placeholder="Add a word or phrase, then Enter" aria-label="Add a blocked word"></div>
+        <p class="set-cap">Whole words by default. A * matches the rest of a word: <b class="strong">*nitro*</b> also catches freenitro and nitro.gift.</p>
+      </div>
+      <div class="set-group">
+        <h5>Allow anyway</h5>
+        <div class="ss-chips" data-kw="allow"><span class="ss-kw"><span>spoilers channel</span><button aria-label="Remove spoilers channel"><i class="ph-bold ph-x"></i></button></span><input placeholder="Add an exception, then Enter" aria-label="Add an allowed word"></div>
+      </div>
+      <div class="set-group">
+        <h5>Spam and mentions</h5>
+        <div class="set-card">
+          <div class="set-row"><div class="t"><b>Block mass mentions</b><span>Messages with more mentions than this</span></div><div class="stepper" data-mentions><button aria-label="Fewer"><i class="ph-bold ph-minus"></i></button><output>5</output><button aria-label="More"><i class="ph-bold ph-plus"></i></button></div></div>
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Also block suspected spam</b><span>The same link or text posted again and again</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5>Doesn't apply to</h5>
+        <div class="set-card">
+          <div class="set-row stack"><div class="t"><b>Roles</b></div><div class="ss-tagrow"><span class="role" style="--role: #e5534b">Admin</span><span class="role" style="--role: #3fb95f">Moderator</span><button class="role add"><i class="ph-bold ph-plus"></i>Add role</button></div></div>
+          <div class="set-row stack"><div class="t"><b>Channels</b></div><div class="ss-tagrow"><span class="ss-chan"><i class="ph ph-hash"></i>mod-chat</span><span class="ss-chan"><i class="ph ph-hash"></i>mod-log</span><button class="role add"><i class="ph-bold ph-plus"></i>Add channel</button></div></div>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5>When it triggers</h5>
+        <div class="set-card">
+          <div class="set-row stack ss-act"><button class="choice" data-toggle="check" style="padding: 0"><span class="check" role="checkbox" aria-checked="true" data-act="block"><i class="ph-bold ph-check"></i></span><div><b>Block the message</b><span>It never posts; the sender sees why</span></div></button><div class="sub"><textarea class="textarea" style="min-height: 56px" aria-label="Message the sender sees">That link isn't allowed here. Ask a moderator if it's legit.</textarea></div></div>
+          <div class="set-row stack ss-act"><button class="choice" data-toggle="check" style="padding: 0"><span class="check" role="checkbox" aria-checked="true" data-act="alert"><i class="ph-bold ph-check"></i></span><div><b>Send an alert</b><span>A copy of the message for moderators to review</span></div></button><div class="sub"><button class="dropdown" aria-haspopup="listbox"><i class="ph ph-hash"></i><span>mod-log</span><i class="ph ph-caret-down"></i></button></div></div>
+          <div class="set-row stack ss-act"><button class="choice" data-toggle="check" style="padding: 0"><span class="check" role="checkbox" aria-checked="false" data-act="timeout"><i class="ph-bold ph-check"></i></span><div><b>Time out the sender</b><span>They can read but not chat or speak</span></div></button><div class="sub"><button class="dropdown" aria-haspopup="listbox"><span>10 minutes</span><i class="ph ph-caret-down"></i></button></div></div>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5>Try a message</h5>
+        <div class="ss-test">
+          <textarea class="textarea" aria-label="Test message" placeholder="Type or paste a message to see what this rule does with it" data-test>hey all, free nitro for the first 10 who dm me for the link</textarea>
+          <div class="ss-verdict" role="status" aria-live="polite" data-verdict></div>
+        </div>
+        <p class="set-cap">Testing never posts anything or alerts anyone.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="integrations">
+  <h2>Integrations and webhooks</h2>
+  <p class="lede">Apps and webhooks in one place, each naming who added it. An app holding Administrator says so in the warning tone. A webhook's settings open in a dialog, and its secret URL copies with a clear copied state.</p>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="integrations">
+      <h4 class="set-h">Integrations</h4>
+      <div class="set-group">
+        <h5>Apps</h5>
+        <div class="ss-list">
+          <div class="ss-person"><span class="icontile" style="--tile: oklch(0.55 0.13 250); --ink: #fff"><i class="ph-fill ph-film-strip"></i></span><div><b>Clipbot</b><span>Added by Mira · 3 months ago · 8 commands</span></div><div class="ctl"><button class="btn btn--sm">Manage</button></div></div>
+          <div class="ss-person"><span class="icontile" style="--tile: oklch(0.55 0.13 150); --ink: #fff"><i class="ph-fill ph-chart-bar"></i></span><div><b>Statbot</b><span>Added by you · 1 year ago · 3 commands</span><span class="ss-flag"><i class="ph-fill ph-warning"></i>Has Administrator. It only needs to read messages.</span></div><div class="ctl"><button class="btn btn--sm">Review access</button></div></div>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5>Webhooks</h5>
+        <div class="set-card"><button class="set-row" data-goto="webhooks"><span class="icontile"><i class="ph ph-webhooks-logo"></i></span><div class="t"><b>3 webhooks</b><span>Posting into #clips, #announcements and #dev-log</span></div><i class="ph ph-caret-right faint"></i></button></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Webhooks</h3>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="webhooks">
+      <div class="ss-hrow"><h4 class="set-h">Webhooks</h4><button class="btn btn--primary"><i class="ph-bold ph-plus"></i>New webhook</button></div>
+      <div class="ss-list">
+        <div class="ss-person"><span class="av" data-av="Clip alerts"></span><div><b>Clip alerts</b><span>Posts in #clips · Made by Mira, 2 Mar 2026</span></div><div class="ctl"><button class="btn btn--sm" data-copy><i class="ph-bold ph-copy"></i>Copy URL</button><button class="btn btn--sm" data-open="dlg-webhook">Edit</button><button class="iconbtn rm" aria-label="Delete Clip alerts" data-retire="Deleted Clip alerts. Its URL stops working when this goes."><i class="ph ph-trash"></i></button></div></div>
+        <div class="ss-person"><span class="av" data-av="Twitch live"></span><div><b>Twitch live</b><span>Posts in #announcements · Made by you, 9 Jan 2026</span></div><div class="ctl"><button class="btn btn--sm copied"><i class="ph-bold ph-check"></i>Copied</button><button class="btn btn--sm" data-open="dlg-webhook">Edit</button><button class="iconbtn rm" aria-label="Delete Twitch live" data-retire="Deleted Twitch live."><i class="ph ph-trash"></i></button></div></div>
+        <div class="ss-person"><span class="av" data-av="GitHub"></span><div><b>GitHub</b><span>Posts in #dev-log · Made by Rosa, 21 Oct 2025</span></div><div class="ctl"><button class="btn btn--sm" data-copy><i class="ph-bold ph-copy"></i>Copy URL</button><button class="btn btn--sm" data-open="dlg-webhook">Edit</button><button class="iconbtn rm" aria-label="Delete GitHub" data-retire="Deleted GitHub."><i class="ph ph-trash"></i></button></div></div>
+        <div class="ss-person is-gone"><span class="av" data-av="Old RSS"></span><div><b>Deleted Old RSS. Its URL stops working when this goes.</b></div><div class="ctl"><button class="btn btn--sm btn--ghost">Undo</button></div></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Webhook editor</h3>
+  <div class="board">
+    <form class="dialog dialog--md" role="dialog" aria-labelledby="dwh" data-live="dlg-webhook" onsubmit="return false">
+      <div class="dhead"><h4 id="dwh">Edit Clip alerts</h4><p>Posts in #clips</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="dbody">
+        <div class="ss-hookav"><span class="av" data-av="Clip alerts"></span><div class="stack" style="gap: 6px"><button type="button" class="btn btn--sm"><i class="ph-bold ph-upload-simple"></i>Change avatar</button><span class="note">Square, at least 128 × 128</span></div></div>
+        <div class="field"><label for="wh-name">Name</label><div class="input"><input id="wh-name" value="Clip alerts" autocomplete="off"></div></div>
+        <div class="field"><label>Channel</label><button type="button" class="dropdown" aria-haspopup="listbox"><i class="ph ph-hash"></i><span>clips</span><i class="ph ph-caret-down"></i></button></div>
+        <div class="field"><label>Webhook URL</label><div class="ss-copyrow"><button type="button" class="btn" data-copy><i class="ph-bold ph-copy"></i>Copy webhook URL</button></div><span class="hint">Anyone with the URL can post as Clip alerts. Keep it private.</span></div>
+      </div>
+      <footer><button type="button" class="btn set-dangerbtn" style="margin-right: auto" data-close><i class="ph-bold ph-trash"></i>Delete webhook</button><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-loading="Saving…">Save changes</button></footer>
+    </form>
+  </div>
+  <dialog class="real" id="dlg-webhook"></dialog>
+</section>
+
+<section id="community-setup">
+  <h2>Community and onboarding</h2>
+  <p class="lede">The owner's side of community features: a setup checklist with a count, then onboarding and the server guide. What new members see lives on <a href="community.html" style="color: var(--accent-ink)">Servers and invites</a>.</p>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="community">
+      <h4 class="set-h">Community</h4>
+      <div class="set-group">
+        <h5>Before you turn it on</h5>
+        <div class="set-card ss-steplist">
+          <div class="set-row" style="min-height: 48px"><div class="ss-progress" style="flex: 1"><div class="progress" style="--v: 60%"><span></span></div><b>3 of 5 done</b></div></div>
+          <div class="set-row is-done"><i class="ph-fill ph-check-circle"></i><div class="t"><b>Verified email to chat</b><span>Safety setup, verification level Low</span></div></div>
+          <div class="set-row is-done"><i class="ph-fill ph-check-circle"></i><div class="t"><b>Scan images from everyone</b><span>Safety setup, explicit image filter</span></div></div>
+          <div class="set-row is-done"><i class="ph-fill ph-check-circle"></i><div class="t"><b>Rules channel</b><span>#rules</span></div></div>
+          <div class="set-row"><i class="ph ph-circle"></i><div class="t"><b>Updates channel</b><span>Where Wave posts notices for moderators</span></div><button class="btn btn--sm">Pick channel</button></div>
+          <div class="set-row"><i class="ph ph-circle"></i><div class="t"><b>Default notifications to @mentions only</b><span>Now All messages</span></div><button class="btn btn--sm">Switch to @mentions</button></div>
+        </div>
+        <p class="set-cap">You can enable it now; Wave offers to fix the two open steps in the same go.</p>
+      </div>
+      <div class="row"><button class="btn btn--primary" data-open="dlg-community"><i class="ph-bold ph-users-three"></i>Enable Community</button></div>
+    </div>
+  </div>
+  <dialog class="real" id="dlg-community"><form class="dialog dialog--md" onsubmit="return false" aria-labelledby="dcm">
+    <div class="dhead"><h4 id="dcm">Enable Community</h4><p>Two steps aren't done yet. Wave can do both now.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+    <div class="set-card">
+      <div class="set-row"><div class="t"><b>Updates channel</b><span>Create #mod-updates, visible to Moderators</span></div><span class="switch" role="switch" aria-checked="true"></span></div>
+      <div class="set-row"><div class="t"><b>Default notifications</b><span>All messages, changing to Only @mentions</span></div><span class="switch" role="switch" aria-checked="true"></span></div>
+    </div>
+    <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-loading="Enabling…">Fix both and enable</button></footer>
+  </form></dialog>
+
+  <h3>Onboarding</h3>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="onboarding">
+      <div class="ss-hrow"><h4 class="set-h">Onboarding</h4><a class="btn btn--sm" href="community.html"><i class="ph-bold ph-eye"></i>Preview as a new member</a></div>
+      <div class="set-group">
+        <h5>Default channels</h5>
+        <div class="set-card">
+          <button class="set-row choice" data-toggle="check"><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span><div class="t"><b>#welcome</b></div></button>
+          <button class="set-row choice" data-toggle="check"><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span><div class="t"><b>#rules</b></div></button>
+          <button class="set-row choice" data-toggle="check"><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span><div class="t"><b>#general</b><span>People can chat here</span></div></button>
+          <button class="set-row choice" data-toggle="check"><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span><div class="t"><b>#clips</b><span>People can chat here</span></div></button>
+          <button class="set-row choice" data-toggle="check"><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span><div class="t"><b>Lounge</b><span>Voice</span></div></button>
+          <button class="set-row choice" data-toggle="check"><span class="check" role="checkbox" aria-checked="true"><i class="ph-bold ph-check"></i></span><div class="t"><b>#lfg</b><span>People can chat here</span></div></button>
+          <button class="set-row choice" data-toggle="check"><span class="check" role="checkbox" aria-checked="false"><i class="ph-bold ph-check"></i></span><div class="t"><b>#art</b><span>People can chat here</span></div></button>
+        </div>
+        <p class="set-cap"><span class="ss-flag"><i class="ph-fill ph-warning"></i>6 picked, 3 where people chat. Pick 1 more channel, and at least 2 more to chat in.</span></p>
+      </div>
+      <div class="set-group">
+        <h5>Questions</h5>
+        <div class="set-card ss-q">
+          <div><div><b>What brings you to Night Shift?</b><span>Pick any · Required</span></div><button class="btn btn--sm">Edit</button></div>
+          <div class="ss-opts">
+            <div class="ss-opt"><span class="e">🎮</span><b>Playing together</b><span class="muted"><i class="ph ph-hash"></i>lfg <span class="role" style="--role: #4a8fe0; height: 20px">Player</span></span></div>
+            <div class="ss-opt"><span class="e">🎬</span><b>Sharing clips</b><span class="muted"><i class="ph ph-hash"></i>clips <span class="role" style="--role: #9b6ce0; height: 20px">Clipper</span></span></div>
+            <div class="ss-opt"><span class="e">🎨</span><b>Fan art</b><span class="muted"><i class="ph ph-hash"></i>art</span></div>
+          </div>
+        </div>
+        <button class="btn" style="justify-self: start"><i class="ph-bold ph-plus"></i>Add a question</button>
+        <p class="set-cap">Answers give members channels and roles. They can change them later from Channels and roles.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Server guide</h3>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="guide">
+      <h4 class="set-h">Server guide</h4>
+      <div class="set-group">
+        <h5>Welcome message</h5>
+        <div class="set-card" style="padding: var(--space-4); gap: var(--space-3)">
+          <div class="ss-who"><span class="av" data-av="Juno"></span><div><b>Signed by you</b><span>Shown at the top of the guide</span></div></div>
+          <textarea class="textarea" aria-label="Welcome message">Welcome to Night Shift! We stream every Friday from 10 pm. Grab a role, say hi in #general, and drop your best moments in #clips.</textarea>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5>New member to-dos</h5>
+        <div class="set-card">
+          <div class="set-row"><span class="icontile"><i class="ph ph-scroll"></i></span><div class="t"><b>Read the rules</b><span>In #rules</span></div><button class="iconbtn" aria-label="Edit Read the rules"><i class="ph ph-pencil-simple"></i></button></div>
+          <div class="set-row"><span class="icontile"><i class="ph ph-hand-waving"></i></span><div class="t"><b>Say hi</b><span>In #general</span></div><button class="iconbtn" aria-label="Edit Say hi"><i class="ph ph-pencil-simple"></i></button></div>
+          <div class="set-row"><span class="icontile"><i class="ph ph-film-strip"></i></span><div class="t"><b>Post your first clip</b><span>In #clips</span></div><button class="iconbtn" aria-label="Edit Post your first clip"><i class="ph ph-pencil-simple"></i></button></div>
+        </div>
+        <p class="set-cap">3 of 5 to-dos. Each is ticked off when the member does it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="safety">
+  <h2>Safety setup</h2>
+  <p class="lede">Who can talk, which images get scanned, and what happens in a raid, each a plain choice. Levels name what they require rather than None to Highest.</p>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="safety">
+      <h4 class="set-h">Safety setup</h4>
+      <div class="set-group">
+        <h5>Who can chat</h5>
+        <div class="set-card" role="radiogroup" aria-label="Verification level">
+          <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div class="t"><b>Anyone</b><span>No checks</span></div></button>
+          <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="true"></span><div class="t"><b>Verified email</b><span>Their account has a confirmed email</span></div></button>
+          <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div class="t"><b>Verified email, on Wave 5 minutes</b></div></button>
+          <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div class="t"><b>Verified email, here 10 minutes</b><span>Slows down raids the most</span></div></button>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5>Images</h5>
+        <div class="set-card"><div class="set-row"><div class="t"><b>Scan images for explicit content</b><span>Flagged images are blocked before they post</span></div><div class="seg" role="group" aria-label="Scan images from"><button aria-pressed="false">Nobody</button><button aria-pressed="false">No-role members</button><button aria-pressed="true">Everyone</button></div></div></div>
+      </div>
+      <div class="set-group">
+        <h5>Raids and moderators</h5>
+        <div class="set-card">
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Pause invites when a raid starts</b><span>Wave alerts #mod-log and you can resume with one click</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Require 2FA for moderator actions</b><span>Mods without it can't kick, ban or delete messages</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="delete-server">
+  <h2>Delete server</h2>
+  <p class="lede">The last nav item, in the danger tone. The dialog names what goes with real counts and asks you to type the server's name; the button stays inert until it matches.</p>
+  <div class="board set-sheet">
+    <div class="set-page">
+      <div class="set-group">
+        <h5>Ownership</h5>
+        <div class="set-card set-card--danger">
+          <div class="set-row"><div class="t"><b>Transfer ownership</b><span>Hand Night Shift to another member. You stay as an admin.</span></div><button class="btn btn--sm set-dangerbtn">Transfer ownership</button></div>
+          <div class="set-row"><div class="t"><b>Delete server</b><span>Gone for everyone, with every channel and message</span></div><button class="btn btn--sm btn--danger" data-open="dlg-delete-server">Delete server</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <h3>Confirm, before and after typing</h3>
+  <div class="board row" style="gap: var(--space-6); align-items: flex-start">
+    <form class="dialog ss-typed" role="dialog" aria-labelledby="dds1" onsubmit="return false"><h4 id="dds1"><i class="ph-fill ph-warning"></i>Delete Night Shift?</h4><p>Night Shift goes for all 1,284 members, with its 24 channels, 412,903 messages, 97 emoji and 3 webhooks. This can't be undone.</p><div class="field"><label>Type Night Shift to confirm</label><div class="input"><input aria-label="Server name" placeholder="Night Shift"></div></div><footer><button type="button" class="btn">Keep server</button><button class="btn btn--danger" disabled>Delete server</button></footer></form>
+    <form class="dialog ss-typed" role="dialog" aria-labelledby="dds2" onsubmit="return false"><h4 id="dds2"><i class="ph-fill ph-warning"></i>Delete Night Shift?</h4><p>Night Shift goes for all 1,284 members, with its 24 channels, 412,903 messages, 97 emoji and 3 webhooks. This can't be undone.</p><div class="field"><label>Type Night Shift to confirm</label><div class="input is-match"><input aria-label="Server name" value="Night Shift"></div></div><footer><button type="button" class="btn">Keep server</button><button class="btn btn--danger">Delete server</button></footer></form>
+  </div>
+  <dialog class="real" id="dlg-delete-server"><form class="dialog ss-typed" onsubmit="return false" aria-labelledby="dds"><h4 id="dds"><i class="ph-fill ph-warning"></i>Delete Night Shift?</h4><p>Night Shift goes for all 1,284 members, with its 24 channels, 412,903 messages, 97 emoji and 3 webhooks. This can't be undone.</p><div class="field"><label for="dds-in">Type Night Shift to confirm</label><div class="input"><input id="dds-in" autocomplete="off" data-confirm-name="Night Shift"></div></div><footer><button type="button" class="btn" data-close>Keep server</button><button class="btn btn--danger" disabled data-confirm-btn data-loading="Deleting…">Delete server</button></footer></form></dialog>
+</section>
+
+<section id="better-than-discord">
+  <h2>Better than Discord</h2>
+  <p class="lede">Where Discord's server settings get in the way, and what Wave does instead. Discord's side is from how its desktop client behaves today, described from memory.</p>
+  <div class="btd">
+    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
+    <div><p>An unsaved-changes bar blocks leaving the page and shakes until you save or reset.</p><p><b><a href="#window">Window</a></b>The draft rides along between pages with a dot on each page that has one; the bar lists what changed and only closing asks.</p><p>Moving around a settings window is not a mistake to punish.</p></div>
+    <div><p>Roles above yours just won't move or open, with no reason given.</p><p><b><a href="#roles">Roles</a></b>They stay at full ink with a lock and a line saying which role outranks you.</p><p>A disabled thing that says why saves a trip to ask an admin.</p></div>
+    <div><p>A wall of 40-odd permission toggles, with a few marked in red text.</p><p><b><a href="#role-editor">Role editor</a></b>A plain-language summary up top, search with highlights, and each dangerous permission says what it really allows, in the warning tone.</p><p>People grant Administrator because the list is too long to read.</p></div>
+    <div><p>Clearing permissions is instant and final.</p><p><b><a href="#role-editor">Role editor</a></b>Clear permissions offers Undo in place.</p><p>Optimistic with Undo beats a confirm, and beats losing a role's setup to a misclick.</p></div>
+    <div><p>Role colours can be anything, unreadable on the light theme.</p><p><b><a href="#role-editor">Role editor</a></b>Previews in both themes; Wave deepens or lightens the name per theme until it reads at 4.5:1.</p><p>Names are read thousands of times; the hue is the owner's, legibility is Wave's job.</p></div>
+    <div><p>Overrides are a grid of ✕, / and ✓ where / never says what it inherits.</p><p><b><a href="#overrides">Overrides</a></b>Every row names what it inherits and from where, and changes to "Allowed for Streamers here" when set.</p><p>The middle state is where every permissions bug hides.</p></div>
+    <div><p>No way to ask why a member can or can't do something in a channel.</p><p><b><a href="#overrides">Check a member</a></b>Check a member: each permission's verdict, the rule that decides, the full chain on open, and a one-click fix.</p><p>Answers the question moderators actually have, instead of making them run the resolution order in their heads.</p></div>
+    <div><p>View as role hides channels silently, with a small bar at the top.</p><p><b><a href="#view-as">View as role</a></b>Hidden channels stay listed and struck through with the rule that hides them, under a warning-tone banner.</p><p>An elevated mode stays visible, and absence is explained, not implied.</p></div>
+    <div><p>Emoji are a table; renaming needs the hover pencil and deleting is final.</p><p><b><a href="#expressions">Emoji</a></b>A grid with slots used against the limit, rename in place like a file, delete with Undo.</p><p>Fewer steps for the most common edit, no confirm for a reversible one.</p></div>
+    <div><p>Bulk member actions are limited, and new or timed-out accounts are easy to miss.</p><p><b><a href="#members">Members</a></b>Tri-state select-all, a bulk bar that replaces the header in place, and new accounts and timeouts flagged on the row.</p><p>Raid cleanup is a bulk job, and the risky rows should stand out on their own.</p></div>
+    <div><p>Ban reasons and who banned sit in a separate dialog or the audit log.</p><p><b><a href="#bans">Bans</a></b>Reason, moderator and age on the row; Unban acts at once with Undo.</p><p>The context another mod needs is the row's whole point.</p></div>
+    <div><p>Audit entries are one per event, so a message purge is a wall of lines.</p><p><b><a href="#audit-log">Audit log</a></b>Bursts fold into one counted sentence; changes open to before and after in place.</p><p>A log is read to find one event, not to count them.</p></div>
+    <div><p>Invite revoke is a small hover X with no undo.</p><p><b><a href="#invites">Invites</a></b>A visible Revoke with Undo, and pausing takes a length.</p><p>Nothing reachable only by hover; a pause nobody remembers is an outage.</p></div>
+    <div><p>AutoMod rules can only be tested by posting for real.</p><p><b><a href="#automod">AutoMod</a></b>A test box shows which rule fires, the matched words and every action that would run.</p><p>Mods tune filters without spamming their own server or timing themselves out.</p></div>
+    <div><p>A webhook's form expands inside the list, and its alert channel can vanish silently.</p><p><b><a href="#integrations">Integrations</a></b>The form is a dialog; a rule or app that needs you says why on its row.</p><p>A list never jumps under the pointer, and broken things announce themselves.</p></div>
+    <div><p>Community can't be enabled until every requirement is met.</p><p><b><a href="#community-setup">Community</a></b>Enable any time; Wave offers to fix the open steps in the same dialog.</p><p>Never lock a choice behind a blocker; resolve it where it's asked.</p></div>
+    <div><p>Delete server asks for the name, without saying what goes.</p><p><b><a href="#delete-server">Delete server</a></b>The dialog counts what's lost: members, channels, messages, emoji, webhooks.</p><p>Destructive confirmations name exactly what goes.</p></div>
+  </div>
+</section>
+
+</main>
+</div>
+<script src="site.js"></script>
+<script>
+// Page script for server settings. Every handler is delegated, so pages cloned into the window work too.
+const win = $("#ss-win"), winMain = $(".set-main", win), bar = $("#ss-savebar");
+const isOne = n => new Intl.PluralRules("en").select(n) === "one";
+
+// Window: each nav item shows a page built further down. Pages are cloned once and kept, so drafts survive.
+const pages = { overview: $(".set-page", winMain) };
+function pageFor(name) {
+  if (pages[name]) return pages[name];
+  const src = $(`.set-sheet .set-page[data-page="${name}"]`);
+  if (!src) return null;
+  const copy = src.cloneNode(true);
+  for (const n of $$("[id]", copy)) n.removeAttribute("id");
+  return pages[name] = copy;
+}
+function goto(name, from) {
+  if (!from?.closest("#ss-win")) {
+    const target = $(`.set-sheet .set-page[data-page="${name}"]`)?.closest(".board") ?? $("#" + name);
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  const next = pageFor(name), cur = $(".set-page", winMain);
+  if (!next || next === cur) return;
+  cur.replaceWith(next);
+  winMain.scrollTop = 0;
+  const navName = { "role-edit": "roles", "automod-edit": "automod" }[name] ?? name;
+  for (const b of $$(".set-navi[data-page]", win)) b.dataset.page === navName ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current");
+  $$(".tabs, .seg", next).forEach(placeThumb);
+  if (name === "automod-edit") runTest(next);
+  if (name === "role-edit") paintPreviews(next);
+}
+document.addEventListener("click", e => {
+  const nav = e.target.closest("#ss-win .set-navi[data-page]");
+  if (nav) { win.classList.add("is-pushed"); return goto(nav.dataset.page, nav); }
+  if (e.target.closest("[data-ss-back]")) return win.classList.remove("is-pushed");
+  const link = e.target.closest("[data-goto]");
+  if (link) return goto(link.dataset.goto, link);
+  const role = e.target.closest(".ss-roleopen");
+  if (role) goto("role-edit", role);
+});
+
+// Save bar: tracks [data-field] controls on Overview against their starting values.
+const valueOf = f => f.matches("input, textarea") ? f.value : $("[aria-checked]", f)?.getAttribute("aria-checked") ?? f.dataset.touched ?? "";
+for (const f of $$("[data-field]", pages.overview)) f.dataset.init = valueOf(f);
+const dirty = () => $$("[data-field]", pages.overview).filter(f => valueOf(f) !== f.dataset.init);
+function renderBar(state = "idle") {
+  const d = dirty(), n = d.length;
+  const navi = $('.set-navi[data-page="overview"]', win);
+  $(".dot", navi)?.remove();
+  if (n) $(".chev", navi).insertAdjacentHTML("beforebegin", '<span class="dot" aria-label="Unsaved changes"></span>');
+  if (!n) { bar.hidden = true; bar.className = "ss-savebar"; return; }
+  const what = `${n} unsaved ${isOne(n) ? "change" : "changes"}`;
+  const names = new Intl.ListFormat("en", { type: "conjunction" }).format(d.map(f => f.dataset.field));
+  const views = {
+    idle: ["", '<i class="ph-fill ph-pencil-simple"></i>', `${what}<small>${names}, on Overview</small>`, "Reset", "Save changes"],
+    saving: ["is-saving", '<span class="bars"><i></i><i></i><i></i></span>', `Saving ${n} ${isOne(n) ? "change" : "changes"}…`, "Reset", "Save changes"],
+    error: ["is-error", '<i class="ph-fill ph-warning-circle"></i>', "Couldn't save<small>Server name can't be empty. Type a name, then save again.</small>", "Reset", "Save changes"],
+    closing: ["is-nudge", '<i class="ph-fill ph-pencil-simple"></i>', `Save before you close?<small>${names} on Overview ${isOne(n) ? "is" : "are"} lost otherwise.</small>`, "Discard changes", "Save and close"],
+  };
+  const [cls, icon, text, reset, save] = views[state];
+  const busy = state === "saving" ? " disabled" : "";
+  bar.hidden = false;
+  bar.className = "ss-savebar";
+  bar.setAttribute("role", state === "error" ? "alert" : "status");
+  bar.innerHTML = `${icon}<p>${text}</p><div class="ctl"><button class="btn btn--ghost" data-bar="reset"${busy}>${reset}</button><button class="btn btn--primary" data-bar="save"${busy}>${save}</button></div>`;
+  if (cls) { void bar.offsetWidth; bar.classList.add(cls); }
+}
+pages.overview.addEventListener("input", () => renderBar());
+pages.overview.addEventListener("click", e => { if (e.target.closest("[data-field]")) requestAnimationFrame(() => renderBar()); });
+bar.addEventListener("click", e => {
+  const b = e.target.closest("[data-bar]"); if (!b) return;
+  if (b.dataset.bar === "reset") {
+    for (const f of dirty()) f.matches("input, textarea") ? f.value = f.dataset.init : $("[aria-checked]", f).setAttribute("aria-checked", f.dataset.init);
+    return renderBar();
+  }
+  if (!$("#ss-name").value.trim()) return renderBar("error");
+  renderBar("saving");
+  setTimeout(() => { for (const f of dirty()) f.dataset.init = valueOf(f); renderBar(); }, 900);
+});
+for (const c of $$("[data-ss-close]")) c.addEventListener("click", () => { if (dirty().length) renderBar("closing"); });
+
+// Roles: drag the grip to reorder; others slide aside, the row glides into its slot on release.
+const roleName = row => $(".t b", row).textContent.trim();
+function sayMoved(list, row, undo) {
+  const note = list.parentElement.querySelector(".ss-dragnote"); if (!note) return;
+  const next = row.nextElementSibling, prev = row.previousElementSibling;
+  const where = next ? `above ${roleName(next)}` : `below ${roleName(prev)}`;
+  note.innerHTML = `<i class="ph ph-check"></i>Moved ${roleName(row)} ${where}. <button class="btn btn--link">Undo</button>`;
+  $("button", note).onclick = () => { undo(); note.textContent = ""; };
+}
+function flip(list, change) {
+  const rows = $$(":scope > .ss-role", list), before = new Map(rows.map(r => [r, r.getBoundingClientRect().top]));
+  change();
+  for (const r of rows) {
+    const dy = before.get(r) - r.getBoundingClientRect().top; if (!dy) continue;
+    r.style.transition = "none"; r.style.transform = `translateY(${dy}px)`;
+    requestAnimationFrame(() => { r.style.transition = ""; r.style.transform = ""; });
+  }
+}
+document.addEventListener("pointerdown", e => {
+  const grip = e.target.closest(".ss-grip");
+  if (!grip || grip.getAttribute("aria-disabled") === "true" || e.button !== 0) return;
+  const row = grip.closest(".ss-role"), list = row.parentElement;
+  const rows = $$(":scope > .ss-role", list), from = rows.indexOf(row);
+  const tops = rows.map(r => r.offsetTop), h = row.offsetHeight, startY = e.clientY;
+  const min = rows.findIndex(r => !r.classList.contains("is-locked"));
+  let to = from;
+  e.preventDefault();
+  grip.setPointerCapture(e.pointerId);
+  row.style.setProperty("--tilt", "1deg");
+  row.classList.add("is-dragging");
+  const note = list.parentElement.querySelector(".ss-dragnote");
+  const move = ev => {
+    const dy = Math.max(tops[min] - tops[from], Math.min(tops.at(-1) - tops[from], ev.clientY - startY));
+    row.style.setProperty("--dy", dy + "px");
+    const mid = tops[from] + dy + h / 2;
+    to = from;
+    rows.forEach((r, i) => {
+      if (i < from && i >= min && mid < tops[i] + r.offsetHeight / 2) to = Math.min(to, i);
+      if (i > from && mid > tops[i] + r.offsetHeight / 2) to = Math.max(to, i);
+    });
+    rows.forEach((r, i) => { if (r !== row) r.style.transform = i > from && i <= to ? `translateY(${-h}px)` : i < from && i >= to ? `translateY(${h}px)` : ""; });
+    if (note) note.innerHTML = to === from ? "" : `<i class="ph ph-arrows-down-up"></i>Drop to place ${roleName(row)} ${to < from ? "above" : "below"} ${roleName(rows[to])}`;
+  };
+  const up = () => {
+    grip.removeEventListener("pointermove", move);
+    grip.removeEventListener("pointerup", up);
+    grip.removeEventListener("pointercancel", up);
+    const land = to > from ? tops[to] + rows[to].offsetHeight - h - tops[from] : tops[to] - tops[from];
+    row.style.transition = "transform 200ms var(--ease-out)";
+    row.style.setProperty("--tilt", "0deg");
+    row.style.setProperty("--dy", land + "px");
+    setTimeout(() => {
+      for (const r of rows) { r.style.transition = "none"; r.style.transform = ""; }
+      row.classList.remove("is-dragging");
+      row.style.removeProperty("--dy");
+      if (to !== from) to > from ? rows[to].after(row) : rows[to].before(row);
+      void list.offsetHeight;
+      for (const r of rows) r.style.transition = "";
+      if (to !== from) sayMoved(list, row, () => flip(list, () => from < rows.length - 1 && rows[from + (from > to ? 1 : 0)] !== row ? (from > to ? rows[from].after(row) : rows[from].before(row)) : list.append(row)));
+      else if (note) note.textContent = "";
+    }, 210);
+  };
+  grip.addEventListener("pointermove", move);
+  grip.addEventListener("pointerup", up);
+  grip.addEventListener("pointercancel", up);
+});
+document.addEventListener("keydown", e => {
+  const grip = e.target.closest(".ss-grip");
+  if (!grip || !["ArrowUp", "ArrowDown"].includes(e.key) || grip.getAttribute("aria-disabled") === "true") return;
+  e.preventDefault();
+  const row = grip.closest(".ss-role"), list = row.parentElement;
+  const sib = e.key === "ArrowUp" ? row.previousElementSibling : row.nextElementSibling;
+  if (!sib || sib.classList.contains("is-locked")) return;
+  const back = e.key === "ArrowUp" ? () => sib.before(row) : () => sib.after(row);
+  const undo = e.key === "ArrowUp" ? () => sib.after(row) : () => sib.before(row);
+  flip(list, back);
+  grip.focus();
+  sayMoved(list, row, () => flip(list, undo));
+});
+
+// Role editor tabs show their panel.
+document.addEventListener("click", e => {
+  const tab = e.target.closest("[role=tab][data-panel]"); if (!tab) return;
+  const page = tab.closest(".set-page");
+  for (const p of $$("[data-panel-id]", page)) p.hidden = p.dataset.panelId !== tab.dataset.panel;
+});
+
+// Role colour: previews keep the hue and are pushed toward black or white until they reach 4.5:1 on that theme.
+const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const lum = rgb => { const [r, g, b] = rgb.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const ratio = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+const BG = { dark: lum([26, 22, 24]), light: lum([249, 247, 243]) };
+function readable(hex, theme) {
+  const rgb = hexRgb(hex), toward = theme === "dark" ? 255 : 0;
+  for (let t = 0; t <= 1.0001; t += 0.04) {
+    const c = rgb.map(v => Math.round(v + (toward - v) * t));
+    const r = ratio(lum(c), BG[theme]);
+    if (r >= 4.5) return { css: `rgb(${c})`, r, moved: t > 0 };
+  }
+  return { css: theme === "dark" ? "#fff" : "#000", r: 21, moved: true };
+}
+function paintPreviews(page, hex) {
+  hex ??= $(".ss-swatches [aria-pressed=true]", page)?.dataset.c ?? $(".ss-custom input", page)?.value;
+  for (const p of $$(".ss-cprev", page)) {
+    const theme = p.classList.contains("ss-cprev--light") ? "light" : "dark", label = $("b small", p);
+    if (!hex) { p.style.removeProperty("--rc"); label.textContent = theme === "light" ? "Light" : "Dark"; label.className = ""; continue; }
+    const fit = readable(hex, theme);
+    p.style.setProperty("--rc", fit.css);
+    label.className = fit.moved ? "is-low" : "";
+    label.innerHTML = `${theme === "light" ? "Light" : "Dark"}, ${fit.r.toFixed(1)}:1${fit.moved ? ` <i class="ph ph-drop-half" aria-label="${theme === "light" ? "deepened" : "lightened"} for contrast"></i>` : ""}`;
+  }
+  const head = $(".ss-ehead", page);
+  if (head) head.style.setProperty("--role", hex || "var(--offline)");
+}
+$$('.set-sheet .set-page[data-page="role-edit"]').forEach(p => paintPreviews(p));
+document.addEventListener("click", e => {
+  const sw = e.target.closest(".ss-swatches button"); if (!sw) return;
+  for (const b of $$("button", sw.parentElement)) b.setAttribute("aria-pressed", b === sw);
+  if (!sw.classList.contains("ss-custom")) paintPreviews(sw.closest(".set-page"), sw.dataset.c);
+});
+document.addEventListener("input", e => {
+  const pick = e.target.closest(".ss-custom input"); if (!pick) return;
+  const btn = pick.parentElement;
+  btn.style.setProperty("--c", pick.value);
+  for (const b of $$("button", btn.parentElement)) b.setAttribute("aria-pressed", b === btn);
+  paintPreviews(btn.closest(".set-page"), pick.value);
+});
+
+// Permissions: live counts, Administrator, search, and Clear with Undo.
+function countPerms(panel) {
+  const rows = $$(".set-row[data-toggle]", panel), on = rows.filter(r => $(".switch", r).getAttribute("aria-checked") === "true");
+  const danger = on.filter(r => r.hasAttribute("data-danger")).length;
+  $("[data-on]", panel).textContent = on.length;
+  $("[data-danger]", panel).textContent = danger ? `${danger} dangerous` : "None dangerous";
+  const tab = $("[data-on-count]", panel.closest(".set-page")); if (tab) tab.textContent = on.length;
+  panel.classList.toggle("is-admin", $(".ss-admin .switch", panel).getAttribute("aria-checked") === "true");
+}
+document.addEventListener("click", e => {
+  const row = e.target.closest(".ss-perms .set-row[data-toggle]");
+  if (row) countPerms(row.closest(".ss-perms"));
+  const clear = e.target.closest("[data-clear-perms]");
+  if (clear) {
+    const panel = clear.closest(".ss-perms"), was = $$(".switch[aria-checked=true]", panel);
+    for (const s of was) s.setAttribute("aria-checked", "false");
+    countPerms(panel);
+    const status = $(".ss-status", panel);
+    status.innerHTML = `<i class="ph ph-eraser"></i>Cleared ${was.length} ${isOne(was.length) ? "permission" : "permissions"}. <button class="btn btn--link">Undo</button>`;
+    $("button", status).onclick = () => { for (const s of was) s.setAttribute("aria-checked", "true"); countPerms(panel); status.textContent = ""; };
+  }
+  const clearSearch = e.target.closest("[data-clear-search]");
+  if (clearSearch) { const input = $("[data-perm-search], [data-ban-search]", clearSearch.closest(".set-page")); input.value = ""; input.dispatchEvent(new Event("input", { bubbles: true })); input.focus(); }
+});
+document.addEventListener("input", e => {
+  const q = e.target.closest("[data-perm-search]"); if (!q) return;
+  const panel = q.closest(".ss-perms"), term = q.value.trim().toLowerCase();
+  for (const row of $$(".set-row[data-toggle]", panel)) {
+    const b = $(".t b", row); b.dataset.t ??= b.textContent;
+    const hit = !term || row.textContent.toLowerCase().includes(term);
+    row.hidden = !hit;
+    const at = term ? b.dataset.t.toLowerCase().indexOf(term) : -1;
+    b.innerHTML = at < 0 ? b.dataset.t : `${b.dataset.t.slice(0, at)}<mark>${b.dataset.t.slice(at, at + term.length)}</mark>${b.dataset.t.slice(at + term.length)}`;
+  }
+  for (const g of $$(".set-group", panel)) g.hidden = !$$(".set-row[data-toggle]", g).some(r => !r.hidden);
+  const none = $(".ss-noresult", panel);
+  none.hidden = $$(".set-row[data-toggle]", panel).some(r => !r.hidden);
+  $("[data-q]", none).textContent = q.value.trim();
+});
+
+// Retire: remove a row in place, leaving a one-line record with Undo.
+document.addEventListener("click", e => {
+  const btn = e.target.closest("[data-retire], [data-revoke]"); if (!btn) return;
+  const row = btn.closest(".ss-person, .ss-x, .ss-tr"), html = row.innerHTML, cls = row.className;
+  const text = btn.dataset.retire ?? `Revoked ${btn.dataset.revoke}.`;
+  if (row.matches(".ss-tr")) row.innerHTML = `<div style="grid-column: 1 / -1; color: var(--text-muted)">${text} <button class="btn btn--link">Undo</button></div>`;
+  else if (row.matches(".ss-x")) { row.className = "ss-x is-gone"; row.innerHTML = `<b>${text}</b><button class="btn btn--link">Undo</button>`; }
+  else { const av = $(".av, .icontile", row)?.outerHTML ?? ""; row.className = "ss-person is-gone"; row.innerHTML = `${av}<div><b>${text}</b></div><div class="ctl"><button class="btn btn--sm btn--ghost">Undo</button></div>`; }
+  const undo = row.querySelector("button");
+  undo.onclick = () => { row.className = cls; row.innerHTML = html; };
+  undo.focus();
+});
+
+// Rename in place: select on focus, Enter keeps, Esc puts back, invalid names say why.
+document.addEventListener("focusin", e => { const i = e.target.closest(".ss-rename input"); if (i) { i.dataset.prev = i.value; i.select(); } });
+document.addEventListener("keydown", e => {
+  const i = e.target.closest(".ss-rename input"); if (!i) return;
+  if (e.key === "Enter") i.blur();
+  if (e.key === "Escape") { i.value = i.dataset.prev; i.dispatchEvent(new Event("input", { bubbles: true })); i.blur(); }
+});
+document.addEventListener("input", e => {
+  const i = e.target.closest(".ss-rename input"); if (!i || !i.closest(".ss-xgrid:not(.ss-xgrid--lg)") || i.closest(".ss-sound")) return;
+  const tile = i.closest(".ss-x"), ok = /^\w{2,32}$/.test(i.value);
+  tile.classList.toggle("is-invalid", !ok);
+  i.toggleAttribute("aria-invalid", !ok);
+  let err = $(".ss-xerr", tile), by = $(".ss-by", tile);
+  if (!ok && !err) { tile.querySelector(".ss-rename").insertAdjacentHTML("afterend", `<p class="ss-xerr"><i class="ph-fill ph-warning-circle"></i>${i.value.length < 2 ? "At least 2 characters" : "Use letters, numbers and _ only"}</p>`); if (by) by.hidden = true; }
+  if (!ok && err) err.lastChild.textContent = i.value.length < 2 ? "At least 2 characters" : "Use letters, numbers and _ only";
+  if (ok && err) { err.remove(); if (by) by.hidden = false; }
+});
+
+// Soundboard preview.
+document.addEventListener("click", e => {
+  const p = e.target.closest(".ss-play"); if (!p) return;
+  if (p.classList.toggle("is-playing")) { try { new Audio(p.dataset.sound).play(); } catch {} setTimeout(() => p.classList.remove("is-playing"), 1400); }
+});
+
+// Members: selection with a tri-state header, search and filters, and the row menu.
+function syncSelection(table) {
+  const rows = $$(".ss-tr:not(.ss-thead):not([hidden])", table), picked = rows.filter(r => $(".check", r).getAttribute("aria-checked") === "true");
+  for (const r of $$(".ss-tr:not(.ss-thead)", table)) r.classList.toggle("is-selected", $(".check", r)?.getAttribute("aria-checked") === "true");
+  const all = $("[data-selall] .check", table);
+  all.setAttribute("aria-checked", !picked.length ? "false" : picked.length === rows.length ? "true" : "mixed");
+  table.classList.toggle("is-bulk", picked.length > 0);
+  $("[data-bulk-count]", table).textContent = `${picked.length} selected`;
+}
+document.addEventListener("click", e => {
+  const box = e.target.closest("[data-table] .ss-check"); if (!box) return;
+  const table = box.closest("[data-table]");
+  if (box.hasAttribute("data-selall")) {
+    const on = $(".check", box).getAttribute("aria-checked") !== "true";
+    for (const r of $$(".ss-tr:not(.ss-thead):not([hidden]) .check", table)) r.setAttribute("aria-checked", on);
+  } else { const c = $(".check", box); c.setAttribute("aria-checked", c.getAttribute("aria-checked") !== "true"); }
+  syncSelection(table);
+});
+document.addEventListener("click", e => {
+  const clear = e.target.closest("[data-clearsel]");
+  if (clear) { const t = clear.closest("[data-table]"); for (const c of $$(".check", t)) c.setAttribute("aria-checked", "false"); syncSelection(t); }
+  const reset = e.target.closest("[data-clear-filters]");
+  if (reset) { const page = reset.closest(".set-page"); $("[data-member-search]", page).value = ""; for (const f of $$("[data-filter]", page)) f.setAttribute("aria-pressed", "false"); filterMembers(page); }
+  if (e.target.closest("[data-filter]")) filterMembers(e.target.closest(".set-page"));
+});
+function filterMembers(page) {
+  const term = $("[data-member-search]", page).value.trim().toLowerCase(), table = $("[data-table]", page);
+  const on = $$("[data-filter][aria-pressed=true]", page).map(f => f.dataset.filter);
+  const rows = $$(".ss-tr:not(.ss-thead)", table);
+  for (const r of rows) r.hidden = !(r.textContent.toLowerCase().includes(term) && on.every(f => r.hasAttribute("data-" + f)));
+  $(".ss-noresult", table).hidden = rows.some(r => !r.hidden);
+  syncSelection(table);
+}
+document.addEventListener("input", e => { const s = e.target.closest("[data-member-search]"); if (s) filterMembers(s.closest(".set-page")); });
+const rowMenu = $("#ss-rowmenu");
+function setWho(name) { for (const n of $$("[data-who]")) n.textContent = name; }
+document.addEventListener("click", e => {
+  const btn = e.target.closest("[data-rowmenu]"); if (!btn) return;
+  const name = btn.dataset.rowmenu, r = btn.getBoundingClientRect();
+  setWho(name);
+  const av = $("[data-rowav]", rowMenu); av.dataset.av = name; av.textContent = ""; delete av.dataset.painted; paintAvatars(rowMenu);
+  rowMenu.style.position = "fixed";
+  rowMenu.style.left = Math.max(8, r.right - 248) + "px";
+  rowMenu.style.top = Math.min(innerHeight - 280, r.bottom + 4) + "px";
+  rowMenu.showPopover();
+});
+rowMenu.addEventListener("click", e => { if (e.target.closest(".mi")) rowMenu.hidePopover(); });
+
+// Dialogs shown on the boards also open for real: clone each [data-live] form into its <dialog>.
+for (const form of $$("[data-live]")) {
+  let dlg = $("#" + form.dataset.live);
+  if (!dlg) { dlg = document.createElement("dialog"); dlg.className = "real"; dlg.id = form.dataset.live; form.closest("section").append(dlg); }
+  if (!dlg.children.length) { const c = form.cloneNode(true); c.removeAttribute("data-live"); c.removeAttribute("role"); for (const n of $$("[id]", c)) n.id += "-live"; dlg.append(c); }
+}
+// Timeout: the button names the chosen length (the same dialog as menus.html#confirms).
+document.addEventListener("click", e => {
+  const choice = e.target.closest("[data-timeout] .choice"); if (!choice) return;
+  $("[data-timeout-go]", choice.closest("form")).textContent = `Time out for ${$("b", choice).textContent}`;
+});
+document.addEventListener("click", e => {
+  const pick = e.target.closest("[data-addlist] .choice"); if (!pick) return;
+  const form = pick.closest("form"), n = $$("[data-addlist] .check[aria-checked=true]", form).length;
+  const btn = $("[data-addbtn]", form);
+  btn.textContent = n ? `Add ${n} ${isOne(n) ? "member" : "members"}` : "Add members";
+  btn.disabled = !n;
+});
+
+// Invites: pausing shows how long and a length picker; bans search.
+document.addEventListener("input", e => {
+  const s = e.target.closest("[data-ban-search]"); if (!s) return;
+  const list = $("[data-bans]", s.closest(".set-page")), term = s.value.trim().toLowerCase();
+  const rows = $$(".ss-person", list);
+  for (const r of rows) r.hidden = !r.textContent.toLowerCase().includes(term);
+  const none = $(".ss-noresult", list); none.hidden = rows.some(r => !r.hidden); $("[data-q]", none).textContent = s.value.trim();
+});
+
+// Channel overrides: a three-state pick rewrites the row's explanation and takes the channel out of sync.
+document.addEventListener("click", e => {
+  const b = e.target.closest(".ss-tri button"); if (!b) return;
+  for (const x of $$("button", b.parentElement)) x.setAttribute("aria-checked", x === b);
+  const row = b.closest(".set-row"), src = $(".ss-src", row), who = "Streamers";
+  const v = b.dataset.v;
+  src.className = "ss-src" + (v === "allow" ? " is-allow" : v === "deny" ? " is-deny" : "");
+  src.innerHTML = v === "inherit" ? `<i class="ph ph-arrow-elbow-left-up"></i>${row.dataset.inherit}` : v === "allow" ? `<i class="ph-bold ph-check"></i>Allowed for ${who} here` : `<i class="ph-bold ph-x"></i>Denied for ${who} here`;
+  const sync = $("[data-sync]", b.closest(".set-page"));
+  if (sync && sync.classList.contains("callout--info")) {
+    sync.className = "callout callout--warning";
+    sync.innerHTML = `<i class="ph-fill ph-link-simple-break"></i><div><b>Not synced with Clips</b>#clips now differs from its category.</div><button class="btn btn--sm" data-resync>Sync with Clips</button>`;
+  }
+});
+document.addEventListener("click", e => {
+  const r = e.target.closest("[data-resync]"); if (!r) return;
+  const c = r.closest("[data-sync]");
+  c.className = "callout callout--info";
+  c.innerHTML = `<i class="ph-fill ph-link-simple"></i><div><b>Synced with Clips</b>Changes to the Clips category apply here too.</div>`;
+});
+
+// AutoMod: keyword chips, standalone switches, the mentions stepper and the test box.
+document.addEventListener("click", e => {
+  const sw = e.target.closest("button.switch");
+  if (sw) sw.setAttribute("aria-checked", sw.getAttribute("aria-checked") !== "true");
+  const x = e.target.closest(".ss-kw button");
+  if (x) { const page = x.closest(".set-page"); x.closest(".ss-kw").remove(); runTest(page); }
+  const step = e.target.closest("[data-mentions] button");
+  if (step) { const out = $("output", step.parentElement); out.textContent = Math.max(1, Math.min(50, +out.textContent + (step === step.parentElement.lastElementChild ? 1 : -1))); runTest(step.closest(".set-page")); }
+  const act = e.target.closest(".ss-act .choice");
+  if (act) requestAnimationFrame(() => runTest(act.closest(".set-page")));
+});
+document.addEventListener("keydown", e => {
+  const input = e.target.closest(".ss-chips input"); if (!input) return;
+  const word = input.value.trim().replace(/,$/, "");
+  if ((e.key === "Enter" || e.key === ",") && word) {
+    e.preventDefault();
+    const chip = document.createElement("span");
+    chip.className = "ss-kw";
+    chip.innerHTML = `<span></span><button aria-label="Remove ${word.replace(/"/g, "")}"><i class="ph-bold ph-x"></i></button>`;
+    chip.firstChild.textContent = word;
+    input.before(chip);
+    input.value = "";
+    runTest(input.closest(".set-page"));
+  }
+  if (e.key === "Backspace" && !input.value) { input.previousElementSibling?.remove(); runTest(input.closest(".set-page")); }
+});
+const kwRegex = w => {
+  const esc = w.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+  const core = esc.replace(/^\*|\*$/g, "").replace(/\*/g, "\\w*");
+  return new RegExp(`${w.startsWith("*") ? "" : "\\b"}${core}${w.endsWith("*") ? "\\w*" : "\\b"}`, "gi");
+};
+const escHtml = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function runTest(page) {
+  const box = $("[data-test]", page), out = $("[data-verdict]", page); if (!box || !out) return;
+  const msg = box.value, words = $$('[data-kw="block"] .ss-kw > span', page).map(s => s.textContent);
+  const allow = $$('[data-kw="allow"] .ss-kw > span', page).map(s => s.textContent.toLowerCase());
+  for (const k of $$(".ss-kw", page)) k.classList.remove("is-hit");
+  if (!msg.trim()) { out.className = "ss-verdict is-idle"; out.innerHTML = `<i class="ph ph-chat-text"></i><div><b>Type a message to try it</b><span>Nothing you type here is posted.</span></div>`; return; }
+  const hits = [];
+  for (const w of words) {
+    const re = kwRegex(w);
+    for (const m of msg.matchAll(re)) if (!allow.some(a => msg.toLowerCase().includes(a) && a.includes(m[0].toLowerCase()))) hits.push({ w, at: m.index, len: m[0].length });
+  }
+  const limit = +($("[data-mentions] output", page)?.textContent ?? 5), mentions = (msg.match(/@\w+/g) ?? []).length;
+  const mentionHit = mentions > limit;
+  if (!hits.length && !mentionHit) { out.className = "ss-verdict"; out.innerHTML = `<i class="ph-fill ph-check-circle"></i><div><b>Would post normally</b><span>No blocked words${mentions ? `, ${mentions} of ${limit} mentions` : ""}.</span></div>`; return; }
+  for (const k of $$('[data-kw="block"] .ss-kw', page)) if (hits.some(h => h.w === $("span", k).textContent)) k.classList.add("is-hit");
+  hits.sort((a, b) => a.at - b.at);
+  let marked = "", last = 0;
+  for (const h of hits) { if (h.at < last) continue; marked += escHtml(msg.slice(last, h.at)) + `<mark>${escHtml(msg.slice(h.at, h.at + h.len))}</mark>`; last = h.at + h.len; }
+  marked += escHtml(msg.slice(last));
+  const matched = new Intl.ListFormat("en").format([...new Set(hits.map(h => `“${h.w}”`))]);
+  const acts = $$(".ss-act", page).filter(a => $(".check", a).getAttribute("aria-checked") === "true").map(a => $(".check", a).dataset.act);
+  const lines = { block: '<li><i class="ph ph-prohibit"></i>Message blocked; Theo sees your custom response</li>', alert: '<li><i class="ph ph-bell-ringing"></i>Alert posted in #mod-log</li>', timeout: '<li><i class="ph ph-timer"></i>Theo timed out for 10 minutes</li>' };
+  const why = [hits.length && `Keyword filter matched ${matched}`, mentionHit && `${mentions} mentions, over the limit of ${limit}`].filter(Boolean).join(". ");
+  out.className = "ss-verdict is-blocked";
+  out.innerHTML = `<i class="ph-fill ph-prohibit"></i><div><b>${acts.includes("block") ? "Would be blocked" : "Would post, and be flagged"}</b><span>${why}. Sent by Theo in #general; Mods and #mod-chat skip this rule.</span><span>${marked}</span><ul>${acts.map(a => lines[a]).join("") || "<li><i class='ph ph-info'></i>No actions are on, so nothing happens</li>"}</ul></div>`;
+}
+document.addEventListener("input", e => { const t = e.target.closest("[data-test]"); if (t) runTest(t.closest(".set-page")); });
+$$("[data-test]").forEach(t => runTest(t.closest(".set-page")));
+
+// ?ss-page=members opens a window page and ?ss-tab=perms a role editor tab, for screenshots of live states.
+const ssq = new URLSearchParams(location.search);
+if (ssq.get("ss-page")) goto(ssq.get("ss-page"), win);
+if (ssq.get("ss-tab")) for (const t of $$(`[data-panel="${ssq.get("ss-tab")}"]`)) t.click();
+
+// Webhooks: copy shows a copied state, then returns.
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-copy]"); if (!b || b.classList.contains("copied")) return;
+  const label = b.innerHTML;
+  try { navigator.clipboard?.writeText("https://wave.gg/api/webhooks/0000/demo"); } catch {}
+  b.classList.add("copied");
+  b.innerHTML = '<i class="ph-bold ph-check"></i>Copied';
+  setTimeout(() => { b.classList.remove("copied"); b.innerHTML = label; }, 1600);
+});
+
+// Delete server: the button wakes only when the typed name matches.
+document.addEventListener("input", e => {
+  const i = e.target.closest("[data-confirm-name]"); if (!i) return;
+  const match = i.value.trim() === i.dataset.confirmName;
+  i.closest(".input").classList.toggle("is-match", match);
+  $("[data-confirm-btn]", i.closest("form")).disabled = !match;
+});
+</script>
+</body>
+</html>

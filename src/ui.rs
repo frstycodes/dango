@@ -1,279 +1,615 @@
-// Rustcord's shared controls. Each returns a styled element the caller keeps composing (`.on_click`,
-// layout, extra children), so call sites never restate a control's look.
+// Wave's shared controls, ported from the design system (design/css/primitives.css, overlays.css). Each
+// returns an element the caller keeps composing (`.on_click`, layout, extra children), so call sites never
+// restate a control's look. `design_system.rs` shows every one of them in both themes, section for
+// section with design/primitives.html.
+//
+// Pressable controls (buttons, icon buttons, chips, swatches, tab options, menu rows) live in `control`,
+// fields in `field`, the sliding strips in `tabs`, tracks and waits in `feedback`, grouped settings in
+// `group`; this file holds the marks, badges, people, surfaces, motion helpers and the live switch, check
+// and radio.
+//
+// Corners are the design's squircle (`Squircle::squircle`); people, status marks, the switch, radios,
+// the wave's bars and anything `rounded_full` stay round.
 //
 // Clipping: gpui's `overflow_hidden` clips to a plain rectangle, never to rounded corners. Anything
 // painted against a rounded edge (an image, a header strip, a hover fill) must round itself to
 // match, or sit inset by the surface's padding. `surface` insets its content; `media` and `edge`
 // round theirs.
+use std::time::Duration;
+
 use gpui_kit::{
-    App, Corners, Div, ElementId, FontWeight, Hsla, ImageSource, Img, InteractiveElement, ParentElement, Pixels, SharedString, Stateful, StatefulInteractiveElement, Styled, Window,
-    component::{ActiveTheme, Icon, tooltip::Tooltip},
-    div, img, prelude::FluentBuilder, px,
+    Animation, AnimationElement, AnimationExt, AnyElement, App, BoxShadow, Corners, Div, ElementId, FontWeight, Hsla, ImageSource, Img, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels, SharedString, SizeRefinement,
+    Stateful, Styled, Window,
+    base::{Transition, transition},
+    component::Icon,
+    div, img, linear_color_stop, linear_gradient, point, prelude::FluentBuilder, px, relative,
 };
 
-use crate::{icons::Glyph, palette};
+use crate::{discord::Status, icons::Glyph, mascot, motion, palette};
 
-// The radius tiers, Discord's: small marks, inset items, controls, surfaces.
-pub const RADIUS_SM: f32 = 4.;
-pub const RADIUS_MD: f32 = 6.;
-pub const RADIUS_LG: f32 = 8.;
-pub const RADIUS_XL: f32 = 12.;
-// Padding a surface keeps between its rounded edge and its rows.
-pub const SURFACE_INSET: f32 = 8.;
+mod control;
+mod feedback;
+mod field;
+mod group;
+mod tabs;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Tone {
-    // Blurple, the one accent: the action the surface is for.
-    Primary,
-    // The grey wash: every other action.
-    Secondary,
-    // Red: irreversible actions.
-    Danger,
-    // Translucent black over video and images.
-    OnMedia,
-}
+pub use control::{Control, Pressable, button, chip, hover_fade, icon_button, menu_row, pressable, round_button, swatch, tip};
+pub use feedback::{meter, meter_with, progress_indeterminate, progress_live, ring, skeleton, skeleton_circle, slider_live, slider_track};
+pub use field::{code_cell, drop_zone, field, field_error, field_frame, field_hint, select, stepper, text_area, text_field};
+pub use group::{settings_caption, settings_card, settings_group, settings_row};
+pub use tabs::{pill_tabs, segmented_live, tabs};
 
-// A text button, 32px (38px with `large`). Callers add the label and `.on_click`.
-pub fn button(id: impl Into<ElementId>, tone: Tone, cx: &App) -> Stateful<Div> {
-    let (fill, hover, ink) = tone_colors(tone, cx);
-    div()
-        .id(id)
-        .h(px(32.))
-        .px(px(16.))
-        .flex_none()
-        .rounded(px(RADIUS_LG))
-        .flex()
-        .items_center()
-        .justify_center()
-        .gap_2()
-        .cursor_pointer()
-        .bg(fill)
-        .text_color(ink)
-        .text_size(px(14.))
-        .font_weight(FontWeight::MEDIUM)
-        .hover(move |s| s.bg(hover))
-        .active(move |s| s.bg(hover).opacity(0.9))
-}
+// Radius tiers: tags and tooltips, rows and menu items, controls, cards and tiles, dialogs. Sized for the
+// squircle, whose curve hugs the corner tighter than a circular arc of the same radius.
+pub const RADIUS_XS: f32 = 8.;
+pub const RADIUS_SM: f32 = 11.;
+pub const RADIUS_MD: f32 = 14.;
+pub const RADIUS_LG: f32 = 20.;
+pub const RADIUS_XL: f32 = 28.;
+// CSS `corner-shape: superellipse(1.4)`. People, status marks and pills stay round.
+pub const SQUIRCLE: gpui_kit::CornerShape = gpui_kit::CornerShape::Superellipse(1.4);
 
-pub fn large(button: Stateful<Div>) -> Stateful<Div> {
-    button.h(px(38.)).text_size(px(16.))
-}
-
-fn tone_colors(tone: Tone, cx: &App) -> (Hsla, Hsla, Hsla) {
-    match tone {
-        Tone::Primary => (palette::accent(), palette::accent_hover(), gpui_kit::white()),
-        Tone::Secondary => (palette::wash(0.12), palette::wash(0.2), cx.theme().foreground),
-        Tone::Danger => (palette::danger(), palette::danger_hover(), gpui_kit::white()),
-        Tone::OnMedia => (gpui_kit::black().opacity(0.6), gpui_kit::black().opacity(0.8), gpui_kit::white()),
+/// Rounds an element with the design's soft squircle.
+pub trait Squircle: Styled + Sized {
+    fn squircle(self, radius: f32) -> Self {
+        self.rounded(px(radius)).corner_shape(SQUIRCLE)
     }
 }
 
-// A square icon-only button that fills on hover, with its tooltip.
-pub fn icon_button(id: impl Into<ElementId>, glyph: Glyph, tooltip: impl Into<SharedString>, cx: &App) -> Stateful<Div> {
-    let theme = cx.theme();
-    let (muted, ink) = (theme.muted_foreground, theme.foreground);
-    let tooltip: SharedString = tooltip.into();
-    div()
-        .id(id)
-        .size(px(32.))
-        .flex_none()
-        .rounded(px(RADIUS_LG))
-        .flex()
-        .items_center()
-        .justify_center()
-        .cursor_pointer()
-        .text_color(muted)
-        .hover(move |s| s.bg(palette::wash(0.12)).text_color(ink))
-        .active(|s| s.bg(palette::wash(0.2)))
-        .child(Icon::new(glyph).size(px(20.)))
-        .tooltip(move |window: &mut Window, cx: &mut App| Tooltip::new(tooltip.clone()).build(window, cx))
+impl<T: Styled> Squircle for T {}
+
+// Padding a surface keeps between its rounded edge and its rows.
+pub const SURFACE_INSET: f32 = 6.;
+
+// Motion tokens (design/tokens.css): press, hover, pop, panel.
+pub const DUR_PRESS: Duration = Duration::from_millis(120);
+pub const DUR_HOVER: Duration = Duration::from_millis(150);
+pub const DUR_POP: Duration = Duration::from_millis(200);
+pub const DUR_PANEL: Duration = Duration::from_millis(260);
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Tone {
+    // Magenta, the one accent: the action the surface is for.
+    Primary,
+    // The quiet fill: every other action.
+    Secondary,
+    // No fill until hovered: low-stakes actions in dense rows.
+    Ghost,
+    // The destructive step itself.
+    Danger,
+    // Translucent black over video and images.
+    OnMedia,
+    // Just the accent ink, underlined on hover: "View all members".
+    Link,
 }
 
-// A round icon button over video or the call stage (`size` 28 or 40).
-pub fn round_button(id: impl Into<ElementId>, glyph: Glyph, tooltip: impl Into<SharedString>, size: f32) -> Stateful<Div> {
-    let tooltip: SharedString = tooltip.into();
+// A main action and its options chevron, joined: inner corners tighten to 4px with a 1px seam.
+pub fn split(main: Control, options: Control) -> Div {
     div()
-        .id(id)
-        .size(px(size))
-        .flex_none()
-        .rounded_full()
         .flex()
-        .items_center()
-        .justify_center()
-        .cursor_pointer()
-        .bg(gpui_kit::white().opacity(0.12))
-        .text_color(gpui_kit::white())
-        .hover(|s| s.bg(gpui_kit::white().opacity(0.2)))
-        .active(|s| s.bg(gpui_kit::white().opacity(0.28)))
-        .child(Icon::new(glyph).size(px(size / 2.)))
-        .tooltip(move |window: &mut Window, cx: &mut App| Tooltip::new(tooltip.clone()).build(window, cx))
+        .gap(px(1.))
+        .child(main.rounded_l(px(RADIUS_MD)).rounded_r(px(4.)))
+        .child(options.px(px(8.)).rounded_r(px(RADIUS_MD)).rounded_l(px(4.)))
 }
 
-// The red LIVE pill. White on it is 3.8:1, the user's pick for its small label.
+// The LIVE badge: magenta, with the mini wave at its own 2px weight.
 pub fn live_badge() -> Div {
-    badge(palette::live(), gpui_kit::white()).child("LIVE")
+    let white = gpui_kit::white();
+    let wave = div().h(px(9.)).flex().items_center().gap(px(1.5)).children([0.55_f32, 1., 0.7].map(|base| div().w(px(2.)).h(px(9. * base)).rounded_full().bg(white)));
+    badge(palette::live(), white).gap(px(5.)).child(wave).child("LIVE")
 }
 
-// A small solid label (quality, tags, NEW).
+// A small solid label (quality, tags, NEW). GAP: the design tracks these 0.04–0.06em; gpui text has no
+// letter spacing.
 pub fn badge(fill: Hsla, ink: Hsla) -> Div {
-    div().h(px(18.)).px(px(5.)).flex_none().rounded(px(RADIUS_SM)).bg(fill).text_color(ink).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center()
+    div().h(px(20.)).px(px(7.)).flex_none().squircle(RADIUS_XS).bg(fill).text_color(ink).text_size(px(11.)).font_weight(FontWeight::SEMIBOLD).flex().items_center()
 }
 
-// Discord's red mention count, a capsule that grows with the number.
+// What something is (App, Host, New): accent ink on the accent tint, uppercase 11px.
+pub fn tag(text: impl Into<SharedString>, cx: &App) -> Div {
+    let text: SharedString = text.into();
+    badge(palette::accent_soft(cx), palette::accent_ink(cx)).h(px(18.)).px(px(6.)).gap(px(3.)).child(text.to_uppercase())
+}
+
+// A tag led by a small glyph (Host's crown).
+pub fn tag_with(glyph: Glyph, text: impl Into<SharedString>, cx: &App) -> Div {
+    let text: SharedString = text.into();
+    badge(palette::accent_soft(cx), palette::accent_ink(cx)).h(px(18.)).px(px(6.)).gap(px(3.)).child(Icon::new(glyph).size(px(11.))).child(text.to_uppercase())
+}
+
+// A count asks for you, so it takes the accent. A capsule that grows with the number.
 pub fn count_badge(count: u32) -> Div {
     let text = if count > 99 { "99+".to_owned() } else { count.to_string() };
     div()
-        .min_w(px(16.))
-        .h(px(16.))
-        .px(px(4.))
+        .min_w(px(18.))
+        .h(px(18.))
+        .px(px(5.))
         .flex_none()
         .rounded_full()
-        .bg(palette::danger())
+        .bg(palette::accent())
         .text_color(gpui_kit::white())
-        .text_size(px(11.))
-        .font_weight(FontWeight::BOLD)
+        .text_size(px(12.))
+        .font_weight(FontWeight::SEMIBOLD)
+        .line_height(px(18.))
         .flex()
         .items_center()
         .justify_center()
         .child(text)
 }
 
-// The joined track a row of `segment`s sits in. Segments are inset 2px with a radius 2px smaller,
-// so the selected fill is concentric with the track.
-pub fn segmented() -> Div {
-    div().p(px(2.)).rounded(px(RADIUS_LG)).bg(palette::wash(0.12)).flex()
+// Something unread, without a count.
+pub fn unread_dot() -> Div {
+    div().size(px(8.)).flex_none().rounded_full().bg(palette::accent())
 }
 
-pub fn segment(id: impl Into<ElementId>, label: impl Into<SharedString>, on: bool, cx: &App) -> Stateful<Div> {
-    let theme = cx.theme();
-    let (strong, muted) = (palette::strong(cx), theme.muted_foreground);
-    let raised = theme.popover;
+// A role: its colour as a dot, never as the text's colour.
+pub fn role_chip(name: impl Into<SharedString>, color: Hsla, cx: &App) -> Div {
     div()
-        .id(id)
-        .flex_1()
-        .min_w_0()
-        .h(px(28.))
-        .px_3()
-        .rounded(px(RADIUS_MD))
+        .h(px(24.))
+        .px(px(8.))
+        .flex_none()
+        .flex()
+        .items_center()
+        .gap(px(6.))
+        .squircle(RADIUS_XS)
+        .bg(palette::selected(cx))
+        .text_color(palette::text(cx))
+        .text_size(px(12.))
+        .font_weight(FontWeight::MEDIUM)
+        .whitespace_nowrap()
+        .child(div().size(px(10.)).rounded_full().bg(color))
+        .child(name.into())
+}
+
+// A keycap: the raised fill, a hairline ring and a deeper bottom edge, so it reads as a key you could press.
+pub fn kbd(key: impl Into<SharedString>, cx: &App) -> Div {
+    let line = palette::line_strong(cx);
+    div()
+        .min_w(px(22.))
+        .h(px(22.))
+        .px(px(6.))
+        .flex_none()
+        .squircle(RADIUS_XS)
+        .bg(palette::surface(palette::Level::Raised, cx))
+        .shadow(vec![shadow(line, 0., -1., 0., 0., true), shadow(line, 0., 0., 0., 1., false)])
+        .text_color(palette::strong(cx))
+        .text_size(px(12.))
+        .font_weight(FontWeight::MEDIUM)
+        .whitespace_nowrap()
         .flex()
         .items_center()
         .justify_center()
+        .child(key.into())
+}
+
+// A shortcut: its keys side by side.
+pub fn keys<I: Into<SharedString>>(keys: impl IntoIterator<Item = I>, cx: &App) -> Div {
+    div().flex().items_center().gap(px(4.)).children(keys.into_iter().map(|key| kbd(key, cx)))
+}
+
+// The segmented thumb's lift: a soft drop plus, on dark, a lit top edge; on light, a hairline.
+pub(crate) fn seg_lift(cx: &App) -> Vec<BoxShadow> {
+    let shade = palette::shade(cx);
+    if dark(cx) {
+        return vec![shadow(shade.opacity(0.4), 0., 1., 3., 0., false), shadow(gpui_kit::white().opacity(0.14), 0., 0.5, 0., 0., true)];
+    }
+    vec![shadow(shade.opacity(0.2), 0., 1., 3., 0., false), shadow(shade.opacity(0.1), 0., 0., 0., 0.5, false)]
+}
+
+// What floats (menus, popovers, toasts): a long soft drop and a hairline ring in place of a border.
+pub fn shadow_pop(cx: &App) -> Vec<BoxShadow> {
+    shadow_pop_on(palette::line_strong(cx), cx)
+}
+
+// The pop shadow with its hairline in `ring`, for a scope with its own line colour (the call stage).
+pub fn shadow_pop_on(ring: Hsla, cx: &App) -> Vec<BoxShadow> {
+    let drop = palette::shade(cx).opacity(if dark(cx) { 0.45 } else { 0.16 });
+    vec![shadow(drop, 0., 12., 32., 0., false), shadow(ring, 0., 0., 0., 1., false)]
+}
+
+fn shadow(color: Hsla, x: f32, y: f32, blur: f32, spread: f32, inset: bool) -> BoxShadow {
+    BoxShadow { color, offset: point(px(x), px(y)), blur_radius: px(blur), spread_radius: px(spread), inset }
+}
+
+fn knob_shadow() -> Vec<BoxShadow> {
+    let black = gpui_kit::black();
+    vec![shadow(black.opacity(0.22), 0., 2., 6., 0., false), shadow(black.opacity(0.06), 0., 0., 0., 0.5, false)]
+}
+
+// The switch: a wide pill with a capsule knob, magenta when on (iOS-style). The knob springs across (300ms
+// on the touch spring) while the track's fill fades to the accent, and while pressed it swells into glass.
+pub fn switch_live(id: impl Into<ElementId>, on: bool, window: &mut Window, cx: &mut App) -> Stateful<Div> {
+    let id: ElementId = id.into();
+    let held = window.use_keyed_state(control::part(&id, "held"), cx, |_, _| false);
+    let pressed = *held.read(cx);
+    let (down, up, up_out) = (hold(&held, true, window), hold(&held, false, window), hold(&held, false, window));
+    switch_track(&id, on, pressed, window, cx)
+        .id(id.clone())
         .cursor_pointer()
-        .text_size(px(14.))
-        .font_weight(FontWeight::MEDIUM)
-        .text_color(if on { strong } else { muted })
-        .when(on, |s| s.bg(raised).shadow_sm())
-        .when(!on, |s| s.hover(move |s| s.text_color(strong)))
-        .child(label.into())
+        .on_mouse_down(MouseButton::Left, down)
+        .on_mouse_up(MouseButton::Left, up)
+        .on_mouse_up_out(MouseButton::Left, up_out)
 }
 
-// Discord's toggle switch: 40×24, blurple when on.
-pub fn switch(on: bool, cx: &App) -> Div {
-    let off = cx.theme().input;
-    div()
-        .w(px(40.))
-        .h(px(24.))
-        .flex_none()
-        .p(px(3.))
+// A mouse listener that records whether the switch is held down.
+fn hold<E: 'static>(held: &gpui_kit::Entity<bool>, value: bool, window: &Window) -> impl Fn(&E, &mut Window, &mut App) + 'static {
+    window.listener_for(held, move |h: &mut bool, _: &E, _, cx| {
+        *h = value;
+        cx.notify();
+    })
+}
+
+// The switch's track and knob, `pressed` coming from whoever holds it (the switch, or its toggle row).
+fn switch_track(id: &ElementId, on: bool, pressed: bool, window: &mut Window, cx: &mut App) -> Div {
+    let spring = || Transition::new(Duration::from_millis(300)).easing(motion::ease_spring());
+    let travel = transition(control::part(id, "travel"), if on { 1. } else { 0. }, spring(), window, cx);
+    let swell = transition(control::part(id, "swell"), if pressed { 1. } else { 0. }, spring(), window, cx);
+    let fill = transition(control::part(id, "fill"), if on { 1. } else { 0. }, Transition::new(DUR_POP).easing(motion::ease_out()), window, cx);
+    let glass = hover_fade(control::part(id, "glass"), pressed, window, cx);
+    let knob = stretch(div().absolute().top(px(2.)).left(px(2.)).w(px(28.)).h(px(24.)).translate_x(px(20. * travel)), 1. + 0.18 * swell, 1. + 0.25 * swell)
         .rounded_full()
-        .border_1()
-        .border_color(if on { palette::accent() } else { palette::wash(0.3) })
-        .bg(if on { palette::accent() } else { off })
-        .flex()
-        .items_center()
-        .when(on, |d| d.justify_end())
-        .child(div().size(px(16.)).rounded_full().bg(gpui_kit::white()))
+        .bg(mix(gpui_kit::white(), gpui_kit::white().opacity(0.42), glass))
+        .shadow(knob_glass(glass))
+        // The backdrop blur keeps to the knob's unscaled box: gpui's blur doesn't follow transforms.
+        .when(glass > 0., |k| k.backdrop_blur(px(2. * glass)).backdrop_saturate(1. + 0.8 * glass));
+    div().w(px(52.)).h(px(28.)).flex_none().relative().rounded_full().bg(mix(palette::track(cx), palette::accent(), fill.clamp(0., 1.))).child(knob)
 }
 
-pub fn checkbox(on: bool) -> Div {
+// The knob's shadows, from resting (`t` 0) to pressed glass (`t` 1): a lit inner rim and a deeper drop.
+fn knob_glass(t: f32) -> Vec<BoxShadow> {
+    if t <= 0. {
+        return knob_shadow();
+    }
+    let (white, black) = (gpui_kit::white(), gpui_kit::black());
+    vec![
+        shadow(white.opacity(0.7 * t), 0., 0., 0., t, true),
+        shadow(white.opacity(0.9 * t), 0., t, t, 0., true),
+        shadow(black.opacity(0.22 + 0.03 * t), 0., 2. + 2. * t, 6. + 6. * t, 0., false),
+    ]
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Check {
+    Off,
+    On,
+    // Some of a group chosen: a minus bar in place of the tick.
+    Mixed,
+}
+
+pub fn check(state: Check, cx: &App) -> Div {
+    let filled = state != Check::Off;
+    let accent = palette::accent();
+    check_box(state, if filled { accent } else { palette::line_strong(cx) }, if filled { accent } else { gpui_kit::transparent_black() })
+        .when(state == Check::On, |d| d.child(Icon::new(Glyph::Checkmark).size(px(13.))))
+}
+
+// A checkbox that fades its fill and pops its tick in on the spring (200ms), as the design's does.
+pub fn check_live(id: impl Into<ElementId>, state: Check, window: &mut Window, cx: &mut App) -> Div {
+    let id: ElementId = id.into();
+    let filled = hover_fade(control::part(&id, "fill"), state != Check::Off, window, cx);
+    let tick = transition(control::part(&id, "tick"), if state == Check::On { 1. } else { 0. }, Transition::new(DUR_POP).easing(motion::ease_spring()), window, cx);
+    let accent = palette::accent();
+    check_box(state, mix(palette::line_strong(cx), accent, filled), accent.opacity(filled))
+        .when(state != Check::Mixed && tick > 0.01, |d| d.child(Icon::new(Glyph::Checkmark).size(px(13.)).scale(0.5 + 0.5 * tick).text_color(gpui_kit::white().opacity(tick.min(1.)))))
+}
+
+fn check_box(state: Check, edge: Hsla, fill: Hsla) -> Div {
     div()
         .size(px(20.))
         .flex_none()
-        .rounded(px(RADIUS_SM))
-        .border_1()
-        .border_color(if on { palette::accent() } else { palette::wash(0.64) })
-        .bg(if on { palette::accent() } else { gpui_kit::transparent_black() })
+        .squircle(6.)
+        .border(px(1.5))
+        .border_color(edge)
+        .bg(fill)
         .text_color(gpui_kit::white())
         .flex()
         .items_center()
         .justify_center()
-        .when(on, |d| d.child(Icon::new(Glyph::Checkmark).size(px(14.))))
+        .when(state == Check::Mixed, |d| d.child(div().w(px(10.)).h(px(2.)).squircle(1.).bg(gpui_kit::white())))
 }
 
+// Off: a thin ring. On: the ring thickens to a magenta band around the surface's colour.
 pub fn radio(on: bool, cx: &App) -> Div {
-    let ring = if on { palette::accent() } else { cx.theme().muted_foreground };
-    div()
-        .size(px(18.))
-        .flex_none()
-        .rounded_full()
-        .border_2()
-        .border_color(ring)
-        .flex()
-        .items_center()
-        .justify_center()
-        .when(on, |d| d.child(div().size(px(8.)).rounded_full().bg(gpui_kit::white())))
-        .when(on, |d| d.bg(palette::accent()))
+    radio_with(on, 20., palette::line_strong(cx))
 }
 
+// A radio at `size` (menus use 18) with its resting ring in `line`, for scopes with their own line colour.
+pub fn radio_with(on: bool, size: f32, line: Hsla) -> Div {
+    radio_ring(if on { 1. } else { 0. }, size, line)
+}
+
+// A radio whose band thickens on the spring when chosen.
+pub fn radio_live(id: impl Into<ElementId>, on: bool, window: &mut Window, cx: &mut App) -> Div {
+    let id: ElementId = id.into();
+    let band = transition(control::part(&id, "band"), if on { 1. } else { 0. }, Transition::new(DUR_POP).easing(motion::ease_spring()), window, cx);
+    radio_ring(band, 20., palette::line_strong(cx))
+}
+
+// The chosen band leaves an 8px hole at any size: 6px at 20, 5px at 18, as the design's two radios.
+fn radio_ring(band: f32, size: f32, line: Hsla) -> Div {
+    let on_width = (size - 8.) / 2.;
+    let color = mix(line, palette::accent(), band.clamp(0., 1.));
+    div().size(px(size)).flex_none().rounded_full().border(px((1.5 + (on_width - 1.5) * band).max(1.))).border_color(color)
+}
+
+// A setting that applies at once: its title and a line of detail, the switch at the end. The whole row
+// is the hit area and fills on hover, and holding the row swells the switch's knob; the caller toggles
+// on click.
+pub fn toggle_row(id: impl Into<ElementId>, title: impl Into<SharedString>, detail: Option<SharedString>, on: bool, window: &mut Window, cx: &mut App) -> Control {
+    let id: ElementId = id.into();
+    let pressed = control::pressed(&id, window, cx);
+    let switch = switch_track(&control::part(&id, "switch"), on, pressed, window, cx);
+    control::choice(id, cx).child(choice_text(title, detail, cx)).child(switch)
+}
+
+// One of a set to pick from: the check or radio first, then its title and detail.
+pub fn pick_row(id: impl Into<ElementId>, mark: impl IntoElement, title: impl Into<SharedString>, detail: Option<SharedString>, cx: &App) -> Control {
+    control::choice(id, cx).child(mark).child(choice_text(title, detail, cx))
+}
+
+fn choice_text(title: impl Into<SharedString>, detail: Option<SharedString>, cx: &App) -> Div {
+    div()
+        .flex_1()
+        .min_w_0()
+        .flex()
+        .flex_col()
+        .child(div().font_weight(FontWeight::NORMAL).text_color(palette::strong(cx)).child(title.into()))
+        .when_some(detail, |d, detail| d.child(div().text_size(px(12.)).text_color(palette::muted(cx)).child(detail)))
+}
+
+// A photo avatar.
 pub fn avatar(url: impl Into<SharedString>, size: f32) -> Img {
     img(url.into()).size(px(size)).flex_none().rounded_full()
 }
 
+// An avatar without a photo: the name's initial on a gradient picked from the name. Below 24px it
+// drops the initial.
+pub fn monogram(name: &str, size: f32) -> Div {
+    let hue = name_hue(name);
+    let initial: String = name.chars().next().map(|c| c.to_uppercase().collect()).unwrap_or_default();
+    div()
+        .size(px(size))
+        .flex_none()
+        .rounded_full()
+        .bg(linear_gradient(135., linear_color_stop(palette::oklch(0.53, 0.12, hue), 0.), linear_color_stop(palette::oklch(0.41, 0.13, hue + 35.), 1.)))
+        .flex()
+        .items_center()
+        .justify_center()
+        .text_color(gpui_kit::white())
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_size(px(size * 0.38))
+        .when(size >= 24., |d| d.child(initial))
+}
+
+// The design's avatar hue: a stable hash of the name onto the colour wheel.
+pub fn name_hue(name: &str) -> f32 {
+    name.chars().fold(7_u32, |h, c| (h * 31 + c as u32) % 360) as f32
+}
+
+// An avatar with its presence mark at the corner. `ring` is the surface behind it.
+pub fn with_status(avatar: impl IntoElement, status: Status, size: f32, ring: Hsla, cx: &App) -> Div {
+    let mark = (size * 0.3).clamp(9., 16.);
+    let inset = size * 0.04 - 2.;
+    div().relative().flex_none().size(px(size)).child(avatar).child(div().absolute().right(px(inset)).bottom(px(inset)).child(status_mark(status, mark, ring, cx)))
+}
+
+// Speaking: a gap in the surface's colour, then the accent ring.
+pub fn speaking_ring(ring: Hsla) -> Vec<BoxShadow> {
+    vec![shadow(palette::accent(), 0., 0., 0., 4., false), shadow(ring, 0., 0., 0., 2., false)]
+}
+
 // Overlapping avatars, each ringed in `ring` (the surface colour) so they read apart.
 pub fn avatar_stack(urls: impl IntoIterator<Item = String>, size: f32, ring: Hsla) -> Div {
-    div().flex().items_center().pl(px(size * 0.3)).children(urls.into_iter().map(move |url| avatar(url, size).border_2().border_color(ring).ml(px(-size * 0.3))))
+    stacked(urls.into_iter().map(move |url| avatar(url, size).into_any_element()), size, ring)
 }
 
-// A floating surface (menu, popover, picker): rounded, bordered, shadowed, with its content inset
-// so nothing reaches the rounded edge.
+// Avatars of one `size` (photos, monograms, a "+3"), overlapped 6px and ringed in the surface's colour.
+// Placed absolutely in a box sized to the overlap, not as a flex row with -6px margins: taffy 0.13's flex
+// intrinsic sizing reads a negative margin as the item asking to shrink below its basis, so such a row
+// measures too narrow (four 24px avatars at -6px measure 0 wide, at -1px one avatar wide) and whatever
+// follows slides underneath.
+pub fn stacked(avatars: impl IntoIterator<Item = AnyElement>, size: f32, ring: Hsla) -> Div {
+    let avatars: Vec<AnyElement> = avatars.into_iter().collect();
+    let step = size - 6.;
+    let width = size + step * avatars.len().saturating_sub(1) as f32;
+    div().relative().flex_none().w(px(width)).h(px(size)).children(avatars.into_iter().enumerate().map(move |(i, avatar)| {
+        div().absolute().top_0().left(px(step * i as f32)).size(px(size)).rounded_full().shadow(vec![shadow(ring, 0., 0., 0., 2., false)]).child(avatar)
+    }))
+}
+
+// A presence mark for an avatar's corner. Never colour alone: online is a dot, idle a moon, do not
+// disturb a bar, offline a ring. `ring` is the surface it sits on: a 2px gap around the mark.
+pub fn status_mark(status: Status, size: f32, ring: Hsla, cx: &App) -> Div {
+    let color = palette::status_in(status, cx);
+    let base = div().size(px(size)).flex_none().rounded_full().relative().shadow(vec![shadow(ring, 0., 0., 0., 2., false)]);
+    match status {
+        Status::Online => base.bg(color),
+        // The moon's bite runs past the disc's edge into the ring, which is the same colour.
+        Status::Idle => base.bg(color).child(div().absolute().top(px(size * (0.28 - 0.346))).left(px(size * (0.28 - 0.346))).size(px(size * 0.692)).rounded_full().bg(ring)),
+        Status::Dnd => base.bg(color).flex().items_center().justify_center().child(div().w(px(size * 0.55)).h(px(size * 0.22)).bg(ring)),
+        Status::Offline => base.bg(ring).child(div().size_full().rounded_full().border(px(2.5)).border_color(color)),
+    }
+}
+
+// A floating surface (menu, popover, picker): rounded, ringed and shadowed, with its content inset so
+// nothing reaches the rounded edge. A menu card is `surface(cx).w(px(248.))`.
 pub fn surface(cx: &App) -> Div {
-    let theme = cx.theme();
-    div().rounded(px(RADIUS_LG)).border_1().border_color(palette::wash(0.2)).bg(theme.popover).shadow_lg().p(px(SURFACE_INSET)).flex().flex_col()
+    div().squircle(RADIUS_LG).bg(palette::surface(palette::Level::Overlay, cx)).shadow(shadow_pop(cx)).p(px(SURFACE_INSET)).flex().flex_col().gap(px(1.))
 }
 
-// A row inside a surface: hover fills blurple like Discord's menus, and stays inset by the
-// surface's padding, never flush with its edge.
-pub fn menu_row(id: impl Into<ElementId>, cx: &App) -> Stateful<Div> {
-    let ink = cx.theme().foreground;
+// A floating surface's entrance (menus, popovers, pickers, dialogs): it fades in and grows from 0.95 over
+// the pop timing, after `delay` (a submenu's intent delay). It grows from the top-left corner unless the
+// caller set a `transform_origin` toward its trigger.
+pub fn rise<E:IntoElement + Styled + 'static>(mut el: E, id: impl Into<ElementId>, delay: Duration) -> AnimationElement<E> {
+    if el.style().transform_origin.x.is_none() {
+        el = el.transform_origin(point(relative(0.), relative(0.)));
+    }
+    let lead = delay.as_secs_f32() / (delay + DUR_POP).as_secs_f32();
+    el.with_animation(id, Animation::new(delay + DUR_POP), move |el, t| {
+        let t = motion::ease_out().sample(((t - lead) / (1. - lead)).clamp(0., 1.));
+        el.opacity(t).scale(0.95 + 0.05 * t)
+    })
+}
+
+// A transform origin at one of an element's corners: where a floating surface rises from, toward its trigger.
+pub fn corner(right: bool, bottom: bool) -> gpui_kit::Point<gpui_kit::DefiniteLength> {
+    point(relative(if right { 1. } else { 0. }), relative(if bottom { 1. } else { 0. }))
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Notice {
+    Accent,
+    Info,
+    Warning,
+    Danger,
+    Success,
+}
+
+// An inline notice inside the view it's about: a tinted surface, a leading icon, a title and a line.
+// An action button, if any, goes last and centres itself.
+pub fn callout(kind: Notice, glyph: Glyph, title: impl Into<SharedString>, body: impl Into<SharedString>, cx: &App) -> Div {
+    let (tone, tint) = notice_colors(kind, cx);
+    callout_frame(tone, tint, glyph).child(callout_text(title, body, cx))
+}
+
+// A callout whose actions sit under its text (`actions` is laid out by the caller), for notices that
+// offer more than one way on.
+pub fn callout_with(kind: Notice, glyph: Glyph, title: impl Into<SharedString>, body: impl Into<SharedString>, actions: impl IntoElement, cx: &App) -> Div {
+    let (tone, tint) = notice_colors(kind, cx);
+    callout_frame(tone, tint, glyph).child(callout_text(title, body, cx).child(actions))
+}
+
+fn notice_colors(kind: Notice, cx: &App) -> (Hsla, Hsla) {
+    match kind {
+        Notice::Accent => (palette::accent_ink(cx), palette::accent_soft(cx)),
+        Notice::Info => (palette::info_ink(cx), palette::info_tint()),
+        Notice::Warning => (palette::warning_ink(cx), palette::warning_tint()),
+        Notice::Danger => (palette::danger_ink(cx), palette::danger_tint()),
+        Notice::Success => (palette::positive_ink(cx), palette::success_tint()),
+    }
+}
+
+fn callout_frame(tone: Hsla, tint: Hsla, glyph: Glyph) -> Div {
     div()
-        .id(id)
-        .min_h(px(32.))
-        .px_2()
-        .rounded(px(RADIUS_SM))
+        .w_full()
+        .py(px(12.))
+        .px(px(14.))
+        .squircle(RADIUS_LG)
+        .bg(tint)
         .flex()
-        .items_center()
-        .gap_2()
-        .cursor_pointer()
+        .gap(px(12.))
+        .items_start()
+        .child(div().mt(px(1.)).text_color(tone).flex_none().child(Icon::new(glyph).size(px(20.))))
+}
+
+fn callout_text(title: impl Into<SharedString>, body: impl Into<SharedString>, cx: &App) -> Div {
+    div()
+        .flex_1()
+        .min_w_0()
+        .flex()
+        .flex_col()
         .text_size(px(14.))
-        .font_weight(FontWeight::MEDIUM)
-        .text_color(ink)
-        .hover(|s| s.bg(palette::accent()).text_color(gpui_kit::white()))
+        .child(div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(title.into()))
+        .child(div().text_color(palette::text(cx)).child(body.into()))
 }
 
-// A list row in a sidebar or panel: Discord's grey hover, a stronger fill when selected.
-pub fn list_row(id: impl Into<ElementId>, selected: bool, cx: &App) -> Stateful<Div> {
-    let accent = cx.theme().sidebar_accent;
+// A toast: one line (and an optional detail) on the floating surface, rising in over 240ms from 8px lower
+// and 0.97. GAP: the design also un-blurs it from 4px (`filter: blur`); gpui has no element blur.
+pub fn toast(id: impl Into<ElementId>, glyph: Glyph, ink: Hsla, title: impl Into<SharedString>, detail: Option<SharedString>, cx: &App) -> AnyElement {
+    let (strong, muted) = (palette::strong(cx), palette::muted(cx));
     div()
-        .id(id)
-        .px_2()
-        .rounded(px(RADIUS_LG))
+        .relative()
+        .w_full()
+        .max_w(px(380.))
         .flex()
         .items_center()
-        .gap_2()
-        .cursor_pointer()
-        .when(selected, |d| d.bg(accent))
-        .when(!selected, |d| d.hover(move |s| s.bg(accent.opacity(0.6))))
+        .gap(px(12.))
+        .py(px(10.))
+        .pr(px(10.))
+        .pl(px(14.))
+        .squircle(RADIUS_LG)
+        .bg(palette::surface(palette::Level::Overlay, cx))
+        .shadow(shadow_pop(cx))
+        .child(div().flex_none().text_color(ink).child(Icon::new(glyph).size(px(20.))))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .flex_col()
+                .font_weight(FontWeight::NORMAL)
+                .text_color(strong)
+                .child(title.into())
+                .when_some(detail, |d, detail| d.child(div().text_size(px(12.)).font_weight(FontWeight::NORMAL).text_color(muted).child(detail))),
+        )
+        .with_animation(id, Animation::new(Duration::from_millis(240)).with_easing(|t| motion::ease_out().sample(t)), |toast, t| toast.opacity(t).translate_y(px(8. * (1. - t))).scale(0.97 + 0.03 * t))
+        .into_any_element()
 }
 
-// A small heading over a group ("Roles", "Recent"), sentence case.
-pub fn section_label(text: impl Into<SharedString>, cx: &App) -> Div {
-    div().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(cx.theme().muted_foreground).child(text.into())
+// An empty or waiting state: the mascot, what's missing, and room for one action.
+pub fn empty_state(id: &'static str, mood: mascot::Mood, title: impl Into<SharedString>, body: impl Into<SharedString>, cx: &App) -> Div {
+    div()
+        .flex()
+        .flex_col()
+        .items_center()
+        .gap(px(8.))
+        .py(px(32.))
+        .px(px(16.))
+        .text_center()
+        .child(div().mb(px(8.)).child(mascot::mascot_at(id, mood, 0.6, cx)))
+        .child(div().text_size(px(20.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(title.into()))
+        .child(div().max_w(px(320.)).text_color(palette::muted(cx)).child(body.into()))
+}
+
+// A divider, with an optional label naming what follows.
+pub fn divider(label: Option<&'static str>, cx: &App) -> Div {
+    let line = || div().flex_1().h(px(1.)).bg(palette::line(cx));
+    div()
+        .w_full()
+        .flex()
+        .items_center()
+        .gap(px(12.))
+        .child(line())
+        .when_some(label, |d, label| d.child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::faint(cx)).child(label)).child(line()))
+}
+
+// A squircle holding an icon, for row leads and settings.
+pub fn icon_tile(glyph: Glyph, fill: Hsla, ink: Hsla) -> Div {
+    div().size(px(36.)).flex_none().squircle(RADIUS_MD).bg(fill).text_color(ink).flex().items_center().justify_center().child(Icon::new(glyph).size(px(20.)))
+}
+
+// The mini wave: three bars, the mark for speaking, typing, loading and live.
+pub fn bars(id: impl Into<ElementId>, color: Hsla, height: f32) -> AnyElement {
+    let frame = move |t: f32| {
+        div().h(px(height)).flex().items_center().gap(px(2.)).children([0.55_f32, 1., 0.7].iter().enumerate().map(move |(i, base)| {
+            let phase = (t * std::f32::consts::TAU + i as f32 * 2.1).sin().abs();
+            div().w(px(3.)).h(px(height * base * (0.35 + 0.65 * phase))).rounded_full().bg(color)
+        }))
+    };
+    frame(0.).with_animation(id, Animation::new(Duration::from_millis(900)).repeat(), move |_, t| frame(t)).into_any_element()
+}
+
+// The mini wave at rest (`.bars.still`): connected, in a call.
+pub fn bars_still(color: Hsla, height: f32) -> Div {
+    still_wave(color, height, false)
+}
+
+// The resting wave with all but its first bar dimmed (`.bars.weak`): connected, on a poor link.
+pub fn bars_weak(color: Hsla, height: f32) -> Div {
+    still_wave(color, height, true)
+}
+
+fn still_wave(color: Hsla, height: f32, weak: bool) -> Div {
+    div().h(px(height)).flex_none().flex().items_center().gap(px(2.)).children([0.55_f32, 1., 0.7].into_iter().enumerate().map(move |(i, base)| {
+        let ink = if weak && i > 0 { color.opacity(0.3) } else { color };
+        div().w(px(3.)).h(px(height * base)).rounded_full().bg(ink)
+    }))
 }
 
 // An image placed against a rounded container's edge, rounded to `corners` itself because gpui
 // can't clip children to rounded corners.
 pub fn media(source: impl Into<ImageSource>, corners: Corners<Pixels>) -> Img {
-    img(source).rounded_tl(corners.top_left).rounded_tr(corners.top_right).rounded_bl(corners.bottom_left).rounded_br(corners.bottom_right)
+    edge(img(source), corners)
 }
 
 // Corner sets for `media` and edge strips: all four, or only the top or bottom pair.
@@ -290,7 +626,25 @@ pub fn bottom(radius: f32) -> Corners<Pixels> {
 }
 
 // A strip (header, footer, scroll area) that runs edge to edge of a rounded container, rounded to
-// match on the corners it touches.
+// match on the corners it touches, in the container's squircle.
 pub fn edge<E: Styled>(el: E, corners: Corners<Pixels>) -> E {
-    el.rounded_tl(corners.top_left).rounded_tr(corners.top_right).rounded_bl(corners.bottom_left).rounded_br(corners.bottom_right)
+    el.rounded_tl(corners.top_left).rounded_tr(corners.top_right).rounded_bl(corners.bottom_left).rounded_br(corners.bottom_right).corner_shape(SQUIRCLE)
+}
+
+fn dark(cx: &App) -> bool {
+    use gpui_kit::component::ActiveTheme;
+    cx.theme().is_dark()
+}
+
+// CSS `color-mix` in sRGB: `t` of `to` over `from`, for fills that follow a transition.
+pub fn mix(from: Hsla, to: Hsla, t: f32) -> Hsla {
+    let (a, b) = (gpui_kit::Rgba::from(from), gpui_kit::Rgba::from(to));
+    let lerp = |x: f32, y: f32| x + (y - x) * t;
+    gpui_kit::Rgba { r: lerp(a.r, b.r), g: lerp(a.g, b.g), b: lerp(a.b, b.b), a: lerp(a.a, b.a) }.into()
+}
+
+// Scales an element by `x` and `y` about its transform origin: gpui's `scale` builder is uniform only.
+fn stretch<E: Styled>(mut el: E, x: f32, y: f32) -> E {
+    el.style().scale = SizeRefinement { width: Some(x), height: Some(y) };
+    el
 }

@@ -203,6 +203,7 @@ pub enum ShareSource {
     // One display, by `ShareableScreen::id`.
     Screen(u32),
     // Every window of the app with this process id.
+    #[allow(dead_code, reason = "examples/voice_join.rs drives it; the app doesn't yet")]
     App(i32),
     // One window, by `ShareableWindow::id`.
     Window(u32),
@@ -223,7 +224,9 @@ pub struct ShareableScreen {
     // "Screen 1", "Screen 2", … in the system's display order (main display first).
     pub name: String,
     // Points, not pixels.
+    #[allow(dead_code, reason = "examples/voice_join.rs drives it; the app doesn't yet")]
     pub width: u32,
+    #[allow(dead_code, reason = "examples/voice_join.rs drives it; the app doesn't yet")]
     pub height: u32,
 }
 
@@ -554,12 +557,14 @@ impl VoiceSession {
     }
 
     // Share the main display (macOS) at 720p30 with sound. Our own `StreamEnded` reports when it stops.
+    #[allow(dead_code, reason = "examples/voice_join.rs drives it; the app doesn't yet")]
     pub fn go_live(&self) -> Result<GoLive, String> {
         let main = screens()?.first().map(|s| s.id).ok_or("No display to share")?;
         self.go_live_with_options(ShareSource::Screen(main), GoLiveOptions::default())
     }
 
     // Share one app or window, with only its audio; see `shareable_windows` for the choices.
+    #[allow(dead_code, reason = "examples/voice_join.rs drives it; the app doesn't yet")]
     pub fn go_live_with(&self, source: ShareSource) -> Result<GoLive, String> {
         self.go_live_with_options(source, GoLiveOptions::default())
     }
@@ -579,6 +584,7 @@ impl VoiceSession {
         Ok(stop_tx)
     }
 
+    #[allow(dead_code, reason = "examples/voice_join.rs drives it; the app doesn't yet")]
     pub fn leave(self) {}
 }
 

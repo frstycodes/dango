@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | gallery | profile | emoji | switcher | status | unread | stream-card | login | scanned | failed | empty.
+// CHORD_DEMO=chat | gallery | profile | emoji | switcher | status | unread | home | folder | stream-card | login | scanned | failed | empty.
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -49,6 +49,14 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         }
         "appearance" => chord.open_settings(crate::settings::Page::Appearance, window, cx),
         "unread" => chord.unread_marker = Some(103),
+        "hover" => chord.hovered_message = Some("105".into()),
+        "home" => {
+            chord.restore = None;
+            chord.open_home(cx);
+        }
+        "folder" => {
+            chord.open_folders.insert("9".into());
+        }
         "stream-card" => {
             let key = "guild:1:lounge:12582912".to_owned();
             let blender = Activity { kind: ActivityKind::Playing, text: "Blender".into(), more: 0 };
@@ -64,10 +72,10 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             chord.voice_user_menu("8388608", gpui_kit::point(gpui_kit::px(300.), gpui_kit::px(160.)), cx);
         }
         "server-menu" => chord.open_server_menu("1".into(), gpui_kit::point(gpui_kit::px(60.), gpui_kit::px(130.)), false, cx),
-        // Move to... is entry 13 (separators count); Folder is its first child.
+        // Move server is entry 14 (the header and separators count); Folder is its first child.
         "server-menu-nested" => {
             chord.open_server_menu("1".into(), gpui_kit::point(gpui_kit::px(60.), gpui_kit::px(130.)), false, cx);
-            chord.open_submenus(vec![13, 0]);
+            chord.open_submenus(vec![14, 0]);
         }
         "channel-menu" => {
             let general = chord.guild().and_then(|g| g.channels.iter().find(|c| c.id == "general").cloned());
@@ -144,6 +152,7 @@ fn demo_call(chord: &mut Rustcord) {
         ended: None,
         sharing: None,
         share_source: None, live_since: None, self_view: None, share_label: None,
+        joined: std::time::Instant::now().checked_sub(std::time::Duration::from_secs(5047)).unwrap_or_else(std::time::Instant::now),
         _events: gpui_kit::Task::ready(()),
     });
     chord.call_view = true;
@@ -267,6 +276,10 @@ fn members() -> Vec<ListItem> {
     let member = |id: &str, name: &str, roles: &[&str], status, activity: Option<(ActivityKind, &str)>, bot: bool| {
         let mut user = user(id, name);
         user.bot = bot;
+        // A nameplate, with bundled art standing in for Discord's (the demo stays offline).
+        if id == "4194304" {
+            user.nameplate = Some(crate::discord::Nameplate { art: "brand/icons/glass.png".into(), tint: (0x2D6A4F, 0x95D5B2) });
+        }
         ListItem::Member(Member { user, roles: roles.iter().map(|r| r.to_string()).collect(), presence: Presence { status, activity: activity.map(|(kind, text)| Activity { kind, text: text.into(), more: 0 }) } })
     };
     vec![

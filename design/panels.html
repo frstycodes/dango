@@ -1,0 +1,951 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wave Panels</title>
+<meta name="description" content="Side panels, popouts and whole views: forum, inbox, pins, search, threads, home.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<link rel="stylesheet" href="css/navigation.css">
+<link rel="stylesheet" href="css/messages.css">
+<link rel="stylesheet" href="css/voice.css">
+<link rel="stylesheet" href="css/overlays.css">
+<link rel="stylesheet" href="css/settings.css">
+<link rel="stylesheet" href="css/menus.css">
+<link rel="stylesheet" href="css/panels.css">
+<link rel="stylesheet" href="css/media.css">
+<link rel="stylesheet" href="css/auth.css">
+<link rel="stylesheet" href="css/profile.css">
+<link rel="stylesheet" href="css/community.css">
+<link rel="stylesheet" href="css/server-settings.css">
+<link rel="stylesheet" href="css/flows.css">
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+<style>
+  /* Page-only demo scaffolding: server art and side-by-side frames. */
+  .a1 { background: linear-gradient(135deg, oklch(0.51 0.17 20), oklch(0.44 0.17 350)); }
+  .a2 { background: linear-gradient(135deg, oklch(0.5 0.12 220), oklch(0.42 0.13 250)); }
+  .a3 { background: linear-gradient(135deg, oklch(0.5 0.13 140), oklch(0.42 0.12 165)); }
+  .pn-cols { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; }
+  .pn-col { display: grid; gap: var(--space-2); min-width: 0; }
+  .pn-col > .note { max-width: 300px; }
+</style>
+
+<section id="intro">
+  <h1>Panels and views</h1>
+  <p class="lede">Side panels, popouts and whole views: forum, inbox, pins, search, threads, home, the call's chat, full profiles, stages and events.</p>
+</section>
+
+<!-- Side panel shell -->
+<section id="side-panel">
+  <h2>Side panel</h2>
+  <p class="lede">One right-hand frame for members, pins, threads and search, so they all open, resize and close the same way. Opening one while another shows swaps its contents in place; pressing the open one's button closes it.</p>
+
+  <h3>Live: toggle, swap and resize</h3>
+  <div class="pframe pscroll">
+    <div class="pshell" id="shell" style="min-width: 640px">
+      <div class="chat">
+        <header><i class="ph ph-hash faint" style="font-size:20px"></i><b>general</b><span class="topic">late-night games and bad takes</span>
+          <div class="acts" role="group" aria-label="Side panel">
+            <button class="iconbtn" data-panel="threads" aria-pressed="false" aria-label="Threads" title="Threads"><i class="ph ph-chats-circle"></i></button>
+            <button class="iconbtn" data-panel="pins" aria-pressed="false" aria-label="Pinned messages" title="Pinned messages"><i class="ph ph-push-pin"></i></button>
+            <button class="iconbtn" data-panel="members" aria-pressed="true" aria-label="Member list" title="Member list"><i class="ph ph-users"></i></button>
+          </div>
+        </header>
+        <div class="feed">
+          <div class="day">Today</div>
+          <div class="msg first"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">9:41 PM</span></div><div class="body">anyone up for a few rounds after dinner?</div></div></div>
+          <div class="msg"><span class="gutter">9:41</span><div class="body">bringing snacks this time, promise</div></div>
+          <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="time">9:44 PM</span></div><div class="body">yes, starting a stream in Lounge in ten. Patch 7 notes are pinned if you want the tier changes first.</div></div></div>
+        </div>
+        <div class="typing"></div>
+        <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><input placeholder="Message #general" aria-label="Message #general"><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+        <div style="height: 16px"></div>
+      </div>
+      <aside class="panel" id="shell-panel" aria-labelledby="shell-title">
+        <div class="panel-grip" role="separator" aria-orientation="vertical" aria-label="Resize panel" aria-valuemin="200" aria-valuemax="380" aria-valuenow="264" tabindex="0" title="Drag to resize. Double-click to reset."></div>
+        <span class="grip-hud" aria-hidden="true">264 px</span>
+        <div class="panel-head"><span class="panel-title" id="shell-title">Members</span><div class="panel-acts"><button class="iconbtn" data-panel-close aria-label="Close panel" title="Close"><i class="ph ph-x"></i></button></div></div>
+        <div class="panel-body" data-body="members">
+          <div class="cat">Host · 1</div>
+          <div class="mem"><span class="av" data-av="Theo"><span class="status dnd"></span></span><div><b><bdi>Theo</bdi></b><span><i class="ph-fill ph-broadcast"></i><bdi>Streaming Hades II</bdi></span></div></div>
+          <div class="cat">Online · 2</div>
+          <div class="mem"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b><bdi>Mira</bdi></b><span><i class="ph-fill ph-game-controller"></i><bdi>Playing Balatro</bdi></span></div></div>
+          <div class="mem"><span class="av" data-av="Ana"><span class="status idle"></span></span><div><b><bdi>Ana</bdi></b><span><bdi>brb, pizza</bdi></span></div></div>
+          <div class="cat">Offline · 1</div>
+          <div class="mem off"><span class="av" data-av="Jun"><span class="status offline"></span></span><div><b><bdi>Jun</bdi></b></div></div>
+        </div>
+        <div class="panel-body" data-body="pins" hidden>
+          <article class="pinrow"><span class="av" data-av="Theo"></span><div class="pin-head"><b>Theo</b><time>Nov 12</time><span class="pin-acts"><button class="pin-jump">Jump</button><button class="iconbtn iconbtn--sm" aria-label="Unpin message" title="Unpin"><i class="ph ph-push-pin-slash"></i></button></span></div><div class="pin-body">Patch 7 notes: healer nerf, two new maps, ranked resets Friday.</div></article>
+        </div>
+        <div class="panel-body" data-body="threads" hidden>
+          <div class="cat">Joined · 1</div>
+          <button class="thr-row is-unread"><i class="ph ph-chat-circle-text"></i><span class="thr-name">Patch 7 tier list</span><span class="thr-end"><span class="count">3</span></span><span class="thr-sub"><b>Ana:</b><span>the new healer is broken</span></span></button>
+        </div>
+      </aside>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Only transform moves. Open: the chat column narrows in one step and the panel slides in from the right edge, 260ms on --ease-drawer. Close: the panel slides out in 200ms, then the chat widens once. Reduced motion: both snap. Drag the left edge (or focus it and use the arrow keys, Shift for bigger steps) between 200 and 380px; double-click resets 264. The edge tracks the pointer 1:1, with the width shown while dragging.</p>
+
+  <h3>Anatomy and grip states</h3>
+  <div class="pn-cols">
+    <div class="pn-col">
+      <div class="pframe" style="height: 220px; width: 264px"><aside class="panel">
+        <div class="panel-grip"></div>
+        <div class="panel-head"><i class="ph ph-push-pin"></i><span class="panel-title">Pinned messages</span><div class="panel-acts"><button class="iconbtn" aria-label="Close panel"><i class="ph ph-x"></i></button></div></div>
+        <div class="panel-tools"><label class="input"><i class="ph ph-magnifying-glass"></i><input placeholder="Search pins" aria-label="Search pins"></label></div>
+        <div class="panel-body"><div class="pwait"><span class="bars"><i></i><i></i><i></i></span>Body scrolls under a fixed head</div></div>
+      </aside></div>
+      <p class="note">Head 48 · title 16 bold, one line · close last. Optional tools row, then the scrolling body (8px inset).</p>
+    </div>
+    <div class="pn-col">
+      <div class="pframe" style="height: 220px; width: 264px"><aside class="panel">
+        <div class="panel-head"><i class="ph ph-chats-circle"></i><span class="panel-title">Threads in #looking-for-group-eu-west-late-night</span><div class="panel-acts"><button class="btn btn--primary btn--sm"><i class="ph-bold ph-plus"></i>Create</button><button class="iconbtn" aria-label="Close panel"><i class="ph ph-x"></i></button></div></div>
+        <div class="panel-body"><p class="note" style="padding: 8px">Worst case: a long title truncates first; actions and close never move.</p></div>
+      </aside></div>
+      <p class="note">One optional primary sits before close.</p>
+    </div>
+    <div class="pn-col">
+      <div class="row" style="gap: var(--space-6); height: 220px; padding: 0 var(--space-4); background: var(--bg-page); border-radius: var(--radius-lg); border: 1px solid var(--line-strong); align-items: stretch">
+        <div style="position: relative; width: 24px; background: var(--bg-sidebar)"><div class="panel-grip" style="left: -4px"></div></div>
+        <div style="position: relative; width: 24px; background: var(--bg-sidebar)"><div class="panel-grip is-hover" style="left: -4px"></div></div>
+        <div style="position: relative; width: 24px; background: var(--bg-sidebar)"><div class="panel-grip is-dragging" style="left: -4px"></div></div>
+      </div>
+      <p class="note">Rest · hover (accent 60%, after 120ms) · dragging (accent). Hit strip 8px over the edge.</p>
+    </div>
+  </div>
+
+  <h3>Loading, empty, error</h3>
+  <div class="pn-cols">
+    <div class="pframe" style="height: 260px; width: 264px"><aside class="panel" aria-busy="true">
+      <div class="panel-head"><span class="panel-title">Members</span><div class="panel-acts"><button class="iconbtn" aria-label="Close panel"><i class="ph ph-x"></i></button></div></div>
+      <div class="panel-body">
+        <div class="pwait"><span class="bars"><i></i><i></i><i></i></span>Loading members…</div>
+        <div class="mem skel"><span class="skeleton circle" style="width: 32px; height: 32px; flex: none"></span><div class="stack" style="gap: 6px; flex: 1"><span class="skeleton line" style="width: 70%"></span><span class="skeleton line" style="width: 45%"></span></div></div>
+        <div class="mem skel"><span class="skeleton circle" style="width: 32px; height: 32px; flex: none"></span><div class="stack" style="gap: 6px; flex: 1"><span class="skeleton line" style="width: 52%"></span></div></div>
+        <div class="mem skel"><span class="skeleton circle" style="width: 32px; height: 32px; flex: none"></span><div class="stack" style="gap: 6px; flex: 1"><span class="skeleton line" style="width: 80%"></span><span class="skeleton line" style="width: 60%"></span></div></div>
+      </div>
+    </aside></div>
+    <div class="pframe" style="height: 260px; width: 264px"><aside class="panel">
+      <div class="panel-head"><span class="panel-title">Members</span><div class="panel-acts"><button class="iconbtn" aria-label="Close panel"><i class="ph ph-x"></i></button></div></div>
+      <div class="panel-body"><div class="empty"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Just you here</b><p>Invite people and they'll show up in this list.</p><button class="btn btn--sm"><i class="ph-bold ph-user-plus"></i>Invite people</button></div></div>
+    </aside></div>
+    <div class="pframe" style="height: 260px; width: 264px"><aside class="panel">
+      <div class="panel-head"><span class="panel-title">Members</span><div class="panel-acts"><button class="iconbtn" aria-label="Close panel"><i class="ph ph-x"></i></button></div></div>
+      <div class="panel-body"><div class="dstate" role="alert"><i class="ph ph-cloud-slash"></i><b>Couldn't load members</b><p>Discord didn't answer. Check your connection, then try again.</p><button class="btn btn--sm" data-loading="Retrying…"><i class="ph-bold ph-arrow-clockwise"></i>Try again</button></div></div>
+    </aside></div>
+  </div>
+  <p class="note" style="margin-top: 8px">Member rows come from <a href="navigation.html#member-list" style="color: var(--accent-ink)">Navigation, Member list</a>; the panel only frames them.</p>
+</section>
+
+<!-- Forum -->
+<section id="forum">
+  <h2>Forum channel</h2>
+  <p class="lede">A forum is a list of posts, each its own thread. Search, sort and tags narrow the list; New post is the view's one primary action and opens the composer in place at the top of the list.</p>
+
+  <h3>Live: list and grid, guidelines, tags, new post</h3>
+  <div class="pframe">
+    <div class="forum" id="forum-demo">
+      <div class="chanbar-in">
+        <nav class="crumbs" aria-label="Location"><button class="crumb here" aria-current="page"><i class="ph ph-chats"></i><span>game-feedback</span></button></nav>
+        <span class="topic" style="flex: 1; min-width: 0; padding-left: var(--space-3); border-left: 1px solid var(--line-strong); color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">One post per idea. Search before you post.</span>
+        <div class="acts" style="display: flex; gap: 2px; margin-left: auto"><button class="iconbtn" aria-label="Notification settings" title="Notification settings"><i class="ph ph-bell"></i></button><button class="iconbtn" aria-label="Member list" title="Member list"><i class="ph ph-users"></i></button></div>
+      </div>
+      <div class="forum-in">
+        <div class="forum-bar">
+          <label class="input"><i class="ph ph-magnifying-glass"></i><input placeholder="Search posts" aria-label="Search posts"></label>
+          <button class="btn btn--ghost" aria-haspopup="menu" title="Sort posts"><i class="ph-bold ph-sort-descending"></i>Recent activity<i class="ph-bold ph-caret-down" style="font-size: 14px"></i></button>
+          <button class="btn btn--ghost is-icon" id="forum-view" aria-label="View: list" title="View: list. Switch to grid"><i class="ph-bold ph-rows"></i></button>
+          <button class="btn btn--primary" id="newpost-open"><i class="ph-bold ph-plus"></i>New post</button>
+        </div>
+        <details class="forum-rules">
+          <summary><i class="ph ph-scroll"></i>Post guidelines<small>Read before posting</small><i class="ph-bold ph-caret-right chev"></i></summary>
+          <ol>
+            <li>One idea per post. Add to an existing post rather than starting a duplicate.</li>
+            <li>Tag it: Bug, Idea or Balance. Bugs need steps to reproduce.</li>
+            <li>Be specific about the patch you're on.</li>
+          </ol>
+        </details>
+        <div class="forum-tags" role="group" aria-label="Filter by tag">
+          <button class="chip" aria-pressed="false"><span class="e">🐛</span>Bug</button>
+          <button class="chip" aria-pressed="true"><span class="e">💡</span>Idea</button>
+          <button class="chip" aria-pressed="false"><span class="e">⚖️</span>Balance</button>
+          <button class="chip" aria-pressed="false">Maps</button>
+          <button class="chip" aria-pressed="false">Ranked</button>
+          <button class="chip" aria-pressed="false">Accessibility</button>
+          <button class="chip" aria-pressed="false">Solved</button>
+        </div>
+        <div class="newpost" id="newpost" hidden>
+          <label class="input np-title"><input placeholder="Post title" aria-label="Post title" aria-describedby="np-err" maxlength="100"></label>
+          <div class="field" style="margin-top: -6px"><span class="err" id="np-err" hidden><i class="ph-fill ph-warning-circle"></i>Give your post a title so people can find it.</span></div>
+          <div class="field"><label>Tags · pick up to 5</label>
+            <div class="np-tags" role="group" aria-label="Post tags"><button class="chip" aria-pressed="false"><span class="e">🐛</span>Bug</button><button class="chip" aria-pressed="true"><span class="e">💡</span>Idea</button><button class="chip" aria-pressed="false"><span class="e">⚖️</span>Balance</button><button class="chip" aria-pressed="false">Maps</button><button class="chip" aria-pressed="false">Ranked</button></div>
+          </div>
+          <textarea class="textarea" rows="3" placeholder="Say more. Screenshots and steps help." aria-label="Opening message"></textarea>
+          <div class="np-files"><div class="cchip"><span class="pic" style="--h: 200"></span><div class="meta"><b>healer-ult-range.png</b><small>1.2 MB</small></div><button class="iconbtn iconbtn--sm" aria-label="Remove healer-ult-range.png"><i class="ph ph-x"></i></button></div></div>
+          <div class="np-foot"><button class="iconbtn" aria-label="Attach files" title="Attach files"><i class="ph-bold ph-paperclip"></i></button><span class="note grow">Draft saved</span><button class="btn btn--ghost" id="newpost-cancel">Discard draft</button><button class="btn btn--primary" id="newpost-post">Post</button></div>
+        </div>
+        <div class="posts" id="posts">
+          <article class="post"><div class="post-main">
+            <button class="post-title"><i class="ph-fill ph-push-pin" role="img" aria-label="Pinned"></i><span>Read me: how feedback gets triaged</span></button>
+            <div class="post-excerpt"><b>Theo:</b> Every week we pick the top five posts by reactions and reply with a status. Tag your post or it won't be seen.</div>
+            <div class="post-meta"><span><span class="av" data-av="Theo"></span><span class="who">Theo</span></span><span><i class="ph ph-chat-circle"></i>12</span><span>Active 3d ago</span></div>
+          </div></article>
+          <article class="post is-unread is-hover"><div class="post-main">
+            <div class="post-tags"><span class="ptag"><span class="e">💡</span>Idea</span><span class="ptag">Ranked</span></div>
+            <button class="post-title"><span>Show the healer's ult range on the minimap</span></button>
+            <div class="post-excerpt"><b>Mira:</b> Half our wipes are people standing one step outside the ring. A faint circle on the minimap while it's charging would fix most of it.</div>
+            <div class="post-meta"><span><span class="av" data-av="Mira"></span><span class="who">Mira</span></span><span><i class="ph ph-chat-circle"></i>48</span><span class="count">4 new</span><span>Active 2m ago</span></div>
+          </div><span class="pic post-thumb" style="--h: 200"></span></article>
+          <article class="post"><div class="post-main">
+            <div class="post-tags"><span class="ptag"><span class="e">🐛</span>Bug</span><span class="ptag">Maps</span><span class="ptag">Accessibility</span><span class="ptag">Ranked</span><span class="ptag">Solved</span></div>
+            <button class="post-title"><span>Colourblind mode makes the capture zone on Harbour Nights completely invisible at dusk, worst on the east side</span></button>
+            <div class="post-excerpt"><b>Bartholomew Featherstonehaugh-Wright:</b> Deuteranopia filter on, patch 7.0.3. Repro: load Harbour Nights, wait for dusk, stand at the east gate. https://clips.example/watch/7f3a9c2e4b1d8a6f0e5c3b2a1d9e8f7c6b5a4d3e2f1a0b9c8d7e6f</div>
+            <div class="post-meta"><span><span class="av" data-av="Bartholomew"></span><span class="who">Bartholomew Featherstonehaugh-Wright</span></span><span><i class="ph ph-chat-circle"></i>1,204</span><span class="count">99+ new</span><span>Active 1h ago</span></div>
+          </div><span class="pic post-thumb" style="--h: 40"></span></article>
+          <article class="post"><div class="post-main">
+            <div class="post-tags"><span class="ptag"><span class="e">⚖️</span>Balance</span></div>
+            <button class="post-title"><i class="ph-fill ph-lock-simple" role="img" aria-label="Locked"></i><span>Revert the tank shield change</span></button>
+            <div class="post-excerpt"><b>Jun:</b> Locked by Theo: answered in the patch 7.1 notes.</div>
+            <div class="post-meta"><span><span class="av" data-av="Jun"></span><span class="who">Jun</span></span><span><i class="ph ph-chat-circle"></i>0</span><span>Active 5d ago</span></div>
+          </div></article>
+          <article class="post is-archived"><div class="post-main">
+            <div class="post-tags"><span class="ptag">Maps</span></div>
+            <button class="post-title"><i class="ph ph-archive" role="img" aria-label="Archived"></i><span>Night version of every map</span></button>
+            <div class="post-excerpt"><b>Rosa:</b> Archived after 30 days without replies. Reply to bring it back.</div>
+            <div class="post-meta"><span><span class="av" data-av="Rosa"></span><span class="who">Rosa</span></span><span><i class="ph ph-chat-circle"></i>1</span><span>Active Sep 2</span></div>
+          </div><span class="pic post-thumb" style="--h: 280"></span></article>
+        </div>
+        <button class="btn btn--ghost btn--block" data-loading="Loading posts…">Load more posts</button>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Pinned posts lead; the rest sort by the chosen order. A post with unread replies counts them in accent; otherwise its meta stays faint. Locked and archived take their mark before the title and say why in the excerpt slot. The view button shows the current mode and switches it; cards travel to their new places (FLIP, 260ms) rather than crossfading.</p>
+
+  <h3>Loading, empty, error, failed post</h3>
+  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr))">
+    <div class="pframe"><div class="forum-in" aria-busy="true">
+      <div class="pwait"><span class="bars"><i></i><i></i><i></i></span>Loading posts…</div>
+      <div class="posts">
+        <div class="post"><div class="post-main"><span class="skeleton line" style="width: 30%"></span><span class="skeleton line" style="width: 85%; height: 16px"></span><span class="skeleton line" style="width: 95%"></span><span class="skeleton line" style="width: 40%"></span></div><span class="skeleton post-thumb"></span></div>
+        <div class="post"><div class="post-main"><span class="skeleton line" style="width: 20%"></span><span class="skeleton line" style="width: 60%; height: 16px"></span><span class="skeleton line" style="width: 75%"></span></div></div>
+      </div>
+    </div></div>
+    <div class="pframe"><div class="forum-in">
+      <div class="empty"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>No posts yet</b><p>Start the first one. Each post gets its own thread for replies.</p><button class="btn btn--primary"><i class="ph-bold ph-plus"></i>New post</button></div>
+    </div></div>
+    <div class="pframe"><div class="forum-in">
+      <div class="empty"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>No posts tagged Idea match "minimap"</b><p>Try another word, or clear the tag.</p><button class="btn">Clear tag</button></div>
+    </div></div>
+    <div class="pframe"><div class="forum-in">
+      <div class="dstate" role="alert"><i class="ph ph-cloud-slash"></i><b>Couldn't load posts</b><p class="muted">Discord didn't answer. Check your connection, then try again.</p><button class="btn btn--sm"><i class="ph-bold ph-arrow-clockwise"></i>Try again</button></div>
+    </div></div>
+    <div class="pframe"><div class="forum-in">
+      <div class="newpost">
+        <label class="input np-title error"><input placeholder="Post title" aria-label="Post title" aria-invalid="true" aria-describedby="np-err2"></label>
+        <span class="field"><span class="err" id="np-err2" style="margin-top: -6px"><i class="ph-fill ph-warning-circle"></i>Give your post a title so people can find it.</span></span>
+        <textarea class="textarea" rows="2" aria-label="Opening message">Half our wipes are people standing one step outside the ring.</textarea>
+        <div class="callout callout--danger" role="alert"><i class="ph-fill ph-warning-circle"></i><div><b>Couldn't create the post</b>This forum needs at least one tag. Pick one above, then post again.</div></div>
+        <div class="np-foot"><span class="grow"></span><button class="btn btn--ghost">Discard draft</button><button class="btn btn--primary">Post</button></div>
+      </div>
+    </div></div>
+  </div>
+  <p class="note" style="margin-top: 8px">Post stays enabled; an empty title is caught on Post, with the message under the field and focus moved to it. What you typed is kept on failure.</p>
+</section>
+
+<!-- Inbox -->
+<section id="inbox">
+  <h2>Inbox</h2>
+  <p class="lede">The title bar's inbox: what happened to you (For you), channels you haven't read (Unreads), and where you were mentioned (Mentions). Rows group by server and channel; each jumps to its message.</p>
+  <div class="pn-cols">
+    <div class="pop inbox" id="inbox-live">
+      <div class="inbox-head"><i class="ph ph-tray"></i><b>Inbox</b><button class="btn btn--ghost btn--sm" id="ib-markall"><i class="ph-bold ph-checks"></i>Mark all read</button></div>
+      <div class="tabs" role="tablist" aria-label="Inbox">
+        <button class="tab" role="tab" aria-selected="false" aria-controls="ib-you">For you</button>
+        <button class="tab" role="tab" aria-selected="false" aria-controls="ib-unreads">Unreads <span class="count">7</span></button>
+        <button class="tab" role="tab" aria-selected="true" aria-controls="ib-mentions">Mentions</button>
+      </div>
+      <div class="inbox-body" role="tabpanel" id="ib-you" hidden>
+        <div class="ib-row ib-note"><span class="icon"><i class="ph ph-user-plus"></i></span><div class="head"><b>Kai sent you a friend request</b><time>4m</time></div><p class="muted">You have 3 mutual servers.</p><div class="ib-acts"><button class="btn btn--sm">Accept</button><button class="btn btn--sm btn--ghost">Ignore</button></div></div>
+        <div class="ib-row ib-note"><span class="icon">🔥</span><div class="head"><b>Mira and 3 others reacted</b><time>12m</time></div><p class="muted">to "bringing snacks this time, promise" in #general</p><button class="btn btn--sm ib-jump">Jump</button></div>
+        <div class="ib-row ib-note"><span class="icon"><i class="ph ph-calendar-blank"></i></span><div class="head"><b>Patch 7 Q&amp;A starts in 1 hour</b><time>1h</time></div><p class="muted">Night Shift · you're interested</p><button class="btn btn--sm ib-jump">View event</button></div>
+      </div>
+      <div class="inbox-body" role="tabpanel" id="ib-unreads" hidden>
+        <div class="ib-chan"><span class="srv-mini a1"></span><div><b><i class="ph ph-hash"></i>clips</b><small>Night Shift · 4 new messages</small></div><button class="btn btn--ghost btn--sm" data-markread="#clips"><i class="ph-bold ph-check"></i>Mark read</button></div>
+        <div class="ib-row"><span class="av" data-av="Rosa"></span><div class="head"><b>Rosa</b><time>9:58 PM</time></div><p>frame-perfect dodge into the parry, I'm framing this one</p><button class="btn btn--sm ib-jump">Jump</button></div>
+        <div class="ib-row"><span class="av" data-av="Jun"></span><div class="head"><b>Jun</b><time>10:02 PM</time></div><p>ok that's actually clean</p><button class="btn btn--sm ib-jump">Jump</button></div>
+        <div class="ib-chan"><span class="srv-mini a2"></span><div><b><i class="ph ph-hash"></i>pixel-art</b><small>Pixel Club · 3 new messages</small></div><button class="btn btn--ghost btn--sm" data-markread="#pixel-art"><i class="ph-bold ph-check"></i>Mark read</button></div>
+        <div class="ib-row"><span class="av" data-av="Lea"></span><div class="head"><b>Lea</b><time>8:14 PM</time></div><p>new palette challenge is up, 4 colours only</p><button class="btn btn--sm ib-jump">Jump</button></div>
+      </div>
+      <div class="inbox-body" role="tabpanel" id="ib-mentions">
+        <div class="inbox-filters" style="padding: 4px 6px 6px" role="group" aria-label="Include in mentions"><button class="chip" aria-pressed="true"><i class="ph ph-at"></i>Include @everyone</button><button class="chip" aria-pressed="true"><i class="ph ph-users-three"></i>Include roles</button><button class="chip" aria-pressed="false"><i class="ph ph-funnel-simple"></i>This server only</button></div>
+        <div class="ib-chan"><span class="srv-mini a1"></span><div><b><i class="ph ph-hash"></i>general</b><small>Night Shift</small></div></div>
+        <div class="ib-row is-hover"><span class="av" data-av="Jun"></span><div class="head"><b>Jun</b><time>Today at 9:44 PM</time></div><p><span class="at">@you</span> send me the clip? I want it for the montage</p><button class="btn btn--sm ib-jump">Jump</button></div>
+        <div class="ib-row"><span class="av" data-av="Theo"></span><div class="head"><b>Theo</b><time>Today at 9:46 PM</time></div><p><span class="at">@everyone</span> stream starts at 10, Lounge</p><button class="btn btn--sm ib-jump">Jump</button></div>
+        <div class="ib-chan"><span class="srv-mini a3"></span><div><b><i class="ph ph-hash"></i>looking-for-group-eu-west-late-night-ranked-only</b><small>Garden of the Very Long Server Name That Never Ends</small></div></div>
+        <div class="ib-row"><span class="av" data-av="Maximiliana"></span><div class="head"><b>Maximiliana Wolfeschlegelsteinhausen</b><time>Yesterday at 11:58 PM</time></div><p><span class="at at--role" style="--role: oklch(0.66 0.15 250)">@Healers</span> need one more for ranked, it's a long night and we have snacks and a very detailed strategy document that nobody has read yet but trust us it's good</p><button class="btn btn--sm ib-jump">Jump</button></div>
+      </div>
+    </div>
+
+    <div class="pn-col">
+      <div class="pop inbox">
+        <div class="inbox-head"><i class="ph ph-tray"></i><b>Inbox</b><button class="btn btn--ghost btn--sm" disabled title="Nothing to mark read yet"><i class="ph-bold ph-checks"></i>Mark all read</button></div>
+        <div class="tabs" role="tablist" aria-label="Inbox"><button class="tab" role="tab" aria-selected="false">For you</button><button class="tab" role="tab" aria-selected="false">Unreads</button><button class="tab" role="tab" aria-selected="true">Mentions</button></div>
+        <div class="inbox-body" aria-busy="true">
+          <div class="pwait"><span class="bars"><i></i><i></i><i></i></span>Loading mentions…</div>
+          <div class="ib-row"><span class="skeleton circle" style="width: 32px; height: 32px; grid-row: span 2"></span><span class="skeleton line" style="width: 40%; margin-top: 4px"></span><span class="skeleton line" style="width: 85%; grid-column: 2; margin-top: 8px"></span></div>
+          <div class="ib-row"><span class="skeleton circle" style="width: 32px; height: 32px; grid-row: span 2"></span><span class="skeleton line" style="width: 30%; margin-top: 4px"></span><span class="skeleton line" style="width: 70%; grid-column: 2; margin-top: 8px"></span></div>
+        </div>
+      </div>
+      <div class="pop inbox">
+        <div class="inbox-head"><i class="ph ph-tray"></i><b>Inbox</b></div>
+        <div class="tabs" role="tablist" aria-label="Inbox"><button class="tab" role="tab" aria-selected="false">For you</button><button class="tab" role="tab" aria-selected="true">Unreads</button><button class="tab" role="tab" aria-selected="false">Mentions</button></div>
+        <div class="inbox-body"><div class="empty"><div class="mascot happy" aria-hidden="true" style="--s: .5"><i></i><i></i><i></i><i></i><i></i></div><b>You're all caught up</b><p>New messages in channels you follow will gather here.</p></div></div>
+      </div>
+      <div class="pop inbox">
+        <div class="inbox-head"><i class="ph ph-tray"></i><b>Inbox</b></div>
+        <div class="tabs" role="tablist" aria-label="Inbox"><button class="tab" role="tab" aria-selected="false">For you</button><button class="tab" role="tab" aria-selected="false">Unreads</button><button class="tab" role="tab" aria-selected="true">Mentions</button></div>
+        <div class="inbox-body"><div class="dstate" role="alert"><i class="ph ph-cloud-slash"></i><b>Couldn't load mentions</b><p class="muted">Discord didn't answer. Check your connection, then try again.</p><button class="btn btn--sm"><i class="ph-bold ph-arrow-clockwise"></i>Try again</button></div></div>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Live: switch tabs; on Unreads, Mark read turns the group into a one-line record with Undo in the same place. Mark all read does the same for the whole tab. Jump closes the inbox and flashes the message. Filters are visible chips, remembered per account.</p>
+</section>
+
+<!-- Pins -->
+<section id="pins">
+  <h2>Pinned messages</h2>
+  <p class="lede">The channel's pins, newest first, docked in the side panel so you can read them beside the chat. Each one jumps to its place; unpinning is instant and undoable.</p>
+  <div class="pn-cols">
+    <div class="pframe" style="height: 660px; width: 320px"><aside class="panel" style="--pw: 320px" id="pins-live">
+      <div class="panel-head"><i class="ph ph-push-pin"></i><span class="panel-title">Pinned messages</span><div class="panel-acts"><button class="iconbtn" aria-label="Close panel"><i class="ph ph-x"></i></button></div></div>
+      <div class="panel-body" style="padding: var(--space-3)">
+        <article class="pinrow is-hover"><span class="av" data-av="Theo"></span><div class="pin-head"><b>Theo</b><time>Nov 12</time><span class="pin-acts"><button class="pin-jump">Jump</button><button class="iconbtn iconbtn--sm" data-unpin aria-label="Unpin message" title="Unpin"><i class="ph ph-push-pin-slash"></i></button></span></div><div class="pin-body">Server rules: be kind, no spoilers outside #spoilers, and clips go in #clips.</div></article>
+        <article class="pinrow"><span class="av" data-av="Rosa"></span><div class="pin-head"><b>Rosa</b><time>Nov 9</time><span class="pin-acts"><button class="pin-jump">Jump</button><button class="iconbtn iconbtn--sm" data-unpin aria-label="Unpin message" title="Unpin"><i class="ph ph-push-pin-slash"></i></button></span></div><div class="pin-body">the dodge that started it all</div><span class="pic" style="--h: 20"></span></article>
+        <article class="pinrow"><span class="av" style="--hue: 350"><i class="ph-fill ph-waveform" style="font-size: 16px"></i></span><div class="pin-head"><b>Bartholomew Featherstonehaugh-Wright</b><time>Oct 30</time><span class="pin-acts"><button class="pin-jump">Jump</button><button class="iconbtn iconbtn--sm" data-unpin aria-label="Unpin message" title="Unpin"><i class="ph ph-push-pin-slash"></i></button></span></div><div class="pin-body">Montage export settings, for anyone who asks again: 1080p60, CRF 18, AAC 320, and please, please name the file with the date first so they sort. Mirror: https://clips.example/settings/7f3a9c2e4b1d8a6f0e5c3b2a1d9e8f7c6b5a4d3e2f1a0b9c8d7e6f5a4b3c2d1e0 and if that's down, ask in #help.</div></article>
+        <div class="undone" role="status"><i class="ph ph-push-pin-slash"></i><span>Unpinned Jun's message</span><button class="btn btn--link">Undo</button></div>
+      </div>
+    </aside></div>
+    <div class="pn-col">
+      <div class="pframe" style="height: 250px; width: 320px"><aside class="panel" style="--pw: 320px" aria-busy="true">
+        <div class="panel-head"><i class="ph ph-push-pin"></i><span class="panel-title">Pinned messages</span><div class="panel-acts"><button class="iconbtn" aria-label="Close panel"><i class="ph ph-x"></i></button></div></div>
+        <div class="panel-body" style="padding: var(--space-3)">
+          <div class="pwait"><span class="bars"><i></i><i></i><i></i></span>Loading pins…</div>
+          <div class="pinrow"><span class="skeleton circle" style="width: 32px; height: 32px"></span><div class="stack" style="gap: 8px; padding-top: 4px"><span class="skeleton line" style="width: 35%"></span><span class="skeleton line" style="width: 90%"></span><span class="skeleton line" style="width: 60%"></span></div></div>
+        </div>
+      </aside></div>
+      <div class="pframe" style="height: 300px; width: 320px"><aside class="panel" style="--pw: 320px">
+        <div class="panel-head"><i class="ph ph-push-pin"></i><span class="panel-title">Pinned messages</span><div class="panel-acts"><button class="iconbtn" aria-label="Close panel"><i class="ph ph-x"></i></button></div></div>
+        <div class="panel-body"><div class="empty"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>No pins in #general yet</b><p>Pin a message to keep it here for everyone: hover it, open More, choose Pin message.</p></div></div>
+      </aside></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Rows sit on the page tone inside the panel, 6px apart. Jump and Unpin take a reserved slot at the right of the name line, shown on hover or focus; the date stays. Live: unpin any row.</p>
+</section>
+
+<!-- Threads -->
+<section id="threads">
+  <h2>Threads</h2>
+  <p class="lede">Every thread in the channel, joined first. Search narrows both lists; Active and Archived are pills over one list. Create thread is the panel's one primary.</p>
+  <div class="pn-cols">
+    <div class="pframe" style="height: 520px; width: 320px"><aside class="panel" style="--pw: 320px">
+      <div class="panel-head"><i class="ph ph-chats-circle"></i><span class="panel-title">Threads</span><div class="panel-acts"><button class="btn btn--primary btn--sm"><i class="ph-bold ph-plus"></i>Create thread</button><button class="iconbtn" aria-label="Close panel"><i class="ph ph-x"></i></button></div></div>
+      <div class="panel-tools">
+        <label class="input"><i class="ph ph-magnifying-glass"></i><input placeholder="Search threads" aria-label="Search threads"></label>
+        <div class="pills" role="tablist" aria-label="Thread state"><button class="tab" role="tab" aria-selected="true" aria-controls="thr-active">Active · 5</button><button class="tab" role="tab" aria-selected="false" aria-controls="thr-archived">Archived · 12</button></div>
+      </div>
+      <div class="panel-body" role="tabpanel" id="thr-active">
+        <div class="cat">Joined · 2</div>
+        <button class="thr-row is-unread"><i class="ph ph-chat-circle-text"></i><span class="thr-name">Patch 7 tier list</span><span class="thr-end"><span class="count" aria-label="1 mention">1</span><span class="stackav"><span class="av" data-av="Ana"></span><span class="av" data-av="Jun"></span><span class="av" data-av="Mira"></span></span></span><span class="thr-sub"><span>24 messages ·</span><b>Ana:</b><span>ok but the new healer is completely broken in ranked</span></span></button>
+        <button class="thr-row is-hover"><i class="ph ph-chat-circle-text"></i><span class="thr-name">Friday stream schedule</span><span class="thr-end"><span class="stackav"><span class="av" data-av="Theo"></span></span></span><span class="thr-sub"><span>3 messages · 1h</span></span></button>
+        <div class="cat">Other active threads · 3</div>
+        <button class="thr-row is-unread"><i class="ph ph-chat-circle-text"></i><span class="thr-name">Season 7 tier list, final final version, no really this time, I promise</span><span class="thr-end"><span class="stackav"><span class="av" data-av="Rosa"></span><span class="av" data-av="Kai"></span></span></span><span class="thr-sub"><span>1,204 messages ·</span><b>Rosa:</b><span>new message</span></span></button>
+        <button class="thr-row"><i class="ph ph-chat-circle-text"></i><span class="thr-name">montage feedback</span><span class="thr-end"><span class="stackav"><span class="av" data-av="Mira"></span></span></span><span class="thr-sub"><span>1 message · 2d</span></span></button>
+        <button class="thr-row"><i class="ph ph-lock-simple"></i><span class="thr-name">mod-only: raid cleanup</span><span class="thr-end"></span><span class="thr-sub"><span>Private · 9 messages · 4d</span></span></button>
+      </div>
+      <div class="panel-body" role="tabpanel" id="thr-archived" hidden>
+        <button class="thr-row"><i class="ph ph-archive"></i><span class="thr-name">Season 6 rants</span><span class="thr-end"></span><span class="thr-sub"><span>Archived 3d ago · 1 message</span></span></button>
+        <button class="thr-row"><i class="ph ph-archive"></i><span class="thr-name">Halloween costume poll</span><span class="thr-end"></span><span class="thr-sub"><span>Archived Nov 2 · 88 messages</span></span></button>
+      </div>
+    </aside></div>
+    <div class="pframe" style="height: 520px; width: 320px"><aside class="panel" style="--pw: 320px">
+      <div class="panel-head"><i class="ph ph-chats-circle"></i><span class="panel-title">Threads</span><div class="panel-acts"><button class="btn btn--primary btn--sm"><i class="ph-bold ph-plus"></i>Create thread</button><button class="iconbtn" aria-label="Close panel"><i class="ph ph-x"></i></button></div></div>
+      <div class="panel-tools"><label class="input"><i class="ph ph-magnifying-glass"></i><input placeholder="Search threads" aria-label="Search threads"></label></div>
+      <div class="panel-body"><div class="empty"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>No threads in #general</b><p>Threads keep side conversations out of the main chat. Start one from any message, or here.</p></div></div>
+    </aside></div>
+  </div>
+  <p class="note" style="margin-top: 8px">Unread threads take the sidebar's unread pill and full ink; a mention adds the accent count. Each row's second line is its size and latest reply. Search empty state: "No threads match …" with a Clear search button, like the forum's.</p>
+</section>
+
+<!-- Search results -->
+<section id="search-results">
+  <h2>Search results</h2>
+  <p class="lede">Results open in the side panel so the chat stays readable. The query sits on top as removable chips; results group by channel, newest first, with the match highlighted.</p>
+  <div class="pn-cols">
+    <div class="pframe" style="height: 600px; width: 360px"><aside class="panel" style="--pw: 360px">
+      <div class="panel-head"><i class="ph ph-magnifying-glass"></i><span class="panel-title">Search</span><div class="panel-acts"><button class="iconbtn" aria-label="Close search"><i class="ph ph-x"></i></button></div></div>
+      <div class="res-query"><span class="filter"><b>from:</b>Rosa<button aria-label="Remove from: Rosa"><i class="ph-bold ph-x"></i></button></span><span class="filter"><b>has:</b>video<button aria-label="Remove has: video"><i class="ph-bold ph-x"></i></button></span><span class="filter term">dodge<button aria-label="Remove dodge"><i class="ph-bold ph-x"></i></button></span><button class="iconbtn" aria-label="Clear search" title="Clear search"><i class="ph-bold ph-x-circle"></i></button></div>
+      <div class="res-sort"><span>23 results</span><div class="seg" role="group" aria-label="Sort"><button aria-pressed="true">Newest</button><button aria-pressed="false">Oldest</button><button aria-pressed="false">Relevant</button></div></div>
+      <div class="panel-body">
+        <div class="sgroup"><i class="ph ph-hash"></i>clips<span>2 results</span></div>
+        <button class="hit is-hover"><span class="av" data-av="Rosa"></span><span class="head"><b>Rosa</b><span>Yesterday at 11:03 PM</span><span class="hit-jump">Jump</span></span><p>the timing on that <mark>dodge</mark> 😭 clip attached</p></button>
+        <button class="hit"><span class="av" data-av="Rosa"></span><span class="head"><b>Rosa</b><span>Nov 9</span><span class="hit-jump">Jump</span></span><p>frame-perfect <mark>dodge</mark> into the parry, I'm framing this one. Also uploading the whole run later because the second half has two more <mark>dodges</mark> like it</p></button>
+        <div class="sgroup"><i class="ph ph-hash"></i>hades-runs<span>1 result</span></div>
+        <button class="hit"><span class="av" data-av="Rosa"></span><span class="head"><b>Rosa</b><span>Oct 30</span><span class="hit-jump">Jump</span></span><p>practice <mark>dodge</mark> cancels on stage 2</p></button>
+      </div>
+      <div class="panel-foot"><div class="pager"><button class="iconbtn iconbtn--sm" aria-label="Previous page" disabled><i class="ph-bold ph-caret-left"></i></button><span>Page 1 of 3</span><button class="iconbtn iconbtn--sm" aria-label="Next page"><i class="ph-bold ph-caret-right"></i></button></div></div>
+    </aside></div>
+    <div class="pn-col">
+      <div class="pframe" style="height: 300px; width: 360px"><aside class="panel" style="--pw: 360px" aria-busy="true">
+        <div class="panel-head"><i class="ph ph-magnifying-glass"></i><span class="panel-title">Search</span><div class="panel-acts"><button class="iconbtn" aria-label="Close search"><i class="ph ph-x"></i></button></div></div>
+        <div class="res-query"><span class="filter term">montage<button aria-label="Remove montage"><i class="ph-bold ph-x"></i></button></span></div>
+        <div class="panel-body">
+          <div class="pwait"><span class="bars"><i></i><i></i><i></i></span>Searching Night Shift…</div>
+          <div class="hit"><span class="skeleton circle" style="width: 32px; height: 32px; grid-row: span 2"></span><span class="skeleton line" style="width: 40%; margin-top: 4px"></span><span class="skeleton line" style="width: 90%; margin-top: 8px"></span></div>
+          <div class="hit"><span class="skeleton circle" style="width: 32px; height: 32px; grid-row: span 2"></span><span class="skeleton line" style="width: 30%; margin-top: 4px"></span><span class="skeleton line" style="width: 70%; margin-top: 8px"></span></div>
+        </div>
+      </aside></div>
+      <div class="pframe" style="height: 300px; width: 360px"><aside class="panel" style="--pw: 360px">
+        <div class="panel-head"><i class="ph ph-magnifying-glass"></i><span class="panel-title">Search</span><div class="panel-acts"><button class="iconbtn" aria-label="Close search"><i class="ph ph-x"></i></button></div></div>
+        <div class="panel-body"><div class="dstate" role="alert"><i class="ph ph-hourglass-medium"></i><b>Search is still indexing</b><p>This server's messages are being indexed. Try again in a minute.</p><button class="btn btn--sm"><i class="ph-bold ph-arrow-clockwise"></i>Search again</button></div></div>
+      </aside></div>
+    </div>
+    <div class="pframe" style="height: 460px; width: 360px"><aside class="panel" style="--pw: 360px">
+      <div class="panel-head"><i class="ph ph-magnifying-glass"></i><span class="panel-title">Search</span><div class="panel-acts"><button class="iconbtn" aria-label="Close search"><i class="ph ph-x"></i></button></div></div>
+      <div class="res-query"><span class="filter"><b>from:</b>Jun<button aria-label="Remove from: Jun"><i class="ph-bold ph-x"></i></button></span><span class="filter"><b>in:</b>#clips<button aria-label="Remove in: #clips"><i class="ph-bold ph-x"></i></button></span><span class="filter term">montage v3<button aria-label="Remove montage v3"><i class="ph-bold ph-x"></i></button></span></div>
+      <div class="panel-body"><div class="empty">
+        <div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>No results</b>
+        <ul class="res-tips"><li><i class="ph ph-lightbulb"></i><span>Search matches whole words: <b>montage</b> finds "montage", not "montages".</span></li><li><i class="ph ph-lightbulb"></i><span>Each filter narrows it. Drop one to widen it:</span></li></ul>
+        <div class="res-try"><button class="chip"><i class="ph ph-x"></i>Remove from: Jun</button><button class="chip"><i class="ph ph-x"></i>Search all channels</button></div>
+      </div></div>
+    </aside></div>
+  </div>
+  <p class="note" style="margin-top: 8px">Chips and the search field are the ones in <a href="overlays.html#search" style="color: var(--accent-ink)">Overlays, Search</a>. The pager sits at the bottom left so it never moves as you page. Result count is real (23 results, 1 result). Jump keeps the panel open and the results where they were.</p>
+</section>
+
+<!-- Thread side view -->
+<section id="thread-view">
+  <h2>Thread view</h2>
+  <p class="lede">A thread opens beside its parent channel in the side panel's place, at 400px, with its own header and composer. The starter message stays marked in the channel.</p>
+  <div class="pframe pscroll">
+    <div class="tview">
+      <div class="chat">
+        <header><i class="ph ph-hash faint" style="font-size:20px"></i><b>general</b><span class="topic">late-night games and bad takes</span></header>
+        <div class="feed">
+          <div class="msg first is-thread-parent"><span class="av" data-av="Jun"></span><div><div class="head"><span class="name">Jun</span><span class="time">Today at 9:02 PM</span></div><div class="body">ok who's making the tier list</div>
+            <button class="thread-card"><span class="tc-top"><b>Patch 7 tier list</b><span class="tc-count">24 messages<i class="ph ph-caret-right"></i></span></span><span class="tc-last"><span class="av" data-av="Ana"></span><b>Ana</b><span>ok but the new healer is completely broken</span><time>2m</time></span></button></div></div>
+          <div class="msg first"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">Today at 9:41 PM</span></div><div class="body">anyone up for a few rounds after dinner?</div></div></div>
+        </div>
+        <div class="typing"></div>
+        <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><input placeholder="Message #general" aria-label="Message #general"><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+        <div style="height: 16px"></div>
+      </div>
+      <aside class="panel panel--page" aria-label="Thread">
+        <div class="panel-grip"></div>
+        <div class="panel-head"><i class="ph ph-chat-circle-text"></i><span class="panel-title">Patch 7 tier list</span>
+          <div class="panel-acts">
+            <button class="btn btn--sm" aria-pressed="true" title="Get notified about new replies"><span class="when-on"><i class="ph-fill ph-bell-ringing"></i>Following</span><span class="when-off"><i class="ph-bold ph-bell"></i>Follow</span></button>
+            <button class="iconbtn" aria-label="More thread options" title="More"><i class="ph ph-dots-three-vertical"></i></button>
+            <button class="iconbtn" aria-label="Close thread" title="Close"><i class="ph ph-x"></i></button>
+          </div>
+        </div>
+        <div class="feed">
+          <div class="tstart"><span class="icontile"><i class="ph ph-chat-circle-text"></i></span><b>Patch 7 tier list</b><span>Started by Jun from a message in #general</span></div>
+          <div class="day">24 messages</div>
+          <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="time">9:05 PM</span></div><div class="body">S tier: the new healer, no contest</div></div></div>
+          <div class="msg first"><span class="av" data-av="Ana"></span><div><div class="head"><span class="name">Ana</span><span class="time">9:58 PM</span></div><div class="body">ok but the new healer is completely broken in ranked</div>
+            <div class="reacts"><button class="react mine"><span class="e">💯</span>3</button></div></div></div>
+        </div>
+        <div class="typing"><span class="bars"><i></i><i></i><i></i></span><span><b>Jun</b> is typing…</span></div>
+        <div class="composer" style="margin: 0 12px"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><input placeholder="Message Patch 7 tier list" aria-label="Message Patch 7 tier list"><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+        <div style="height: 12px"></div>
+      </aside>
+    </div>
+  </div>
+  <h3>Archived, locked, not following</h3>
+  <div class="pn-cols">
+    <div class="pframe" style="width: 400px; max-width: 100%"><div class="panel panel--page" style="--pw: 100%">
+      <div class="panel-head"><i class="ph ph-archive"></i><span class="panel-title">Season 6 rants</span><div class="panel-acts"><button class="btn btn--sm" aria-pressed="false"><span class="when-on"><i class="ph-fill ph-bell-ringing"></i>Following</span><span class="when-off"><i class="ph-bold ph-bell"></i>Follow</span></button><button class="iconbtn" aria-label="Close thread"><i class="ph ph-x"></i></button></div></div>
+      <div style="padding: 12px 0"><div class="composer locked"><i class="ph ph-archive"></i><span>Archived. Sending a message reopens it.</span></div></div>
+      <div style="padding: 0 0 12px"><div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><input placeholder="Message Season 6 rants" aria-label="Message Season 6 rants"></div></div>
+    </div></div>
+    <div class="pframe" style="width: 400px; max-width: 100%"><div class="panel panel--page" style="--pw: 100%">
+      <div class="panel-head"><i class="ph ph-lock-simple"></i><span class="panel-title">mod-only: raid cleanup</span><div class="panel-acts"><button class="iconbtn" aria-label="Close thread"><i class="ph ph-x"></i></button></div></div>
+      <div style="padding: 12px 0"><div class="composer locked"><i class="ph ph-lock-simple"></i><span><b>Locked.</b> Only moderators can reply.</span></div></div>
+    </div></div>
+  </div>
+  <h3>Deleted while open</h3>
+  <div class="pn-cols">
+    <div class="pframe" style="width: 400px; max-width: 100%; height: 440px"><aside class="panel panel--page" style="--pw: 100%; height: 100%" aria-label="Thread, deleted">
+      <div class="panel-head is-gone"><i class="ph ph-chat-circle-text"></i><span class="panel-title">Patch 7 tier list</span><div class="panel-acts"><button class="iconbtn" aria-label="Close thread" title="Close"><i class="ph ph-x"></i></button></div></div>
+      <div class="empty pn-gone" role="alert">
+        <span class="icontile"><i class="ph ph-trash"></i></span>
+        <b>This thread was deleted</b>
+        <p>Its messages are gone for everyone. What you were writing is still here.</p>
+        <div class="pn-draft"><small>Your unsent reply</small><p>honestly the healer is fine, people just aren't building for sustain yet. give it a week and we'll see</p>
+          <div class="pn-draft-acts"><button class="btn btn--primary btn--sm"><i class="ph-bold ph-copy"></i>Copy reply</button><button class="btn btn--sm"><i class="ph-bold ph-arrow-bend-up-left"></i>Move to #general</button></div></div>
+      </div>
+    </aside></div>
+    <div class="pframe" style="width: 400px; max-width: 100%; height: 440px"><aside class="panel panel--page" style="--pw: 100%; height: 100%" aria-label="Thread, deleted">
+      <div class="panel-head is-gone"><i class="ph ph-chat-circle-text"></i><span class="panel-title">Season 6 rants about the matchmaking that never ends</span><div class="panel-acts"><button class="iconbtn" aria-label="Close thread" title="Close"><i class="ph ph-x"></i></button></div></div>
+      <div class="empty pn-gone" role="alert">
+        <span class="icontile"><i class="ph ph-trash"></i></span>
+        <b>This thread was deleted</b>
+        <p>Its messages are gone for everyone.</p>
+        <button class="btn">Close thread</button>
+      </div>
+    </aside></div>
+    <div class="pn-col" style="flex: 1; min-width: min(100%, 240px)">
+      <p class="note">The panel stays put and says what happened instead of vanishing mid-sentence. The title dims; Follow, More and the composer go; Close stays where it was.</p>
+      <p class="note">An unsent reply stays here in a filled well. Move to #general puts it in the channel composer (after any text already there); Copy reply takes it anywhere. Without a draft the one action is Close thread.</p>
+      <p class="note">It says "was deleted", never who: the delete event doesn't name the moderator, and guessing would be worse than saying nothing.</p>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Follow is one button showing the current state (Following uses the pressed accent tint; Follow is plain). Archived threads keep their composer under a one-line note, because sending reopens them.</p>
+</section>
+
+<!-- Home -->
+<section id="home">
+  <h2>Home</h2>
+  <p class="lede">Friends on the left, Active now on the right: friends playing, streaming or in voice, as cards you can join from. When the window narrows, Active now folds into a strip above the list instead of disappearing.</p>
+  <h3>Wide</h3>
+  <div class="pframe pscroll"><div class="homeview" style="min-width: 860px">
+    <div class="fhead">
+      <span class="title"><i class="ph ph-users"></i>Friends</span>
+      <div class="pills" role="tablist" aria-label="Friends filter"><button class="tab" role="tab" aria-selected="true">Online</button><button class="tab" role="tab" aria-selected="false">All</button><button class="tab" role="tab" aria-selected="false">Pending <span class="count" aria-label="2 requests">2</span></button><button class="tab" role="tab" aria-selected="false">Blocked</button></div>
+      <button class="btn btn--primary btn--sm"><i class="ph-bold ph-user-plus"></i>Add friend</button>
+    </div>
+    <div class="home-in">
+      <div class="flist">
+        <label class="input"><i class="ph ph-magnifying-glass"></i><input placeholder="Search friends" aria-label="Search friends"></label>
+        <div class="flabel">Online · 3</div>
+        <div class="friend"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>Playing Balatro</span></div><div class="acts"><button class="iconbtn" aria-label="Message Mira"><i class="ph ph-chat-circle"></i></button><button class="iconbtn" aria-label="More for Mira"><i class="ph ph-dots-three-vertical"></i></button></div></div>
+        <div class="friend"><span class="av" data-av="Theo"><span class="status dnd"></span></span><div><b>Theo</b><span>Streaming Hades II</span></div><div class="acts"><button class="iconbtn" aria-label="Message Theo"><i class="ph ph-chat-circle"></i></button><button class="iconbtn" aria-label="More for Theo"><i class="ph ph-dots-three-vertical"></i></button></div></div>
+        <div class="friend"><span class="av" data-av="Ana"><span class="status idle"></span></span><div><b>Ana</b><span>In Lounge</span></div><div class="acts"><button class="iconbtn" aria-label="Message Ana"><i class="ph ph-chat-circle"></i></button><button class="iconbtn" aria-label="More for Ana"><i class="ph ph-dots-three-vertical"></i></button></div></div>
+      </div>
+      <aside class="anow" aria-labelledby="anow-1">
+        <div class="anow-title" id="anow-1">Active now</div>
+        <div class="anow-list">
+          <article class="acard"><button class="acard-who"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>Playing Balatro</span></div><time>1h 12m</time></button>
+            <div class="acard-act"><span class="pic" style="--h: 140"></span><div><b>Balatro</b><small><span>Ante 6 · Gold stake</span></small></div></div></article>
+          <article class="acard"><button class="acard-who"><span class="av" data-av="Theo"><span class="status dnd"></span></span><div><b>Theo</b><span>Streaming Hades II</span></div><time>42m</time></button>
+            <div class="acard-act"><span class="srv-tile a1">NS</span><div><b>Lounge</b><small><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span>Night Shift</span></small></div><button class="btn btn--sm">Watch stream</button></div></article>
+          <article class="acard"><button class="acard-who"><span class="av" data-av="Ana"><span class="status idle"></span></span><div><b>Ana</b><span>In voice</span></div><time>8m</time></button>
+            <div class="acard-act"><span class="srv-tile a3">G</span><div><b>Late night ranked grind, no tilting allowed, seriously</b><small><span class="stackav"><span class="av" data-av="Ana"></span><span class="av" data-av="Kai"></span><span class="av" data-av="Lee"></span></span><span>3 in voice · Garden</span></small></div><button class="btn btn--sm"><i class="ph-bold ph-speaker-high"></i>Join voice</button></div></article>
+        </div>
+      </aside>
+    </div>
+  </div></div>
+
+  <h3>Narrow, and no one around</h3>
+  <div class="pn-cols">
+    <div class="pframe" style="width: 540px; max-width: 100%"><div class="homeview">
+      <div class="home-in" style="min-height: 0">
+        <div class="flist" style="padding-top: var(--space-3)"><div class="flabel">Online · 3</div>
+          <div class="friend"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>Playing Balatro</span></div><div class="acts"><button class="iconbtn" aria-label="Message Mira"><i class="ph ph-chat-circle"></i></button></div></div>
+        </div>
+        <aside class="anow" aria-labelledby="anow-2"><div class="anow-title" id="anow-2">Active now</div><div class="anow-list">
+          <article class="acard"><button class="acard-who"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>Playing Balatro</span></div><time>1h 12m</time></button></article>
+          <article class="acard"><button class="acard-who"><span class="av" data-av="Theo"><span class="status dnd"></span></span><div><b>Theo</b><span>Streaming Hades II</span></div><time>42m</time></button></article>
+          <article class="acard"><button class="acard-who"><span class="av" data-av="Ana"><span class="status idle"></span></span><div><b>Ana</b><span>In Lounge</span></div><time>8m</time></button></article>
+        </div></aside>
+      </div>
+    </div></div>
+    <div class="pframe" style="width: 340px; max-width: 100%"><aside class="anow" style="border: 0" aria-labelledby="anow-3">
+      <div class="anow-title" id="anow-3">Active now</div>
+      <div class="empty"><div class="mascot idle" aria-hidden="true" style="--s: .5"><i></i><i></i><i></i><i></i><i></i></div><b>No one's around</b><p>When a friend starts a game or joins voice, it shows up here.</p></div>
+    </aside></div>
+  </div>
+  <p class="note" style="margin-top: 8px">Header and rows reuse <a href="navigation.html#friends" style="color: var(--accent-ink)">Navigation, Friends</a>. Under 820px of view width (a container query), Active now becomes a snap-scrolling strip of name-only cards. Durations tick in tabular figures and drop zero units (1h, never 1h 0m).</p>
+</section>
+
+<!-- In-call chat -->
+<section id="call-chat">
+  <h2>Call chat</h2>
+  <p class="lede">The voice channel's text chat as a drawer over the right of the call stage. The tiles make room as it slides in; while it's closed, the toggle counts what you missed.</p>
+  <div class="pscroll">
+    <div class="call" id="call-live" style="height: 520px; min-width: 640px; padding: 12px">
+      <div class="callbody" style="height: 100%">
+        <div class="callstage">
+          <div class="callhead">
+            <i class="ph ph-speaker-high"></i><span class="title">Lounge</span><span class="timer">1:24:07</span><span class="spacer"></span>
+            <button class="people" aria-label="4 people in Lounge"><span class="stackav"><span class="av" data-av="Mira"></span><span class="av" data-av="Theo"></span><span class="av" data-av="Jun"></span></span>4</button>
+            <span class="sep"></span>
+            <button class="iconbtn badge-host" id="call-chat-toggle" aria-pressed="false" aria-label="Chat, 3 unread" title="Show chat"><i class="ph ph-chat-circle-text"></i><span class="count">3</span></button>
+          </div>
+          <div class="tiles g2">
+            <div class="tile speaking" style="--hue: 20"><span class="av" data-av="Mira"></span><span class="name"><span class="bars"><i></i><i></i><i></i></span><span class="who">Mira</span></span></div>
+            <div class="tile" style="--hue: 120"><span class="av" data-av="Theo"></span><span class="name"><span class="who">Theo</span></span></div>
+            <div class="tile" style="--hue: 250"><span class="av" data-av="Jun"></span><span class="name"><i class="ph-fill ph-microphone-slash"></i><span class="who">Jun</span></span></div>
+            <div class="tile" style="--hue: 300"><span class="av" data-av="You"></span><span class="name"><span class="who">You</span></span></div>
+          </div>
+          <div class="controls">
+            <button class="cbtn" aria-label="Mute"><i class="ph-fill ph-microphone"></i></button>
+            <button class="cbtn" aria-label="Turn on camera"><i class="ph-fill ph-video-camera-slash"></i></button>
+            <button class="cbtn" aria-label="Share your screen"><i class="ph-fill ph-screencast"></i></button>
+            <button class="cbtn leave" aria-label="Leave call"><i class="ph-fill ph-phone-x"></i></button>
+          </div>
+        </div>
+        <aside class="cdrawer" aria-label="Lounge chat" inert>
+          <div class="panel-head"><i class="ph ph-speaker-high"></i><span class="panel-title">Lounge</span><div class="panel-acts"><button class="iconbtn" id="call-chat-close" aria-label="Close chat" title="Close chat"><i class="ph ph-x"></i></button></div></div>
+          <div class="feed">
+            <div class="unread-line"><span class="new">3 new</span></div>
+            <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="time">10:01 PM</span></div><div class="body">link for the build: https://builds.example/hades/7f3a9c2e</div></div></div>
+            <div class="msg first"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">10:02 PM</span></div><div class="body">muting for a sec, dog is barking</div></div></div>
+            <div class="msg"><span class="gutter">10:02</span><div class="body">back</div></div>
+          </div>
+          <div class="typing"></div>
+          <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><input placeholder="Message Lounge" aria-label="Message Lounge"><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+        </aside>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Live: press the chat toggle. The drawer is 340 wide on the stage's dark tokens. Like the side panel, only transform moves: the tiles make room in one step, the drawer slides in (260ms, --ease-drawer) and out (200ms), and the tiles widen once it has gone. The unread count shrinks away once it opens. The toggle is the call header's, from <a href="voice.html#call-header" style="color: var(--accent-ink)">Voice, Call header</a>. Mentions in the drawer tint the row like the main feed.</p>
+</section>
+
+<!-- Full profile -->
+<section id="full-profile">
+  <h2>Full profile</h2>
+  <p class="lede">Opened from the profile popout's View full profile. Everything about a person on one dialog, with tabs for what grows: activity, mutual servers, mutual friends.</p>
+  <div class="row" style="margin-bottom: var(--space-4)"><button class="btn" data-open="fprof-dlg"><i class="ph-bold ph-user-circle"></i>Open full profile</button></div>
+  <div class="dialog fprof" data-live="fprof-dlg" role="dialog" aria-labelledby="fp-name" style="--banner: 20; margin: 0">
+    <div class="fprof-banner"><button class="iconbtn" data-close aria-label="Close profile"><i class="ph ph-x"></i></button></div>
+    <div class="fprof-top"><span class="av" data-av="Mira"><span class="status online"></span></span>
+      <div class="fprof-acts"><button class="btn btn--primary"><i class="ph-bold ph-chat-circle"></i>Send message</button><button class="btn is-icon" aria-label="Voice call" title="Voice call"><i class="ph-bold ph-phone"></i></button><button class="btn is-icon" aria-label="More for Mira" title="More"><i class="ph-bold ph-dots-three-vertical"></i></button></div></div>
+    <div class="fprof-names"><b id="fp-name">Mira</b><span>mira.wav · she/her</span></div>
+    <div class="tabs" role="tablist" aria-label="Profile">
+      <button class="tab" role="tab" aria-selected="true" aria-controls="fp-about">About</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="fp-activity">Activity</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="fp-servers">Mutual servers · 4</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="fp-friends">Mutual friends · 0</button>
+    </div>
+    <div class="fprof-panel" role="tabpanel" id="fp-about">
+      <div class="cstatus"><span>🎧</span><span>editing the montage, ask me later</span></div>
+      <div class="pblock"><b>About me</b><p>Clips, speedruns and too much coffee. Montage editor for Night Shift.</p></div>
+      <div class="pblock"><b>Member since</b><div class="since"><span><i class="ph ph-waveform"></i>Mar 4, 2021</span></div></div>
+      <div class="pblock"><b>Connections</b>
+        <div class="conns">
+          <div class="conn"><span class="brand" style="--brand-c: #1db954"><i class="ph-fill ph-spotify-logo"></i></span><div><b>mira.wav<i class="ph-fill ph-seal-check" role="img" aria-label="Verified"></i></b><small>Spotify</small></div><button class="iconbtn iconbtn--sm" aria-label="Open mira.wav on Spotify"><i class="ph ph-arrow-square-out"></i></button></div>
+          <div class="conn"><span class="brand" style="--brand-c: #9146ff"><i class="ph-fill ph-twitch-logo"></i></span><div><b>mirawav_clips<i class="ph-fill ph-seal-check" role="img" aria-label="Verified"></i></b><small>Twitch</small></div><button class="iconbtn iconbtn--sm" aria-label="Open mirawav_clips on Twitch"><i class="ph ph-arrow-square-out"></i></button></div>
+          <div class="conn"><span class="brand" style="--brand-c: #2a475e"><i class="ph-fill ph-steam-logo"></i></span><div><b>MiraTheMontageEditorExtraordinaire</b><small>Steam</small></div><button class="iconbtn iconbtn--sm" aria-label="Open on Steam"><i class="ph ph-arrow-square-out"></i></button></div>
+          <div class="conn"><span class="brand" style="--brand-c: #24292f"><i class="ph-fill ph-github-logo"></i></span><div><b>mira-wav</b><small>GitHub</small></div><button class="iconbtn iconbtn--sm" aria-label="Open mira-wav on GitHub"><i class="ph ph-arrow-square-out"></i></button></div>
+        </div></div>
+      <div class="pblock"><b>Note</b><textarea class="note-field" rows="1" placeholder="Add a note only you can see" aria-label="Note about Mira"></textarea></div>
+    </div>
+    <div class="fprof-panel" role="tabpanel" id="fp-activity" hidden>
+      <div class="acard-act"><span class="pic" style="--h: 140"></span><div><b>Balatro</b><small><span>Playing for 1h 12m · Ante 6</span></small></div></div>
+      <div class="acard-act"><span class="pic" style="--h: 120; border-radius: var(--radius-sm)"></span><div><b>Midnight Arcade</b><small><span>Listening on Spotify · Neon Harbor</span></small></div></div>
+    </div>
+    <div class="fprof-panel" role="tabpanel" id="fp-servers" hidden style="gap: 2px">
+      <button class="mutrow"><span class="srv-tile a1">NS</span><div><b>Night Shift</b><small>Mira · Mod</small></div><i class="ph ph-caret-right"></i></button>
+      <button class="mutrow"><span class="srv-tile a2">PC</span><div><b>Pixel Club</b><small>m1ra</small></div><i class="ph ph-caret-right"></i></button>
+      <button class="mutrow"><span class="srv-tile a3">G</span><div><b>Garden of the Very Long Server Name That Never Ends</b><small>Mira</small></div><i class="ph ph-caret-right"></i></button>
+      <button class="mutrow"><span class="srv-tile" style="--hue: 60">CC</span><div><b>Clip Club</b><small>Mira</small></div><i class="ph ph-caret-right"></i></button>
+    </div>
+    <div class="fprof-panel" role="tabpanel" id="fp-friends" hidden>
+      <div class="empty"><div class="mascot idle" aria-hidden="true" style="--s: .5"><i></i><i></i><i></i><i></i><i></i></div><b>No mutual friends</b><p>You and Mira don't share any friends yet.</p></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Dialog 600 wide, radius 28. Banner 136, avatar 112 cut out of it. Connections use each service's real mark on its brand colour; verified ones carry the seal. Tabs swap one panel below the strip; an empty tab says so rather than hiding, so the tab strip never shifts. Blocks with no content (no about, no connections) hide. Live: switch tabs; the button opens it as a real dialog.</p>
+</section>
+
+<!-- Stage -->
+<section id="stage">
+  <h2>Stage channel</h2>
+  <p class="lede">A voice room for an audience: a few speakers up top, everyone else listening. Listeners raise a hand to ask to speak; a moderator's invite arrives inline.</p>
+  <div class="pn-cols">
+    <div class="pframe" style="flex: 1 1 520px; min-width: 0"><div class="stg">
+      <div class="chanbar-in"><nav class="crumbs" aria-label="Location"><button class="crumb"><span class="srv-mini a1"></span><span>Night Shift</span></button><i class="ph ph-caret-right" aria-hidden="true"></i><button class="crumb here" aria-current="page"><i class="ph ph-microphone-stage"></i><span>Town hall</span></button></nav></div>
+      <div class="stg-top"><div class="row"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="stg-meta">1,284 listening · started 42m ago</span></div><b>Patch 7 Q&amp;A with the balance team</b></div>
+      <div class="callout callout--info"><i class="ph-fill ph-hand-waving"></i><div><b>Theo invited you to speak</b>You'll join the speakers with your mic muted.</div><button class="btn btn--primary btn--sm">Join as speaker</button><button class="btn btn--ghost btn--sm">Stay in audience</button></div>
+      <div class="stg-sec">Speakers · 3</div>
+      <div class="stg-speakers">
+        <div class="spk"><span class="av speaking" data-av="Theo"></span><b><span class="bars"><i></i><i></i><i></i></span><span>Theo</span></b><small><i class="ph-fill ph-shield-star"></i>Moderator</small></div>
+        <div class="spk"><span class="av" data-av="Mira"></span><b><span>Mira</span></b><small><i class="ph-fill ph-microphone-slash off" role="img" aria-label="Muted"></i>Muted</small></div>
+        <div class="spk"><span class="av" data-av="Maximiliana"></span><b><span>Maximiliana Wolfeschlegelsteinhausen</span></b><small>Speaker</small></div>
+      </div>
+      <div class="stg-sec">In the audience · 1,281</div>
+      <div class="stg-aud">
+        <div class="aud"><span class="av" data-av="Ana"><span class="hand" title="Wants to speak"><i class="ph-fill ph-hand"></i></span></span><span>Ana</span></div>
+        <div class="aud"><span class="av" data-av="Jun"></span><span>Jun</span></div>
+        <div class="aud"><span class="av" data-av="Rosa"></span><span>Rosa</span></div>
+        <div class="aud"><span class="av" data-av="Kai"></span><span>Kai</span></div>
+        <div class="aud"><span class="av" data-av="Bartholomew"></span><span>Bartholomew Featherstonehaugh</span></div>
+        <div class="aud"><span class="av" data-av="You"></span><span>You</span></div>
+        <div class="aud"><span class="more">+1,275</span><span>more</span></div>
+      </div>
+      <div class="stg-bar"><span><i class="ph ph-headphones"></i>You're listening</span>
+        <button class="btn" aria-pressed="false"><span class="when-off"><i class="ph-bold ph-hand"></i>Request to speak</span><span class="when-on"><i class="ph-fill ph-hand"></i>Hand raised · Lower hand</span></button>
+        <button class="btn btn--ghost"><i class="ph-bold ph-sign-out"></i>Leave stage</button></div>
+    </div></div>
+    <div class="pn-col" style="flex: 1 1 320px">
+      <div class="pframe"><div class="stg" style="min-height: 340px">
+        <div class="chanbar-in"><nav class="crumbs" aria-label="Location"><button class="crumb here" aria-current="page"><i class="ph ph-microphone-stage"></i><span>Town hall</span></button></nav></div>
+        <div class="stg-idle"><div class="mascot idle" aria-hidden="true" style="--s: .5"><i></i><i></i><i></i><i></i><i></i></div><b class="strong" style="font-size: var(--text-md)">This stage isn't live</b><p>The next event starts Friday at 9:00 PM. Mark it to get a ping.</p><button class="btn btn--sm" aria-pressed="false"><span class="when-off"><i class="ph-bold ph-bell"></i>Notify me</span><span class="when-on"><i class="ph-fill ph-bell-ringing"></i>You'll be notified</span></button></div>
+      </div></div>
+      <div class="pframe"><div class="stg" style="min-height: 0" aria-busy="true">
+        <div class="pwait" style="padding: var(--space-4) var(--space-6) 0"><span class="bars"><i></i><i></i><i></i></span>Joining Town hall…</div>
+        <div class="stg-speakers"><div class="spk"><span class="skeleton circle" style="width: 64px; height: 64px"></span><span class="skeleton line" style="width: 60%"></span></div><div class="spk"><span class="skeleton circle" style="width: 64px; height: 64px"></span><span class="skeleton line" style="width: 50%"></span></div></div>
+      </div></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Speaking is the accent ring plus the mini wave by the name, never a green ring. A raised hand is a small badge on the listener's avatar. Request to speak is one button showing its state; pressing it again lowers the hand.</p>
+</section>
+
+<!-- Events -->
+<section id="events">
+  <h2>Scheduled events</h2>
+  <p class="lede">An event card in the channel list, the events list and invites: when, what, where, who's interested. Its title opens the details dialog.</p>
+  <div class="pn-cols">
+    <article class="event" style="flex: 1 1 320px">
+      <span class="pic event-cover" style="--h: 330"></span>
+      <div class="event-body">
+        <div class="event-when"><i class="ph ph-calendar-blank"></i>Fri, Nov 20 · 9:00 PM<small>in 5 days</small></div>
+        <button class="event-title" data-open="evd-dlg" title="Patch 7 Q&amp;A with the balance team">Patch 7 Q&amp;A with the balance team</button>
+        <div class="event-where"><i class="ph ph-microphone-stage"></i><span>Town hall · Night Shift</span></div>
+        <div class="event-foot"><span class="ppl"><span class="stackav"><span class="av" data-av="Mira"></span><span class="av" data-av="Theo"></span><span class="av" data-av="Ana"></span></span>48 interested</span><button class="btn btn--sm" aria-pressed="false"><span class="when-off"><i class="ph-bold ph-bell"></i>Interested</span><span class="when-on"><i class="ph-fill ph-bell-ringing"></i>Interested</span></button><button class="iconbtn" aria-label="Share event" title="Copy event link"><i class="ph ph-link-simple"></i></button></div>
+      </div>
+    </article>
+    <article class="event" style="flex: 1 1 320px">
+      <div class="event-body">
+        <div class="event-when"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span>Started 42m ago</div>
+        <button class="event-title" data-open="evd-dlg">Ranked night: climb together</button>
+        <div class="event-where"><i class="ph ph-speaker-high"></i><span>Lounge · Night Shift</span></div>
+        <div class="event-foot"><span class="ppl"><span class="stackav"><span class="av" data-av="Jun"></span><span class="av" data-av="Kai"></span></span>12 in voice</span><button class="btn btn--primary btn--sm"><i class="ph-bold ph-speaker-high"></i>Join voice</button></div>
+      </div>
+    </article>
+    <article class="event" style="flex: 1 1 320px">
+      <div class="event-body">
+        <div class="event-when"><i class="ph ph-map-pin"></i>Sat, Dec 12 · 2:00 PM – 6:00 PM</div>
+        <button class="event-title" data-open="evd-dlg" title="Night Shift winter meetup at the arcade on the corner of Fifth and Main, bring quarters">Night Shift winter meetup at the arcade on the corner of Fifth and Main, bring quarters</button>
+        <div class="event-where"><i class="ph ph-map-pin"></i><span>Pixel Palace Arcade, 512 Fifth Avenue, Portland, Oregon, United States</span></div>
+        <div class="event-foot"><span class="ppl">1,204 interested</span><button class="btn btn--sm" aria-pressed="true"><span class="when-off"><i class="ph-bold ph-bell"></i>Interested</span><span class="when-on"><i class="ph-fill ph-bell-ringing"></i>Interested</span></button></div>
+      </div>
+    </article>
+    <article class="event is-over" style="flex: 1 1 320px">
+      <div class="event-body">
+        <div class="event-when"><i class="ph ph-calendar-x"></i>Ended Nov 12</div>
+        <span class="event-title">Halloween costume contest</span>
+        <div class="event-where"><i class="ph ph-microphone-stage"></i><span>Town hall · 212 attended</span></div>
+      </div>
+    </article>
+  </div>
+
+  <h3>Event details</h3>
+  <div class="dialog dialog--lg evd" data-live="evd-dlg" role="dialog" aria-labelledby="evd-title" style="margin: 0">
+    <span class="pic event-cover" style="--h: 330"></span>
+    <div class="evd-body">
+      <div class="dhead"><div class="event-when"><i class="ph ph-calendar-blank"></i>Fri, Nov 20 · 9:00 PM – 10:30 PM<small>in 5 days</small></div><h4 id="evd-title" title="Patch 7 Q&amp;A with the balance team">Patch 7 Q&amp;A with the balance team</h4><button class="iconbtn" data-close aria-label="Close"><i class="ph ph-x"></i></button></div>
+      <p>Bring your questions about the healer changes and ranked reset. We'll pick from #patch-questions first, then open the floor. Recording goes up in #clips after.</p>
+      <div class="evd-facts">
+        <div><i class="ph ph-microphone-stage"></i><span>Town hall · Night Shift</span></div>
+        <div><i class="ph ph-user"></i><span class="av" data-av="Theo"></span><span>Hosted by Theo</span></div>
+        <div><i class="ph ph-users"></i><span class="stackav"><span class="av" data-av="Mira"></span><span class="av" data-av="Ana"></span><span class="av" data-av="Jun"></span></span><span>48 interested, including Mira and Ana</span></div>
+        <div><i class="ph ph-arrows-clockwise"></i><span>Repeats every other Friday</span></div>
+      </div>
+      <footer><button class="btn btn--ghost"><i class="ph-bold ph-link-simple"></i>Copy event link</button><button class="btn"><i class="ph-bold ph-calendar-plus"></i>Add to calendar</button><button class="btn btn--primary" aria-pressed="false"><span class="when-off"><i class="ph-bold ph-bell"></i>Mark interested</span><span class="when-on"><i class="ph-fill ph-bell-ringing"></i>Interested</span></button></footer>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Times are in your time zone, with a relative hint until the event starts. Live events lead with the LIVE mark and swap Interested for Join. Ended events drop their actions and go muted. Long titles stay on one line with the full title in the tooltip. Live: click a card's title.</p>
+</section>
+
+<!-- Better than Discord -->
+<section id="better-than-discord">
+  <h2>Better than Discord</h2>
+  <p class="lede">Where Wave's panels part ways with Discord's, and why.</p>
+  <div class="btd">
+    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
+    <div><p>Pins and the threads browser open as popovers over the chat and close on the first click outside.</p><p><b><a href="#pins">Pins and threads dock in the side panel</a></b>Same frame as members and search, resizable, open beside the chat.</p><p>You can read a pin or skim threads while following the conversation, and one frame means one way to open, resize and close.</p></div>
+    <div><p>Unpinning asks for confirmation in a dialog.</p><p><b><a href="#pins">Unpin is instant, with Undo in place</a></b>The row becomes "Unpinned Jun's message · Undo".</p><p>Unpinning is reversible, so a dialog is a needless step; the undo sits where your eyes already are.</p></div>
+    <div><p>Marking a channel read in Unreads removes it at once, with no way back.</p><p><b><a href="#inbox">Mark read leaves a one-line record with Undo</a></b>Mark all read does the same for the tab.</p><p>A misclick on a long unread list loses your place; the record keeps it recoverable without a confirm.</p></div>
+    <div><p>Mentions filters (@everyone, roles, this server) sit in a menu behind an icon.</p><p><b><a href="#inbox">Filters are visible chips</a></b>Toggled in one click, state always on show.</p><p>A hidden filter leaves you wondering why a mention is missing; a chip shows what's on.</p></div>
+    <div><p>Active now disappears when the window is narrow.</p><p><b><a href="#home">Active now folds into a strip above the list</a></b>Swipeable name cards under 820px.</p><p>Who's playing is the reason many people open Home; it should survive a smaller window.</p></div>
+    <div><p>No results shows an illustration and a "nothing found" line.</p><p><b><a href="#search-results">No results suggests what to drop</a></b>One-click chips remove a filter or widen to all channels, plus a matching tip.</p><p>An empty result is a dead end unless it says how to get a result.</p></div>
+    <div><p>A thread deleted while you have it open closes, and a reply you were typing goes with it.</p><p><b><a href="#thread-view">The panel stays and says so</a></b>"This thread was deleted", with your unsent reply kept to copy or move to the channel.</p><p>Nothing you typed is lost, and nothing changes without a reason you can read.</p></div>
+    <div><p>The member list has a fixed width.</p><p><b><a href="#side-panel">The side panel resizes</a></b>Drag or arrow keys, 200 to 380px, double-click to reset.</p><p>Long names and wide search results need room on big screens; small screens need the chat back.</p></div>
+  </div>
+  <p class="note" style="margin-top: 8px">The Discord column describes its desktop client from use, not from a fresh check; confirm a row against current Discord before quoting it.</p>
+</section>
+
+</main>
+</div>
+<script src="site.js"></script>
+<script>
+const $p = (s, el = document) => el.querySelector(s);
+const $$p = (s, el = document) => [...el.querySelectorAll(s)];
+const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Live dialogs: each [data-live] demo is cloned into a real <dialog> driven by site.js's data-open.
+for (const demo of $$p("[data-live]")) {
+  const dlg = document.createElement("dialog");
+  dlg.id = demo.dataset.live;
+  dlg.className = "real";
+  const copy = demo.cloneNode(true);
+  copy.removeAttribute("data-live");
+  copy.style.margin = "";
+  for (const el of copy.querySelectorAll("[id]")) el.id += "-live";
+  for (const el of copy.querySelectorAll("[aria-controls]")) el.setAttribute("aria-controls", el.getAttribute("aria-controls") + "-live");
+  if (copy.hasAttribute("aria-labelledby")) copy.setAttribute("aria-labelledby", copy.getAttribute("aria-labelledby") + "-live");
+  dlg.append(copy);
+  document.body.append(dlg);
+}
+
+// Tabs that own panels: the selected tab shows its aria-controls panel (site.js moves the selection).
+document.addEventListener("click", e => {
+  const tab = e.target.closest("[role=tab][aria-controls]");
+  if (!tab) return;
+  for (const t of $$p("[role=tab][aria-controls]", tab.closest("[role=tablist]"))) {
+    const panel = document.getElementById(t.getAttribute("aria-controls"));
+    if (panel) panel.hidden = t !== tab;
+  }
+});
+
+// Side panel shell: toggle, swap contents in place, resize.
+const shell = $p("#shell"), shellPanel = $p("#shell-panel"), grip = $p(".panel-grip", shellPanel), hud = $p(".grip-hud", shellPanel);
+const TITLES = { members: "Members", pins: "Pinned messages", threads: "Threads" };
+const DEFAULT_W = 264, MIN_W = 200, MAX_W = 380;
+// Open: the column snaps in and the panel slides. Close: the panel slides out, then the column snaps shut.
+// Ends that bubble up from children (a row's hover fade) don't count.
+function once(el, type, fn) {
+  const h = e => { if (e.target !== el) return; el.removeEventListener(type, h); fn(); };
+  el.addEventListener(type, h);
+}
+function slide(host, isOpen, { opening, closing, closed, openClass, target }) {
+  host.classList.remove(opening, closing);
+  if (isOpen) {
+    if (closed) host.classList.remove(closed);
+    if (openClass) host.classList.add(openClass);
+    if (still()) return;
+    void host.offsetWidth;
+    host.classList.add(opening);
+    once(target, "animationend", () => host.classList.remove(opening));
+    return;
+  }
+  const finish = () => { host.classList.remove(closing); if (closed) host.classList.add(closed); if (openClass) host.classList.remove(openClass); };
+  if (still()) return finish();
+  host.classList.add(closing);
+  once(target, "transitionend", finish);
+}
+const SHELL_SLIDE = { opening: "is-opening", closing: "is-closing", closed: "is-closed", target: shellPanel };
+function showPanel(name) {
+  const open = !shell.classList.contains("is-closed") && !shell.classList.contains("is-closing");
+  const current = $p("[data-body]:not([hidden])", shellPanel)?.dataset.body;
+  const closing = !name || (open && current === name);
+  shellPanel.inert = closing;
+  for (const b of $$p("[data-panel]", shell)) b.setAttribute("aria-pressed", !closing && b.dataset.panel === name);
+  if (closing) return slide(shell, false, SHELL_SLIDE);
+  for (const body of $$p("[data-body]", shellPanel)) body.hidden = body.dataset.body !== name;
+  $p("#shell-title").textContent = TITLES[name];
+  if (!open) slide(shell, true, SHELL_SLIDE);
+}
+shell.addEventListener("click", e => {
+  const b = e.target.closest("[data-panel]");
+  if (b) { e.stopPropagation(); showPanel(b.dataset.panel); }
+  if (e.target.closest("[data-panel-close]")) showPanel(null);
+}, true);
+function setWidth(w) {
+  w = Math.round(Math.min(MAX_W, Math.max(MIN_W, w)));
+  shell.style.setProperty("--pw", w + "px");
+  grip.setAttribute("aria-valuenow", w);
+  hud.textContent = w + " px";
+}
+grip.addEventListener("pointerdown", e => {
+  grip.setPointerCapture(e.pointerId);
+  const startX = e.clientX, startW = shellPanel.getBoundingClientRect().width;
+  shell.classList.add("is-resizing");
+  grip.classList.add("is-dragging");
+  const move = ev => setWidth(startW - (ev.clientX - startX));
+  const up = () => { shell.classList.remove("is-resizing"); grip.classList.remove("is-dragging"); grip.removeEventListener("pointermove", move); };
+  grip.addEventListener("pointermove", move);
+  grip.addEventListener("pointerup", up, { once: true });
+  grip.addEventListener("pointercancel", up, { once: true });
+});
+grip.addEventListener("dblclick", () => setWidth(DEFAULT_W));
+grip.addEventListener("keydown", e => {
+  const step = e.shiftKey ? 32 : 8, now = +grip.getAttribute("aria-valuenow");
+  const next = { ArrowLeft: now + step, ArrowRight: now - step, Home: MAX_W, End: MIN_W }[e.key];
+  if (next === undefined) return;
+  e.preventDefault();
+  shell.classList.add("is-resizing");
+  setWidth(next);
+  requestAnimationFrame(() => shell.classList.remove("is-resizing"));
+});
+
+// Forum: list/grid travels (FLIP, translate only), new post opens in place.
+const posts = $p("#posts"), viewBtn = $p("#forum-view");
+viewBtn.addEventListener("click", () => {
+  const cards = $$p(".post", posts), before = cards.map(c => c.getBoundingClientRect());
+  const grid = posts.classList.toggle("is-grid");
+  viewBtn.innerHTML = `<i class="ph-bold ${grid ? "ph-squares-four" : "ph-rows"}"></i>`;
+  viewBtn.setAttribute("aria-label", `View: ${grid ? "grid" : "list"}`);
+  viewBtn.title = `View: ${grid ? "grid. Switch to list" : "list. Switch to grid"}`;
+  if (still()) return;
+  posts.classList.remove("is-flipping");
+  cards.forEach((c, i) => { const a = c.getBoundingClientRect(); c.style.transform = `translate(${before[i].left - a.left}px, ${before[i].top - a.top}px)`; });
+  requestAnimationFrame(() => requestAnimationFrame(() => { posts.classList.add("is-flipping"); for (const c of cards) c.style.transform = ""; }));
+});
+const np = $p("#newpost"), npTitle = $p("#newpost .np-title input"), npErr = $p("#np-err");
+$p("#newpost-open").addEventListener("click", () => { np.hidden = false; np.classList.add("is-new"); npTitle.focus(); });
+$p("#newpost-cancel").addEventListener("click", () => { np.hidden = true; npErr.hidden = true; $p("#newpost .np-title").classList.remove("error"); });
+$p("#newpost-post").addEventListener("click", e => {
+  const empty = !npTitle.value.trim();
+  npErr.hidden = !empty;
+  $p("#newpost .np-title").classList.toggle("error", empty);
+  npTitle.setAttribute("aria-invalid", empty);
+  if (empty) return npTitle.focus();
+  const b = e.currentTarget; b.innerHTML = '<span class="bars"><i></i><i></i><i></i></span>Posting…';
+  setTimeout(() => { b.textContent = "Post"; np.hidden = true; npTitle.value = ""; }, 1200);
+});
+
+// Undoable actions: the row turns into its outcome with Undo, in place.
+function undoable(rows, label, icon) {
+  const first = rows[0], rec = document.createElement("div");
+  rec.className = "undone";
+  rec.setAttribute("role", "status");
+  rec.innerHTML = `<i class="ph ${icon}"></i><span>${label}</span><button class="btn btn--link">Undo</button>`;
+  first.before(rec);
+  for (const r of rows) r.hidden = true;
+  rec.querySelector("button").onclick = () => { for (const r of rows) r.hidden = false; rec.remove(); };
+}
+document.addEventListener("click", e => {
+  const unpin = e.target.closest("[data-unpin]");
+  if (unpin) { const row = unpin.closest(".pinrow"); undoable([row], `Unpinned ${$p(".pin-head b", row).textContent}'s message`, "ph-push-pin-slash"); }
+  const mark = e.target.closest("[data-markread]");
+  if (mark) {
+    const head = mark.closest(".ib-chan"), rows = [head];
+    for (let n = head.nextElementSibling; n && !n.matches(".ib-chan, .undone"); n = n.nextElementSibling) rows.push(n);
+    undoable(rows, `Marked ${mark.dataset.markread} read`, "ph-check");
+  }
+});
+$p("#ib-markall").addEventListener("click", () => {
+  const body = $p("#inbox-live .inbox-body:not([hidden])");
+  const rows = [...body.children].filter(r => !r.hidden && !r.matches(".undone, .inbox-filters"));
+  if (rows.length) undoable(rows, "Marked everything here read", "ph-checks");
+});
+
+// Call chat drawer.
+const call = $p("#call-live"), chatToggle = $p("#call-chat-toggle"), drawer = $p("#call-live .cdrawer");
+function setChat(open) {
+  drawer.inert = !open;
+  chatToggle.setAttribute("aria-pressed", open);
+  chatToggle.title = open ? "Hide chat" : "Show chat";
+  chatToggle.setAttribute("aria-label", open ? "Chat" : "Chat, 3 unread");
+  slide(call, open, { opening: "is-chat-opening", closing: "is-chat-closing", openClass: "is-chat-open", target: drawer });
+}
+chatToggle.addEventListener("click", e => { e.stopImmediatePropagation(); setChat(chatToggle.getAttribute("aria-pressed") !== "true"); });
+$p("#call-chat-close").addEventListener("click", () => setChat(false));
+</script>
+</body>
+</html>

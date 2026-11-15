@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wave Voice</title>
+<meta name="description" content="Voice panel, call stage, controls and streams.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<link rel="stylesheet" href="css/navigation.css">
+<link rel="stylesheet" href="css/messages.css">
+<link rel="stylesheet" href="css/voice.css">
+<link rel="stylesheet" href="css/overlays.css">
+<link rel="stylesheet" href="css/settings.css">
+<link rel="stylesheet" href="css/menus.css">
+<link rel="stylesheet" href="css/panels.css">
+<link rel="stylesheet" href="css/media.css">
+<link rel="stylesheet" href="css/auth.css">
+<link rel="stylesheet" href="css/profile.css">
+<link rel="stylesheet" href="css/community.css">
+<link rel="stylesheet" href="css/server-settings.css">
+<link rel="stylesheet" href="css/flows.css">
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+
+<section id="voice">
+  <h1>Voice and streams</h1>
+  <p class="lede">The call stage stays dark in both themes, so streams read like a screen. Controls are squircles; off-states turn coral, sharing turns magenta, leaving is the one red fill.</p>
+  <div class="call">
+    <div class="callhead">
+      <i class="ph ph-speaker-high"></i><span class="title">Lounge</span><span class="timer" data-timer="5047">1:24:07</span>
+      <span class="spacer"></span>
+      <button class="people" aria-label="4 people in Lounge"><span class="stackav"><span class="av" data-av="Mira"></span><span class="av" data-av="Theo"></span><span class="av" data-av="Jun"></span></span>4</button>
+      <span class="sep"></span>
+      <button class="iconbtn" aria-label="Layout: grid" title="Layout: grid. Switch to focus"><i class="ph ph-squares-four"></i></button>
+      <button class="iconbtn hide-narrow" aria-label="Pop out" title="Pop out into its own window"><i class="ph ph-arrow-square-out"></i></button>
+      <button class="iconbtn hide-narrow" aria-label="Full screen" title="Full screen"><i class="ph ph-corners-out"></i></button>
+      <button class="iconbtn" aria-pressed="false" aria-label="Chat" title="Chat: show the channel's messages beside the call"><i class="ph ph-chat-circle-text"></i></button>
+    </div>
+    <div class="tiles">
+      <div class="tile speaking" style="--hue: 20"><span class="av" data-av="Mira"></span><span class="name"><span class="bars"><i></i><i></i><i></i></span><span class="who">Mira</span></span></div>
+      <div class="tile stream has-media"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="viewers"><i class="ph-bold ph-eye"></i>3</span><span class="name"><span class="who">Theo · Hades II</span></span></div>
+      <div class="tile video has-media" style="--hue: 200"><span class="name"><span class="who">Jun</span></span></div>
+      <div class="tile" style="--hue: 300"><span class="av" data-av="You"></span><span class="name"><i class="ph-fill ph-microphone-slash"></i><span class="who">You</span></span></div>
+    </div>
+    <div class="controls">
+      <div class="csplit off"><button class="cbtn" aria-label="Unmute" title="Unmute"><i class="ph-fill ph-microphone-slash"></i></button><button class="cbtn chev" aria-label="Microphone options" aria-expanded="false"><i class="ph-bold ph-caret-up"></i></button></div>
+      <div class="csplit"><button class="cbtn" aria-label="Turn on camera" title="Turn on camera"><i class="ph-fill ph-video-camera-slash"></i></button><button class="cbtn chev" aria-label="Camera options" aria-expanded="false"><i class="ph-bold ph-caret-up"></i></button></div>
+      <button class="cbtn" aria-label="Share your screen" title="Share your screen"><i class="ph-fill ph-screencast"></i></button>
+      <button class="cbtn" aria-label="Activities" title="Activities and soundboard"><i class="ph-fill ph-rocket-launch"></i></button>
+      <button class="cbtn" aria-label="More options" title="More options"><i class="ph-bold ph-dots-three"></i></button>
+      <span class="gap"></span>
+      <button class="cbtn leave" aria-label="Leave call" title="Leave call"><i class="ph-fill ph-phone-x"></i></button>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Stage <code>oklch(0.13 0.01 350)</code>; <code>.call</code> and <code>.onstage</code> pin the dark tokens, so menus, sliders and switches inside render dark in either theme.</p>
+</section>
+
+<section id="voice-panel">
+  <h2>Voice panel</h2>
+  <p class="lede">Sits at the bottom of the channel sidebar while you're in a call. The status line is a button that opens the connection details; one mark, and a second line in the same tone says why when something needs you.</p>
+  <div class="board">
+    <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 244px), 1fr)); gap: 24px">
+      <div class="stack" style="gap: 0">
+        <h3 style="margin-top: 0">Connecting</h3>
+        <div class="voicebar connecting" style="margin: 0">
+          <div class="top-line"><div><b><span class="bars"><i></i><i></i><i></i></span>Connecting…</b><div class="chan">Lounge · Night Shift</div></div><button class="iconbtn" aria-label="Cancel joining" title="Cancel joining"><i class="ph-bold ph-phone-x"></i></button></div>
+          <div class="acts"><button class="btn btn--sm" disabled aria-label="Camera" title="Available once you're connected"><i class="ph-bold ph-video-camera"></i></button><button class="btn btn--sm" disabled aria-label="Share your screen" title="Available once you're connected"><i class="ph-bold ph-screencast"></i></button><button class="btn btn--sm" disabled aria-label="Activities" title="Available once you're connected"><i class="ph-bold ph-rocket-launch"></i></button></div>
+        </div>
+        <div class="me" style="margin: 0"><button class="who"><span class="av" data-av="You"><span class="status online"></span></span><div><b>you</b><span>Grinding ranked</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div>
+      </div>
+      <div class="stack" style="gap: 0">
+        <h3 style="margin-top: 0">Connected, sharing</h3>
+        <div class="voicebar" style="margin: 0">
+          <div class="top-line"><button class="status-btn" title="42 ms ping, good connection. Click for details"><b><span class="bars still"><i></i><i></i><i></i></span>Voice connected</b><div class="chan">Lounge · Night Shift</div></button><button class="iconbtn" aria-label="Disconnect" title="Disconnect"><i class="ph-bold ph-phone-x"></i></button></div>
+          <div class="acts"><button class="btn btn--sm" aria-label="Turn on camera" title="Turn on camera"><i class="ph-bold ph-video-camera"></i></button><button class="btn btn--sm sharing" aria-label="Stop sharing" title="Stop sharing your screen"><i class="ph-fill ph-screencast"></i></button><button class="btn btn--sm" aria-label="Activities" title="Activities and soundboard"><i class="ph-bold ph-rocket-launch"></i></button></div>
+        </div>
+        <div class="me" style="margin: 0"><button class="who"><span class="av" data-av="You"><span class="status online"></span></span><div><b>you</b><span>Grinding ranked</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div>
+      </div>
+      <div class="stack" style="gap: 0">
+        <h3 style="margin-top: 0">Poor connection</h3>
+        <div class="voicebar poor" style="margin: 0">
+          <div class="top-line"><button class="status-btn" title="Click for connection details"><b><span class="bars still weak"><i></i><i></i><i></i></span>Poor connection</b><div class="why">240 ms ping, 6% packet loss</div></button><button class="iconbtn" aria-label="Disconnect" title="Disconnect"><i class="ph-bold ph-phone-x"></i></button></div>
+          <div class="acts"><button class="btn btn--sm" aria-label="Turn on camera" title="Turn on camera"><i class="ph-bold ph-video-camera"></i></button><button class="btn btn--sm" aria-label="Share your screen" title="Share your screen"><i class="ph-bold ph-screencast"></i></button><button class="btn btn--sm" aria-label="Activities" title="Activities and soundboard"><i class="ph-bold ph-rocket-launch"></i></button></div>
+        </div>
+        <div class="me" style="margin: 0"><button class="who"><span class="av" data-av="You"><span class="status online"></span></span><div><b>you</b><span>Grinding ranked</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div>
+      </div>
+      <div class="stack" style="gap: 0">
+        <h3 style="margin-top: 0">Reconnecting</h3>
+        <div class="voicebar reconnecting" style="margin: 0">
+          <div class="top-line"><button class="status-btn" title="Click for connection details"><b><span class="bars"><i></i><i></i><i></i></span>Reconnecting…</b><div class="why">Lost the connection, retrying in 3s</div></button><button class="iconbtn" aria-label="Disconnect" title="Disconnect"><i class="ph-bold ph-phone-x"></i></button></div>
+          <div class="acts"><button class="btn btn--sm" disabled aria-label="Camera" title="Available once you're reconnected"><i class="ph-bold ph-video-camera"></i></button><button class="btn btn--sm" disabled aria-label="Share your screen" title="Available once you're reconnected"><i class="ph-bold ph-screencast"></i></button><button class="btn btn--sm" disabled aria-label="Activities" title="Available once you're reconnected"><i class="ph-bold ph-rocket-launch"></i></button></div>
+        </div>
+        <div class="me" style="margin: 0"><button class="who"><span class="av" data-av="You"><span class="status online"></span></span><div><b>you</b><span>Grinding ranked</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div>
+      </div>
+    </div>
+    <p class="note" style="margin-top: 12px">Actions: camera, share screen, activities. Disconnect keeps its corner in every state, so it never moves under the pointer. Sharing fills the share button with accent, since a live stream asks for attention.</p>
+
+    <h3>Latency tooltip and connection details</h3>
+    <div class="row" style="align-items: flex-start; gap: 24px">
+      <div class="stack" style="width: 244px; gap: 8px">
+        <span class="tooltip" style="align-self: flex-start">42 ms ping, good connection</span>
+        <div class="voicebar" style="margin: 0; border-radius: var(--radius-md); border: 0">
+          <div class="top-line"><button class="status-btn" style="background: var(--hover)"><b><span class="bars still"><i></i><i></i><i></i></span>Voice connected</b><div class="chan">Lounge · Night Shift</div></button><button class="iconbtn" aria-label="Disconnect"><i class="ph-bold ph-phone-x"></i></button></div>
+        </div>
+      </div>
+      <div class="connpop" role="dialog" aria-label="Connection">
+        <header><b>Connection</b><span>Good</span></header>
+        <div class="ping">
+          <div class="graph" data-pings="38,41,40,44,39,42,47,52,41,40,39,43,88,61,44,41,40,42,45,43,40,39,41,140,72,44,42,40,41,42" role="img" aria-label="Ping over the last 5 minutes: mostly about 40 ms, with two short spikes"></div>
+          <div class="axis"><span>5 min ago</span><span>Now</span></div>
+          <div class="legend"><span style="--c: var(--online)">Under 80 ms</span><span style="--c: var(--idle)">80–120</span><span style="--c: var(--dnd)">Over 120</span></div>
+        </div>
+        <dl class="stats">
+          <div><dt>Average ping</dt><dd>42 ms</dd></div>
+          <div><dt>Packet loss</dt><dd>0.4%</dd></div>
+          <div><dt>Server region</dt><dd>Frankfurt</dd></div>
+        </dl>
+        <div class="e2ee"><i class="ph-fill ph-lock-simple"></i><span>Voice and video in this call are end-to-end encrypted. Only the people in it can hear them.</span></div>
+        <footer><span class="note">Updated every 10 seconds</span><button class="btn btn--link"><i class="ph ph-bug"></i>Voice debug</button></footer>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="user-area">
+  <h2>User area</h2>
+  <p class="lede">The last row of the sidebar: who you are, how you look to others, and the three controls you reach for most. Mute and deafen turn coral when off; a mute you can't undo says who did it.</p>
+  <div class="board">
+    <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 244px), 1fr))">
+      <div class="stack"><span class="note">Default, custom status</span>
+        <div class="me solo"><button class="who"><span class="av" data-av="You"><span class="status online"></span></span><div><b>you</b><span>Grinding ranked</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div></div>
+      <div class="stack"><span class="note">Hover on the name opens the status picker</span>
+        <div class="me solo"><button class="who hover"><span class="av" data-av="You"><span class="status online"></span></span><div><b>you</b><span>Online</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div></div>
+      <div class="stack"><span class="note">Muted</span>
+        <div class="me solo"><button class="who"><span class="av" data-av="You"><span class="status online"></span></span><div><b>you</b><span>Grinding ranked</span></div></button><button class="iconbtn on" aria-label="Unmute" title="Unmute"><i class="ph-bold ph-microphone-slash"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div></div>
+      <div class="stack"><span class="note">Deafened (mutes you too)</span>
+        <div class="me solo"><button class="who"><span class="av" data-av="You"><span class="status idle"></span></span><div><b>you</b><span>Idle</span></div></button><button class="iconbtn on" aria-label="Unmute" title="Unmute"><i class="ph-bold ph-microphone-slash"></i></button><button class="iconbtn on" aria-label="Undeafen" title="Undeafen"><i class="ph-bold ph-ear-slash"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div></div>
+      <div class="stack"><span class="note">Server muted</span>
+        <div class="me solo"><button class="who"><span class="av" data-av="You"><span class="status online"></span></span><div><b>you</b><span class="why">Server muted by a moderator</span></div></button><button class="iconbtn on" disabled aria-label="Server muted" title="A moderator muted you in Night Shift. Only they can unmute you."><i class="ph-bold ph-microphone-slash"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div></div>
+      <div class="stack"><span class="note">Worst case: long name, no avatar picture, do not disturb</span>
+        <div class="me solo"><button class="who"><span class="av" data-av="Bartholomew"><span class="status dnd"></span></span><div><b>Bartholomew the Unmutable</b><span>Do not disturb</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div></div>
+    </div>
+
+    <h3>Status picker</h3>
+    <div class="row" style="align-items: flex-start; gap: 24px">
+      <div class="menu statuspick" role="menu" aria-label="Set status">
+        <div class="custom"><span class="e" aria-hidden="true">🎮</span><div><b>Grinding ranked</b><small>Clears in 4 hours</small></div><button class="iconbtn iconbtn--sm" aria-label="Clear custom status" title="Clear custom status"><i class="ph-bold ph-x"></i></button></div>
+        <hr>
+        <button class="mi" role="menuitemradio" aria-checked="true" aria-current="true"><span class="sdot"><span class="status online"></span></span><div><span>Online</span></div></button>
+        <button class="mi" role="menuitemradio" aria-checked="false"><span class="sdot"><span class="status idle"></span></span><div><span>Idle</span></div></button>
+        <button class="mi" role="menuitemradio" aria-checked="false"><span class="sdot"><span class="status dnd"></span></span><div><span>Do not disturb</span><small>You won't get notifications</small></div></button>
+        <button class="mi" role="menuitemradio" aria-checked="false"><span class="sdot"><span class="status offline"></span></span><div><span>Invisible</span><small>Look offline, keep using Wave</small></div></button>
+      </div>
+      <div class="menu statuspick" role="menu" aria-label="Set status">
+        <button class="custom unset mi"><i class="ph ph-smiley"></i><div><span>Set a custom status</span></div></button>
+        <hr>
+        <button class="mi" role="menuitemradio" aria-checked="false"><span class="sdot"><span class="status online"></span></span><div><span>Online</span></div></button>
+        <button class="mi" role="menuitemradio" aria-checked="false"><span class="sdot"><span class="status idle"></span></span><div><span>Idle</span></div></button>
+        <button class="mi" role="menuitemradio" aria-checked="true" aria-current="true"><span class="sdot"><span class="status dnd"></span></span><div><span>Do not disturb</span><small>You won't get notifications</small></div></button>
+        <button class="mi" role="menuitemradio" aria-checked="false"><span class="sdot"><span class="status offline"></span></span><div><span>Invisible</span><small>Look offline, keep using Wave</small></div></button>
+      </div>
+    </div>
+    <p class="note" style="margin-top: 12px">The current status is the filled row, never a check. Each status keeps its shape: dot, moon, bar, ring.</p>
+  </div>
+</section>
+
+<section id="tiles">
+  <h2>Call tiles</h2>
+  <p class="lede">One tile per person or stream. Speaking draws the accent ring and the mini wave; the label carries one mark for what's off. Media tiles sit their labels on a soft scrim.</p>
+  <div class="call">
+    <div class="tiles">
+      <div class="stack" style="gap: 6px"><div class="tile speaking" style="--hue: 20"><span class="av" data-av="Mira"></span><span class="name"><span class="bars"><i></i><i></i><i></i></span><span class="who">Mira</span></span></div><span class="note">Speaking</span></div>
+      <div class="stack" style="gap: 6px"><div class="tile" style="--hue: 120"><span class="av" data-av="Ana"></span><span class="name"><i class="ph-fill ph-microphone-slash"></i><span class="who">Ana</span></span></div><span class="note">Muted</span></div>
+      <div class="stack" style="gap: 6px"><div class="tile" style="--hue: 250"><span class="av" data-av="Rosa"></span><span class="name"><i class="ph-fill ph-ear-slash"></i><span class="who">Rosa</span></span></div><span class="note">Deafened</span></div>
+      <div class="stack" style="gap: 6px"><div class="tile video has-media speaking" style="--hue: 200"><span class="name"><span class="bars"><i></i><i></i><i></i></span><span class="who">Jun</span></span></div><span class="note">Video on, speaking</span></div>
+      <div class="stack" style="gap: 6px"><div class="tile" style="--hue: 60"><span class="av" data-av="Wavebot"></span><span class="name"><i class="ph-fill ph-video-camera-slash plain"></i><span class="who">Wavebot</span></span></div><span class="note">Camera off</span></div>
+      <div class="stack" style="gap: 6px"><div class="tile stream has-media"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="viewers" aria-label="12 viewers"><i class="ph-bold ph-eye"></i>12</span><span class="name"><span class="who">Theo · Hades II</span></span></div><span class="note">Screen share</span></div>
+      <div class="stack" style="gap: 6px"><div class="tile ended"><div class="center"><b>Stream ended</b><span>Theo stopped sharing Hades II</span><button class="btn btn--sm"><i class="ph-bold ph-arrow-clockwise"></i>Watch again</button></div></div><span class="note">Stream ended</span></div>
+      <div class="stack" style="gap: 6px"><div class="tile connecting" style="--hue: 330"><span class="av" data-av="Ana"></span><span class="name"><span class="bars"><i></i><i></i><i></i></span><span class="who">Connecting…</span></span></div><span class="note">Connecting</span></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Tile radius 14, gap 10. Labels 12px semibold white with a 1px shadow. The speaking ring is drawn above the media so a stream can't hide it.</p>
+</section>
+
+<section id="mute-marks">
+  <h2>Mute marks</h2>
+  <p class="lede">Four reasons you can't hear someone, each with its own shape: they muted themselves, a moderator muted them, you muted them, or you blocked them. Only the last two are yours, so they stay neutral.</p>
+  <div class="call">
+    <div class="tiles">
+      <div class="stack" style="gap: 6px"><div class="tile" style="--hue: 120"><span class="av" data-av="Ana"></span><span class="name"><i class="ph-fill ph-microphone-slash" aria-label="Muted"></i><span class="who">Ana</span></span></div><span class="note">Muted themselves: bare coral mic</span></div>
+      <div class="stack" style="gap: 6px"><div class="tile" style="--hue: 250" title="Muted by a moderator in Night Shift"><span class="av" data-av="Rosa"></span><span class="name"><span class="vmark vmark--server" aria-label="Server muted"><i class="ph-fill ph-microphone-slash"></i></span><span class="who">Rosa</span></span></div><span class="note">Server muted: filled red chip</span></div>
+      <div class="stack" style="gap: 6px"><div class="tile is-local-muted" style="--hue: 20" title="Only you can't hear Mira. Right-click to unmute."><span class="av" data-av="Mira"></span><span class="name"><span class="who">Mira</span><span class="vmark vmark--local"><i class="ph-fill ph-speaker-simple-slash"></i><span>Muted for you</span></span></span></div><span class="note">Muted for you: neutral chip, avatar dimmed</span></div>
+      <div class="stack" style="gap: 6px"><div class="tile speaking is-local-muted" style="--hue: 20"><span class="av" data-av="Mira"></span><span class="name"><span class="who">Mira</span><span class="vmark vmark--local"><i class="ph-fill ph-speaker-simple-slash"></i><span>Muted for you</span></span></span></div><span class="note">Muted for you, talking: the ring turns neutral</span></div>
+      <div class="stack" style="gap: 6px"><div class="tile is-blocked" style="--hue: 160" title="You blocked Bartholomew, so they're muted for you. Right-click to hear them in this call."><span class="av" data-av="Bartholomew"></span><span class="name"><span class="who">Bartholomew the Unmutable</span><span class="vmark vmark--blocked"><i class="ph-bold ph-prohibit"></i><span>Blocked, muted for you</span></span></span></div><span class="note">Blocked: muted for you on join; worst-case name truncates, the chip never does</span></div>
+    </div>
+  </div>
+
+  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); margin-top: 16px; align-items: start">
+    <div>
+      <h3 style="margin-top: 0">In the channel list</h3>
+      <div class="side" style="border-radius: var(--radius-lg); padding: 6px"><div class="chlist" style="padding: 0">
+        <div class="ch sel"><i class="ph ph-speaker-high"></i><a class="nm" href="#mute-marks" aria-current="page">Lounge</a></div>
+        <button class="vp"><span class="av" data-av="Ana"></span><span class="nm">Ana</span><span class="end"><i class="ph-fill ph-microphone-slash" aria-label="Muted"></i></span></button>
+        <button class="vp" title="Muted by a moderator"><span class="av" data-av="Rosa"></span><span class="nm">Rosa</span><span class="end"><span class="vmark vmark--server" aria-label="Server muted"><i class="ph-fill ph-microphone-slash"></i></span></span></button>
+        <button class="vp" title="Muted for you"><span class="av" data-av="Mira"></span><span class="nm">Mira</span><span class="end"><span class="vmark vmark--local" aria-label="Muted for you"><i class="ph-fill ph-speaker-simple-slash"></i></span></span></button>
+        <button class="vp" title="Blocked, muted for you"><span class="av" data-av="Bartholomew"></span><span class="nm">Bartholomew the Unmutable</span><span class="end"><span class="vmark vmark--blocked" aria-label="Blocked, muted for you"><i class="ph-bold ph-prohibit"></i></span></span></button>
+        <button class="vp is-hover" title="Muted for you"><span class="av" data-av="Kai"></span><span class="nm">Kai</span><span class="end"><span class="vmark vmark--local" aria-label="Muted for you"><i class="ph-fill ph-speaker-simple-slash"></i></span></span></button>
+      </div></div>
+      <p class="note" style="margin-top: 8px">Rows carry the chip alone; the words are in its tooltip and label. Last row: hover.</p>
+    </div>
+    <div>
+      <h3 style="margin-top: 0">Told once, when you join</h3>
+      <div class="onstage" style="padding: 16px">
+        <div class="mutehint" role="status"><i class="ph-bold ph-prohibit" style="color: var(--text-muted)"></i><div><b>Bartholomew is in Lounge</b><span>You blocked them, so they're muted for you</span></div><button class="btn btn--sm">Hear them this call</button></div>
+      </div>
+      <p class="note" style="margin-top: 8px">Rises above the controls once per join, never a dialog. Hearing them lasts until you leave; the block stays.</p>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px"><code>.vmark</code> + <code>--server</code> (solid <code>--danger</code>, white glyph), <code>--local</code> (<code>speaker-simple-slash</code>), <code>--blocked</code> (<code>prohibit</code>); a <code>span</code> inside adds the words on tiles. Self mute stays the bare <code>microphone-slash</code>. Tile states <code>.is-local-muted</code>, <code>.is-blocked</code> dim the avatar.</p>
+</section>
+
+<section id="layouts">
+  <h2>Call layouts</h2>
+  <p class="lede">The grid grows with the room, and a focused stream pushes everyone else into a filmstrip. Past nine people the last tile becomes a count you can open.</p>
+
+  <h3>Focused stream with filmstrip</h3>
+  <div class="call" style="max-width: 820px">
+    <div class="focus">
+      <div class="tile stream has-media"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="viewers" aria-label="3 viewers"><i class="ph-bold ph-eye"></i>3</span><span class="name"><span class="who">Theo · Hades II</span></span></div>
+      <div class="filmstrip">
+        <div class="tile speaking" style="--hue: 20"><span class="av" data-av="Mira"></span><span class="name"><span class="bars"><i></i><i></i><i></i></span><span class="who">Mira</span></span></div>
+        <div class="tile video has-media" style="--hue: 200"><span class="name"><span class="who">Jun</span></span></div>
+        <div class="tile" style="--hue: 120"><span class="av" data-av="Ana"></span><span class="name"><i class="ph-fill ph-microphone-slash"></i><span class="who">Ana</span></span></div>
+        <div class="tile" style="--hue: 250"><span class="av" data-av="Rosa"></span><span class="name"><i class="ph-fill ph-ear-slash"></i><span class="who">Rosa</span></span></div>
+        <div class="tile" style="--hue: 300"><span class="av" data-av="You"></span><span class="name"><span class="who">You</span></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); margin-top: 16px">
+    <div>
+      <h3 style="margin-top: 0">Four people</h3>
+      <div class="call"><div class="tiles g2">
+        <div class="tile speaking" style="--hue: 20"><span class="av" data-av="Mira"></span><span class="name"><span class="bars"><i></i><i></i><i></i></span><span class="who">Mira</span></span></div>
+        <div class="tile video has-media" style="--hue: 200"><span class="name"><span class="who">Jun</span></span></div>
+        <div class="tile" style="--hue: 120"><span class="av" data-av="Ana"></span><span class="name"><i class="ph-fill ph-microphone-slash"></i><span class="who">Ana</span></span></div>
+        <div class="tile" style="--hue: 300"><span class="av" data-av="You"></span><span class="name"><span class="who">You</span></span></div>
+      </div></div>
+    </div>
+    <div>
+      <h3 style="margin-top: 0">Fifteen people</h3>
+      <div class="call"><div class="tiles g3">
+        <div class="tile speaking" style="--hue: 20"><span class="av" data-av="Mira"></span><span class="name"><span class="bars"><i></i><i></i><i></i></span><span class="who">Mira</span></span></div>
+        <div class="tile" style="--hue: 200"><span class="av" data-av="Jun"></span><span class="name"><span class="who">Jun</span></span></div>
+        <div class="tile" style="--hue: 120"><span class="av" data-av="Ana"></span><span class="name"><i class="ph-fill ph-microphone-slash"></i><span class="who">Ana</span></span></div>
+        <div class="tile" style="--hue: 250"><span class="av" data-av="Rosa"></span><span class="name"><span class="who">Rosa</span></span></div>
+        <div class="tile" style="--hue: 60"><span class="av" data-av="Theo"></span><span class="name"><span class="who">Theo</span></span></div>
+        <div class="tile" style="--hue: 160"><span class="av" data-av="Bartholomew"></span><span class="name"><i class="ph-fill ph-microphone-slash"></i><span class="who">Bartholomew the Unmutable</span></span></div>
+        <div class="tile" style="--hue: 90"><span class="av" data-av="Kai"></span><span class="name"><span class="who">Kai</span></span></div>
+        <div class="tile" style="--hue: 300"><span class="av" data-av="You"></span><span class="name"><span class="who">You</span></span></div>
+        <button class="tile more" aria-label="Show 6 more people"><div class="center"><span class="stackav"><span class="av" data-av="Lea"></span><span class="av" data-av="Omar"></span><span class="av" data-av="Pia"></span></span><b>+6</b></div></button>
+      </div></div>
+    </div>
+  </div>
+
+  <div style="margin-top: 16px">
+    <div>
+      <h3 style="margin-top: 0">Stream preview, on a live user in the sidebar</h3>
+      <div class="board"><div class="row" style="gap: 16px; align-items: flex-start">
+        <div class="preview">
+          <div class="thumb"><div class="tile stream has-media"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span></div><button class="btn btn--sm watch"><i class="ph-fill ph-play"></i>Watch stream</button></div>
+          <div class="cap"><span class="av" data-av="Theo"></span><div><b>Hades II</b><span>Theo · 3 watching</span></div></div>
+        </div>
+        <div class="preview hover">
+          <div class="thumb"><div class="tile stream has-media"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span></div><button class="btn btn--sm watch"><i class="ph-fill ph-play"></i>Watch stream</button></div>
+          <div class="cap"><span class="av" data-av="Theo"></span><div><b>Hades II</b><span>Theo · 3 watching</span></div></div>
+        </div>
+        <div class="preview">
+          <div class="thumb"><div class="tile ended"><div class="center"><b>Stream ended</b><span>Theo stopped sharing</span></div></div></div>
+          <div class="cap"><span class="av" data-av="Theo"></span><div><b>Hades II</b><span>Theo · ended a moment ago</span></div></div>
+        </div>
+      </div><p class="note" style="margin-top: 8px">At rest, on hover, and after the stream ended. The ended tile carries the stage's dark tokens itself, so it reads the same on a light sidebar.</p></div>
+    </div>
+  </div>
+
+  <h3>Chrome fades when the pointer leaves</h3>
+  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr))">
+    <div class="stack">
+      <div class="call overlay">
+        <div class="tile stream has-media"><span class="name" style="bottom: 76px"><span class="who">Theo · Hades II</span></span></div>
+        <div class="chrome head"><div class="callhead"><i class="ph ph-speaker-high"></i><span class="title">Lounge</span><span class="timer">1:24:07</span><span class="spacer"></span><button class="iconbtn" aria-label="Full screen"><i class="ph ph-corners-out"></i></button></div></div>
+        <div class="chrome foot"><div class="controls" style="gap: 8px"><div class="csplit off"><button class="cbtn" aria-label="Unmute"><i class="ph-fill ph-microphone-slash"></i></button><button class="cbtn chev" aria-label="Microphone options"><i class="ph-bold ph-caret-up"></i></button></div><button class="cbtn" aria-label="Share your screen"><i class="ph-fill ph-screencast"></i></button><button class="cbtn leave" aria-label="Leave call"><i class="ph-fill ph-phone-x"></i></button></div></div>
+      </div>
+      <span class="note">Pointer inside: header and controls over a soft scrim</span>
+    </div>
+    <div class="stack">
+      <div class="call overlay idle">
+        <div class="tile stream has-media"><span class="name" style="bottom: 76px; opacity: 0"><span class="who">Theo · Hades II</span></span></div>
+        <div class="chrome head"><div class="callhead"><i class="ph ph-speaker-high"></i><span class="title">Lounge</span><span class="timer">1:24:07</span><span class="spacer"></span><button class="iconbtn" aria-label="Full screen"><i class="ph ph-corners-out"></i></button></div></div>
+        <div class="chrome foot"><div class="controls" style="gap: 8px"><div class="csplit off"><button class="cbtn" aria-label="Unmute"><i class="ph-fill ph-microphone-slash"></i></button><button class="cbtn chev" aria-label="Microphone options"><i class="ph-bold ph-caret-up"></i></button></div><button class="cbtn" aria-label="Share your screen"><i class="ph-fill ph-screencast"></i></button><button class="cbtn leave" aria-label="Leave call"><i class="ph-fill ph-phone-x"></i></button></div></div>
+      </div>
+      <span class="note">Pointer away for 3s: chrome fades out over 260ms and drifts 6px toward its edge; it comes back on any move or focus</span>
+    </div>
+  </div>
+</section>
+
+<section id="self-view">
+  <h2>Self-view</h2>
+  <p class="lede">Your camera floats in a corner over whatever is on stage. Drag it anywhere and it springs to the nearest corner; close it and a small control stays in that corner to bring it back.</p>
+  <h3>Try it: drag, use the arrow keys, close and reopen</h3>
+  <div class="call" style="max-width: 640px"><div class="pip-stage" data-pip-demo>
+    <div class="tile stream alt has-media"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="name"><span class="who">Mira · Balatro</span></span></div>
+    <span class="pip-snap" data-corner="tl"></span><span class="pip-snap" data-corner="tr"></span><span class="pip-snap" data-corner="bl"></span><span class="pip-snap" data-corner="br"></span>
+    <div class="tile video has-media pip" data-corner="br" style="--hue: 300" tabindex="0" role="group" aria-label="Self-view. Drag, or use the arrow keys, to move it to another corner" title="Drag to any corner"><i class="ph-bold ph-dots-six grip" aria-hidden="true"></i><button class="close" aria-label="Hide self-view" title="Hide self-view. Others still see your camera"><i class="ph-bold ph-x"></i></button><span class="name"><span class="who">You</span></span></div>
+    <button class="pip-restore" data-corner="br" hidden title="Others still see your camera"><i class="ph-bold ph-user-square"></i>Show self-view</button>
+  </div></div>
+
+  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); margin-top: 16px">
+    <div>
+      <h3 style="margin-top: 0">While dragging</h3>
+      <div class="call"><div class="pip-stage is-dragging">
+        <div class="tile stream alt has-media"><span class="name"><span class="who">Mira · Balatro</span></span></div>
+        <span class="pip-snap is-near" data-corner="tl"></span><span class="pip-snap" data-corner="tr"></span><span class="pip-snap" data-corner="bl"></span><span class="pip-snap" data-corner="br"></span>
+        <div class="tile video has-media pip is-dragging" style="--hue: 300; right: auto; bottom: auto; left: 22%; top: 20%" aria-label="Self-view, being moved"><i class="ph-bold ph-dots-six grip" aria-hidden="true"></i><span class="name"><span class="who">You</span></span></div>
+      </div></div>
+      <p class="note" style="margin-top: 8px">It lifts (scale 1.04, deeper shadow) and follows the pointer 1:1. Corners show as faint wells; the nearest fills with accent. On release it springs there on <code>--ease-spring</code> over 260ms, and that corner is kept for every call.</p>
+    </div>
+    <div>
+      <h3 style="margin-top: 0">Closed</h3>
+      <div class="call"><div class="pip-stage">
+        <div class="tile stream alt has-media"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="name"><span class="who">Mira · Balatro</span></span></div>
+        <button class="pip-restore" data-corner="br" title="Others still see your camera"><i class="ph-bold ph-user-square"></i>Show self-view</button>
+      </div></div>
+      <p class="note" style="margin-top: 8px">The way back sits where the way out was, at any width, without hovering. Show self-view in More options does the same. Turning the camera off removes both: your grid tile already shows you're there.</p>
+    </div>
+  </div>
+</section>
+
+<section id="pop-out">
+  <h2>Pop-out</h2>
+  <p class="lede">A stream in its own small window that stays on top while you read chat or play. The call keeps its slot with a way back, so nothing jumps while it's away.</p>
+  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); align-items: start">
+    <div>
+      <h3 style="margin-top: 0">The pop-out window</h3>
+      <div class="board" style="display: grid; justify-items: center; gap: 16px">
+        <div class="popout is-hover" role="group" aria-label="Theo's stream, popped out">
+          <div class="tile stream has-media"></div>
+          <div class="popout-bar"><span class="popout-lights" aria-hidden="true"><i></i><i></i><i></i></span><span class="title">Theo · Hades II</span><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span></div>
+          <div class="popout-foot">
+            <button class="iconbtn" aria-label="Stream volume" title="Stream volume: 80%"><i class="ph-bold ph-speaker-high"></i></button>
+            <button class="btn btn--sm"><i class="ph-bold ph-arrow-square-in"></i>Return to call</button>
+            <button class="iconbtn" aria-label="Stop watching" title="Stop watching Theo"><i class="ph-bold ph-x"></i></button>
+          </div>
+        </div>
+        <div class="popout" role="group" aria-label="Theo's stream, popped out">
+          <div class="tile stream has-media"></div>
+          <div class="popout-bar"><span class="popout-lights" aria-hidden="true"><i></i><i></i><i></i></span><span class="title">Theo · Hades II</span></div>
+          <div class="popout-foot"><button class="btn btn--sm"><i class="ph-bold ph-arrow-square-in"></i>Return to call</button></div>
+        </div>
+      </div>
+      <p class="note" style="margin-top: 8px">Pointer inside, then away: only the picture. Return to call and Stop watching are separate buttons, so putting it back never ends it. The window's own close returns it too. It snaps to screen corners like self-view.</p>
+    </div>
+    <div>
+      <h3 style="margin-top: 0">What the call keeps</h3>
+      <div class="call">
+        <div class="tiles g2">
+          <div class="tile stream has-media is-popped"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="viewers" aria-label="3 viewers"><i class="ph-bold ph-eye"></i>3</span><div class="center"><b><i class="ph ph-picture-in-picture" aria-hidden="true"></i>In a pop-out</b><button class="btn btn--sm"><i class="ph-bold ph-arrow-square-in"></i>Return to call</button></div><span class="name"><span class="who">Theo · Hades II</span></span></div>
+          <div class="tile speaking" style="--hue: 20"><span class="av" data-av="Mira"></span><span class="name"><span class="bars"><i></i><i></i><i></i></span><span class="who">Mira</span></span></div>
+          <div class="tile" style="--hue: 300"><span class="av" data-av="You"></span><span class="name"><i class="ph-fill ph-microphone-slash"></i><span class="who">You</span></span></div>
+          <div class="tile" style="--hue: 120"><span class="av" data-av="Ana"></span><span class="name"><span class="who">Ana</span></span></div>
+        </div>
+      </div>
+      <p class="note" style="margin-top: 8px">Same slot, the picture dimmed under the stage tone, still LIVE with its viewer count. Return to call from either side flies the picture back into this tile (FLIP, 260ms); reduced motion swaps it in place.</p>
+    </div>
+  </div>
+</section>
+
+<section id="call-header">
+  <h2>Call header</h2>
+  <p class="lede">Names the room, shows how long it has been going, who is in it, and the few view controls. Pop-out and full screen drop first when narrow.</p>
+  <div class="call stack" style="gap: 16px">
+    <div class="callhead">
+      <i class="ph ph-speaker-high"></i><span class="title">Lounge</span><span class="timer" data-timer="5047">1:24:07</span>
+      <span class="spacer"></span>
+      <button class="people" aria-label="4 people in Lounge" title="4 people in Lounge"><span class="stackav"><span class="av" data-av="Mira"></span><span class="av" data-av="Theo"></span><span class="av" data-av="Jun"></span></span>4</button>
+      <span class="sep"></span>
+      <button class="iconbtn" aria-label="Layout: grid" title="Layout: grid. Switch to focus"><i class="ph ph-squares-four"></i></button>
+      <button class="iconbtn hide-narrow" aria-label="Pop out" title="Pop out into its own window"><i class="ph ph-arrow-square-out"></i></button>
+      <button class="iconbtn hide-narrow" aria-label="Full screen" title="Full screen"><i class="ph ph-corners-out"></i></button>
+      <button class="iconbtn" aria-pressed="true" aria-label="Chat" title="Chat: hide the channel's messages"><i class="ph ph-chat-circle-text"></i></button>
+    </div>
+    <div class="callhead">
+      <i class="ph ph-speaker-high"></i><span class="title">Late night ranked grind, no tilting allowed, seriously</span><span class="timer">12:03:41</span>
+      <span class="spacer"></span>
+      <button class="people" aria-label="15 people" title="15 people"><span class="stackav"><span class="av" data-av="Lea"></span><span class="av" data-av="Omar"></span><span class="av" data-av="Pia"></span></span>15</button>
+      <span class="sep"></span>
+      <button class="iconbtn" aria-label="Layout: focus" title="Layout: focus. Switch to grid"><i class="ph ph-square-split-horizontal"></i></button>
+      <button class="iconbtn hide-narrow" aria-label="Pop out" title="Pop out into its own window"><i class="ph ph-arrow-square-out"></i></button>
+      <button class="iconbtn hide-narrow" aria-label="Full screen" title="Full screen"><i class="ph ph-corners-out"></i></button>
+      <button class="iconbtn" aria-pressed="false" aria-label="Chat" title="Chat: show the channel's messages"><i class="ph ph-chat-circle-text"></i></button>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">Top: grid layout, chat drawer open (pressed fill). Bottom: focus layout, worst-case title and a 12-hour call. The layout button shows the current mode; the timer ticks every second in tabular figures.</p>
+</section>
+
+<section id="call-controls">
+  <h2>Call controls</h2>
+  <p class="lede">Mute and camera are split buttons: the main half toggles, the chevron opens that device's menu. Off-states are soft coral, sharing is accent, leave is the only red fill.</p>
+  <div class="onstage stack" style="gap: 20px">
+    <div class="stack"><span class="note">Joined, nothing on</span>
+      <div class="controls" style="justify-content: flex-start">
+        <div class="csplit"><button class="cbtn" aria-label="Mute" title="Mute"><i class="ph-fill ph-microphone"></i></button><button class="cbtn chev" aria-label="Microphone options"><i class="ph-bold ph-caret-up"></i></button></div>
+        <div class="csplit"><button class="cbtn" aria-label="Turn on camera" title="Turn on camera"><i class="ph-fill ph-video-camera-slash"></i></button><button class="cbtn chev" aria-label="Camera options"><i class="ph-bold ph-caret-up"></i></button></div>
+        <button class="cbtn" aria-label="Share your screen" title="Share your screen"><i class="ph-fill ph-screencast"></i></button>
+        <button class="cbtn" aria-label="Activities" title="Activities and soundboard"><i class="ph-fill ph-rocket-launch"></i></button>
+        <button class="cbtn" aria-label="More options" title="More options"><i class="ph-bold ph-dots-three"></i></button>
+        <span class="gap"></span>
+        <button class="cbtn leave" aria-label="Leave call" title="Leave call"><i class="ph-fill ph-phone-x"></i></button>
+      </div></div>
+    <div class="stack"><span class="note">Muted, camera on, sharing, microphone menu open</span>
+      <div class="controls" style="justify-content: flex-start">
+        <div class="csplit off"><button class="cbtn" aria-label="Unmute" title="Unmute"><i class="ph-fill ph-microphone-slash"></i></button><button class="cbtn chev" aria-label="Microphone options" aria-expanded="true"><i class="ph-bold ph-caret-up"></i></button></div>
+        <div class="csplit on"><button class="cbtn" aria-label="Turn off camera" title="Turn off camera"><i class="ph-fill ph-video-camera"></i></button><button class="cbtn chev" aria-label="Camera options"><i class="ph-bold ph-caret-up"></i></button></div>
+        <button class="cbtn active" aria-label="Stop sharing" title="Stop sharing"><i class="ph-fill ph-screencast"></i></button>
+        <button class="cbtn" aria-label="Activities" title="Activities and soundboard"><i class="ph-fill ph-rocket-launch"></i></button>
+        <button class="cbtn" aria-label="More options" title="More options"><i class="ph-bold ph-dots-three"></i></button>
+        <span class="gap"></span>
+        <button class="cbtn leave" aria-label="Leave call" title="Leave call"><i class="ph-fill ph-phone-x"></i></button>
+      </div></div>
+    <div class="stack"><span class="note">Server muted: mute is disabled and its tooltip says why</span>
+      <div class="controls" style="justify-content: flex-start">
+        <div class="csplit off"><button class="cbtn" disabled aria-label="Server muted" title="A moderator muted you. Only they can unmute you."><i class="ph-fill ph-microphone-slash"></i></button><button class="cbtn chev" aria-label="Microphone options"><i class="ph-bold ph-caret-up"></i></button></div>
+        <div class="csplit"><button class="cbtn" aria-label="Turn on camera" title="Turn on camera"><i class="ph-fill ph-video-camera-slash"></i></button><button class="cbtn chev" aria-label="Camera options"><i class="ph-bold ph-caret-up"></i></button></div>
+        <button class="cbtn" aria-label="Share your screen" title="Share your screen"><i class="ph-fill ph-screencast"></i></button>
+        <button class="cbtn leave" aria-label="Leave call" title="Leave call"><i class="ph-fill ph-phone-x"></i></button>
+      </div></div>
+
+    <div class="row" style="align-items: flex-start; gap: 16px">
+      <div class="menu devmenu" role="menu" aria-label="Microphone">
+        <div class="mlabel">Input device</div>
+        <div role="radiogroup" aria-label="Input device">
+          <button class="choice vrow" data-toggle="radio"><span class="radio" role="radio" aria-checked="true"></span><div><b>Shure MV7+</b></div></button>
+          <button class="choice vrow" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div><b>MacBook Pro Microphone</b></div></button>
+          <button class="choice vrow" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div><b>AirPods Pro</b></div></button>
+        </div>
+        <div class="mlabel">Output device</div>
+        <div role="radiogroup" aria-label="Output device">
+          <button class="choice vrow" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div><b>MacBook Pro Speakers</b></div></button>
+          <button class="choice vrow" data-toggle="radio"><span class="radio" role="radio" aria-checked="true"></span><div><b>AirPods Pro</b></div></button>
+        </div>
+        <hr>
+        <div class="mslider">
+          <div><label for="invol">Input volume</label><output for="invol">80%</output></div>
+          <input id="invol" class="range" type="range" min="0" max="100" value="80" data-out>
+          <div class="meter" data-level aria-label="Microphone level"></div>
+        </div>
+        <button class="choice vrow" data-toggle="switch"><div><b>Noise suppression</b><span>Filters fans and keys on this device</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+        <hr>
+        <button class="mi"><i class="ph ph-gear-six"></i><div><span>Voice settings</span></div><i class="ph ph-caret-right chev"></i></button>
+      </div>
+      <div class="menu devmenu" role="menu" aria-label="Camera">
+        <div class="mlabel">Camera</div>
+        <div role="radiogroup" aria-label="Camera">
+          <button class="choice vrow" data-toggle="radio"><span class="radio" role="radio" aria-checked="true"></span><div><b>Elgato Facecam</b></div></button>
+          <button class="choice vrow" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div><b>FaceTime HD Camera</b></div></button>
+          <button class="choice vrow" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div><b>iPhone camera (Continuity Camera over Wi-Fi)</b></div></button>
+        </div>
+        <hr>
+        <button class="choice vrow" data-toggle="switch"><div><b>Blur background</b><span>Runs on this device</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+        <button class="choice vrow" data-toggle="switch"><div><b>Mirror my video</b><span>Only you see it mirrored</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+        <hr>
+        <button class="mi"><i class="ph ph-gear-six"></i><div><span>Video settings</span></div><i class="ph ph-caret-right chev"></i></button>
+      </div>
+    </div>
+
+    <div class="stack" style="gap: 10px"><span class="note">Hints that rise above the controls</span>
+      <div class="row" style="gap: 12px; align-items: flex-start">
+        <div class="mutehint" role="status"><i class="ph-fill ph-microphone-slash"></i><div><b>You're muted</b><span>You're talking, but nobody can hear you</span></div><button class="btn btn--sm">Unmute</button></div>
+        <div class="mutehint" role="status"><i class="ph-fill ph-ear-slash"></i><div><b>You're deafened</b><span>You can't hear anyone, and they can't hear you</span></div><span class="keys" aria-label="Command Shift D"><span class="kbd">⌘</span><span class="kbd">⇧</span><span class="kbd">D</span></span><button class="btn btn--sm">Undeafen</button></div>
+      </div></div>
+  </div>
+  <p class="note" style="margin-top: 8px">Control 52×48, radius 16; split halves join with a 2px gap and 6px inner corners. Device menus open above their chevron and use the menu primitive; rows are radio choices, the meter is the <code>.meter</code> primitive.</p>
+</section>
+
+<section id="go-live">
+  <h2>Go live</h2>
+  <p class="lede">Picks what to share and how it looks before anyone sees it. The selected source is ringed in accent; Go live is the only primary.</p>
+  <div class="board" style="display: grid; place-items: center; background: var(--scrim)">
+    <div class="dialog golive" role="dialog" aria-labelledby="golive-title">
+      <div class="head"><h4 id="golive-title">Go live in Lounge</h4><p>Choose a screen, a window or a capture device.</p></div>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="false"><i class="ph ph-monitor"></i>Screens</button>
+        <button class="tab" role="tab" aria-selected="true"><i class="ph ph-app-window"></i>Windows</button>
+        <button class="tab" role="tab" aria-selected="false"><i class="ph ph-usb"></i>Devices</button>
+      </div>
+      <div class="srcs">
+        <button class="src" aria-pressed="true"><span class="shot"><span class="tile stream"></span></span><span class="label"><i class="ph ph-game-controller"></i><span>Hades II</span></span></button>
+        <button class="src" aria-pressed="false"><span class="shot"><span class="tile stream alt"></span></span><span class="label"><i class="ph ph-music-notes"></i><span>Music</span></span></button>
+        <button class="src" aria-pressed="false"><span class="shot"><span class="tile" style="--hue: 75; background: linear-gradient(oklch(0.93 0.01 75) 0 18%, oklch(0.98 0.005 75) 18%)"></span></span><span class="label"><i class="ph ph-browser"></i><span>Season 7: the long night · Patch notes</span></span></button>
+        <button class="src" aria-pressed="false"><span class="shot"><span class="tile" style="background: linear-gradient(90deg, oklch(0.22 0.01 260) 0 22%, oklch(0.26 0.01 260) 22%)"></span></span><span class="label"><i class="ph ph-code"></i><span>main.rs · wave</span></span></button>
+        <button class="src" aria-pressed="false"><span class="shot"><span class="tile" style="background: oklch(0.18 0.01 350)"></span></span><span class="label"><i class="ph ph-terminal-window"></i><span>Terminal</span></span></button>
+        <button class="src" aria-pressed="false"><span class="shot"><span class="tile" style="background: linear-gradient(90deg, oklch(0.9 0.01 75) 0 26%, oklch(0.97 0.005 75) 26%)"></span></span><span class="label"><i class="ph ph-folder-simple"></i><span>Downloads</span></span></button>
+      </div>
+      <div class="quality">
+        <div class="field"><label>Resolution</label><div class="seg" role="group" aria-label="Resolution"><button aria-pressed="false">720p</button><button aria-pressed="true">1080p</button><button aria-pressed="false">Source</button></div></div>
+        <div class="field"><label>Frame rate</label><div class="seg" role="group" aria-label="Frame rate"><button aria-pressed="false">15 fps</button><button aria-pressed="false">30 fps</button><button aria-pressed="true">60 fps</button></div></div>
+      </div>
+      <button class="choice" data-toggle="switch" style="padding: 10px 0"><div><b>Share audio</b><span>Viewers hear Hades II, not your other apps</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+      <footer><span class="note">4 people in Lounge can watch</span><button class="btn btn--ghost">Cancel</button><button class="btn btn--primary"><i class="ph-bold ph-broadcast"></i>Go live</button></footer>
+    </div>
+  </div>
+</section>
+
+<section id="stream-menu">
+  <h2>Your stream menu</h2>
+  <p class="lede">Opens from your own stream tile. Everything about the stream lives here, each row with one line on what it changes; stopping is last and red.</p>
+  <div class="onstage"><div class="row" style="align-items: flex-start; gap: 16px">
+    <div class="tile stream has-media" style="width: min(100%, 360px)"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="viewers" aria-label="3 viewers"><i class="ph-bold ph-eye"></i>3</span><span class="name"><span class="who">You · Hades II</span></span></div>
+    <div class="menu streammenu" role="menu" aria-label="Your stream">
+      <button class="mi"><i class="ph ph-sliders-horizontal"></i><div><span>Stream quality</span><small>1080p, 60 fps</small></div><i class="ph ph-caret-right chev"></i></button>
+      <button class="mi"><i class="ph ph-swap"></i><div><span>Change source</span><small>Sharing the Hades II window</small></div></button>
+      <div class="mslider">
+        <div><label for="svol">Stream volume<small>How loud viewers hear your audio</small></label><output for="svol">80%</output></div>
+        <input id="svol" class="range" type="range" min="0" max="100" value="80" data-out>
+      </div>
+      <hr>
+      <button class="mi danger"><i class="ph ph-stop-circle"></i><div><span>Stop streaming</span><small>Viewers see that your stream ended</small></div></button>
+    </div>
+  </div></div>
+</section>
+
+<section id="user-volume">
+  <h2>User volume</h2>
+  <p class="lede">Right-click someone in a call to set how loud they are for you, from 0 to 200%. Nobody else hears the change.</p>
+  <div class="board"><div class="row" style="align-items: flex-start; gap: 24px">
+    <div class="menu uvol" role="menu" aria-label="Mira">
+      <div class="mhead"><span class="av" data-av="Mira"></span><div><b>Mira</b><span>In Lounge</span></div></div>
+      <div class="mslider">
+        <div><label for="uvol">User volume</label><output for="uvol">140%</output></div>
+        <input id="uvol" class="range" type="range" min="0" max="200" value="140" step="5" data-out>
+        <div class="ticks"><span>0%</span><span>100%</span><span>200%</span></div>
+      </div>
+      <hr>
+      <button class="choice vrow" data-toggle="switch"><div><b>Mute</b><span>Only for you</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+      <button class="choice vrow" data-toggle="switch"><div><b>Mute soundboard</b><span>Her sounds won't play for you</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+      <button class="mi"><i class="ph ph-arrow-counter-clockwise"></i><div><span>Reset volume</span></div></button>
+    </div>
+    <div class="menu uvol" role="menu" aria-label="Bartholomew the Unmutable">
+      <div class="mhead"><span class="av" data-av="Bartholomew"></span><div><b>Bartholomew the Unmutable</b><span>Muted for you</span></div></div>
+      <div class="mslider">
+        <div><label for="uvol2">User volume</label><output for="uvol2">0%</output></div>
+        <input id="uvol2" class="range" type="range" min="0" max="200" value="0" step="5" data-out>
+        <div class="ticks"><span>0%</span><span>100%</span><span>200%</span></div>
+      </div>
+      <hr>
+      <button class="choice vrow" data-toggle="switch"><div><b>Mute</b><span>Only for you</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+      <button class="choice vrow" data-toggle="switch"><div><b>Mute soundboard</b><span>Their sounds won't play for you</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+      <button class="mi"><i class="ph ph-arrow-counter-clockwise"></i><div><span>Reset volume</span></div></button>
+    </div>
+  </div></div>
+</section>
+
+<section id="soundboard">
+  <h2>Soundboard</h2>
+  <p class="lede">Short clips anyone in the call can play. Favourites sit on top; a playing sound fills with its progress; the star appears on hover.</p>
+  <div class="board"><div class="row" style="align-items: flex-start; gap: 24px">
+    <div class="sboard" role="dialog" aria-label="Soundboard">
+      <header><b>Soundboard</b><button class="iconbtn" aria-label="Upload a sound" title="Upload a sound"><i class="ph ph-upload-simple"></i></button></header>
+      <label class="input"><i class="ph ph-magnifying-glass"></i><input placeholder="Search sounds" aria-label="Search sounds"></label>
+      <div class="mlabel"><i class="ph-fill ph-star"></i>Favourites</div>
+      <div class="sounds">
+        <button class="sound playing" style="--p: 0.55" aria-label="Airhorn, playing"><span class="e">📯</span><span class="n">Airhorn</span></button>
+        <button class="sound"><span class="e">👏</span><span class="n">Applause</span><span class="fav on" aria-label="Remove from favourites"><i class="ph-fill ph-star"></i></span></button>
+        <button class="sound"><span class="e">🦗</span><span class="n">Crickets</span><span class="fav on" aria-label="Remove from favourites"><i class="ph-fill ph-star"></i></span></button>
+      </div>
+      <div class="mlabel">Night Shift</div>
+      <div class="sounds">
+        <button class="sound"><span class="e">🥁</span><span class="n">Ba dum tss</span><span class="fav" aria-label="Add to favourites"><i class="ph ph-star"></i></span></button>
+        <button class="sound hover"><span class="e">😂</span><span class="n">Laugh track</span><span class="fav" aria-label="Add to favourites"><i class="ph ph-star"></i></span></button>
+        <button class="sound"><span class="e">🔔</span><span class="n">Ding</span><span class="fav" aria-label="Add to favourites"><i class="ph ph-star"></i></span></button>
+        <button class="sound"><span class="e">🐐</span><span class="n">Goat scream but longer and louder</span><span class="fav" aria-label="Add to favourites"><i class="ph ph-star"></i></span></button>
+        <button class="sound"><span class="e">💥</span><span class="n">Vine boom</span><span class="fav" aria-label="Add to favourites"><i class="ph ph-star"></i></span></button>
+        <button class="sound" disabled title="Ready again in 3 seconds"><span class="e">🚨</span><span class="n">Siren</span></button>
+      </div>
+    </div>
+    <div class="sboard" role="dialog" aria-label="Soundboard">
+      <header><b>Soundboard</b></header>
+      <div class="empty"><div class="mascot idle"><i></i><i></i><i></i><i></i><i></i></div><b>No sounds yet</b><p>Upload a clip up to 5 seconds and anyone in the call can play it.</p><button class="btn btn--primary"><i class="ph-bold ph-upload-simple"></i>Upload a sound</button></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 12px">States: playing (Airhorn), hover with the star (Laugh track), favourited, long name, cooling down (Siren, disabled with a tooltip), empty.</p></div>
+  <h3>Who played it</h3>
+  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); align-items: start">
+    <div class="call" data-sfx-demo>
+      <div class="tiles g2">
+        <div class="tile" style="--hue: 300"><span class="av" data-av="You"><span class="sfx" role="img" aria-label="Playing Airhorn">📯</span></span><span class="name"><span class="who">You</span></span></div>
+        <div class="tile speaking" style="--hue: 20"><span class="av" data-av="Mira"><span class="sfx" role="img" aria-label="Playing Crickets">🦗</span></span><span class="name"><span class="bars"><i></i><i></i><i></i></span><span class="who">Mira</span></span></div>
+      </div>
+      <div class="row" style="justify-content: center"><button class="btn btn--sm" data-sfx-play><i class="ph-bold ph-play"></i>Play Airhorn again</button></div>
+    </div>
+    <div>
+      <div class="side" style="border-radius: var(--radius-lg); padding: 6px"><div class="chlist" style="padding: 0">
+        <div class="ch sel"><i class="ph ph-speaker-high"></i><a class="nm" href="#soundboard" aria-current="page">Lounge</a></div>
+        <button class="vp" title="Playing Airhorn"><span class="av" data-av="You"></span><span class="nm">You</span><span class="end"><span class="sfx" role="img" aria-label="Playing Airhorn">📯</span></span></button>
+        <button class="vp speaking" title="Playing Crickets"><span class="av" data-av="Mira"></span><span class="nm">Mira</span><span class="end"><span class="sfx" role="img" aria-label="Playing Crickets">🦗</span></span></button>
+        <button class="vp"><span class="av" data-av="Ana"></span><span class="nm">Ana</span></button>
+      </div></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 8px">The sound's emoji sits on the player's avatar (top right, clear of the status corner) and on their sidebar row for as long as it plays, at most 5 seconds. It pops in on <code>--ease-spring</code> from scale 0.5 over 260ms and fades out over 150ms; reduced motion shows and hides it without the pop. It is the row's one mark while it plays: the speaking wave yields to it.</p>
+
+</section>
+
+<section id="incoming-call">
+  <h2>Incoming call</h2>
+  <p class="lede">A ring card floats above the app while a DM call rings; inside that DM, a banner holds the call for as long as it runs, and the history keeps a line for each one.</p>
+  <div class="board"><div class="row" style="align-items: flex-start; gap: 24px">
+    <div class="ringcard" role="alertdialog" aria-labelledby="ring-name">
+      <div class="ringav"><span class="mascot waiting" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span class="av" data-av="Mira"></span><span class="mascot waiting" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></div>
+      <b id="ring-name">Mira</b>
+      <p>Incoming voice call</p>
+      <div class="acts"><button class="btn decline"><i class="ph-bold ph-phone-x"></i>Decline</button><button class="btn btn--primary"><i class="ph-bold ph-phone"></i>Accept</button></div>
+    </div>
+    <div class="dmchat" style="flex: 1; min-width: min(100%, 340px)">
+      <header><span class="av" data-av="Mira"><span class="status online"></span></span>Mira</header>
+      <div class="dmcall">
+        <span class="stackav"><span class="av speaking" data-av="Mira" style="--bg-ring: var(--bg-page)"></span></span>
+        <div><b><span class="bars is-ringing" aria-hidden="true"><i></i><i></i><i></i></span>Mira is calling you</b><span>Ringing for 0:12</span></div>
+        <div class="row"><button class="btn btn--sm decline">Decline</button><button class="btn btn--sm btn--primary"><i class="ph-bold ph-phone"></i>Join call</button></div>
+      </div>
+      <div class="callsys missed"><i class="ph-fill ph-phone-x"></i><span>You missed a call from <b>Mira</b></span><time>9:41 PM</time></div>
+      <div class="callsys"><i class="ph-fill ph-phone"></i><span><b>Mira</b> started a call that lasted 12 minutes</span><time>Yesterday</time></div>
+      <div class="dmcall ongoing">
+        <span class="stackav"><span class="av" data-av="Mira"></span></span>
+        <div><b>Call in progress</b><span>Mira is still in the call · 12:04</span></div>
+        <div class="row"><button class="btn btn--sm btn--primary"><i class="ph-bold ph-phone"></i>Join call</button></div>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: 12px">Banner states: ringing (accent tint, asks for you), in progress after you left (quiet). Accept is the primary; decline is the soft coral, never a second red fill.</p></div>
+</section>
+
+<section id="outgoing-call">
+  <h2>Outgoing call</h2>
+  <p class="lede">When you call someone from a DM, the banner rings them for up to a minute. It stays neutral, because it waits on them, not you; when ringing stops it says why and offers Call again.</p>
+  <div class="board">
+    <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); align-items: start">
+      <div class="stack" style="gap: 8px"><span class="note">Ringing</span>
+        <div class="dmchat">
+          <header><span class="av" data-av="Mira"><span class="status online"></span></span>Mira</header>
+          <div class="dmcall is-outgoing">
+            <span class="stackav"><span class="av" data-av="Mira"></span></span>
+            <div><b><span class="bars is-ringing" aria-hidden="true"><i></i><i></i><i></i></span>Ringing Mira…</b><span data-ring="8">Ringing for 0:08</span></div>
+            <div class="row"><button class="btn btn--sm decline"><i class="ph-bold ph-phone-x"></i>Cancel call</button></div>
+          </div>
+        </div></div>
+      <div class="stack" style="gap: 8px"><span class="note">Ringing, she's in another call</span>
+        <div class="dmchat">
+          <header><span class="av" data-av="Mira"><span class="status online"></span></span>Mira</header>
+          <div class="dmcall is-outgoing">
+            <span class="stackav"><span class="av" data-av="Mira"></span></span>
+            <div><b><span class="bars is-ringing" aria-hidden="true"><i></i><i></i><i></i></span>Ringing Mira…</b><span>She's in another call; it rings for her quietly</span></div>
+            <div class="row"><button class="btn btn--sm decline"><i class="ph-bold ph-phone-x"></i>Cancel call</button></div>
+          </div>
+        </div></div>
+    </div>
+
+    <h3>When ringing stops</h3>
+    <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); align-items: start">
+      <div class="stack" style="gap: 8px"><span class="note">Declined</span>
+        <div class="dmchat">
+          <div class="dmcall is-ended">
+          <span class="stackav"><span class="av" data-av="Mira"></span></span>
+          <div><b><i class="ph-fill ph-phone-x"></i>Mira declined</b><span>She saw it ring. The call has ended.</span></div>
+          <div class="row"><button class="btn btn--sm"><i class="ph-bold ph-phone"></i>Call again</button><button class="iconbtn" aria-label="Dismiss" title="Dismiss"><i class="ph-bold ph-x"></i></button></div>
+        </div>
+        </div></div>
+      <div class="stack" style="gap: 8px"><span class="note">No answer</span>
+        <div class="dmchat">
+          <div class="dmcall is-ended">
+          <span class="stackav"><span class="av" data-av="Mira"></span></span>
+          <div><b><i class="ph-fill ph-clock-countdown"></i>Mira didn't answer</b><span>Rang for 1:00. She'll see a missed call.</span></div>
+          <div class="row"><button class="btn btn--sm"><i class="ph-bold ph-phone"></i>Call again</button><button class="iconbtn" aria-label="Dismiss" title="Dismiss"><i class="ph-bold ph-x"></i></button></div>
+        </div>
+        </div></div>
+      <div class="stack" style="gap: 8px"><span class="note">Busy</span>
+        <div class="dmchat">
+          <div class="dmcall is-ended">
+          <span class="stackav"><span class="av" data-av="Mira"></span></span>
+          <div><b><i class="ph-fill ph-phone-call"></i>Mira is busy</b><span>She stayed in her other call. She'll see you called.</span></div>
+          <div class="row"><button class="btn btn--sm"><i class="ph-bold ph-phone"></i>Call again</button><button class="iconbtn" aria-label="Dismiss" title="Dismiss"><i class="ph-bold ph-x"></i></button></div>
+        </div>
+        </div></div>
+      <div class="stack" style="gap: 8px"><span class="note">Worst case: long name, still ringing at 0:59</span>
+        <div class="dmchat"><div class="dmcall is-outgoing">
+          <span class="stackav"><span class="av" data-av="Bartholomew"></span></span>
+          <div><b style="min-width: 0"><span class="bars is-ringing" aria-hidden="true"><i></i><i></i><i></i></span><span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Ringing Bartholomew the Unmutable…</span></b><span>Ringing for 0:59</span></div>
+          <div class="row"><button class="btn btn--sm decline"><i class="ph-bold ph-phone-x"></i>Cancel call</button></div>
+        </div></div></div>
+    </div>
+    <p class="note" style="margin-top: 12px">Ringing: a slow ripple on the 2-second ringback beat and a pulse around the avatar, both muted ink; magenta stays with the incoming banner, which asks for you. Every end state closes the call for you (nobody else is in it), names its reason, and leaves a line in the history; Dismiss folds the banner into that line. A blocked caller's side rings out as No answer, so a block is never announced.</p>
+  </div>
+</section>
+
+<section id="better-than-discord">
+  <h2>Better than Discord</h2>
+  <p class="lede">Where voice and calls differ from Discord on purpose. Discord's side is described from its desktop app.</p>
+  <div class="btd">
+    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
+    <div><p>When nobody picks up, you sit alone in the call until you notice and hang up.</p><p><b><a href="#outgoing-call">Ringing ends the call</a></b>Declined, no answer and busy each close the call, say which, and offer Call again.</p><p>The outcome is the information; an empty call isn't.</p></div>
+    <div><p>A declined call looks the same as one nobody saw.</p><p><b><a href="#outgoing-call">Declined says so</a></b>Ringing stops at once with "Mira declined", and busy says she stayed in another call.</p><p>No waiting a minute for an answer that already came.</p></div>
+    <div><p>Muted for you, server muted and self muted are told apart by small icon differences.</p><p><b><a href="#mute-marks">Four mute shapes</a></b>Bare coral mic, filled red chip, neutral "Muted for you" chip, "Blocked, muted for you".</p><p>Whose choice it was decides who can undo it; the mark should say so without colour alone.</p></div>
+    <div><p>A blocked person in your voice channel can be heard unless you mute them yourself.</p><p><b><a href="#mute-marks">Blocked means muted</a></b>They're muted for you on join, told once inline, with Hear them this call.</p><p>A block should hold in voice too, without a dialog in the way.</p></div>
+    <div><p>Hiding self-view is a menu setting; getting it back means finding that setting.</p><p><b><a href="#self-view">Show self-view in place</a></b>Close leaves a Show self-view control in the same corner.</p><p>The way back sits where the way out was.</p></div>
+    <div><p>A popped-out stream leaves its call slot looking empty, and the window's close is the only way back.</p><p><b><a href="#pop-out">Return to call</a></b>A labelled button on the pop-out and on the slot it left, separate from Stop watching.</p><p>Putting a stream back should never risk ending it.</p></div>
+  </div>
+</section>
+
+</main>
+</div>
+<script src="site.js"></script>
+<script>
+// Page demos: ticking timers, the ping graph, a live mic meter and slider readouts.
+for (const t of document.querySelectorAll("[data-timer]")) {
+  let s = +t.dataset.timer;
+  const fmt = n => `${Math.floor(n / 3600)}:${String(Math.floor(n / 60) % 60).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+  setInterval(() => { t.textContent = fmt(++s); }, 1000);
+}
+for (const g of document.querySelectorAll("[data-pings]")) {
+  const pings = g.dataset.pings.split(",").map(Number);
+  g.innerHTML = pings.map(p => `<i class="${p > 120 ? "bad" : p > 80 ? "fair" : ""}" style="--h:${Math.min(100, p / 1.5)}%"></i>`).join("");
+}
+for (const m of document.querySelectorAll("[data-level]")) {
+  m.innerHTML = "<i></i>".repeat(28);
+  let t = 0;
+  setInterval(() => {
+    t += 0.25;
+    const level = Math.max(0, 0.35 + 0.3 * Math.sin(t) + 0.18 * Math.sin(t * 3.7));
+    [...m.children].forEach((bar, i) => { bar.className = i / 28 < level ? (i > 25 ? "clip" : i > 20 ? "hot" : "on") : ""; });
+  }, 90);
+}
+// Outgoing ring: ticks up to the one-minute limit, then starts over for the demo.
+for (const el of document.querySelectorAll("[data-ring]")) {
+  let s = +el.dataset.ring;
+  setInterval(() => { s = s >= 60 ? 0 : s + 1; el.textContent = `Ringing for ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; }, 1000);
+}
+// Soundboard: replay the emoji pop on your tile and row; it leaves when the clip ends.
+for (const demo of document.querySelectorAll("[data-sfx-demo]")) {
+  const badges = () => [demo.querySelector(".tile .sfx"), document.querySelector('#soundboard .vp .sfx')].filter(Boolean);
+  let timer;
+  demo.querySelector("[data-sfx-play]").addEventListener("click", () => {
+    clearTimeout(timer);
+    for (const b of badges()) { b.classList.remove("is-leaving"); b.hidden = false; b.style.animation = "none"; b.offsetWidth; b.style.animation = ""; }
+    timer = setTimeout(() => {
+      for (const b of badges()) { b.classList.add("is-leaving"); b.addEventListener("animationend", () => { if (b.classList.contains("is-leaving")) b.hidden = true; }, { once: true }); }
+    }, 2400);
+  });
+}
+// Self-view: drag with snap targets, arrow keys between corners, close and show again. Settling is a FLIP onto the new corner.
+for (const stage of document.querySelectorAll("[data-pip-demo]")) {
+  const pip = stage.querySelector(".pip"), restore = stage.querySelector(".pip-restore"), snaps = [...stage.querySelectorAll(".pip-snap")];
+  const center = r => [r.left + r.width / 2, r.top + r.height / 2];
+  const nearest = () => {
+    const [x, y] = center(pip.getBoundingClientRect());
+    return snaps.reduce((best, s) => { const [sx, sy] = center(s.getBoundingClientRect()), d = Math.hypot(sx - x, sy - y); return d < best.d ? { s, d } : best; }, { d: Infinity }).s;
+  };
+  const settle = corner => {
+    const before = pip.getBoundingClientRect();
+    pip.classList.remove("is-settling");
+    pip.dataset.corner = restore.dataset.corner = corner;
+    pip.style.translate = "";
+    const after = pip.getBoundingClientRect();
+    pip.style.translate = `${before.left - after.left}px ${before.top - after.top}px`;
+    pip.offsetWidth;
+    pip.classList.add("is-settling");
+    pip.style.translate = "0px 0px";
+  };
+  let start = null;
+  pip.addEventListener("pointerdown", e => {
+    if (e.button !== 0 || e.target.closest("button")) return;
+    pip.setPointerCapture(e.pointerId);
+    start = [e.clientX, e.clientY];
+    pip.classList.remove("is-settling");
+    pip.classList.add("is-dragging"); stage.classList.add("is-dragging");
+  });
+  pip.addEventListener("pointermove", e => {
+    if (!start) return;
+    pip.style.translate = `${e.clientX - start[0]}px ${e.clientY - start[1]}px`;
+    const near = nearest();
+    for (const s of snaps) s.classList.toggle("is-near", s === near);
+  });
+  const drop = () => {
+    if (!start) return;
+    start = null;
+    const near = nearest();
+    pip.classList.remove("is-dragging"); stage.classList.remove("is-dragging");
+    for (const s of snaps) s.classList.remove("is-near");
+    settle(near.dataset.corner);
+  };
+  pip.addEventListener("pointerup", drop);
+  pip.addEventListener("pointercancel", drop);
+  pip.addEventListener("keydown", e => {
+    const [v, h] = pip.dataset.corner.split("");
+    const next = { ArrowLeft: v + "l", ArrowRight: v + "r", ArrowUp: "t" + h, ArrowDown: "b" + h }[e.key];
+    if (!next || next === pip.dataset.corner) return;
+    e.preventDefault();
+    settle(next);
+  });
+  pip.querySelector(".close").addEventListener("click", () => { pip.hidden = true; restore.hidden = false; restore.focus(); });
+  restore.addEventListener("click", () => {
+    restore.hidden = true; pip.hidden = false;
+    const [v, h] = pip.dataset.corner.split("");
+    pip.style.setProperty("--origin", `${v === "t" ? "top" : "bottom"} ${h === "l" ? "left" : "right"}`);
+    pip.classList.remove("is-returning"); pip.offsetWidth; pip.classList.add("is-returning");
+    pip.focus();
+  });
+}
+document.addEventListener("input", e => {
+  if (!e.target.matches("[data-out]")) return;
+  const out = document.querySelector(`output[for="${e.target.id}"]`);
+  if (out) out.textContent = e.target.value + "%";
+});
+</script>
+</body>
+</html>

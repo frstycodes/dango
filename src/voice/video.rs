@@ -124,7 +124,10 @@ impl VideoDecoder {
 // OpenH264 takes over if there is none, it fails, or RUSTCORD_VIDEO_ENCODER=software. A size change
 // reopens the hardware encoder; OpenH264 follows size changes by itself.
 pub struct VideoEncoder {
+    // Reopening an encoder after a size change or a hardware failure, which only Windows does.
+    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
     fps: u32,
+    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
     bitrate: u32,
     backend: Backend,
     keyframe_pending: bool,
@@ -157,6 +160,7 @@ impl VideoEncoder {
     }
 
     /// Which encoder is in use: "OpenH264", the hardware encoder's name, or "undecided" before the first frame.
+    #[cfg(test)]
     pub fn backend_name(&self) -> String {
         match &self.backend {
             Backend::Software(_) => "OpenH264".into(),
@@ -248,6 +252,8 @@ fn software(fps: u32, bitrate: u32) -> Result<Encoder, String> {
 }
 
 /// The NAL unit types in an Annex-B access unit, in order.
+// Used by the Windows hardware encoder (video_mf.rs) and the tests.
+#[cfg(any(test, target_os = "windows"))]
 pub fn nal_types(unit: &[u8]) -> Vec<u8> {
     nal_units(unit).iter().filter_map(|nal| nal.first().map(|h| h & 0x1f)).collect()
 }

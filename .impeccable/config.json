@@ -1,0 +1,1301 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/index.html"
+        ],
+        "createdAt": "2026-11-14T17:56:36.924Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/index.html"
+        ],
+        "createdAt": "2026-11-14T18:02:42.962Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "design/css/flows.css"
+        ],
+        "createdAt": "2026-11-14T18:49:00.675Z",
+        "reason": "Claude: the match is the storyboard arrowhead, an 8px square with top and right borders rotated 45deg; no card has a side border"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/overlays.html"
+        ],
+        "createdAt": "2026-11-14T18:57:59.467Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/voice.html"
+        ],
+        "createdAt": "2026-11-14T18:57:59.488Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/navigation.html"
+        ],
+        "createdAt": "2026-11-14T18:57:59.508Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/settings.html"
+        ],
+        "createdAt": "2026-11-14T18:57:59.526Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "var(--ease-spring)",
+        "createdAt": "2026-11-14T18:57:59.546Z",
+        "reason": "User taste for Wave (ui skill project notes): touch-driven springs overshoot about 0.3 and settle within 250ms; the token is that spring"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/_template.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.229Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/_template.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.248Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/_template.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.265Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/_template.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.282Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/_template.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.298Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/_template.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.315Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/auth.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.331Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/auth.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.349Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/auth.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.364Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/auth.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.381Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/auth.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.397Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/auth.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.413Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/better.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.429Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/better.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.446Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/better.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.464Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/better.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.482Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/better.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.499Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/better.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.516Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/community.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.533Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/community.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.554Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/community.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.574Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/community.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.594Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/community.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.614Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/community.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.633Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/flows-account.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.654Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/flows-account.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.674Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/flows-account.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.693Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/flows-account.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.711Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/flows-account.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.728Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/flows-account.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.745Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/flows-community.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.761Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/flows-community.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.779Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/flows-community.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.795Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/flows-community.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.811Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/flows-community.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.828Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/flows-community.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.845Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/flows-messaging.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.861Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/flows-messaging.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.878Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/flows-messaging.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.894Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/flows-messaging.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.912Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/flows-messaging.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.928Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/flows-messaging.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.945Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/flows-voice.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.962Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/flows-voice.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.979Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/flows-voice.html"
+        ],
+        "createdAt": "2026-11-14T19:57:32.996Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/flows-voice.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.014Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/flows-voice.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.030Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/flows-voice.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.047Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/flows.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.064Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/flows.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.081Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/flows.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.098Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/flows.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.116Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/flows.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.133Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/flows.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.151Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/foundations.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.167Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/foundations.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.185Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/foundations.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.202Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/foundations.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.219Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/foundations.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.236Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/foundations.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.253Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/index.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.270Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/index.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.287Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/index.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.322Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/index.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.338Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/media.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.372Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/media.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.390Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/media.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.407Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/media.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.425Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/media.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.441Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/media.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.459Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/menus.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.476Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/menus.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.493Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/menus.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.510Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/menus.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.528Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/menus.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.545Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/menus.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.563Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/messages.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.580Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/messages.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.598Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/messages.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.615Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/messages.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.632Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/messages.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.649Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/messages.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.667Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/navigation.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.684Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/navigation.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.701Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/navigation.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.735Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/navigation.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.753Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/navigation.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.770Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/overlays.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.787Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/overlays.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.804Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/overlays.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.839Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/overlays.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.856Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/overlays.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.873Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/panels.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.891Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/panels.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.907Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/panels.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.925Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/panels.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.942Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/panels.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.959Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/panels.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.976Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/primitives.html"
+        ],
+        "createdAt": "2026-11-14T19:57:33.994Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/primitives.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.010Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/primitives.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.028Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/primitives.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.045Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/primitives.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.062Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/primitives.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.082Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/profile.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.099Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/profile.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.115Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/profile.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.133Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/profile.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.152Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/profile.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.169Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/profile.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.187Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/server-settings.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.204Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/server-settings.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.222Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/server-settings.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.239Z",
+        "reason": "Claude: indeterminate progress and skeleton shimmer from css/primitives.css; no content moves"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/server-settings.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.257Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/server-settings.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.274Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/server-settings.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.293Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/settings.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.310Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/settings.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.328Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/settings.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.363Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/settings.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.380Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/settings.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.399Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/voice.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.416Z",
+        "reason": "Claude: gallery/storyboard frames show app regions edge to edge, and rows/chips have fixed heights with centred text; the static scan reads both as flush"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/voice.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.434Z",
+        "reason": "Claude: component demos (dialogs, windows) carry their own heading levels inside page sections; in the app each is its own document"
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": [
+          "design/voice.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.469Z",
+        "reason": "Claude: state galleries repeat one label across its states on purpose"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/voice.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.488Z",
+        "reason": "Claude: demo frames clip to their window region by design"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/voice.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.505Z",
+        "reason": "Claude: radial gradients stand in for images, stream frames and server art"
+      },
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": [
+          "design/flows-account.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.524Z",
+        "reason": "Claude: storyboard frames hold real component cards; the frame is a window, not a card"
+      },
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": [
+          "design/flows-community.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.541Z",
+        "reason": "Claude: storyboard frames hold real component cards; the frame is a window, not a card"
+      },
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": [
+          "design/flows-messaging.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.559Z",
+        "reason": "Claude: storyboard frames hold real component cards; the frame is a window, not a card"
+      },
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": [
+          "design/flows-voice.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.577Z",
+        "reason": "Claude: storyboard frames hold real component cards; the frame is a window, not a card"
+      },
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": [
+          "design/flows.html"
+        ],
+        "createdAt": "2026-11-14T19:57:34.595Z",
+        "reason": "Claude: storyboard frames hold real component cards; the frame is a window, not a card"
+      },
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "design/css/primitives.css"
+        ],
+        "createdAt": "2026-11-14T19:57:34.613Z",
+        "reason": "Claude: width transitions are on absolutely positioned indicator pseudo-elements and the progress fill, which reflow nothing around them"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "design/community.html"
+        ],
+        "createdAt": "2026-11-14T19:58:27.499Z",
+        "reason": "Claude: text over server art sits on a dark scrim the static scan can't see (checked in a light-theme screenshot of discovery), and avatar initials are painted on gradients at runtime by site.js"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "design/flows-community.html"
+        ],
+        "createdAt": "2026-11-14T19:58:27.520Z",
+        "reason": "Claude: text over server art sits on a dark scrim the static scan can't see (checked in a light-theme screenshot of discovery), and avatar initials are painted on gradients at runtime by site.js"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "design/navigation.html"
+        ],
+        "createdAt": "2026-11-14T19:59:14.811Z",
+        "reason": "Claude: role names use oklch(from var(--role) ...) clamped per theme; checked in the browser: light computes to L 0.45 (about 7:1). The static scan reads the raw role colour"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "design/messages.html"
+        ],
+        "createdAt": "2026-11-14T19:59:14.832Z",
+        "reason": "Claude: avatar initials are painted on hue gradients at runtime by site.js; the static scan sees the page background"
+      }
+    ]
+  }
+}

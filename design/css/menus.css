@@ -1,0 +1,63 @@
+/* Context menus: styles for menus.html. The menu card, rows, submenus and dialogs come from overlays.css. */
+
+/* Demo surface: open menus side by side; a spot with an open submenu keeps room for it on the right */
+.cm-board { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; --bg-ring: var(--bg-overlay); }
+.cm-spot { display: grid; gap: var(--space-2); justify-items: start; min-width: 0; }
+.cm-spot.has-open { padding-right: 212px; }
+.cm-spot > .note { max-width: 248px; }
+.cm-spot.has-open.cm-wide { padding-right: 240px; }
+@media (max-width: 600px) { .cm-spot.has-open, .cm-spot.has-open.cm-wide { padding-right: 0; } }
+
+/* Menu header: the target as a tile or avatar */
+.mhead .icontile { width: 32px; height: 32px; border-radius: var(--radius-sm); }
+.mhead .icontile i { font-size: 18px; }
+.mhead .av.cm-server { border-radius: var(--radius-xs); }
+
+/* Accent row: the one action the menu exists to offer (Invite people) */
+.mi.cm-accent, .mi.cm-accent i { color: var(--accent-ink); }
+.mi.cm-accent:hover, .mi.cm-accent:focus-visible { background: var(--accent-soft); color: var(--accent-ink); }
+
+/* Server avatar and folder glyph inside a row */
+.mi .av.cm-server { --size: 20px; font-size: 9px; border-radius: 6px; }
+.mi .cm-folder { color: var(--c, var(--text-muted)); }
+/* Role colour dot in the roles submenu */
+.cm-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--role); flex: none; margin: 0 3px; corner-shape: round; }
+
+/* Quick reactions: four recent emoji and the full picker, on top of the message menu */
+.cm-quick { display: flex; gap: 4px; padding: 2px 2px 4px; }
+.cm-quick button { flex: 1; height: 38px; display: grid; place-items: center; border-radius: var(--radius-sm); background: var(--selected); font-size: 20px; line-height: 1; transition: background var(--dur-hover), transform var(--dur-press) var(--ease-out); }
+.cm-quick button:hover { background: var(--press); }
+.cm-quick button:active { transform: scale(0.97); }
+.cm-quick button i { font-size: 18px; color: var(--text-muted); }
+.cm-quick button:hover i { color: var(--text-strong); }
+
+/* Keyboard focus as a static frame (the live state is .mi:focus-visible) */
+.mi.is-kbd { background: var(--hover); color: var(--text-strong); outline: 2px solid var(--accent-ink); outline-offset: -2px; }
+.cm-keys { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px var(--space-3); align-items: center; color: var(--text); }
+.cm-keys > span:nth-child(odd) { display: flex; gap: 3px; }
+
+/* Message preview inside a confirm */
+.cm-quote { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 2px 10px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--bg-page); }
+.cm-quote .av { --size: 32px; font-size: 13px; grid-row: span 2; }
+.cm-quote .head { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.cm-quote b { color: var(--text-strong); font-weight: var(--weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cm-quote time { color: var(--text-faint); font-size: var(--text-xs); white-space: nowrap; }
+.cm-quote p { color: var(--text); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cm-reacts { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Dialog extras: a footer action pushed left, a full-width segmented, a two-column radio grid */
+.dialog footer .cm-left { margin-right: auto; }
+.seg.cm-fill { display: flex; width: 100%; }
+.seg.cm-fill button { flex: 1; padding: 0 6px; white-space: nowrap; }
+.typechoice.cm-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); }
+.typechoice.cm-grid .choice { padding: 8px 10px; }
+.cm-dialogs { display: grid; gap: var(--space-6); grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); align-items: start; }
+.cm-open { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* Better than Discord: one row per change */
+
+/* Links inside demo notes; long rows inside a scrolling menu list truncate */
+.cm-note a { color: var(--accent-ink); font-weight: var(--weight-semibold); text-decoration: none; }
+.cm-note a:hover { text-decoration: underline; }
+.cm-board .menu .scroll > .mi { min-width: 0; }
+/* overlays.css `.mi i` paints the check glyph muted (faint on accent in light); keep it white. Belongs upstream in overlays.css. */

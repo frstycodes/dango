@@ -1,0 +1,957 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wave Settings</title>
+<meta name="description" content="Settings layout, rows and pickers.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<link rel="stylesheet" href="css/navigation.css">
+<link rel="stylesheet" href="css/messages.css">
+<link rel="stylesheet" href="css/voice.css">
+<link rel="stylesheet" href="css/overlays.css">
+<link rel="stylesheet" href="css/settings.css">
+<link rel="stylesheet" href="css/menus.css">
+<link rel="stylesheet" href="css/panels.css">
+<link rel="stylesheet" href="css/media.css">
+<link rel="stylesheet" href="css/auth.css">
+<link rel="stylesheet" href="css/profile.css">
+<link rel="stylesheet" href="css/community.css">
+<link rel="stylesheet" href="css/server-settings.css">
+<link rel="stylesheet" href="css/flows.css">
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+
+<section id="window">
+  <h2>Settings window</h2>
+  <p class="lede">Settings take the whole window: who you are and a search at the top of the nav, one page on the right with a big title. Voice and video lists its sections under it. Close with the button or Esc; changes save as you make them.</p>
+  <div class="set-wrap" data-set data-start="voice-video"></div>
+  <p class="note" style="margin-top: var(--space-3)">Live: every nav item opens its page (built from the page sections below), the four links under Voice and video jump within it, search filters rows across all pages, and Log out asks in place. Nav 240px on the sidebar tone, rows 32px at 14px with an 18px icon, group labels 12px semibold. Content max 680px, 32px between groups. The close button stays pinned top right as the page scrolls.</p>
+</section>
+
+<section id="narrow">
+  <h2>Narrow window</h2>
+  <p class="lede">Under 680px of its own width the window shows one column. The nav becomes a full-width list with chevrons; a page pushes in from the right over it and a back button returns.</p>
+  <div class="row" style="align-items: flex-start; gap: var(--space-6)">
+    <div class="set-wrap" style="width: min(100%, 380px)" data-set data-start="voice-video" data-list></div>
+    <div class="set-wrap" style="width: min(100%, 380px)" data-set data-start="keybinds"></div>
+  </div>
+  <p class="note" style="margin-top: var(--space-3)">Push travels 260ms on <code>--ease-drawer</code>: the page slides in from 100%, the list drifts to −30% under it; with reduced motion the swap is instant. Rows grow to 44px for touch. The bar holds back and close; the page keeps its big title.</p>
+</section>
+
+<section id="search">
+  <h2>Settings search</h2>
+  <p class="lede">Search matches every row by its name, description and a few synonyms, on every page, as you type. Results are the real rows, grouped under their page, so a switch can be flipped right there. The nav keeps only pages with matches and counts them.</p>
+  <h3>Results for “mute”</h3>
+  <div class="board set-sheet"><div class="set-view" data-results="mute"></div></div>
+  <h3>No results</h3>
+  <div class="board set-sheet"><div class="set-view" data-results="bitrate"></div></div>
+  <p class="note">Matching is a case-insensitive substring over title, description and <code>data-s</code> keywords; the first match in each row is marked with <code>--accent-soft</code>. Esc or the clear button ends the search and returns to the page you were on.</p>
+</section>
+
+<section id="rows">
+  <h2>Setting rows</h2>
+  <p class="lede">Title on one line with the description under it, control on the right. Rows sit in a surface with inset hairlines; a switch row toggles from anywhere on the row. A disabled row says why.</p>
+  <div class="board set-sheet">
+    <div class="set-page">
+      <div class="set-group">
+        <h5>Chat</h5>
+        <div class="set-card">
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Show embeds and link previews</b><span>For links posted in chat</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          <div class="set-row"><div class="t"><b>Show emoji reactions</b><span>Under messages, with who reacted on hover</span></div><div class="set-sel"><button class="dropdown" aria-haspopup="listbox" aria-expanded="false" data-options="Everywhere|Only in DMs|Nowhere"><span>Everywhere</span><i class="ph ph-caret-down"></i></button></div></div>
+          <div class="set-row"><div class="t"><b>Timestamps</b></div><div class="seg" role="group" aria-label="Timestamps"><button aria-pressed="true">12-hour</button><button aria-pressed="false">24-hour</button></div></div>
+          <div class="set-row"><div class="t"><b>Clear cached images</b><span>Frees 412 MB. Images load again when you scroll to them.</span></div><button class="btn btn--sm" data-loading="Clearing…">Clear cache</button></div>
+          <div class="set-row set-cue"><div class="t"><b>Message sound</b><span>With a preview beside the switch</span></div><div class="ctl"><button class="iconbtn set-play" aria-label="Preview Message sound" data-sound="/assets/discord/sounds/message1.mp3"><i class="ph-fill ph-play"></i><span class="bars"><i></i><i></i><i></i></span></button><button class="switch" role="switch" aria-checked="true" aria-label="Play Message sound"></button></div></div>
+          <div class="set-row" aria-disabled="true"><div class="t"><b>Allow DMs from server members</b><span class="why"><i class="ph ph-lock-simple"></i>Turned off by your parental controls</span></div><span class="switch" role="switch" aria-checked="false" aria-disabled="true"></span></div>
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Hardware acceleration</b><span>Uses your GPU to draw Wave</span><span class="restart"><i class="ph-bold ph-arrow-clockwise"></i>Wave restarts to apply this</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+        </div>
+        <p class="set-cap">One caption under the group, never column headers inside it.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Select, closed and open</h3>
+  <div class="board set-sheet" style="padding-bottom: 260px">
+    <div class="set-page"><div class="set-pair">
+      <div class="field"><label>Microphone</label><div class="set-sel"><button class="dropdown" aria-haspopup="listbox" aria-expanded="false" data-options="Default|MacBook Pro Microphone|AirPods Pro|Elgato Wave:3 USB Audio Interface (Line In 1/2)"><i class="ph ph-microphone"></i><span>MacBook Pro Microphone</span><i class="ph ph-caret-down"></i></button></div></div>
+      <div class="field"><label>Speaker</label><div class="set-sel"><button class="dropdown" aria-haspopup="listbox" aria-expanded="false" data-pin-open data-options="Default|MacBook Pro Speakers|AirPods Pro|Elgato Wave:3 USB Audio Interface (Line In 1/2)|LG UltraFine Display Audio"><i class="ph ph-speaker-high"></i><span>AirPods Pro</span><i class="ph ph-caret-down"></i></button></div></div>
+    </div></div>
+  </div>
+  <p class="note">The list rises 200ms from the trigger (0.95 + fade), the chosen option carries a check, long device names truncate. Arrow keys move, Enter picks, Esc closes.</p>
+
+  <h3>Expander, closed and open</h3>
+  <div class="board set-sheet">
+    <div class="set-page"><div class="set-pair">
+      <div class="set-card">
+        <button class="set-row set-exp" aria-expanded="false"><div class="t"><b><span class="shut">Show advanced voice settings</span><span class="open">Hide advanced voice settings</span></b><span>Automatic gain control, Advanced voice activity, No audio detected warning</span></div><span class="set-chev"><i class="ph-bold ph-caret-right"></i></span></button>
+        <div class="set-exp-body">
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Automatic gain control</b></div><span class="switch" role="switch" aria-checked="true"></span></button>
+        </div>
+      </div>
+      <div class="set-card">
+        <button class="set-row set-exp" aria-expanded="true"><div class="t"><b><span class="shut">Show 2 more sounds</span><span class="open">Hide 2 sounds</span></b><span>User join, User leave</span></div><span class="set-chev"><i class="ph-bold ph-caret-right"></i></span></button>
+        <div class="set-exp-body" data-cues="User join:user_join,User leave:user_leave"></div>
+      </div>
+    </div></div>
+  </div>
+  <p class="note">Closed, it names the first settings inside so you know whether to open it. The chevron turns 90°; the rows fade down 4px over 200ms.</p>
+
+  <h3>Inline confirm</h3>
+  <div class="board set-sheet">
+    <div class="set-page"><div class="set-card">
+      <div class="set-row set-ask"><div class="t"><b>Resting</b><span>The trigger names the action</span></div><button class="btn btn--sm set-dangerbtn" data-ask>Reset voice settings</button>
+        <div class="set-askbar"><span>Reset every voice and video setting to its default?</span><div><button class="btn btn--sm" data-ask-no>Keep my settings</button><button class="btn btn--sm btn--danger" data-ask-yes>Reset voice settings</button></div></div><p class="set-done" role="status"><i class="ph-fill ph-check-circle"></i>Voice and video settings reset<button class="btn btn--link" data-ask-undo>Undo</button></p></div>
+      <div class="set-row set-ask is-asking"><div class="t"><b>Asking</b><span>The row asks in place; focus moves to Keep</span></div><button class="btn btn--sm set-dangerbtn" data-ask>Reset voice settings</button>
+        <div class="set-askbar"><span>Reset every voice and video setting to its default?</span><div><button class="btn btn--sm" data-ask-no>Keep my settings</button><button class="btn btn--sm btn--danger" data-ask-yes>Reset voice settings</button></div></div><p class="set-done" role="status"><i class="ph-fill ph-check-circle"></i>Voice and video settings reset<button class="btn btn--link" data-ask-undo>Undo</button></p></div>
+      <div class="set-row set-ask is-done"><div class="t"><b>Done</b><span>The result shows at once, with Undo for 8 seconds</span></div><button class="btn btn--sm set-dangerbtn" data-ask>Reset voice settings</button>
+        <div class="set-askbar"><span>Reset every voice and video setting to its default?</span><div><button class="btn btn--sm" data-ask-no>Keep my settings</button><button class="btn btn--sm btn--danger" data-ask-yes>Reset voice settings</button></div></div><p class="set-done" role="status"><i class="ph-fill ph-check-circle"></i>Voice and video settings reset<button class="btn btn--link" data-ask-undo>Undo</button></p></div>
+    </div></div>
+  </div>
+</section>
+
+<section id="account" data-page="account" data-label="Account" data-icon="user-circle">
+  <h2>Account</h2>
+  <p class="lede">Who you are and how you sign in. Account info edits in place; account-ending actions sit at the bottom in a surface edged in the danger tone.</p>
+  <div class="board set-sheet">
+    <div class="set-page" data-src>
+      <h4 class="set-h">Account</h4>
+      <div class="set-group">
+        <h5>Account info</h5>
+        <div class="acct" style="--banner: 300">
+          <div class="acct-banner"></div>
+          <div class="acct-id"><span class="av" data-av="Juno"><span class="status online"></span></span><div><b data-name>Juno</b><span>juno.wav</span></div><button class="btn btn--primary"><i class="ph-bold ph-pencil-simple"></i>Edit profile</button></div>
+          <div class="acct-fields">
+            <div class="set-row set-edit" data-s="display name nickname"><div class="t"><span>Display name</span><b data-name>Juno</b></div><button class="btn btn--sm" data-edit>Edit</button>
+              <form class="set-editf" novalidate><label class="set-rgroup" style="padding: 0">Display name</label><div class="row"><div class="input"><input maxlength="32" autocomplete="nickname" aria-label="Display name"></div><button type="button" class="btn btn--sm" data-edit-cancel>Cancel</button><button class="btn btn--sm btn--primary">Save</button></div><span class="hint"><span>Everyone sees this instead of your username.</span><output>4/32</output></span><span class="err set-err" role="alert"><i class="ph-fill ph-warning-circle"></i>Type a display name, or press Esc to keep the one you have.</span></form></div>
+            <div class="set-row"><div class="t"><span>Username</span><b>juno.wav</b></div><button class="btn btn--sm">Edit</button></div>
+            <div class="set-row"><div class="t"><span>Email</span><b data-full="juno.okafor@hey.com">j••••••••••@hey.com</b><button class="btn btn--link" data-reveal>Reveal</button></div><button class="btn btn--sm">Edit</button></div>
+            <div class="set-row"><div class="t"><span>Phone number</span><b class="none">You haven't added a phone number yet.</b></div><button class="btn btn--sm">Add phone</button></div>
+            <div class="set-row" data-s="user id snowflake developer"><div class="t"><span>User ID</span><b class="set-id">1029384756019283746</b></div><button class="btn btn--sm set-copy"><span class="idle"><i class="ph-bold ph-copy"></i>Copy ID</span><span class="done"><i class="ph-bold ph-check"></i>Copied</span></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5>Password and authentication</h5>
+        <div class="set-card">
+          <div class="set-row"><span class="icontile"><i class="ph ph-password"></i></span><div class="t"><b>Password</b><span>Last changed 3 months ago</span></div><button class="btn btn--sm">Change password</button></div>
+          <div class="set-row" data-s="2fa two-factor mfa"><span class="icontile" style="--ink: var(--online-ink)"><i class="ph-fill ph-shield-check"></i></span><div class="t"><b>Two-factor authentication is on</b><span>Authenticator app. 8 of 10 backup codes left.</span></div><div class="ctl"><button class="btn btn--sm">View backup codes</button><button class="btn btn--sm set-dangerbtn">Remove 2FA</button></div></div>
+          <div class="set-row" data-s="passkey"><span class="icontile"><i class="ph ph-key"></i></span><div class="t"><b>Security keys</b><span>None added. A key or passkey signs you in with a touch.</span></div><button class="btn btn--sm">Add a key</button></div>
+        </div>
+        <p class="set-cap">Night Shift and Clip Club need 2FA for moderators; removing it drops your mod tools there.</p>
+      </div>
+      <div class="set-group">
+        <h5>Account removal</h5>
+        <div class="set-card set-card--danger">
+          <div class="set-row"><div class="t"><b>Disable account</b><span>Hides your profile and pauses DMs. Log back in any time to turn it back on.</span></div><button class="btn btn--sm set-dangerbtn">Disable account</button></div>
+          <div class="set-row"><div class="t"><b>Delete account</b><span>Your messages stay, signed "Deleted user". You have 14 days to change your mind.</span></div><button class="btn btn--sm btn--danger" data-open="dlg-delete-acct">Delete account</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <h3>Edit, error and copied states</h3>
+  <div class="board set-sheet">
+    <div class="set-page"><div class="set-card acct-fields">
+      <div class="set-row set-edit is-editing"><div class="t"><span>Display name</span><b>Juno</b></div><button class="btn btn--sm">Edit</button>
+        <form class="set-editf" novalidate onsubmit="return false"><label class="set-rgroup" style="padding: 0">Display name</label><div class="row"><div class="input"><input value="Juno Okafor" maxlength="32" aria-label="Display name"></div><button type="button" class="btn btn--sm">Cancel</button><button class="btn btn--sm btn--primary">Save</button></div><span class="hint"><span>Everyone sees this instead of your username.</span><output>11/32</output></span></form></div>
+      <div class="set-row set-edit is-editing is-invalid"><div class="t"><span>Display name</span><b>Juno</b></div><button class="btn btn--sm">Edit</button>
+        <form class="set-editf" novalidate onsubmit="return false"><label class="set-rgroup" style="padding: 0">Display name</label><div class="row"><div class="input"><input value="" maxlength="32" aria-label="Display name" aria-invalid="true"></div><button type="button" class="btn btn--sm">Cancel</button><button class="btn btn--sm btn--primary">Save</button></div><span class="err set-err" role="alert"><i class="ph-fill ph-warning-circle"></i>Type a display name, or press Esc to keep the one you have.</span></form></div>
+      <div class="set-row"><div class="t"><span>User ID</span><b class="set-id">1029384756019283746</b></div><button class="btn btn--sm set-copy is-copied" tabindex="-1"><span class="idle"><i class="ph-bold ph-copy"></i>Copy ID</span><span class="done"><i class="ph-bold ph-check"></i>Copied</span></button></div>
+    </div></div>
+  </div>
+  <p class="note">Save is optimistic: the new name shows at once, everywhere it appears. Copied holds 2s, then settles back. Delete account confirms in a dialog because it can't be undone; everything else here asks in place or not at all.</p>
+  <dialog class="real" id="dlg-delete-acct"><form class="dialog" onsubmit="return false" aria-labelledby="dda"><h4 id="dda"><i class="ph-fill ph-warning"></i>Delete your account?</h4><p>Juno, your 3 servers you own, 41 friends and all DMs go after 14 days. Messages you sent in servers stay as "Deleted user".</p><div class="field"><label for="dda-pw">Password</label><div class="input"><input id="dda-pw" type="password" autocomplete="current-password"></div></div><footer><button type="button" class="btn" data-close>Keep account</button><button class="btn btn--danger" data-loading="Deleting…">Delete account</button></footer></form></dialog>
+</section>
+
+<section id="notifications" data-page="notifications" data-label="Notifications" data-icon="bell">
+  <h2>Notifications</h2>
+  <p class="lede">One switch per kind of event, and each sound with a preview beside its switch.</p>
+  <div class="board set-sheet">
+    <div class="set-page" data-src>
+      <h4 class="set-h">Notifications</h4>
+      <div class="set-group">
+        <h5>Notify me about</h5>
+        <div class="set-card">
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Direct messages</b><span>From friends and server members</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Mentions and replies</b><span>When someone @mentions you or replies to you</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Friend requests</b></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Friends going live</b><span>Only for friends you've watched before</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+          <button class="set-row choice" data-toggle="switch" data-s="badge dock count"><div class="t"><b>Unread badge on the Dock icon</b></div><span class="switch" role="switch" aria-checked="true"></span></button>
+        </div>
+        <p class="set-cap">Per server and per channel settings live in each server's menu and override these.</p>
+      </div>
+      <div class="set-group">
+        <h5>Sounds</h5>
+        <div class="set-card">
+          <div data-cues="Message:message1,Mention:mention1"></div>
+          <button class="set-row choice" data-toggle="switch" data-s="dnd do not disturb silence mute"><div class="t"><b>Mute all sounds while Do not disturb is on</b></div><span class="switch" role="switch" aria-checked="true"></span></button>
+        </div>
+        <p class="set-cap">Sounds Wave plays for new direct messages and for mentions. Voice sounds are under Voice and video.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="voice-video" data-page="voice-video" data-label="Voice and video" data-icon="microphone" data-anchors="voice:Voice,camera:Camera,sounds:Sounds,advanced:Advanced">
+  <h2>Voice and video</h2>
+  <p class="lede">Devices and levels first, then a profile that decides how many dials you see, then camera and sounds. The mic test plays your voice back and draws it as the wave. Pick a profile below to see rows come and go.</p>
+  <div class="board set-sheet">
+    <div class="set-page" data-src>
+      <h4 class="set-h">Voice and video</h4>
+      <div class="set-group" data-anchor="voice">
+        <h5>Devices</h5>
+        <div class="set-card set-card--pad">
+          <div class="set-cols">
+            <div class="field" data-s="microphone input device mic"><label>Microphone</label><div class="set-sel"><button class="dropdown" aria-haspopup="listbox" aria-expanded="false" data-mic data-options="Default|MacBook Pro Microphone|AirPods Pro|Elgato Wave:3 USB Audio Interface (Line In 1/2)"><i class="ph ph-microphone"></i><span>MacBook Pro Microphone</span><i class="ph ph-caret-down"></i></button></div></div>
+            <div class="field" data-s="speaker output device headphones"><label>Speaker</label><div class="set-sel"><button class="dropdown" aria-haspopup="listbox" aria-expanded="false" data-options="Default|MacBook Pro Speakers|AirPods Pro|LG UltraFine Display Audio"><i class="ph ph-headphones"></i><span>AirPods Pro</span><i class="ph ph-caret-down"></i></button></div></div>
+            <div class="set-vol" data-s="microphone volume input gain level" data-unit="%"><div class="top-row"><span>Microphone volume</span><output>80%</output></div><input class="range" type="range" value="80" max="200" aria-label="Microphone volume" data-in-vol></div>
+            <div class="set-vol" data-s="speaker volume output loudness" data-unit="%"><div class="top-row"><span>Speaker volume</span><output>120%</output></div><input class="range" type="range" min="0" max="200" value="120" aria-label="Speaker volume"></div>
+          </div>
+          <div class="mictest" data-s="mic test check microphone">
+            <button class="btn btn--primary set-mictest"><i class="ph-bold ph-microphone"></i>Test mic</button>
+            <div class="set-wave" aria-hidden="true"></div>
+          </div>
+          <div class="callout callout--warning set-nomic" role="alert" hidden><i class="ph-fill ph-microphone-slash"></i><div><b>No audio detected from your mic</b><p>Wave hears nothing from MacBook Pro Microphone. Turn up Microphone volume above, pick another input, or let Wave use the microphone in System Settings.</p><div class="acts"><button class="btn btn--sm" data-pick-mic>Choose another input</button><button class="btn btn--sm btn--ghost">Open System Settings</button></div></div></div>
+          <p class="set-cap" style="padding: 0">Talk normally. You'll hear yourself back through AirPods Pro. Set Microphone volume to 0% and test to see the no-audio notice.</p>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5>Input profile</h5>
+        <div class="set-card" role="radiogroup" aria-label="Input profile">
+          <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="false" data-profile="isolation"></span><div class="t"><b>Voice isolation</b><span>Just your beautiful voice: Wave cuts through the noise around you</span></div></button>
+          <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="false" data-profile="studio"></span><div class="t"><b>Studio</b><span>Pure audio: an open mic with no processing</span></div></button>
+          <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="true" data-profile="custom"></span><div class="t"><b>Custom</b><span>Advanced mode: every button and dial, set your way</span></div></button>
+        </div>
+        <p class="set-cap not-custom">This profile sets noise suppression, echo cancellation and sensitivity for you. Pick Custom to change them.</p>
+      </div>
+      <div class="set-group not-studio">
+        <h5>Input mode</h5>
+        <div class="set-card" role="radiogroup" aria-label="Input mode">
+          <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="true" data-mode="vad"></span><div class="t"><b>Voice activity</b><span>Transmits when you speak above the sensitivity</span></div></button>
+          <button class="set-row choice" data-toggle="radio" data-s="ptt"><span class="radio" role="radio" aria-checked="false" data-mode="ptt"></span><div class="t"><b>Push to talk</b><span>Transmits while you hold a key</span></div></button>
+          <div class="set-row set-ptt" data-s="push to talk ptt keybind shortcut"><div class="t"><b>Shortcut</b><span>Also listed under Keybinds</span></div><div class="set-rec" data-keys="`"><span class="v"><span class="keys"><kbd class="kbd">`</kbd></span></span><button class="btn btn--sm" data-rec>Edit keybind</button></div></div>
+          <div class="set-row stack set-ptt" data-unit=" ms" data-s="push to talk ptt release delay"><div class="set-num"><div class="t"><b>Push to talk release delay</b><span>Keeps transmitting this long after you let go, so word endings aren't cut</span></div><output>20 ms</output></div><input class="range" type="range" min="0" max="2000" step="10" value="20" aria-label="Push to talk release delay"></div>
+          <button class="set-row choice set-vad only-custom" data-toggle="switch" data-auto data-s="input sensitivity automatic"><div class="t"><b>Set sensitivity automatically</b><span>Wave adjusts to the noise around you. When the bar fills, you're transmitting.</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          <div class="set-row stack set-vad only-custom" data-s="input sensitivity threshold gate"><div class="t"><b>Input sensitivity</b><span>Your mic transmits when the level passes the handle</span></div><div class="set-sens" style="--th: 42%"><span class="lvl"></span><input class="range" type="range" value="42" aria-label="Input sensitivity"></div><div class="set-scale"><span>−100 dB</span><span>0 dB</span></div></div>
+        </div>
+      </div>
+      <div class="set-group only-custom">
+        <h5>Voice processing</h5>
+        <div class="set-card">
+          <div class="set-row" data-s="noise suppression krisp deepfilter background"><div class="t"><b>Noise suppression</b><span>Reduces background noise from your mic. Advanced is powered by DeepFilterNet.</span></div><div class="seg" role="group" aria-label="Noise suppression"><button aria-pressed="false">None</button><button aria-pressed="false">Standard</button><button aria-pressed="true">Advanced</button></div></div>
+          <button class="set-row choice" data-toggle="switch" data-s="echo"><div class="t"><b>Echo cancellation</b><span>Stops others hearing themselves through your speakers</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+        </div>
+      </div>
+      <div class="set-card">
+        <button class="set-row set-exp" aria-expanded="true"><div class="t"><b><span class="shut">Show advanced voice settings</span><span class="open">Hide advanced voice settings</span></b><span><span class="only-custom">Automatic gain control, Advanced voice activity, No audio detected warning</span><span class="not-custom">No audio detected warning, Global attenuation</span></span></div><span class="set-chev"><i class="ph-bold ph-caret-right"></i></span></button>
+        <div class="set-exp-body">
+          <button class="set-row choice only-custom" data-toggle="switch" data-s="agc gain"><div class="t"><b>Automatic gain control</b><span>Adjusts your mic volume to keep you clear and steady</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          <button class="set-row choice only-custom set-avad" data-toggle="switch" data-s="vad voice activity detection neural"><div class="t"><b>Advanced voice activity</b><span>Turn this off if automatic sensitivity misses your voice</span><span class="why"><i class="ph ph-info"></i>Works with automatic sensitivity in voice activity mode</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          <button class="set-row choice" data-toggle="switch" data-s="no audio detected silence warning"><div class="t"><b>No audio detected warning</b><span>Warns you in a call when Wave hears nothing from your mic</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          <div class="set-row stack" data-unit="%" data-s="global attenuation ducking lower other apps strength"><div class="t"><b>Global attenuation</b><span>Lowers other apps by this much while someone speaks. 0% turns it off.</span></div><div class="set-vol"><div class="top-row"><span>Attenuation strength</span><output>40%</output></div><input class="range" type="range" value="40" aria-label="Attenuation strength"></div></div>
+          <button class="set-row choice" data-toggle="switch" data-s="global attenuation"><div class="t"><b>When I speak</b><span>Lower other apps while you talk</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          <button class="set-row choice" data-toggle="switch" data-s="global attenuation"><div class="t"><b>When others speak</b><span>Lower other apps while anyone else talks</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          <button class="set-row choice" data-toggle="switch" data-s="qos quality of service router network packets"><div class="t"><b>Quality of service</b><span>Asks your router to send Wave's voice first. Turn it off if calls drop; some routers handle it badly.</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+        </div>
+      </div>
+      <div class="set-group" data-anchor="camera">
+        <h5>Camera</h5>
+        <div class="set-card set-card--pad">
+          <div class="set-camrow">
+            <div class="field" data-s="camera webcam video device"><label>Camera</label><div class="set-sel"><button class="dropdown" aria-haspopup="listbox" aria-expanded="false" data-options="Default|FaceTime HD Camera|Elgato Facecam MK.2|OBS Virtual Camera"><i class="ph ph-video-camera"></i><span>FaceTime HD Camera</span><i class="ph ph-caret-down"></i></button></div></div>
+            <div class="onstage set-cam" data-s="camera preview test video">
+              <div class="tile is-off"><div class="center"><i class="ph ph-video-camera-slash"></i><b>Camera is off</b><span>Only you see this preview</span><button class="btn btn--sm" data-cam><i class="ph-bold ph-video-camera"></i>Test video</button></div></div>
+              <div class="tile video has-media is-on" style="--hue: 300"><span class="mirror"><i class="ph-bold ph-arrows-left-right"></i>Mirrored for you</span><span class="name"><span class="who">Juno · Preview</span></span><span class="corner"><button class="btn btn--sm" data-cam><i class="ph-bold ph-video-camera-slash"></i>Stop video</button></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="set-group" data-anchor="sounds">
+        <h5>Sounds</h5>
+        <div class="set-card">
+          <div data-cues="Deafen:deafen,Undeafen:undeafen,Mute:mute,Unmute:unmute"></div>
+          <button class="set-row set-exp" aria-expanded="false"><div class="t"><b><span class="shut">Show 9 more sounds</span><span class="open">Hide 9 sounds</span></b><span>Voice disconnected, PTT activate, User join, and more</span></div><span class="set-chev"><i class="ph-bold ph-caret-right"></i></span></button>
+          <div class="set-exp-body" data-cues="Voice disconnected:disconnect,PTT activate:ptt_start,PTT deactivate:ptt_stop,User join:user_join,User leave:user_leave,Stream started:stream_started,Stream stopped:stream_ended,Viewer join:stream_user_joined,Viewer leave:stream_user_left"></div>
+        </div>
+        <p class="set-cap">Message and mention sounds are under Notifications.</p>
+      </div>
+      <div class="set-group" data-anchor="advanced">
+        <h5>Advanced</h5>
+        <div class="set-card">
+          <div class="set-row set-ask" data-s="reset defaults voice settings"><div class="t"><b>Reset voice and video settings</b><span>Puts devices, levels, processing and sounds back to their defaults. Your keybinds and theme stay.</span></div><button class="btn btn--sm set-dangerbtn" data-ask>Reset voice settings</button>
+            <div class="set-askbar"><span>Reset every voice and video setting to its default?</span><div><button class="btn btn--sm" data-ask-no>Keep my settings</button><button class="btn btn--sm btn--danger" data-ask-yes>Reset voice settings</button></div></div>
+            <p class="set-done" role="status"><i class="ph-fill ph-check-circle"></i>Voice and video settings reset<button class="btn btn--link" data-ask-undo>Undo</button></p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 id="nomic">No audio detected</h3>
+  <div class="board set-sheet">
+    <div class="set-page"><div class="set-card set-card--pad">
+      <div class="mictest"><button class="btn btn--primary"><i class="ph-fill ph-stop"></i>Stop testing</button><div class="set-wave is-flat" aria-hidden="true"></div></div>
+      <div class="callout callout--warning set-nomic" role="alert"><i class="ph-fill ph-microphone-slash"></i><div><b>No audio detected from your mic</b><p>Wave hears nothing from MacBook Pro Microphone. Turn up Microphone volume above, pick another input, or let Wave use the microphone in System Settings.</p><div class="acts"><button class="btn btn--sm">Choose another input</button><button class="btn btn--sm btn--ghost">Open System Settings</button></div></div></div>
+    </div></div>
+  </div>
+  <p class="note">Shows after 3s of silence during a mic test, and in a call when No audio detected warning is on. It names the device and every likely fix; Choose another input opens the Microphone list.</p>
+
+  <h3>Camera preview, off and on</h3>
+  <div class="board set-sheet">
+    <div class="set-page"><div class="set-pair">
+      <div class="onstage set-cam"><div class="tile is-off"><div class="center"><i class="ph ph-video-camera-slash"></i><b>Camera is off</b><span>Only you see this preview</span><button class="btn btn--sm"><i class="ph-bold ph-video-camera"></i>Test video</button></div></div></div>
+      <div class="onstage set-cam is-on"><div class="tile video has-media is-on" style="--hue: 300"><span class="mirror"><i class="ph-bold ph-arrows-left-right"></i>Mirrored for you</span><span class="name"><span class="who">Juno · Preview</span></span><span class="corner"><button class="btn btn--sm"><i class="ph-bold ph-video-camera-slash"></i>Stop video</button></span></div></div>
+    </div></div>
+  </div>
+  <p class="note">Tiles reuse the call stage's <code>.tile</code> inside <code>.onstage</code>, so they stay dark in both themes. Others see you unmirrored; the badge says so.</p>
+
+  <h3>Profiles and fallbacks</h3>
+  <div class="board set-sheet">
+    <div class="set-page"><div class="set-card">
+      <div class="set-row"><div class="t"><b>Noise suppression</b><span class="restart"><i class="ph-bold ph-warning"></i>Your Mac couldn't run DeepFilterNet in real time, so this call uses Standard.</span></div><div class="seg" role="group" aria-label="Noise suppression"><button aria-pressed="false">None</button><button aria-pressed="false">Standard</button><button aria-pressed="true">Advanced</button></div></div>
+      <div class="set-row" aria-disabled="true"><div class="t"><b>Advanced voice activity</b><span class="why"><i class="ph ph-info"></i>Works with automatic sensitivity in voice activity mode</span></div><span class="switch" role="switch" aria-checked="true" aria-disabled="true"></span></div>
+    </div></div>
+  </div>
+  <p class="note">Profiles: Custom shows input sensitivity, noise suppression, echo cancellation, automatic gain control and advanced voice activity. Voice isolation hides those five. Studio also hides input mode, since it's always an open mic.</p>
+</section>
+
+<section id="keybinds" data-page="keybinds" data-label="Keybinds" data-icon="keyboard">
+  <h2>Keybinds</h2>
+  <p class="lede">Each keybind is an action and a shortcut. Any combo works, including plain keys like = with Backspace. Recording listens until you let go; a combo another keybind has warns and offers to move it, one another app owns says so.</p>
+  <div class="board set-sheet">
+    <div class="set-page" data-src>
+      <div class="set-hgroup"><div><h4 class="set-h">Keybinds</h4><p>Shortcuts that work everywhere, even while another app is in front.</p></div><button class="btn btn--primary" data-kb-add><i class="ph-bold ph-plus"></i>Add a keybind</button></div>
+      <div class="set-group">
+        <h5>Your keybinds</h5>
+        <div class="set-card" data-kb-list>
+          <div class="set-row set-kbrow"><div class="set-sel"><button class="dropdown" aria-haspopup="listbox" aria-expanded="false" aria-label="Action" data-options="@actions"><span>Toggle mute</span><i class="ph ph-caret-down"></i></button></div><div class="set-rec" data-keys="=+Backspace"><span class="v"><span class="keys"><kbd class="kbd">=</kbd><kbd class="kbd">Backspace</kbd></span></span><button class="btn btn--sm" data-rec>Edit keybind</button></div><button class="iconbtn rm" aria-label="Remove keybind"><i class="ph ph-trash"></i></button></div>
+          <div class="set-row set-kbrow"><div class="set-sel"><button class="dropdown" aria-haspopup="listbox" aria-expanded="false" aria-label="Action" data-options="@actions"><span>Toggle deafen</span><i class="ph ph-caret-down"></i></button></div><div class="set-rec" data-keys="⌘+⇧+D"><span class="v"><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">⇧</kbd><kbd class="kbd">D</kbd></span></span><button class="btn btn--sm" data-rec>Edit keybind</button></div><button class="iconbtn rm" aria-label="Remove keybind"><i class="ph ph-trash"></i></button></div>
+          <div class="set-row set-kbrow"><div class="set-sel"><button class="dropdown" aria-haspopup="listbox" aria-expanded="false" aria-label="Action" data-options="@actions"><span>Push to talk (normal)</span><i class="ph ph-caret-down"></i></button></div><div class="set-rec" data-keys="`"><span class="v"><span class="keys"><kbd class="kbd">`</kbd></span></span><button class="btn btn--sm" data-rec>Edit keybind</button></div><button class="iconbtn rm" aria-label="Remove keybind"><i class="ph ph-trash"></i></button></div>
+          <div class="set-row set-kbrow"><div class="set-sel"><button class="dropdown" aria-haspopup="listbox" aria-expanded="false" aria-label="Action" data-options="@actions"><span>Toggle screen share</span><i class="ph ph-caret-down"></i></button></div><div class="set-rec" data-keys="⌃+⌥+S"><span class="v"><span class="keys"><kbd class="kbd">⌃</kbd><kbd class="kbd">⌥</kbd><kbd class="kbd">S</kbd></span></span><button class="btn btn--sm" data-rec>Edit keybind</button></div><button class="iconbtn rm" aria-label="Remove keybind"><i class="ph ph-trash"></i></button></div>
+          <div class="set-row set-kbrow"><div class="set-sel"><button class="dropdown" aria-haspopup="listbox" aria-expanded="false" aria-label="Action" data-options="@actions"><span>Disconnect from voice</span><i class="ph ph-caret-down"></i></button></div><div class="set-rec"><span class="v"><span class="none">No keybind set</span></span><button class="btn btn--sm" data-rec>Record keybind</button></div><button class="iconbtn rm" aria-label="Remove keybind"><i class="ph ph-trash"></i></button></div>
+        </div>
+        <p class="set-cap">Record ⌘ Space to see the other-app error, or ⌘ ⇧ D on another row to see the move offer.</p>
+      </div>
+      <div class="set-group">
+        <h5>Default keybinds</h5>
+        <div class="set-card">
+          <div class="set-row set-ref" data-s="quick switcher jump"><div class="t"><b>Quick switcher</b></div><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">K</kbd></span></div>
+          <div class="set-row set-ref"><div class="t"><b>Navigate between channels</b></div><span class="keys"><kbd class="kbd">⌥</kbd><kbd class="kbd">↑</kbd><span class="or">or</span><kbd class="kbd">↓</kbd></span></div>
+          <div class="set-row set-ref"><div class="t"><b>Mark channel as read</b></div><span class="keys"><kbd class="kbd">Esc</kbd></span></div>
+          <div class="set-row set-ref"><div class="t"><b>Previous and next in the image viewer</b></div><span class="keys"><kbd class="kbd">←</kbd><span class="or">or</span><kbd class="kbd">→</kbd></span></div>
+          <div class="set-row set-ref"><div class="t"><b>Close a popup</b></div><span class="keys"><kbd class="kbd">Esc</kbd></span></div>
+        </div>
+        <p class="set-cap">Built in and always on. On Windows and Linux, ⌘ reads Ctrl and ⌥ reads Alt.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Recorder states</h3>
+  <div class="board set-sheet">
+    <div class="set-page"><div class="set-states">
+      <div class="set-kbstate"><span>No keybind set</span><div class="set-rec"><span class="v"><span class="none">No keybind set</span></span><button class="btn btn--sm">Record keybind</button></div></div>
+      <div class="set-kbstate"><span>Recording</span><div class="set-rec is-recording"><span class="v"><i class="ph-fill ph-record"></i>Press a key…</span><button class="btn btn--sm">Stop recording</button></div></div>
+      <div class="set-kbstate"><span>Holding keys</span><div class="set-rec is-recording"><span class="v"><i class="ph-fill ph-record"></i><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">⇧</kbd></span></span><button class="btn btn--sm">Stop recording</button></div></div>
+      <div class="set-kbstate"><span>Recorded</span><div class="set-rec"><span class="v"><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">⇧</kbd><kbd class="kbd">M</kbd></span></span><button class="btn btn--sm">Edit keybind</button></div></div>
+      <div class="set-kbstate"><span>Owned by another app</span><div class="set-rec is-error"><span class="v"><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">Space</kbd></span></span><button class="btn btn--sm">Edit keybind</button></div><p class="set-err" role="alert"><i class="ph-fill ph-warning-circle"></i>Another app already uses this shortcut. Record a different one, or change it in that app.</p></div>
+    </div></div>
+  </div>
+
+  <h3>Action picker open, taken inside Wave, removed</h3>
+  <div class="board set-sheet">
+    <div class="set-page"><div class="set-card">
+      <div class="set-row set-kbrow"><div class="set-sel"><button class="dropdown" aria-haspopup="listbox" aria-expanded="false" aria-label="Action" data-options="@actions" data-pin-open><span>Toggle mute</span><i class="ph ph-caret-down"></i></button></div><div class="set-rec"><span class="v"><span class="keys"><kbd class="kbd">=</kbd><kbd class="kbd">Backspace</kbd></span></span><button class="btn btn--sm">Edit keybind</button></div><button class="iconbtn rm" aria-label="Remove keybind"><i class="ph ph-trash"></i></button></div>
+      <div class="set-row set-kbrow" style="margin-top: 300px"><div class="set-sel"><button class="dropdown" aria-label="Action"><span>Toggle voice activity mode</span><i class="ph ph-caret-down"></i></button></div><div class="set-rec"><span class="v"><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">⇧</kbd><kbd class="kbd">D</kbd></span></span><button class="btn btn--sm">Edit keybind</button></div><button class="iconbtn rm" aria-label="Remove keybind"><i class="ph ph-trash"></i></button>
+        <div class="callout callout--warning" role="alert"><i class="ph-fill ph-warning"></i><div>⌘ ⇧ D is already Toggle deafen. Moving it here leaves Toggle deafen without a shortcut.</div><button class="btn btn--sm">Move it here</button></div></div>
+      <div class="set-row set-gone"><div class="t"><b>Removed Push to mute</b></div><button class="btn btn--sm">Undo</button></div>
+    </div></div>
+  </div>
+  <p class="note">Remove is always visible and takes effect at once; the row holds an Undo for 8 seconds. A new keybind starts recording straight away with the action still to pick.</p>
+</section>
+
+<section id="appearance" data-page="appearance" data-label="Appearance" data-icon="palette">
+  <h2>Appearance</h2>
+  <p class="lede">Previews show the real thing at small size. The chosen option takes the fill and an accent ring; nothing else greys out. Theme and neutrals here are live: they change this whole site.</p>
+  <div class="board set-sheet">
+    <div class="set-page" data-src>
+      <h4 class="set-h">Appearance</h4>
+      <div class="set-group" data-s="theme dark light mode midnight system">
+        <h5>Theme</h5>
+        <div class="set-picks" role="radiogroup" aria-label="Theme" data-pick="theme">
+          <button class="set-pick" role="radio" aria-checked="false" data-v="light"><span class="mini mini--light"><span class="r"></span><span class="s"><i></i><i></i><i></i><i></i></span><span class="c"><i></i><i></i><i></i><i></i><i></i></span></span><span>Light</span></button>
+          <button class="set-pick" role="radio" aria-checked="false" data-v="dark"><span class="mini"><span class="r"></span><span class="s"><i></i><i></i><i></i><i></i></span><span class="c"><i></i><i></i><i></i><i></i><i></i></span></span><span>Midnight</span></button>
+          <button class="set-pick" role="radio" aria-checked="true" data-v=""><span class="mini mini--light mini--sync"><span class="r"></span><span class="s"><i></i><i></i><i></i><i></i></span><span class="c"><i></i><i></i><i></i><i></i><i></i></span><span class="half"><span class="r"></span><span class="s"><i></i><i></i><i></i><i></i></span><span class="c"><i></i><i></i><i></i><i></i><i></i></span></span></span><span>Sync with OS <small data-os-theme>Midnight now</small></span></button>
+        </div>
+        <p class="set-cap">Midnight is the darkest theme, the one Wave is built on.</p>
+      </div>
+      <div class="set-group" data-s="neutrals greys tint ink bone plum graphite colour">
+        <h5>Neutrals</h5>
+        <div class="set-picks" role="radiogroup" aria-label="Neutrals" data-pick="neutral">
+          <button class="set-pick" role="radio" aria-checked="true" data-v=""><span class="set-neu set-neu--ink"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span>Ink and bone <small>Default. Plum-tinted ink, warm paper</small></span></button>
+          <button class="set-pick" role="radio" aria-checked="false" data-v="plum"><span class="set-neu set-neu--plum"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span>Plum <small>More colour in every grey</small></span></button>
+          <button class="set-pick" role="radio" aria-checked="false" data-v="graphite"><span class="set-neu set-neu--graphite"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span>Graphite <small>Nearly neutral, a cool hint</small></span></button>
+        </div>
+        <p class="set-cap">The tint of every surface and grey, in both themes. Each preview shows the four surface steps in Midnight over the same four in Light.</p>
+      </div>
+      <div class="set-group" data-s="app icon dock">
+        <h5>App icon</h5>
+        <div class="set-icons" role="radiogroup" aria-label="App icon" data-pick>
+          <button class="set-icon" role="radio" aria-checked="true"><img src="/assets/brand/icons/glass.png" alt="">Glass<small>Default</small></button>
+          <button class="set-icon" role="radio" aria-checked="false"><img src="/assets/brand/icons/bone.png" alt="">Bone</button>
+          <button class="set-icon" role="radio" aria-checked="false"><img src="/assets/brand/icons/brand.png" alt="">Magenta</button>
+          <button class="set-icon" role="radio" aria-checked="false"><img src="/assets/brand/icons/graphite.png" alt="">Graphite</button>
+          <button class="set-icon" role="radio" aria-checked="false"><img src="/assets/brand/icons/paper.png" alt="">Paper</button>
+          <button class="set-icon" role="radio" aria-checked="false"><img src="/assets/brand/icons/blueprint.png" alt="">Blueprint</button>
+          <button class="set-icon" role="radio" aria-checked="false"><img src="/assets/brand/icons/riso.png" alt="">Riso</button>
+          <button class="set-icon" role="radio" aria-checked="false"><img src="/assets/brand/icons/pixel.png" alt="">Pixel</button>
+          <button class="set-icon" role="radio" aria-checked="false"><img src="/assets/brand/icons/sticker.png" alt="">Sticker</button>
+          <button class="set-icon" role="radio" aria-checked="false"><img src="/assets/brand/icons/peek.png" alt="">Peek</button>
+          <button class="set-icon" role="radio" aria-checked="false"><img src="/assets/brand/icons/sleepy.png" alt="">Sleepy</button>
+        </div>
+        <p class="set-cap">How Wave looks in your Dock: the same voice wave in different media. Changes right away; no restart.</p>
+      </div>
+      <div class="set-group" data-s="message density compact cozy">
+        <h5>Message density</h5>
+        <div class="set-picks" role="radiogroup" aria-label="Message density" data-pick>
+          <button class="set-pick" role="radio" aria-checked="true"><span class="set-dens"><span class="m"><span class="av" data-av="Mira"></span><i></i><i style="width: 80%"></i></span><span class="m"><span class="av" data-av="Theo"></span><i></i><i style="width: 60%"></i></span></span><span>Cozy <small>Avatars and names on every group</small></span></button>
+          <button class="set-pick" role="radio" aria-checked="false"><span class="set-dens set-dens--compact"><span class="m"><b></b><i></i><i style="width: 90%"></i></span><span class="m"><b></b><i></i><i style="width: 70%"></i></span><span class="m"><b></b><i></i><i style="width: 85%"></i></span><span class="m"><b></b><i></i><i style="width: 50%"></i></span><span class="m"><b></b><i></i><i style="width: 75%"></i></span></span><span>Compact <small>More messages on screen</small></span></button>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5>Chat font size</h5>
+        <div class="set-card">
+          <div class="set-row stack" data-unit="px" data-s="font size text zoom">
+            <div class="set-num"><div class="t"><b>Font size</b><span>Message text only; the rest follows your zoom (⌘ =)</span></div><output>16px</output></div>
+            <input class="range" type="range" min="12" max="20" step="1" value="16" aria-label="Chat font size">
+            <div class="set-scale"><span>12</span><span>14</span><span>16</span><span>18</span><span>20</span></div>
+            <div class="set-sample"><div class="msg first"><span class="av" data-av="Rosa"></span><div><div class="head"><span class="name">Rosa</span><span class="time">Today at 9:41 PM</span></div><div class="body">the timing on that dodge, I'm framing this one</div></div></div></div>
+          </div>
+          <button class="set-row choice" data-toggle="switch" data-s="animation reduce motion"><div class="t"><b>Reduce motion</b><span>Fades instead of movement. On while your system asks for it.</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="better-than-discord">
+  <h2>Better than Discord</h2>
+  <p class="lede">Wave keeps every setting Discord has and changes how a few of them work, where Discord hides an action, leaves a state unexplained or spends a dialog on one decision.</p>
+  <div class="btd">
+    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
+    <div><p>Filters the page names in the sidebar.</p><p><b><a href="#search">Settings search</a></b>Matches every setting by name, description and synonyms, and shows the rows themselves, live, grouped by page.</p><p>You change a setting without knowing which page it lives on.</p></div>
+    <div><p>A dropdown hides the three choices behind a click.</p><p><b><a href="#voice-video">Noise suppression</a></b>A segmented control shows None, Standard and Advanced at once.</p><p>Three options fit in a row: one click instead of two, and the current one is always visible.</p></div>
+    <div><p>Greys out Advanced voice activity with no reason.</p><p><b><a href="#voice-video">Disabled settings</a></b>The row says what it needs: automatic sensitivity in voice activity mode.</p><p>A dead control that doesn't say why reads as broken.</p></div>
+    <div><p>Asks you to check you've selected the right input device.</p><p><b><a href="#nomic">No audio detected</a></b>Names the device, lists the likely causes, and offers Choose another input and Open System Settings.</p><p>An error says how to fix it, with the fix one click away.</p></div>
+    <div><p>A "Preview sound" text link under each cue's name.</p><p><b><a href="#voice-video">Sound previews</a></b>A play button beside each switch that turns into the wave while it plays.</p><p>One column to scan, and you can see which sound is playing.</p></div>
+    <div><p>A small X appears only on hover at the card's corner and removes at once.</p><p><b><a href="#keybinds">Removing a keybind</a></b>A remove button on every row, always visible, with Undo in the row's place.</p><p>No action is hidden behind hover, and a slip costs one click.</p></div>
+    <div><p>Lets two keybinds share one shortcut without a word.</p><p><b><a href="#keybinds">Shortcut conflicts</a></b>Names the keybind that has it and offers Move it here; another app's shortcut gets an error with the fix.</p><p>One key doing two things is a bug you find mid-call.</p></div>
+    <div><p>Spells keys in capitals: CMD + K.</p><p><b><a href="#keybinds">Key names</a></b>Keycaps with the platform's symbols: ⌘ K.</p><p>Matches the menus and the keyboard, and reads at a glance.</p></div>
+    <div><p>Opens a modal to ask if you're sure.</p><p><b><a href="#rows">Reset and log out</a></b>The row asks in place, naming what happens; reset then offers Undo.</p><p>A single reversible decision doesn't need a dialog over the page.</p></div>
+    <div><p>Edit opens a modal with one field.</p><p><b><a href="#account">Display name</a></b>The row becomes the field; Enter saves, Esc cancels, the new name shows at once.</p><p>One field, edited where you read it.</p></div>
+    <div><p>Hides it until you turn on Developer Mode, then a right-click copies it.</p><p><b><a href="#account">User ID</a></b>Shows it in Account info with Copy ID and a Copied state.</p><p>Support, bots and friends ask for it; no hidden mode to find first.</p></div>
+    <div><p>Plain colour discs.</p><p><b><a href="#appearance">Theme picker</a></b>A small window in each theme, and the neutrals with their real surface steps.</p><p>You see what you'll get before you pick it.</p></div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<template id="set-shell">
+  <div class="set">
+    <nav class="set-nav" aria-label="Settings">
+      <div class="set-me"><span class="av" data-av="Juno"><span class="status online"></span></span><div><b>Juno</b><span>Online</span></div></div>
+      <div class="input"><i class="ph ph-magnifying-glass"></i><input type="search" aria-label="Search settings" placeholder="Search settings" data-q><button class="iconbtn iconbtn--sm" aria-label="Clear search" data-clear hidden><i class="ph-bold ph-x"></i></button></div>
+      <div class="set-hits"></div>
+      <div class="set-navlist"></div>
+      <hr>
+      <div class="set-ask">
+        <button class="set-navi danger" data-ask><i class="ph ph-sign-out"></i><span>Log out</span></button>
+        <div class="set-askbar" role="group" aria-label="Log out"><span>Log out of Wave on this Mac?<small>You'll need your password and 2FA code to sign back in.</small></span><div><button class="btn btn--sm" data-ask-no>Stay</button><button class="btn btn--sm btn--danger" data-ask-yes data-loading="Logging out…">Log out</button></div></div>
+      </div>
+      <p class="set-ver">Wave 0.4.2 (macOS 15.1)<br>gpui 0.2 · voice 1.8</p>
+    </nav>
+    <div class="set-main">
+      <div class="set-bar"><button class="set-back" data-back><i class="ph-bold ph-caret-left"></i>Settings</button><button class="iconbtn" aria-label="Close settings"><i class="ph-bold ph-x"></i></button></div>
+      <div class="set-close"><button aria-label="Close settings"><i class="ph-bold ph-x"></i></button>Esc</div>
+      <div class="set-view"></div>
+    </div>
+  </div>
+</template>
+<script src="site.js"></script>
+<script>
+// Every behaviour is delegated and scoped to its own row or page, so pages cloned into the windows work too.
+const ACTIONS = ["Push to talk (normal)", "Push to mute", "Toggle mute", "Toggle deafen", "Toggle voice activity mode", "Disconnect from voice", "Toggle screen share", "Unassigned"];
+// GAP: stand-in for the OS query; the real list comes from the global-hotkey registration error.
+const TAKEN_BY_OTHER_APPS = ["⌘+Space", "⌘+Tab", "⌃+Space"];
+const PAGE_IDS = $$("section[data-page]").map(s => s.dataset.page);
+const meta = id => $(`section[data-page="${id}"]`).dataset;
+const source = id => $(`section[data-page="${id}"] .set-page[data-src]`);
+const html = s => Object.assign(document.createElement("template"), { innerHTML: s.trim() }).content.firstElementChild;
+
+// Sound cue rows: a preview button and a switch each.
+for (const host of $$("[data-cues]")) {
+  const rows = host.dataset.cues.split(",").map(pair => {
+    const [name, file] = pair.split(":");
+    return html(`<div class="set-row set-cue" data-s="sound cue"><div class="t"><b>${name}</b></div><div class="ctl"><button class="iconbtn set-play" aria-label="Preview ${name} sound" data-sound="/assets/discord/sounds/${file}.mp3"><i class="ph-fill ph-play"></i><span class="bars"><i></i><i></i><i></i></span></button><button class="switch" role="switch" aria-checked="true" aria-label="Play ${name} sound"></button></div></div>`);
+  });
+  if (host.classList.contains("set-exp-body")) host.replaceChildren(...rows);
+  else host.replaceWith(...rows);
+}
+for (const w of $$(".set-wave")) { w.innerHTML = "<i></i>".repeat(40); w.querySelectorAll("i").forEach(b => b.style.setProperty("--l", 0.1)); }
+
+/* Select */
+function closeSelects(except) {
+  for (const m of $$(".set-sel > .menu:not([data-pinned])")) if (m !== except) {
+    m.previousElementSibling.setAttribute("aria-expanded", "false");
+    m.remove();
+  }
+}
+function openSelect(btn, pinned) {
+  closeSelects();
+  const opts = btn.dataset.options === "@actions" ? ACTIONS : btn.dataset.options.split("|");
+  const cur = btn.classList.contains("is-placeholder") ? "" : $("span", btn).textContent;
+  const menu = html(`<div class="menu rise" role="listbox">${opts.map(o => `<button class="mi" role="option" aria-selected="${o === cur}"><span>${o}</span><i class="ph-bold ph-check"></i></button>`).join("")}</div>`);
+  if (pinned) menu.dataset.pinned = "";
+  btn.after(menu);
+  btn.setAttribute("aria-expanded", "true");
+  if (!pinned) ($('[aria-selected="true"]', menu) || $(".mi", menu)).focus();
+}
+for (const b of $$("[data-pin-open]")) openSelect(b, true);
+document.addEventListener("click", e => {
+  const opt = e.target.closest(".set-sel > .menu .mi");
+  if (opt) {
+    const menu = opt.parentElement, btn = menu.previousElementSibling;
+    $$(".mi", menu).forEach(m => m.setAttribute("aria-selected", m === opt));
+    $("span", btn).textContent = $("span", opt).textContent;
+    btn.classList.remove("is-placeholder");
+    if (!menu.dataset.pinned) { closeSelects(); btn.focus(); }
+    return;
+  }
+  const trigger = e.target.closest(".set-sel > .dropdown[data-options]");
+  if (trigger) {
+    if (trigger.nextElementSibling?.dataset.pinned !== undefined) return;
+    return trigger.getAttribute("aria-expanded") === "true" ? closeSelects() : openSelect(trigger);
+  }
+  if (!e.target.closest(".set-sel")) closeSelects();
+});
+document.addEventListener("keydown", e => {
+  const menu = e.target.closest?.(".set-sel > .menu");
+  if (!menu) return;
+  const items = $$(".mi", menu), i = items.indexOf(document.activeElement);
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus(); }
+  if (e.key === "Escape") { e.stopPropagation(); const btn = menu.previousElementSibling; closeSelects(); btn.focus(); }
+});
+
+/* Expander, inline confirm, inline edit, copy, reveal, camera, switches */
+const undoTimers = new WeakMap();
+document.addEventListener("click", e => {
+  const t = e.target;
+  const exp = t.closest(".set-exp");
+  if (exp) exp.setAttribute("aria-expanded", exp.getAttribute("aria-expanded") !== "true");
+
+  const sw = t.closest("button.switch");
+  if (sw) sw.setAttribute("aria-checked", sw.getAttribute("aria-checked") !== "true");
+
+  const ask = t.closest("[data-ask]");
+  if (ask) { const row = ask.closest(".set-ask"); row.classList.remove("is-done"); row.classList.add("is-asking"); $("[data-ask-no]", row).focus(); }
+  if (t.closest("[data-ask-no]")) { const row = t.closest(".set-ask"); row.classList.remove("is-asking"); $("[data-ask]", row).focus(); }
+  const yes = t.closest("[data-ask-yes]");
+  if (yes) {
+    const row = yes.closest(".set-ask");
+    if (yes.dataset.loading) setTimeout(() => row.classList.remove("is-asking"), 1400);
+    else {
+      row.classList.replace("is-asking", "is-done");
+      clearTimeout(undoTimers.get(row));
+      undoTimers.set(row, setTimeout(() => row.classList.remove("is-done"), 8000));
+    }
+  }
+  if (t.closest("[data-ask-undo]")) t.closest(".set-ask").classList.remove("is-done");
+
+  const edit = t.closest("[data-edit]");
+  if (edit) startEdit(edit.closest(".set-edit"));
+  if (t.closest("[data-edit-cancel]")) t.closest(".set-edit").classList.remove("is-editing", "is-invalid");
+
+  const copy = t.closest(".set-copy:not([tabindex])");
+  if (copy) {
+    navigator.clipboard?.writeText($(".set-id", copy.closest(".set-row")).textContent).catch(() => {});
+    copy.classList.add("is-copied");
+    clearTimeout(undoTimers.get(copy));
+    undoTimers.set(copy, setTimeout(() => copy.classList.remove("is-copied"), 2000));
+  }
+
+  const reveal = t.closest("[data-reveal]");
+  if (reveal) {
+    const em = $("b", reveal.closest(".t")), shown = reveal.textContent === "Hide";
+    [em.textContent, em.dataset.full] = [em.dataset.full, em.textContent];
+    reveal.textContent = shown ? "Reveal" : "Hide";
+  }
+
+  const cam = t.closest("[data-cam]");
+  if (cam) $(".set-cam", cam.closest(".set-camrow")).classList.toggle("is-on");
+
+  const pickMic = t.closest("[data-pick-mic]");
+  if (pickMic) setTimeout(() => openSelect($("[data-mic]", pickMic.closest(".set-page"))));
+
+  const play = t.closest(".set-play");
+  if (play) {
+    const audio = new Audio(play.dataset.sound);
+    play.classList.add("playing");
+    const done = () => play.classList.remove("playing");
+    audio.addEventListener("ended", done);
+    audio.play().catch(() => setTimeout(done, 900));
+  }
+});
+function startEdit(row) {
+  const input = $("input", row);
+  input.value = $(".t b", row).textContent;
+  row.classList.add("is-editing");
+  editCount(input);
+  input.focus();
+  input.select();
+}
+function editCount(input) { const out = $("output", input.closest(".set-editf")); if (out) out.textContent = `${input.value.length}/${input.maxLength}`; }
+document.addEventListener("submit", e => {
+  const row = e.target.closest(".set-edit");
+  if (!row) return;
+  e.preventDefault();
+  const name = $("input", row).value.trim();
+  if (!name) { row.classList.add("is-invalid"); $("input", row).focus(); return; }
+  for (const b of $$("[data-name]", row.closest(".set-page"))) b.textContent = name;
+  row.classList.remove("is-editing", "is-invalid");
+  $("[data-edit]", row).focus();
+});
+document.addEventListener("input", e => {
+  if (e.target.closest(".set-editf")) { editCount(e.target); e.target.closest(".set-edit").classList.remove("is-invalid"); }
+});
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  const row = e.target.closest?.(".set-edit.is-editing");
+  if (row) { row.classList.remove("is-editing", "is-invalid"); $("[data-edit]", row).focus(); }
+});
+
+// Radio pickers (theme, neutrals, icon, density): the chosen one takes the fill. Theme and neutrals drive the site.
+document.addEventListener("click", e => {
+  const pick = e.target.closest("[data-pick] > [role=radio]");
+  if (!pick) return;
+  for (const r of pick.parentElement.children) r.setAttribute("aria-checked", r === pick);
+  const kind = pick.parentElement.dataset.pick;
+  if (kind === "theme") $(`#theme button[data-v="${pick.dataset.v}"]`)?.click();
+  if (kind === "neutral") { const sel = $("#neutral"); sel.value = pick.dataset.v; sel.dispatchEvent(new Event("change")); }
+});
+function syncPicks() {
+  const theme = root.dataset.theme || "", neutral = root.dataset.neutral || "";
+  for (const r of $$('[data-pick="theme"] > [role=radio]')) r.setAttribute("aria-checked", r.dataset.v === theme);
+  for (const r of $$('[data-pick="neutral"] > [role=radio]')) r.setAttribute("aria-checked", r.dataset.v === neutral);
+  const osDark = matchMedia("(prefers-color-scheme: dark)").matches;
+  for (const s of $$("[data-os-theme]")) s.textContent = osDark ? "Midnight now" : "Light now";
+}
+syncPicks();
+document.addEventListener("wave:prefs", syncPicks);
+
+/* Slider readouts, sensitivity handle, font size sample */
+document.addEventListener("input", e => {
+  if (!e.target.matches(".range")) return;
+  const scope = e.target.closest("[data-unit]");
+  if (scope) {
+    $("output", scope).textContent = e.target.value + scope.dataset.unit;
+    $(".set-sample", scope)?.style.setProperty("--fs", e.target.value + "px");
+  }
+  e.target.closest(".set-sens")?.style.setProperty("--th", e.target.value + "%");
+});
+
+/* Mic test: a simulated voice drawn as the wave; the sensitivity track shows the same level.
+   With Microphone volume at 0% it hears nothing and shows the no-audio notice. */
+const micTests = new WeakMap();
+document.addEventListener("click", e => {
+  const btn = e.target.closest(".set-mictest");
+  if (!btn) return;
+  const page = btn.closest(".set-page"), wave = $(".set-wave", page), sens = $(".set-sens", page), notice = $(".set-nomic", page);
+  const bars = $$("i", wave);
+  const running = micTests.get(btn);
+  if (running) {
+    clearInterval(running.timer); clearTimeout(running.silence); micTests.delete(btn);
+    wave.classList.remove("is-live"); notice.hidden = true;
+    bars.forEach(b => b.style.setProperty("--l", 0.1));
+    sens?.style.setProperty("--lvl", "0%");
+    btn.innerHTML = '<i class="ph-bold ph-microphone"></i>Test mic';
+    return;
+  }
+  const silent = +$("[data-in-vol]", page).value === 0;
+  let level = 0;
+  const state = { timer: setInterval(() => {
+    const s = performance.now() / 1000;
+    const voice = silent ? 0 : Math.max(0, Math.sin(s * 2.3) * 0.6 + Math.sin(s * 5.1) * 0.3 + 0.25);
+    level += (voice - level) * 0.35;
+    sens?.style.setProperty("--lvl", Math.min(100, level * 90) + "%");
+    bars.forEach((b, i) => {
+      const l = Math.max(0.1, Math.min(1, level * Math.sin((i / bars.length) * Math.PI) * (0.6 + Math.random() * 0.6)));
+      b.style.setProperty("--l", l);
+      b.classList.toggle("on", l > 0.15);
+    });
+  }, 80) };
+  if (silent) state.silence = setTimeout(() => { notice.hidden = false; }, 3000);
+  micTests.set(btn, state);
+  wave.classList.add("is-live");
+  btn.innerHTML = '<i class="ph-fill ph-stop"></i>Stop testing';
+});
+
+/* Keybind recorder: collects keys while held, finishes when every key is released. */
+const KEY = { Meta: "⌘", Shift: "⇧", Alt: "⌥", Control: "⌃", " ": "Space", ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→", Enter: "Return", Escape: "Esc" };
+const MODS = ["⌃", "⌥", "⇧", "⌘"];
+const keyName = e => KEY[e.key] || (e.key.length === 1 ? e.key.toUpperCase() : e.key);
+const keysHtml = keys => `<span class="keys">${keys.map(k => `<kbd class="kbd">${k}</kbd>`).join("")}</span>`;
+let rec = null;
+function recStart(box) {
+  recStop();
+  const v = $(".v", box);
+  rec = { box, before: v.innerHTML, held: new Set(), combo: [] };
+  clearConflict(box);
+  box.classList.remove("is-error");
+  box.classList.add("is-recording");
+  v.setAttribute("role", "status");
+  v.innerHTML = '<i class="ph-fill ph-record"></i>Press a key…';
+  $("[data-rec]", box).textContent = "Stop recording";
+}
+function recStop(commit) {
+  if (!rec) return;
+  const { box, combo, before } = rec;
+  rec = null;
+  const v = $(".v", box), took = commit && combo.length;
+  box.classList.remove("is-recording");
+  v.removeAttribute("role");
+  v.innerHTML = took ? keysHtml(combo) : before;
+  if (took) box.dataset.keys = combo.join("+");
+  $("[data-rec]", box).textContent = box.dataset.keys ? "Edit keybind" : "Record keybind";
+  if (took) checkConflict(box);
+}
+function clearConflict(box) { box.closest(".set-row").querySelectorAll(":scope > .set-err, :scope > .callout").forEach(n => n.remove()); }
+function checkConflict(box) {
+  const row = box.closest(".set-row"), keys = box.dataset.keys;
+  if (TAKEN_BY_OTHER_APPS.includes(keys)) {
+    box.classList.add("is-error");
+    row.append(html(`<p class="set-err" role="alert"><i class="ph-fill ph-warning-circle"></i>Another app already uses this shortcut. Record a different one, or change it in that app.</p>`));
+    return;
+  }
+  const other = $$(".set-rec[data-keys]", row.closest(".set-page")).find(b => b !== box && b.dataset.keys === keys);
+  if (!other) return;
+  const owner = $(".dropdown span", other.closest(".set-row"))?.textContent ?? "Push to talk";
+  const pretty = keys.split("+").join(" ");
+  const note = html(`<div class="callout callout--warning" role="alert"><i class="ph-fill ph-warning"></i><div>${pretty} is already ${owner}. Moving it here leaves ${owner} without a shortcut.</div><button class="btn btn--sm">Move it here</button></div>`);
+  $(".btn", note).addEventListener("click", () => {
+    delete other.dataset.keys;
+    $(".v", other).innerHTML = '<span class="none">No keybind set</span>';
+    $("[data-rec]", other).textContent = "Record keybind";
+    note.remove();
+  });
+  row.append(note);
+}
+document.addEventListener("click", e => {
+  const btn = e.target.closest("[data-rec]");
+  if (btn) { const box = btn.closest(".set-rec"); return rec?.box === box ? recStop() : recStart(box); }
+  if (rec && !e.target.closest(".set-rec")) recStop();
+});
+document.addEventListener("keydown", e => {
+  if (!rec) return;
+  e.preventDefault();
+  if (e.key === "Escape" && !rec.combo.length) return recStop();
+  const k = keyName(e);
+  rec.held.add(k);
+  if (!rec.combo.includes(k)) rec.combo.push(k);
+  rec.combo = [...MODS.filter(m => rec.combo.includes(m)), ...rec.combo.filter(x => !MODS.includes(x))];
+  $(".v", rec.box).innerHTML = '<i class="ph-fill ph-record"></i>' + keysHtml(rec.combo);
+});
+document.addEventListener("keyup", e => {
+  if (!rec) return;
+  rec.held.delete(keyName(e));
+  if (!rec.held.size && rec.combo.length) recStop(true);
+});
+
+/* Keybind rows: remove with undo, add starts recording */
+document.addEventListener("click", e => {
+  const rm = e.target.closest(".set-kbrow .rm");
+  if (rm) {
+    const row = rm.closest(".set-kbrow"), name = $(".dropdown span", row).textContent;
+    const gone = html(`<div class="set-row set-gone" role="status"><div class="t"><b>Removed ${name}</b></div><button class="btn btn--sm">Undo</button></div>`);
+    const timer = setTimeout(() => gone.remove(), 8000);
+    $(".btn", gone).addEventListener("click", () => { clearTimeout(timer); gone.replaceWith(row); $(".rm", row).focus(); });
+    row.replaceWith(gone);
+    $(".btn", gone).focus();
+  }
+  const add = e.target.closest("[data-kb-add]");
+  if (add) {
+    const row = html(`<div class="set-row set-kbrow"><div class="set-sel"><button class="dropdown is-placeholder" aria-haspopup="listbox" aria-expanded="false" aria-label="Action" data-options="@actions"><span>Choose an action</span><i class="ph ph-caret-down"></i></button></div><div class="set-rec"><span class="v"><span class="none">No keybind set</span></span><button class="btn btn--sm" data-rec>Record keybind</button></div><button class="iconbtn rm" aria-label="Remove keybind"><i class="ph ph-trash"></i></button></div>`);
+    $("[data-kb-list]", add.closest(".set-page")).append(row);
+    setTimeout(() => recStart($(".set-rec", row)));
+  }
+});
+
+/* Search: every row on every page, by title, description and data-s keywords */
+function units() {
+  const out = [];
+  for (const id of PAGE_IDS) for (const el of $$(".set-row:not(.set-exp):not(.set-gone), [data-s]", source(id))) {
+    const owner = el.parentElement.closest("[data-s]");
+    if (owner && owner !== el) continue;
+    const text = [el.dataset.s, $(".t", el)?.textContent, $(":scope > h5, label, .top-row span", el)?.textContent, $(".dropdown span", el)?.textContent].filter(Boolean).join(" ");
+    const group = el.closest(".set-group")?.querySelector(":scope > h5")?.textContent ?? "";
+    out.push({ page: id, group: group === $(":scope > h5", el)?.textContent ? "" : group, el, text: text.toLowerCase().replace(/\s+/g, " ") });
+  }
+  return out;
+}
+function mark(scope, q) {
+  for (const host of $$(".t b, .t > span:not(.why), :scope > h5, label, .top-row span, .dropdown span", scope)) {
+    const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const at = n.data.toLowerCase().indexOf(q);
+      if (at < 0) continue;
+      const hit = n.splitText(at); hit.splitText(q.length);
+      const m = document.createElement("mark"); hit.replaceWith(m); m.append(hit);
+      return;
+    }
+  }
+}
+function clean(node) {
+  const c = node.cloneNode(true);
+  for (const x of [c, ...$$("[id]", c)]) x.removeAttribute("id");
+  $$("[for]", c).forEach(x => x.removeAttribute("for"));
+  $$(".set-sel > .menu", c).forEach(m => { m.previousElementSibling.setAttribute("aria-expanded", "false"); m.remove(); });
+  c.removeAttribute("data-src");
+  return c;
+}
+const plural = new Intl.PluralRules("en");
+function renderResults(view, raw) {
+  const q = raw.trim().toLowerCase();
+  const hits = units().filter(u => u.text.includes(q));
+  const page = html(`<div class="set-page set-results"></div>`);
+  if (!hits.length) {
+    page.append(html(`<div class="empty"><div class="mascot idle"><i></i><i></i><i></i><i></i><i></i></div><b>No settings match “${raw.trim().replace(/</g, "&lt;")}”</b><p>Search looks at every setting's name and description. Try a shorter word, like “voice” or “sound”.</p><button class="btn" data-clear>Clear search</button></div>`));
+  } else {
+    page.append(html(`<p class="set-rcount" role="status"><b>${hits.length} ${plural.select(hits.length) === "one" ? "setting</b> matches" : "settings</b> match"} “${raw.trim().replace(/</g, "&lt;")}”</p>`));
+    for (const id of PAGE_IDS) {
+      const mine = hits.filter(h => h.page === id);
+      if (!mine.length) continue;
+      const block = html(`<div class="set-group"><button class="set-rhead" data-go="${id}"><i class="ph ph-${meta(id).icon}"></i>${meta(id).label}<i class="ph ph-caret-right chev"></i></button></div>`);
+      let card = null, group = null;
+      for (const h of mine) {
+        const c = clean(h.el);
+        c.classList.remove("only-custom", "not-custom", "not-studio", "set-ptt", "set-vad", "set-avad");
+        mark(c, q);
+        if (h.group !== group) { group = h.group; card = null; if (group) block.append(html(`<p class="set-rgroup">${group}</p>`)); }
+        if (!c.matches(".set-row")) { block.append(c); card = null; continue; }
+        if (!card) block.append(card = html(`<div class="set-card"></div>`));
+        card.append(c);
+      }
+      page.append(block);
+    }
+  }
+  view.replaceChildren(page);
+  settle(view);
+  return hits;
+}
+function settle(scope) {
+  paintAvatars(scope);
+  requestAnimationFrame(() => $$(".seg, .tabs, .pills", scope).forEach(placeThumb));
+}
+for (const v of $$("[data-results]")) renderResults(v, v.dataset.results);
+
+/* Windows: one shell, every page cloned in on demand */
+function navHtml() {
+  const item = id => `<button class="set-navi" data-go="${id}"><i class="ph ph-${meta(id).icon}"></i><span>${meta(id).label}</span><span class="set-n"></span><i class="ph ph-caret-right chev"></i></button>` +
+    (meta(id).anchors ? `<div class="set-subs">${meta(id).anchors.split(",").map(a => { const [k, n] = a.split(":"); return `<button class="set-subi" data-jump="${k}">${n}</button>`; }).join("")}</div>` : "");
+  return item("account") + item("notifications") + `<h5>Experience</h5>` + item("voice-video") + item("keybinds") + item("appearance");
+}
+function showPage(win, id, push = true) {
+  const view = $(".set-view", win), main = $(".set-main", win);
+  view.replaceChildren(clean(source(id)));
+  settle(view);
+  win.dataset.page = id;
+  for (const n of $$(".set-navi[data-go]", win)) n.dataset.go === id ? n.setAttribute("aria-current", "page") : n.removeAttribute("aria-current");
+  $(".set", win).classList.toggle("is-pushed", push);
+  main.scrollTop = 0;
+  spy(win);
+}
+const topIn = (scroller, el) => el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+function spy(win) {
+  const main = $(".set-main", win), subs = $$(".set-subi", win);
+  if (!subs.length || "jumping" in win.dataset) return;
+  const anchors = $$("[data-anchor]", main);
+  let cur = anchors[0]?.dataset.anchor;
+  for (const a of anchors) if (topIn(main, a) - 40 <= main.scrollTop) cur = a.dataset.anchor;
+  subs.forEach(s => s.setAttribute("aria-current", s.dataset.jump === cur));
+}
+// Wide: results replace the page. Narrow: they replace the list under the field, like a phone's settings.
+const isNarrow = win => $(".set", win).offsetWidth <= 680;
+function search(win, raw) {
+  const nav = $(".set-nav", win), q = raw.trim().toLowerCase(), hitsBox = $(".set-hits", nav);
+  $("[data-clear]", nav).hidden = !q;
+  if (!q) {
+    const wasSearching = "searching" in nav.dataset;
+    delete nav.dataset.searching;
+    hitsBox.replaceChildren();
+    for (const n of $$(".set-navi[data-go]", nav)) { n.hidden = false; $(".set-n", n).textContent = ""; }
+    $("h5", nav).hidden = false;
+    if (wasSearching && !isNarrow(win)) showPage(win, win.dataset.page, $(".set", win).classList.contains("is-pushed"));
+    return;
+  }
+  nav.dataset.searching = "";
+  if (isNarrow(win)) return renderResults(hitsBox, raw);
+  const hits = renderResults($(".set-view", win), raw);
+  for (const n of $$(".set-navi[data-go]", nav)) {
+    const count = hits.filter(h => h.page === n.dataset.go).length;
+    n.hidden = !count && hits.length > 0;
+    $(".set-n", n).textContent = count || "";
+  }
+  $("h5", nav).hidden = ["voice-video", "keybinds", "appearance"].every(id => $(`.set-navi[data-go="${id}"]`, nav).hidden);
+  $(".set-main", win).scrollTop = 0;
+}
+for (const win of $$("[data-set]")) {
+  win.append($("#set-shell").content.cloneNode(true));
+  $(".set-navlist", win).innerHTML = navHtml();
+  paintAvatars(win);
+  showPage(win, win.dataset.start, !("list" in win.dataset));
+  $(".set-main", win).addEventListener("scroll", () => spy(win), { passive: true });
+  $("[data-q]", win).addEventListener("input", e => search(win, e.target.value));
+}
+document.addEventListener("click", e => {
+  const win = e.target.closest("[data-set]");
+  const go = e.target.closest("[data-go]");
+  if (go && win) {
+    const q = $("[data-q]", win);
+    if (q.value) { q.value = ""; search(win, ""); }
+    return showPage(win, go.dataset.go);
+  }
+  const jump = e.target.closest("[data-jump]");
+  if (jump && win) {
+    const main = $(".set-main", win), target = $(`[data-anchor="${jump.dataset.jump}"]`, main);
+    $$(".set-subi", win).forEach(s => s.setAttribute("aria-current", s === jump));
+    // The last sections can't reach the top of the scroller, so the jump's choice holds until the scroll ends.
+    win.dataset.jumping = "";
+    main.addEventListener("scrollend", () => delete win.dataset.jumping, { once: true });
+    if (target) main.scrollTo({ top: topIn(main, target) - 16, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
+  const clear = e.target.closest("[data-clear]");
+  if (clear && win) { const q = $("[data-q]", win); q.value = ""; search(win, ""); q.focus(); }
+  if (e.target.closest("[data-back]") && win) {
+    const q = $("[data-q]", win);
+    if (q.value) { q.value = ""; search(win, ""); }
+    $(".set", win).classList.remove("is-pushed");
+  }
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && e.target.matches?.("[data-set] [data-q]") && e.target.value) {
+    e.target.value = "";
+    search(e.target.closest("[data-set]"), "");
+  }
+});
+</script>
+</body>
+</html>
