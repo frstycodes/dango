@@ -1,3 +1,6 @@
+// Release builds are a GUI app on Windows, so no console window opens beside it; debug builds keep it for logs.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod accounts;
 mod auth;
 mod cache;
