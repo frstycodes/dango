@@ -296,7 +296,12 @@ impl Rustcord {
             .on_click(cx.listener(|this, _, _, cx| this.toggle_deafen(cx)))
             .on_mouse_down(MouseButton::Right, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(crate::call::DeviceKind::Output, e.position, cx)));
         let settings = me_button("settings", Nav::Settings, false, "User settings", cx).on_click(cx.listener(|this, _, window, cx| this.open_settings(crate::settings::Page::Account, window, cx)));
-        let nameplate = me.nameplate.as_ref().map(|plate| nameplate(plate, rail, false, cx.theme().is_dark()));
+        // The card's bottom corners, and its top ones too when no voice panel sits above; outside them, the sidebar.
+        let in_call = self.voice_panel_height() > 0.;
+        let corners = [0., if in_call { 0. } else { ui::RADIUS_MD }, ui::RADIUS_MD, 0.];
+        let behind = palette::surface(palette::Level::Sidebar, cx);
+        let nameplate = me.nameplate.as_ref().map(|plate| nameplate(plate, rail, behind, corners, false, cx.theme().is_dark()));
+        let has_plate = nameplate.is_some();
         let hover = palette::hover(cx);
         let who = div()
             .id("me")
@@ -347,7 +352,20 @@ impl Rustcord {
                     .h(px(PANEL_HEIGHT))
                     .flex_none()
                     .children(nameplate)
-                    .child(div().relative().size_full().pt_2().px_2().pb(px(10.)).flex().items_center().gap_1().child(who).child(mic).child(headphones).child(settings)),
+                    .child(
+                        div()
+                            .relative()
+                            .size_full()
+                            .pt_2()
+                            .px_2()
+                            .pb(px(10.))
+                            .flex()
+                            .items_center()
+                            .gap_1()
+                            .child(who)
+                            // Over nameplate art the controls sit on frosted glass, so they keep their contrast.
+                            .child(div().flex().items_center().gap_1().when(has_plate, |d| d.squircle(ui::RADIUS_SM).bg(rail.opacity(0.72)).backdrop_blur(px(12.))).child(mic).child(headphones).child(settings)),
+                    ),
             )
             .into_any_element()
     }
@@ -513,20 +531,46 @@ impl Rustcord {
 /// (10% → 40%) across the whole card, and the art on top, contain-fit against the right edge. In the user
 /// panel the art sits at 40%; in the member list it is full strength but held back to ~30% under the name,
 /// rising to full ~50px past it (Discord masks it; gpui has no masks, so a surface wash does the same).
-pub fn nameplate(plate: &discord::Nameplate, surface: Hsla, member_row: bool, dark: bool) -> AnyElement {
+/// `corners` are the radii of the shape it fills (top-left, top-right, bottom-right, bottom-left), and
+/// `behind` the colour just outside that shape.
+pub fn nameplate(plate: &discord::Nameplate, surface: Hsla, behind: Hsla, corners: [f32; 4], member_row: bool, dark: bool) -> AnyElement {
     let tint: Hsla = gpui_kit::rgb(if dark { plate.tint.0 } else { plate.tint.1 }).into();
-    let art = div().absolute().top_0().bottom_0().right_0().left(px(if member_row { 0. } else { 50. })).flex().justify_end().child(
-        img(plate.art.clone()).size_full().object_fit(ObjectFit::Cover).opacity(if member_row { 1. } else { 0.4 }),
-    );
+    let art = img(plate.art.clone()).size_full().object_fit(ObjectFit::Cover).opacity(if member_row { 1. } else { 0.4 });
     div()
         .absolute()
         .inset_0()
-        .squircle(ui::RADIUS_XS)
+        .when(!member_row, |p| p.left(px(50.)))
         .overflow_hidden()
         .bg(linear_gradient(90., linear_color_stop(tint.opacity(0.1), 0.), linear_color_stop(tint.opacity(0.4), 1.)))
         .child(art)
-        .when(member_row, |p| p.child(div().absolute().inset_0().bg(linear_gradient(90., linear_color_stop(surface.opacity(0.7), 0.45), linear_color_stop(surface.opacity(0.), 0.75)))))
+        // A wash of the surface from the left: under the name in a member row, and in the user panel the
+        // art's own left edge, which would otherwise stop in a hard line.
+        .child(div().absolute().inset_0().bg(match member_row {
+            true => linear_gradient(90., linear_color_stop(surface.opacity(0.7), 0.45), linear_color_stop(surface.opacity(0.), 0.75)),
+            false => linear_gradient(90., linear_color_stop(surface, 0.), linear_color_stop(surface.opacity(0.), 0.5)),
+        }))
+        .child(corner_frame(behind, corners))
         .into_any_element()
+}
+
+// Rounds an image-filled box's corners. gpui clips only to rectangles, and a covering image paints past its
+// own bounds, so its square corners would poke out of the row's rounded shape. A frame in the colour
+// behind, set just outside the box, has an inner edge that is the row's corner and paints over them.
+fn corner_frame(behind: Hsla, [tl, tr, br, bl]: [f32; 4]) -> Div {
+    const FRAME: f32 = 16.;
+    div()
+        .absolute()
+        .top(px(-FRAME))
+        .left(px(-FRAME))
+        .right(px(-FRAME))
+        .bottom(px(-FRAME))
+        .border(px(FRAME))
+        .border_color(behind)
+        .rounded_tl(px(FRAME + tl))
+        .rounded_tr(px(FRAME + tr))
+        .rounded_br(px(FRAME + br))
+        .rounded_bl(px(FRAME + bl))
+        .corner_shape(ui::SQUIRCLE)
 }
 
 /// An avatar with Discord's status shape cut into its bottom-right corner: a dot for online, a moon for

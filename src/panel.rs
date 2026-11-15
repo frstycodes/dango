@@ -97,7 +97,7 @@ impl Rustcord {
             false => self.role_color(self.guild_id.as_ref(), &member.user.id, Some(&member.roles), dark).unwrap_or(strong),
         };
         let surface = palette::surface(palette::Level::Sidebar, cx);
-        let plate = member.user.nameplate.as_ref().map(|plate| nameplate(plate, surface, true, dark));
+        let plate = member.user.nameplate.as_ref().map(|plate| nameplate(plate, surface, surface, [ui::RADIUS_SM; 4], true, dark));
         let owner = self.guild().is_some_and(|g| g.owner_id.as_ref() == Some(&member.user.id));
         let selected = self.profile_card.as_ref().is_some_and(|p| p.user.id == member.user.id);
         let crown = ui::mix(palette::status_in(Status::Idle, cx), strong, 0.4);
