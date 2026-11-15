@@ -137,6 +137,9 @@ pub struct Prefs {
     // afterwards sticks.
     #[serde(default)]
     pub keybinds_version: u32,
+    // Signed-in accounts (no tokens: those live in the keyring) and the one to start with.
+    pub accounts: Vec<crate::accounts::Account>,
+    pub account: Option<String>,
 }
 
 const KEYBINDS_VERSION: u32 = 1;
@@ -179,6 +182,8 @@ impl Default for Prefs {
             stream_audio: true,
             last_share: None,
             keybinds_version: KEYBINDS_VERSION,
+            accounts: Vec::new(),
+            account: None,
         }
     }
 }
@@ -818,7 +823,7 @@ impl Rustcord {
             .flex()
             .gap(px(8.))
             .child(ui::button("log-out-stay", Tone::Secondary, cx).small().flex_1().child("Stay").on_click(cx.listener(|this, _, _, cx| this.set_ask(None, cx))))
-            .child(ui::button("log-out-yes", Tone::Danger, cx).small().flex_1().child("Log out").on_click(cx.listener(|this, _, _, cx| this.sign_out(cx))));
+            .child(ui::button("log-out-yes", Tone::Danger, cx).small().flex_1().child("Log out").on_click(cx.listener(|this, _, window, cx| this.sign_out(window, cx))));
         reveal(
             "log-out-ask",
             div()

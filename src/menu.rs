@@ -696,7 +696,7 @@ fn hint_inks(item: &Item, cx: &App) -> (Hsla, Hsla) {
     }
 }
 
-fn separator(cx: &App) -> Div {
+pub(crate) fn separator(cx: &App) -> Div {
     div().h(px(SEPARATOR)).flex_none().py(px(4.)).px(px(8.)).child(div().h(px(1.)).bg(palette::line(cx)))
 }
 
