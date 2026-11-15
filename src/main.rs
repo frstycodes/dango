@@ -555,6 +555,8 @@ pub struct Rustcord {
     viewer: Option<Viewer>,
     profile_card: Option<ProfileCard>,
     status_menu: bool,
+    // The channel or DM row under the pointer, which shows its hover-only controls.
+    hovered_row: Option<String>,
     emoji_picker: Option<EmojiTarget>,
     emoji_search: Entity<SearchState>,
     switcher: Option<usize>,
@@ -713,6 +715,7 @@ impl Rustcord {
             viewer: None,
             profile_card: None,
             status_menu: false,
+            hovered_row: None,
             emoji_picker: None,
             emoji_search,
             switcher: None,
@@ -1045,8 +1048,20 @@ impl Rustcord {
                 let is_here = ours.is_some() && state.channel_id == ours;
                 let was_live = guild.voice_states.iter().any(|v| v.user_id == state.user_id && v.channel_id == ours && v.streaming);
                 let is_live = is_here && state.streaming;
-                if Some(&state.user_id) != me.as_ref() && was_here != is_here {
-                    sounds::play(if is_here { sounds::Cue::UserJoin } else { sounds::Cue::UserLeave });
+                // Arriving from, or leaving for, another channel is a move (a drag by a moderator, or a hop).
+                let was_elsewhere = guild.voice_states.iter().any(|v| v.user_id == state.user_id && v.channel_id.is_some() && v.channel_id != ours);
+                let moved = (is_here && was_elsewhere) || (was_here && state.channel_id.is_some());
+                let mine = Some(&state.user_id) == me.as_ref();
+                if !mine && was_here != is_here {
+                    sounds::play(match (moved, is_here) {
+                        (true, _) => sounds::Cue::UserMoved,
+                        (false, true) => sounds::Cue::UserJoin,
+                        (false, false) => sounds::Cue::UserLeave,
+                    });
+                } else if mine && ours.is_some() && state.channel_id.is_some() && state.channel_id != ours {
+                    // Someone moved us; a channel we pick ourselves is already `ours` by the time this lands.
+                    // GAP: nothing updates `call.channel` on a server-side move, so the call view keeps the old channel.
+                    sounds::play(sounds::Cue::UserMoved);
                 } else if Some(&state.user_id) != me.as_ref() && !was_live && is_live {
                     sounds::play(sounds::Cue::StreamStarted);
                 } else if was_live && !is_live && self.call.as_ref().is_some_and(|c| c.watched(&state.user_id).is_some()) {
