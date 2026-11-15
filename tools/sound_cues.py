@@ -7,7 +7,21 @@ import math, os, struct, subprocess, tempfile, wave
 RATE = 48000
 NAMES = {"C": 0, "C#": 1, "D": 2, "D#": 3, "E": 4, "F": 5, "F#": 6, "G": 7, "G#": 8, "A": 9, "A#": 10, "B": 11}
 
-# name: (notes, `+` joining ones struck together, onset of each in seconds, seconds until it fades out (where Discord's does), glide direction, peak, brightness)
+RINGING_STEP = 0.165
+RINGING_NOTES, RINGING_ONSETS = [], []
+for bar, (lead, melody) in enumerate([(None, "D5+D6 C4+C5 G4+G5 D5+D6 C4+C5"), (None, "D5+D6 C4+C5 G4+G5 D5+D6 C4+C5 G4+G5"),
+                                      ("E5+E6", "B4+B5 C4+C5 G4+G5 B4+B5 C4+C5"), ("E5+E6", "B4+B5 C4+C5 G4+G5 B4+B5 C4+C5 G4+G5")]):
+    start = bar * 8 * RINGING_STEP
+    RINGING_NOTES.append("C3~" + (f"+{lead}" if lead else ""))
+    RINGING_ONSETS.append(start)
+    for i, chord in enumerate(melody.split()):
+        RINGING_NOTES.append(chord)
+        RINGING_ONSETS.append(start + (i + 1) * RINGING_STEP)
+    if len(melody.split()) == 5:
+        RINGING_NOTES.append("G3~")
+        RINGING_ONSETS.append(start + 6 * RINGING_STEP)
+
+# name: (notes, `~` held 8x longer through what follows, `+` joining ones struck together, onset of each in seconds, seconds until it fades out (where Discord's does), glide direction, peak, brightness)
 CUES = {
     # The toggles are open fifths stepping a fourth at a time, each cut off by the next, as Discord's are.
     "mute":               (["C5+G5", "C4+G4"], [0, 0.1], 0.38, 0, 0.42, 0.08),
@@ -26,7 +40,14 @@ CUES = {
     "mention":            (["D5", "D6"], [0, 0.08], 0.32, +1, 0.42, 0.30),
     "ptt_start":          (["G4"], [0], 0.08, +1, 0.40, 0.15),
     "ptt_stop":           (["G4", "F#3"], [0, 0.03], 0.11, -1, 0.40, 0.15),
+    # Ringtones, looped while a call rings: octave-stacked chords falling C, C, G twice, out; a plucked
+    # two-bar melody over a held C3/G3 bass, in.
+    "call_calling":       (["C4+C5+C6", "C3+C4", "G3+G4+G5", "C4+C5+C6", "C3+C4", "G3+G4+G5"],
+                           [0, 0.17, 0.3, 0.68, 0.85, 0.98], 1.45, 0, 0.45, 0.12),
+    "call_ringing":       (RINGING_NOTES, RINGING_ONSETS, 5.3, 0, 0.45, 0.18),
 }
+# Loops play back to back, so their files run exactly one period, silence included.
+LOOPS = {"call_calling": 2.42, "call_ringing": 5.33}
 # A small, warm stereo room after the notes, like Discord's: Freeverb's combs and allpasses, shrunk.
 ROOM_RT60 = 1.0     # seconds for the tail to fall 60 dB
 ROOM_WET = 0.32     # tail level against the notes, for cues 0.5 s and longer
@@ -44,7 +65,7 @@ def hz(note):
     return 440 * 2 ** ((midi - 69) / 12)
 
 
-def render(notes, onsets, length, glide, peak, bright):
+def render(notes, onsets, length, glide, peak, bright, period=None):
     tail = int(min(TAIL, length * 1.5) * RATE)
     # Short blips get less room, as Discord's do: a mute click shouldn't hang in the air.
     wet = ROOM_WET * min(1, length / 0.5)
@@ -54,7 +75,10 @@ def render(notes, onsets, length, glide, peak, bright):
     last = max(n for n in range(len(left)) if max(abs(left[n]), abs(right[n])) > top * 0.005)
     fade = int(0.03 * RATE)
     gain = [peak / top * min(1, (last - n) / fade) for n in range(last)]
-    return [(left[n] * g, right[n] * g) for n, g in enumerate(gain)]
+    samples = [(left[n] * g, right[n] * g) for n, g in enumerate(gain)]
+    if period is not None:
+        samples = (samples + [(0.0, 0.0)] * int(period * RATE))[:int(period * RATE)]
+    return samples
 
 
 # One channel's notes, `cents` off pitch so left and right beat slowly against each other into width.
@@ -69,7 +93,8 @@ def play(notes, onsets, length, glide, bright, cents):
         tau = decay * (1 + 0.6 * i / max(1, len(notes) - 1))
         cut = int((onsets[i + 1] - onsets[i]) * RATE) if legato and i + 1 < len(notes) else None
         for note in chord.split("+"):
-            strike(out, hz(note) * 2 ** (cents / 1200), int(onsets[i] * RATE), tau, glide, bright, cut, 1 / len(chord.split("+")))
+            held = note.endswith("~")
+            strike(out, hz(note.rstrip("~")) * 2 ** (cents / 1200), int(onsets[i] * RATE), tau * (8 if held else 1), glide, bright, None if held else cut, 1 / len(chord.split("+")))
     return out
 
 
@@ -116,7 +141,7 @@ def main():
     os.makedirs(root, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         for name, spec in CUES.items():
-            samples = render(*spec)
+            samples = render(*spec, period=LOOPS.get(name))
             path = os.path.join(tmp, name + ".wav")
             with wave.open(path, "wb") as w:
                 w.setnchannels(2)

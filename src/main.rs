@@ -484,6 +484,8 @@ pub struct Rustcord {
     ignored: HashSet<String>,
     // A DM call we started: ring them once the call connects.
     ring_on_connect: Option<String>,
+    // The DM call we're ringing out on; its ringtone plays until someone joins, we leave, or a minute passes.
+    ringing_out: Option<String>,
     // Voice channels whose member list is collapsed (Discord's "Hide Names").
     hidden_voice_names: HashSet<String>,
     // Shift held: Discord's hover bar shows Delete instead of More.
@@ -672,6 +674,7 @@ impl Rustcord {
             guild_settings: HashMap::new(),
             ignored: HashSet::new(),
             ring_on_connect: None,
+            ringing_out: None,
             hidden_voice_names: HashSet::new(),
             shift_held: false,
             stream_card_hover: None,
@@ -1049,6 +1052,10 @@ impl Rustcord {
             Event::VoiceState(state) => {
                 let ours = self.call.as_ref().map(|c| c.channel.id.clone());
                 let me = self.me.as_ref().map(|m| m.id.clone());
+                // Someone answering our ring joins the DM call: the ringtone stops.
+                if state.channel_id.is_some() && state.channel_id == self.ringing_out && Some(&state.user_id) != me.as_ref() {
+                    self.stop_ringing_out();
+                }
                 let Some(guild) = state.guild_id.as_ref().and_then(|id| self.guilds.iter_mut().find(|g| &g.id == id)) else { return };
                 let was_here = guild.voice_states.iter().any(|v| v.user_id == state.user_id && v.channel_id == ours);
                 let is_here = ours.is_some() && state.channel_id == ours;
@@ -2074,8 +2081,30 @@ impl Rustcord {
         cx.notify();
     }
 
+    fn ring_out(&mut self, channel: String, cx: &mut Context<Self>) {
+        sounds::ring(sounds::Cue::CallCalling);
+        self.ringing_out = Some(channel.clone());
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(Duration::from_secs(60)).await;
+            this.update(cx, |this, _| {
+                if this.ringing_out.as_ref() == Some(&channel) {
+                    this.stop_ringing_out();
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    fn stop_ringing_out(&mut self) {
+        if self.ringing_out.take().is_some() {
+            sounds::stop_ring();
+        }
+    }
+
     fn leave_voice(&mut self, cx: &mut Context<Self>) {
         self.call_fullscreen = false;
+        self.stop_ringing_out();
         let Some(mut call) = self.call.take() else { return };
         sounds::play(sounds::Cue::Disconnect);
         for frame in call.watching.drain(..).filter_map(|w| w.frame) {
@@ -2097,6 +2126,7 @@ impl Rustcord {
                     && let Some(client) = self.client.clone()
                 {
                     let channel = self.ring_on_connect.take().unwrap_or_default();
+                    self.ring_out(channel.clone(), cx);
                     crate::discord::runtime().spawn(async move {
                         let _ = client.call(reqwest::Method::POST, format!("/channels/{channel}/call/ring"), Some(serde_json::json!({ "recipients": null }))).await;
                     });
@@ -2181,6 +2211,7 @@ impl Rustcord {
             }
             voice::VoiceEvent::Disconnected(reason) => {
                 self.call = None;
+                self.stop_ringing_out();
                 sounds::play(sounds::Cue::Disconnect);
                 if reason != "Left" {
                     self.voice_error = Some(reason.into());
