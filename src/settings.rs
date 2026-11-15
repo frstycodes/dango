@@ -1763,7 +1763,7 @@ const BANNER: (u32, u32) = (0x8E6AC7, 0x88296F);
 
 const NOTIFY_CUES: [(&str, &str, Cue); 2] = [("cue-message", "Message", Cue::Message), ("cue-mention", "Mention", Cue::Mention)];
 const VOICE_CUES: [(&str, &str, Cue); 4] = [("cue-deafen", "Deafen", Cue::Deafen), ("cue-undeafen", "Undeafen", Cue::Undeafen), ("cue-mute", "Mute", Cue::Mute), ("cue-unmute", "Unmute", Cue::Unmute)];
-const MORE_CUES: [(&str, &str, Cue); 10] = [
+const MORE_CUES: [(&str, &str, Cue); 12] = [
     ("cue-disconnect", "Voice disconnected", Cue::Disconnect),
     ("cue-ptt-start", "PTT activate", Cue::PttStart),
     ("cue-ptt-stop", "PTT deactivate", Cue::PttStop),
@@ -1774,6 +1774,9 @@ const MORE_CUES: [(&str, &str, Cue); 10] = [
     ("cue-stream-stopped", "Stream stopped", Cue::StreamEnded),
     ("cue-viewer-join", "Viewer join", Cue::StreamUserJoined),
     ("cue-viewer-leave", "Viewer leave", Cue::StreamUserLeft),
+    ("cue-outgoing-ring", "Outgoing ring", Cue::CallCalling),
+    // GAP: nothing plays this yet; incoming DM calls (CALL_CREATE) aren't handled.
+    ("cue-incoming-ring", "Incoming ring", Cue::CallRinging),
 ];
 
 // Built-in shortcuts, each as one or more combos read "or".
