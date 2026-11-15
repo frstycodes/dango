@@ -207,7 +207,7 @@ pub fn shadow_pop_on(ring: Hsla, cx: &App) -> Vec<BoxShadow> {
     vec![shadow(drop, 0., 12., 32., 0., false), shadow(ring, 0., 0., 0., 1., false)]
 }
 
-fn shadow(color: Hsla, x: f32, y: f32, blur: f32, spread: f32, inset: bool) -> BoxShadow {
+pub fn shadow(color: Hsla, x: f32, y: f32, blur: f32, spread: f32, inset: bool) -> BoxShadow {
     BoxShadow { color, offset: point(px(x), px(y)), blur_radius: px(blur), spread_radius: px(spread), inset }
 }
 
