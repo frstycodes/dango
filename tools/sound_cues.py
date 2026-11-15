@@ -7,12 +7,13 @@ import math, os, struct, subprocess, tempfile, wave
 RATE = 48000
 NAMES = {"C": 0, "C#": 1, "D": 2, "D#": 3, "E": 4, "F": 5, "F#": 6, "G": 7, "G#": 8, "A": 9, "A#": 10, "B": 11}
 
-# name: (notes, onset of each in seconds, seconds until it fades out (where Discord's does), glide direction, peak, brightness)
+# name: (notes, `+` joining ones struck together, onset of each in seconds, seconds until it fades out (where Discord's does), glide direction, peak, brightness)
 CUES = {
-    "mute":               (["C5", "G4"], [0, 0.08], 0.34, -1, 0.42, 0.20),
-    "unmute":             (["G4", "D5", "C5"], [0, 0.075, 0.15], 0.40, +1, 0.42, 0.20),
-    "deafen":             (["D5", "G4", "D4", "G3"], [0, 0.04, 0.11, 0.19], 0.50, -1, 0.42, 0.18),
-    "undeafen":           (["G3", "D4", "G4", "D5"], [0, 0.075, 0.14, 0.235], 0.56, +1, 0.42, 0.18),
+    # The toggles are open fifths stepping a fourth at a time, each cut off by the next, as Discord's are.
+    "mute":               (["C5+G5", "C4+G4"], [0, 0.1], 0.38, 0, 0.42, 0.08),
+    "unmute":             (["C4+G4", "G4+D5", "C5+G5"], [0, 0.095, 0.17], 0.44, 0, 0.42, 0.08),
+    "deafen":             (["G4+D5", "C4+G4", "G3+D4", "C3+G3"], [0, 0.09, 0.17, 0.245], 0.56, 0, 0.42, 0.10),
+    "undeafen":           (["C3+G3", "G3+D4", "C4+G4", "G4+D5"], [0, 0.095, 0.155, 0.235], 0.56, 0, 0.42, 0.10),
     "user_join":          (["C4", "G4"], [0, 0.075], 0.48, +1, 0.45, 0.22),
     "user_leave":         (["D4", "G3"], [0, 0.08], 0.46, -1, 0.45, 0.18),
     "user_moved":         (["C4", "F4", "G4", "C5"], [0, 0.06, 0.13, 0.195], 0.52, +1, 0.45, 0.20),
@@ -32,6 +33,7 @@ ROOM_WET = 0.32     # tail level against the notes, for cues 0.5 s and longer
 ROOM_DAMP = 0.35    # how much each pass through the room darkens it
 ROOM_PREDELAY = 0.012
 TAIL = 0.6          # most seconds of tail kept after the notes fade (1.5x the notes at most), cut under -46 dB
+UNDER = 0.35    # a chord keeps ringing this loud (-9 dB) under the next, as Discord's do
 DETUNE = 4      # cents each channel sits off pitch
 GLIDE = 0.022   # each note slides into pitch over this long...
 BEND = 0.06     # ...from this far off (a fraction of the pitch).
@@ -60,20 +62,30 @@ def play(notes, onsets, length, glide, bright, cents):
     # The last note rings 1.6x the first and fades to -40 dB (4.6 time constants) right at `length`.
     decay = (length - onsets[-1]) / 4.6 / 1.6
     out = [0.0] * int(length * RATE)
-    for i, note in enumerate(notes):
-        f, start, phase = hz(note) * 2 ** (cents / 1200), int(onsets[i] * RATE), 0.0
+    # A cue of chords plays them legato: each drops to `UNDER`, over 12 ms, as the next one strikes.
+    legato = any("+" in chord for chord in notes)
+    for i, chord in enumerate(notes):
         # Later notes ring a little longer, so a phrase ends on its last note.
         tau = decay * (1 + 0.6 * i / max(1, len(notes) - 1))
-        for n in range(int(tau * 5 * RATE)):
-            t = n / RATE
-            bend = 1 - glide * BEND * math.exp(-t / GLIDE * 3)
-            phase += 2 * math.pi * f * bend / RATE
-            env = min(1, t / 0.004) * math.exp(-t / tau)
-            tone = math.sin(phase) + bright * math.exp(-t / (tau * 0.35)) * math.sin(2 * phase) \
-                + 0.35 * bright * math.exp(-t / (tau * 0.2)) * math.sin(3 * phase)
-            if start + n < len(out):
-                out[start + n] += env * tone
+        cut = int((onsets[i + 1] - onsets[i]) * RATE) if legato and i + 1 < len(notes) else None
+        for note in chord.split("+"):
+            strike(out, hz(note) * 2 ** (cents / 1200), int(onsets[i] * RATE), tau, glide, bright, cut, 1 / len(chord.split("+")))
     return out
+
+
+def strike(out, f, start, tau, glide, bright, cut, level):
+    phase, fade = 0.0, int(0.012 * RATE)
+    for n in range(int(tau * 5 * RATE)):
+        t = n / RATE
+        bend = 1 - glide * BEND * math.exp(-t / GLIDE * 3)
+        phase += 2 * math.pi * f * bend / RATE
+        env = min(1, t / 0.004) * math.exp(-t / tau)
+        tone = math.sin(phase) + bright * math.exp(-t / (tau * 0.35)) * math.sin(2 * phase) \
+            + 0.35 * bright * math.exp(-t / (tau * 0.2)) * math.sin(3 * phase)
+        if cut is not None:
+            env *= max(UNDER, min(1, (cut + fade - n) / fade))
+        if start + n < len(out):
+            out[start + n] += env * tone * level
 
 
 # One channel of the room: the dry notes plus a damped comb-and-allpass tail. `spread` offsets the
