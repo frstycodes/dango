@@ -33,61 +33,102 @@ pub enum AuthEvent {
     Failed(String),
 }
 
-// Release builds keep the token in the Keychain. Debug builds use a file readable only by the user
-// (0600): every rebuild changes the binary's signature, so the Keychain would ask for the password
-// on each run. Testing convenience only: the token sits on disk in plain text.
-#[cfg(not(debug_assertions))]
-pub fn stored_token() -> Option<String> {
-    if let Some(token) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER).ok().and_then(|e| e.get_password().ok()) {
-        return Some(token);
+// Release builds keep each account's token in the Keychain, one entry per user id. Debug builds use
+// files readable only by the user (0600): every rebuild changes the binary's signature, so the
+// Keychain would ask for the password on each run. Testing convenience only: tokens sit on disk in
+// plain text.
+pub fn stored_token(user_id: &str) -> Option<String> {
+    read(&slot(user_id)?)
+}
+
+pub fn store_token(user_id: &str, token: &str) {
+    if let Some(slot) = slot(user_id) {
+        write(&slot, token);
     }
-    let token = keyring::Entry::new(OLD_KEYRING_SERVICE, KEYRING_USER).ok()?.get_password().ok()?;
-    store_token(&token);
-    Some(token)
+}
+
+pub fn forget_token(user_id: &str) {
+    if let Some(slot) = slot(user_id) {
+        delete(&slot);
+    }
+}
+
+// Ids are snowflakes; anything else never names a Keychain entry or a file.
+fn slot(user_id: &str) -> Option<String> {
+    (!user_id.is_empty() && user_id.bytes().all(|b| b.is_ascii_digit())).then(|| format!("{KEYRING_USER}-{user_id}"))
+}
+
+// The single token kept before accounts, and before that by "Chord". Read once at startup when no
+// account is saved; the first READY files it under its user id and `forget_legacy_token` clears it.
+#[cfg(not(debug_assertions))]
+pub fn legacy_token() -> Option<String> {
+    [KEYRING_SERVICE, OLD_KEYRING_SERVICE].into_iter().find_map(|service| keyring::Entry::new(service, KEYRING_USER).ok()?.get_password().ok())
 }
 
 #[cfg(not(debug_assertions))]
-pub fn store_token(token: &str) {
-    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER) {
+pub fn forget_legacy_token() {
+    for service in [KEYRING_SERVICE, OLD_KEYRING_SERVICE] {
+        if let Ok(entry) = keyring::Entry::new(service, KEYRING_USER) {
+            let _ = entry.delete_credential();
+        }
+    }
+}
+
+#[cfg(not(debug_assertions))]
+fn read(slot: &str) -> Option<String> {
+    keyring::Entry::new(KEYRING_SERVICE, slot).ok()?.get_password().ok()
+}
+
+#[cfg(not(debug_assertions))]
+fn write(slot: &str, token: &str) {
+    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, slot) {
         let _ = entry.set_password(token);
     }
 }
 
 #[cfg(not(debug_assertions))]
-pub fn forget_token() {
-    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER) {
+fn delete(slot: &str) {
+    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, slot) {
         let _ = entry.delete_credential();
     }
 }
 
 #[cfg(debug_assertions)]
-fn token_file() -> Option<std::path::PathBuf> {
-    Some(crate::data_dir()?.join("dev-token"))
+fn token_file(slot: &str) -> Option<std::path::PathBuf> {
+    Some(crate::data_dir()?.join(slot.replace(KEYRING_USER, "dev-token")))
 }
 
 #[cfg(debug_assertions)]
-pub fn stored_token() -> Option<String> {
-    let from_file = token_file().and_then(|p| std::fs::read_to_string(p).ok()).map(|t| t.trim().to_owned()).filter(|t| !t.is_empty());
-    if from_file.is_some() {
-        return from_file;
-    }
-    let home = std::env::var_os("HOME")?;
-    let old_file = std::path::Path::new(&home).join("Library/Application Support/Chord/dev-token");
-    if let Some(token) = std::fs::read_to_string(&old_file).ok().map(|t| t.trim().to_owned()).filter(|t| !t.is_empty()) {
-        store_token(&token);
-        let _ = std::fs::remove_file(old_file);
-        return Some(token);
-    }
-    // One-time move from the Keychain (the last password prompt), so a release sign-in carries over.
-    let token = [KEYRING_SERVICE, OLD_KEYRING_SERVICE].into_iter().find_map(|service| keyring::Entry::new(service, KEYRING_USER).ok()?.get_password().ok())?;
-    store_token(&token);
-    Some(token)
+fn old_token_file() -> Option<std::path::PathBuf> {
+    Some(std::path::Path::new(&std::env::var_os("HOME")?).join("Library/Application Support/Chord/dev-token"))
 }
 
 #[cfg(debug_assertions)]
-pub fn store_token(token: &str) {
+pub fn legacy_token() -> Option<String> {
+    let from_files = [token_file(KEYRING_USER), old_token_file()].into_iter().flatten().find_map(|path| std::fs::read_to_string(path).ok().map(|t| t.trim().to_owned()).filter(|t| !t.is_empty()));
+    if from_files.is_some() {
+        return from_files;
+    }
+    // A release sign-in carries over from the Keychain (one password prompt).
+    [KEYRING_SERVICE, OLD_KEYRING_SERVICE].into_iter().find_map(|service| keyring::Entry::new(service, KEYRING_USER).ok()?.get_password().ok())
+}
+
+#[cfg(debug_assertions)]
+pub fn forget_legacy_token() {
+    for path in [token_file(KEYRING_USER), old_token_file()].into_iter().flatten() {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+#[cfg(debug_assertions)]
+fn read(slot: &str) -> Option<String> {
+    std::fs::read_to_string(token_file(slot)?).ok().map(|t| t.trim().to_owned()).filter(|t| !t.is_empty())
+}
+
+#[cfg(debug_assertions)]
+fn write(slot: &str, token: &str) {
     use std::io::Write;
-    let Some(path) = token_file() else { return };
+    let Some(path) = token_file(slot) else { return };
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
@@ -96,15 +137,14 @@ pub fn store_token(token: &str) {
     // Owner-only on Unix. On Windows the file sits in the user's own %APPDATA%, which other users can't read.
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-    let file = options.open(&path);
-    if let Ok(mut file) = file {
+    if let Ok(mut file) = options.open(&path) {
         let _ = file.write_all(token.as_bytes());
     }
 }
 
 #[cfg(debug_assertions)]
-pub fn forget_token() {
-    if let Some(path) = token_file() {
+fn delete(slot: &str) {
+    if let Some(path) = token_file(slot) {
         let _ = std::fs::remove_file(path);
     }
 }
@@ -266,6 +306,13 @@ fn parse_user_payload(payload: &str) -> Option<User> {
 mod tests {
     use super::*;
     use rsa::RsaPublicKey;
+
+    #[test]
+    fn only_snowflakes_name_slots() {
+        assert_eq!(slot("80351110224678912").as_deref(), Some("discord-token-80351110224678912"));
+        assert!(slot("").is_none());
+        assert!(slot("../dev-token").is_none());
+    }
 
     #[test]
     fn parses_scanned_user() {

@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | gallery | profile | profile-plain | emoji | switcher | status | unread | home | folder | stream-card | login | scanned | failed | empty.
+// CHORD_DEMO=chat | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | login | scanned | failed | empty.
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -12,7 +12,7 @@ use crate::{
 };
 
 pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Context<Rustcord>) {
-    let me = user("4194304", "frsty");
+    let me = me_user();
     match scene {
         "login" => return chord.status = Status::SignedOut(Login::qr("https://discord.com/ra/demo-fingerprint-0123456789abcdef")),
         "scanned" => return chord.status = Status::SignedOut(Login::Scanned(me)),
@@ -48,6 +48,10 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         "emoji" => chord.open_emoji_picker(crate::EmojiTarget::Composer, window, cx),
         "switcher" => chord.open_switcher(window, cx),
         "status" => chord.status_menu = true,
+        "accounts" => {
+            chord.prefs.accounts = vec![account(&me_user(), Presence_::Online), account(&user("8388608", "Bartholomew Featherstonehaugh-Wright"), Presence_::Dnd), account(&user("16777216", "theo.alt"), Presence_::Idle)];
+            chord.status_menu = true;
+        }
         "settings" => chord.open_settings(crate::settings::Page::Account, window, cx),
         "voice-settings" => chord.open_settings(crate::settings::Page::VoiceVideo, window, cx),
         "keybinds" => chord.open_settings(crate::settings::Page::Keybinds, window, cx),
@@ -398,4 +402,12 @@ fn messages() -> Vec<Message> {
         mention,
         message("105", abyss, &["r2"], "2026-11-14T08:18:00Z", "```rust\nfn main() {\n    println!(\"hi\");\n}\n```"),
     ]
+}
+
+fn me_user() -> User {
+    user("4194304", "frsty")
+}
+
+fn account(user: &User, status: Presence_) -> crate::accounts::Account {
+    crate::accounts::Account { id: user.id.clone(), name: user.name.clone(), avatar: user.avatar.clone(), status }
 }

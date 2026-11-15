@@ -57,7 +57,7 @@ pub struct GuildTag {
     pub badge: Option<String>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Status {
     Online,
     Idle,

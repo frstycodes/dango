@@ -22,6 +22,8 @@ use crate::{
 
 const PICKER_SIZE: (f32, f32) = (420., 440.);
 const SWITCHER_WIDTH: f32 = 560.;
+// auth.html `.au-accts`: wider than a plain menu so account names fit beside the log-out button.
+const ACCOUNTS_WIDTH: f32 = 288.;
 
 impl Rustcord {
     pub(crate) fn on_emoji_search(&mut self, _: &Entity<SearchState>, _: &InputEvent, _: &mut Window, cx: &mut Context<Self>) {
@@ -425,7 +427,7 @@ impl Rustcord {
         )
     }
 
-    // Your presence, as a menu of radio rows each led by its mark (auth.html's status menu).
+    // Your presence, as a menu of radio rows each led by its mark, then your accounts (auth.html's status menu).
     fn status_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         if !self.status_menu {
             return None;
@@ -438,14 +440,53 @@ impl Rustcord {
                 menu::menu_item_row(SharedString::from(format!("status-{label}")), &row, false, true, cx).on_click(cx.listener(move |this, _, _, cx| this.set_status(status, cx)))
             })
             .collect();
-        let card = ui::surface(cx).w(px(menu::WIDTH))
+        let card = ui::surface(cx).w(px(ACCOUNTS_WIDTH))
             .id("status-menu")
             .absolute()
             .left(px(16.))
             .bottom(px(self.panel_stack_height() + 16.))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .children(rows);
+            .children(rows)
+            .child(menu::separator(cx))
+            .child(div().pt(px(6.)).pb(px(2.)).px(px(10.)).text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::muted(cx)).child("Accounts"))
+            .children(self.prefs.accounts.iter().map(|account| self.account_row(account, cx)))
+            .when(self.can_add_account(), |card| {
+                let add = menu::item("Add an account", |_, _, _| {}).icon(Glyph::Plus);
+                card.child(menu::separator(cx)).child(menu::menu_item_row("add-account".into(), &add, false, true, cx).on_click(cx.listener(|this, _, window, cx| this.add_account(window, cx))))
+            });
         Some(backdrop("status-backdrop", cx).child(ui::rise(card.transform_origin(ui::corner(false, true)), "status-menu", Duration::ZERO)).into_any_element())
+    }
+
+    // One signed-in account (auth.html `.au-acct`): its avatar and status, the connected one filled;
+    // the others switch on click and carry a log-out button.
+    fn account_row(&self, account: &crate::accounts::Account, cx: &mut Context<Self>) -> ui::Control {
+        let current = self.me.as_ref().is_some_and(|me| me.id == account.id);
+        let status = if current { self.my_status } else { account.status };
+        let ring = if current { palette::selected(cx) } else { palette::surface(palette::Level::Overlay, cx) };
+        let name = div()
+            .flex_1()
+            .min_w_0()
+            .flex()
+            .flex_col()
+            .line_height(px(18.))
+            .child(div().truncate().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(account.name.clone()))
+            .child(div().truncate().text_size(px(12.)).text_color(palette::muted(cx)).child(status.label()));
+        let (switch_id, out_id) = (account.id.clone(), account.id.clone());
+        let log_out = (!current).then(|| {
+            ui::icon_button(SharedString::from(format!("log-out-{}", account.id)), Glyph::DoorExit, format!("Log out of {}", account.name), cx).small().on_click(cx.listener(move |this, _, window, cx| {
+                cx.stop_propagation();
+                this.remove_account(out_id.clone(), window, cx);
+            }))
+        });
+        ui::menu_row(SharedString::from(format!("account-{}", account.id)), cx)
+            .toggled(current, cx)
+            .min_h(px(48.))
+            .pl(px(8.))
+            .pr(px(6.))
+            .child(avatar_with_status(&account.avatar, 32., Some(status), ring))
+            .child(name)
+            .children(log_out)
+            .on_click(cx.listener(move |this, _, window, cx| this.switch_account(switch_id.clone(), window, cx)))
     }
 
     // The emoji picker (messages.css `.picker`): search on top, categories down the left, the grid in

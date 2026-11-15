@@ -29,19 +29,25 @@ pub enum FriendsTab {
     Blocked,
 }
 
-fn last_channel_file() -> Option<std::path::PathBuf> {
-    Some(crate::data_dir()?.join("last-channel"))
+// One file per account ("last-channel-<id>"); the shared file from before accounts is read as a fallback.
+fn last_channel_file(user_id: Option<&str>) -> Option<std::path::PathBuf> {
+    let name = match user_id {
+        Some(id) if !id.is_empty() && id.bytes().all(|b| b.is_ascii_digit()) => format!("last-channel-{id}"),
+        Some(_) => return None,
+        None => "last-channel".into(),
+    };
+    Some(crate::data_dir()?.join(name))
 }
 
 /// "guild_id channel_id" ("@me" for DMs), so a restart lands where you left off, as Discord does.
-pub fn load_last_channel() -> Option<(Option<String>, String)> {
-    let text = std::fs::read_to_string(last_channel_file()?).ok()?;
+pub fn load_last_channel(user_id: &str) -> Option<(Option<String>, String)> {
+    let text = [Some(user_id), None].into_iter().find_map(|id| std::fs::read_to_string(last_channel_file(id)?).ok())?;
     let (guild, channel) = text.trim().split_once(' ')?;
     Some(((guild != "@me").then(|| guild.to_owned()), channel.to_owned()))
 }
 
-pub fn save_last_channel(guild_id: Option<&str>, channel_id: &str) {
-    let Some(path) = last_channel_file() else { return };
+pub fn save_last_channel(user_id: &str, guild_id: Option<&str>, channel_id: &str) {
+    let Some(path) = last_channel_file(Some(user_id)) else { return };
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
