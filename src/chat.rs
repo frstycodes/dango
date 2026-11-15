@@ -62,8 +62,8 @@ impl Rustcord {
             .flex()
             .flex_col()
             .on_drop(cx.listener(|this, paths: &gpui_kit::ExternalPaths, _, cx| this.add_files(paths.paths().to_vec(), cx)))
-            .child(div().relative().flex_1().min_h_0().child(body).children(unread_bar))
-            .child(self.render_composer(window, cx));
+            // The composer floats over the feed, which scrolls on under its glass.
+            .child(div().relative().flex_1().min_h_0().child(body).children(unread_bar).child(self.render_composer(window, cx)));
         main.child(header).child(div().flex_1().min_h_0().flex().child(chat).children(self.render_panel(window, cx)))
     }
 
@@ -341,7 +341,8 @@ impl Rustcord {
         })
         .size_full()
         .pt(px(12.))
-        .pb(px(4.))
+        // Clear of the composer and the typing pill above it, so the last message rests in view.
+        .pb(px(self.composer_height.get() + 32.))
         .into_any_element()
     }
 
@@ -368,7 +369,12 @@ impl Rustcord {
             .flex()
             .flex_col()
             .squircle(RADIUS_LG)
-            .bg(palette::surface(Level::Raised, cx))
+            // Glass: the feed shows through, blurred, as it scrolls under.
+            // GAP: the blur's mask uses round corners, a hair outside the squircle's.
+            .bg(palette::surface(Level::Raised, cx).opacity(0.72))
+            .backdrop_blur(px(24.))
+            .backdrop_saturate(1.6)
+            .shadow(ui::shadow_pop(cx))
             .border_1()
             .border_color(if focused { palette::line_strong(cx) } else { palette::line(cx) })
             .children(self.autocomplete_popup(cx))
@@ -377,29 +383,43 @@ impl Rustcord {
             .child(row);
         let typers = self.typers();
         let names: Vec<&str> = typers.iter().map(|t| t.name.as_str()).collect();
-        // A reserved slot above the composer, so the box never jumps when someone starts typing.
-        let typing = div()
-            .h(px(24.))
-            .px(px(24.))
-            .flex()
-            .items_center()
-            .gap(px(8.))
-            .min_w_0()
-            .text_size(px(12.))
-            .text_color(muted)
-            .when(!names.is_empty(), |slot| slot.child(ui::bars("typing", palette::accent_ink(cx), 12.)).child(div().min_w_0().truncate().child(emphasised(&typing_parts(&names), strong))));
+        // A glass pill just above the composer, out of the flow, so the box never moves when someone types.
+        let typing = (!names.is_empty()).then(|| {
+            div().absolute().left(px(28.)).top(px(-28.)).max_w(gpui_kit::relative(0.6)).h(px(24.)).px(px(10.)).flex().items_center().gap(px(8.)).rounded_full()
+                .bg(palette::surface(Level::Raised, cx).opacity(0.72))
+                .backdrop_blur(px(16.))
+                .text_size(px(12.))
+                .text_color(muted)
+                .child(ui::bars("typing", palette::accent_ink(cx), 12.))
+                .child(div().min_w_0().truncate().child(emphasised(&typing_parts(&names), strong)))
+        });
+        let (height, this) = (self.composer_height.clone(), cx.weak_entity());
+        let measure = gpui_kit::canvas(
+            move |bounds, _, cx| {
+                let h = f32::from(bounds.size.height);
+                if (h - height.get()).abs() > 0.5 {
+                    height.set(h);
+                    this.update(cx, |_, cx| cx.notify()).ok();
+                }
+            },
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .inset_0();
         let note = self.send_error.clone().map(|error| div().mx(px(16.)).mt(px(6.)).text_size(px(12.)).text_color(palette::danger_ink(cx)).child(error));
         div()
-            .relative()
-            .flex_none()
+            .absolute()
+            .left_0()
+            .right_0()
+            .bottom_0()
             .flex()
             .flex_col()
             .capture_key_down(cx.listener(Self::on_composer_key))
+            .child(measure)
             .children(self.jump_to_present(cx))
-            .child(typing)
-            .child(card)
+            .child(div().relative().child(card).children(typing))
             .children(note)
-            .child(div().h(px(12.)))
+            .child(div().h(px(16.)))
     }
 
     // A small capsule 12px above the composer, out of the flow, so it never opens a gap.
