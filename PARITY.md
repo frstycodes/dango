@@ -32,7 +32,7 @@ Order: features first (most used at the top), then polish. `[x]` done, `[~]` par
 - [x] Discord's sound cues: mute, unmute, deafen, undeafen, join, leave, disconnect, stream start/end, DM and mention (macOS)
 - [~] Icon toggle animation: a quick pop on mute/deafen; Discord's own Lottie animations are not ported (gpui has no Lottie player)
 - [x] Go Live picker: choose an app or window to share (engine: `voice::shareable_windows`, `ShareSource`)
-- [~] Push-to-talk is a global hotkey: a bare key such as ` is taken from other apps while bound (Discord uses an event tap that does not)
+- [x] Keybinds listen through a keyboard hook (event tap on macOS, low-level hook on Windows): any keys held together, e.g. = + Backspace, and a bare key such as ` still types in other apps
 - [ ] Sound cues on Windows/Linux (rodio)
 
 ### Regular
