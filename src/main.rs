@@ -36,6 +36,7 @@ mod settings;
 mod user_menu;
 mod video;
 mod hotkeys;
+mod key_hook;
 mod sounds;
 #[cfg(target_os = "windows")]
 mod tray;
