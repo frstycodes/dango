@@ -8,23 +8,23 @@ RATE = 48000
 NOTE = {"Bb2": 46, "Eb3": 51, "F3": 53, "G3": 55, "Bb3": 58, "C4": 60, "Eb4": 63, "F4": 65, "G4": 67,
         "Bb4": 70, "C5": 72, "Eb5": 75, "F5": 77, "G5": 79, "Bb5": 82, "C6": 84, "Eb6": 87}
 
-# name: (notes, seconds between onsets, decay seconds, glide direction, peak, brightness)
+# name: (notes, seconds between onsets, seconds until it fades out (where Discord's does), glide direction, peak, brightness)
 CUES = {
-    "mute":               (["Bb4", "G4"], 0.075, 0.09, -1, 0.42, 0.20),
-    "unmute":             (["G4", "Bb4"], 0.075, 0.09, +1, 0.42, 0.20),
-    "deafen":             (["G4", "Eb4", "Bb3"], 0.075, 0.12, -1, 0.42, 0.18),
-    "undeafen":           (["Bb3", "Eb4", "G4"], 0.075, 0.12, +1, 0.42, 0.18),
-    "user_join":          (["Eb4", "C5"], 0.085, 0.20, +1, 0.45, 0.22),
-    "user_leave":         (["C4", "Eb3"], 0.085, 0.20, -1, 0.45, 0.18),
-    "disconnect":         (["Bb4", "F4", "Bb3"], 0.11, 0.22, -1, 0.45, 0.18),
-    "stream_started":     (["Eb3", "G3", "Bb3", "Eb4", "G4"], 0.065, 0.28, +1, 0.5, 0.22),
-    "stream_ended":       (["G4", "Eb4", "Bb3", "Eb3"], 0.075, 0.28, -1, 0.5, 0.18),
-    "stream_user_joined": (["Bb3", "Eb4", "F4"], 0.08, 0.20, +1, 0.45, 0.18),
-    "stream_user_left":   (["F4", "C4", "Bb3"], 0.08, 0.20, -1, 0.45, 0.16),
-    "message":            (["Eb5", "Bb5"], 0.055, 0.07, +1, 0.36, 0.25),
-    "mention":            (["Bb5", "Eb6", "Bb5"], 0.06, 0.10, +1, 0.42, 0.30),
-    "ptt_start":          (["Bb4"], 0.0, 0.045, +1, 0.40, 0.15),
-    "ptt_stop":           (["F4"], 0.0, 0.055, -1, 0.40, 0.15),
+    "mute":               (["Bb4", "G4"], 0.075, 0.34, -1, 0.42, 0.20),
+    "unmute":             (["G4", "Bb4"], 0.075, 0.36, +1, 0.42, 0.20),
+    "deafen":             (["G4", "Eb4", "Bb3"], 0.075, 0.50, -1, 0.42, 0.18),
+    "undeafen":           (["Bb3", "Eb4", "G4"], 0.075, 0.54, +1, 0.42, 0.18),
+    "user_join":          (["Eb4", "C5"], 0.085, 0.48, +1, 0.45, 0.22),
+    "user_leave":         (["C4", "Eb3"], 0.085, 0.46, -1, 0.45, 0.18),
+    "disconnect":         (["Bb4", "F4", "Bb3"], 0.11, 0.64, -1, 0.45, 0.18),
+    "stream_started":     (["Eb3", "G3", "Bb3", "Eb4", "G4"], 0.065, 0.66, +1, 0.5, 0.22),
+    "stream_ended":       (["G4", "Eb4", "Bb3", "Eb3"], 0.075, 0.62, -1, 0.5, 0.18),
+    "stream_user_joined": (["Bb3", "Eb4", "F4"], 0.08, 0.54, +1, 0.45, 0.18),
+    "stream_user_left":   (["F4", "C4", "Bb3"], 0.08, 0.48, -1, 0.45, 0.16),
+    "message":            (["Eb5", "Bb5"], 0.055, 0.26, +1, 0.36, 0.25),
+    "mention":            (["Bb5", "Eb6", "Bb5"], 0.06, 0.32, +1, 0.42, 0.30),
+    "ptt_start":          (["Bb4"], 0.0, 0.08, +1, 0.40, 0.15),
+    "ptt_stop":           (["F4"], 0.0, 0.11, -1, 0.40, 0.15),
 }
 # A small room so the tails don't stop dead: (delay seconds, gain).
 ROOM = [(0.031, 0.16), (0.053, 0.11), (0.089, 0.07), (0.131, 0.04)]
@@ -36,9 +36,10 @@ def hz(note):
     return 440 * 2 ** ((NOTE[note] - 69) / 12)
 
 
-def render(notes, step, decay, glide, peak, bright):
-    length = step * (len(notes) - 1) + decay * 5 + ROOM[-1][0]
-    out = [0.0] * int(length * RATE)
+def render(notes, step, length, glide, peak, bright):
+    # The last note rings 1.6x the first and fades to -40 dB (4.6 time constants) right at `length`.
+    decay = (length - step * (len(notes) - 1)) / 4.6 / 1.6
+    out = [0.0] * int((length + ROOM[-1][0]) * RATE)
     for i, note in enumerate(notes):
         f, start, phase = hz(note), int(i * step * RATE), 0.0
         # Later notes ring a little longer, so a phrase ends on its last note.
@@ -58,7 +59,7 @@ def render(notes, step, decay, glide, peak, bright):
         for n in range(d, len(out)):
             out[n] += dry[n - d] * gain
     top = max(abs(v) for v in out)
-    end = max(n for n, v in enumerate(out) if abs(v) > top * 0.01)
+    end = min(int(length * RATE), max(n for n, v in enumerate(out) if abs(v) > top * 0.01))
     fade = int(0.01 * RATE)
     out = [v * peak / top * min(1, (end - n) / fade) for n, v in enumerate(out[:end])]
     return out
