@@ -727,6 +727,8 @@ impl Rustcord {
         }
         let (hover, selected, text) = (palette::hover(cx), palette::selected(cx), palette::text(cx));
         let mut rows = Vec::new();
+        let me = self.me.as_ref().map(|m| m.id.clone());
+        let elsewhere = |user_id: &str| me.as_deref() == Some(user_id) && !in_call;
         for state in present {
             let name = state.user.as_ref().map(|u| u.name.clone()).unwrap_or_else(|| self.user_name(&state.user_id));
             let avatar = avatar_of(state);
@@ -768,8 +770,9 @@ impl Rustcord {
                     .font_weight(FontWeight::NORMAL)
                     .text_color(if talking { palette::strong(cx) } else { palette::muted(cx) })
                     .hover(move |s| s.bg(hover).text_color(text))
-                    .child(speaking_avatar(&avatar, talking))
-                    .child(div().flex_1().min_w_0().truncate().child(name.clone()))
+                    // You, in this call from another client (not this app): avatar and name faded, as Discord does.
+                    .child(speaking_avatar(&avatar, talking).when(elsewhere(&state.user_id), |a| a.opacity(0.45)))
+                    .child(div().flex_1().min_w_0().truncate().when(elsewhere(&state.user_id), |n| n.opacity(0.45)).child(name.clone()))
                     .children(end)
                     .on_mouse_down(gpui_kit::MouseButton::Right, {
                         let user_id = state.user_id.clone();
