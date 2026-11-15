@@ -1,16 +1,18 @@
 // Discord's GIFs (Tenor, Klipy, Giphy) arrive as silent looping MP4s, which Discord plays inline.
 //
-// Each GIF on screen gets a small player: a decoder thread runs a few pictures ahead of the clock
-// and loops the clip, and the player shows whichever picture is due. Only a handful of pictures
-// exist per GIF at any moment, and each is freed from the GPU when the next replaces it. When the
-// GIF scrolls away the player stops and lets go of its pictures, keeping nothing but the still.
-// The downloaded clips themselves (small, compressed) sit in a shared cache with a size cap, so
-// scrolling back doesn't download them again.
+// Drawing: gpui redraws a view together with every view above it, so a GIF animating inside the app
+// would rebuild the whole window for every frame. Instead the app draws a placeholder (`tile`): the
+// still, plus a note of where it landed and how it's clipped. The moving frames are painted by
+// `GifLayer`, a view beside the app (see shell.rs) whose redraws leave the app's cached drawing to
+// be replayed. Menus, dialogs and the like are part of the app and would sit under the layer, so
+// while one is open inline GIFs pause and show their still; the media viewer's own GIF keeps going.
 //
-// Before this, every GIF was decoded whole into one gpui image (up to 300 pictures, ~100 MB for a
-// long one) and kept in gpui's asset cache, and on the GPU, until the app quit.
+// Playing: each GIF on screen gets a player whose decoder thread runs a few pictures ahead of the
+// clock and loops the clip (short clips are decoded once and replayed). Players stop and free their
+// pictures when their GIF scrolls away, is covered by another window or an overlay, or the window
+// loses focus. The downloaded clips (small, compressed) sit in a shared cache with a size cap.
 use std::{
-    cell::Cell,
+    cell::RefCell,
     collections::{HashMap, VecDeque},
     ops::ControlFlow,
     rc::Rc,
@@ -18,67 +20,164 @@ use std::{
     time::{Duration, Instant},
 };
 
-use gpui_kit::{AnyElement, App, Bounds, Context, Entity, Global, ImageSource, ObjectFit, Pixels, Render, RenderImage, Window, canvas, div, img, prelude::*};
+use gpui_kit::{
+    AnyElement, App, Bounds, Context, Corners, ObjectFit, Pixels, Render, RenderImage, WeakEntity, Window, canvas, div, img, point, prelude::*,
+    px, size,
+};
 
 use crate::h264::{Track, bgra};
 
-// Wide enough for Discord's largest inline GIF.
-const MAX_WIDTH: u32 = 400;
+// Wider clips are scaled down as they're decoded. Discord's GIF clips are usually 498 px and drawn at
+// up to 400 px, which the GPU scales for free, so they're left alone: scaling on the CPU costs more
+// than the decode itself.
+const MAX_WIDTH: u32 = 640;
 // Pictures decoded ahead of the clock: enough to ride out a slow one.
 const AHEAD: usize = 4;
 const TICK: Duration = Duration::from_millis(15);
-// Not painted for this long: scrolled away, another channel opened, or the window hidden.
-const OFFSCREEN: Duration = Duration::from_millis(250);
 // Downloaded clips kept for scrolling back (compressed MP4s, typically 0.2–3 MB each).
 const CLIP_CACHE_BYTES: usize = 48 << 20;
 // A clip whose pictures fit in this much is decoded once and replayed from memory while it's on
-// screen (most GIFs: a few seconds at 400 px); longer ones are decoded again each loop.
-const REPLAY_BYTES: usize = 6 << 20;
-// The fastest a GIF animates. Every new picture redraws the whole window, so a 30 fps clip at full
-// speed costs a large share of a core; most GIFs are 10-15 fps anyway.
+// screen (most GIFs: a few seconds at ~500 px); longer ones are decoded again each loop.
+const REPLAY_BYTES: usize = 12 << 20;
+// The fastest a GIF animates; most GIFs are 10-15 fps, and each frame still costs a redraw.
 const MIN_FRAME: Duration = Duration::from_millis(66);
 // A broken clip that reports no length would otherwise loop as fast as it decodes.
 const MIN_LOOP: Duration = Duration::from_millis(100);
 
-// The players in the chat and the viewer, by where they're shown.
-#[derive(Default)]
-struct Gifs {
-    players: HashMap<String, Entity<GifPlayer>>,
-}
-
-impl Global for Gifs {}
-
-// The GIF for `url`, playing while it's on screen; `key` must be unique to where it's shown. Shows
-// `poster` until the first picture is ready, and for good if the clip can't be played.
-pub fn tile(key: String, url: &str, poster: &str, cx: &mut App) -> AnyElement {
-    if let Some(player) = cx.try_global::<Gifs>().and_then(|g| g.players.get(&key)).cloned() {
-        return player.into_any_element();
-    }
-    let (url, poster) = (url.to_owned(), poster.to_owned());
-    let player = cx.new(|_| GifPlayer { url, poster, state: State::Idle, frame: None, unpainted_since: Rc::default(), bounds: Rc::default(), ticking: false });
-    cx.default_global::<Gifs>().players.insert(key, player.clone());
-    player.into_any_element()
-}
-
-pub struct GifPlayer {
+// Where the app's last layout put each GIF. Rebuilt whenever the app renders; kept while gpui
+// replays its cached drawing, which means the layout didn't change.
+#[derive(Clone)]
+struct Slot {
     url: String,
-    poster: String,
-    state: State,
-    frame: Option<Arc<RenderImage>>,
-    // Set when the ticker asks for a render, cleared when the player paints: still set a while later
-    // means it isn't on screen.
-    unpainted_since: Rc<Cell<Option<Instant>>>,
-    // Where it was last painted, in window coordinates, to tell whether another window covers it.
-    bounds: Rc<Cell<Bounds<Pixels>>>,
+    bounds: Bounds<Pixels>,
+    // What gpui clips the slot to where it's painted (the scrolling chat, the viewer).
+    mask: Bounds<Pixels>,
+    radius: Pixels,
+    // Drawn above the overlays (the media viewer), so it plays while one is open; clipped to its own
+    // frame rather than the chat.
+    top: bool,
+}
+
+#[derive(Default)]
+struct Layout {
+    slots: HashMap<String, Slot>,
+    // A menu, dialog, popover or settings is open over the app.
+    covered: bool,
+    // The visible message area, which inline GIFs are clipped to.
+    chat: Option<Bounds<Pixels>>,
+}
+
+impl Layout {
+    // What a slot is clipped to, in window coordinates: its own clip, and inline ones the message area.
+    fn clip(&self, slot: &Slot) -> Bounds<Pixels> {
+        match (slot.top, self.chat) {
+            (false, Some(chat)) => slot.mask.intersect(&chat),
+            _ => slot.mask,
+        }
+    }
+}
+
+// The decode thread's last time per picture (decode, convert, scale), for the debug log.
+static DECODE_US: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+// Times the app rendered and the GIF layer drew, for the memory report (see `draws_since_last`).
+static APP_RENDERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static LAYER_DRAWS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// (app renders, GIF layer draws) since the last call.
+pub fn draws_since_last() -> (usize, usize) {
+    use std::sync::atomic::Ordering::Relaxed;
+    (APP_RENDERS.swap(0, Relaxed), LAYER_DRAWS.swap(0, Relaxed))
+}
+
+// RUSTCORD_GIF_FORCE=1 (debugging): GIFs play and the window draws even when unfocused or covered.
+pub fn forced() -> bool {
+    std::env::var_os("RUSTCORD_GIF_FORCE").is_some()
+}
+
+fn debug() -> bool {
+    std::env::var_os("RUSTCORD_GIF_DEBUG").is_some()
+}
+
+thread_local! {
+    static DEBUG_AT: std::cell::Cell<Option<Instant>> = const { std::cell::Cell::new(None) };
+    // Frames the layer painted last time it drew, for the debug log.
+    static PAINTED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+
+    static LAYOUT: RefCell<Layout> = RefCell::new(Layout::default());
+    static LAYER: RefCell<Option<WeakEntity<GifLayer>>> = const { RefCell::new(None) };
+}
+
+/// The app is about to lay itself out again: forget where GIFs were.
+pub fn begin_layout() {
+    APP_RENDERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    LAYOUT.with(|l| {
+        let mut layout = l.borrow_mut();
+        layout.slots.clear();
+        layout.chat = None;
+    });
+}
+
+/// Where the message area is on screen this layout.
+pub fn set_chat_clip(bounds: Bounds<Pixels>) {
+    LAYOUT.with(|l| l.borrow_mut().chat = Some(bounds));
+}
+
+/// Whether an overlay is open over the app this layout.
+pub fn set_covered(covered: bool) {
+    LAYOUT.with(|l| l.borrow_mut().covered = covered);
+}
+
+// The GIF for `url` where the app shows it: the still (`poster`), and a slot the layer plays the clip
+// over. `key` must be unique to where it's shown; `top` for one drawn above every overlay.
+pub fn tile(key: String, url: &str, poster: &str, radius: f32, top: bool, _cx: &mut App) -> AnyElement {
+    let url = url.to_owned();
+    div()
+        .relative()
+        .size_full()
+        .overflow_hidden()
+        .child(img(poster.to_owned()).size_full().object_fit(ObjectFit::Cover))
+        .child(
+            // Pinned to the top left: an absolute element without offsets sits where it would flow,
+            // which here is below the still. Recorded while painting, where positions are final.
+            canvas(
+                |_, _, _| {},
+                move |bounds, _, window, cx| {
+                    let slot = Slot { url: url.clone(), bounds, mask: window.content_mask().bounds, radius: px(radius), top };
+                    LAYOUT.with(|l| l.borrow_mut().slots.insert(key.clone(), slot));
+                    wake(cx);
+                },
+            )
+            .absolute()
+            .top_0()
+            .left_0()
+            .size_full(),
+        )
+        .into_any_element()
+}
+
+// Starts the layer's ticker if it's idle (a new slot may want playing).
+fn wake(cx: &mut App) {
+    let Some(layer) = LAYER.with(|l| l.borrow().as_ref().and_then(WeakEntity::upgrade)) else { return };
+    cx.defer(move |cx| layer.update(cx, |layer, cx| layer.ensure_ticking(cx)));
+}
+
+pub struct GifLayer {
+    // Shared with the paint closure, which runs after the app has placed this frame's slots.
+    players: Rc<RefCell<HashMap<String, Player>>>,
     ticking: bool,
 }
 
+struct Player {
+    url: String,
+    state: State,
+    frame: Option<Arc<RenderImage>>,
+}
+
 enum State {
-    // Not playing: never shown yet, or stopped after scrolling away. Starts on the next render.
-    Idle,
     Loading,
     Playing(Run),
-    // Can't be played: the poster stays.
+    // Can't be played: the still stays.
     Failed,
 }
 
@@ -99,44 +198,14 @@ struct Picture {
     kept: bool,
 }
 
-impl GifPlayer {
-    fn start(&mut self, cx: &mut Context<Self>) {
-        if let Some(clip) = cached_clip(&self.url) {
-            return self.play(clip, cx);
-        }
-        self.state = State::Loading;
-        let url = self.url.clone();
-        cx.spawn(async move |this, cx| {
-            let fetch = crate::discord::runtime().spawn(async move {
-                let res = reqwest::get(&url).await.ok()?;
-                res.status().is_success().then_some(())?;
-                Some((url, res.bytes().await.ok()?))
-            });
-            let fetched = fetch.await.ok().flatten();
-            this.update(cx, |this, cx| {
-                if !matches!(this.state, State::Loading) {
-                    return;
-                }
-                match fetched {
-                    Some((url, bytes)) => {
-                        let clip: Arc<[u8]> = Arc::from(bytes.as_ref());
-                        cache_clip(url, clip.clone());
-                        this.play(clip, cx);
-                    }
-                    None => this.state = State::Failed,
-                }
-                cx.notify();
-            })
-            .ok();
-        })
-        .detach();
+impl GifLayer {
+    pub fn new(cx: &mut Context<Self>) -> Self {
+        let layer = cx.entity().downgrade();
+        LAYER.with(|l| *l.borrow_mut() = Some(layer));
+        Self { players: Rc::default(), ticking: false }
     }
 
-    fn play(&mut self, clip: Arc<[u8]>, cx: &mut Context<Self>) {
-        if !matches!(self.state, State::Playing(_)) {
-            PLAYING.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        }
-        self.state = State::Playing(Run { pictures: decode_looping(clip), next: None, started: Instant::now(), shown_at: None, kept: Vec::new() });
+    fn ensure_ticking(&mut self, cx: &mut Context<Self>) {
         if self.ticking {
             return;
         }
@@ -150,25 +219,123 @@ impl GifPlayer {
         .detach();
     }
 
-    // Whether this GIF should be moving: the window focused and its spot not covered by another window.
-    fn wanted(&self) -> bool {
-        crate::presence::may_animate() && crate::presence::is_visible(self.bounds.get())
+    // Starts players for the slots that should move, stops the rest, and advances the playing ones.
+    // Returns whether to keep ticking.
+    fn tick(&mut self, cx: &mut Context<Self>) -> bool {
+        let wanted: HashMap<String, String> = LAYOUT.with(|l| {
+            let layout = l.borrow();
+            layout.slots.iter().filter(|(_, slot)| plays(slot, &layout)).map(|(key, slot)| (key.clone(), slot.url.clone())).collect()
+        });
+        let mut players = self.players.borrow_mut();
+        let gone: Vec<String> = players.keys().filter(|key| wanted.get(*key).is_none_or(|url| *url != players[*key].url)).cloned().collect();
+        let mut changed = !gone.is_empty();
+        for key in gone {
+            if let Some(player) = players.remove(&key) {
+                player.stop(cx);
+            }
+        }
+        for (key, url) in wanted {
+            players.entry(key.clone()).or_insert_with(|| start(key, url, cx));
+        }
+        for player in players.values_mut() {
+            changed |= player.advance(cx);
+        }
+        let keep = !players.is_empty();
+        if debug() && DEBUG_AT.with(|at| at.get().is_none_or(|t: Instant| t.elapsed() > Duration::from_secs(1))) {
+            DEBUG_AT.with(|at| at.set(Some(Instant::now())));
+            let (slots, covered) = LAYOUT.with(|l| (l.borrow().slots.len(), l.borrow().covered));
+            LAYOUT.with(|l| {
+                let layout = l.borrow();
+                for slot in layout.slots.values() {
+                    let (b, c) = (slot.bounds, layout.clip(slot));
+                    eprintln!(
+                        "gif slot: y {:.0}..{:.0}, clip y {:.0}..{:.0}, chat {:?}",
+                        f32::from(b.top()), f32::from(b.bottom()), f32::from(c.top()), f32::from(c.bottom()),
+                        layout.chat.map(|ch| (f32::from(ch.top()).round(), f32::from(ch.bottom()).round()))
+                    );
+                }
+            });
+            let states: Vec<&str> = players.values().map(|p| match (&p.state, p.frame.is_some()) {
+                (State::Loading, _) => "loading",
+                (State::Playing(run), true) if !run.kept.is_empty() => "playing (replay)",
+                (State::Playing(_), true) => "playing (decoding)",
+                (State::Playing(_), false) => "starting",
+                (State::Failed, _) => "failed",
+            }).collect();
+            eprintln!(
+                "gif: {slots} slots, covered {covered}, focused {}, players {states:?}, painted {}, decode {:.1} ms/frame",
+                crate::presence::may_animate(),
+                PAINTED.with(std::cell::Cell::get),
+                DECODE_US.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1000.
+            );
+        }
+        drop(players);
+        if changed {
+            cx.notify();
+        }
+        self.ticking = keep;
+        keep
+    }
+}
+
+// Whether a slot's GIF should be moving: its window focused, the slot on screen, uncovered by other
+// windows and, unless it sits above them, by the app's overlays.
+fn plays(slot: &Slot, layout: &Layout) -> bool {
+    let visible = slot.bounds.intersect(&layout.clip(slot));
+    if forced() {
+        return visible.size.width > px(0.) && visible.size.height > px(0.);
+    }
+    crate::presence::may_animate()
+        && (!layout.covered || slot.top)
+        && visible.size.width > px(0.)
+        && visible.size.height > px(0.)
+        && crate::presence::is_visible(visible)
+}
+
+fn start(key: String, url: String, cx: &mut Context<GifLayer>) -> Player {
+    if let Some(clip) = cached_clip(&url) {
+        return Player::playing(url, clip);
+    }
+    let fetch_url = url.clone();
+    cx.spawn(async move |this, cx| {
+        let fetch = crate::discord::runtime().spawn(async move {
+            let res = reqwest::get(&fetch_url).await.ok()?;
+            res.status().is_success().then_some(())?;
+            Some((fetch_url, res.bytes().await.ok()?))
+        });
+        let fetched = fetch.await.ok().flatten();
+        this.update(cx, |this, cx| {
+            let mut players = this.players.borrow_mut();
+            let Some(player) = players.get_mut(&key).filter(|p| matches!(p.state, State::Loading)) else { return };
+            match fetched {
+                Some((url, bytes)) => {
+                    let clip: Arc<[u8]> = Arc::from(bytes.as_ref());
+                    cache_clip(url.clone(), clip.clone());
+                    *player = Player::playing(url, clip);
+                }
+                None => player.state = State::Failed,
+            }
+            drop(players);
+            this.ensure_ticking(cx);
+        })
+        .ok();
+    })
+    .detach();
+    Player { url, state: State::Loading, frame: None }
+}
+
+impl Player {
+    fn playing(url: String, clip: Arc<[u8]>) -> Self {
+        PLAYING.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let run = Run { pictures: decode_looping(clip), next: None, started: Instant::now(), shown_at: None, kept: Vec::new() };
+        Self { url, state: State::Playing(run), frame: None }
     }
 
-    // Shows the picture that's due; stops and frees everything once the GIF is off screen, covered,
-    // or the window loses focus.
-    fn tick(&mut self, cx: &mut Context<Self>) -> bool {
-        let offscreen = self.unpainted_since.get().is_some_and(|t| t.elapsed() > OFFSCREEN) || !self.wanted();
-        let State::Playing(run) = &mut self.state else {
-            self.ticking = false;
-            return false;
-        };
-        if offscreen {
-            self.stop(cx);
-            return false;
-        }
+    // Shows the picture that's due, if any; returns whether the frame changed.
+    fn advance(&mut self, cx: &mut App) -> bool {
+        let State::Playing(run) = &mut self.state else { return false };
         if run.shown_at.is_some_and(|at| at.elapsed() < MIN_FRAME) {
-            return true;
+            return false;
         }
         let now = run.started.elapsed();
         let mut ended = false;
@@ -190,37 +357,37 @@ impl GifPlayer {
             }
             if picture.kept && !run.kept.iter().any(|k| Arc::ptr_eq(k, &picture.image)) {
                 run.kept.push(picture.image.clone());
+            } else if !picture.kept && !run.kept.is_empty() {
+                // The clip turned out too long to replay: it streams, so nothing stays kept.
+                for image in run.kept.drain(..) {
+                    if !self.frame.as_ref().is_some_and(|f| Arc::ptr_eq(f, &image)) {
+                        cx.drop_image(image, None);
+                    }
+                }
             }
             // A picture the clock has already passed never reached the GPU; dropping it is enough.
             due = Some(picture);
         }
         if ended && run.next.is_none() && due.is_none() {
-            // The decoder gave up (a clip it can't read): keep the last picture, or the poster.
+            // The decoder gave up (a clip it can't read): keep the last picture, or the still.
             PLAYING.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
-            self.state = if self.frame.is_none() { State::Failed } else { State::Idle };
-            self.ticking = false;
-            cx.notify();
+            self.state = State::Failed;
             return false;
         }
-        if let Some(picture) = due {
-            run.shown_at = Some(Instant::now());
-            if let Some(old) = self.frame.replace(picture.image)
-                && !run.kept.iter().any(|k| Arc::ptr_eq(k, &old))
-            {
-                // Each picture is its own GPU texture; the old one must be freed or the atlas grows for good.
-                cx.drop_image(old, None);
-            }
-            if self.unpainted_since.get().is_none() {
-                self.unpainted_since.set(Some(Instant::now()));
-            }
-            cx.notify();
+        let Some(picture) = due else { return false };
+        run.shown_at = Some(Instant::now());
+        if let Some(old) = self.frame.replace(picture.image)
+            && !run.kept.iter().any(|k| Arc::ptr_eq(k, &old))
+        {
+            // Each picture is its own GPU texture; the old one must be freed or the atlas grows for good.
+            cx.drop_image(old, None);
         }
         true
     }
 
-    // Drops the decoder (its thread ends at its next send) and every picture, keeping the clip cached.
-    fn stop(&mut self, cx: &mut Context<Self>) {
-        if let State::Playing(run) = std::mem::replace(&mut self.state, State::Idle) {
+    // Drops the decoder (its thread ends at its next send) and frees every picture.
+    fn stop(self, cx: &mut App) {
+        if let State::Playing(run) = self.state {
             PLAYING.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
             drop(run.pictures);
             if let Some(next) = run.next {
@@ -230,44 +397,56 @@ impl GifPlayer {
                 cx.drop_image(image, None);
             }
         }
-        if let Some(frame) = self.frame.take() {
+        if let Some(frame) = self.frame {
             // Harmless if it was a kept picture already freed above.
             cx.drop_image(frame, None);
         }
-        self.unpainted_since.set(None);
-        self.ticking = false;
     }
 }
 
-impl Render for GifPlayer {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        // Starts again when shown: scrolled back, or the window focused or uncovered (presence
-        // changes redraw the window). Until then the still shows.
-        if matches!(self.state, State::Idle) && self.wanted() {
-            self.start(cx);
-        }
-        let picture = match &self.frame {
-            Some(frame) => img(ImageSource::Render(frame.clone())),
-            None => img(self.poster.clone()),
-        };
-        let (painted, at) = (self.unpainted_since.clone(), self.bounds.clone());
-        div()
-            .relative()
-            .size_full()
-            .overflow_hidden()
-            .child(
-                canvas(
-                    move |bounds, _, _| {
-                        painted.set(None);
-                        at.set(bounds);
-                    },
-                    |_, _, _, _| {},
-                )
-                .absolute()
-                .size_full(),
-            )
-            .child(picture.size_full().object_fit(ObjectFit::Cover))
+impl Render for GifLayer {
+    // Paints the current frame of every playing GIF over its slot, clipped like the slot. Paint runs
+    // after the app has placed this frame's slots, so positions are always current.
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let players = self.players.clone();
+        canvas(
+            |_, _, _| {},
+            move |_, _, window, _| {
+                let players = players.borrow();
+                LAYOUT.with(|l| {
+                    let layout = l.borrow();
+                    let mut painted = 0;
+                    for (key, slot) in &layout.slots {
+                        let Some(frame) = players.get(key).and_then(|p| p.frame.clone()) else { continue };
+                        if !plays(slot, &layout) {
+                            continue;
+                        }
+                        let image = cover(slot.bounds, frame.size(0));
+                        window.with_content_mask(Some(gpui_kit::ContentMask { bounds: layout.clip(slot) }), |window| {
+                            let _ = window.paint_image(slot.bounds, image, Corners::all(slot.radius), frame, 0, false);
+                        });
+                        painted += 1;
+                    }
+                    PAINTED.with(|p| p.set(painted));
+                    LAYER_DRAWS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                });
+            },
+        )
+        // Over the whole window: pinned, since it follows the app in the shell's layout.
+        .absolute()
+        .top_0()
+        .left_0()
+        .size_full()
     }
+}
+
+// The image's bounds when it covers `bounds` (centred, cropped), as object-fit: cover draws it.
+fn cover(bounds: Bounds<Pixels>, image: gpui_kit::Size<gpui_kit::DevicePixels>) -> Bounds<Pixels> {
+    let (iw, ih) = (image.width.0.max(1) as f32, image.height.0.max(1) as f32);
+    let (bw, bh) = (f32::from(bounds.size.width), f32::from(bounds.size.height));
+    let scale = (bw / iw).max(bh / ih);
+    let (w, h) = (iw * scale, ih * scale);
+    Bounds { origin: point(bounds.origin.x + px((bw - w) / 2.), bounds.origin.y + px((bh - h) / 2.)), size: size(px(w), px(h)) }
 }
 
 // Plays the clip in a loop on its own thread, each loop's times following on from the last, staying
@@ -279,6 +458,8 @@ fn decode_looping(clip: Arc<[u8]>) -> mpsc::Receiver<Picture> {
     let decode = move || {
         let mut offset = Duration::ZERO;
         let mut replay: Option<(Duration, Vec<(Duration, Arc<RenderImage>)>)> = None;
+        // Only the first loop can turn out short enough to replay; after that every loop streams.
+        let mut first_loop = true;
         loop {
             if let Some((length, pictures)) = &replay {
                 for (at, image) in pictures {
@@ -292,9 +473,20 @@ fn decode_looping(clip: Arc<[u8]>) -> mpsc::Receiver<Picture> {
             let Ok(mut track) = Track::open(clip.clone()) else { return };
             let length = track.duration().max(MIN_LOOP);
             let (mut shown, mut receiver_gone) = (0usize, false);
-            let (mut kept, mut kept_bytes) = (Some(Vec::new()), 0usize);
+            let (mut kept, mut kept_bytes) = (first_loop.then(Vec::new), 0usize);
+            first_loop = false;
+            let mut since = Instant::now();
+            let mut last_sent: Option<Duration> = None;
             let _ = track.decode(0, |at, yuv| {
+                // Every picture has to be decoded (each builds on the last), but one shown sooner
+                // than `MIN_FRAME` after the previous would be skipped by the player anyway: don't
+                // pay for converting it.
+                if last_sent.is_some_and(|last| at < last + MIN_FRAME) {
+                    return ControlFlow::Continue(());
+                }
+                last_sent = Some(at);
                 let Some(picture) = bgra(yuv, MAX_WIDTH) else { return ControlFlow::Continue(()) };
+                DECODE_US.store(since.elapsed().as_micros() as u64, std::sync::atomic::Ordering::Relaxed);
                 kept_bytes += picture.as_raw().len();
                 let image = Arc::new(RenderImage::new([image::Frame::new(picture)]));
                 if kept_bytes > REPLAY_BYTES {
@@ -307,6 +499,7 @@ fn decode_looping(clip: Arc<[u8]>) -> mpsc::Receiver<Picture> {
                     receiver_gone = true;
                     return ControlFlow::Break(());
                 }
+                since = Instant::now();
                 shown += 1;
                 ControlFlow::Continue(())
             });
@@ -370,7 +563,7 @@ mod tests {
     fn decodes_scaled_pictures_and_loops() {
         let pictures = first(include_bytes!("../testdata/gifv.mp4"), 31);
         let size = |p: &Picture| p.image.size(0);
-        assert_eq!((size(&pictures[0]).width.0, size(&pictures[0]).height.0), (400, 225));
+        assert_eq!((size(&pictures[0]).width.0, size(&pictures[0]).height.0), (480, 270), "under MAX_WIDTH: kept at its own size");
         assert!(pictures.windows(2).all(|w| w[1].at > w[0].at), "times only move forward, across loops too");
         assert_eq!(pictures[15].at, Duration::from_secs(1), "the second loop starts where the first ended");
         assert!(pictures[30].at >= Duration::from_secs(2));
@@ -390,6 +583,16 @@ mod tests {
         let pictures = first(include_bytes!("../testdata/gifv.mp4"), 30);
         assert!(Arc::ptr_eq(&pictures[0].image, &pictures[15].image), "loop two reuses loop one's pictures");
         assert_eq!(pictures[15].at, Duration::from_secs(1));
+    }
+
+    // Only the first loop's pictures can be marked for replay: later loops of a clip too long to
+    // replay must not be, or the player would keep every one of them.
+    #[test]
+    fn only_the_first_loop_is_offered_for_replay() {
+        let pictures = first(include_bytes!("../testdata/gifv.mp4"), 45);
+        // This clip is short, so it replays: loops two and three are loop one's pictures again.
+        assert!(pictures[15..].iter().all(|p| p.kept));
+        assert!(Arc::ptr_eq(&pictures[30].image, &pictures[0].image));
     }
 
     // The decoder stays a few pictures ahead instead of decoding the whole clip.

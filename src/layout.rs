@@ -26,13 +26,10 @@ const PANEL_RANGE: (f32, f32) = (200., 380.);
 
 impl Render for Rustcord {
     // Everything draws through the app's image cache, which frees images that are no longer drawn.
-    // Out of sight (minimized, in the tray or fully covered) and no video playing, nothing is drawn at
-    // all: incoming events keep updating the app's data, but nothing is laid out, decoded or touched
-    // until the window can be seen again, so memory given back in the background stays given back.
+    // The shell (shell.rs) caches this view's drawing, so this runs only when the app changed; GIFs
+    // placed while it runs are played by the GIF layer beside it.
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if crate::presence::out_of_sight() && !crate::video::is_playing(cx) {
-            return div().into_any_element();
-        }
+        crate::gif::begin_layout();
         let images = crate::images::cache(cx);
         images.update(cx, |images, cx| images.next_frame(cx));
         gpui_kit::image_cache(images).size_full().child(self.render_root(window, cx)).into_any_element()
@@ -74,18 +71,22 @@ impl Rustcord {
                 .into_any_element();
         }
         if let Some(video) = crate::video::fullscreen(cx) {
+            crate::gif::set_covered(true);
             return root.child(video).into_any_element();
         }
         if self.call_fullscreen && self.call_view
             && let Some(call) = self.render_call_with_chat(window, cx)
         {
+            let (overlays, call_overlays) = (self.render_overlays(window, cx), self.render_call_overlays(window, cx));
+            let (menu, dialog) = (self.render_menu(window, cx), self.render_dialog(cx));
+            crate::gif::set_covered(!overlays.is_empty() || !call_overlays.is_empty() || menu.is_some() || dialog.is_some());
             return root
                 .child(call)
-                .children(self.render_overlays(window, cx))
-                .children(self.render_call_overlays(window, cx))
+                .children(overlays)
+                .children(call_overlays)
                 .children(self.render_toast(cx))
-                .children(self.render_menu(window, cx))
-                .children(self.render_dialog(cx))
+                .children(menu)
+                .children(dialog)
                 .into_any_element();
         }
         let body = div()
@@ -107,15 +108,20 @@ impl Rustcord {
                 None => self.render_chat(window, cx).into_any_element(),
             })
             .children(self.me.clone().map(|me| self.user_panel(me, cx)));
+        // Anything drawn over the chat pauses its GIFs (the GIF layer paints above the whole app).
+        let (overlays, call_overlays) = (self.render_overlays(window, cx), self.render_call_overlays(window, cx));
+        let (menu, dialog) = (self.render_menu(window, cx), self.render_dialog(cx));
+        let (viewer, settings) = (self.viewer_overlay(window, cx), self.render_settings(window, cx));
+        crate::gif::set_covered(!overlays.is_empty() || !call_overlays.is_empty() || menu.is_some() || dialog.is_some() || viewer.is_some() || settings.is_some());
         root.child(self.title_bar(cx))
             .child(body)
-            .children(self.render_overlays(window, cx))
-            .children(self.render_call_overlays(window, cx))
+            .children(overlays)
+            .children(call_overlays)
             .children(self.render_toast(cx))
-            .children(self.render_menu(window, cx))
-            .children(self.render_dialog(cx))
-            .children(self.viewer_overlay(window, cx))
-            .children(self.render_settings(window, cx))
+            .children(menu)
+            .children(dialog)
+            .children(viewer)
+            .children(settings)
             .children(crate::window_controls::render(window, cx))
             .into_any_element()
     }
@@ -407,7 +413,7 @@ impl Rustcord {
         let url = item.url.clone();
         let stage = match &item.kind {
             MediaKind::Image => crate::chat::animated_image(item.url.clone()).w(px(w)).h(px(h)).rounded(px(6.)).into_any_element(),
-            MediaKind::Gif { poster } => div().w(px(w)).h(px(h)).rounded(px(6.)).overflow_hidden().child(crate::gif::tile(format!("viewer-{}", item.url), &item.url, poster, cx)).into_any_element(),
+            MediaKind::Gif { poster } => div().w(px(w)).h(px(h)).rounded(px(6.)).overflow_hidden().child(crate::gif::tile(format!("viewer-{}", item.url), &item.url, poster, 6., true, cx)).into_any_element(),
             // ponytail: video plays in the system player; an in-app AVPlayer view is the upgrade.
             MediaKind::Video { poster } => {
                 let open = item.url.clone();

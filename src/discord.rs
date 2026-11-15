@@ -871,12 +871,6 @@ pub mod downloads {
     pub fn bytes() -> usize {
         FILES.lock().map(|f| f.iter().map(|(_, b)| b.len()).sum()).unwrap_or(0)
     }
-
-    pub fn clear() {
-        if let Ok(mut files) = FILES.lock() {
-            *files = VecDeque::new();
-        }
-    }
 }
 
 impl gpui_kit::http_client::HttpClient for Images {

@@ -55,7 +55,8 @@ static HEAP: Tally = Tally::new();
 // keeps the return addresses of its call stack, so the report can say which code holds the memory.
 // Images, video frames and buffers are all this size; small allocations aren't tracked, which keeps
 // the cost to a stack walk per large allocation. Names are only looked up when a report is printed.
-const BIG: usize = 256 << 10;
+// The smallest allocation tracked; RUSTCORD_MEMORY_SITES=<KB> lowers or raises it.
+static BIG: AtomicUsize = AtomicUsize::new(256 << 10);
 const DEPTH: usize = 24;
 static SITES: AtomicBool = AtomicBool::new(false);
 type Stack = [usize; DEPTH];
@@ -103,7 +104,7 @@ fn track(ptr: *mut u8, size: usize) {
     if size >= HUGE {
         note_huge(size);
     }
-    if size < BIG || !SITES.load(Ordering::Relaxed) {
+    if size < BIG.load(Ordering::Relaxed) || !SITES.load(Ordering::Relaxed) {
         return;
     }
     untracked(|| {
@@ -121,7 +122,7 @@ fn track(ptr: *mut u8, size: usize) {
 }
 
 fn untrack(ptr: *mut u8, size: usize) {
-    if size < BIG || !SITES.load(Ordering::Relaxed) {
+    if size < BIG.load(Ordering::Relaxed) || !SITES.load(Ordering::Relaxed) {
         return;
     }
     untracked(|| {
@@ -377,8 +378,9 @@ pub fn report() -> String {
     });
     let gifs = crate::gif::stats();
     let images = crate::images::last_stats();
+    let (renders, layer) = crate::gif::draws_since_last();
     format!(
-        "{process}rust heap {:.1} MB (peak {:.1}); images {} decoded {:.1} MB, downloads {:.1} MB; gifs playing {}, clip cache {:.1} MB",
+        "{process}rust heap {:.1} MB (peak {:.1}); images {} decoded {:.1} MB, downloads {:.1} MB; gifs playing {}, clip cache {:.1} MB; app renders {renders}, gif layer draws {layer}",
         heap_bytes() as f64 / MB,
         heap_peak() as f64 / MB,
         images.images,
@@ -410,7 +412,11 @@ pub fn sites_report(top: usize) -> String {
 // Runs for the life of the app on a plain thread (sampling is a few syscalls every 10 s; with sites
 // on, every 30 s it also prints where the large allocations are).
 pub fn start_reporting() {
-    SITES.store(std::env::var_os("RUSTCORD_MEMORY_SITES").is_some(), Ordering::Relaxed);
+    let sites = std::env::var("RUSTCORD_MEMORY_SITES").ok();
+    if let Some(kb) = sites.as_deref().and_then(|v| v.trim().parse::<usize>().ok()).filter(|kb| *kb > 1) {
+        BIG.store(kb << 10, Ordering::Relaxed);
+    }
+    SITES.store(sites.is_some(), Ordering::Relaxed);
     let sites_on = SITES.load(Ordering::Relaxed);
     let (verbose, budget_mb) = budget();
     let _ = std::thread::Builder::new().name("memory-report".into()).spawn(move || {
