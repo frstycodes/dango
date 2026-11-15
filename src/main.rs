@@ -387,7 +387,6 @@ struct Call {
     watching: Vec<Watching>,
     // The stream shown large in Focus layout; the first watched when unset.
     focus: Option<String>,
-    stream_layout: crate::call::StreamLayout,
     // A watched stream that just ended, so the stage can say so instead of going blank.
     ended: Option<String>,
     // Our own Go Live; dropping it ends the stream.
@@ -578,13 +577,9 @@ pub struct Rustcord {
     call_pointer_at: Instant,
     call_strip_hidden: bool,
     // Our stream's self-view: shown, and which corner of the stage it sits in.
-    pip_shown: bool,
-    pip_corner: crate::call::Corner,
-    pip_drag: Option<crate::call::PipDrag>,
     // Our local volume for each streamer's Go Live (0..=2), kept across watches.
     stream_volumes: HashMap<String, f32>,
     // Where a released self-view glides from, and when it let go.
-    pip_snap: Option<((f32, f32), Instant)>,
     // The launch window while the hidden main window signs in and loads; None once it's gone.
     splash: Option<gpui_kit::WindowHandle<splash::Splash>>,
     main_window: gpui_kit::AnyWindowHandle,
@@ -628,6 +623,10 @@ pub struct Rustcord {
     hovered_row: Option<String>,
     // The message under the pointer, which shows its toolbar and, on a continuation, its time.
     hovered_message: Option<String>,
+    // The call card shown big (`call::tile_key`), or None for the even grid.
+    call_focus: Option<String>,
+    // The call stage's measured card area, which the grid is fitted to.
+    call_area: Rc<std::cell::Cell<(f32, f32)>>,
     // Profiles by user and server, shown at once from the last fetch while a fresh one loads.
     profiles: query::Query<discord::Profile>,
     emoji_picker: Option<EmojiTarget>,
@@ -786,11 +785,7 @@ impl Rustcord {
             preview_generation: 0,
             splash,
             main_window: window.window_handle(),
-            pip_shown: true,
-            pip_corner: crate::call::Corner::TopRight,
-            pip_drag: None,
             stream_volumes: HashMap::new(),
-            pip_snap: None,
             call_fullscreen: false,
             call_chat: false,
             voice_start: HashMap::new(),
@@ -818,6 +813,8 @@ impl Rustcord {
             status_menu: false,
             hovered_row: None,
             hovered_message: None,
+            call_focus: None,
+            call_area: Rc::new(std::cell::Cell::new((0., 0.))),
             profiles: query::Query::new("profiles", Duration::from_secs(5 * 60)),
             composer_height: Rc::new(std::cell::Cell::new(86.)),
             emoji_picker: None,
@@ -2153,7 +2150,7 @@ impl Rustcord {
             }
         })
         .detach();
-        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: Vec::new(), focus: None, stream_layout: crate::call::StreamLayout::Focus, ended: None, sharing: None, share_label: None, share_source: None, live_since: None, self_view: None, joined: Instant::now(), _events: task });
+        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: Vec::new(), focus: None, ended: None, sharing: None, share_label: None, share_source: None, live_since: None, self_view: None, joined: Instant::now(), _events: task });
         cx.notify();
     }
 
@@ -2182,6 +2179,7 @@ impl Rustcord {
         self.call_fullscreen = false;
         self.stop_ringing_out();
         let Some(call) = self.call.take() else { return };
+        self.call_focus = None;
         sounds::play(sounds::Cue::Disconnect);
         release_frames(call, cx);
         cx.notify();
@@ -2284,6 +2282,7 @@ impl Rustcord {
                 if let Some(call) = self.call.take() {
                     release_frames(call, cx);
                 }
+                self.call_focus = None;
                 self.stop_ringing_out();
                 sounds::play(sounds::Cue::Disconnect);
                 if reason != "Left" {
@@ -2372,7 +2371,6 @@ impl Rustcord {
                 call.share_label = label;
                 call.live_since = Some(Instant::now());
             }
-            self.pip_shown = true;
             sounds::play(sounds::Cue::StreamStarted);
         }
         cx.notify();

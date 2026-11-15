@@ -7,9 +7,9 @@ use std::{
 };
 
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, App, BoxShadow, Context, Div, ElementId, FontFeatures, FontWeight, Hsla, ImageSource, MouseButton, MouseDownEvent, Pixels, Point, SharedString, Stateful, Window,
+    Animation, AnimationExt, AnyElement, App, Context, Div, ElementId, FontFeatures, FontWeight, Hsla, ImageSource, MouseButton, MouseDownEvent, Pixels, Point, SharedString, Stateful, Window,
     component::{ActiveTheme, Icon, tooltip::Tooltip},
-    div, point, prelude::*, px, relative, rgb,
+    div, prelude::*, px, relative, rgb,
 };
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
     icons::Glyph,
     layout::RAIL_WIDTH,
     menu::{Entry, item, submenu},
-    motion, palette,
+    palette,
     settings::Page,
     ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XS, Squircle},
     voice::{self, Stage},
@@ -48,13 +48,8 @@ const STRIP_GAP: f32 = 8.;
 // The filmstrip's fold button.
 const STRIP_TOGGLE: f32 = 28.;
 const STRIP_LIMIT: usize = 12;
-const RECENT_SPEAKER: std::time::Duration = std::time::Duration::from_secs(10);
 const CONTROLS_IDLE: Duration = Duration::from_secs(3);
 const CHAT_WIDTH: f32 = 340.;
-// .pip: 30% of the tile area, 132 to 220px wide, 16:10, 12px from its corner.
-const PIP_INSET: f32 = 12.;
-const PIP_DECELERATION: f32 = 0.995;
-const PIP_SNAP: Duration = ui::DUR_PANEL;
 // The connection popover's colour bands (its legend): under 80 ms, 80 to 120, over 120.
 const PING_FAIR: u32 = 80;
 const PING_BAD: u32 = 120;
@@ -62,76 +57,24 @@ const PING_BAD: u32 = 120;
 const LOSS_POOR_PCT: f32 = 5.;
 const METER_BARS: usize = 28;
 
-// How several watched streams share the stage: one large with the rest small, or an even grid.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum StreamLayout {
-    Focus,
-    Split,
-}
-
-// Which corner of the call stage our stream's self-view sits in.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Corner {
-    TopLeft,
-    TopRight,
-    BottomLeft,
-    BottomRight,
-}
-
-const CORNERS: [Corner; 4] = [Corner::TopLeft, Corner::TopRight, Corner::BottomLeft, Corner::BottomRight];
-
-impl Corner {
-    // The corner a released self-view heads for: where its centre would coast to at its release
-    // velocity (px/s) under scroll-like deceleration, so a flick throws it across the stage.
-    pub fn thrown(center: (f32, f32), velocity: (f32, f32), stage: (f32, f32)) -> Corner {
-        let coast = |v: f32| v / 1000. * PIP_DECELERATION / (1. - PIP_DECELERATION);
-        let (x, y) = (center.0 + coast(velocity.0), center.1 + coast(velocity.1));
-        match (y < stage.1 / 2., x < stage.0 / 2.) {
-            (true, true) => Corner::TopLeft,
-            (true, false) => Corner::TopRight,
-            (false, true) => Corner::BottomLeft,
-            (false, false) => Corner::BottomRight,
-        }
-    }
-
-    // Top-left of a self-view sitting in this corner of the stage's tile area.
-    fn spot(self, stage: (f32, f32)) -> (f32, f32) {
-        let (x, y, w, h) = tile_area(stage);
-        let (pw, ph) = pip_size(stage);
-        let (left, top) = (x + PIP_INSET, y + PIP_INSET);
-        let (right, bottom) = (x + w - pw - PIP_INSET, y + h - ph - PIP_INSET);
-        match self {
-            Corner::TopLeft => (left, top),
-            Corner::TopRight => (right, top),
-            Corner::BottomLeft => (left, bottom),
-            Corner::BottomRight => (right, bottom),
-        }
-    }
-}
-
 // The stage's tile area (left, top, width, height), between its header and controls.
 fn tile_area(stage: (f32, f32)) -> (f32, f32, f32, f32) {
     let top = STAGE_PAD + HEAD_HEIGHT + STAGE_GAP;
     (STAGE_PAD, top, stage.0 - STAGE_PAD * 2., (stage.1 - top - CONTROLS_HEIGHT - STAGE_GAP - STAGE_PAD).max(0.))
 }
 
-fn pip_size(stage: (f32, f32)) -> (f32, f32) {
-    let w = (tile_area(stage).2 * 0.3).clamp(132., 220.);
-    (w, w * 10. / 16.)
-}
-
-// A self-view being dragged: where the pointer and view started, and recent pointer samples for
-// the release velocity.
-pub struct PipDrag {
-    start_mouse: Point<Pixels>,
-    start: (f32, f32),
-    pos: (f32, f32),
-    samples: Vec<(Point<Pixels>, Instant)>,
-}
-
+#[derive(Clone)]
 enum Tile {
     User(VoiceState),
     Stream(VoiceState),
+}
+
+// A card's identity across renders, for focus.
+fn tile_key(tile: &Tile) -> String {
+    match tile {
+        Tile::User(s) => format!("user:{}", s.user_id),
+        Tile::Stream(s) => format!("stream:{}", s.user_id),
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -525,12 +468,6 @@ impl Rustcord {
             })
             .checked(audio)
             .entry(),
-            item("Show My Stream", |this, _, cx| {
-                this.pip_shown = !this.pip_shown;
-                cx.notify();
-            })
-            .checked(self.pip_shown)
-            .entry(),
             Entry::Separator,
             item("Stop Streaming", |this, _, cx| this.toggle_screen_share(cx)).icon(Glyph::ScreenOff).danger().entry(),
         ]
@@ -610,31 +547,18 @@ impl Rustcord {
         }
     }
 
-    // Discord's order (its participant sort, read from Discord web 2026-11-14): streams first, then
-    // whoever is speaking, then anyone who spoke in the last ten seconds, then cameras, then the rest
-    // by most recently spoken and name.
+    // Everyone in a fixed order, by name, so no card moves when someone starts talking; each person's
+    // stream sits right after their own card.
     fn ordered_tiles(&self) -> Vec<Tile> {
-        let Some(call) = &self.call else { return Vec::new() };
-        let people = self.participants();
-        let mut tiles: Vec<(String, Tile)> = Vec::new();
-        for state in people.iter().filter(|s| s.streaming) {
-            let name = state.user.as_ref().map(|u| u.name.clone()).unwrap_or_default();
-            tiles.push((format!("\x02{name}"), Tile::Stream(state.clone())));
-        }
-        for state in people {
-            let name = state.user.as_ref().map(|u| u.name.clone()).unwrap_or_default();
-            let since = call.last_spoke.get(&state.user_id).map(|t| t.elapsed());
-            let rank = match () {
-                _ if self.speaking(&state.user_id) => 3,
-                _ if since.is_some_and(|d| d < RECENT_SPEAKER) => 4,
-                _ if state.camera => 5,
-                _ => 6,
-            };
-            let ago = since.map_or(u64::MAX, |d| d.as_millis() as u64);
-            tiles.push((format!("{}{ago:020}{name}", rank as u8 as char), Tile::User(state)));
-        }
-        tiles.sort_by(|a, b| a.0.cmp(&b.0));
-        tiles.into_iter().map(|(_, tile)| tile).collect()
+        let mut people = self.participants();
+        people.sort_by_cached_key(|s| (s.user.as_ref().map_or_else(|| self.user_name(&s.user_id), |u| u.name.clone()).to_lowercase(), s.user_id.clone()));
+        people
+            .into_iter()
+            .flat_map(|s| {
+                let stream = s.streaming.then(|| Tile::Stream(s.clone()));
+                std::iter::once(Tile::User(s)).chain(stream)
+            })
+            .collect()
     }
 
     // The call view, with the voice channel's chat beside it when open (the stage shrinks; the
@@ -709,14 +633,14 @@ impl Rustcord {
         };
         let (_, _, width, height) = tile_area(stage_size);
         let watching = !call.watching.is_empty();
-        let ended = call.ended.clone().filter(|_| !watching);
-        let body: AnyElement = match (watching, ended) {
-            (true, _) => self.stream_stage(&tiles, width, height, cx),
-            (false, Some(streamer)) => self.ended_stage(&streamer, width, height, cx),
-            (false, None) => self.tile_grid(&tiles, width, height, cx),
+        let body: AnyElement = match call.ended.clone().filter(|_| !watching) {
+            Some(streamer) => self.ended_stage(&streamer, width, height, cx),
+            None => self.card_stage(&tiles, (width, height), cx),
         };
         // .call.autohide: 260ms out, drifting 6px toward its edge; any move brings it back.
-        let rest = watching && self.call_idle();
+        // With a stream focused the chrome steps aside, as Discord's does, while the pointer rests or
+        // has left the stage.
+        let rest = self.focused_stream().is_some() && self.call_idle();
         let shown = gpui_kit::base::transition("call-chrome", if rest { 0. } else { 1. }, gpui_kit::base::Transition::new(ui::DUR_PANEL), window, cx);
         let drift = 6. * (1. - shown);
         Some(
@@ -730,21 +654,92 @@ impl Rustcord {
                 .gap(px(STAGE_GAP))
                 .bg(stage::bg())
                 .text_color(stage::text())
-                .on_mouse_move(cx.listener(|this, e: &gpui_kit::MouseMoveEvent, _, cx| {
-                    let was_idle = this.call_idle();
-                    this.call_pointer_at = Instant::now();
-                    if this.drag_pip(e.position) || was_idle {
+                .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
+                    if !*hovered {
+                        this.call_pointer_at = Instant::now().checked_sub(CONTROLS_IDLE * 2).unwrap_or_else(Instant::now);
                         cx.notify();
                     }
                 }))
-                .on_mouse_up(MouseButton::Left, cx.listener(move |this, e: &gpui_kit::MouseUpEvent, _, cx| this.drop_pip(e.position, stage_size, cx)))
-                .on_mouse_up_out(MouseButton::Left, cx.listener(move |this, e: &gpui_kit::MouseUpEvent, _, cx| this.drop_pip(e.position, stage_size, cx)))
+                .on_mouse_move(cx.listener(|this, _: &gpui_kit::MouseMoveEvent, _, cx| {
+                    let was_idle = this.call_idle();
+                    this.call_pointer_at = Instant::now();
+                    if was_idle {
+                        cx.notify();
+                    }
+                }))
                 .child(div().relative().top(px(-drift)).opacity(shown).child(self.call_header(cx)))
                 .child(div().flex_1().min_h_0().child(body))
                 .child(div().relative().top(px(drift)).opacity(shown).child(self.call_controls(cx)))
-                .children(self.self_view(stage_size, window, cx))
                 .into_any_element(),
         )
+    }
+
+    // Every card at one size, fitted to the space they actually have; or, with one focused, that one as
+    // big as fits over a strip of the rest.
+    fn card_stage(&self, tiles: &[Tile], fallback: (f32, f32), cx: &mut Context<Self>) -> AnyElement {
+        let measured = self.call_area.get();
+        let (width, height) = if measured.0 > 0. { measured } else { fallback };
+        let focused = self.call_focus.as_ref().and_then(|key| tiles.iter().find(|t| tile_key(t) == *key));
+        let body = match focused {
+            Some(big) => self.focus_layout(big, tiles, width, height, cx),
+            None => self.tile_grid(tiles, width, height, cx),
+        };
+        let (area, this) = (self.call_area.clone(), cx.weak_entity());
+        let measure = gpui_kit::canvas(
+            move |bounds, _, cx| {
+                let size = (f32::from(bounds.size.width), f32::from(bounds.size.height));
+                if (size.0 - area.get().0).abs() > 0.5 || (size.1 - area.get().1).abs() > 0.5 {
+                    area.set(size);
+                    this.update(cx, |_, cx| cx.notify()).ok();
+                }
+            },
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .inset_0();
+        div().relative().size_full().child(measure).child(body).into_any_element()
+    }
+
+    fn focus_layout(&self, big: &Tile, tiles: &[Tile], width: f32, height: f32, cx: &mut Context<Self>) -> AnyElement {
+        let key = tile_key(big);
+        let others: Vec<&Tile> = tiles.iter().filter(|t| tile_key(t) != key).take(STRIP_LIMIT).collect();
+        let shown = !self.call_strip_hidden && !others.is_empty();
+        let strip_h = if shown { STRIP_TILE * 9. / 16. + STRIP_GAP } else { 0. };
+        let big_w = width.min((height - strip_h).max(120.) * 16. / 9.);
+        // The fold pill sits inside the big card's bottom edge, shown while the card is hovered.
+        let big_card = div()
+            .relative()
+            .group("focus-card")
+            .child(self.tile(big, big_w, cx))
+            .when(!others.is_empty(), |d| {
+                d.child(div().absolute().left_0().right_0().bottom(px(12.)).flex().justify_center().opacity(0.).group_hover("focus-card", |s| s.opacity(1.)).child(self.strip_toggle(shown, cx)))
+            });
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .gap(px(STRIP_GAP))
+            .child(div().flex_1().min_h_0().flex().items_center().justify_center().child(big_card))
+            .when(shown, |d| d.child(div().flex_none().flex().justify_center().gap(px(STRIP_GAP)).children(others.into_iter().map(|t| self.tile(t, STRIP_TILE, cx)))))
+            .into_any_element()
+    }
+
+    // Clicking a card makes it the big one; clicking it again goes back to the grid. A stream you
+    // aren't watching starts playing as it comes forward.
+    fn toggle_card(&mut self, tile: &Tile, cx: &mut Context<Self>) {
+        let key = tile_key(tile);
+        if self.call_focus.as_ref() == Some(&key) {
+            self.call_focus = None;
+            return cx.notify();
+        }
+        if let Tile::Stream(state) = tile
+            && self.call.as_ref().is_some_and(|c| c.watched(&state.user_id).is_none())
+            && !self.me.as_ref().is_some_and(|m| m.id == state.user_id)
+        {
+            self.watch_stream(state.user_id.clone(), cx);
+        }
+        self.call_focus = Some(key);
+        cx.notify();
     }
 
     // .tiles: the size that makes the biggest 16:9 tiles fit, 10px apart (8px three across and up).
@@ -760,186 +755,6 @@ impl Rustcord {
         let tile_w = size(cols).max(124.);
         let rendered: Vec<AnyElement> = tiles.iter().map(|t| self.tile(t, tile_w, cx)).collect();
         div().size_full().flex().flex_wrap().items_center().justify_center().content_center().gap(px(gap(cols))).children(rendered).into_any_element()
-    }
-
-    // Our own stream in a corner of the tile area, straight from the capture: it lifts and follows
-    // the pointer while dragged, with the four corners showing as wells, and springs into the one
-    // it's thrown toward. Clicking it watches it full size. Closed, a small control stays in its
-    // corner to bring it back.
-    fn self_view(&self, stage: (f32, f32), window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
-        let Some(call) = self.call.as_ref().filter(|c| c.sharing.is_some()) else { return Vec::new() };
-        let watching_self = self.me.as_ref().is_some_and(|m| call.watched(&m.id).is_some());
-        if watching_self {
-            return Vec::new();
-        }
-        if !self.pip_shown {
-            return vec![self.pip_restore(stage, cx)];
-        }
-        let (w, h) = pip_size(stage);
-        let target = self.pip_corner.spot(stage);
-        let (x, y) = match (&self.pip_drag, self.pip_snap) {
-            (Some(drag), _) => drag.pos,
-            (None, Some((from, at))) if at.elapsed() < PIP_SNAP => {
-                window.request_animation_frame();
-                let t = motion::ease_spring().sample((at.elapsed().as_secs_f32() / PIP_SNAP.as_secs_f32()).min(1.));
-                (from.0 + (target.0 - from.0) * t, from.1 + (target.1 - from.1) * t)
-            }
-            _ => target,
-        };
-        let dragging = self.pip_drag.is_some();
-        let near = Corner::thrown((x + w / 2., y + h / 2.), (0., 0.), stage);
-        let wells = CORNERS.into_iter().filter(|_| dragging).map(|corner| {
-            let (wx, wy) = corner.spot(stage);
-            let lit = corner == near;
-            div()
-                .absolute()
-                .left(px(wx))
-                .top(px(wy))
-                .w(px(w))
-                .h(px(h))
-                .squircle(RADIUS_LG)
-                .bg(if lit { palette::accent().opacity(0.18) } else { stage::wash(0.05) })
-                .border(px(if lit { 2. } else { 1.5 }))
-                .border_color(if lit { palette::accent() } else { stage::wash(0.24) })
-                .into_any_element()
-        });
-        let frame: AnyElement = match &call.self_view {
-            Some((frame, _)) => ui::media(ImageSource::Render(frame.clone()), ui::all(RADIUS_LG)).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
-            None => div().size_full().squircle(RADIUS_LG).bg(stage::page()).into_any_element(),
-        };
-        // .pip: 0 10px 28px black 55% under a 1px white edge; deeper while lifted.
-        let lift = if dragging { (18., 40., 0.6, 0.18) } else { (10., 28., 0.55, 0.12) };
-        let shadow = vec![
-            BoxShadow { color: gpui_kit::black().opacity(lift.2), offset: point(px(0.), px(lift.0)), blur_radius: px(lift.1), spread_radius: px(0.), inset: false },
-            BoxShadow { color: stage::wash(lift.3), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false },
-        ];
-        let grow = gpui_kit::base::transition("self-view-lift", if dragging { 1.04 } else { 1. }, gpui_kit::base::Transition::new(ui::DUR_PRESS).easing(crate::motion::ease_out()), window, cx);
-        let pip = div()
-            .id("self-view")
-            .scale(grow)
-            .group("self-view")
-            .absolute()
-            .left(px(x))
-            .top(px(y))
-            .w(px(w))
-            .h(px(h))
-            .squircle(RADIUS_LG)
-            .shadow(shadow)
-            .cursor(if dragging { gpui_kit::CursorStyle::ClosedHand } else { gpui_kit::CursorStyle::OpenHand })
-            .child(frame)
-            .child(scrim_bottom(RADIUS_LG))
-            .child(div().absolute().left(px(10.)).right(px(10.)).bottom(px(8.)).flex().items_center().gap(px(6.)).text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(gpui_kit::white()).child(div().truncate().child("You")))
-            .child(
-                div()
-                    .id("self-view-close")
-                    .absolute()
-                    .top(px(4.))
-                    .right(px(4.))
-                    .size(px(24.))
-                    .squircle(RADIUS_XS)
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .bg(gpui_kit::black().opacity(0.5))
-                    .text_color(gpui_kit::white())
-                    .opacity(0.)
-                    .when(!dragging, |d| d.group_hover("self-view", |s| s.opacity(1.)))
-                    .hover(|s| s.bg(gpui_kit::black().opacity(0.7)))
-                    .child(Icon::new(Glyph::X).size(px(14.)))
-                    .tooltip(|window, cx| Tooltip::new("Hide self-view. Others still see your stream").build(window, cx))
-                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.pip_shown = false;
-                        cx.notify();
-                    })),
-            )
-            .on_mouse_down(MouseButton::Left, cx.listener(move |this, e: &MouseDownEvent, _, cx| {
-                cx.stop_propagation();
-                this.pip_snap = None;
-                this.pip_drag = Some(PipDrag { start_mouse: e.position, start: (x, y), pos: (x, y), samples: vec![(e.position, Instant::now())] });
-                cx.notify();
-            }))
-            .into_any_element();
-        wells.chain([pip]).collect()
-    }
-
-    // .pip-restore: "Show self-view", left in the corner the self-view closed from.
-    fn pip_restore(&self, stage: (f32, f32), cx: &mut Context<Self>) -> AnyElement {
-        let (x, y, w, h) = tile_area(stage);
-        let (right_gap, bottom_gap) = (stage.0 - x - w + PIP_INSET, stage.1 - y - h + PIP_INSET);
-        let ring = vec![
-            BoxShadow { color: stage::wash(0.16), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false },
-            BoxShadow { color: gpui_kit::black().opacity(0.35), offset: point(px(0.), px(6.)), blur_radius: px(16.), spread_radius: px(0.), inset: false },
-        ];
-        let button = div()
-            .id("self-view-restore")
-            .absolute()
-            .h(px(32.))
-            .pl(px(10.))
-            .pr(px(12.))
-            .squircle(RADIUS_MD)
-            .flex()
-            .items_center()
-            .gap(px(6.))
-            .cursor_pointer()
-            .bg(stage::bg().opacity(0.78))
-            .shadow(ring)
-            .text_color(gpui_kit::white())
-            .text_size(px(12.))
-            .font_weight(FontWeight::MEDIUM)
-            .whitespace_nowrap()
-            .hover(|s| s.bg(stage::raised().opacity(0.9)))
-            .child(Icon::new(Glyph::User).size(px(16.)))
-            .child("Show self-view")
-            .tooltip(|window, cx| Tooltip::new("Others still see your stream").build(window, cx))
-            .on_click(cx.listener(|this, _, _, cx| {
-                this.pip_shown = true;
-                cx.notify();
-            }));
-        let placed = match self.pip_corner {
-            Corner::TopLeft => button.left(px(x + PIP_INSET)).top(px(y + PIP_INSET)),
-            Corner::TopRight => button.right(px(right_gap)).top(px(y + PIP_INSET)),
-            Corner::BottomLeft => button.left(px(x + PIP_INSET)).bottom(px(bottom_gap)),
-            Corner::BottomRight => button.right(px(right_gap)).bottom(px(bottom_gap)),
-        };
-        placed.with_animation("self-view-restore-in", Animation::new(ui::DUR_POP), |d, t| d.opacity(t)).into_any_element()
-    }
-
-    // Moves a dragged self-view with the pointer; false when nothing is being dragged.
-    fn drag_pip(&mut self, mouse: Point<Pixels>) -> bool {
-        let Some(drag) = &mut self.pip_drag else { return false };
-        drag.pos = (drag.start.0 + f32::from(mouse.x - drag.start_mouse.x), drag.start.1 + f32::from(mouse.y - drag.start_mouse.y));
-        drag.samples.push((mouse, Instant::now()));
-        if drag.samples.len() > 6 {
-            drag.samples.remove(0);
-        }
-        true
-    }
-
-    // Lets go of the self-view: a click (barely moved) watches our stream full size; a drag springs
-    // to the corner it was thrown toward.
-    fn drop_pip(&mut self, mouse: Point<Pixels>, stage: (f32, f32), cx: &mut Context<Self>) {
-        let Some(drag) = self.pip_drag.take() else { return };
-        let moved = f32::from(mouse.x - drag.start_mouse.x).hypot(f32::from(mouse.y - drag.start_mouse.y));
-        if moved < 4. {
-            if let Some(me) = self.me.as_ref().map(|m| m.id.clone()) {
-                self.watch_stream(me, cx);
-            }
-            return cx.notify();
-        }
-        let (first, last) = (drag.samples.first().copied(), drag.samples.last().copied());
-        let velocity = match (first, last) {
-            (Some((a, ta)), Some((b, tb))) if tb > ta => {
-                let dt = (tb - ta).as_secs_f32();
-                (f32::from(b.x - a.x) / dt, f32::from(b.y - a.y) / dt)
-            }
-            _ => (0., 0.),
-        };
-        let (w, h) = pip_size(stage);
-        let center = (drag.pos.0 + w / 2., drag.pos.1 + h / 2.);
-        self.pip_corner = Corner::thrown(center, velocity, stage);
-        self.pip_snap = Some((drag.pos, Instant::now()));
-        cx.notify();
     }
 
     // Full screen shows the call alone: no servers, channels or user panel.
@@ -963,12 +778,15 @@ impl Rustcord {
         let people = self.participants();
         let watching = call.focused();
         let several = call.watching.len() > 1;
-        let title = match (watching, several) {
-            (None, _) => call.channel.name.clone(),
-            (Some(_), true) => format!("Watching {} streams", call.watching.len()),
-            (Some(w), false) => format!("{}'s screen", self.user_name(&w.streamer_id)),
+        // A focused stream names the room, then whose it is and what they're playing, as Discord's header.
+        let title = match self.focused_stream() {
+            Some(id) => match self.activity_name(&id) {
+                Some(app) => format!("{} • {} playing {app}", call.channel.name, self.user_name(&id)),
+                None => format!("{} • {}'s screen", call.channel.name, self.user_name(&id)),
+            },
+            None => call.channel.name.clone(),
         };
-        let glyph = if watching.is_some() { Glyph::Screen } else { Glyph::VolumeHigh };
+        let glyph = Glyph::VolumeHigh;
         let timer = div()
             .h(px(22.))
             .px(px(8.))
@@ -1021,20 +839,8 @@ impl Rustcord {
                 .text_color(stage::muted())
                 .child(div().size(px(6.)).rounded_full().bg(color))
                 .child(format!("{quality}{label}"))
+                .child(ui::live_badge())
                 .tooltip(move |window, cx| Tooltip::new(format!("{label}: {fps:.0} frames per second")).build(window, cx))
-        });
-        let layout = call.stream_layout;
-        let layout_button = several.then(|| {
-            let (glyph, tip, next) = match layout {
-                StreamLayout::Focus => (Glyph::Screen, "Layout: focus. Switch to side by side", StreamLayout::Split),
-                StreamLayout::Split => (Glyph::Users, "Layout: side by side. Switch to focus", StreamLayout::Focus),
-            };
-            stage_icon_button("call-layout", glyph, tip, false).on_click(cx.listener(move |this, _, _, cx| {
-                if let Some(call) = &mut this.call {
-                    call.stream_layout = next;
-                }
-                cx.notify();
-            }))
         });
         let stop = watching.map(|_| stage_button("stop-watching", if several { "Stop all" } else { "Stop watching" }).on_click(cx.listener(|this, _, _, cx| this.stop_watching(cx))));
         let fullscreen = self.call_fullscreen;
@@ -1053,7 +859,6 @@ impl Rustcord {
             .children(stop)
             .child(who)
             .child(div().w(px(1.)).h(px(20.)).mx(px(2.)).flex_none().bg(stage::wash(0.14)))
-            .children(layout_button)
             .child(
                 stage_icon_button("call-fullscreen", if fullscreen { Glyph::FullscreenExit } else { Glyph::Fullscreen }, if fullscreen { "Exit full screen" } else { "Full screen" }, false)
                     .on_click(cx.listener(move |this, _, window, cx| this.set_call_fullscreen(!fullscreen, window, cx))),
@@ -1065,129 +870,34 @@ impl Rustcord {
             .into_any_element()
     }
 
-    // .focus: the streams we watch, laid out by `stream_layout`, over a filmstrip of everyone else
-    // (folded away from More). Unwatched streams sit in the filmstrip with Watch too.
-    fn stream_stage(&self, tiles: &[Tile], width: f32, height: f32, cx: &mut Context<Self>) -> AnyElement {
-        let call = self.call.as_ref().expect("in a call");
-        let strip: Vec<AnyElement> = tiles
-            .iter()
-            .filter(|t| !matches!(t, Tile::Stream(s) if call.watched(&s.user_id).is_some()))
-            .take(STRIP_LIMIT)
-            .map(|t| self.tile(t, STRIP_TILE, cx))
-            .collect();
-        let strip_shown = !self.call_strip_hidden && !strip.is_empty();
-        let toggle_h = if strip.is_empty() { 0. } else { STRIP_TOGGLE + STRIP_GAP };
-        let main_h = (height - toggle_h - if strip_shown { STRIP_TILE * 9. / 16. + STRIP_GAP } else { 0. }).max(120.);
-        let focused = call.focused().map(|w| w.streamer_id.clone()).unwrap_or_default();
-        let main: AnyElement = match call.stream_layout {
-            StreamLayout::Focus => {
-                let others: Vec<AnyElement> = call
-                    .watching
-                    .iter()
-                    .filter(|w| w.streamer_id != focused)
-                    .map(|w| self.stream_video(w, width * 0.24, main_h * 0.3, true, cx))
-                    .collect();
-                let big = call.focused().map(|w| self.stream_video(w, width, main_h, false, cx));
-                div()
-                    .relative()
-                    .size_full()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .children(big)
-                    .when(!others.is_empty(), |d| d.child(div().absolute().right(px(12.)).bottom(px(12.)).flex().flex_col().gap(px(STRIP_GAP)).children(others)))
-                    .into_any_element()
-            }
-            StreamLayout::Split => {
-                let n = call.watching.len();
-                let cols = (n as f32).sqrt().ceil().max(1.) as usize;
-                let rows = n.div_ceil(cols);
-                let (cell_w, cell_h) = ((width - TILE_GAP * (cols as f32 - 1.)) / cols as f32, (main_h - TILE_GAP * (rows as f32 - 1.)) / rows as f32);
-                let videos: Vec<AnyElement> = call.watching.iter().map(|w| self.stream_video(w, cell_w, cell_h, false, cx)).collect();
-                div().size_full().flex().flex_wrap().items_center().justify_center().content_center().gap(px(TILE_GAP)).children(videos).into_any_element()
-            }
-        };
-        div()
-            .size_full()
-            .flex()
-            .flex_col()
-            .gap(px(STRIP_GAP))
-            .child(div().flex_1().min_h_0().child(main))
-            .when(!strip.is_empty(), |d| d.child(self.strip_toggle(strip_shown, cx)))
-            .when(strip_shown, |d| d.child(div().flex_none().flex().justify_center().gap(px(STRIP_GAP)).children(strip)))
-            .into_any_element()
-    }
-
     // The chevron above the filmstrip that folds it away and back, as Discord's.
     fn strip_toggle(&self, shown: bool, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let (glyph, tip) = if shown { (Glyph::ChevronDown, "Hide everyone") } else { (Glyph::ChevronUp, "Show everyone") };
-        div().flex_none().h(px(STRIP_TOGGLE)).flex().justify_center().child(
-            ui::round_button("strip-toggle", glyph, tip, STRIP_TOGGLE).on_click(cx.listener(|this, _, _, cx| {
-                this.call_strip_hidden = !this.call_strip_hidden;
-                cx.notify();
-            })),
-        )
-    }
-
-    // One watched stream fitted into `max_w` x `max_h`, as a media tile: LIVE and its viewers on top,
-    // the name over the scrim. Hovering adds its volume and buttons to focus or stop it; a small one
-    // (Focus layout) swaps in on click.
-    fn stream_video(&self, watch: &crate::Watching, max_w: f32, max_h: f32, small: bool, cx: &mut Context<Self>) -> AnyElement {
-        let call = self.call.as_ref().expect("in a call");
-        let (fw, fh) = watch.frame.as_ref().map_or((16., 9.), |f| (f.size(0).width.0 as f32, f.size(0).height.0 as f32));
-        let scale = (max_w / fw).min(max_h / fh);
-        let (w, h) = (fw * scale, fh * scale);
-        let id = watch.streamer_id.clone();
-        let name = self.user_name(&id);
-        let several = call.watching.len() > 1;
-        let body: AnyElement = match &watch.frame {
-            Some(frame) => ui::media(ImageSource::Render(frame.clone()), ui::all(RADIUS_LG)).size_full().into_any_element(),
-            None => stream_fill(RADIUS_LG).size_full().flex().items_center().justify_center().text_size(px(14.)).text_color(stage::muted()).child(format!("Joining {name}'s stream…")).into_any_element(),
-        };
-        let group = SharedString::from(format!("stream-{id}"));
-        let label = match self.activity_name(&id) {
-            Some(app) => format!("{name} · {app}"),
-            None => name.clone(),
-        };
-        let (focus_id, stop_id, volume_id) = (id.clone(), id.clone(), id.clone());
-        let controls = div()
-            .absolute()
-            .right(px(8.))
-            .bottom(px(6.))
+        div()
+            .id("strip-toggle")
+            .h(px(STRIP_TOGGLE))
+            .px(px(10.))
             .flex()
             .items_center()
             .gap(px(6.))
-            .opacity(0.)
-            .group_hover(group.clone(), |s| s.opacity(1.))
-            .child(
-                ui::round_button(SharedString::from(format!("volume-{id}")), Glyph::VolumeHigh, "Stream volume", 28.)
-                    .on_mouse_down(MouseButton::Left, cx.listener(move |this, e: &MouseDownEvent, _, cx| this.open_stream_volume(volume_id.clone(), e.position, cx))),
-            )
-            .when(several && call.stream_layout == StreamLayout::Split, |d| d.child(ui::button(SharedString::from(format!("focus-{id}")), ui::Tone::OnMedia, cx).small().child("Focus").on_click(cx.listener(move |this, _, _, cx| this.focus_stream(&focus_id, cx)))))
-            .child(ui::button(SharedString::from(format!("unwatch-{id}")), ui::Tone::OnMedia, cx).small().child("Stop watching").on_click(cx.listener(move |this, _, _, cx| this.unwatch_stream(&stop_id, cx))));
-        let swap_id = id.clone();
-        let viewers = self.viewer_count(&id);
-        div()
-            .id(SharedString::from(format!("stream-video-{id}-{small}")))
-            .group(group.clone())
-            .relative()
-            .w(px(w))
-            .h(px(h))
-            .flex_none()
-            .squircle(RADIUS_LG)
-            .bg(gpui_kit::black())
-            .child(body)
-            // The scrims and name only while hovered: left on, they dimmed two-thirds of the picture.
-            .child(scrim_top(RADIUS_LG).opacity(0.).group_hover(group.clone(), |s| s.opacity(1.)))
-            .child(scrim_bottom(RADIUS_LG).opacity(0.).group_hover(group.clone(), |s| s.opacity(1.)))
-            .child(div().absolute().left(px(8.)).top(px(8.)).child(ui::live_badge()))
-            .when(viewers > 0 && !small, |d| d.child(viewer_chip(viewers)))
-            .child(tile_name(div().child(div().min_w_0().truncate().child(label))).opacity(0.).group_hover(group.clone(), |s| s.opacity(1.)))
-            .when(!small, |d| d.child(controls))
-            .child(tile_ring(false, false))
-            .when(small, |d| d.cursor_pointer().on_click(cx.listener(move |this, _, _, cx| this.focus_stream(&swap_id, cx))))
-            .with_animation(SharedString::from(format!("stream-in-{id}-{small}")), Animation::new(ui::DUR_POP), |d, t| d.opacity(t.min(1.)))
-            .into_any_element()
+            .rounded_full()
+            .bg(gpui_kit::black().opacity(0.6))
+            .text_color(gpui_kit::white())
+            .cursor_pointer()
+            .hover(|s| s.bg(gpui_kit::black().opacity(0.75)))
+            .child(Icon::new(glyph).size(px(14.)))
+            .child(Icon::new(Glyph::Users).size(px(16.)))
+            .tooltip(move |window, cx| Tooltip::new(tip).build(window, cx))
+            .on_click(cx.listener(|this, _, _, cx| {
+                cx.stop_propagation();
+                this.call_strip_hidden = !this.call_strip_hidden;
+                cx.notify();
+            }))
+    }
+
+    // The focused card's stream, if a stream is the one shown big.
+    fn focused_stream(&self) -> Option<String> {
+        self.call_focus.as_deref()?.strip_prefix("stream:").map(str::to_owned)
     }
 
     // Everyone watching a streamer, other than the streamer.
@@ -1200,14 +910,6 @@ impl Rustcord {
     fn activity_name(&self, user_id: &str) -> Option<String> {
         let activity = self.presences.get(user_id)?.activity.as_ref()?;
         matches!(activity.kind, discord::ActivityKind::Playing | discord::ActivityKind::Streaming | discord::ActivityKind::Competing).then(|| activity.text.clone())
-    }
-
-    fn focus_stream(&mut self, streamer_id: &str, cx: &mut Context<Self>) {
-        if let Some(call) = &mut self.call {
-            call.focus = Some(streamer_id.to_owned());
-            call.stream_layout = StreamLayout::Focus;
-        }
-        cx.notify();
     }
 
     fn open_stream_volume(&mut self, streamer_id: String, at: Point<Pixels>, cx: &mut Context<Self>) {
@@ -1295,10 +997,26 @@ impl Rustcord {
         let talking = !is_stream && self.speaking(&state.user_id);
         let camera = (!is_stream).then(|| call.cameras.get(&state.user_id)).flatten();
         let media = is_stream || camera.is_some();
+        // A stream card plays the stream once it's watched (our own from the local capture), and shows
+        // Discord's preview still until then.
+        let live_frame = match me {
+            true => call.self_view.as_ref().map(|(frame, _)| frame.clone()),
+            false => call.watched(&state.user_id).and_then(|w| w.frame.clone()),
+        };
+        // A strip card under a focused one: no name until hovered, as Discord's.
+        let small = w <= STRIP_TILE + 0.5;
         let face: AnyElement = match (is_stream, camera) {
+            // A stream that isn't playing, small: Discord's screen glyph on black.
+            (true, _) if small && live_frame.is_none() => {
+                div().size_full().squircle(RADIUS_LG).bg(gpui_kit::black()).flex().items_center().justify_center().child(Icon::new(Glyph::Screen).size(px(28.)).text_color(gpui_kit::white())).into_any_element()
+            }
             (true, _) => stream_fill(RADIUS_LG)
                 .size_full()
-                .children(self.stream_preview(&state.user_id).map(|url| ui::media(url, ui::all(RADIUS_LG)).absolute().inset_0().size_full().object_fit(gpui_kit::ObjectFit::Cover)))
+                .bg(gpui_kit::black())
+                .map(|f| match live_frame.filter(|_| is_stream) {
+                    Some(frame) => f.child(ui::media(ImageSource::Render(frame), ui::all(RADIUS_LG)).absolute().inset_0().size_full().object_fit(gpui_kit::ObjectFit::Contain)),
+                    None => f.children(self.stream_preview(&state.user_id).map(|url| ui::media(url, ui::all(RADIUS_LG)).absolute().inset_0().size_full().object_fit(gpui_kit::ObjectFit::Cover))),
+                })
                 .into_any_element(),
             (false, Some(frame)) => ui::media(ImageSource::Render(frame.clone()), ui::all(RADIUS_LG)).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
             (false, None) => div()
@@ -1324,9 +1042,26 @@ impl Rustcord {
                 .when(!is_stream && deafened, |d| d.child(Icon::new(Glyph::HeadphonesOff).size(px(14.)).text_color(stage::off_ink())))
                 .child(div().min_w_0().truncate().child(label))
                 .when(local_muted, |d| d.child(vmark(Glyph::VolumeOff, Some("Muted for you"), MarkKind::Local))),
-        );
+        )
+        .when(small || is_stream, |n| n.opacity(0.).group_hover(SharedString::from(format!("tile-{}-{is_stream}", state.user_id)), |s| s.opacity(1.)));
+        // With the name hidden on a strip card, a mute or deafen still shows, as a chip in its corner.
+        let off_chip = (small && !is_stream && (muted || deafened || state.server_muted)).then(|| {
+            div()
+                .absolute()
+                .left(px(6.))
+                .bottom(px(6.))
+                .size(px(24.))
+                .squircle(RADIUS_XS)
+                .flex()
+                .items_center()
+                .justify_center()
+                .bg(gpui_kit::black().opacity(0.6))
+                .child(Icon::new(if deafened { Glyph::HeadphonesOff } else { Glyph::MicOff }).size(px(14.)).text_color(stage::off_ink()))
+        });
         let streamer = state.user_id.clone();
         let menu_user = state.user_id.clone();
+        let card = tile.clone();
+        let focused = self.call_focus.as_deref() == Some(tile_key(tile).as_str());
         let group = SharedString::from(format!("tile-{}-{is_stream}", state.user_id));
         let viewers = if is_stream { self.viewer_count(&state.user_id) } else { 0 };
         let watch_label = if call.watching.is_empty() { "Watch stream" } else { "Watch too" };
@@ -1339,14 +1074,42 @@ impl Rustcord {
             .flex_none()
             .squircle(RADIUS_LG)
             .child(face)
-            .when(media, |d| d.child(scrim_top(RADIUS_LG)).child(scrim_bottom(RADIUS_LG)))
+            // Scrims only while hovered, so pictures aren't dimmed at rest.
+            .when(media, |d| d.child(scrim_top(RADIUS_LG).opacity(0.).group_hover(group.clone(), |s| s.opacity(1.))).child(scrim_bottom(RADIUS_LG).opacity(0.).group_hover(group.clone(), |s| s.opacity(1.))))
             .when(is_stream, |d| d.child(div().absolute().left(px(8.)).top(px(8.)).child(ui::live_badge())))
             .when(viewers > 0, |d| d.child(viewer_chip(viewers)))
             .child(name)
-            .when(watchable, |d| {
+            .children(off_chip)
+            .cursor_pointer()
+            .on_click(cx.listener(move |this, _, _, cx| this.toggle_card(&card, cx)))
+            .when(is_stream && watching && !me, |d| {
                 let streamer = streamer.clone();
-                d.cursor_pointer()
-                    .child(
+                let volume_id = streamer.clone();
+                d.child(
+                    div()
+                        .absolute()
+                        .right(px(8.))
+                        .bottom(px(6.))
+                        .flex()
+                        .items_center()
+                        .gap(px(6.))
+                        .opacity(0.)
+                        .group_hover(group.clone(), |s| s.opacity(1.))
+                        .child(ui::round_button(SharedString::from(format!("card-volume-{streamer}")), Glyph::VolumeHigh, "Stream volume", 28.).on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(move |this, e: &MouseDownEvent, _, cx| {
+                                cx.stop_propagation();
+                                this.open_stream_volume(volume_id.clone(), e.position, cx);
+                            }),
+                        ))
+                        .child(ui::button(SharedString::from(format!("card-unwatch-{streamer}")), ui::Tone::OnMedia, cx).small().child("Stop watching").on_click(cx.listener(move |this, _, _, cx| {
+                            cx.stop_propagation();
+                            this.unwatch_stream(&streamer, cx);
+                        }))),
+                )
+            })
+            .when(watchable && !focused, |d| {
+                d.child(
                         div()
                             .absolute()
                             .inset_0()
@@ -1359,7 +1122,6 @@ impl Rustcord {
                             .group_hover(group.clone(), |s| s.opacity(1.))
                             .child(watch_button(watch_label)),
                     )
-                    .on_click(cx.listener(move |this, _, _, cx| this.watch_stream(streamer.clone(), cx)))
             })
             .child(tile_ring(talking, local_muted).when(watchable, |r| r.group_hover(group.clone(), |s| s.border_color(stage::wash(0.2)))))
             .on_mouse_down(MouseButton::Right, cx.listener(move |this, e: &MouseDownEvent, _, cx| this.voice_user_menu(&menu_user, e.position, cx)))
@@ -1433,25 +1195,15 @@ impl Rustcord {
                     entries.push(item("Invite to voice", move |this, window, cx| this.show_invite(guild.clone(), channel.clone(), window, cx)).icon(Glyph::GroupPlus).entry());
                 }
                 entries.push(item("Soundboard", |this, _, cx| this.show_toast("The soundboard isn't in Wave yet", cx)).icon(Glyph::Soundboard).entry());
-                if !call.watching.is_empty() {
+                if this.call_focus.is_some() {
                     let hidden = this.call_strip_hidden;
                     entries.push(
                         item(if hidden { "Show everyone" } else { "Hide everyone" }, |this, _, cx| {
                             this.call_strip_hidden = !this.call_strip_hidden;
                             cx.notify();
                         })
-                        .hint("The filmstrip under the stream")
+                        .hint("The cards under the focused one")
                         .icon(Glyph::Users)
-                        .entry(),
-                    );
-                }
-                if call.sharing.is_some() {
-                    entries.push(
-                        item("Show self-view", |this, _, cx| {
-                            this.pip_shown = !this.pip_shown;
-                            cx.notify();
-                        })
-                        .checked(this.pip_shown)
                         .entry(),
                     );
                 }
@@ -1802,14 +1554,6 @@ mod stage {
 
     pub fn bg() -> Hsla {
         hex(0x0A0608)
-    }
-
-    pub fn page() -> Hsla {
-        hex(0x1C1619)
-    }
-
-    pub fn raised() -> Hsla {
-        hex(0x261F22)
     }
 
     pub fn overlay() -> Hsla {
@@ -2231,15 +1975,6 @@ pub(crate) fn clock(secs: u64) -> String {
 #[cfg(test)]
 mod pip_tests {
     use super::*;
-
-    #[test]
-    fn thrown_corner_follows_the_flick() {
-        let stage = (1000., 600.);
-        assert_eq!(Corner::thrown((900., 100.), (0., 0.), stage), Corner::TopRight);
-        // Released on the right but flicked hard left: it coasts across.
-        assert_eq!(Corner::thrown((700., 100.), (-3000., 0.), stage), Corner::TopLeft);
-        assert_eq!(Corner::thrown((100., 280.), (0., 400.), stage), Corner::BottomLeft);
-    }
 
     #[test]
     fn clocks_and_quality() {

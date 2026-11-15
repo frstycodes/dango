@@ -38,25 +38,27 @@
 <!-- Splash -->
 <section id="splash">
   <h2>Splash</h2>
-  <p class="lede">The small borderless card Wave opens at launch while the hidden main window signs in and loads. The mascot speaks, and one line names the real stage.</p>
+  <p class="lede">The small borderless card Wave opens at launch while the hidden main window signs in and loads. The wave mark and the name are carved into it, and a progress bar tracks the real stage.</p>
   <div class="board stack" style="gap: var(--space-6)">
     <div class="stack" style="gap: var(--space-3)">
       <h3 style="margin: 0">Dark</h3>
       <div class="au-splashes">
-        <div class="au-splash" role="status" aria-label="Wave, signing in"><div class="mascot happy" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Signing in…</span><div class="au-steps" aria-hidden="true"><i class="is-done"></i><i></i><i></i></div></div>
-        <div class="au-splash" role="status" aria-label="Wave, loading your servers"><div class="mascot happy" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Loading your servers…</span><div class="au-steps" aria-hidden="true"><i class="is-done"></i><i class="is-done"></i><i></i></div></div>
-        <div class="au-splash" role="status" aria-label="Wave, opening"><div class="mascot happy" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Opening Wave…</span><div class="au-steps" aria-hidden="true"><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i></div></div>
+        <div class="au-splash" role="status" aria-label="Wave, signing in"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Signing in…</span><div class="au-progress" role="progressbar" aria-valuenow="33" aria-valuemin="0" aria-valuemax="100"><i style="width: 33%"></i></div></div>
+        <div class="au-splash" role="status" aria-label="Wave, loading your servers"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Loading your servers…</span><div class="au-progress" role="progressbar" aria-valuenow="67" aria-valuemin="0" aria-valuemax="100"><i style="width: 67%"></i></div></div>
+        <div class="au-splash" role="status" aria-label="Wave, opening"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Opening Wave…</span><div class="au-progress" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"><i style="width: 100%"></i></div></div>
+        <div class="au-splash" role="status" aria-label="Wave, updating"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Updating to 0.1.1…</span><div class="au-progress" role="progressbar" aria-valuenow="42" aria-valuemin="0" aria-valuemax="100"><i style="width: 42%"></i></div></div>
       </div>
     </div>
     <div class="stack" style="gap: var(--space-3)">
       <h3 style="margin: 0">Light</h3>
       <div class="au-splashes">
-        <div class="au-splash" data-tone="light" role="status" aria-label="Wave, signing in"><div class="mascot happy" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Signing in…</span><div class="au-steps" aria-hidden="true"><i class="is-done"></i><i></i><i></i></div></div>
-        <div class="au-splash" data-tone="light" role="status" aria-label="Wave, loading your servers"><div class="mascot happy" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Loading your servers…</span><div class="au-steps" aria-hidden="true"><i class="is-done"></i><i class="is-done"></i><i></i></div></div>
-        <div class="au-splash" data-tone="light" role="status" aria-label="Wave, opening"><div class="mascot happy" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Opening Wave…</span><div class="au-steps" aria-hidden="true"><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i></div></div>
+        <div class="au-splash" data-tone="light" role="status" aria-label="Wave, signing in"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Signing in…</span><div class="au-progress" role="progressbar" aria-valuenow="33" aria-valuemin="0" aria-valuemax="100"><i style="width: 33%"></i></div></div>
+        <div class="au-splash" data-tone="light" role="status" aria-label="Wave, loading your servers"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Loading your servers…</span><div class="au-progress" role="progressbar" aria-valuenow="67" aria-valuemin="0" aria-valuemax="100"><i style="width: 67%"></i></div></div>
+        <div class="au-splash" data-tone="light" role="status" aria-label="Wave, opening"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Opening Wave…</span><div class="au-progress" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"><i style="width: 100%"></i></div></div>
+        <div class="au-splash" data-tone="light" role="status" aria-label="Wave, updating"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Updating to 0.1.1…</span><div class="au-progress" role="progressbar" aria-valuenow="42" aria-valuemin="0" aria-valuemax="100"><i style="width: 42%"></i></div></div>
       </div>
     </div>
-    <p class="note">220×248, radius 14 (--radius-md), no window controls, not movable. Follows the system theme: midnight card in dark, warm bone in light, both with a 16% hairline. Mascot happy at 0.6; "Wave" 20 heavy; stage 12 semibold, one line, truncated. Step dots fill with accent as stages pass. Stages advance 320ms apart once servers arrive so each one registers; the card never outstays 25s. A drop during launch sets the line back to "Reconnecting…" on the first dot.</p>
+    <p class="note">220×248, radius 14 (--radius-md), no window controls, not movable. The card is the page neutral (graphite) with a hairline; dark and light follow the system theme. The mark (the logo's own bar proportions, static) and "Wave" (22, heavy) are carved: filled a step darker than the card, shaded along their upper inner edge and caught by light below. Stage 12 medium, muted, one line, truncated. The progress bar (120×4, accent on a faint track) moves a third per stage, and shows real download progress while an update installs. Stages advance 320ms apart once servers arrive; the card never outstays 25s. A drop during launch sets the line back to "Reconnecting…".</p>
   </div>
 </section>
 
@@ -461,7 +463,7 @@
   <p class="note" style="margin-top: var(--space-3)">Discord's side is described from its desktop client as remembered, not re-checked for this page.</p>
   <div class="btd">
     <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
-    <div><p>Launch shows a spinner, tips and "Checking for updates…", and can sit there with no end in sight.</p><p><b><a href="#splash">Splash</a></b>Names the real stage with three step dots, and opens the main window after 25 seconds at most.</p><p>You can tell a slow network from a stuck app, and launch never waits on an update.</p></div>
+    <div><p>Launch shows a spinner, tips and "Checking for updates…", and can sit there with no end in sight.</p><p><b><a href="#splash">Splash</a></b>Names the real stage with a progress bar, and opens the main window after 25 seconds at most.</p><p>You can tell a slow network from a stuck app, and launch never waits on an update.</p></div>
     <div><p>"Scan this with the Discord mobile app", with no hint where the scanner is.</p><p><b><a href="#sign-in">Ready</a></b>Two short steps name the path: Settings, then Scan QR Code.</p><p>The scanner is buried in mobile settings; saying where saves the hunt.</p></div>
     <div><p>A failed QR sign-in falls back to a generic error.</p><p><b><a href="#sign-in">Failed</a></b>Says what happened in plain words, shows Discord's reason verbatim under it, and offers one Try again.</p><p>Errors say what happened and how to fix it; the verbatim reason is what support needs.</p></div>
     <div><p>Two-factor is one plain text field and a separate Log in button.</p><p><b><a href="#sign-in-other">Two-factor</a></b>Six boxes take a pasted code whole and check it on the last digit; a wrong code explains that codes change every 30 seconds.</p><p>One step fewer, and the error names the usual cause.</p></div>
