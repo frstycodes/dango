@@ -374,7 +374,8 @@ impl Rustcord {
             .backdrop_blur(px(24.))
             .backdrop_saturate(1.6)
             .shadow(ui::shadow_pop(cx))
-            .border_1()
+            // A hairline: one device pixel on Retina; a full point read heavy around the glass.
+            .border(px(0.5))
             .border_color(if focused { palette::line_strong(cx) } else { palette::line(cx) })
             .children(self.autocomplete_popup(cx))
             .children(self.composer_bar(cx))
