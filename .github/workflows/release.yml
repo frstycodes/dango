@@ -64,8 +64,16 @@ jobs:
         with:
           shared-key: dango-${{ matrix.target }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      # Even on a full rust-cache hit, the crates in this repo (vendor/gpui-pre*) and everything built on
+      # them recompile every run; sccache keys each compile by its inputs, so those come back too.
+      # Binaries and proc-macros still compile every time: sccache only caches libraries.
+      - uses: mozilla-actions/sccache-action@v0.0.11
       - run: echo "VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)" >> "$GITHUB_ENV"
       - run: cargo build --release --locked --target ${{ matrix.target }}
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: sccache
+      - run: sccache --show-stats
 
       - name: Package Dango.app
         if: runner.os == 'macOS'
