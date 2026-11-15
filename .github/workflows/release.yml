@@ -30,7 +30,8 @@ jobs:
             echo "::error::tag $TAG does not match Cargo.toml version $version"
             exit 1
           fi
-      - run: gh release create "$TAG" --title "Wave $TAG" --generate-notes
+      # Re-running a tag keeps its release and replaces its assets.
+      - run: gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Wave $TAG" --generate-notes
 
   build:
     needs: create
@@ -41,8 +42,8 @@ jobs:
       matrix:
         include:
           # `asset` is what the updater downloads; `installer` is what people install from.
-          - { os: macos-14, target: aarch64-apple-darwin, asset: wave-macos-aarch64.zip, installer: wave-macos-aarch64.dmg }
-          - { os: macos-14, target: x86_64-apple-darwin, asset: wave-macos-x86_64.zip, installer: wave-macos-x86_64.dmg }
+          - { os: macos-latest, target: aarch64-apple-darwin, asset: wave-macos-aarch64.zip, installer: wave-macos-aarch64.dmg }
+          - { os: macos-latest, target: x86_64-apple-darwin, asset: wave-macos-x86_64.zip, installer: wave-macos-x86_64.dmg }
           - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: wave-windows-x86_64.exe, installer: wave-windows-x86_64-setup.exe }
     runs-on: ${{ matrix.os }}
     defaults:
