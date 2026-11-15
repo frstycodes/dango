@@ -131,17 +131,18 @@ pub fn set_covered(covered: bool) {
 // The GIF for `url` where the app shows it: the still (`poster`), and a slot the layer plays the clip
 // over. `key` must be unique to where it's shown. gpui can't clip pictures to a rounded parent, so
 // the still and the layer's frames are both rounded to `corners`.
-pub fn rounded_tile(key: String, url: &str, poster: &str, corners: Corners<Pixels>, _cx: &mut App) -> AnyElement {
-    placeholder(key, url, poster, corners, false)
+pub fn rounded_tile(key: String, url: &str, poster: &str, cell: gpui_kit::Size<Pixels>, corners: Corners<Pixels>, _cx: &mut App) -> AnyElement {
+    placeholder(key, url, poster, cell, corners, false)
 }
 
 // A tile drawn above every overlay (the media viewer): it keeps playing while one is open, and is
 // clipped to its own frame rather than the chat.
-pub fn top_tile(key: String, url: &str, poster: &str, corners: Corners<Pixels>, _cx: &mut App) -> AnyElement {
-    placeholder(key, url, poster, corners, true)
+pub fn top_tile(key: String, url: &str, poster: &str, cell: gpui_kit::Size<Pixels>, corners: Corners<Pixels>, _cx: &mut App) -> AnyElement {
+    placeholder(key, url, poster, cell, corners, true)
 }
 
-fn placeholder(key: String, url: &str, poster: &str, corners: Corners<Pixels>, top: bool) -> AnyElement {
+// `cell` is the size the caller laid the tile out at; a slot never paints past it.
+fn placeholder(key: String, url: &str, poster: &str, cell: gpui_kit::Size<Pixels>, corners: Corners<Pixels>, top: bool) -> AnyElement {
     let url = url.to_owned();
     div()
         .relative()
@@ -153,7 +154,10 @@ fn placeholder(key: String, url: &str, poster: &str, corners: Corners<Pixels>, t
             canvas(
                 |_, _, _| {},
                 move |bounds, _, window, cx| {
-                    let slot = Slot { url: url.clone(), bounds, mask: window.content_mask().bounds, corners, top };
+                    // GAP: in a gallery the measured bounds have come out taller than the cell (the layer
+                    // then painted over the next message), cause not found; the cell's size bounds it.
+                    let bounds = Bounds { origin: bounds.origin, size: bounds.size.min(&cell) };
+                    let slot = Slot { url: url.clone(), bounds, mask: window.content_mask().bounds.intersect(&bounds), corners, top };
                     LAYOUT.with(|l| l.borrow_mut().slots.insert(key.clone(), slot));
                     wake(cx);
                 },

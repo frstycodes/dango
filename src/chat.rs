@@ -749,8 +749,9 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .line_height(gpui_kit::relative(1.45))
         .when(mention, |r| r.bg(soft).hover(move |s| s.bg(mention_hover)))
         .when(!mention, |r| r.when(held, |r| r.bg(hover)).hover(move |s| s.bg(hover)))
-        .on_hover(track_message_hover(message, ctx))
-        .when(hovered, |r| r.child(actions(message, mine, ctx, cx)));
+        .on_hover(track_message_hover(message, ctx));
+    // Last, so it paints over the message's own content where it overlaps it.
+    let toolbar = hovered.then(|| actions(message, mine, ctx, cx));
     if !starts_group {
         let gutter = div()
             .w(px(AVATAR))
@@ -765,7 +766,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
                 SendState::Sending => g.child(Icon::new(Glyph::Clock).size(px(14.)).mt(px(4.))),
                 _ => g.when(hovered, |g| g.child(gutter_clock(&message.timestamp))),
             });
-        return inset(with_message_menu(row.child(div().flex().gap(px(16.)).child(gutter).child(body)), message, ctx));
+        return inset(with_message_menu(row.child(div().flex().gap(px(16.)).child(gutter).child(body)).children(toolbar), message, ctx));
     }
     let row = row
         .mt(px(12.))
@@ -783,7 +784,8 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
                     palette::surface(Level::Page, cx),
                 )))
                 .child(div().flex_1().min_w_0().flex().flex_col().child(message_head(message, ctx, cx)).child(body)),
-        );
+        )
+        .children(toolbar);
     inset(with_message_menu(row, message, ctx))
 }
 
@@ -1167,7 +1169,7 @@ fn media_tile(message: &Message, i: usize, (w, h): (f32, f32), corners: Corners<
         MediaKind::Gif { poster } => div()
             .relative()
             .size_full()
-            .child(crate::gif::rounded_tile(format!("{}-{i}-{}", message.id, item.url), &item.url, &sized(poster), corners, cx))
+            .child(crate::gif::rounded_tile(format!("{}-{i}-{}", message.id, item.url), &item.url, &sized(poster), gpui_kit::size(px(w), px(h)), corners, cx))
             .child(media_tag("GIF").top(px(8.)).left(px(8.)))
             .into_any_element(),
         _ => ui::edge(animated_image(sized(&item.url)), corners).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
