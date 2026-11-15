@@ -1,8 +1,9 @@
 // Dragging servers and folders in the rail, as in Discord: the top and bottom quarter of a target
-// reorder, the middle combines (server on server makes a folder, server on folder joins it).
-use gpui_kit::{Context, IntoElement, Render, SharedString, Window, div, img, prelude::*, px};
+// reorder, the middle combines (server on server makes a folder, server on folder joins it). The
+// tile itself is carried like any dragged row (drag.rs).
+use gpui_kit::Context;
 
-use crate::{Rustcord, discord::Folder, icons::Glyph, sidebar::identity_tile};
+use crate::{Rustcord, discord::Folder};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Drop {
@@ -28,19 +29,6 @@ impl Drop {
 #[derive(Clone)]
 pub struct RailDrag {
     pub key: String,
-    pub icon: Option<String>,
-    pub label: SharedString,
-}
-
-impl Render for RailDrag {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        let face = match (&self.icon, self.key.starts_with("folder-")) {
-            (_, true) => div().size(px(40.)).rounded(px(12.)).bg(crate::palette::accent().opacity(0.3)).flex().items_center().justify_center().child(gpui_kit::component::Icon::new(Glyph::Folder).size(px(22.))).into_any_element(),
-            (Some(url), _) => img(url.clone()).size(px(40.)).rounded(px(12.)).into_any_element(),
-            (None, _) => identity_tile(&self.key, self.label.clone(), 14.).size(px(40.)).rounded(px(12.)).into_any_element(),
-        };
-        div().opacity(0.85).child(face)
-    }
 }
 
 impl Rustcord {

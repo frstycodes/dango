@@ -52,7 +52,7 @@ struct Slot {
     bounds: Bounds<Pixels>,
     // What gpui clips the slot to where it's painted (the scrolling chat, the viewer).
     mask: Bounds<Pixels>,
-    radius: Pixels,
+    corners: Corners<Pixels>,
     // Drawn above the overlays (the media viewer), so it plays while one is open; clipped to its own
     // frame rather than the chat.
     top: bool,
@@ -129,21 +129,31 @@ pub fn set_covered(covered: bool) {
 }
 
 // The GIF for `url` where the app shows it: the still (`poster`), and a slot the layer plays the clip
-// over. `key` must be unique to where it's shown; `top` for one drawn above every overlay.
-pub fn tile(key: String, url: &str, poster: &str, radius: f32, top: bool, _cx: &mut App) -> AnyElement {
+// over. `key` must be unique to where it's shown. gpui can't clip pictures to a rounded parent, so
+// the still and the layer's frames are both rounded to `corners`.
+pub fn rounded_tile(key: String, url: &str, poster: &str, corners: Corners<Pixels>, _cx: &mut App) -> AnyElement {
+    placeholder(key, url, poster, corners, false)
+}
+
+// A tile drawn above every overlay (the media viewer): it keeps playing while one is open, and is
+// clipped to its own frame rather than the chat.
+pub fn top_tile(key: String, url: &str, poster: &str, corners: Corners<Pixels>, _cx: &mut App) -> AnyElement {
+    placeholder(key, url, poster, corners, true)
+}
+
+fn placeholder(key: String, url: &str, poster: &str, corners: Corners<Pixels>, top: bool) -> AnyElement {
     let url = url.to_owned();
     div()
         .relative()
         .size_full()
-        .overflow_hidden()
-        .child(img(poster.to_owned()).size_full().object_fit(ObjectFit::Cover))
+        .child(crate::ui::edge(img(poster.to_owned()).size_full().object_fit(ObjectFit::Cover), corners))
         .child(
             // Pinned to the top left: an absolute element without offsets sits where it would flow,
             // which here is below the still. Recorded while painting, where positions are final.
             canvas(
                 |_, _, _| {},
                 move |bounds, _, window, cx| {
-                    let slot = Slot { url: url.clone(), bounds, mask: window.content_mask().bounds, radius: px(radius), top };
+                    let slot = Slot { url: url.clone(), bounds, mask: window.content_mask().bounds, corners, top };
                     LAYOUT.with(|l| l.borrow_mut().slots.insert(key.clone(), slot));
                     wake(cx);
                 },
@@ -423,7 +433,7 @@ impl Render for GifLayer {
                         }
                         let image = cover(slot.bounds, frame.size(0));
                         window.with_content_mask(Some(gpui_kit::ContentMask { bounds: layout.clip(slot) }), |window| {
-                            let _ = window.paint_image(slot.bounds, image, Corners::all(slot.radius), frame, 0, false);
+                            let _ = window.paint_image(slot.bounds, image, slot.corners, frame, 0, false);
                         });
                         painted += 1;
                     }
@@ -453,11 +463,14 @@ fn cover(bounds: Bounds<Pixels>, image: gpui_kit::Size<gpui_kit::DevicePixels>) 
 // `AHEAD` pictures in front. The first loop is decoded; if its pictures fit in `REPLAY_BYTES` they're
 // kept and replayed, so a short GIF costs no CPU after one loop. Ends when the receiver is dropped
 // (taking any kept pictures with it) or the clip can't be decoded.
+// A clip's pictures with their times, kept to play again (see `REPLAY_BYTES`).
+type Replay = Vec<(Duration, Arc<RenderImage>)>;
+
 fn decode_looping(clip: Arc<[u8]>) -> mpsc::Receiver<Picture> {
     let (send, receive) = mpsc::sync_channel(AHEAD);
     let decode = move || {
         let mut offset = Duration::ZERO;
-        let mut replay: Option<(Duration, Vec<(Duration, Arc<RenderImage>)>)> = None;
+        let mut replay: Option<(Duration, Replay)> = None;
         // Only the first loop can turn out short enough to replay; after that every loop streams.
         let mut first_loop = true;
         loop {

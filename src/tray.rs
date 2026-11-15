@@ -69,7 +69,7 @@ pub fn install(window: &mut Window, cx: &mut App) {
                     show(hwnd);
                 } else if event.id == quit_id {
                     TRAY.with(|t| t.borrow_mut().take());
-                    let _ = cx.update(|cx| cx.quit());
+                    cx.update(|cx| cx.quit());
                     return;
                 }
             }

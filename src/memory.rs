@@ -175,7 +175,7 @@ fn sites() -> Vec<(usize, usize, String)> {
             entry.1 += 1;
         }
         let mut sites: Vec<(usize, usize, String)> = by_site.into_iter().map(|(site, (bytes, count))| (bytes, count, site)).collect();
-        sites.sort_by(|a, b| b.0.cmp(&a.0));
+        sites.sort_by_key(|site| std::cmp::Reverse(site.0));
         sites
     })
     .unwrap_or_default()
@@ -426,7 +426,7 @@ pub fn start_reporting() {
         loop {
             std::thread::sleep(Duration::from_secs(10));
             round += 1;
-            if sites_on && round % 3 == 0 {
+            if sites_on && round.is_multiple_of(3) {
                 eprintln!("{}", sites_report(12));
             }
             let used = process().map_or(0, |p| p.private_working_set) / (1024 * 1024);

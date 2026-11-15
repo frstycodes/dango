@@ -41,6 +41,8 @@ mod sounds;
 #[cfg(target_os = "windows")]
 mod tray;
 mod ui;
+mod splash;
+mod design_system;
 mod app_icon;
 mod voice;
 mod window_controls;
@@ -60,7 +62,7 @@ use gpui_kit::{
     AppContext, Bounds, Context, Entity, FocusHandle, Hsla, RenderImage, ListAlignment, ListOffset, ListState, SharedString, Task, TitlebarOptions, Window, WindowBounds,
     WindowOptions,
     component::input::{InputEvent, InputState as SearchState, TextareaState},
-    px, rgb, size,
+    px, size,
 };
 use gpui_motion_kit::Motions;
 use icons::Assets;
@@ -87,26 +89,40 @@ fn main() {
         cx.text_system()
             .add_fonts(
                 [
-                    include_bytes!("../assets/discord/fonts/gg-sans-Regular.ttf").as_slice(),
-                    include_bytes!("../assets/discord/fonts/gg-sans-Medium.ttf"),
-                    include_bytes!("../assets/discord/fonts/gg-sans-SemiBold.ttf"),
-                    include_bytes!("../assets/discord/fonts/gg-sans-Bold.ttf"),
-                    include_bytes!("../assets/discord/fonts/gg-sans-ExtraBold.ttf"),
-                    include_bytes!("../assets/discord/fonts/gg-mono-Regular.ttf"),
-                    include_bytes!("../assets/discord/fonts/gg-mono-Bold.ttf"),
+                    include_bytes!("../assets/fonts/Gabarito-Regular.ttf").as_slice(),
+                    include_bytes!("../assets/fonts/Gabarito-Medium.ttf"),
+                    include_bytes!("../assets/fonts/Gabarito-SemiBold.ttf"),
+                    include_bytes!("../assets/fonts/Gabarito-Bold.ttf"),
+                    include_bytes!("../assets/fonts/Gabarito-ExtraBold.ttf"),
+                    include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"),
+                    include_bytes!("../assets/fonts/RobotoMono-Bold.ttf"),
                 ]
                 .map(std::borrow::Cow::Borrowed)
                 .to_vec(),
             )
-            .expect("bundled gg sans");
+            .expect("bundled fonts");
+        // The design is drawn with `-webkit-font-smoothing: antialiased`; macOS smoothing would thicken every stroke.
+        cx.text_system().set_font_smoothing(false);
         cx.set_http_client(std::sync::Arc::new(discord::Images::default()));
         cx.set_reduce_motion(material::system_reduce_motion());
         settings::Prefs::load().app_icon.apply();
+        // WAVE_DESIGN=1 opens only the design system gallery, no sign-in needed.
+        if std::env::var_os("WAVE_DESIGN").is_some() {
+            design_system::open(cx);
+            return;
+        }
 
+        // Signed in: a small splash window shows while the main window loads hidden behind it.
+        let signed_in = std::env::var("DISCORD_TOKEN").is_ok_and(|t| !t.trim().is_empty()) || auth::stored_token().is_some();
+        let demo = cfg!(debug_assertions) && std::env::var_os("CHORD_DEMO").is_some();
+        let splash = if signed_in && !demo { splash::open(cx) } else { None };
         let options = WindowOptions {
+            show: splash.is_none(),
+            focus: splash.is_none(),
             window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(1280.), px(820.)), cx))),
             window_min_size: Some(size(px(940.), px(520.))),
-            titlebar: Some(TitlebarOptions { title: Some("Wave".into()), appears_transparent: true, ..Default::default() }),
+            // The traffic lights centre in the 36px title bar, leaving the first 72px to them.
+            titlebar: Some(TitlebarOptions { title: Some("Wave".into()), appears_transparent: true, traffic_light_position: Some(gpui_kit::point(px(12.), px(12.))) }),
             window_background: material::window_background(),
             ..Default::default()
         };
@@ -114,7 +130,7 @@ fn main() {
             palette::sync(window, cx);
             #[cfg(target_os = "windows")]
             tray::install(window, cx);
-            cx.new(|cx| shell::Shell::new(window, cx))
+            cx.new(|cx| shell::Shell::new(window, splash, cx))
         })
         .expect("open window");
         if material::NATIVE_SIDEBAR {
@@ -284,6 +300,9 @@ fn data_dir() -> Option<std::path::PathBuf> {
 
 // The quietest mic level the meters show, in dBFS.
 const SELF_VIEW_INTERVAL: Duration = Duration::from_millis(66);
+const SPLASH_BEAT: Duration = Duration::from_millis(320);
+// The splash never outstays this: the main window opens even if Discord is slow to answer.
+const SPLASH_LIMIT: Duration = Duration::from_secs(25);
 const SILENCE_DB: f32 = -100.;
 
 // A voice channel we're in. Dropping it leaves the channel.
@@ -316,6 +335,8 @@ struct Call {
     // The source behind `sharing`, kept so a quality change can restart the same stream.
     share_source: Option<voice::ShareSource>,
     live_since: Option<Instant>,
+    // When we joined, for the call header's timer.
+    joined: Instant,
     // Our own Go Live from its local frames, for the panel thumbnail and the self-view.
     self_view: Option<(Arc<RenderImage>, Instant)>,
     _events: Task<()>,
@@ -407,6 +428,8 @@ pub struct Rustcord {
     rail_drop: Option<(String, rail_drag::Drop)>,
     // Where a dragged channel would land: the row's id and above/below it.
     channel_drop: Option<(String, drag::Place)>,
+    // What a drag in the rail or channel list carries, and what it is landing.
+    drag_motion: drag::DragMotion,
     // Every user seen as their server shows them, keyed by guild then user, for voice rows and tiles.
     members: HashMap<String, HashMap<String, User>>,
     dms: Vec<Channel>,
@@ -462,6 +485,8 @@ pub struct Rustcord {
     ignored: HashSet<String>,
     // A DM call we started: ring them once the call connects.
     ring_on_connect: Option<String>,
+    // The DM call we're ringing out on; its ringtone plays until someone joins, we leave, or a minute passes.
+    ringing_out: Option<String>,
     // Voice channels whose member list is collapsed (Discord's "Hide Names").
     hidden_voice_names: HashSet<String>,
     // Shift held: Discord's hover bar shows Delete instead of More.
@@ -477,7 +502,7 @@ pub struct Rustcord {
     // A short notice at the bottom, e.g. why a moderation action failed.
     toast: Option<SharedString>,
     // The Go Live picker: None closed, Some(None) loading, Some(Some(..)) listed.
-    share_picker: Option<overlays::SharePicker>,
+    share_picker: Option<go_live::SharePicker>,
     // The source picked in the Go Live window, waiting for "Go Live".
     share_choice: Option<voice::ShareSource>,
     share_choice_label: Option<String>,
@@ -496,6 +521,9 @@ pub struct Rustcord {
     stream_volumes: HashMap<String, f32>,
     // Where a released self-view glides from, and when it let go.
     pip_snap: Option<((f32, f32), Instant)>,
+    // The launch window while the hidden main window signs in and loads; None once it's gone.
+    splash: Option<gpui_kit::WindowHandle<splash::Splash>>,
+    main_window: gpui_kit::AnyWindowHandle,
     // Bumped on each Go Live so an earlier stream's preview uploads stop.
     preview_generation: u64,
     // The call view filling the screen on its own, as Discord's full screen does.
@@ -530,6 +558,10 @@ pub struct Rustcord {
     viewer: Option<Viewer>,
     profile_card: Option<ProfileCard>,
     status_menu: bool,
+    // The channel or DM row under the pointer, which shows its hover-only controls.
+    hovered_row: Option<String>,
+    // The message under the pointer, which shows its toolbar and, on a continuation, its time.
+    hovered_message: Option<String>,
     emoji_picker: Option<EmojiTarget>,
     emoji_search: Entity<SearchState>,
     switcher: Option<usize>,
@@ -538,6 +570,8 @@ pub struct Rustcord {
     unread_marker: Option<u64>,
     // Scrolled well above the newest message: shows Discord's "Jump to Present" bar.
     scrolled_up: bool,
+    // The floating composer's height, measured as it paints; the feed keeps that much room at its foot.
+    composer_height: Rc<std::cell::Cell<f32>>,
     copied: Option<String>,
     focus: FocusHandle,
     channels_width: f32,
@@ -559,7 +593,7 @@ struct Arrivals {
 }
 
 impl Rustcord {
-    fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+    fn new(window: &mut Window, splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut Context<Self>) -> Self {
         let composer = cx.new(|cx| {
             let mut state = ComposerState::new(window, cx).placeholder("Message").submit_on_enter(true);
             state.set_auto_grow(1, 10, cx);
@@ -581,7 +615,7 @@ impl Rustcord {
         let gif_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search Tenor"));
         cx.subscribe_in(&gif_search, window, Self::on_gif_search).detach();
         cx.subscribe_in(&switcher_input, window, Self::on_switcher_input).detach();
-        let settings_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search"));
+        let settings_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search settings"));
         let dialog_input = cx.new(|cx| SearchState::new(window, cx));
         cx.subscribe(&settings_search, |_, _, _: &InputEvent, cx| cx.notify()).detach();
         #[allow(unused_mut)]
@@ -597,6 +631,7 @@ impl Rustcord {
             open_folders: HashSet::new(),
             rail_drop: None,
             channel_drop: None,
+            drag_motion: Default::default(),
             members: HashMap::new(),
             dms: Vec::new(),
             guild_id: None,
@@ -640,6 +675,7 @@ impl Rustcord {
             guild_settings: HashMap::new(),
             ignored: HashSet::new(),
             ring_on_connect: None,
+            ringing_out: None,
             hidden_voice_names: HashSet::new(),
             shift_held: false,
             stream_card_hover: None,
@@ -656,6 +692,8 @@ impl Rustcord {
             call_pointer_at: Instant::now(),
             call_strip_hidden: false,
             preview_generation: 0,
+            splash,
+            main_window: window.window_handle(),
             pip_shown: true,
             pip_corner: crate::call::Corner::TopRight,
             pip_drag: None,
@@ -685,6 +723,9 @@ impl Rustcord {
             viewer: None,
             profile_card: None,
             status_menu: false,
+            hovered_row: None,
+            hovered_message: None,
+            composer_height: Rc::new(std::cell::Cell::new(86.)),
             emoji_picker: None,
             emoji_search,
             switcher: None,
@@ -725,10 +766,50 @@ impl Rustcord {
             Some(token) => chord.connect(token, cx),
             None => chord.sign_in(cx),
         }
+        if chord.splash.is_some() {
+            cx.spawn(async move |this, cx| {
+                cx.background_executor().timer(SPLASH_LIMIT).await;
+                this.update(cx, |this, cx| this.finish_splash(cx)).ok();
+            })
+            .detach();
+        }
         chord
     }
 
+    fn splash_stage(&mut self, step: usize, stage: &'static str, cx: &mut Context<Self>) {
+        if let Some(splash) = self.splash {
+            splash.update(cx, |splash, _, cx| splash.set(step, stage, cx)).ok();
+        }
+    }
+
+    // Servers are in: say so, then open Wave a beat later so the step registers.
+    fn splash_ready(&mut self, cx: &mut Context<Self>) {
+        if self.splash.is_none() {
+            return;
+        }
+        self.splash_stage(1, "Loading your servers…", cx);
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(SPLASH_BEAT).await;
+            this.update(cx, |this, cx| this.splash_stage(2, "Opening Wave…", cx)).ok();
+            cx.background_executor().timer(SPLASH_BEAT).await;
+            this.update(cx, |this, cx| this.finish_splash(cx)).ok();
+        })
+        .detach();
+    }
+
+    // Closes the launch window and brings the main window forward, after this update finishes
+    // (a window can't be shown from inside its own update).
+    fn finish_splash(&mut self, cx: &mut Context<Self>) {
+        let Some(splash) = self.splash.take() else { return };
+        let main = self.main_window;
+        cx.defer(move |cx| {
+            splash.update(cx, |_, window, _| window.remove_window()).ok();
+            main.update(cx, |_, window, _| window.activate_window()).ok();
+        });
+    }
+
     fn connect(&mut self, token: String, cx: &mut Context<Self>) {
+        self.splash_stage(0, "Signing in…", cx);
         let (client, mut events) = discord::connect(token);
         self.client = Some(client);
         self.status = Status::Connecting;
@@ -743,6 +824,8 @@ impl Rustcord {
     }
 
     fn sign_in(&mut self, cx: &mut Context<Self>) {
+        // Signing in happens in the main window, so the splash steps aside.
+        self.finish_splash(cx);
         self.client = None;
         self.me = None;
         self.channel = None;
@@ -826,6 +909,7 @@ impl Rustcord {
                 self.ignored = ready.ignored.into_iter().collect();
                 self.presences = ready.presences.into_iter().collect();
                 self.status = Status::Online;
+                self.splash_ready(cx);
             }
             Event::Batch(events) => {
                 for event in events {
@@ -969,13 +1053,29 @@ impl Rustcord {
             Event::VoiceState(state) => {
                 let ours = self.call.as_ref().map(|c| c.channel.id.clone());
                 let me = self.me.as_ref().map(|m| m.id.clone());
+                // Someone answering our ring joins the DM call: the ringtone stops.
+                if state.channel_id.is_some() && state.channel_id == self.ringing_out && Some(&state.user_id) != me.as_ref() {
+                    self.stop_ringing_out();
+                }
                 let Some(guild) = state.guild_id.as_ref().and_then(|id| self.guilds.iter_mut().find(|g| &g.id == id)) else { return };
                 let was_here = guild.voice_states.iter().any(|v| v.user_id == state.user_id && v.channel_id == ours);
                 let is_here = ours.is_some() && state.channel_id == ours;
                 let was_live = guild.voice_states.iter().any(|v| v.user_id == state.user_id && v.channel_id == ours && v.streaming);
                 let is_live = is_here && state.streaming;
-                if Some(&state.user_id) != me.as_ref() && was_here != is_here {
-                    sounds::play(if is_here { sounds::Cue::UserJoin } else { sounds::Cue::UserLeave });
+                // Arriving from, or leaving for, another channel is a move (a drag by a moderator, or a hop).
+                let was_elsewhere = guild.voice_states.iter().any(|v| v.user_id == state.user_id && v.channel_id.is_some() && v.channel_id != ours);
+                let moved = (is_here && was_elsewhere) || (was_here && state.channel_id.is_some());
+                let mine = Some(&state.user_id) == me.as_ref();
+                if !mine && was_here != is_here {
+                    sounds::play(match (moved, is_here) {
+                        (true, _) => sounds::Cue::UserMoved,
+                        (false, true) => sounds::Cue::UserJoin,
+                        (false, false) => sounds::Cue::UserLeave,
+                    });
+                } else if mine && ours.is_some() && state.channel_id.is_some() && state.channel_id != ours {
+                    // Someone moved us; a channel we pick ourselves is already `ours` by the time this lands.
+                    // GAP: nothing updates `call.channel` on a server-side move, so the call view keeps the old channel.
+                    sounds::play(sounds::Cue::UserMoved);
                 } else if Some(&state.user_id) != me.as_ref() && !was_live && is_live {
                     sounds::play(sounds::Cue::StreamStarted);
                 } else if was_live && !is_live && self.call.as_ref().is_some_and(|c| c.watched(&state.user_id).is_some()) {
@@ -1017,7 +1117,10 @@ impl Rustcord {
                 }
                 self.stream_viewers.insert(key, viewers);
             }
-            Event::Disconnected(reason) => self.status = Status::Reconnecting(reason.into()),
+            Event::Disconnected(reason) => {
+                self.splash_stage(0, "Reconnecting…", cx);
+                self.status = Status::Reconnecting(reason.into());
+            }
             Event::AuthFailed => {
                 auth::forget_token();
                 return self.sign_in(cx);
@@ -1889,11 +1992,17 @@ impl Rustcord {
         mine.is_some_and(|roles| message.mention_roles.iter().any(|r| roles.contains(r)))
     }
 
-    /// The colour of the user's highest coloured role, as Discord paints their name.
-    fn role_color(&self, guild_id: Option<&String>, user_id: &str, hint: Option<&Vec<String>>) -> Option<Hsla> {
+    /// The colour of the user's highest coloured role, clamped so the name stays readable in this theme.
+    // The name the open server shows for someone: their nickname once the member is known.
+    pub(crate) fn member_name(&self, user: &discord::User) -> String {
+        let member = self.guild_id.as_ref().and_then(|g| self.members.get(g)).and_then(|m| m.get(&user.id));
+        member.map_or_else(|| user.name.clone(), |m| m.name.clone())
+    }
+
+    fn role_color(&self, guild_id: Option<&String>, user_id: &str, hint: Option<&Vec<String>>, dark: bool) -> Option<Hsla> {
         let guild = self.guilds.iter().find(|g| Some(&g.id) == guild_id)?;
         let roles = hint.or_else(|| self.member_roles.get(&guild.id)?.get(user_id))?;
-        guild.roles.iter().filter(|r| r.color != 0 && roles.contains(&r.id)).max_by_key(|r| r.position).map(|r| rgb(r.color).into())
+        guild.roles.iter().filter(|r| r.color != 0 && roles.contains(&r.id)).max_by_key(|r| r.position).map(|r| palette::role_ink(r.color, dark))
     }
 
     fn unread(&self, channel_id: &str) -> bool {
@@ -1969,12 +2078,34 @@ impl Rustcord {
             }
         })
         .detach();
-        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: Vec::new(), focus: None, stream_layout: crate::call::StreamLayout::Focus, ended: None, sharing: None, share_label: None, share_source: None, live_since: None, self_view: None, _events: task });
+        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: Vec::new(), focus: None, stream_layout: crate::call::StreamLayout::Focus, ended: None, sharing: None, share_label: None, share_source: None, live_since: None, self_view: None, joined: Instant::now(), _events: task });
         cx.notify();
+    }
+
+    fn ring_out(&mut self, channel: String, cx: &mut Context<Self>) {
+        sounds::ring(sounds::Cue::CallCalling);
+        self.ringing_out = Some(channel.clone());
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(Duration::from_secs(60)).await;
+            this.update(cx, |this, _| {
+                if this.ringing_out.as_ref() == Some(&channel) {
+                    this.stop_ringing_out();
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    fn stop_ringing_out(&mut self) {
+        if self.ringing_out.take().is_some() {
+            sounds::stop_ring();
+        }
     }
 
     fn leave_voice(&mut self, cx: &mut Context<Self>) {
         self.call_fullscreen = false;
+        self.stop_ringing_out();
         let Some(mut call) = self.call.take() else { return };
         sounds::play(sounds::Cue::Disconnect);
         for frame in call.watching.drain(..).filter_map(|w| w.frame) {
@@ -1996,6 +2127,7 @@ impl Rustcord {
                     && let Some(client) = self.client.clone()
                 {
                     let channel = self.ring_on_connect.take().unwrap_or_default();
+                    self.ring_out(channel.clone(), cx);
                     crate::discord::runtime().spawn(async move {
                         let _ = client.call(reqwest::Method::POST, format!("/channels/{channel}/call/ring"), Some(serde_json::json!({ "recipients": null }))).await;
                     });
@@ -2080,6 +2212,7 @@ impl Rustcord {
             }
             voice::VoiceEvent::Disconnected(reason) => {
                 self.call = None;
+                self.stop_ringing_out();
                 sounds::play(sounds::Cue::Disconnect);
                 if reason != "Left" {
                     self.voice_error = Some(reason.into());

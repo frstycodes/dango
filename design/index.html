@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wave Design System</title>
+<meta name="description" content="Wave's identity and every component, assembled.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<link rel="stylesheet" href="css/navigation.css">
+<link rel="stylesheet" href="css/messages.css">
+<link rel="stylesheet" href="css/voice.css">
+<link rel="stylesheet" href="css/overlays.css">
+<link rel="stylesheet" href="css/settings.css">
+<link rel="stylesheet" href="css/menus.css">
+<link rel="stylesheet" href="css/panels.css">
+<link rel="stylesheet" href="css/media.css">
+<link rel="stylesheet" href="css/auth.css">
+<link rel="stylesheet" href="css/profile.css">
+<link rel="stylesheet" href="css/community.css">
+<link rel="stylesheet" href="css/server-settings.css">
+<link rel="stylesheet" href="css/flows.css">
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+<section id="overview" style="padding-top: var(--space-2)">
+  <h1>Wave, at a glance</h1>
+  <p class="lede">Every piece below, put together. Hover rows, press buttons and react to messages: each state is real.</p>
+  <div class="shellwrap"><div class="shell">
+    <nav class="rail" aria-label="Servers">
+      <button class="srv home" aria-label="Direct messages"><svg width="22" height="22" viewBox="0 0 64 66" aria-hidden="true"><g fill="#e8326f"><rect x="2" y="21" width="8" height="24" rx="4"/><rect x="15" y="10.5" width="8" height="45" rx="4"/><rect x="28" y="1" width="8" height="64" rx="4"/><rect x="41" y="13.5" width="8" height="39" rx="4"/><rect x="54" y="22" width="8" height="22" rx="4"/></g></svg><span class="count">3</span></button>
+      <hr>
+      <button class="srv sel" style="background: linear-gradient(135deg, oklch(0.54 0.17 20), oklch(0.44 0.17 350))" aria-label="Night Shift">NS</button>
+      <button class="srv unread" style="background: linear-gradient(135deg, oklch(0.52 0.12 220), oklch(0.42 0.13 250))" aria-label="Pixel Club">PC</button>
+      <button class="srv" style="background: linear-gradient(135deg, oklch(0.52 0.13 140), oklch(0.42 0.12 165))" aria-label="Garden">G<span class="count">12</span></button>
+      <button class="srv" style="background: linear-gradient(135deg, oklch(0.54 0.14 55), oklch(0.46 0.15 35))" aria-label="Lowkey">L</button>
+      <button class="srv add" aria-label="Add a server"><i class="ph-bold ph-plus"></i></button>
+    </nav>
+    <aside class="side">
+      <header>Night Shift <i class="ph-bold ph-caret-down"></i></header>
+      <div class="chlist">
+        <div class="cat"><i class="ph-bold ph-caret-down"></i>Text</div>
+        <div class="ch"><i class="ph ph-megaphone"></i>announcements</div>
+        <div class="ch sel"><i class="ph ph-hash"></i>general</div>
+        <div class="ch unread"><i class="ph ph-hash"></i>clips</div>
+        <div class="ch"><i class="ph ph-hash"></i>looking-for-group<span class="count">2</span></div>
+        <div class="cat"><i class="ph-bold ph-caret-down"></i>Voice</div>
+        <div class="ch strong"><i class="ph ph-speaker-high"></i>Lounge</div>
+        <div class="vp speaking"><span class="av speaking" data-av="Mira"></span>Mira<span class="end"><span class="bars"><i></i><i></i><i></i></span></span></div>
+        <div class="vp"><span class="av" data-av="Theo"></span>Theo<span class="end"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span></span></div>
+        <div class="vp"><span class="av" data-av="You"></span>You<span class="end"><i class="ph-fill ph-microphone-slash"></i></span></div>
+        <div class="ch"><i class="ph ph-speaker-high"></i>Ranked grind</div>
+      </div>
+      <div class="voicebar">
+        <div class="top-line"><div style="flex:1;min-width:0"><b><span class="bars still"><i></i><i></i><i></i></span>Voice connected</b><div class="chan">Lounge · Night Shift</div></div><button class="iconbtn" aria-label="Disconnect" title="Disconnect"><i class="ph-bold ph-phone-x"></i></button></div>
+        <div class="acts"><button class="btn btn--sm" aria-label="Camera"><i class="ph-bold ph-video-camera"></i></button><button class="btn btn--sm" aria-label="Share your screen"><i class="ph-bold ph-screencast"></i></button><button class="btn btn--sm" aria-label="Soundboard"><i class="ph-bold ph-waveform"></i></button></div>
+      </div>
+      <div class="me"><span class="av" data-av="You"><span class="status online"></span></span><div><b>you</b><span>Online</span></div><button class="iconbtn on" aria-label="Unmute" title="Unmute"><i class="ph-bold ph-microphone-slash"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="Settings" title="Settings"><i class="ph-bold ph-gear-six"></i></button></div>
+    </aside>
+    <div class="chat">
+      <header><i class="ph ph-hash faint" style="font-size:20px"></i><b>general</b><span class="topic">late-night games and bad takes</span><div class="acts"><button class="iconbtn" aria-label="Threads"><i class="ph ph-chats-circle"></i></button><button class="iconbtn" aria-label="Pinned messages"><i class="ph ph-push-pin"></i></button><button class="iconbtn" aria-label="Member list"><i class="ph ph-users"></i></button><button class="iconbtn" aria-label="Search"><i class="ph ph-magnifying-glass"></i></button></div></header>
+      <div class="feed">
+        <div class="day">Today</div>
+        <div class="msg first"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="time">9:41 PM</span></div><div class="body">anyone up for a few rounds after dinner?</div></div></div>
+        <div class="msg"><span class="gutter">9:41</span><div class="body">bringing snacks this time, promise</div></div>
+        <div class="msg first mention"><span class="reply"><i class="ph ph-arrow-bend-up-right"></i><span class="av" data-av="Mira"></span><b>Mira</b><span>anyone up for a few rounds after dinner?</span></span><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="tag"><i class="ph-bold ph-crown-simple"></i>Host</span><span class="time">9:44 PM</span></div><div class="body">yes, <span class="at">@you</span> you in? starting a stream in Lounge</div>
+          <div class="reacts"><button class="react mine"><span class="e">🔥</span>4</button><button class="react"><span class="e">🎮</span>2</button><button class="react" aria-label="Add reaction"><i class="ph ph-smiley-sticker"></i></button></div></div></div>
+        <div class="msg first"><span class="av" data-av="Ana"></span><div><div class="head"><span class="name">Ana</span><span class="time">9:47 PM</span></div><div class="body">patch notes are out</div>
+          <div class="embed"><div class="site"><span></span>store.example</div><a href="#">Season 7: the long night</a><p>New map, two heroes and a reworked ranked ladder.</p></div></div></div>
+      </div>
+      <div class="typing"><span class="bars"><i></i><i></i><i></i></span><span><b>Mira</b> is typing…</span></div>
+      <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><input placeholder="Message #general" aria-label="Message #general"><button class="iconbtn" aria-label="GIFs"><i class="ph ph-gif"></i></button><button class="iconbtn" aria-label="Stickers"><i class="ph ph-sticker"></i></button><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
+      <div style="height:16px"></div>
+    </div>
+    <aside class="members">
+      <div class="cat">Host · 1</div>
+      <div class="mem"><span class="av" data-av="Theo"><span class="status dnd"></span></span><div><b>Theo</b><span><i class="ph-fill ph-broadcast"></i>Streaming Hades II</span></div></div>
+      <div class="cat">Online · 3</div>
+      <div class="mem"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span><i class="ph-fill ph-game-controller"></i>Playing Balatro</span></div></div>
+      <div class="mem"><span class="av" data-av="Ana"><span class="status idle"></span></span><div><b>Ana</b><span>brb, pizza</span></div></div>
+      <div class="mem"><span class="av" data-av="Wavebot"><span class="status online"></span></span><div><b>Wavebot<span class="tag">App</span></b><span>Listening to /play</span></div></div>
+      <div class="cat">Offline · 2</div>
+      <div class="mem off"><span class="av" data-av="Jun"><span class="status offline"></span></span><div><b>Jun</b></div></div>
+      <div class="mem off"><span class="av" data-av="Rosa"><span class="status offline"></span></span><div><b>Rosa</b></div></div>
+    </aside>
+  </div></div>
+</section>
+<section id="identity">
+  <h2>Identity</h2>
+  <p class="lede">The voice wave is the whole idea: five rounded bars. It is the logo, the mascot, and the app's own marks for speaking, typing, loading and live.</p>
+  <div class="hero board">
+    <div class="mascot happy"><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="stack">
+      <div style="font-size: 40px; font-weight: 800; letter-spacing: -0.02em; color: var(--text-strong); line-height: 1">Wave</div>
+      <div class="muted">Voice, chat and streams with your people.</div>
+      <div class="row" style="margin-top:8px"><span class="mascot idle" style="--s:.3"><i></i><i></i><i></i><i></i><i></i></span><span class="note">Idle</span><span class="mascot waiting" style="--s:.3; margin-left:12px"><i></i><i></i><i></i><i></i><i></i></span><span class="note">Waiting</span><span class="mascot happy" style="--s:.3; margin-left:12px"><i></i><i></i><i></i><i></i><i></i></span><span class="note">Speaking</span></div>
+    </div>
+  </div>
+  <h3>App icons</h3>
+  <div class="icons-row" id="appicons"></div>
+  <h3>Principles</h3>
+  <div class="principles">
+    <div class="principle"><b>The wave is the voice</b><p>Speaking, typing, loading and live all draw the bars, never a generic spinner or ring.</p></div>
+    <div class="principle"><b>Magenta means you</b><p>Accent goes to your actions, your selection and what asks for you: mentions, live, unread counts.</p></div>
+    <div class="principle"><b>Ink and bone</b><p>Warm neutrals: plum-tinted ink at night, paper bone by day. No cool blue-greys.</p></div>
+    <div class="principle"><b>Soft, not round</b><p>Squircles for servers, buttons and tiles; pills only for counts, status and the bars.</p></div>
+  </div>
+</section>
+</main>
+</div>
+<script src="site.js"></script>
+<script>
+// App icons.
+$("#appicons").innerHTML = ["glass", "bone", "brand", "graphite", "paper", "blueprint", "riso", "pixel", "sticker", "peek", "sleepy"]
+  .map(n => `<figure><img src="/assets/brand/icons/${n}.png" alt=""><figcaption>${n === "brand" ? "Magenta" : n[0].toUpperCase() + n.slice(1)}</figcaption></figure>`).join("");
+
+</script>
+</body>
+</html>

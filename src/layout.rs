@@ -1,10 +1,10 @@
-// Discord's frame: a title bar over the rail, channel list, chat and right panel, with the
-// user panel floating across the bottom of the rail and channel list.
+// Wave's frame (design/navigation.html): a title bar over the rail, channel list, chat and side panel,
+// with the user area at the foot of the channel list.
 use std::time::Duration;
 
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, Context, FontWeight, Hsla, IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent,
-    ObjectFit, Render, SharedString, Window, WindowControlArea,
+    Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent,
+    ObjectFit, Render, SharedString, Stateful, Window, WindowControlArea,
     component::{ActiveTheme, Icon, tooltip::Tooltip},
     div, img, linear_color_stop, linear_gradient, prelude::*, px,
 };
@@ -14,13 +14,18 @@ use crate::{
     discord::{self, MediaKind},
     icons::Glyph,
     login, palette,
+    sidebar::{Nav, render_face, server_face},
+    ui::{self, Squircle},
 };
 
-pub const TITLE_HEIGHT: f32 = 32.;
-pub const RAIL_WIDTH: f32 = 72.;
-pub const CHANNELS_WIDTH: f32 = 264.;
+pub const TITLE_HEIGHT: f32 = 36.;
+pub const RAIL_WIDTH: f32 = 68.;
+pub const CHANNELS_WIDTH: f32 = 240.;
 pub const PANEL_WIDTH: f32 = 264.;
-pub const PANEL_HEIGHT: f32 = 58.;
+// The user area: 8px over and 10px under its 32px row.
+pub const PANEL_HEIGHT: f32 = 50.;
+// The room macOS's traffic lights take at the title bar's start (12px lights 8px apart, from x 12).
+pub const TRAFFIC_LIGHTS: f32 = 72.;
 const CHANNELS_RANGE: (f32, f32) = (200., 440.);
 const PANEL_RANGE: (f32, f32) = (200., 380.);
 
@@ -38,6 +43,8 @@ impl Render for Rustcord {
 
 impl Rustcord {
     fn render_root(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        // Before the rows draw, so a row just let go of draws as landing rather than as a hole.
+        self.settle_carry(cx);
         let theme = cx.theme().clone();
         let root = div()
             .id("chord")
@@ -94,10 +101,7 @@ impl Rustcord {
             .flex_1()
             .min_h_0()
             .flex()
-            .border_t_1()
-            .border_color(theme.border)
-            .child(self.render_rail(window, cx))
-            .child(self.render_channels(window, cx))
+            .child(self.render_nav(window, cx))
             .child(match self.call_view.then(|| self.render_call_with_chat(window, cx)).flatten() {
                 Some(call) => div().flex_1().min_w_0().h_full().child(call).into_any_element(),
                 None if self.guild_id.is_none() && self.channel.is_none() => self.render_home(cx),
@@ -106,8 +110,7 @@ impl Rustcord {
                     self.render_forum(forum, cx)
                 }
                 None => self.render_chat(window, cx).into_any_element(),
-            })
-            .children(self.me.clone().map(|me| self.user_panel(me, cx)));
+            });
         // Anything drawn over the chat pauses its GIFs (the GIF layer paints above the whole app).
         let (overlays, call_overlays) = (self.render_overlays(window, cx), self.render_call_overlays(window, cx));
         let (menu, dialog) = (self.render_menu(window, cx), self.render_dialog(cx));
@@ -123,6 +126,7 @@ impl Rustcord {
             .children(viewer)
             .children(settings)
             .children(crate::window_controls::render(window, cx))
+            .children(self.render_landing(window, cx))
             .into_any_element()
     }
 }
@@ -186,7 +190,8 @@ impl Rustcord {
         cx.notify();
     }
 
-    /// A thin grab strip on a column's edge; dragging it resizes the column, as in Discord.
+    /// An 8px grab strip over a column's edge drawing a 2px line: accent at 60% on hover, full while
+    /// dragging (.panel-grip). Dragging it resizes the column.
     pub(crate) fn resize_handle(&self, edge: Edge, cx: &mut Context<Self>) -> impl IntoElement {
         let active = self.drag.as_ref().is_some_and(|d| d.edge == edge);
         let accent = palette::accent();
@@ -198,11 +203,12 @@ impl Rustcord {
             .absolute()
             .top_0()
             .bottom_0()
-            .w(px(6.))
-            .when(edge == Edge::Channels, |h| h.right(px(-3.)))
-            .when(edge == Edge::Panel, |h| h.left(px(-3.)))
+            .w(px(8.))
+            .when(edge == Edge::Channels, |h| h.right(px(-4.)))
+            .when(edge == Edge::Panel, |h| h.left(px(-4.)))
+            .group("resize-grip")
             .cursor_col_resize()
-            .child(div().mx_auto().w(px(2.)).h_full().when(active, |l| l.bg(accent)).hover(|l| l.bg(accent.opacity(0.6))))
+            .child(div().ml(px(3.)).w(px(2.)).h_full().rounded(px(2.)).when(active, |l| l.bg(accent)).when(!active, |l| l.group_hover("resize-grip", |l| l.bg(accent.opacity(0.6)))))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, event: &MouseDownEvent, _, cx| {
@@ -214,123 +220,137 @@ impl Rustcord {
             )
     }
 
+    // The window's own chrome (.titlebar): history arrows lead, the current place sits centred, inbox and
+    // help close the bar. The whole bar drags the window.
     fn title_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme().clone();
-        let (icon, title): (AnyElement, SharedString) = match self.guild() {
-            Some(guild) => (
-                match &guild.icon {
-                    Some(url) => img(url.clone()).size(px(18.)).rounded(px(5.)).into_any_element(),
-                    None => crate::sidebar::identity_tile(&guild.id, crate::sidebar::initials(&guild.name), 8.).size(px(18.)).rounded(px(5.)).into_any_element(),
-                },
-                guild.name.clone().into(),
-            ),
-            None if self.channel.is_none() => (Icon::new(Glyph::Friends).size(px(16.)).text_color(theme.muted_foreground).into_any_element(), "Friends".into()),
-            None => (Icon::new(Glyph::ChatRound).size(px(16.)).text_color(theme.muted_foreground).into_any_element(), "Direct Messages".into()),
+        let (mark, title): (AnyElement, SharedString) = match self.guild() {
+            Some(guild) => (render_face(server_face(guild), 20., ui::RADIUS_XS, false, 0., cx), guild.name.clone().into()),
+            None if self.channel.is_none() => (Icon::new(Glyph::Users).size(px(18.)).text_color(palette::faint(cx)).into_any_element(), "Friends".into()),
+            None => (Icon::new(Glyph::ChatRound).size(px(18.)).text_color(palette::faint(cx)).into_any_element(), "Direct messages".into()),
         };
-        // Each control occludes the title bar's drag area: on Windows a drag area is the native
-        // caption, which takes the click before the app sees it.
-        let arrow = |id: &'static str, glyph: Glyph, enabled: bool, label: &'static str| {
-            div()
-                .id(id)
-                .occlude()
-                .size(px(26.))
-                .rounded(px(6.))
-                .flex()
-                .items_center()
-                .justify_center()
-                .text_color(if enabled { theme.foreground.opacity(0.8) } else { theme.muted_foreground.opacity(0.4) })
-                .when(enabled, |b| b.cursor_pointer().hover(|s| s.bg(theme.foreground.opacity(0.08))))
-                .child(Icon::new(glyph).size(px(18.)))
-                .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
-        };
-        let back = arrow("back", Glyph::ArrowLeft, !self.back.is_empty(), "Back").on_click(cx.listener(|this, _, window, cx| this.navigate(false, window, cx)));
-        let forward = arrow("forward", Glyph::ArrowRight, !self.forward.is_empty(), "Forward").on_click(cx.listener(|this, _, window, cx| this.navigate(true, window, cx)));
+        let mentions = self.read_states.values().any(|r| r.mentions > 0);
+        let back = title_button("back", Glyph::ArrowLeft, !self.back.is_empty(), "Back", cx).on_click(cx.listener(|this, _, window, cx| this.navigate(false, window, cx)));
+        let forward = title_button("forward", Glyph::ArrowRight, !self.forward.is_empty(), "Forward", cx).on_click(cx.listener(|this, _, window, cx| this.navigate(true, window, cx)));
+        let inbox_open = self.inbox.is_some();
+        let (selected, accent) = (palette::selected(cx), palette::accent());
+        let inbox = title_button("inbox", Glyph::Inbox, true, "Inbox", cx)
+            .when(inbox_open, |b| b.bg(selected).text_color(palette::strong(cx)))
+            .when(mentions, |b| b.child(div().absolute().top(px(4.)).right(px(4.)).size(px(7.)).rounded_full().bg(accent)))
+            .on_click(cx.listener(|this, _, _, cx| this.open_inbox(cx)));
         div()
             .relative()
             .h(px(TITLE_HEIGHT))
             .flex_none()
+            .px_2()
             .flex()
             .items_center()
-            .justify_center()
+            .gap_1()
+            .text_size(px(14.))
             .window_control_area(WindowControlArea::Drag)
-            .child(div().absolute().left(px(84.)).flex().gap_1().child(back).child(forward))
+            // macOS draws its traffic lights in the first 72px; Windows leads with the app's name instead.
+            .map(|bar| match cfg!(target_os = "macos") {
+                true => bar.child(div().w(px(TRAFFIC_LIGHTS - 8.)).flex_none()),
+                false => bar.child(brand(cx)),
+            })
+            .child(back)
+            .child(forward)
             .child(
                 div()
                     .absolute()
-                    .right(px(12. + crate::window_controls::WIDTH))
+                    .left_0()
+                    .right_0()
+                    .top_0()
+                    .bottom_0()
                     .flex()
-                    .gap_1()
-                    .child(arrow("inbox", Glyph::Inbox, true, "Inbox").on_click(cx.listener(|this, _, _, cx| this.open_inbox(cx))))
-                    .child(arrow("help", Glyph::Help, true, "Help").on_click(|_, _, cx| cx.open_url("https://support.discord.com"))),
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        div()
+                            .max_w(gpui_kit::relative(0.4))
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(palette::strong(cx))
+                            .child(mark)
+                            .child(div().min_w_0().truncate().child(title)),
+                    ),
             )
-            .child(div().flex().items_center().gap_2().text_size(px(13.)).font_weight(FontWeight::SEMIBOLD).child(icon).child(div().truncate().max_w(px(480.)).child(title)))
+            .child(div().ml_auto().mr(px(crate::window_controls::WIDTH)).flex().items_center().gap_1().child(inbox).child(
+                title_button("help", Glyph::Help, true, "Help", cx).on_click(|_, _, cx| cx.open_url("https://support.discord.com")),
+            ))
     }
 
-    // Full width across rail and channel list, like Discord: identity on the left (nameplate behind it),
-    // voice controls and settings on the right.
-    fn user_panel(&mut self, me: discord::User, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme().clone();
-        let status_line: SharedString = self.custom_status.clone().unwrap_or_else(|| self.my_status.label().into()).into();
+    // The user area (.me), at the foot of the channel list: who you are, how you look to others, and
+    // mute, deafen and settings. Mute and deafen turn coral when off; right-click either for devices.
+    // In a call, the voice panel sits on top of it inside the same card.
+    pub(crate) fn user_panel(&mut self, me: discord::User, cx: &mut Context<Self>) -> AnyElement {
+        let rail = palette::surface(palette::Level::Rail, cx);
         let sharing = self.call.as_ref().is_some_and(|c| c.sharing.is_some());
-        let (muted, deafened) = (self.muted || self.deafened, self.deafened);
-        // Each toggle pops its icon in (keyed by state, so it replays on every flip), with Discord's cue.
-        let control = |id: &'static str, glyph: Glyph, off: bool, label: &'static str| {
-            div()
-                .id(id)
-                .relative()
-                .size(px(32.))
-                .flex_none()
-                .rounded(px(8.))
-                .flex()
-                .items_center()
-                .justify_center()
-                .cursor_pointer()
-                .text_color(if off { theme.danger } else { theme.foreground.opacity(0.85) })
-                .hover(|s| s.bg(theme.foreground.opacity(0.1)))
-                .child(Icon::new(glyph).size(px(20.)).with_animation(SharedString::from(format!("{id}-{off}")), Animation::new(Duration::from_millis(260)).with_easing(crate::motion::back_out), |icon, t| icon.size(px(20. * (0.7 + 0.3 * t)))))
-                .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
+        let server_muted = self.call.as_ref().and_then(|c| self.guilds.iter().find(|g| Some(&g.id) == c.guild_id.as_ref())).and_then(|g| g.voice_states.iter().find(|v| v.user_id == me.id)).is_some_and(|v| v.server_muted);
+        let (muted, deafened) = (self.muted || self.deafened || server_muted, self.deafened);
+        let (faint, danger) = (palette::faint(cx), palette::danger_ink(cx));
+        let status_line: AnyElement = match (server_muted, sharing) {
+            (true, _) => div().truncate().text_color(danger).child("Server muted by a moderator").into_any_element(),
+            (false, true) => div().flex().items_center().gap_1().child(Icon::new(Glyph::Screen).size(px(13.)).text_color(palette::positive_ink(cx))).child(div().truncate().child("Sharing their screen")).into_any_element(),
+            (false, false) => div().truncate().child(self.custom_status.clone().unwrap_or_else(|| self.my_status.label().into())).into_any_element(),
         };
-        let mic = control("mic", if muted { Glyph::MicOff } else { Glyph::Mic }, muted, if muted { "Unmute" } else { "Mute" }).on_click(cx.listener(|this, _, _, cx| this.toggle_mute(cx)));
-        let headphones = control("deafen", if deafened { Glyph::HeadphonesOff } else { Glyph::Headphones }, deafened, if deafened { "Undeafen" } else { "Deafen" })
-            .on_click(cx.listener(|this, _, _, cx| this.toggle_deafen(cx)));
-        // Discord's device chevrons sit in the same pill as mic and headphones.
-        let caret = |id: &'static str, kind: crate::call::DeviceKind| {
-            div()
-                .id(id)
-                .w(px(16.))
-                .h(px(32.))
-                .flex_none()
-                .ml(px(-6.))
-                .rounded(px(6.))
-                .flex()
-                .items_center()
-                .justify_center()
-                .cursor_pointer()
-                .text_color(theme.foreground.opacity(0.6))
-                .hover(|s| s.bg(theme.foreground.opacity(0.1)).text_color(theme.foreground))
-                .child(Icon::new(Glyph::ChevronDown).size(px(12.)))
-                .on_mouse_down(MouseButton::Left, cx.listener(move |this, e: &MouseDownEvent, _, cx| this.open_device_menu(kind, e.position, cx)))
-        };
-        let mic_caret = caret("mic-devices", crate::call::DeviceKind::Input);
-        let headphones_caret = caret("headphones-devices", crate::call::DeviceKind::Output);
-        let settings = control("settings", Glyph::Settings, false, "User Settings")
-            .on_click(cx.listener(|this, _, window, cx| this.open_settings(crate::settings::Page::Account, window, cx)));
-        let surface = theme.popover;
-        let nameplate = me.nameplate.as_ref().map(|plate| nameplate(plate, surface, false, theme.is_dark()));
+        let mic = me_button("mic", if muted { Nav::MicOff } else { Nav::Mic }, muted, if server_muted { "A moderator muted you here. Only they can unmute you." } else if muted { "Unmute" } else { "Mute" }, cx)
+            .when(!server_muted, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_mute(cx))))
+            .on_mouse_down(MouseButton::Right, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(crate::call::DeviceKind::Input, e.position, cx)));
+        let headphones = me_button("deafen", if deafened { Nav::HeadphonesOff } else { Nav::Headphones }, deafened, if deafened { "Undeafen" } else { "Deafen" }, cx)
+            .on_click(cx.listener(|this, _, _, cx| this.toggle_deafen(cx)))
+            .on_mouse_down(MouseButton::Right, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(crate::call::DeviceKind::Output, e.position, cx)));
+        let settings = me_button("settings", Nav::Settings, false, "User settings", cx).on_click(cx.listener(|this, _, window, cx| this.open_settings(crate::settings::Page::Account, window, cx)));
+        // The card's bottom corners, and its top ones too when no voice panel sits above; outside them, the sidebar.
+        let in_call = self.voice_panel_height() > 0.;
+        let corners = [0., if in_call { 0. } else { ui::RADIUS_MD }, ui::RADIUS_MD, 0.];
+        let behind = palette::surface(palette::Level::Sidebar, cx);
+        let nameplate = me.nameplate.as_ref().map(|plate| nameplate(plate, rail, behind, corners, false, cx.theme().is_dark()));
+        let has_plate = nameplate.is_some();
+        let hover = palette::hover(cx);
+        let who = div()
+            .id("me")
+            .flex_1()
+            .min_w_0()
+            .p_1()
+            .my(px(-4.))
+            .ml(px(-4.))
+            .squircle(ui::RADIUS_SM)
+            .flex()
+            .items_center()
+            .gap_2()
+            .cursor_pointer()
+            .hover(move |s| s.bg(hover))
+            .when(self.status_menu, |w| w.bg(hover))
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.status_menu = !this.status_menu;
+                cx.notify();
+            }))
+            .child(decorated_avatar(&me.avatar, me.decoration.as_deref(), 32., Some(self.my_status), rail))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(me.name.clone()))
+                    .child(div().text_size(px(12.)).text_color(faint).child(status_line)),
+            );
         let voice = self.voice_panel(cx);
         div()
             .absolute()
-            .left(px(8.))
-            .bottom(px(8.))
-            .w(px(RAIL_WIDTH + self.channels_width - 16.))
-            .h(px(self.panel_stack_height()))
+            .left_2()
+            .right_2()
+            .bottom_2()
+            .squircle(ui::RADIUS_MD)
+            .border_1()
+            .border_color(palette::line(cx))
+            .overflow_hidden()
+            .bg(rail)
             .flex()
             .flex_col()
-            .rounded(px(8.))
-            .overflow_hidden()
-            .bg(surface)
-            .border_1()
-            .border_color(theme.input)
+            .text_size(px(14.))
             .children(voice)
             .child(
                 div()
@@ -339,64 +359,45 @@ impl Rustcord {
                     .flex_none()
                     .children(nameplate)
                     .child(
-                div()
-                    .relative()
-                    .size_full()
-                    .px_2()
-                    .flex()
-                    .items_center()
-                    .gap_2()
-                    .child(
                         div()
-                            .id("me")
-                            .flex_1()
-                            .min_w_0()
-                            .h(px(44.))
-                            .pl_1()
-                            .pr_2()
-                            .rounded(px(8.))
+                            .relative()
+                            .size_full()
+                            .pt_2()
+                            .px_2()
+                            .pb(px(10.))
                             .flex()
                             .items_center()
-                            .gap_2()
-                            .cursor_pointer()
-                            .hover(|s| s.bg(theme.foreground.opacity(0.08)))
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.status_menu = !this.status_menu;
-                                cx.notify();
-                            }))
-                            .child(decorated_avatar(&me.avatar, me.decoration.as_deref(), 32., Some(self.my_status), surface))
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .flex()
-                                    .flex_col()
-                                    .child(div().truncate().font_weight(FontWeight::SEMIBOLD).child(me.name.clone()))
-                                    .child(match sharing {
-                                        // Discord's status line while live: a green screen and "Sharing their screen".
-                                        true => div()
-                                            .flex()
-                                            .items_center()
-                                            .gap_1()
-                                            .text_size(px(12.))
-                                            .text_color(theme.muted_foreground)
-                                            .child(Icon::new(Glyph::Screen).size(px(14.)).text_color(theme.success))
-                                            .child(div().truncate().child("Sharing their screen")),
-                                        false => div().truncate().text_size(px(12.)).text_color(theme.muted_foreground).child(status_line),
-                                    }),
-                            ),
-                    )
-                    .child(mic)
-                    .child(mic_caret)
-                    .child(headphones)
-                    .child(headphones_caret)
-                    .child(settings),
+                            .gap_1()
+                            .child(who)
+                            // Over nameplate art the controls sit on frosted glass, so they keep their contrast.
+                            .child(div().flex().items_center().gap_1().when(has_plate, |d| d.squircle(ui::RADIUS_SM).bg(rail.opacity(0.72)).backdrop_blur(px(12.))).child(mic).child(headphones).child(settings)),
                     ),
             )
             .into_any_element()
     }
 
-    /// The floating card's height: the user row, plus Discord's "Voice Connected" row while in a call.
+    // The rail and the channel list, with the user area floating across the foot of both.
+    fn render_nav(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let user_panel = self.me.clone().map(|me| self.user_panel(me, cx));
+        div()
+            .relative()
+            .h_full()
+            .flex_none()
+            .flex()
+            .child(self.render_rail(window, cx))
+            .child(self.render_channels(window, cx))
+            .children(user_panel)
+    }
+
+    /// Room the columns leave at their foot so their last rows scroll clear of the user area.
+    pub(crate) fn user_panel_clearance(&self) -> gpui_kit::Pixels {
+        match self.me.is_some() {
+            true => px(self.panel_stack_height() + 16.),
+            false => px(0.),
+        }
+    }
+
+    /// The user area's height with the voice panel above it, for overlays that open just over it.
     pub fn panel_stack_height(&self) -> f32 {
         PANEL_HEIGHT + self.voice_panel_height()
     }
@@ -412,8 +413,8 @@ impl Rustcord {
         let (w, h) = (item.width * scale, item.height * scale);
         let url = item.url.clone();
         let stage = match &item.kind {
-            MediaKind::Image => crate::chat::animated_image(item.url.clone()).w(px(w)).h(px(h)).rounded(px(6.)).into_any_element(),
-            MediaKind::Gif { poster } => div().w(px(w)).h(px(h)).rounded(px(6.)).overflow_hidden().child(crate::gif::tile(format!("viewer-{}", item.url), &item.url, poster, 6., true, cx)).into_any_element(),
+            MediaKind::Image => crate::chat::animated_image(item.url.clone()).w(px(w)).h(px(h)).squircle(ui::RADIUS_MD).into_any_element(),
+            MediaKind::Gif { poster } => div().w(px(w)).h(px(h)).squircle(ui::RADIUS_MD).overflow_hidden().child(crate::gif::top_tile(format!("viewer-{}", item.url), &item.url, poster, ui::all(ui::RADIUS_MD), cx)).into_any_element(),
             // ponytail: video plays in the system player; an in-app AVPlayer view is the upgrade.
             MediaKind::Video { poster } => {
                 let open = item.url.clone();
@@ -423,7 +424,7 @@ impl Rustcord {
                     .w(px(w))
                     .h(px(h))
                     .cursor_pointer()
-                    .child(img(poster.clone()).size_full().rounded(px(6.)))
+                    .child(img(poster.clone()).size_full().squircle(ui::RADIUS_MD))
                     .child(
                         div().absolute().inset_0().flex().items_center().justify_center().child(
                             div()
@@ -473,7 +474,7 @@ impl Rustcord {
                     .id("viewer-open")
                     .h(px(32.))
                     .px_3()
-                    .rounded(px(8.))
+                    .squircle(ui::RADIUS_SM)
                     .flex()
                     .items_center()
                     .gap_1p5()
@@ -489,7 +490,7 @@ impl Rustcord {
                 div()
                     .id("viewer-close")
                     .size(px(32.))
-                    .rounded(px(8.))
+                    .squircle(ui::RADIUS_SM)
                     .flex()
                     .items_center()
                     .justify_center()
@@ -536,20 +537,46 @@ impl Rustcord {
 /// (10% → 40%) across the whole card, and the art on top, contain-fit against the right edge. In the user
 /// panel the art sits at 40%; in the member list it is full strength but held back to ~30% under the name,
 /// rising to full ~50px past it (Discord masks it; gpui has no masks, so a surface wash does the same).
-pub fn nameplate(plate: &discord::Nameplate, surface: Hsla, member_row: bool, dark: bool) -> AnyElement {
+/// `corners` are the radii of the shape it fills (top-left, top-right, bottom-right, bottom-left), and
+/// `behind` the colour just outside that shape.
+pub fn nameplate(plate: &discord::Nameplate, surface: Hsla, behind: Hsla, corners: [f32; 4], member_row: bool, dark: bool) -> AnyElement {
     let tint: Hsla = gpui_kit::rgb(if dark { plate.tint.0 } else { plate.tint.1 }).into();
-    let art = div().absolute().top_0().bottom_0().right_0().left(px(if member_row { 0. } else { 50. })).flex().justify_end().child(
-        img(plate.art.clone()).size_full().object_fit(ObjectFit::Cover).opacity(if member_row { 1. } else { 0.4 }),
-    );
+    let art = img(plate.art.clone()).size_full().object_fit(ObjectFit::Cover).opacity(if member_row { 1. } else { 0.4 });
     div()
         .absolute()
         .inset_0()
-        .rounded(px(8.))
+        .when(!member_row, |p| p.left(px(50.)))
         .overflow_hidden()
         .bg(linear_gradient(90., linear_color_stop(tint.opacity(0.1), 0.), linear_color_stop(tint.opacity(0.4), 1.)))
         .child(art)
-        .when(member_row, |p| p.child(div().absolute().inset_0().bg(linear_gradient(90., linear_color_stop(surface.opacity(0.7), 0.45), linear_color_stop(surface.opacity(0.), 0.75)))))
+        // A wash of the surface from the left: under the name in a member row, and in the user panel the
+        // art's own left edge, which would otherwise stop in a hard line.
+        .child(div().absolute().inset_0().bg(match member_row {
+            true => linear_gradient(90., linear_color_stop(surface.opacity(0.7), 0.45), linear_color_stop(surface.opacity(0.), 0.75)),
+            false => linear_gradient(90., linear_color_stop(surface, 0.), linear_color_stop(surface.opacity(0.), 0.5)),
+        }))
+        .child(corner_frame(behind, corners))
         .into_any_element()
+}
+
+// Rounds an image-filled box's corners. gpui clips only to rectangles, and a covering image paints past its
+// own bounds, so its square corners would poke out of the row's rounded shape. A frame in the colour
+// behind, set just outside the box, has an inner edge that is the row's corner and paints over them.
+fn corner_frame(behind: Hsla, [tl, tr, br, bl]: [f32; 4]) -> Div {
+    const FRAME: f32 = 16.;
+    div()
+        .absolute()
+        .top(px(-FRAME))
+        .left(px(-FRAME))
+        .right(px(-FRAME))
+        .bottom(px(-FRAME))
+        .border(px(FRAME))
+        .border_color(behind)
+        .rounded_tl(px(FRAME + tl))
+        .rounded_tr(px(FRAME + tr))
+        .rounded_br(px(FRAME + br))
+        .rounded_bl(px(FRAME + bl))
+        .corner_shape(ui::SQUIRCLE)
 }
 
 /// An avatar with Discord's status shape cut into its bottom-right corner: a dot for online, a moon for
@@ -560,7 +587,9 @@ pub fn avatar_with_status(url: &str, size: f32, status: Option<discord::Status>,
 
 /// The same, with the user's avatar decoration framing it (drawn at 1.2× the avatar, as Discord does).
 pub fn decorated_avatar(url: &str, decoration: Option<&str>, size: f32, status: Option<discord::Status>, surface: Hsla) -> AnyElement {
-    let dot = (size * 0.3).round();
+    // .status: 30% of the avatar (9..16px), ringed 2px in the surface, its corner just past the avatar's.
+    let dot = (size * 0.3).clamp(9., 16.).round();
+    let inset = size * 0.04 - 2. - STATUS_RING;
     let frame = size * 1.2;
     div()
         .relative()
@@ -571,9 +600,9 @@ pub fn decorated_avatar(url: &str, decoration: Option<&str>, size: f32, status: 
         .children(status.map(|status| {
             div()
                 .absolute()
-                .right(px(-3.))
-                .bottom(px(-3.))
-                .size(px(dot + 6.))
+                .right(px(inset))
+                .bottom(px(inset))
+                .size(px(dot + 2. * STATUS_RING))
                 .rounded_full()
                 .bg(surface)
                 .flex()
@@ -583,6 +612,8 @@ pub fn decorated_avatar(url: &str, decoration: Option<&str>, size: f32, status: 
         }))
         .into_any_element()
 }
+
+const STATUS_RING: f32 = 2.;
 
 pub fn status_mark(status: discord::Status, dot: f32, surface: Hsla) -> AnyElement {
     let mark = div().relative().size(px(dot)).rounded_full().bg(palette::status(status)).overflow_hidden();
@@ -594,4 +625,61 @@ pub fn status_mark(status: discord::Status, dot: f32, surface: Hsla) -> AnyEleme
         discord::Status::Offline => mark.flex().items_center().justify_center().child(cut(dot * 0.46, dot * 0.46).relative().rounded_full()),
     }
     .into_any_element()
+}
+
+// A title bar control (.titlebar .iconbtn): 28px, quiet until hovered; disabled ones fade to 40%.
+// Each occludes the bar's drag area: on Windows a drag area is the native caption, which takes the
+// click before the app sees it.
+fn title_button(id: &'static str, glyph: Glyph, enabled: bool, label: &'static str, cx: &App) -> Stateful<Div> {
+    let (hover, strong) = (palette::hover(cx), palette::strong(cx));
+    div()
+        .id(id)
+        .occlude()
+        .relative()
+        .size(px(28.))
+        .flex_none()
+        .squircle(ui::RADIUS_SM)
+        .flex()
+        .items_center()
+        .justify_center()
+        .text_color(palette::muted(cx))
+        .when(!enabled, |b| b.opacity(0.4))
+        .when(enabled, |b| b.cursor_pointer().hover(move |s| s.bg(hover).text_color(strong)))
+        .child(Icon::new(glyph).size(px(18.)))
+        .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
+}
+
+// Wave's mark and name, leading the bar where the system draws no traffic lights.
+fn brand(cx: &App) -> Div {
+    div()
+        .flex_none()
+        .pl_1()
+        .pr_2()
+        .flex()
+        .items_center()
+        .gap_2()
+        .font_weight(FontWeight::MEDIUM)
+        .text_color(palette::strong(cx))
+        .child(img(crate::icons::MARK).size(px(18.)))
+        .child("Wave")
+}
+
+// A user area control (.me .iconbtn): 30px; `on` (muted, deafened) turns it coral. The glyph pops in on
+// every flip, keyed by state.
+fn me_button(id: &'static str, glyph: Nav, on: bool, label: &'static str, cx: &App) -> Stateful<Div> {
+    let (hover, strong) = (palette::hover(cx), palette::strong(cx));
+    let icon = glyph.icon().size(px(20.)).with_animation(SharedString::from(format!("{id}-{on}")), Animation::new(ui::DUR_POP).with_easing(crate::motion::back_out), |icon, t| icon.size(px(20. * (0.7 + 0.3 * t))));
+    div()
+        .id(id)
+        .size(px(30.))
+        .flex_none()
+        .squircle(ui::RADIUS_SM)
+        .flex()
+        .items_center()
+        .justify_center()
+        .cursor_pointer()
+        .text_color(if on { palette::danger_ink(cx) } else { palette::muted(cx) })
+        .hover(move |s| if on { s.bg(hover) } else { s.bg(hover).text_color(strong) })
+        .child(icon)
+        .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
 }

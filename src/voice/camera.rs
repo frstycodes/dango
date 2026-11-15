@@ -8,7 +8,6 @@ use std::{
         mpsc,
     },
     thread,
-    time::Duration,
 };
 
 use nokhwa::{
@@ -19,7 +18,9 @@ use nokhwa::{
 
 use super::{audio::Device, video::VideoFrame};
 
-const PERMISSION_TIMEOUT: Duration = Duration::from_secs(60);
+// How long to wait for the camera permission prompt (macOS only).
+#[cfg(target_os = "macos")]
+const PERMISSION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 
 pub fn cameras() -> Vec<Device> {
     let found = nokhwa::query(ApiBackend::Auto).unwrap_or_default();

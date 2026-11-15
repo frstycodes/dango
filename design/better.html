@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Better than Discord</title>
+<meta name="description" content="Every place Wave departs from Discord's UX, and why.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<link rel="stylesheet" href="css/navigation.css">
+<link rel="stylesheet" href="css/messages.css">
+<link rel="stylesheet" href="css/voice.css">
+<link rel="stylesheet" href="css/overlays.css">
+<link rel="stylesheet" href="css/settings.css">
+<link rel="stylesheet" href="css/menus.css">
+<link rel="stylesheet" href="css/panels.css">
+<link rel="stylesheet" href="css/media.css">
+<link rel="stylesheet" href="css/auth.css">
+<link rel="stylesheet" href="css/profile.css">
+<link rel="stylesheet" href="css/community.css">
+<link rel="stylesheet" href="css/server-settings.css">
+<link rel="stylesheet" href="css/flows.css">
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<style>.better-list { display: grid; gap: 8px; padding-left: 20px; max-width: 76ch; } .better-list li { color: var(--text); text-wrap: pretty; } .better-list li::marker { color: var(--accent-ink); } .better-list i { font-size: 13px; color: var(--text-faint); vertical-align: -1px; }</style>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+<section id="intro">
+  <h1>Better than Discord</h1>
+  <p class="lede">Wave copies Discord's features, not its weak spots. These 153 changes are gathered from every page; each page's own "Better than Discord" section shows them beside their demos. Discord's side is described from memory, not re-checked against the current client.</p>
+</section>
+<section id="flows">
+  <h2>Flows</h2>
+  <p class="lede">3 changes. <a class="btn btn--link" href="lead#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>Over-limit message: Discord blocks with a modal <i class="ph ph-arrow-right" aria-hidden="true"></i> Wave turns it into a .txt attachment in one click.</li><li>Delete own message: Discord confirms <i class="ph ph-arrow-right" aria-hidden="true"></i> Wave deletes at once with Undo (Shift skips toast).</li><li>Offline sends: queue in order and send on reconnect.</li></ul>
+</section>
+<section id="context-menus">
+  <h2>Context menus</h2>
+  <p class="lede">6 changes. <a class="btn btn--link" href="menus.html#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>Mute lengths show when they end; muted row reads &quot;Muted until 9:41 PM&quot;.</li><li>Disabled rows say why on a second line.</li><li>Moving: one submenu marking the current spot; servers can go after any server.</li><li>Delete own message: instant with 6s Undo; others&#x27; still confirm with the message shown.</li><li>Confirm buttons name outcome and target (&quot;Stay&quot; / &quot;Leave Night Shift&quot;).</li><li>Timeout: dialog showing each length&#x27;s end time plus an audit-log reason.</li></ul>
+</section>
+<section id="sign-in-and-states">
+  <h2>Sign in and states</h2>
+  <p class="lede">14 changes. <a class="btn btn--link" href="auth.html#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>Splash names the real stage, never longer than 25s; no tips or endless spinner.</li><li>QR says where the scanner is (Settings, then Scan QR Code).</li><li>Failed sign-in: plain explanation, Discord&#x27;s reason verbatim, Try again.</li><li>2FA: six boxes, paste works, checks on the last digit, no submit button.</li><li>Token sign-in behind a disclosure with the warning before the field.</li><li>Account switcher from your panel with status and mention counts; log out instant with Undo.</li><li>Channel welcome header names the channel once, then topic and creator.</li><li>Connection lost: chat stays readable, what you write queues.</li><li>Offline at launch: opens Wave by itself when the network returns.</li><li>Rate limit: countdown on the composer, text kept.</li><li>No permission: names the role that can read the channel.</li><li>Outage explained in the main view.</li><li>Updates download in background and wait for a call to end.</li><li>Failed edit/delete toasts say what happened and offer the fix.</li></ul>
+</section>
+<section id="servers-and-invites">
+  <h2>Servers and invites</h2>
+  <p class="lede">9 changes. <a class="btn btn--link" href="community.html#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>Templates list the channels they create.</li><li>New-server checklist: no &quot;download the app&quot;, shows &quot;1 of 3&quot;.</li><li>Server preview before joining; each invite failure has its own message and fix.</li><li>Invite link settings open in place, not a second dialog; landing channel picked in the invite dialog.</li><li>Onboarding answers show the channels and role they add.</li><li>Rules prompt sits in the composer; ticking nothing errors instead of a disabled button.</li><li>Channel browser: select-all per category, live &quot;You see 6 of 10&quot;.</li><li>Stage: hand state written out; moderators handle requests in one popover.</li><li>Owners leaving get a transfer picker; leaving shows Undo; kicked/unavailable servers say why.</li></ul>
+</section>
+<section id="panels-and-views">
+  <h2>Panels and views</h2>
+  <p class="lede">7 changes. <a class="btn btn--link" href="panels.html#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>Pins and threads dock in the side panel instead of popovers over the chat.</li><li>Unpin is instant with Undo in the row.</li><li>Mark read in Unreads leaves a one-line record with Undo.</li><li>Mentions filters are visible chips, not behind a menu.</li><li>Active now folds into a strip in narrow windows instead of disappearing.</li><li>No results suggests which filter to remove.</li><li>Side panel resizes 200–380px.</li></ul>
+</section>
+<section id="profile-and-privacy">
+  <h2>Profile and privacy</h2>
+  <p class="lede">13 changes. <a class="btn btn--link" href="profile.html#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>Unsaved bar names what changed.</li><li>Username checked as you type, with suggestions.</li><li>Preview is the real popout.</li><li>Empty server-profile fields name their fallback.</li><li>One dialog sets status and custom status.</li><li>Media filters are segments, not dropdowns.</li><li>Data request shows pending, then becomes the download.</li><li>Blocked and ignored side by side with the difference explained.</li><li>Unblock, disconnect, deauthorize offer Undo.</li><li>Connecting shows a visible waiting state.</li><li>New sign-in locations flagged; powerful app scopes and unused apps stand out.</li><li>Account deletion transfers your servers inside the flow.</li><li>Report reason advances in one click, Block on the same screen.</li></ul>
+</section>
+<section id="settings">
+  <h2>Settings</h2>
+  <p class="lede">10 changes. <a class="btn btn--link" href="settings.html#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>Search shows matching rows from every page, not just page names.</li><li>Noise suppression is a three-way segmented control.</li><li>Advanced voice activity says why it&#x27;s disabled.</li><li>No-audio notice names the device with fixes one click away.</li><li>Each sound has a play button.</li><li>Keybind Remove always visible, with Undo; conflicts name the clash and offer &quot;Move it here&quot;.</li><li>Keys shown as keycaps.</li><li>Reset and Log out confirm inline, not in a modal.</li><li>Display name edited in its row; User ID copyable without Developer Mode.</li><li>Themes picked from window previews.</li></ul>
+</section>
+<section id="media-and-drag">
+  <h2>Media and drag</h2>
+  <p class="lede">10 changes. <a class="btn btn--link" href="media.html#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>Failed video says why and offers Open it instead in place.</li><li>Scrubber shows hover time and buffered range; buffering shows the wave over the last frame.</li><li>Speed and picture-in-picture in the bar.</li><li>Image zoom shows its level with Reset, pan, and an image counter.</li><li>Too-large files flagged before you drop; the rest still upload.</li><li>One upload dialog edits every file.</li><li>Voice drag shows where the person lands, what release does, Undo; a full channel says why it refuses.</li><li>Dropping between vs into a category look different.</li><li>Channel and member lists resize, with keyboard and reset.</li><li>Animated stickers are labelled; poll answer limit shown from the start.</li></ul>
+</section>
+<section id="server-settings">
+  <h2>Server settings</h2>
+  <p class="lede">14 changes. <a class="btn btn--link" href="server-settings.html#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>Unsaved changes: draft kept across pages; only asks on close.</li><li>Locked roles stay readable and say why.</li><li>Permissions: plain summary, search, dangerous ones say what they really allow; Clear has Undo.</li><li>Role colours previewed in both themes and adjusted to stay readable.</li><li>Overrides: each inherit says what and from where; effective permissions show the deciding rule with a one-click fix.</li><li>View as role lists hidden channels and why.</li><li>Emoji rename in place, delete with Undo.</li><li>Members: bulk select bar; new accounts and timeouts flagged on the row.</li><li>Bans show reason, moderator, age; Unban has Undo.</li><li>Audit log groups bursts; changes as before <i class="ph ph-arrow-right" aria-hidden="true"></i> after.</li><li>Invites: Revoke with Undo; pausing takes a length.</li><li>AutoMod test box.</li><li>Community can be enabled any time, fixing missing steps in the same dialog.</li><li>Delete server names what goes, with counts.</li></ul>
+</section>
+<section id="flows-voice-and-calls">
+  <h2>Flows: voice and calls</h2>
+  <p class="lede">9 changes. <a class="btn btn--link" href="flows-voice.html#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>Full channel: wait for a spot instead of a dead end.</li><li>Moves and disconnects name the moderator; Rejoin after leaving.</li><li>Mic permission fix one click away.</li><li>Server mute names who and keeps your own mute state.</li><li>Screen-recording restart returns you to the call with the picker open.</li><li>Quality drops are announced.</li><li>Watching a stream joins you muted.</li><li>A declined call says so.</li><li>Self-view has Show again after closing.</li></ul>
+</section>
+<section id="flows-account">
+  <h2>Flows: account</h2>
+  <p class="lede">10 changes. <a class="btn btn--link" href="flows-account.html#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>Expired session shows nothing private and clears saved data.</li><li>Offline relaunch opens what Wave saved.</li><li>Log out has Undo, even from the last account.</li><li>Switching account during a call asks first, in place.</li><li>A pasted token is confirmed with a two-factor code.</li><li>Talking without the push-to-talk key held shows a hint.</li><li>A denied mic keeps you in the call, listening.</li><li>Avatar size and type checked before upload.</li><li>Username change limit locks the field and names the time.</li><li>Closing without saving backup codes asks once.</li></ul>
+</section>
+<section id="flows-messaging">
+  <h2>Flows: messaging</h2>
+  <p class="lede">7 changes. <a class="btn btn--link" href="flows-messaging.html#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>Reply bar says when the original was deleted; replying to a blocked user is explained.</li><li>Emptying an edit offers delete; a mod deleting while you edit keeps your text.</li><li>Reaction limit says so instead of failing silently.</li><li>Mentions show their reach (&quot;This will notify 1,204 people&quot;).</li><li>A thread deleted while open explains itself.</li><li>Pin limit named before you hit it; unpin with Undo.</li><li>Forward picker shows places you can&#x27;t post in, and why.</li></ul>
+</section>
+<section id="flows-people-and-servers">
+  <h2>Flows: people and servers</h2>
+  <p class="lede">12 changes. <a class="btn btn--link" href="flows-community.html#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>Add friend: each failure says what happened; a block against you stays hidden. Pasted usernames are tidied.</li><li>Ignore a request, close a DM: Undo instead of a confirm.</li><li>Block: instant with Undo for strangers; only a friend gets a confirm.</li><li>Report: &quot;Also block&quot; sits beside Send.</li><li>A blocked person in your voice channel is muted for you, and you&#x27;re told once.</li><li>Closing onboarding halfway leaves a &quot;Finish joining&quot; row.</li><li>The 100-server limit shows before you press Join or Create.</li><li>Invite dialog says when invites are paused.</li><li>Private channel access is picked inside Create channel; moving a channel warns when visibility changes.</li><li>Ban dialog counts the messages it will delete.</li><li>Administrator is the only permission switch that asks first.</li><li>Leave has Undo only where rejoining is possible; late events say they&#x27;re waiting for the host.</li></ul>
+</section>
+<section id="voice-and-streams-round">
+  <h2>Voice and streams, round 2</h2>
+  <p class="lede">5 changes. <a class="btn btn--link" href="voice.html#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>Ringing out, declined or busy ends the call and names the reason.</li><li>Four distinct mute marks (self, server, for you, blocked), told apart by shape, not colour alone.</li><li>Someone you blocked is muted for you on join, and you&#x27;re told once.</li><li>Show self-view stays in the corner it was closed from.</li><li>Return to call is its own button, separate from Stop watching.</li></ul>
+</section>
+<section id="navigation">
+  <h2>Navigation</h2>
+  <p class="lede">7 changes. <a class="btn btn--link" href="navigation.html#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>Add friend opens a field above the list instead of a separate tab.</li><li>Each refusal gets its own line; a block against you reads like &quot;not taking requests&quot;.</li><li>Pasted usernames are cleaned up (@, spaces, capitals, old #1234 tags), with Undo.</li><li>Role colours stay readable in both themes.</li><li>&quot;Finish joining&quot; keeps your answers with progress and Skip the rest (Undo).</li><li>Invite dialog says invites are paused, and until when.</li><li>A thread deleted while open keeps its panel and your unsent reply.</li></ul>
+</section>
+<section id="messages-round">
+  <h2>Messages, round 2</h2>
+  <p class="lede">7 changes. <a class="btn btn--link" href="messages.html#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>Emptying an edit swaps the key hints to Restore / Delete instead of a dialog.</li><li>Shift-delete still leaves Undo; the toolbar&#x27;s other buttons don&#x27;t move.</li><li>Swipe-to-reply shows the point where letting go replies.</li><li>Mention list stays open and says when nothing matches; tokens carry the avatar, Backspace selects before removing.</li><li>Friends-only refusal names the setting and offers Send friend request.</li><li>Bulk removal leaves one counted line that opens to when and why.</li><li>Timed-out composer gives the length and the moderator&#x27;s reason.</li></ul>
+</section>
+<section id="overlays-and-menus-round">
+  <h2>Overlays and menus, round 2</h2>
+  <p class="lede">5 changes. <a class="btn btn--link" href="overlays.html#better-than-discord">See them with their demos</a></p>
+  <ul class="better-list"><li>macOS permission prompts get Wave&#x27;s explanation first, and a no names the exact System Settings pane.</li><li>Forward lists places you can&#x27;t post in, locked with the reason; a limit of 5 says so.</li><li>Private channel setup shows member counts per role and the total who can see it.</li><li>Radio rows fill the chosen row instead of a dot.</li><li>Owners keep Leave server, which opens the transfer step.</li></ul>
+</section>
+<section id="dragging-people-and-channels">
+  <h2>Dragging people and channels</h2>
+  <p class="lede">5 changes. <a class="btn btn--link" href="flows-voice.html#drag-voice">See them with their demos</a></p>
+  <ul class="better-list"><li>The carried row follows your hand on a spring and glides from the cursor into its new spot; nothing snaps.</li><li>A full or private channel refuses before you let go, naming why, and the person springs home.</li><li>Every move, of a person or a channel, has Undo; Esc cancels mid-drag.</li><li>Channels drop into the nearest category even between headers; a collapsed category opens after a short hover.</li><li>Moving people works from the keyboard too.</li></ul>
+</section>
+</main>
+</div>
+<script src="site.js"></script>
+</body>
+</html>

@@ -1,13 +1,31 @@
 // Discord's drags in the channel list: people between voice channels (you, or anyone with Move
 // Members), and channels to reorder them or move them between categories (Manage Channels).
 // Both apply at once and roll back if Discord refuses.
-use gpui_kit::{Context, FontWeight, IntoElement, Render, SharedString, Window, component::ActiveTheme, div, img, prelude::*, px};
+//
+// What's carried follows design/flows-voice.html: a ghost of the row trails the pointer on a loose
+// spring, tilting with horizontal speed and squashing with vertical speed, while a faint outline
+// holds its old place. Let go, and a stiffer spring carries it into wherever its row now is.
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    rc::Rc,
+    time::{Duration, Instant},
+};
+
+use gpui_kit::{
+    Animation, AnimationExt, AnyElement, App, Bounds, BoxShadow, Context, Div, Entity, FontWeight, IntoElement, Pixels, Point, Radians, Render, SharedString, SizeRefinement, SpringConfig,
+    SpringState, WeakEntity, Window, anchored, canvas, component::Icon, deferred, div, point, prelude::*, px, relative,
+};
 use reqwest::Method;
 use serde_json::json;
 
 use crate::{
     Rustcord,
     discord::{Channel, ChannelKind, perm},
+    icons::Glyph,
+    palette,
+    sidebar::{Face, channel_glyph, render_face},
+    ui::{self, Squircle},
 };
 
 // Someone being dragged out of a voice channel.
@@ -19,43 +37,362 @@ pub struct VoiceDrag {
     pub avatar: String,
 }
 
-impl Render for VoiceDrag {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        drag_pill(Some(self.avatar.clone()), self.name.clone(), cx)
-    }
-}
-
 // A channel being dragged to a new place.
 #[derive(Clone)]
 pub struct ChannelDrag {
     pub channel_id: String,
     pub guild_id: String,
-    pub name: SharedString,
 }
 
-impl Render for ChannelDrag {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        drag_pill(None, self.name.clone(), cx)
+// CARRY
+
+// The ghost's physics: position, tilt and lift, each a damped spring stepped once a frame.
+pub struct Carry {
+    x: SpringState,
+    y: SpringState,
+    tilt: SpringState,
+    lift: SpringState,
+    target: Point<Pixels>,
+    // How far it swells while held, and the tilt it rests at (rail tiles hang at -4°, .srv.dragging).
+    lifted: f32,
+    lean: f32,
+    landing: bool,
+    stepped_at: Instant,
+}
+
+// Held: stiffness 520 at 62% damping trails the pointer loosely; the tilt is softer still.
+const FOLLOW: (f32, f32) = (520., 0.62);
+const FOLLOW_TILT: (f32, f32) = (260., 0.55);
+// Landing: stiffer and nearly critical, so it glides in (~250ms) without bouncing off the row.
+const LAND: (f32, f32) = (900., 0.82);
+const LAND_TILT: (f32, f32) = (900., 0.9);
+// Degrees of tilt per px/s of horizontal speed, and its limit.
+const TILT_PER_SPEED: f32 = 0.018;
+const MAX_TILT: f32 = 14.;
+// px/s of vertical speed per unit of squash, and its limit.
+const SQUASH_SPEED: f32 = 9000.;
+const MAX_SQUASH: f32 = 0.08;
+// A long frame steps as one this long, so a hitch can't fling the ghost.
+const MAX_STEP: f32 = 0.032;
+
+fn spring((stiffness, ratio): (f32, f32)) -> SpringConfig {
+    SpringConfig::new(stiffness, 2. * stiffness.sqrt() * ratio, 1.)
+}
+
+fn at_rest(value: f32) -> SpringState {
+    SpringState { position: value, velocity: 0. }
+}
+
+impl Carry {
+    pub fn new(origin: Point<Pixels>, lifted: f32, lean: f32) -> Self {
+        Self {
+            x: at_rest(origin.x.into()),
+            y: at_rest(origin.y.into()),
+            tilt: at_rest(0.),
+            lift: at_rest(1.),
+            target: origin,
+            lifted,
+            lean,
+            landing: false,
+            stepped_at: Instant::now(),
+        }
+    }
+
+    pub fn follow(&mut self, target: Point<Pixels>) {
+        self.target = target;
+    }
+
+    pub fn land(&mut self) {
+        self.landing = true;
+    }
+
+    // Steps to now; true once it has landed and come to rest.
+    pub fn step(&mut self) -> bool {
+        let now = Instant::now();
+        let dt = now.duration_since(self.stepped_at).as_secs_f32().min(MAX_STEP);
+        self.stepped_at = now;
+        self.advance(dt)
+    }
+
+    fn advance(&mut self, dt: f32) -> bool {
+        let (travel, turn) = match self.landing {
+            true => (spring(LAND), spring(LAND_TILT)),
+            false => (spring(FOLLOW), spring(FOLLOW_TILT)),
+        };
+        self.x = travel.step(self.x, self.target.x.into(), dt);
+        self.y = travel.step(self.y, self.target.y.into(), dt);
+        let lean = match self.landing {
+            true => 0.,
+            false => self.lean + (self.x.velocity * TILT_PER_SPEED).clamp(-MAX_TILT, MAX_TILT),
+        };
+        self.tilt = turn.step(self.tilt, lean, dt);
+        self.lift = travel.step(self.lift, if self.landing { 1. } else { self.lifted }, dt);
+        self.landing && self.settled()
+    }
+
+    fn settled(&self) -> bool {
+        let (dx, dy) = (self.x.position - f32::from(self.target.x), self.y.position - f32::from(self.target.y));
+        dx.hypot(dy) < 1. && self.x.velocity.hypot(self.y.velocity) < 90. && self.tilt.position.abs() < 0.6 && (self.lift.position - 1.).abs() < 0.008
+    }
+
+    fn at(&self) -> Point<Pixels> {
+        point(px(self.x.position), px(self.y.position))
+    }
+
+    // Squashed by vertical speed: narrower and taller while it drops or rises fast.
+    fn scale(&self) -> (f32, f32) {
+        let squash = (self.y.velocity.abs() / SQUASH_SPEED).min(MAX_SQUASH);
+        (self.lift.position * (1. - squash), self.lift.position * (1. + squash))
     }
 }
 
-fn drag_pill(avatar: Option<String>, name: SharedString, cx: &mut Context<impl Render>) -> impl IntoElement {
-    let theme = cx.theme();
+// HAND
+
+// What the ghost looks like: a copy of the row it was lifted from.
+#[derive(Clone)]
+pub enum Look {
+    Person { avatar: String, name: SharedString },
+    Channel { channel: Box<Channel>, people: Vec<(String, SharedString)> },
+    Tile(Face),
+}
+
+// One carried row, shared by the drag's ghost and the app, which lands it.
+pub struct Held {
+    // The element id of the row it came from, which is also the row it lands on.
+    key: SharedString,
+    look: Look,
+    size: Point<Pixels>,
+    // gpui draws a drag's view at the pointer less this offset, the row's own origin.
+    offset: Point<Pixels>,
+    carry: Carry,
+    // Beside the ghost: what letting go here will do.
+    tag: Option<SharedString>,
+}
+
+type Hand = Rc<RefCell<Held>>;
+
+// The carried row, the one landing, and where their rows are on screen.
+#[derive(Default)]
+pub struct DragMotion {
+    hand: Option<Hand>,
+    landing: Option<Landing>,
+    spots: Rc<RefCell<HashMap<SharedString, Bounds<Pixels>>>>,
+    // The voice channel a person is held over, and which of its rows the pointer is on.
+    pub voice_target: Option<(String, SharedString)>,
+}
+
+struct Landing {
+    hand: Hand,
+    since: Instant,
+    // Set once its row turns out to be gone (they left, or it went into a closed folder).
+    puff: Option<Instant>,
+}
+
+// How the carried row's own place draws.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum RowDrag {
+    Rest,
+    // .is-hole: a faint outline of where it was.
+    Hole,
+    // Under the landing ghost, until the two swap.
+    Hidden,
+}
+
+// How long the landing waits for its row to paint before puffing the ghost away instead.
+const FIND_ROW: Duration = Duration::from_millis(60);
+const PUFF: Duration = Duration::from_millis(220);
+// The ghost fades into the row's own look as it glides in.
+const SETTLE_LOOK: Duration = Duration::from_millis(180);
+
+impl DragMotion {
+    pub fn row(&self, key: &str) -> RowDrag {
+        let carries = |hand: &Hand| hand.borrow().key.as_ref() == key;
+        match (&self.hand, &self.landing) {
+            (Some(hand), _) if carries(hand) => RowDrag::Hole,
+            (_, Some(landing)) if carries(&landing.hand) => RowDrag::Hidden,
+            _ => RowDrag::Rest,
+        }
+    }
+
+    pub fn set_tag(&self, tag: Option<SharedString>) {
+        if let Some(hand) = &self.hand {
+            hand.borrow_mut().tag = tag;
+        }
+    }
+
+    // Measures the carried row's place as it paints, so the landing knows where to go.
+    pub fn spot(&self, key: &str) -> Option<AnyElement> {
+        if self.row(key) == RowDrag::Rest {
+            return None;
+        }
+        let (spots, key) = (self.spots.clone(), SharedString::from(key.to_owned()));
+        Some(canvas(move |bounds, _, _| spots.borrow_mut().insert(key, bounds), |_, _, _, _| {}).absolute().inset_0().into_any_element())
+    }
+}
+
+// .is-hole: the place a carried row left, a faint 1.5px outline at 32%; the caller leaves it empty.
+pub fn hole<E: Styled>(place: E, cx: &App) -> E {
+    place.opacity(0.32).border(px(1.5)).border_color(palette::faint(cx).opacity(0.55))
+}
+
+// Starts a carry as gpui starts the drag: the ghost is the drag's view, and the app keeps a hand on
+// it to land it once let go. `size` is the row's; `lifted` and `lean` as for `Carry`.
+pub fn pick_up<T: 'static>(
+    this: WeakEntity<Rustcord>,
+    key: SharedString,
+    look: Look,
+    size: Point<Pixels>,
+    lifted: f32,
+    lean: f32,
+) -> impl Fn(&T, Point<Pixels>, &mut Window, &mut App) -> Entity<Ghost> + 'static {
+    move |_, offset, window, cx| {
+        let carry = Carry::new(window.mouse_position() - offset, lifted, lean);
+        let hand = Rc::new(RefCell::new(Held { key: key.clone(), look: look.clone(), size, offset, carry, tag: None }));
+        this.update(cx, |this, cx| {
+            this.drag_motion.hand = Some(hand.clone());
+            this.drag_motion.landing = None;
+            cx.notify();
+        })
+        .ok();
+        cx.new(|_| Ghost { hand })
+    }
+}
+
+// The ghost while held, which gpui draws at the pointer; it trails there on its spring.
+pub struct Ghost {
+    hand: Hand,
+}
+
+impl Render for Ghost {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let mut held = self.hand.borrow_mut();
+        let anchor = window.mouse_position() - held.offset;
+        held.carry.follow(anchor);
+        held.carry.step();
+        window.request_animation_frame();
+        ghost(&held, anchor, 0., cx)
+    }
+}
+
+// The ghost at its pose. `origin` is where layout put it; `settle` how far it has faded into the
+// row's own look (0 lifted, 1 the row).
+fn ghost(held: &Held, origin: Point<Pixels>, settle: f32, cx: &App) -> Div {
+    let lifted = 1. - settle;
+    let body = match &held.look {
+        Look::Tile(face) => div()
+            .pl(px(crate::sidebar::TILE_X))
+            .child(div().squircle(ui::RADIUS_LG).shadow(ui::shadow_pop_on(palette::line_strong(cx).opacity(lifted), cx)).child(render_face(face.clone(), crate::sidebar::TILE, ui::RADIUS_LG, false, 0., cx))),
+        Look::Person { avatar, name } => row_card(ui::RADIUS_SM, lifted, cx).child(person(avatar, name)),
+        Look::Channel { channel, people } => row_card(ui::RADIUS_MD, lifted, cx)
+            .flex_col()
+            .gap(px(1.))
+            .child(div().h(px(32.)).px_2().flex().items_center().gap_2().child(channel_glyph(channel).size(px(18.)).flex_none().text_color(palette::faint(cx))).child(div().flex_1().min_w_0().truncate().child(channel.name.clone())))
+            .children(people.iter().map(|(avatar, name)| person(avatar, name).text_color(palette::muted(cx)))),
+    };
+    let (sx, sy) = held.carry.scale();
+    let grab = point(relative(f32::from(held.offset.x) / f32::from(held.size.x)), relative(f32::from(held.offset.y) / f32::from(held.size.y)));
+    let mut ghost = div()
+        .relative()
+        .w(held.size.x)
+        .font_weight(FontWeight::NORMAL)
+        .text_size(px(16.))
+        .child(body)
+        .children(held.tag.clone().filter(|_| settle == 0.).map(|tag| tag_chip(tag, cx)))
+        .translate(held.carry.at() - origin)
+        .rotate(Radians(held.carry.tilt.position.to_radians()))
+        .transform_origin(grab);
+    ghost.style().scale = SizeRefinement { width: Some(sx), height: Some(sy) };
+    ghost
+}
+
+// .vd-ghost: the overlay surface under --lift, with the row's own layout inside.
+fn row_card(radius: f32, lifted: f32, cx: &App) -> Div {
+    div().w_full().flex().squircle(radius).bg(palette::surface(palette::Level::Overlay, cx).opacity(lifted)).shadow(lift_shadow(lifted, cx)).text_color(palette::strong(cx))
+}
+
+fn person(avatar: &str, name: &SharedString) -> Div {
+    div().h(px(30.)).w_full().pl(px(32.)).pr_2().flex().items_center().gap_2().child(ui::avatar(avatar.to_owned(), 22.)).child(div().flex_1().min_w_0().truncate().child(name.clone()))
+}
+
+// --lift: 0 10px 28px black at 32% over a 1px line_strong ring, both fading as it lands.
+fn lift_shadow(lifted: f32, cx: &App) -> Vec<BoxShadow> {
+    vec![
+        BoxShadow { color: gpui_kit::black().opacity(0.32 * lifted), offset: point(px(0.), px(10.)), blur_radius: px(28.), spread_radius: px(0.), inset: false },
+        BoxShadow { color: palette::line_strong(cx).opacity(lifted), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false },
+    ]
+}
+
+// .vd-tag: a dark chip 10px off the ghost's right edge, easing in from the left each time it changes.
+fn tag_chip(tag: SharedString, cx: &App) -> AnyElement {
     div()
-        .h(px(32.))
-        .px_2()
-        .rounded(px(8.))
-        .bg(theme.popover)
-        .border_1()
-        .border_color(theme.input)
-        .shadow_lg()
-        .opacity(0.9)
+        .absolute()
+        .left(relative(1.))
+        .top(relative(0.5))
+        .mt(px(-11.))
+        .ml(px(10.))
+        .h(px(22.))
+        .px(px(8.))
+        .squircle(ui::RADIUS_XS)
         .flex()
         .items_center()
-        .gap_2()
+        .gap(px(4.))
+        .whitespace_nowrap()
+        .text_size(px(12.))
         .font_weight(FontWeight::MEDIUM)
-        .children(avatar.map(|a| img(a).size(px(24.)).rounded_full()))
-        .child(name)
+        .bg(palette::strong(cx))
+        .text_color(palette::surface(palette::Level::Page, cx))
+        .child(Icon::new(Glyph::ArrowRightBold).size(px(13.)))
+        .child(tag.clone())
+        .with_animation(tag, Animation::new(ui::DUR_POP).with_easing(gpui_kit::ease_out_quint()), |chip, t| chip.opacity(t).translate_x(px(-4. * (1. - t))).scale(0.95 + 0.05 * t))
+        .into_any_element()
+}
+
+impl Rustcord {
+    // Once gpui has let go of a drag (dropped on a target or on nothing), what was carried lands
+    // on its row: in its new place if the drop moved it, back home if not.
+    pub(crate) fn settle_carry(&mut self, cx: &App) {
+        if cx.has_active_drag() {
+            return;
+        }
+        let Some(hand) = self.drag_motion.hand.take() else { return };
+        {
+            let mut held = hand.borrow_mut();
+            held.carry.land();
+            held.tag = None;
+            self.drag_motion.spots.borrow_mut().remove(&held.key);
+        }
+        self.drag_motion.voice_target = None;
+        self.drag_motion.landing = Some(Landing { hand, since: Instant::now(), puff: None });
+    }
+
+    // The landing ghost, over everything, until it comes to rest on its row.
+    pub(crate) fn render_landing(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
+        self.settle_carry(cx);
+        let landing = self.drag_motion.landing.as_mut()?;
+        let hand = landing.hand.clone();
+        let mut held = hand.borrow_mut();
+        let spot = self.drag_motion.spots.borrow().get(&held.key).copied();
+        match spot {
+            Some(bounds) => held.carry.follow(bounds.origin),
+            None if landing.puff.is_none() && landing.since.elapsed() > FIND_ROW => landing.puff = Some(Instant::now()),
+            None => {}
+        }
+        let puffed = landing.puff.map(|at| (at.elapsed().as_secs_f32() / PUFF.as_secs_f32()).min(1.));
+        let settle = (landing.since.elapsed().as_secs_f32() / SETTLE_LOOK.as_secs_f32()).min(1.);
+        if held.carry.step() || puffed == Some(1.) {
+            drop(held);
+            self.drag_motion.landing = None;
+            cx.notify();
+            return None;
+        }
+        window.request_animation_frame();
+        let mut ghost = ghost(&held, Point::default(), settle, cx);
+        if let Some(t) = puffed {
+            let ease_in = t * t * t;
+            ghost = ghost.opacity(1. - ease_in).scale(1. - 0.6 * ease_in);
+        }
+        Some(deferred(anchored().position(Point::default()).child(ghost)).with_priority(2).into_any_element())
+    }
 }
 
 // Where a dragged channel lands relative to the row it's dropped on.
@@ -204,5 +541,31 @@ mod tests {
         assert_eq!(ids(&reorder(list(), "x", None)), ["x", "b", "c", "a"]);
         assert_eq!(reorder(list(), "c", Some(("b", false)))[0], ("c".to_owned(), 0));
         assert_eq!(place_at(0.2), Place::Before);
+    }
+
+    // Carried right fast it tilts clockwise toward 14° (its underdamped spring may pass it a little,
+    // as the design's does) and swells; let go, it glides onto its row in about 250ms without a jump.
+    #[test]
+    fn carries_then_lands() {
+        let frame = 1. / 120.;
+        let mut carry = Carry::new(point(px(0.), px(0.)), 1.05, 0.);
+        for i in 1..=24 {
+            carry.follow(point(px(i as f32 * 2000. * frame), px(0.)));
+            carry.advance(frame);
+            assert!(carry.tilt.position.abs() <= MAX_TILT * 1.2, "tilt {}", carry.tilt.position);
+        }
+        assert!(carry.tilt.position > 4., "tilt {}", carry.tilt.position);
+        assert!(carry.lift.position > 1.02);
+        carry.follow(point(px(40.), px(120.)));
+        carry.land();
+        let (mut last, mut frames) = (carry.at(), 0);
+        while !carry.advance(frame) {
+            let at = carry.at();
+            assert!((at - last).magnitude() < 40., "jumped {:?}", at - last);
+            last = at;
+            frames += 1;
+            assert!(frames < 60, "still landing after 500ms");
+        }
+        assert!(frames as f32 * frame > 0.15, "landed in {}ms", frames as f32 * frame * 1000.);
     }
 }

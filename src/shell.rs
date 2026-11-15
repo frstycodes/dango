@@ -13,8 +13,8 @@ pub struct Shell {
 }
 
 impl Shell {
-    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let app = cx.new(|cx| Rustcord::new(window, cx));
+    pub fn new(window: &mut Window, splash: Option<gpui_kit::WindowHandle<crate::splash::Splash>>, cx: &mut Context<Self>) -> Self {
+        let app = cx.new(|cx| Rustcord::new(window, splash, cx));
         let gifs = cx.new(GifLayer::new);
         Self { app, gifs }
     }
