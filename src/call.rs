@@ -45,6 +45,8 @@ const SMALL_TILE: f32 = 240.;
 // .filmstrip under a focused stream.
 const STRIP_TILE: f32 = 148.;
 const STRIP_GAP: f32 = 8.;
+// The filmstrip's fold button.
+const STRIP_TOGGLE: f32 = 28.;
 const STRIP_LIMIT: usize = 12;
 const RECENT_SPEAKER: std::time::Duration = std::time::Duration::from_secs(10);
 const CONTROLS_IDLE: Duration = Duration::from_secs(3);
@@ -1074,7 +1076,8 @@ impl Rustcord {
             .map(|t| self.tile(t, STRIP_TILE, cx))
             .collect();
         let strip_shown = !self.call_strip_hidden && !strip.is_empty();
-        let main_h = (height - if strip_shown { STRIP_TILE * 9. / 16. + STRIP_GAP } else { 0. }).max(120.);
+        let toggle_h = if strip.is_empty() { 0. } else { STRIP_TOGGLE + STRIP_GAP };
+        let main_h = (height - toggle_h - if strip_shown { STRIP_TILE * 9. / 16. + STRIP_GAP } else { 0. }).max(120.);
         let focused = call.focused().map(|w| w.streamer_id.clone()).unwrap_or_default();
         let main: AnyElement = match call.stream_layout {
             StreamLayout::Focus => {
@@ -1110,8 +1113,20 @@ impl Rustcord {
             .flex_col()
             .gap(px(STRIP_GAP))
             .child(div().flex_1().min_h_0().child(main))
+            .when(!strip.is_empty(), |d| d.child(self.strip_toggle(strip_shown, cx)))
             .when(strip_shown, |d| d.child(div().flex_none().flex().justify_center().gap(px(STRIP_GAP)).children(strip)))
             .into_any_element()
+    }
+
+    // The chevron above the filmstrip that folds it away and back, as Discord's.
+    fn strip_toggle(&self, shown: bool, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let (glyph, tip) = if shown { (Glyph::ChevronDown, "Hide everyone") } else { (Glyph::ChevronUp, "Show everyone") };
+        div().flex_none().h(px(STRIP_TOGGLE)).flex().justify_center().child(
+            ui::round_button("strip-toggle", glyph, tip, STRIP_TOGGLE).on_click(cx.listener(|this, _, _, cx| {
+                this.call_strip_hidden = !this.call_strip_hidden;
+                cx.notify();
+            })),
+        )
     }
 
     // One watched stream fitted into `max_w` x `max_h`, as a media tile: LIVE and its viewers on top,
@@ -1154,7 +1169,7 @@ impl Rustcord {
         let viewers = self.viewer_count(&id);
         div()
             .id(SharedString::from(format!("stream-video-{id}-{small}")))
-            .group(group)
+            .group(group.clone())
             .relative()
             .w(px(w))
             .h(px(h))
@@ -1162,11 +1177,12 @@ impl Rustcord {
             .squircle(RADIUS_LG)
             .bg(gpui_kit::black())
             .child(body)
-            .child(scrim_top(RADIUS_LG))
-            .child(scrim_bottom(RADIUS_LG))
+            // The scrims and name only while hovered: left on, they dimmed two-thirds of the picture.
+            .child(scrim_top(RADIUS_LG).opacity(0.).group_hover(group.clone(), |s| s.opacity(1.)))
+            .child(scrim_bottom(RADIUS_LG).opacity(0.).group_hover(group.clone(), |s| s.opacity(1.)))
             .child(div().absolute().left(px(8.)).top(px(8.)).child(ui::live_badge()))
             .when(viewers > 0 && !small, |d| d.child(viewer_chip(viewers)))
-            .child(tile_name(div().child(div().min_w_0().truncate().child(label))))
+            .child(tile_name(div().child(div().min_w_0().truncate().child(label))).opacity(0.).group_hover(group.clone(), |s| s.opacity(1.)))
             .when(!small, |d| d.child(controls))
             .child(tile_ring(false, false))
             .when(small, |d| d.cursor_pointer().on_click(cx.listener(move |this, _, _, cx| this.focus_stream(&swap_id, cx))))

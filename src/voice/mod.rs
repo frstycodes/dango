@@ -1116,6 +1116,8 @@ mod tests {
             session_id: Mutex::new(None),
             muted: AtomicBool::new(false),
             deafened: AtomicBool::new(false),
+            flags_pending: AtomicBool::new(false),
+            flags_sent: Mutex::new(None),
             talk_key_held: AtomicBool::new(false),
             input_mode: Mutex::new(VoiceSettings::default().input_mode),
             audio: Arc::new(VoiceSettings::default().audio()),

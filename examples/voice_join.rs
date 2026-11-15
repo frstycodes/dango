@@ -71,8 +71,8 @@ fn main() -> Result<(), String> {
             tokio::select! {
                 _ = &mut deadline => break,
                 Some(key) = keys.next() => match key.as_str() {
-                    "m" | "u" => session.set_muted(key == "m"),
-                    "d" | "e" => session.set_deafened(key == "d"),
+                    "m" | "u" => session.set_flags(key == "m", false),
+                    "d" | "e" => session.set_flags(key == "d", key == "d"),
                     "p" => session.set_input_mode(voice::InputMode::PushToTalk { release_delay_ms: 200 }),
                     "t" | "r" => session.set_talk_key(key == "t"),
                     "x" => watching = None,
