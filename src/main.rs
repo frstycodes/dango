@@ -2123,14 +2123,9 @@ impl Rustcord {
     fn leave_voice(&mut self, cx: &mut Context<Self>) {
         self.call_fullscreen = false;
         self.stop_ringing_out();
-        let Some(mut call) = self.call.take() else { return };
+        let Some(call) = self.call.take() else { return };
         sounds::play(sounds::Cue::Disconnect);
-        for frame in call.watching.drain(..).filter_map(|w| w.frame) {
-            cx.drop_image(frame, None);
-        }
-        for (_, frame) in call.cameras.drain() {
-            cx.drop_image(frame, None);
-        }
+        release_frames(call, cx);
         cx.notify();
     }
 
@@ -2228,7 +2223,9 @@ impl Rustcord {
                 }
             }
             voice::VoiceEvent::Disconnected(reason) => {
-                self.call = None;
+                if let Some(call) = self.call.take() {
+                    release_frames(call, cx);
+                }
                 self.stop_ringing_out();
                 sounds::play(sounds::Cue::Disconnect);
                 if reason != "Left" {
@@ -2555,5 +2552,14 @@ mod viewer_tests {
         assert_eq!(viewer_cue(2, 1), Some(sounds::Cue::StreamUserLeft));
         assert_eq!(viewer_cue(1, 1), None);
         assert_eq!(viewer_cue(30, 31), None);
+    }
+}
+
+// A finished call's video frames, handed back: each is a texture in gpui's atlas until dropped, so a
+// call that ended without this kept every last stream, camera and self-view frame on the GPU.
+fn release_frames(mut call: Call, cx: &mut gpui_kit::App) {
+    let frames = call.watching.drain(..).filter_map(|w| w.frame).chain(call.cameras.drain().map(|(_, frame)| frame)).chain(call.self_view.take().map(|(frame, _)| frame));
+    for frame in frames {
+        cx.drop_image(frame, None);
     }
 }
