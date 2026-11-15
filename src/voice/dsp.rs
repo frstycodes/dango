@@ -1,5 +1,6 @@
 // Microphone processing in Discord's order (docs/discord-audio.md): echo cancellation (AEC3) and
-// the Standard suppressor (WebRTC NS) from `sonora`, then the Krisp-tier suppressor (DeepFilterNet3,
+// the Standard suppressor (WebRTC NS) from `sonora`, then our residual echo suppressor (what AEC3
+// leaves while both sides talk, echo_suppressor.rs), then the Krisp-tier suppressor (DeepFilterNet3,
 // RNNoise while it loads or if it can't keep up), then automatic gain (AGC2 with Discord's
 // config). Each 10 ms block is also analysed for voice activity: RNNoise's speech probability
 // (Advanced Voice Activity, Discord's Krisp VAD slot) and WebRTC's GMM VAD (automatic sensitivity
@@ -29,7 +30,10 @@ use sonora::{
     config::{AdaptiveDigital, EchoCanceller, GainController2},
 };
 
-use super::audio::{FRAME_LEN, SAMPLE_RATE, SILENCE_DB, level_db};
+use super::{
+    audio::{FRAME_LEN, SAMPLE_RATE, SILENCE_DB, level_db},
+    echo_suppressor::EchoSuppressor,
+};
 
 // Mono samples in one 10 ms block: one RNNoise frame, one DeepFilterNet hop, one WebRTC block.
 pub const BLOCK: usize = SAMPLE_RATE as usize / 100;
@@ -84,6 +88,8 @@ struct State {
     render_rx: Receiver<[f32; BLOCK]>,
     // AEC3 and, when chosen, the Standard suppressor.
     front: AudioProcessing,
+    // What AEC3 leaves of the echo while the near end talks.
+    residual: Box<EchoSuppressor>,
     // AGC2 alone, so it runs after the neural suppressor.
     back: AudioProcessing,
     neural: Neural,
@@ -107,6 +113,7 @@ impl Processor {
         let state = State {
             render_rx,
             front,
+            residual: Box::new(EchoSuppressor::new()),
             back,
             neural,
             vad: Box::new(VoiceActivityDetector::new(VoiceActivityProfile::VERY_AGGRESSIVE)),
@@ -184,7 +191,7 @@ impl Processor {
     }
 
     #[cfg(test)]
-    fn wait_for_model(&self) {
+    pub fn wait_for_model(&self) {
         let deadline = Instant::now() + Duration::from_secs(60);
         while self.state.lock().is_ok_and(|s| !s.neural.ready()) {
             assert!(Instant::now() < deadline, "DeepFilterNet did not load");
@@ -199,6 +206,7 @@ impl State {
             match self.render_rx.try_recv() {
                 Ok(block) if echo => {
                     let _ = self.front.process_render_f32(&[&block], &mut [&mut self.out]);
+                    self.residual.render(&block);
                 }
                 Ok(_) => {}
                 Err(TryRecvError::Empty | TryRecvError::Disconnected) => return,
@@ -208,8 +216,12 @@ impl State {
 
     // One 10 ms block of `self.mono` through the chain; false when nothing changed the audio.
     fn process(&mut self, echo: bool, noise: NoiseSuppression, gain: bool, block: &mut Block) -> bool {
+        let mic = self.mono;
         if (echo || noise == NoiseSuppression::Standard) && self.front.process_capture_f32(&[&self.mono], &mut [&mut self.out]).is_ok() {
             self.mono = self.out;
+        }
+        if echo {
+            self.residual.capture(&mic, &mut self.mono);
         }
         // Speech probability comes from the echo-cancelled signal, before any suppression.
         self.mono.iter().zip(&mut self.scaled).for_each(|(s, dst)| *dst = s * I16_SCALE);
@@ -357,66 +369,7 @@ fn fold(stereo: &[f32; BLOCK * 2], mono: &mut [f32; BLOCK]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    struct Noise(u32);
-
-    impl Noise {
-        // Uniform white noise in -amplitude..amplitude.
-        fn next(&mut self, amplitude: f32) -> f32 {
-            self.0 = self.0.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
-            ((self.0 >> 8) as f32 / (1 << 24) as f32 * 2.0 - 1.0) * amplitude
-        }
-    }
-
-    // A speech-like fixture: a glottal pulse train (f0 gliding 110-170 Hz) through two vowel
-    // formants that change every syllable, in 4 Hz syllables separated by pauses.
-    fn speech(seconds: f32) -> Vec<f32> {
-        let rate = SAMPLE_RATE as f32;
-        let vowels = [(730.0, 1090.0), (270.0, 2290.0), (530.0, 1840.0), (300.0, 870.0)];
-        let mut resonators = [Resonator::default(), Resonator::default()];
-        let mut phase = 0.0f32;
-        (0..(seconds * rate) as usize)
-            .map(|i| {
-                let t = i as f32 / rate;
-                let syllable = (t * 4.0) as usize;
-                let within = t * 4.0 - syllable as f32;
-                let envelope = if syllable % 5 == 4 { 0.0 } else { (std::f32::consts::PI * within).sin().powi(2) };
-                let f0 = 140.0 + 30.0 * (t * 1.3).sin();
-                phase += f0 / rate;
-                let pulse = if phase >= 1.0 {
-                    phase -= 1.0;
-                    1.0
-                } else {
-                    0.0
-                };
-                let (f1, f2) = vowels[syllable % vowels.len()];
-                let voiced = resonators[0].tick(pulse, f1, 80.0) + 0.5 * resonators[1].tick(pulse, f2, 120.0);
-                voiced * envelope
-            })
-            .collect()
-    }
-
-    #[derive(Default)]
-    struct Resonator(f32, f32);
-
-    impl Resonator {
-        fn tick(&mut self, x: f32, freq: f32, bandwidth: f32) -> f32 {
-            let rate = SAMPLE_RATE as f32;
-            let r = (-std::f32::consts::PI * bandwidth / rate).exp();
-            let y = x + 2.0 * r * (2.0 * std::f32::consts::PI * freq / rate).cos() * self.0 - r * r * self.1;
-            (self.1, self.0) = (self.0, y);
-            y
-        }
-    }
-
-    fn rms(s: &[f32]) -> f32 {
-        (s.iter().map(|x| x * x).sum::<f32>() / s.len().max(1) as f32).sqrt()
-    }
-
-    fn scaled_to(signal: Vec<f32>, target_rms: f32) -> Vec<f32> {
-        let gain = target_rms / rms(&signal);
-        signal.into_iter().map(|s| s * gain).collect()
-    }
+    use crate::voice::fixtures::{Noise, rms, scaled_to, speech};
 
     // Runs mono audio through a processor in 20 ms frames.
     fn run(processor: &Processor, mono: &[f32]) -> (Vec<f32>, Vec<Block>) {
