@@ -28,6 +28,23 @@ Not yet built or tested on Windows. Expected needs:
 Known gaps on Windows: Go Live (screen capture is macOS-only), sound cues (macOS-only), and debug sign-ins are
 saved under `%APPDATA%\Rustcord`.
 
+## How to release
+
+Release builds update themselves at launch from this repository's GitHub Releases (debug builds and
+`CHORD_DEMO` runs never do).
+
+1. Bump `version` in `Cargo.toml` (e.g. `0.2.0`), run `cargo check` so `Cargo.lock` follows, and commit.
+2. Tag that commit with the same version and push it:
+
+   ```sh
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+`.github/workflows/release.yml` checks the tag matches `Cargo.toml`, creates the release, and attaches
+`wave-macos-aarch64.zip`, `wave-macos-x86_64.zip` (zipped `Wave.app`) and `wave-windows-x86_64.exe`, each with a
+`.sha256`. Running copies older than the tag download theirs on next launch and restart into it.
+
 ## Where things are
 
 - `src/` app: `main.rs` state, `layout.rs` frame, `sidebar.rs`, `chat.rs`, `panel.rs`, `call.rs`, `settings.rs`
