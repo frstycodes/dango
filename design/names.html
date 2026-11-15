@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Name and mark</title>
+<style>
+@font-face { font-family: "Gabarito"; src: url("../assets/fonts/Gabarito-Regular.ttf"); font-weight: 400; }
+@font-face { font-family: "Gabarito"; src: url("../assets/fonts/Gabarito-Medium.ttf"); font-weight: 500; }
+@font-face { font-family: "Gabarito"; src: url("../assets/fonts/Gabarito-SemiBold.ttf"); font-weight: 600; }
+@font-face { font-family: "Gabarito"; src: url("../assets/fonts/Gabarito-Bold.ttf"); font-weight: 700; }
+
+:root {
+  --page: #f7f2ea;
+  --surface: #fffcf7;
+  --ink: #1b1317;
+  --muted: #5f5559;
+  --hairline: oklch(0.3 0.03 30 / 0.12);
+  --fill: oklch(0.3 0.03 30 / 0.06);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #120d10;
+    --surface: #1c1619;
+    --ink: #f7f4f5;
+    --muted: #b1a8ac;
+    --hairline: oklch(1 0 0 / 0.1);
+    --fill: oklch(1 0 0 / 0.06);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #120d10;
+  --surface: #1c1619;
+  --ink: #f7f4f5;
+  --muted: #b1a8ac;
+  --hairline: oklch(1 0 0 / 0.1);
+  --fill: oklch(1 0 0 / 0.06);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 400 16px/1.5 "Gabarito", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+main { max-width: 1120px; margin: 0 auto; padding: 32px 16px 96px; display: grid; gap: 48px; }
+header { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; justify-content: space-between; }
+h1 { margin: 0; font-size: 36px; line-height: 1.1; font-weight: 700; }
+h2 { margin: 0 0 16px; font-size: 20px; line-height: 1.2; font-weight: 600; }
+p { margin: 4px 0 0; color: var(--muted); font-size: 14px; text-wrap: pretty; }
+
+.picker { display: grid; gap: 12px; }
+.segments { display: flex; flex-wrap: wrap; }
+.segments button {
+  font: 500 14px/1 "Gabarito", sans-serif;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  margin-inline-start: -1px;
+  height: 36px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.segments button:first-child { border-radius: 12px 0 0 12px; margin-inline-start: 0; }
+.segments button:last-child { border-radius: 0 12px 12px 0; }
+.segments button[aria-pressed="true"] { background: var(--fill); border-color: oklch(from var(--ink) l c h / 0.35); position: relative; z-index: 1; }
+@media (hover: hover) and (pointer: fine) { .segments button:hover { background: var(--fill); } }
+.segments button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; z-index: 2; }
+.swatch { width: 14px; height: 14px; border-radius: 50%; background: var(--c); }
+
+.marks { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.mark-card {
+  all: unset;
+  cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 20px;
+  corner-shape: superellipse(1.4);
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+}
+.mark-card[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.mark-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mark-card strong { font-weight: 600; }
+.mark-card span { color: var(--muted); font-size: 14px; }
+
+.stage { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--hairline); border-radius: 20px; corner-shape: superellipse(1.4); padding: 24px; }
+.hero { display: grid; justify-items: center; gap: 16px; }
+#hero svg { width: min(256px, 100%); height: auto; }
+.tiles { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+.tiles figure { margin: 0; display: grid; gap: 6px; justify-items: center; font-size: 14px; color: var(--muted); }
+.sizes { display: flex; align-items: end; gap: 20px; flex-wrap: wrap; }
+.sizes figure { margin: 0; display: grid; gap: 6px; justify-items: center; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.wordmark { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 32px; letter-spacing: -0.01em; }
+.rail { width: 72px; padding: 12px 0; background: var(--fill); border-radius: 20px; corner-shape: superellipse(1.4); display: grid; justify-items: center; gap: 8px; }
+.rail .home { width: 48px; height: 48px; border-radius: 16px; corner-shape: superellipse(1.4); background: var(--accent); display: grid; place-items: center; }
+.rail .server { width: 48px; height: 48px; border-radius: 50%; background: oklch(from var(--ink) l c h / 0.12); }
+
+.splashes { display: flex; gap: 16px; flex-wrap: wrap; }
+.splash { width: 220px; height: 248px; border-radius: 20px; corner-shape: superellipse(1.4); display: grid; place-content: center; justify-items: center; gap: 10px; padding: 16px; }
+.splash.bone { background: #f7f2ea; color: #1b1317; border: 1px solid rgb(73 53 47 / 0.16); }
+.splash.midnight { background: #0a0608; color: #f7f4f5; border: 1px solid rgb(255 255 255 / 0.16); }
+.splash b { font-size: 20px; line-height: 1; margin-top: 4px; }
+.splash small { font-size: 12px; font-weight: 500; opacity: 0.7; }
+.splash .bar { width: 120px; height: 6px; border-radius: 3px; background: oklch(0.6 0.01 350 / 0.45); overflow: hidden; }
+.splash .bar i { display: block; height: 100%; width: 42%; background: var(--accent); border-radius: 3px; }
+
+.chat { display: grid; gap: 10px; }
+.msg { display: flex; gap: 10px; align-items: flex-start; }
+.avatar { width: 36px; height: 36px; border-radius: 50%; flex: none; }
+.msg .name { font-weight: 600; font-size: 14px; }
+.msg .text { font-size: 14px; color: var(--muted); }
+.button { font: 600 14px/1 "Gabarito", sans-serif; height: 32px; padding: 0 14px; border: 0; border-radius: 12px; corner-shape: superellipse(1.4); background: var(--accent); color: white; }
+.mention { background: oklch(from var(--accent) l c h / 0.16); color: var(--accent-ink); border-radius: 4px; padding: 0 3px; font-weight: 500; }
+.theme { font: 500 14px/1 "Gabarito", sans-serif; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1 id="title">Dango</h1>
+      <p>Four names, each with its own mark, and four food accents. Pick a name and an accent; everything below follows.</p>
+    </div>
+    <div class="segments theme" role="group" aria-label="Theme">
+      <button type="button" data-theme-pick="light">Light</button>
+      <button type="button" data-theme-pick="dark">Dark</button>
+      <button type="button" data-theme-pick="system" aria-pressed="true">System</button>
+    </div>
+  </header>
+
+  <section class="picker">
+    <h2>Name</h2>
+    <div class="marks" id="marks"></div>
+  </section>
+
+  <section class="picker">
+    <h2>Accent</h2>
+    <div class="segments" id="accents" role="group" aria-label="Accent"></div>
+    <p id="accent-note"></p>
+  </section>
+
+  <section class="stage">
+    <div class="panel hero">
+      <h2>App icon</h2>
+      <div id="hero"></div>
+      <div class="tiles" id="tiles"></div>
+    </div>
+    <div class="panel">
+      <h2>Small sizes</h2>
+      <div class="sizes" id="sizes"></div>
+      <h2 style="margin-top:32px">Wordmark</h2>
+      <div class="row"><span class="wordmark" id="wordmark"></span></div>
+      <h2 style="margin-top:32px">In the app</h2>
+      <div class="row" style="align-items:start">
+        <div class="rail" id="rail"></div>
+        <div class="chat">
+          <div class="msg"><span class="avatar" style="background:#e9b872"></span><div><div class="name">Mina</div><div class="text">taro or brown sugar <span class="mention">@you</span>?</div></div></div>
+          <div class="msg"><span class="avatar" style="background:#8fb6d9"></span><div><div class="name">Jun</div><div class="text">both, extra pearls</div></div></div>
+          <div><button class="button" type="button">Join voice</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Splash</h2>
+      <div class="splashes" id="splashes"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const ACCENTS = [
+  { id: "magenta", name: "Magenta", c: "#E8326F", deep: "#9C1748", light: "#FF86B4", fg: "#fff", note: "Today's accent. Nothing else in the design system changes." },
+  { id: "chili", name: "Chili", c: "#E0533A", deep: "#8F2A17", light: "#FF9A82", fg: "#fff", note: "Warm chili oil red-orange: hungry and loud, still friendly." },
+  { id: "matcha", name: "Matcha", c: "#5C9A3C", deep: "#305A1B", light: "#A9D683", fg: "#fff", note: "Fresh matcha green. Status greens (online, speaking) would need a different hue." },
+  { id: "yuzu", name: "Yuzu", c: "#E9A800", deep: "#7A4E00", light: "#FFD45C", fg: "#2A1C00", note: "Sunny citrus yellow. Buttons take dark text, since white on yellow fails contrast." },
+];
+
+const NAMES = [
+  { id: "dango", name: "Dango", hint: "Three dumplings on a skewer, like a typing indicator", accent: "magenta" },
+  { id: "momo", name: "Momo", hint: "A plump pleated dumpling, steam rising", accent: "chili" },
+  { id: "bao", name: "Bao", hint: "A fluffy bun with a swirl on top", accent: "magenta" },
+  { id: "yuzu", name: "Yuzu", hint: "A citrus slice, its segments like a little sun", accent: "yuzu" },
+];
+
+let uid = 0;
+
+// A soft top-left shine.
+function shine(cx, cy, r, opacity = 0.5) {
+  return `<ellipse cx="${cx - r * 0.33}" cy="${cy - r * 0.36}" rx="${r * 0.3}" ry="${r * 0.2}" fill="#fff" opacity="${opacity}" transform="rotate(-30 ${cx - r * 0.33} ${cy - r * 0.36})"/>`;
+}
+
+// Marks are drawn in a 100x100 box. `ink` is the main shape, `on` sits on top of it (and is the
+// backdrop colour, for separations), `stick` the secondary shade.
+function markSvg(id, { ink, on, stick }) {
+  switch (id) {
+    case "dango": {
+      const balls = [[36, 64], [50, 50], [64, 36]], r = 15;
+      let out = `<line x1="20" y1="80" x2="80" y2="20" stroke="${stick}" stroke-width="6" stroke-linecap="round"/>`;
+      balls.forEach(([x, y]) => {
+        out += `<circle cx="${x}" cy="${y}" r="${r + 2.5}" fill="${on}"/><circle cx="${x}" cy="${y}" r="${r}" fill="${ink}"/>` + shine(x, y, r, 0.55);
+      });
+      return out;
+    }
+    case "momo":
+      return `<path d="M36 22c-4-4 4-7 0-12M64 22c-4-4 4-7 0-12" fill="none" stroke="${ink}" stroke-width="4" stroke-linecap="round" opacity="0.45"/>` +
+        `<path d="M14 70c0-22 16-38 36-38s36 16 36 38c0 9-7 14-16 14H30c-9 0-16-5-16-14z" fill="${ink}"/>` +
+        `<path d="M50 36c-8 6-16 18-20 34M50 36c-3 8-6 22-6 36M50 36c3 8 6 22 6 36M50 36c8 6 16 18 20 34" fill="none" stroke="${on}" stroke-width="3.2" stroke-linecap="round" opacity="0.55"/>` +
+        `<circle cx="50" cy="33" r="6" fill="${ink}"/>` + shine(40, 52, 16, 0.35);
+    case "bao":
+      return `<path d="M12 62c0-24 17-38 38-38s38 14 38 38c0 15-14 22-38 22S12 77 12 62z" fill="${ink}"/>` +
+        baoPleats(50, 38, on) + `<circle cx="50" cy="38" r="3.2" fill="${on}" opacity="0.6"/>` +
+        shine(34, 54, 16, 0.32);
+    case "yuzu": {
+      let out = `<circle cx="50" cy="50" r="40" fill="${ink}"/><circle cx="50" cy="50" r="33" fill="${on}"/>`;
+      const n = 7, r1 = 8, r2 = 27, gap = 0.12;
+      const p = (r, a) => `${(50 + r * Math.cos(a)).toFixed(2)} ${(50 + r * Math.sin(a)).toFixed(2)}`;
+      for (let i = 0; i < n; i++) {
+        const a0 = (i / n) * Math.PI * 2 + gap - Math.PI / 2, a1 = ((i + 1) / n) * Math.PI * 2 - gap - Math.PI / 2;
+        out += `<path d="M${p(r1, a0)}L${p(r2, a0)}A${r2} ${r2} 0 0 1 ${p(r2, a1)}L${p(r1, a1)}Z" fill="${ink}" stroke="${ink}" stroke-width="4" stroke-linejoin="round" opacity="0.72"/>`;
+      }
+      return out + shine(36, 34, 20, 0.35);
+    }
+  }
+}
+
+// Pleats twisting out from the bun's top, like a xiaolongbao.
+function baoPleats(cx, cy, color) {
+  let out = "";
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * Math.PI * 2, r = 17;
+    const ctrl = [cx + 10 * Math.cos(a), cy + 7 * Math.sin(a)];
+    const end = [cx + r * Math.cos(a + 0.9), cy + r * 0.62 * Math.sin(a + 0.9)];
+    out += `<path d="M${cx} ${cy}Q${ctrl[0].toFixed(1)} ${ctrl[1].toFixed(1)} ${end[0].toFixed(1)} ${end[1].toFixed(1)}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" opacity="0.55"/>`;
+  }
+  return out;
+}
+
+// iOS-like continuous corners: a superellipse with exponent 5.
+function squirclePath(size) {
+  const n = 5, a = size / 2, pts = [];
+  for (let i = 0; i < 128; i++) {
+    const t = (i / 128) * Math.PI * 2, c = Math.cos(t), s = Math.sin(t);
+    pts.push([a + a * Math.sign(c) * Math.abs(c) ** (2 / n), a + a * Math.sign(s) * Math.abs(s) ** (2 / n)]);
+  }
+  return "M" + pts.map(p => p.map(v => v.toFixed(2)).join(" ")).join("L") + "Z";
+}
+
+const TILES = {
+  bone: a => ({ bg: ["#FBF8F2", "#EDE6DA"], ink: a.c, on: "#F6F1E8", stick: "#C9A27A", label: "Bone" }),
+  brand: a => ({ bg: [a.light, a.c], ink: "#FFFFFF", on: a.c, stick: a.deep, label: "Brand" }),
+  graphite: a => ({ bg: ["#3A3438", "#17131A"], ink: a.light, on: "#221D22", stick: "#8C7A6A", label: "Graphite" }),
+};
+
+const state = { name: "dango", accent: "magenta" };
+const current = () => NAMES.find(n => n.id === state.name);
+
+function icon(markId, accent, tile, px) {
+  const t = TILES[tile](accent), id = `g${uid++}`, inset = 0.13;
+  return `<svg width="${px}" height="${px}" viewBox="0 0 100 100" role="img" aria-label="${NAMES.find(n => n.id === markId).name} ${t.label} icon">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="${t.bg[0]}"/><stop offset="1" stop-color="${t.bg[1]}"/></linearGradient></defs>
+    <path d="${squirclePath(100)}" fill="url(#${id})"/>
+    <g transform="translate(${inset * 100} ${inset * 100}) scale(${1 - inset * 2})">${markSvg(markId, t)}</g>
+  </svg>`;
+}
+
+function bareMark(markId, accent, px, ink, on, stick = accent.deep) {
+  return `<svg width="${px}" height="${px}" viewBox="0 0 100 100" aria-hidden="true">${markSvg(markId, { ink, on, stick })}</svg>`;
+}
+
+function isDark() {
+  const t = document.documentElement.dataset.theme;
+  return t === "dark" || (!t && matchMedia("(prefers-color-scheme: dark)").matches);
+}
+
+function render() {
+  const a = ACCENTS.find(x => x.id === state.accent), name = current();
+  const root = document.documentElement.style;
+  root.setProperty("--accent", a.c);
+  root.setProperty("--accent-ink", isDark() ? a.light : a.deep);
+  document.title = `${name.name}: name and mark`;
+  document.getElementById("title").textContent = name.name;
+
+  document.getElementById("marks").innerHTML = NAMES.map(m =>
+    `<button class="mark-card" type="button" data-mark="${m.id}" aria-pressed="${m.id === state.name}">
+      ${icon(m.id, a, "bone", 96)}<strong>${m.name}</strong><span>${m.hint}</span></button>`).join("");
+  document.getElementById("accents").innerHTML = ACCENTS.map(x =>
+    `<button type="button" data-accent="${x.id}" aria-pressed="${x.id === state.accent}"><span class="swatch" style="--c:${x.c}"></span>${x.name}</button>`).join("");
+  document.getElementById("accent-note").textContent = a.note;
+
+  document.getElementById("hero").innerHTML = icon(state.name, a, "bone", 256);
+  document.getElementById("tiles").innerHTML = Object.keys(TILES).map(k =>
+    `<figure>${icon(state.name, a, k, 96)}<figcaption>${TILES[k](a).label}</figcaption></figure>`).join("");
+  document.getElementById("sizes").innerHTML = [128, 56, 32, 16].map(px =>
+    `<figure>${icon(state.name, a, "bone", px)}<figcaption>${px}</figcaption></figure>`).join("") +
+    [32, 16].map(px => `<figure>${icon(state.name, a, "graphite", px)}<figcaption>${px} dark</figcaption></figure>`).join("");
+  const surface = isDark() ? "#1c1619" : "#fffcf7";
+  document.getElementById("wordmark").innerHTML = bareMark(state.name, a, 40, a.c, surface, isDark() ? "#8C7A6A" : "#C9A27A") + name.name;
+  document.getElementById("rail").innerHTML = `<span class="home">${bareMark(state.name, a, 30, "#fff", a.c, a.deep)}</span><span class="server"></span><span class="server"></span>`;
+  document.querySelector(".button").style.color = a.fg;
+  document.getElementById("splashes").innerHTML = [["bone", "#f7f2ea", "#C9A27A"], ["midnight", "#0a0608", "#8C7A6A"]].map(([k, bg, stick]) =>
+    `<div class="splash ${k}">${bareMark(state.name, a, 56, k === "bone" ? a.c : a.light, bg, stick)}<b>${name.name}</b><small>Updating to 0.2.0…</small><span class="bar"><i></i></span></div>`).join("");
+}
+
+document.addEventListener("click", e => {
+  const mark = e.target.closest("[data-mark]");
+  const accent = e.target.closest("[data-accent]");
+  const theme = e.target.closest("[data-theme-pick]");
+  if (mark) {
+    state.name = mark.dataset.mark;
+    state.accent = current().accent;
+  }
+  if (accent) state.accent = accent.dataset.accent;
+  if (theme) {
+    const pick = theme.dataset.themePick;
+    if (pick === "system") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = pick;
+    document.querySelectorAll("[data-theme-pick]").forEach(b => b.setAttribute("aria-pressed", b === theme));
+  }
+  if (mark || accent || theme) render();
+});
+
+render();
+</script>
+</body>
+</html>

@@ -398,7 +398,7 @@ impl Rustcord {
             false => panel_action("panel-share", Glyph::ShareScreen, ready("Share your screen"), connected, cx).when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx)))),
         };
         let activities = panel_action("panel-activities", Glyph::Activities, ready("Activities and soundboard"), connected, cx)
-            .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities and the soundboard aren't in Wave yet", cx))));
+            .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities and the soundboard aren't in Dango yet", cx))));
         let voice = div()
             .h(px(VOICE_HEIGHT))
             .flex_none()
@@ -1164,7 +1164,7 @@ impl Rustcord {
             false => control("call-share", Glyph::ShareScreenFill, "Share your screen", Control::Rest, connected).when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx)))),
         };
         let activities = control("call-activities", Glyph::ActivitiesFill, "Activities and soundboard", Control::Rest, connected)
-            .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities and the soundboard aren't in Wave yet", cx))));
+            .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities and the soundboard aren't in Dango yet", cx))));
         let more = control("call-more", Glyph::More, "More options", Control::Rest, true).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_call_more(e.position, cx)));
         let leave = control("call-hang-up", Glyph::CallEnd, "Leave call", Control::Leave, true).w(px(68.)).on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx)));
         div()
@@ -1194,7 +1194,7 @@ impl Rustcord {
                     let channel = call.channel.id.clone();
                     entries.push(item("Invite to voice", move |this, window, cx| this.show_invite(guild.clone(), channel.clone(), window, cx)).icon(Glyph::GroupPlus).entry());
                 }
-                entries.push(item("Soundboard", |this, _, cx| this.show_toast("The soundboard isn't in Wave yet", cx)).icon(Glyph::Soundboard).entry());
+                entries.push(item("Soundboard", |this, _, cx| this.show_toast("The soundboard isn't in Dango yet", cx)).icon(Glyph::Soundboard).entry());
                 if this.call_focus.is_some() {
                     let hidden = this.call_strip_hidden;
                     entries.push(

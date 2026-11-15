@@ -464,7 +464,7 @@ fn ask_to_join(ink: Ink) -> Stateful<Div> {
         .opacity(0.7)
         .child(Icon::new(Glyph::Game).size(px(16.)))
         .child("Ask to Join")
-        .tooltip(|window, cx| Tooltip::new("Joining from Wave isn't supported yet").build(window, cx))
+        .tooltip(|window, cx| Tooltip::new("Joining from Dango isn't supported yet").build(window, cx))
 }
 
 fn message_field(user: &User, ink: Ink, cx: &mut Context<Rustcord>) -> Div {

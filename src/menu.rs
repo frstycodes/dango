@@ -1,8 +1,8 @@
-// Wave's context menus (design/menus.html, design/css/overlays.css `.menu`, `.mi`): a 248px overlay
+// Dango's context menus (design/menus.html, design/css/overlays.css `.menu`, `.mi`): a 248px overlay
 // card, 34px rows with a muted leading icon, a faint line under the label for what the row says
 // about itself, checkboxes on the right, radio rows that take a fill instead of a dot, one accent row
 // and red danger rows that fill solid on hover, and submenus that fly out beside their row. Every
-// right-click in Wave opens one of these.
+// right-click in Dango opens one of these.
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use gpui_kit::{

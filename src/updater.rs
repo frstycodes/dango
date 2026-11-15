@@ -9,7 +9,7 @@ use futures::channel::mpsc::UnboundedSender;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-const LATEST: &str = "https://api.github.com/repos/frstycodes/wave/releases/latest";
+const LATEST: &str = "https://api.github.com/repos/frstycodes/dango/releases/latest";
 const CHECK_TIMEOUT: Duration = Duration::from_secs(4);
 // A download that sends nothing for this long is given up; a slow but moving one is not.
 const STALL_TIMEOUT: Duration = Duration::from_secs(15);
@@ -38,7 +38,7 @@ struct Asset {
 
 fn http() -> reqwest::Client {
     // GitHub's API rejects requests without a User-Agent.
-    reqwest::Client::builder().user_agent(concat!("Wave/", env!("CARGO_PKG_VERSION"))).connect_timeout(CHECK_TIMEOUT).read_timeout(STALL_TIMEOUT).build().unwrap_or_default()
+    reqwest::Client::builder().user_agent(concat!("Dango/", env!("CARGO_PKG_VERSION"))).connect_timeout(CHECK_TIMEOUT).read_timeout(STALL_TIMEOUT).build().unwrap_or_default()
 }
 
 pub async fn check() -> Option<Update> {
@@ -104,7 +104,7 @@ fn asset_name(os: &str, arch: &str) -> Option<String> {
         "windows" => "exe",
         _ => return None,
     };
-    Some(format!("wave-{os}-{arch}.{ext}"))
+    Some(format!("dango-{os}-{arch}.{ext}"))
 }
 
 fn pick(release: &Release, os: &str, arch: &str) -> Option<Update> {
@@ -176,10 +176,10 @@ mod platform {
         (app.extension()? == "app").then(|| app.to_path_buf())
     }
 
-    // The asset is a zipped `Wave.app`; `ditto` unpacks it keeping permissions and symlinks.
+    // The asset is a zipped `Dango.app`; `ditto` unpacks it keeping permissions and symlinks.
     pub fn put_in_place(exe: &Path, bytes: &[u8]) -> Result<(), String> {
         let target = target(exe);
-        let staging = target.with_file_name(".wave-update");
+        let staging = target.with_file_name(".dango-update");
         std::fs::remove_dir_all(&staging).ok();
         std::fs::create_dir_all(&staging).map_err(|e| e.to_string())?;
         let result = unpack_and_swap(exe, &target, &staging, bytes);
@@ -193,7 +193,7 @@ mod platform {
         let zip = staging.join("update.zip");
         std::fs::write(&zip, bytes).map_err(|e| e.to_string())?;
         run(Command::new("ditto").arg("-x").arg("-k").arg(&zip).arg(staging))?;
-        let app = staging.join("Wave.app");
+        let app = staging.join("Dango.app");
         let staged = if bundle(exe).is_some() { app } else { app.join("Contents/MacOS").join(exe.file_name().unwrap_or_default()) };
         // We downloaded it ourselves, so it shouldn't carry quarantine; clear it anyway so Gatekeeper
         // never blocks the relaunch. Failure here is harmless.
@@ -243,19 +243,19 @@ mod tests {
 
     #[test]
     fn picks_this_platforms_asset_and_its_checksum() {
-        let r = release("v0.2.0", &["wave-macos-aarch64.zip", "wave-macos-aarch64.zip.sha256", "wave-windows-x86_64.exe", "wave-windows-x86_64.exe.sha256"]);
+        let r = release("v0.2.0", &["dango-macos-aarch64.zip", "dango-macos-aarch64.zip.sha256", "dango-windows-x86_64.exe", "dango-windows-x86_64.exe.sha256"]);
         let mac = pick(&r, "macos", "aarch64").unwrap();
-        assert_eq!((mac.version.as_str(), mac.url.as_str(), mac.checksum_url.as_str()), ("0.2.0", "https://dl/wave-macos-aarch64.zip", "https://dl/wave-macos-aarch64.zip.sha256"));
-        assert_eq!(pick(&r, "windows", "x86_64").unwrap().url, "https://dl/wave-windows-x86_64.exe");
+        assert_eq!((mac.version.as_str(), mac.url.as_str(), mac.checksum_url.as_str()), ("0.2.0", "https://dl/dango-macos-aarch64.zip", "https://dl/dango-macos-aarch64.zip.sha256"));
+        assert_eq!(pick(&r, "windows", "x86_64").unwrap().url, "https://dl/dango-windows-x86_64.exe");
         assert!(pick(&r, "macos", "x86_64").is_none());
         assert!(pick(&r, "linux", "x86_64").is_none());
-        assert!(pick(&release("v0.2.0", &["wave-windows-x86_64.exe"]), "windows", "x86_64").is_none(), "no checksum, no update");
+        assert!(pick(&release("v0.2.0", &["dango-windows-x86_64.exe"]), "windows", "x86_64").is_none(), "no checksum, no update");
     }
 
     #[test]
     fn rejects_a_checksum_mismatch() {
         let sum = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
-        assert!(verify(b"hello", &format!("{sum}  wave-windows-x86_64.exe\n")).is_ok());
+        assert!(verify(b"hello", &format!("{sum}  dango-windows-x86_64.exe\n")).is_ok());
         assert!(verify(b"hello", &sum.to_uppercase()).is_ok());
         assert!(verify(b"hellO", sum).is_err());
         assert!(verify(b"hello", "").is_err());
@@ -263,9 +263,9 @@ mod tests {
 
     #[test]
     fn swap_replaces_the_target_and_sets_the_old_one_aside() {
-        let dir = std::env::temp_dir().join(format!("wave-swap-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("dango-swap-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let (target, staged) = (dir.join("wave"), dir.join("wave.new"));
+        let (target, staged) = (dir.join("dango"), dir.join("dango.new"));
         std::fs::write(&target, "old").unwrap();
         std::fs::write(&staged, "new").unwrap();
         swap(&target, &staged).unwrap();

@@ -1,4 +1,4 @@
-// Windows: closing the window keeps Wave running in the notification area, like Discord. The
+// Windows: closing the window keeps Dango running in the notification area, like Discord. The
 // tray icon brings the window back (click or double-click); its menu offers Open and Quit. Calls,
 // Go Live and notifications carry on while the window is hidden.
 use std::{cell::RefCell, time::Duration};
@@ -26,13 +26,13 @@ thread_local! {
 pub fn install(window: &mut Window, cx: &mut App) {
     let Some(hwnd) = hwnd(window) else { return };
     crate::presence::watch(hwnd);
-    let open = MenuItem::new("Open Wave", true, None);
-    let quit = MenuItem::new("Quit Wave", true, None);
+    let open = MenuItem::new("Open Dango", true, None);
+    let quit = MenuItem::new("Quit Dango", true, None);
     let menu = Menu::new();
     if menu.append_items(&[&open, &PredefinedMenuItem::separator(), &quit]).is_err() {
         return;
     }
-    let mut builder = TrayIconBuilder::new().with_tooltip("Wave").with_menu(Box::new(menu)).with_menu_on_left_click(false);
+    let mut builder = TrayIconBuilder::new().with_tooltip("Dango").with_menu(Box::new(menu)).with_menu_on_left_click(false);
     if let Some(icon) = icon(crate::settings::Prefs::load().app_icon.bytes()) {
         builder = builder.with_icon(icon);
     }

@@ -1,4 +1,4 @@
-// Wave's frame (design/navigation.html): a title bar over the rail, channel list, chat and side panel,
+// Dango's frame (design/navigation.html): a title bar over the rail, channel list, chat and side panel,
 // with the user area at the foot of the channel list.
 use std::time::Duration;
 
@@ -650,7 +650,7 @@ fn title_button(id: &'static str, glyph: Glyph, enabled: bool, label: &'static s
         .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
 }
 
-// Wave's mark and name, leading the bar where the system draws no traffic lights.
+// Dango's mark and name, leading the bar where the system draws no traffic lights.
 fn brand(cx: &App) -> Div {
     div()
         .flex_none()
@@ -662,7 +662,7 @@ fn brand(cx: &App) -> Div {
         .font_weight(FontWeight::MEDIUM)
         .text_color(palette::strong(cx))
         .child(img(crate::icons::MARK).size(px(18.)))
-        .child("Wave")
+        .child("Dango")
 }
 
 // A user area control (.me .iconbtn): 30px; `on` (muted, deafened) turns it coral. The glyph pops in on

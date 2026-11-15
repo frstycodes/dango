@@ -136,7 +136,7 @@ fn main() {
 }
 
 // Release builds look for an update behind the splash before anything signs in; a newer build is
-// installed and relaunched, anything else (no update, offline, a failed download) opens Wave as usual.
+// installed and relaunched, anything else (no update, offline, a failed download) opens Dango as usual.
 fn update_then_open(signed_in: bool, cx: &mut gpui_kit::App) {
     let splash = splash::open("Checking for updates…", cx);
     cx.spawn(async move |cx| {
@@ -185,7 +185,7 @@ fn open_main(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gp
         window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(1280.), px(820.)), cx))),
         window_min_size: Some(size(px(940.), px(520.))),
         // The traffic lights centre in the 36px title bar, leaving the first 72px to them.
-        titlebar: Some(TitlebarOptions { title: Some("Wave".into()), appears_transparent: true, traffic_light_position: Some(gpui_kit::point(px(12.), px(12.))) }),
+        titlebar: Some(TitlebarOptions { title: Some("Dango".into()), appears_transparent: true, traffic_light_position: Some(gpui_kit::point(px(12.), px(12.))) }),
         window_background: material::window_background(),
         ..Default::default()
     };
@@ -345,7 +345,7 @@ struct Autocomplete {
     selected: usize,
 }
 
-// Where Wave keeps its files: Application Support on macOS, %APPDATA% on Windows,
+// Where Dango keeps its files: Application Support on macOS, %APPDATA% on Windows,
 // $XDG_DATA_HOME (or ~/.local/share) elsewhere. The folders keep the app's first name, Rustcord, so
 // existing sign-ins and settings carry over.
 fn data_dir() -> Option<std::path::PathBuf> {
@@ -856,7 +856,7 @@ impl Rustcord {
         }
     }
 
-    // Servers are in: say so, then open Wave a beat later so the step registers.
+    // Servers are in: say so, then open Dango a beat later so the step registers.
     fn splash_ready(&mut self, cx: &mut Context<Self>) {
         if self.splash.is_none() {
             return;
@@ -864,7 +864,7 @@ impl Rustcord {
         self.splash_stage(1, "Loading your servers…", cx);
         cx.spawn(async move |this, cx| {
             cx.background_executor().timer(SPLASH_BEAT).await;
-            this.update(cx, |this, cx| this.splash_stage(2, "Opening Wave…", cx)).ok();
+            this.update(cx, |this, cx| this.splash_stage(2, "Opening Dango…", cx)).ok();
             cx.background_executor().timer(SPLASH_BEAT).await;
             this.update(cx, |this, cx| this.finish_splash(cx)).ok();
         })
