@@ -37,6 +37,8 @@ const GALLERY_GAP: f32 = 4.;
 const AVATAR: f32 = 40.;
 // The avatar column plus the gap to the content column: where replies and continuations line up.
 const CONTENT_INSET: f32 = AVATAR + 16.;
+// A reply preview's line, above the message it answers.
+const REPLY_HEIGHT: f32 = 22.;
 
 // The floating stream player's width; its height keeps 16:9.
 const PIP_WIDTH: f32 = 320.;
@@ -414,7 +416,8 @@ impl Rustcord {
         let typers = self.typers();
         let names: Vec<&str> = typers.iter().map(|t| t.name.as_str()).collect();
         // A glass pill just above the composer, out of the flow, so the box never moves when someone types.
-        let typing = (!names.is_empty()).then(|| {
+        // Out of the way while suggestions are open, which rise over the same spot.
+        let typing = (!names.is_empty() && self.autocomplete.is_none()).then(|| {
             div().absolute().left(px(28.)).top(px(-28.)).max_w(gpui_kit::relative(0.6)).h(px(24.)).px(px(10.)).flex().items_center().gap(px(8.)).rounded_full()
                 .bg(palette::surface(Level::Raised, cx).opacity(0.72))
                 .backdrop_blur(px(16.))
@@ -661,8 +664,9 @@ impl Rustcord {
                 .bg(palette::surface(Level::Overlay, cx))
                 .shadow(ui::shadow_pop(cx))
                 .text_size(px(14.))
-                .child(div().pt(px(6.)).px(px(10.)).pb(px(4.)).text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(muted).child(heading))
-                .children(rows)
+                .child(div().flex_none().pt(px(6.)).px(px(10.)).pb(px(4.)).text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(muted).child(heading))
+                // The rows scroll inside the popup's height rather than spilling out over the composer.
+                .child(div().id("autocomplete-list").flex_1().min_h_0().flex().flex_col().gap(px(2.)).overflow_y_scroll().track_scroll(&self.autocomplete_scroll).children(rows))
                 .transform_origin(point(gpui_kit::relative(0.5), gpui_kit::relative(1.)))
                 .with_animation("autocomplete", Animation::new(ui::DUR_POP).with_easing(gpui_kit::ease_out_quint()), |el, t| el.opacity(t).scale(0.95 + 0.05 * t)),
         )
@@ -859,6 +863,21 @@ fn with_message_menu(row: Stateful<Div>, message: &Message, ctx: &Rc<RowContext>
 }
 
 // The reference above a reply, in the content column; clicking it jumps to the original and flashes it.
+// Discord's reply spine: from the preview's middle it runs left to over the avatar's centre, rounds
+// the corner and drops to just above the avatar, so the preview lines up with the name below it.
+fn reply_spine(cx: &App) -> Div {
+    div()
+        .absolute()
+        .left(px(AVATAR / 2. - 1.))
+        .top(px(REPLY_HEIGHT / 2.))
+        .w(px(CONTENT_INSET - AVATAR / 2. - 4.))
+        .h(px(REPLY_HEIGHT / 2. + 4.))
+        .border_t(px(2.))
+        .border_l(px(2.))
+        .rounded_tl(px(6.))
+        .border_color(palette::line_strong(cx))
+}
+
 fn reply_preview(reply: &Message, target: Option<String>, ctx: &Rc<RowContext>, cx: &App) -> AnyElement {
     let (faint, muted, text) = (palette::faint(cx), palette::muted(cx), palette::text(cx));
     let snippet = match reply.content.is_empty() {
@@ -868,6 +887,8 @@ fn reply_preview(reply: &Message, target: Option<String>, ctx: &Rc<RowContext>, 
     let this = ctx.this.clone();
     div()
         .id(SharedString::from(format!("reply-{}", reply.id)))
+        .relative()
+        .h(px(REPLY_HEIGHT))
         .pl(px(CONTENT_INSET))
         .mb(px(2.))
         .min_w_0()
@@ -878,7 +899,7 @@ fn reply_preview(reply: &Message, target: Option<String>, ctx: &Rc<RowContext>, 
         .text_size(px(14.))
         .text_color(faint)
         .hover(move |s| s.text_color(text))
-        .child(Icon::new(Glyph::ReplyRight).size(px(14.)))
+        .child(reply_spine(cx))
         .child(ui::avatar(reply.author.avatar.clone(), 16.))
         .child(div().flex_none().font_weight(FontWeight::MEDIUM).text_color(muted).child(ctx.name_of(&reply.author)))
         .child(snippet)

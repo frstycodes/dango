@@ -8,7 +8,7 @@ pub const MARK_WHITE: &str = "brand/rustcord-mark-white.svg";
 
 // Phosphor icons (MIT, assets/icons/phosphor/LICENSE): bold everywhere, so strokes hold their own
 // beside Gabarito (regular read hairline at 16px), and fill for on and playing states. Order matches `Glyph`.
-const GLYPHS: [(&str, &[u8]); 141] = [
+const GLYPHS: [(&str, &[u8]); 140] = [
     ("icons/hashtag.svg", include_bytes!("../assets/icons/phosphor/hash-bold.svg")),
     ("icons/hashtag-lock.svg", include_bytes!("../assets/icons/phosphor/lock-simple-bold.svg")),
     ("icons/volume-high.svg", include_bytes!("../assets/icons/phosphor/speaker-high-bold.svg")),
@@ -129,7 +129,6 @@ const GLYPHS: [(&str, &[u8]); 141] = [
     ("icons/minus-bold.svg", include_bytes!("../assets/icons/phosphor/minus-bold.svg")),
     ("icons/at-fill.svg", include_bytes!("../assets/icons/phosphor/at-fill.svg")),
     ("icons/paper-plane-tilt-bold.svg", include_bytes!("../assets/icons/phosphor/paper-plane-tilt-bold.svg")),
-    ("icons/reply-right.svg", include_bytes!("../assets/icons/phosphor/arrow-bend-up-right-bold.svg")),
     ("icons/more-vertical.svg", include_bytes!("../assets/icons/phosphor/dots-three-vertical-bold.svg")),
     ("icons/thread-new.svg", include_bytes!("../assets/icons/phosphor/chats-teardrop-bold.svg")),
     ("icons/download.svg", include_bytes!("../assets/icons/phosphor/download-simple-bold.svg")),
@@ -282,7 +281,6 @@ pub enum Glyph {
     MinusBold,
     AtFill,
     PaperPlaneBold,
-    ReplyRight,
     MoreVertical,
     ThreadNew,
     Download,
