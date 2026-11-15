@@ -146,9 +146,9 @@ pub fn apply(cx: &mut App) {
     // `update`, not `global_mut`: gpui-component's own widgets paint from `theme.tokens`, which only
     // `update` reconciles with the colours set here.
     Theme::update(cx, |theme| {
-        // Gabarito (OFL, bundled in assets/fonts). Code stays in gg sans mono until a mono is bundled.
+        // Gabarito and Roboto Mono, both OFL and bundled in assets/fonts.
         theme.font_family = "Gabarito".into();
-        theme.mono_font_family = "gg sans mono".into();
+        theme.mono_font_family = "Roboto Mono".into();
         let text = hex(t.text);
         let line = hex(t.ink_wash).opacity(t.line);
         theme.background = hex(t.page);
