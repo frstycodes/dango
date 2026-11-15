@@ -7912,6 +7912,7 @@ dependencies = [
  "reqwest",
  "rodio",
  "rsa",
+ "rustfft",
  "screencapturekit 11.1.2",
  "serde",
  "serde_json",
