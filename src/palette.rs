@@ -378,13 +378,16 @@ pub fn status(status: crate::discord::Status) -> Hsla {
     })
 }
 
-// A role's colour as a name colour: same hue, lightness clamped per theme (0.72–0.92 on dark,
-// 0.30–0.45 on light, as design/css/navigation.css's .role-ink) and chroma capped at 0.16, so even a
-// pure yellow or blue role reads at 4.5:1.
+// A role's colour as a name colour: the role's own hex, as Discord shows it. Only a role too dark for the
+// dark theme (or too light for the light one) moves, in lightness alone, to the floor that still reads.
+// Deviates from design/css/navigation.css's .role-ink, whose clamp turned every role pastel.
 pub fn role_ink(color: u32, dark: bool) -> Hsla {
     let (l, c, h) = to_oklch(color);
-    let l = if dark { l.clamp(0.72, 0.92) } else { l.clamp(0.30, 0.45) };
-    hex(from_oklch(l, c.min(0.16), h))
+    let readable = if dark { l.max(0.62) } else { l.min(0.55) };
+    if readable == l {
+        return hex(color);
+    }
+    hex(from_oklch(readable, c, h))
 }
 
 fn to_oklch(color: u32) -> (f32, f32, f32) {

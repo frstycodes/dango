@@ -1985,6 +1985,12 @@ impl Rustcord {
     }
 
     /// The colour of the user's highest coloured role, clamped so the name stays readable in this theme.
+    // The name the open server shows for someone: their nickname once the member is known.
+    pub(crate) fn member_name(&self, user: &discord::User) -> String {
+        let member = self.guild_id.as_ref().and_then(|g| self.members.get(g)).and_then(|m| m.get(&user.id));
+        member.map_or_else(|| user.name.clone(), |m| m.name.clone())
+    }
+
     fn role_color(&self, guild_id: Option<&String>, user_id: &str, hint: Option<&Vec<String>>, dark: bool) -> Option<Hsla> {
         let guild = self.guilds.iter().find(|g| Some(&g.id) == guild_id)?;
         let roles = hint.or_else(|| self.member_roles.get(&guild.id)?.get(user_id))?;

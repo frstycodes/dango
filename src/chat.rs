@@ -269,14 +269,13 @@ impl Rustcord {
         let messages = feed.messages.clone();
         let ctx = Rc::new(RowContext {
             me: self.me.clone(),
-            names: self
-                .guild_id
-                .as_ref()
-                .and_then(|g| self.members.get(g))
-                .into_iter()
-                .flat_map(|m| m.values())
-                .chain(messages.iter().flat_map(|m| std::iter::once(&m.author).chain(&m.mentions)))
+            // Later entries win: the server's member cache last, so nicknames beat the account names
+            // that history loaded over REST carries (it has no member objects).
+            names: messages
+                .iter()
+                .flat_map(|m| std::iter::once(&m.author).chain(&m.mentions))
                 .chain(self.me.iter())
+                .chain(self.guild_id.as_ref().and_then(|g| self.members.get(g)).into_iter().flat_map(|m| m.values()))
                 .map(|u| (u.id.clone(), u.name.clone()))
                 .collect(),
             colors: messages.iter().filter_map(|m| Some((m.author.id.clone(), self.role_color(m.guild_id.as_ref().or(self.guild_id.as_ref()), &m.author.id, m.roles.as_ref(), cx.theme().is_dark())?))).collect(),
@@ -462,7 +461,7 @@ impl Rustcord {
     fn composer_bar(&self, cx: &mut Context<Self>) -> Option<Div> {
         let strong = palette::strong(cx);
         let label = match (&self.replying, &self.editing) {
-            (Some(reply), _) => emphasised(&[("Replying to ".into(), false), (reply.author.name.clone(), true)], strong),
+            (Some(reply), _) => emphasised(&[("Replying to ".into(), false), (self.member_name(&reply.author), true)], strong),
             (_, Some(_)) => emphasised(&[("Editing message".into(), true)], strong),
             _ => return None,
         };
@@ -639,6 +638,13 @@ impl Rustcord {
     }
 }
 
+impl RowContext {
+    // The name this server shows for someone: their nickname once the member is known.
+    fn name_of(&self, user: &User) -> String {
+        self.names.get(&user.id).cloned().unwrap_or_else(|| user.name.clone())
+    }
+}
+
 struct RowContext {
     me: Option<User>,
     names: HashMap<String, String>,
@@ -770,7 +776,7 @@ fn message_head(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> impl IntoE
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(name_color)
                 .hover(|s| s.underline())
-                .child(message.author.name.clone()),
+                .child(ctx.name_of(&message.author)),
         )
         .children(message.author.tag.clone().map(|tag| ui::badge(palette::selected(cx), palette::strong(cx)).h(px(18.)).px(px(6.)).gap(px(3.)).children(tag.badge.map(|b| img(b).size(px(12.)))).child(tag.text)))
         .when(message.author.bot, |h| h.child(ui::badge(palette::accent_soft(cx), palette::accent_ink(cx)).h(px(18.)).px(px(6.)).gap(px(3.)).child(Icon::new(Glyph::Checkmark).size(px(11.))).child("APP")))
@@ -843,7 +849,7 @@ fn reply_preview(reply: &Message, target: Option<String>, ctx: &Rc<RowContext>, 
         .hover(move |s| s.text_color(text))
         .child(Icon::new(Glyph::ReplyRight).size(px(14.)))
         .child(ui::avatar(reply.author.avatar.clone(), 16.))
-        .child(div().flex_none().font_weight(FontWeight::SEMIBOLD).text_color(muted).child(reply.author.name.clone()))
+        .child(div().flex_none().font_weight(FontWeight::SEMIBOLD).text_color(muted).child(ctx.name_of(&reply.author)))
         .child(snippet)
         .on_click(move |_, _, cx| {
             let Some(id) = target.clone() else { return };
