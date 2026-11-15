@@ -729,11 +729,14 @@ fn inset(row: AnyElement) -> AnyElement {
 // Name in its top role's colour, tags, the time, and a pin when pinned.
 fn message_head(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> impl IntoElement + use<> {
     let name_color = ctx.colors.get(&message.author.id).copied().unwrap_or(palette::strong(cx));
+    // GAP: gpui text reports no baseline to taffy, so `items_baseline` would line up box bottoms and
+    // lift the name. One 22px line box, centred, with the smaller time nudged 1px, shares a baseline.
     div()
         .flex()
-        .items_baseline()
+        .items_center()
         .gap(px(8.))
         .min_w_0()
+        .line_height(px(22.))
         .child(
             profile_trigger(format!("name-{}", message.id), &message.author, ctx)
                 .min_w_0()
@@ -746,7 +749,7 @@ fn message_head(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> impl IntoE
         )
         .children(message.author.tag.clone().map(|tag| ui::badge(palette::selected(cx), palette::strong(cx)).h(px(18.)).px(px(6.)).gap(px(3.)).children(tag.badge.map(|b| img(b).size(px(12.)))).child(tag.text)))
         .when(message.author.bot, |h| h.child(ui::badge(palette::accent_soft(cx), palette::accent_ink(cx)).h(px(18.)).px(px(6.)).gap(px(3.)).child(Icon::new(Glyph::Checkmark).size(px(11.))).child("APP")))
-        .child(div().flex_none().whitespace_nowrap().text_size(px(12.)).text_color(palette::faint(cx)).child(format_stamp(&message.timestamp)))
+        .child(div().flex_none().relative().top(px(1.)).whitespace_nowrap().text_size(px(12.)).text_color(palette::faint(cx)).child(format_stamp(&message.timestamp)))
         .when(message.pinned, |h| h.child(div().flex_none().self_center().text_color(palette::muted(cx)).child(Icon::new(Glyph::Pin).size(px(14.)))))
 }
 
@@ -885,6 +888,8 @@ fn markdown(id: SharedString, text: String, ctx: &RowContext) -> TextView {
     let this = ctx.this.clone();
     let (copy_target, copied) = (ctx.this.clone(), ctx.copied.clone());
     TextView::markdown(id, text)
+        // messages.css `.codeblock { margin-top: 6px }`: a block opening a message clears the name row.
+        .style(gpui_kit::component::text::TextViewStyle::default().code_block(gpui_kit::StyleRefinement::default().mt(px(6.))))
         .selectable(true)
         .code_block_actions(move |block, _, cx| copy_button(block.code().to_string(), copied.as_deref() == Some(block.code().as_ref()), copy_target.clone(), cx))
         .on_link_click(move |url, _, window, cx| {
