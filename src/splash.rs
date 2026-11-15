@@ -18,6 +18,8 @@ pub const STAGES: usize = 3;
 pub struct Splash {
     stage: SharedString,
     step: usize,
+    // Set while an update downloads: a bar replaces the step dots.
+    progress: Option<f32>,
 }
 
 impl Splash {
@@ -26,9 +28,15 @@ impl Splash {
         self.stage = stage.into();
         cx.notify();
     }
+
+    pub fn set_progress(&mut self, version: &str, progress: f32, cx: &mut Context<Self>) {
+        self.stage = format!("Updating to {version}…").into();
+        self.progress = Some(progress.clamp(0., 1.));
+        cx.notify();
+    }
 }
 
-pub fn open(cx: &mut App) -> Option<WindowHandle<Splash>> {
+pub fn open(stage: &'static str, cx: &mut App) -> Option<WindowHandle<Splash>> {
     let options = WindowOptions {
         window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(220.), px(248.)), cx))),
         titlebar: None,
@@ -42,7 +50,7 @@ pub fn open(cx: &mut App) -> Option<WindowHandle<Splash>> {
     };
     cx.open_window(options, |window, cx| {
         palette::sync(window, cx);
-        cx.new(|_| Splash { stage: "Signing in…".into(), step: 0 })
+        cx.new(|_| Splash { stage: stage.into(), step: 0, progress: None })
     })
     .ok()
 }
@@ -51,6 +59,10 @@ impl Render for Splash {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let card = if cx.theme().is_dark() { &MIDNIGHT } else { &BONE };
         let dots = (0..STAGES).map(|i| div().size(px(6.)).rounded_full().bg(if i <= self.step { palette::accent() } else { rgb(card.rest).into() }));
+        let indicator = match self.progress {
+            Some(progress) => progress_bar(progress, card),
+            None => div().flex().gap(px(5.)).children(dots),
+        };
         // Opened without gpui-kit's root view, so the app font is set here.
         // GAP: the design's 0 18 40 drop shadow falls outside this borderless window's bounds.
         div().size_full().font_family(cx.theme().font_family.clone()).child(
@@ -69,9 +81,15 @@ impl Render for Splash {
                 .child(mascot_at("splash", Mood::Happy, 0.6, cx))
                 .child(div().mt(px(4.)).text_size(px(20.)).line_height(px(20.)).font_weight(FontWeight::BOLD).text_color(rgb(card.ink)).child("Wave"))
                 .child(div().max_w_full().truncate().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(rgb(card.muted)).child(self.stage.clone()))
-                .child(div().flex().gap(px(5.)).children(dots)),
+                .child(indicator),
         )
     }
+}
+
+// The step dots' height, so the card doesn't shift when the bar takes their place.
+fn progress_bar(progress: f32, card: &Card) -> gpui_kit::Div {
+    let track = px(120.);
+    div().w(track).h(px(6.)).rounded_full().bg(rgb(card.rest)).child(div().h_full().w(track * progress).rounded_full().bg(palette::accent()))
 }
 
 // The splash opens before the main window, so it carries its own two materials, like the call stage.

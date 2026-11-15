@@ -1,11 +1,11 @@
 # Wave
 
-A lightweight Discord client in Rust and gpui (repository and data folders still use its first name, Rustcord).
+A lightweight Discord client in Rust and gpui (the crate and data folders still use its first name, Rustcord).
 
 A lightweight Discord desktop client in Rust and [gpui](https://www.gpui.rs): messaging, voice, video and Go Live.
 
-Personal project. `assets/discord/` holds Discord's own icons and sounds, taken for personal use only: keep this
-repository private and never ship a build that contains them (see `assets/discord/README.md`).
+Personal project. `assets/discord/` holds Discord's own icons and fonts, kept for reference only: no build compiles
+them in, and none may (see `assets/discord/README.md`).
 
 ## Build
 
@@ -27,6 +27,27 @@ Not yet built or tested on Windows. Expected needs:
 
 Known gaps on Windows: Go Live (screen capture is macOS-only), sound cues (macOS-only), and debug sign-ins are
 saved under `%APPDATA%\Rustcord`.
+
+## How to release
+
+Release builds update themselves at launch from this repository's GitHub Releases (debug builds and
+`CHORD_DEMO` runs never do).
+
+1. Bump `version` in `Cargo.toml` (e.g. `0.2.0`), run `cargo check` so `Cargo.lock` follows, and commit.
+2. Tag that commit with the same version and push it:
+
+   ```sh
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+`.github/workflows/release.yml` checks the tag matches `Cargo.toml`, creates the release, and attaches, each with
+a `.sha256`:
+
+- installers: `wave-macos-aarch64.dmg`, `wave-macos-x86_64.dmg`, `wave-windows-x86_64-setup.exe` (per-user, no admin)
+- what the updater downloads: `wave-macos-*.zip` (zipped `Wave.app`) and `wave-windows-x86_64.exe`
+
+Running copies older than the tag download theirs on next launch and restart into it.
 
 ## Where things are
 

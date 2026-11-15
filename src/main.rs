@@ -46,6 +46,7 @@ mod sounds;
 mod tray;
 mod ui;
 mod splash;
+mod updater;
 mod design_system;
 mod app_icon;
 mod voice;
@@ -116,43 +117,100 @@ fn main() {
             return;
         }
 
-        // Signed in: a small splash window shows while the main window loads hidden behind it.
-        let signed_in = accounts::startup_token(&settings::Prefs::load()).is_some();
-        let demo = cfg!(debug_assertions) && std::env::var_os("CHORD_DEMO").is_some();
-        let splash = if signed_in && !demo { splash::open(cx) } else { None };
-        let options = WindowOptions {
-            show: splash.is_none(),
-            focus: splash.is_none(),
-            window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(1280.), px(820.)), cx))),
-            window_min_size: Some(size(px(940.), px(520.))),
-            // The traffic lights centre in the 36px title bar, leaving the first 72px to them.
-            titlebar: Some(TitlebarOptions { title: Some("Wave".into()), appears_transparent: true, traffic_light_position: Some(gpui_kit::point(px(12.), px(12.))) }),
-            window_background: material::window_background(),
-            ..Default::default()
-        };
-        let handle = gpui_kit::open_window(options, cx, |window, cx| {
-            palette::sync(window, cx);
-            #[cfg(target_os = "windows")]
-            tray::install(window, cx);
-            cx.new(|cx| shell::Shell::new(window, splash, cx))
-        })
-        .expect("open window");
-        if material::NATIVE_SIDEBAR {
-            // gpui-component's root paints the theme background over the whole window, hiding the native
-            // material; Root's own style is applied last, so it can clear that.
-            handle
-                .0
-                .downcast::<gpui_kit::base::Root>()
-                .expect("kit root")
-                .update(cx, |root, _, _| {
-                    use gpui_kit::{Refineable as _, prelude::*};
-                    root.style().refine(&gpui_kit::StyleRefinement::default().bg(gpui_kit::transparent_black()));
-                })
-                .expect("clear root background");
+        #[cfg(debug_assertions)]
+        if std::env::var("CHORD_DEMO").as_deref() == Ok("updating") {
+            demo::updating_splash(cx);
+            return;
         }
-        cx.activate(true);
-        background_watch(cx);
+        updater::clean_up();
+        let signed_in = accounts::startup_token(&settings::Prefs::load()).is_some();
+        if updater::enabled() {
+            update_then_open(signed_in, cx);
+            return;
+        }
+        // Signed in: a small splash window shows while the main window loads hidden behind it.
+        let demo = cfg!(debug_assertions) && std::env::var_os("CHORD_DEMO").is_some();
+        let splash = if signed_in && !demo { splash::open("Signing in…", cx) } else { None };
+        open_main(splash, cx);
     });
+}
+
+// Release builds look for an update behind the splash before anything signs in; a newer build is
+// installed and relaunched, anything else (no update, offline, a failed download) opens Wave as usual.
+fn update_then_open(signed_in: bool, cx: &mut gpui_kit::App) {
+    let splash = splash::open("Checking for updates…", cx);
+    cx.spawn(async move |cx| {
+        if let Some(exe) = update(splash, cx).await {
+            updater::relaunch(&exe);
+        }
+        cx.update(|cx| {
+            if signed_in {
+                return open_main(splash, cx);
+            }
+            // Signing in happens in the main window, so the splash steps aside.
+            if let Some(splash) = splash {
+                splash.update(cx, |_, window, _| window.remove_window()).ok();
+            }
+            open_main(None, cx);
+        });
+    })
+    .detach();
+}
+
+async fn update(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gpui_kit::AsyncApp) -> Option<std::path::PathBuf> {
+    let update = discord::runtime().spawn(updater::check()).await.ok()??;
+    let version = update.version.clone();
+    let (progress_tx, mut progress) = futures::channel::mpsc::unbounded();
+    progress_tx.unbounded_send(0.).ok();
+    let install = discord::runtime().spawn(updater::install(update, progress_tx));
+    while let Some(fraction) = progress.next().await {
+        if let Some(splash) = splash {
+            splash.update(cx, |splash, _, cx| splash.set_progress(&version, fraction, cx)).ok();
+        }
+    }
+    match install.await {
+        Ok(Ok(exe)) => Some(exe),
+        Ok(Err(e)) => {
+            eprintln!("[updater] update to {version} failed: {e}");
+            None
+        }
+        Err(_) => None,
+    }
+}
+
+fn open_main(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gpui_kit::App) {
+    let options = WindowOptions {
+        show: splash.is_none(),
+        focus: splash.is_none(),
+        window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(1280.), px(820.)), cx))),
+        window_min_size: Some(size(px(940.), px(520.))),
+        // The traffic lights centre in the 36px title bar, leaving the first 72px to them.
+        titlebar: Some(TitlebarOptions { title: Some("Wave".into()), appears_transparent: true, traffic_light_position: Some(gpui_kit::point(px(12.), px(12.))) }),
+        window_background: material::window_background(),
+        ..Default::default()
+    };
+    let handle = gpui_kit::open_window(options, cx, |window, cx| {
+        palette::sync(window, cx);
+        #[cfg(target_os = "windows")]
+        tray::install(window, cx);
+        cx.new(|cx| shell::Shell::new(window, splash, cx))
+    })
+    .expect("open window");
+    if material::NATIVE_SIDEBAR {
+        // gpui-component's root paints the theme background over the whole window, hiding the native
+        // material; Root's own style is applied last, so it can clear that.
+        handle
+            .0
+            .downcast::<gpui_kit::base::Root>()
+            .expect("kit root")
+            .update(cx, |root, _, _| {
+                use gpui_kit::{Refineable as _, prelude::*};
+                root.style().refine(&gpui_kit::StyleRefinement::default().bg(gpui_kit::transparent_black()));
+            })
+            .expect("clear root background");
+    }
+    cx.activate(true);
+    background_watch(cx);
 }
 
 // Background mode, unless a video is playing: minimized or closed to the tray, the app gives memory

@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | login | scanned | failed | empty.
+// CHORD_DEMO=chat | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | login | scanned | failed | empty | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -10,6 +10,12 @@ use crate::{
     },
     login::Login,
 };
+
+// The launch splash mid-download, without the main window.
+pub fn updating_splash(cx: &mut gpui_kit::App) {
+    let Some(splash) = crate::splash::open("Checking for updates…", cx) else { return };
+    splash.update(cx, |splash, _, cx| splash.set_progress("0.2.0", 0.42, cx)).ok();
+}
 
 pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Context<Rustcord>) {
     let me = me_user();
