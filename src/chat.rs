@@ -168,18 +168,25 @@ impl Rustcord {
     // The bar over the feed while unread messages wait: jump to the first, or mark the channel read.
     fn unread_bar(&self, channel_id: &str, cx: &mut Context<Self>) -> Option<AnyElement> {
         let read = self.unread_marker?;
+        // Gone once the channel is read (a jump, Mark as read, or Discord's ack from another client).
+        if !self.unread(channel_id) {
+            return None;
+        }
         let feed = self.feeds.get(channel_id)?;
-        let fresh: Vec<&Message> = feed.messages.iter().filter(|m| crate::order(&m.id) > read).collect();
+        // What you sent yourself is never news to you.
+        let me = self.my_id();
+        let fresh: Vec<&Message> = feed.messages.iter().filter(|m| crate::order(&m.id) > read && m.author.id != me).collect();
         let first = fresh.first()?;
         let label = format!("{} new {} since {}", fresh.len(), if fresh.len() == 1 { "message" } else { "messages" }, clock(&first.timestamp));
         let tint = ui::mix(palette::surface(Level::Page, cx), palette::accent(), 0.16);
         let press = palette::accent().opacity(0.14);
         let button = move |id: &'static str| div().id(id).h(px(28.)).px(px(8.)).flex().items_center().gap(px(6.)).squircle(RADIUS_XS).cursor_pointer().hover(move |s| s.bg(press));
         let (first_id, channel_id) = (first.id.clone(), channel_id.to_owned());
+        let jump_channel = channel_id.clone();
         Some(
             div()
                 .absolute()
-                .top_0()
+                .top(px(8.))
                 .left(px(8.))
                 .right(px(8.))
                 .min_h(px(36.))
@@ -200,7 +207,10 @@ impl Rustcord {
                         .ml(px(-8.))
                         .child(Icon::new(Glyph::ArrowUp).size(px(16.)))
                         .child(div().min_w_0().truncate().child(label))
-                        .on_click(cx.listener(move |this, _, _, cx| this.jump_to(first_id.clone(), cx))),
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.jump_to(first_id.clone(), cx);
+                            this.mark_channel_read(&jump_channel, cx);
+                        })),
                 )
                 .child(button("unread-read").child("Mark as read").child(Icon::new(Glyph::Checkmark).size(px(16.))).on_click(cx.listener(move |this, _, _, cx| {
                     this.mark_channel_read(&channel_id, cx);
