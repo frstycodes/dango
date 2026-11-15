@@ -59,6 +59,10 @@ earshot = "=0.1.0"
 socket2 = "0.6"
 rodio = { version = "0.23.0", default-features = false, features = ["playback", "mp3", "symphonia-aac"] }
 
+[build-dependencies]
+# Same version gpui-pre already builds with; only used for Windows targets.
+embed-resource = "3"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSRunningApplication", "NSImage", "NSImageRep", "NSBitmapImageRep", "NSGraphicsContext", "NSGraphics", "objc2-core-foundation"] }
@@ -114,7 +118,7 @@ windows = { version = "0.62", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 
-# Wave's gpui patches (transforms, squircle corners, backdrop blur), applied to vendored copies of the
+# Dango's gpui patches (transforms, squircle corners, backdrop blur), applied to vendored copies of the
 # exact versions gpui-kit pins. Drop each crate here once upstream ships the same feature.
 [patch.crates-io]
 gpui-pre = { path = "vendor/gpui-pre" }

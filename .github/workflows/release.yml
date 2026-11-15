@@ -31,7 +31,7 @@ jobs:
             exit 1
           fi
       # Re-running a tag keeps its release and replaces its assets.
-      - run: gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Wave $TAG" --generate-notes
+      - run: gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Dango $TAG" --generate-notes
 
   build:
     needs: create
@@ -42,16 +42,16 @@ jobs:
       matrix:
         include:
           # `asset` is what the updater downloads; `installer` is what people install from.
-          - { os: macos-latest, target: aarch64-apple-darwin, asset: wave-macos-aarch64.zip, installer: wave-macos-aarch64.dmg }
-          - { os: macos-latest, target: x86_64-apple-darwin, asset: wave-macos-x86_64.zip, installer: wave-macos-x86_64.dmg }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: wave-windows-x86_64.exe, installer: wave-windows-x86_64-setup.exe }
+          - { os: macos-latest, target: aarch64-apple-darwin, asset: dango-macos-aarch64.zip, installer: dango-macos-aarch64.dmg }
+          - { os: macos-latest, target: x86_64-apple-darwin, asset: dango-macos-x86_64.zip, installer: dango-macos-x86_64.dmg }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: dango-windows-x86_64.exe, installer: dango-windows-x86_64-setup.exe }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-      # The macOS image is nearly full; a release build plus the .dmg ran out of space. Wave never
+      # The macOS image is nearly full; a release build plus the .dmg ran out of space. Dango never
       # uses the preinstalled Android SDK.
       - name: Free disk space
         if: runner.os == 'macOS'
@@ -62,38 +62,47 @@ jobs:
       # Any new workflow should use the same shared-key and save-if, and build the release profile.
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: wave-${{ matrix.target }}
+          shared-key: dango-${{ matrix.target }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: echo "VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)" >> "$GITHUB_ENV"
       - run: cargo build --release --locked --target ${{ matrix.target }}
 
-      - name: Package Wave.app
+      - name: Package Dango.app
         if: runner.os == 'macOS'
         run: |
-          app=Wave.app
+          app=Dango.app
           mkdir -p $app/Contents/MacOS $app/Contents/Resources
           cp target/${{ matrix.target }}/release/rustcord $app/Contents/MacOS/rustcord
+          cp assets/macos/AppIcon.icns $app/Contents/Resources/AppIcon.icns
           cat > $app/Contents/Info.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict>
-            <key>CFBundleName</key><string>Wave</string>
-            <key>CFBundleDisplayName</key><string>Wave</string>
-            <key>CFBundleIdentifier</key><string>com.frstycodes.wave</string>
+            <key>CFBundleName</key><string>Dango</string>
+            <key>CFBundleDisplayName</key><string>Dango</string>
+            <key>CFBundleIdentifier</key><string>com.frstycodes.dango</string>
             <key>CFBundleExecutable</key><string>rustcord</string>
+            <key>CFBundleIconFile</key><string>AppIcon</string>
             <key>CFBundlePackageType</key><string>APPL</string>
             <key>CFBundleShortVersionString</key><string>$VERSION</string>
             <key>CFBundleVersion</key><string>$VERSION</string>
             <key>LSMinimumSystemVersion</key><string>14.0</string>
             <key>NSHighResolutionCapable</key><true/>
-            <key>NSMicrophoneUsageDescription</key><string>Wave uses the microphone for voice calls.</string>
-            <key>NSCameraUsageDescription</key><string>Wave uses the camera for video calls.</string>
+            <key>NSMicrophoneUsageDescription</key><string>Dango uses the microphone for voice calls.</string>
+            <key>NSCameraUsageDescription</key><string>Dango uses the camera for video calls.</string>
           </dict></plist>
           EOF
           codesign --force --deep --sign - $app
           ditto -c -k --keepParent $app ${{ matrix.asset }}
           mkdir dmg && cp -R $app dmg/ && ln -s /Applications dmg/Applications
-          hdiutil create -volname Wave -srcfolder dmg -format UDZO -ov ${{ matrix.installer }}
+          # The mounted volume shows the app icon too: a .VolumeIcon.icns plus the custom-icon flag, which
+          # only sticks when set on the mounted volume, so build read-write, flag it, then compress.
+          cp assets/macos/AppIcon.icns dmg/.VolumeIcon.icns
+          hdiutil create -volname Dango -srcfolder dmg -format UDRW -ov rw.dmg
+          hdiutil attach -nobrowse -mountpoint mnt rw.dmg
+          SetFile -a C mnt
+          hdiutil detach mnt
+          hdiutil convert rw.dmg -format UDZO -ov -o ${{ matrix.installer }}
 
       - name: Package exe
         if: runner.os == 'Windows'
@@ -105,7 +114,7 @@ jobs:
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
-          & $iscc "/DVersion=$env:VERSION" "/DExe=$PWD\${{ matrix.asset }}" "/O$PWD" packaging\windows\wave.iss
+          & $iscc "/DVersion=$env:VERSION" "/DExe=$PWD\${{ matrix.asset }}" "/O$PWD" packaging\windows\dango.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload
