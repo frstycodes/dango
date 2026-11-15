@@ -741,7 +741,7 @@ impl Rustcord {
                 self.stream_card(Streamer { id: &state.user_id, name: &name, avatar: &avatar }, channel, &stream_key, connected, window, cx).into_any_element()
             });
             let stream_hover = cx.listener(move |this, hovered: &bool, _, cx| this.set_hovered(&hover_key, *hovered, cx));
-            let end = voice_mark_for(state, talking, &state.user_id, cx);
+            let end = voice_mark_for(state, cx);
             let key = SharedString::from(format!("voice-{}", state.user_id));
             let carried = self.drag_motion.row(&key);
             let row = div().id(key.clone()).h(px(30.)).flex_none().squircle(ui::RADIUS_SM).children(self.drag_motion.spot(&key));
@@ -768,7 +768,7 @@ impl Rustcord {
                     .font_weight(FontWeight::NORMAL)
                     .text_color(if talking { palette::strong(cx) } else { palette::muted(cx) })
                     .hover(move |s| s.bg(hover).text_color(text))
-                    .child(ui::avatar(avatar.clone(), 22.))
+                    .child(speaking_avatar(&avatar, talking))
                     .child(div().flex_1().min_w_0().truncate().child(name.clone()))
                     .children(end)
                     .on_mouse_down(gpui_kit::MouseButton::Right, {
@@ -1061,9 +1061,19 @@ pub(crate) fn channel_glyph(channel: &Channel) -> Icon {
     }
 }
 
+// A voice occupant's avatar; while they speak, an accent ring sits 1px clear of it, as Discord's does.
+fn speaking_avatar(avatar: &str, talking: bool) -> Div {
+    div()
+        .relative()
+        .flex_none()
+        .size(px(22.))
+        .child(ui::avatar(avatar.to_owned(), 22.))
+        .when(talking, |a| a.child(div().absolute().top(px(-3.)).left(px(-3.)).size(px(28.)).rounded_full().border(px(2.)).border_color(palette::accent())))
+}
+
 // The one mark a voice occupant gets, most important first: server-muted, live, camera, muted or
-// deafened. Speaking shows the mini wave instead.
-fn voice_mark_for(state: &crate::discord::VoiceState, talking: bool, user_id: &str, cx: &App) -> Option<AnyElement> {
+// deafened. Speaking shows as a ring on the avatar instead.
+fn voice_mark_for(state: &crate::discord::VoiceState, cx: &App) -> Option<AnyElement> {
     let mark = |icon: Icon, color: Hsla| div().flex_none().flex().text_color(color).child(icon.size(px(15.))).into_any_element();
     let faint = palette::faint(cx);
     if state.server_muted || state.server_deafened {
@@ -1081,7 +1091,7 @@ fn voice_mark_for(state: &crate::discord::VoiceState, talking: bool, user_id: &s
     if state.muted {
         return Some(mark(Nav::MicOffFill.icon(), faint));
     }
-    talking.then(|| ui::bars(SharedString::from(format!("speaking-{user_id}")), palette::accent_ink(cx), 12.))
+    None
 }
 
 // The DM list's header: a field-shaped button that opens the quick switcher.

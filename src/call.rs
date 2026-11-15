@@ -1303,7 +1303,6 @@ impl Rustcord {
         };
         let name = tile_name(
             div()
-                .when(talking, |d| d.child(ui::bars_still(gpui_kit::white(), 10.)))
                 .when(!is_stream && state.server_muted, |d| d.child(vmark(Glyph::MicOff, None, MarkKind::Server)))
                 .when(!is_stream && !state.server_muted && muted && !deafened, |d| d.child(Icon::new(Glyph::MicOff).size(px(14.)).text_color(stage::off_ink())))
                 .when(!is_stream && deafened, |d| d.child(Icon::new(Glyph::HeadphonesOff).size(px(14.)).text_color(stage::off_ink())))
