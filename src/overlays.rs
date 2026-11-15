@@ -3,24 +3,23 @@
 use std::time::Duration;
 
 use gpui_kit::{
-    AnyElement, App, ClipboardItem, Context, Entity, FontWeight, HighlightStyle, Hsla, KeyDownEvent, MouseButton, Pixels, Point, ScrollHandle, SharedString, StyledText, Window,
+    AnyElement, App, ClipboardItem, Context, Entity, FontWeight, HighlightStyle, KeyDownEvent, MouseButton, ScrollHandle, SharedString, StyledText, Window,
     component::{
         ActiveTheme, Icon,
         input::{Input, InputEvent},
     },
-    div, img, point, prelude::*, px, relative, rgb,
+    div, img, point, prelude::*, px, relative,
 };
 
 use crate::{
-    Channel, ChannelKind, Rustcord, EmojiTarget, ProfileCard, SearchState,
-    discord::{Activity, ActivityKind, Emoji, Message, Status, User},
+    Channel, ChannelKind, Rustcord, EmojiTarget, SearchState,
+    discord::{Emoji, Message, Status, User},
     icons::Glyph,
     layout::{TITLE_HEIGHT, avatar_with_status},
     menu, palette,
     ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XL, RADIUS_XS, Squircle},
 };
 
-const PROFILE_WIDTH: f32 = 320.;
 const PICKER_SIZE: (f32, f32) = (420., 440.);
 const SWITCHER_WIDTH: f32 = 560.;
 
@@ -42,24 +41,6 @@ impl Rustcord {
 
     pub(crate) fn copy_text(&self, text: impl Into<String>, cx: &mut Context<Self>) {
         cx.write_to_clipboard(ClipboardItem::new_string(text.into()));
-    }
-
-    pub(crate) fn open_profile(&mut self, user: User, at: Point<Pixels>, cx: &mut Context<Self>) {
-        let guild_id = self.guild_id.clone();
-        self.profile_card = Some(ProfileCard { user: user.clone(), guild_id: guild_id.clone(), at, profile: None });
-        cx.notify();
-        let Some(client) = self.client.clone() else { return };
-        cx.spawn(async move |this, cx| {
-            let Ok(profile) = client.profile(&user.id, guild_id.as_deref()).await else { return };
-            this.update(cx, |this, cx| {
-                if let Some(card) = this.profile_card.as_mut().filter(|c| c.user.id == user.id) {
-                    card.profile = Some(profile);
-                }
-                cx.notify();
-            })
-            .ok();
-        })
-        .detach();
     }
 
     pub(crate) fn message_user(&mut self, user_id: String, window: &mut Window, cx: &mut Context<Self>) {
@@ -444,108 +425,6 @@ impl Rustcord {
         )
     }
 
-    // The profile popout (overlays.css `.profile`): banner, an 80px avatar ringed in the card's colour,
-    // name and username, what they're up to, about me, roles, and a field to message them.
-    fn profile_overlay(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let card = self.profile_card.as_ref()?;
-        let viewport = window.viewport_size();
-        let user = card.user.clone();
-        let profile = card.profile.clone().unwrap_or_default();
-        let overlay = palette::surface(palette::Level::Overlay, cx);
-        let presence = self.presences.get(&user.id);
-        let status = presence.map(|p| p.status).or(self.me.as_ref().filter(|me| me.id == user.id).map(|_| self.my_status));
-        let guild = card.guild_id.as_ref().and_then(|id| self.guilds.iter().find(|g| &g.id == id));
-        let roles: Vec<(String, Hsla)> = guild
-            .map(|g| {
-                let mut roles: Vec<_> = g.roles.iter().filter(|r| profile.roles.contains(&r.id)).collect();
-                roles.sort_by_key(|r| std::cmp::Reverse(r.position));
-                roles.into_iter().map(|r| (r.name.clone(), if r.color == 0 { palette::status_in(Status::Offline, cx) } else { rgb(r.color).into() })).collect()
-            })
-            .unwrap_or_default();
-        let is_me = self.me.as_ref().is_some_and(|me| me.id == user.id);
-        let doing = presence.and_then(|p| p.activity.as_ref()).map(activity_line);
-        let handle = [Some(profile.username.clone()).filter(|u| !u.is_empty()), profile.pronouns.clone()].into_iter().flatten().collect::<Vec<_>>().join(" · ");
-        let height = 360. + if roles.is_empty() { 0. } else { 56. } + if profile.bio.is_some() { 64. } else { 0. };
-        let x = f32::from(card.at.x).clamp(8., f32::from(viewport.width) - PROFILE_WIDTH - 8.);
-        let y = f32::from(card.at.y).clamp(TITLE_HEIGHT + 8., (f32::from(viewport.height) - height - 8.).max(TITLE_HEIGHT + 8.));
-        let banner = match (&profile.banner, profile.accent) {
-            (Some(url), _) => crate::ui::media(url.clone(), crate::ui::top(RADIUS_LG)).corner_shape(crate::ui::SQUIRCLE).w_full().h(px(64.)).object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
-            (None, Some(accent)) => {
-                let accent: Hsla = rgb(accent).into();
-                let deep = Hsla { l: accent.l * 0.78, ..accent };
-                crate::ui::edge(div().w_full().h(px(64.)).bg(gpui_kit::linear_gradient(135., gpui_kit::linear_color_stop(accent, 0.), gpui_kit::linear_color_stop(deep, 1.))), crate::ui::top(RADIUS_LG)).corner_shape(crate::ui::SQUIRCLE).into_any_element()
-            }
-            // No banner colour: the neutral fill, as the design's worst case.
-            (None, None) => crate::ui::edge(div().w_full().h(px(64.)).bg(palette::selected(cx)), crate::ui::top(RADIUS_LG)).corner_shape(crate::ui::SQUIRCLE).into_any_element(),
-        };
-        let who = div()
-            .px_4()
-            .mt(px(-40.))
-            .flex()
-            .items_end()
-            .justify_between()
-            .gap_2()
-            .child(div().p(px(5.)).rounded_full().bg(overlay).child(avatar_with_status(&user.avatar, 80., status, overlay)))
-            .when(is_me, |who| {
-                who.child(
-                    crate::ui::button("profile-edit", crate::ui::Tone::Secondary, cx).small()
-                        .child(Icon::new(Glyph::Pen).size(px(16.)))
-                        .child("Edit profile")
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.profile_card = None;
-                            this.open_settings(crate::settings::Page::Account, window, cx);
-                        })),
-                )
-            });
-        let block = |title: &'static str| div().flex().flex_col().gap(px(6.)).child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(title));
-        let body = div()
-            .pt_3()
-            .px_4()
-            .pb_4()
-            .flex()
-            .flex_col()
-            .gap_3()
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(2.))
-                    .child(div().flex().items_center().gap_2().min_w_0().child(div().truncate().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(user.name.clone())).children(
-                        user.tag.clone().map(|tag| crate::ui::badge(palette::selected(cx), palette::text(cx)).child(tag.text)),
-                    ))
-                    .when(!handle.is_empty(), |n| n.child(div().truncate().text_color(palette::muted(cx)).child(handle))),
-            )
-            .children(doing.map(|line| div().py(px(8.)).px(px(10.)).squircle(RADIUS_MD).bg(palette::selected(cx)).text_color(palette::text(cx)).child(line)))
-            .children(profile.bio.clone().map(|bio| block("About me").child(div().text_color(palette::text(cx)).line_clamp(6).child(bio))))
-            .when(!roles.is_empty(), |b| b.child(block("Roles").child(div().flex().flex_wrap().gap_1().children(roles.into_iter().map(|(name, color)| ui::role_chip(name, color, cx))))))
-            .when(!is_me, |b| {
-                let dm_user = user.id.clone();
-                b.child(
-                    ui::field_frame(cx)
-                        .id("profile-message")
-                        .cursor_text()
-                        .child(div().truncate().text_color(palette::faint(cx)).child(format!("Message @{}", user.name)))
-                        .on_click(cx.listener(move |this, _, window, cx| this.message_user(dm_user.clone(), window, cx))),
-                )
-            });
-        let card_el = div()
-            .id("profile-card")
-            .absolute()
-            .left(px(x))
-            .top(px(y))
-            .w(px(PROFILE_WIDTH))
-            .squircle(RADIUS_LG)
-            .bg(overlay)
-            .shadow(ui::shadow_pop(cx))
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .child(banner)
-            .child(who)
-            .child(body);
-        // It rises from the corner nearest where it was asked for: pushed in from an edge, from that side.
-        let origin = ui::corner(x < f32::from(card.at.x), y < f32::from(card.at.y));
-        Some(backdrop("profile-backdrop", cx).child(ui::rise(card_el.transform_origin(origin), SharedString::from(format!("profile-{}", user.id)), Duration::ZERO)).into_any_element())
-    }
-
     // Your presence, as a menu of radio rows each led by its mark (auth.html's status menu).
     fn status_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         if !self.status_menu {
@@ -923,20 +802,8 @@ impl SectionLead {
 }
 
 // What someone's up to, as the popout's status line says it.
-fn activity_line(activity: &Activity) -> String {
-    let text = &activity.text;
-    match activity.kind {
-        ActivityKind::Custom => text.clone(),
-        ActivityKind::Playing => format!("Playing {text}"),
-        ActivityKind::Streaming => format!("Streaming {text}"),
-        ActivityKind::Listening => format!("Listening to {text}"),
-        ActivityKind::Watching => format!("Watching {text}"),
-        ActivityKind::Competing => format!("Competing in {text}"),
-    }
-}
-
 // A full-window catcher: clicking outside the floating surface closes it.
-fn backdrop(id: &'static str, cx: &mut Context<Rustcord>) -> gpui_kit::Stateful<gpui_kit::Div> {
+pub(crate) fn backdrop(id: &'static str, cx: &mut Context<Rustcord>) -> gpui_kit::Stateful<gpui_kit::Div> {
     div().id(id).absolute().inset_0().occlude().on_mouse_down(
         MouseButton::Left,
         cx.listener(|this, _, _, cx| {

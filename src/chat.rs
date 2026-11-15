@@ -1595,6 +1595,24 @@ fn relative(delta: chrono::TimeDelta) -> String {
     if future { format!("in {n} {unit}") } else { format!("{n} {unit} ago") }
 }
 
+// Custom emoji as inline images and nothing else changed: markdown outside a message (a profile bio).
+pub(crate) fn inline_emoji(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find('<') {
+        let tail = &rest[start..];
+        let Some(end) = tail.find('>') else { break };
+        out.push_str(&rest[..start]);
+        match emoji_image(&tail[1..end]) {
+            Some(html) => out.push_str(&html),
+            None => out.push_str(&tail[..=end]),
+        }
+        rest = &tail[end + 1..];
+    }
+    out.push_str(rest);
+    out
+}
+
 // `a:name:id` or `:name:id` as an inline image the markdown view lays out in the text flow. Its
 // images carry element ids, so animated emoji play. 22px is Discord's 1.375em at 16px text.
 fn emoji_image(token: &str) -> Option<String> {
@@ -1802,6 +1820,15 @@ fn crumb(id: &'static str, cx: &App) -> Stateful<Div> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn inlines_custom_emoji_only() {
+        let out = inline_emoji("hi <a:aWonUwu:1328465377218269257> <@1> <:x:2> <unclosed");
+        assert!(out.starts_with(r#"hi <img src="https://cdn.discordapp.com/emojis/1328465377218269257.gif?size=48""#), "{out}");
+        assert!(out.contains(" <@1> "), "{out}");
+        assert!(out.contains("emojis/2.webp"), "{out}");
+        assert!(out.ends_with(" <unclosed"), "{out}");
+    }
+
     use super::*;
 
     #[test]
