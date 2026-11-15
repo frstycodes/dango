@@ -338,7 +338,7 @@ impl Rustcord {
                 div()
                     .flex_1()
                     .min_w_0()
-                    .child(div().truncate().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(app.unwrap_or(streamer.name).to_owned()))
+                    .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(app.unwrap_or(streamer.name).to_owned()))
                     .child(div().truncate().text_size(px(12.)).text_color(palette::faint(cx)).child(detail.join(" · "))),
             )
             .when_some(who, |d, who| d.tooltip(move |window, cx| Tooltip::new(who.clone()).build(window, cx)));
@@ -467,7 +467,7 @@ impl Rustcord {
             .gap_2()
             .cursor_pointer()
             .text_size(px(16.))
-            .font_weight(FontWeight::BOLD)
+            .font_weight(FontWeight::SEMIBOLD)
             .text_color(palette::strong(cx))
             .hover(move |s| s.bg(hover))
             .child(div().flex_1().min_w_0().truncate().child(name))
@@ -553,7 +553,7 @@ impl Rustcord {
         let in_call = self.call.as_ref().is_some_and(|c| c.channel.id == channel.id);
         let state = RowState { selected, unread, muted, strong: in_call };
         let elapsed = self.call.as_ref().filter(|c| c.channel.id == channel.id && c.connected).and_then(|_| self.voice_elapsed(&channel.id)).map(|secs| {
-            div().flex_none().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::positive_ink(cx)).child(format!("{}:{:02}", secs / 60, secs % 60))
+            div().flex_none().text_size(px(12.)).font_weight(FontWeight::NORMAL).text_color(palette::positive_ink(cx)).child(format!("{}:{:02}", secs / 60, secs % 60))
         });
         let group: SharedString = format!("ch-{}", channel.id).into();
         let hovered = self.hovered_row.as_deref() == Some(channel.id.as_str());
@@ -750,7 +750,7 @@ impl Rustcord {
                     .flex()
                     .items_center()
                     .gap_2()
-                    .font_weight(FontWeight::MEDIUM)
+                    .font_weight(FontWeight::NORMAL)
                     .text_color(if talking { palette::strong(cx) } else { palette::muted(cx) })
                     .hover(move |s| s.bg(hover).text_color(text))
                     .child(ui::avatar(avatar.clone(), 22.))
@@ -912,7 +912,7 @@ impl Rustcord {
                     .min_w_0()
                     .flex()
                     .flex_col()
-                    .child(div().truncate().font_weight(if unread { FontWeight::SEMIBOLD } else { FontWeight::MEDIUM }).child(channel.name.clone()))
+                    .child(div().truncate().font_weight(if unread { FontWeight::MEDIUM } else { FontWeight::NORMAL }).child(channel.name.clone()))
                     .children(line.map(|l| l.flex().items_center().gap_1().min_w_0().text_size(px(12.)).text_color(faint))),
             )
             .when(mentions > 0 && !hovered, |r| r.child(ui::count_badge(mentions)))
@@ -968,7 +968,7 @@ pub(crate) fn channel_row(id: SharedString, group: SharedString, state: RowState
         .gap_2()
         .squircle(ui::RADIUS_SM)
         .cursor_pointer()
-        .font_weight(if unread { FontWeight::SEMIBOLD } else { FontWeight::MEDIUM })
+        .font_weight(if unread { FontWeight::MEDIUM } else { FontWeight::NORMAL })
         .text_color(ink)
         .when(selected, |r| r.bg(palette::selected(cx)))
         .when(!selected, |r| r.hover(move |s| s.bg(hover).text_color(text)))
@@ -991,7 +991,7 @@ fn category_head(group: SharedString, label: Stateful<Div>, static_: bool, cx: &
             .gap_1()
             .whitespace_nowrap()
             .text_size(px(12.))
-            .font_weight(FontWeight::SEMIBOLD)
+            .font_weight(FontWeight::MEDIUM)
             .text_color(palette::faint(cx))
             .when(!static_, |l| l.cursor_pointer().hover(move |s| s.bg(hover).text_color(strong))),
     )
@@ -1218,7 +1218,7 @@ fn letters_tile(label: &str, size: f32, radius: f32, cx: &App) -> Div {
         .text_color(palette::strong(cx))
         // Minis keep a readable letter rather than scaling the tile's 14px down to nothing.
         .text_size(px((14. * size / TILE).max(8.)))
-        .font_weight(FontWeight::BOLD)
+        .font_weight(FontWeight::SEMIBOLD)
         .flex()
         .items_center()
         .justify_center()
@@ -1328,14 +1328,14 @@ impl Nav {
 
     fn svg(self) -> &'static [u8] {
         match self {
-            Nav::Megaphone => include_bytes!("../assets/icons/phosphor/megaphone.svg"),
-            Nav::Media => include_bytes!("../assets/icons/phosphor/images.svg"),
-            Nav::Stage => include_bytes!("../assets/icons/phosphor/microphone-stage.svg"),
-            Nav::BellSlash => include_bytes!("../assets/icons/phosphor/bell-slash.svg"),
+            Nav::Megaphone => include_bytes!("../assets/icons/phosphor/megaphone-bold.svg"),
+            Nav::Media => include_bytes!("../assets/icons/phosphor/images-bold.svg"),
+            Nav::Stage => include_bytes!("../assets/icons/phosphor/microphone-stage-bold.svg"),
+            Nav::BellSlash => include_bytes!("../assets/icons/phosphor/bell-slash-bold.svg"),
             Nav::Compass => include_bytes!("../assets/icons/phosphor/compass-bold.svg"),
             Nav::Plus => include_bytes!("../assets/icons/phosphor/plus-bold.svg"),
             Nav::Caret => include_bytes!("../assets/icons/phosphor/caret-down-bold.svg"),
-            Nav::MoreVertical => include_bytes!("../assets/icons/phosphor/dots-three-vertical.svg"),
+            Nav::MoreVertical => include_bytes!("../assets/icons/phosphor/dots-three-vertical-bold.svg"),
             Nav::Close => include_bytes!("../assets/icons/phosphor/x-bold.svg"),
             Nav::MicOffFill => include_bytes!("../assets/icons/phosphor/microphone-slash-fill.svg"),
             Nav::DeafenedFill => include_bytes!("../assets/icons/phosphor/speaker-slash-fill.svg"),
@@ -1349,9 +1349,9 @@ impl Nav {
             Nav::HeadphonesOff => include_bytes!("../assets/icons/phosphor/ear-slash-bold.svg"),
             Nav::MicOff => include_bytes!("../assets/icons/phosphor/microphone-slash-bold.svg"),
             Nav::Settings => include_bytes!("../assets/icons/phosphor/gear-six-bold.svg"),
-            Nav::Minimize => include_bytes!("../assets/icons/phosphor/minus.svg"),
-            Nav::Maximize => include_bytes!("../assets/icons/phosphor/square.svg"),
-            Nav::Restore => include_bytes!("../assets/icons/phosphor/copy-simple.svg"),
+            Nav::Minimize => include_bytes!("../assets/icons/phosphor/minus-bold.svg"),
+            Nav::Maximize => include_bytes!("../assets/icons/phosphor/square-bold.svg"),
+            Nav::Restore => include_bytes!("../assets/icons/phosphor/copy-simple-bold.svg"),
         }
     }
 }

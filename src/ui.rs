@@ -102,7 +102,7 @@ pub fn live_badge() -> Div {
 // A small solid label (quality, tags, NEW). GAP: the design tracks these 0.04–0.06em; gpui text has no
 // letter spacing.
 pub fn badge(fill: Hsla, ink: Hsla) -> Div {
-    div().h(px(20.)).px(px(7.)).flex_none().squircle(RADIUS_XS).bg(fill).text_color(ink).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center()
+    div().h(px(20.)).px(px(7.)).flex_none().squircle(RADIUS_XS).bg(fill).text_color(ink).text_size(px(11.)).font_weight(FontWeight::SEMIBOLD).flex().items_center()
 }
 
 // What something is (App, Host, New): accent ink on the accent tint, uppercase 11px.
@@ -129,7 +129,7 @@ pub fn count_badge(count: u32) -> Div {
         .bg(palette::accent())
         .text_color(gpui_kit::white())
         .text_size(px(12.))
-        .font_weight(FontWeight::BOLD)
+        .font_weight(FontWeight::SEMIBOLD)
         .line_height(px(18.))
         .flex()
         .items_center()
@@ -155,7 +155,7 @@ pub fn role_chip(name: impl Into<SharedString>, color: Hsla, cx: &App) -> Div {
         .bg(palette::selected(cx))
         .text_color(palette::text(cx))
         .text_size(px(12.))
-        .font_weight(FontWeight::SEMIBOLD)
+        .font_weight(FontWeight::MEDIUM)
         .whitespace_nowrap()
         .child(div().size(px(10.)).rounded_full().bg(color))
         .child(name.into())
@@ -174,7 +174,7 @@ pub fn kbd(key: impl Into<SharedString>, cx: &App) -> Div {
         .shadow(vec![shadow(line, 0., -1., 0., 0., true), shadow(line, 0., 0., 0., 1., false)])
         .text_color(palette::strong(cx))
         .text_size(px(12.))
-        .font_weight(FontWeight::SEMIBOLD)
+        .font_weight(FontWeight::MEDIUM)
         .whitespace_nowrap()
         .flex()
         .items_center()
@@ -353,7 +353,7 @@ fn choice_text(title: impl Into<SharedString>, detail: Option<SharedString>, cx:
         .min_w_0()
         .flex()
         .flex_col()
-        .child(div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(title.into()))
+        .child(div().font_weight(FontWeight::NORMAL).text_color(palette::strong(cx)).child(title.into()))
         .when_some(detail, |d, detail| d.child(div().text_size(px(12.)).text_color(palette::muted(cx)).child(detail)))
 }
 
@@ -376,7 +376,7 @@ pub fn monogram(name: &str, size: f32) -> Div {
         .items_center()
         .justify_center()
         .text_color(gpui_kit::white())
-        .font_weight(FontWeight::BOLD)
+        .font_weight(FontWeight::SEMIBOLD)
         .text_size(px(size * 0.38))
         .when(size >= 24., |d| d.child(initial))
 }
@@ -509,7 +509,7 @@ fn callout_text(title: impl Into<SharedString>, body: impl Into<SharedString>, c
         .flex()
         .flex_col()
         .text_size(px(14.))
-        .child(div().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(title.into()))
+        .child(div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(title.into()))
         .child(div().text_color(palette::text(cx)).child(body.into()))
 }
 
@@ -537,7 +537,7 @@ pub fn toast(id: impl Into<ElementId>, glyph: Glyph, ink: Hsla, title: impl Into
                 .min_w_0()
                 .flex()
                 .flex_col()
-                .font_weight(FontWeight::MEDIUM)
+                .font_weight(FontWeight::NORMAL)
                 .text_color(strong)
                 .child(title.into())
                 .when_some(detail, |d, detail| d.child(div().text_size(px(12.)).font_weight(FontWeight::NORMAL).text_color(muted).child(detail))),
@@ -557,7 +557,7 @@ pub fn empty_state(id: &'static str, mood: mascot::Mood, title: impl Into<Shared
         .px(px(16.))
         .text_center()
         .child(div().mb(px(8.)).child(mascot::mascot_at(id, mood, 0.6, cx)))
-        .child(div().text_size(px(20.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child(title.into()))
+        .child(div().text_size(px(20.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(title.into()))
         .child(div().max_w(px(320.)).text_color(palette::muted(cx)).child(body.into()))
 }
 
@@ -570,7 +570,7 @@ pub fn divider(label: Option<&'static str>, cx: &App) -> Div {
         .items_center()
         .gap(px(12.))
         .child(line())
-        .when_some(label, |d, label| d.child(div().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::faint(cx)).child(label)).child(line()))
+        .when_some(label, |d, label| d.child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::faint(cx)).child(label)).child(line()))
 }
 
 // A squircle holding an icon, for row leads and settings.

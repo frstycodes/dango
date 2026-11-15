@@ -138,7 +138,7 @@ pub fn swatch(id: impl Into<ElementId>, color: Hsla, on: bool, ring: Hsla) -> Co
 pub fn menu_row(id: impl Into<ElementId>, cx: &App) -> Control {
     let hover = palette::hover(cx);
     let look = Look { rest: gpui_kit::transparent_black(), hover, press: hover, ink: palette::text(cx), ink_hover: palette::strong(cx), edge: None };
-    Control::new(id, Kind::Row, look).base_style(|b| b.w_full().h_auto().min_h(px(34.)).px(px(10.)).py(px(6.)).gap(px(10.)).justify_start().text_size(px(14.)).font_weight(FontWeight::MEDIUM))
+    Control::new(id, Kind::Row, look).base_style(|b| b.w_full().h_auto().min_h(px(34.)).px(px(10.)).py(px(6.)).gap(px(10.)).justify_start().text_size(px(14.)).font_weight(FontWeight::NORMAL))
 }
 
 // A bare control without glyph or tooltip, for callers that draw their own content (stepper sides).
@@ -280,13 +280,13 @@ impl Control {
     // Horizontal padding, text size and weight by kind; `None` where the kind sets none.
     fn type_and_padding(&self) -> Option<(f32, f32, FontWeight)> {
         match (self.kind, self.size) {
-            (Kind::Button, Size::Small) => Some((10., 14., FontWeight::SEMIBOLD)),
-            (Kind::Button, Size::Medium) => Some((14., 14., FontWeight::SEMIBOLD)),
-            (Kind::Button, Size::Large) => Some((20., 16., FontWeight::SEMIBOLD)),
-            (Kind::Chip, _) => Some((12., 14., FontWeight::MEDIUM)),
-            (Kind::Field, _) => Some((12., 14., FontWeight::MEDIUM)),
-            (Kind::Tab(TabKind::Underline), _) => Some((0., 14., FontWeight::SEMIBOLD)),
-            (Kind::Tab(_), _) => Some((12., 14., FontWeight::SEMIBOLD)),
+            (Kind::Button, Size::Small) => Some((10., 14., FontWeight::MEDIUM)),
+            (Kind::Button, Size::Medium) => Some((14., 14., FontWeight::MEDIUM)),
+            (Kind::Button, Size::Large) => Some((20., 16., FontWeight::MEDIUM)),
+            (Kind::Chip, _) => Some((12., 14., FontWeight::NORMAL)),
+            (Kind::Field, _) => Some((12., 14., FontWeight::NORMAL)),
+            (Kind::Tab(TabKind::Underline), _) => Some((0., 14., FontWeight::MEDIUM)),
+            (Kind::Tab(_), _) => Some((12., 14., FontWeight::MEDIUM)),
             _ => None,
         }
     }
@@ -525,7 +525,7 @@ impl Render for Tip {
             .bg(palette::strong(cx))
             .text_color(palette::surface(palette::Level::Page, cx))
             .text_size(px(12.))
-            .font_weight(FontWeight::SEMIBOLD)
+            .font_weight(FontWeight::MEDIUM)
             .line_height(relative(1.35))
             .child(self.text.clone())
             .with_animation("tip-in", Animation::new(DUR_HOVER).with_easing(|t| motion::ease_out().sample(t)), |tip, t| tip.opacity(t).scale(0.95 + 0.05 * t))

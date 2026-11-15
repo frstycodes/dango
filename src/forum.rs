@@ -158,7 +158,7 @@ impl Rustcord {
                     .items_center()
                     .gap(px(6.))
                     .text_size(px(16.))
-                    .font_weight(FontWeight::BOLD)
+                    .font_weight(FontWeight::SEMIBOLD)
                     .text_color(strong)
                     .child(Icon::new(Glyph::Forum).size(px(20.)).text_color(faint))
                     .child(div().min_w_0().truncate().child(forum.name.clone())),
@@ -217,10 +217,10 @@ impl Rustcord {
         });
         let excerpt = first.map(|m| {
             let name = format!("{}: ", m.author.name);
-            let highlight = HighlightStyle { color: Some(text), font_weight: Some(FontWeight::SEMIBOLD), ..Default::default() };
+            let highlight = HighlightStyle { color: Some(text), font_weight: Some(FontWeight::MEDIUM), ..Default::default() };
             div().line_clamp(2).text_size(px(14.)).text_color(muted).child(StyledText::new(format!("{name}{}", m.content)).with_highlights([(0..name.len(), highlight)]))
         });
-        let starter = first.map(|m| div().flex().items_center().gap(px(4.)).child(ui::avatar(m.author.avatar.clone(), 20.)).child(div().max_w(px(140.)).truncate().font_weight(FontWeight::MEDIUM).text_color(muted).child(m.author.name.clone())));
+        let starter = first.map(|m| div().flex().items_center().gap(px(4.)).child(ui::avatar(m.author.avatar.clone(), 20.)).child(div().max_w(px(140.)).truncate().font_weight(FontWeight::NORMAL).text_color(muted).child(m.author.name.clone())));
         let open = post.clone();
         let (menu_post, guild_id) = (post.clone(), self.guild_id.clone().unwrap_or_default());
         ui::pressable(div().id(SharedString::from(format!("post-{}", post.id))), 0.99)
@@ -241,7 +241,7 @@ impl Rustcord {
                     .flex()
                     .flex_col()
                     .gap(px(6.))
-                    .child(div().truncate().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).text_color(if archived { muted } else { strong }).child(post.name.clone()))
+                    .child(div().truncate().text_size(px(16.)).font_weight(FontWeight::MEDIUM).text_color(if archived { muted } else { strong }).child(post.name.clone()))
                     .children(excerpt)
                     .child(
                         div()

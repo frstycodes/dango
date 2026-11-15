@@ -290,7 +290,7 @@ impl Rustcord {
             .flex()
             .flex_col()
             .gap(px(2.))
-            .child(div().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child(format!("Go live in {channel}")))
+            .child(div().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(format!("Go live in {channel}")))
             .child(div().text_color(palette::muted(cx)).child("Choose a screen, a window or a capture device."));
         let dialog = div()
             .id("share-picker")
@@ -350,7 +350,7 @@ impl Rustcord {
                 .items_center()
                 .gap(px(6.))
                 .cursor_pointer()
-                .font_weight(FontWeight::SEMIBOLD)
+                .font_weight(FontWeight::MEDIUM)
                 .text_color(if on { strong } else { muted })
                 .hover(move |s| s.text_color(strong))
                 .child(Icon::new(glyph).size(px(18.)))
@@ -434,7 +434,7 @@ impl Rustcord {
                     .items_center()
                     .gap(px(6.))
                     .min_w_0()
-                    .font_weight(FontWeight::MEDIUM)
+                    .font_weight(FontWeight::NORMAL)
                     .text_color(if selected { palette::strong(cx) } else { palette::text(cx) })
                     .child(icon)
                     .child(div().min_w_0().truncate().child(name)),
@@ -470,7 +470,7 @@ impl Rustcord {
             window,
             cx,
         );
-        let field = |label: &'static str, control: Div| div().flex_1().min_w_0().flex().flex_col().gap(px(6.)).child(div().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::muted(cx)).child(label)).child(control);
+        let field = |label: &'static str, control: Div| div().flex_1().min_w_0().flex().flex_col().gap(px(6.)).child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(label)).child(control);
         div().flex().gap(px(16.)).child(field("Resolution", resolutions)).child(field("Frame rate", rates))
     }
 
@@ -488,7 +488,7 @@ impl Rustcord {
             .items_center()
             .gap(px(12.))
             .cursor_pointer()
-            .child(div().flex_1().min_w_0().child(div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child("Share audio")).child(div().truncate().text_size(px(12.)).text_color(palette::muted(cx)).child(what)))
+            .child(div().flex_1().min_w_0().child(div().font_weight(FontWeight::NORMAL).text_color(palette::strong(cx)).child("Share audio")).child(div().truncate().text_size(px(12.)).text_color(palette::muted(cx)).child(what)))
             .child(ui::switch_live("stream-audio-switch", self.prefs.stream_audio, window, cx))
             .on_click(cx.listener(|this, _, _, cx| this.update_prefs(cx, |p| p.stream_audio = !p.stream_audio)))
     }

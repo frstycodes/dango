@@ -192,7 +192,7 @@ impl Rustcord {
                     .border_color(palette::line_strong(cx))
                     .whitespace_nowrap()
                     .text_size(px(16.))
-                    .font_weight(FontWeight::BOLD)
+                    .font_weight(FontWeight::SEMIBOLD)
                     .text_color(palette::strong(cx))
                     .child(Icon::new(Glyph::Users).size(px(20.)).text_color(palette::faint(cx)))
                     .child("Friends"),
@@ -219,7 +219,7 @@ impl Rustcord {
                 .into_any_element(),
             (true, _) => ui::empty_state("friends-empty", Mood::Idle, format!("No one under {heading}"), "Friends, requests and blocks show up here as they happen.", cx).into_any_element(),
             (false, _) => {
-                let label = div().pt_2().px_2().pb_1().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::faint(cx)).child(format!("{heading} · {}", people.len()));
+                let label = div().pt_2().px_2().pb_1().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::faint(cx)).child(format!("{heading} · {}", people.len()));
                 let rows: Vec<AnyElement> = people.iter().map(|r| self.friend_row(r, cx)).collect();
                 div().flex().flex_col().gap(px(2.)).child(label).children(rows).into_any_element()
             }
@@ -298,7 +298,7 @@ impl Rustcord {
                     .min_w_0()
                     .flex()
                     .flex_col()
-                    .child(div().truncate().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(user.name.clone()))
+                    .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(user.name.clone()))
                     .child(div().truncate().text_size(px(12.)).text_color(palette::muted(cx)).child(subtitle)),
             )
             .child(div().flex_none().flex().gap_2().children(acts))
@@ -324,7 +324,7 @@ fn friends_tab(tab: FriendsTab, label: &'static str, selected: bool, count: Opti
         .gap(px(6.))
         .cursor_pointer()
         .whitespace_nowrap()
-        .font_weight(FontWeight::SEMIBOLD)
+        .font_weight(FontWeight::MEDIUM)
         .text_color(if selected { strong } else { palette::muted(cx) })
         .when(selected, |t| t.bg(palette::selected(cx)))
         .when(!selected, |t| t.hover(move |s| s.bg(hover).text_color(strong)))

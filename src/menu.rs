@@ -523,7 +523,7 @@ impl Rustcord {
                     .justify_between()
                     .text_size(px(14.))
                     .line_height(px(20.))
-                    .font_weight(FontWeight::MEDIUM)
+                    .font_weight(FontWeight::NORMAL)
                     .text_color(palette::text(cx))
                     .child(label)
                     .child(div().text_color(palette::muted(cx)).child(format!("{:.0}%", value * 200.))),
@@ -581,7 +581,7 @@ impl Rustcord {
                     .gap(px(10.))
                     .text_size(px(20.))
                     .line_height(px(24.))
-                    .font_weight(FontWeight::BOLD)
+                    .font_weight(FontWeight::SEMIBOLD)
                     .text_color(palette::strong(cx))
                     .when(dialog.warn, |d| d.child(div().text_color(palette::danger_ink(cx)).child(Icon::new(Glyph::Warning).size(px(22.)))))
                     .child(dialog.title.clone()),
@@ -723,7 +723,7 @@ fn menu_header(lead: &HeadLead, title: SharedString, subtitle: Option<SharedStri
                 .min_w_0()
                 .flex()
                 .flex_col()
-                .child(div().truncate().text_size(px(14.)).line_height(px(18.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(title))
+                .child(div().truncate().text_size(px(14.)).line_height(px(18.)).font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(title))
                 .children(subtitle.map(|s| div().truncate().text_size(px(12.)).line_height(px(16.)).text_color(palette::muted(cx)).child(s))),
         )
 }
@@ -739,7 +739,7 @@ pub(crate) fn server_icon(icon: Option<&str>, name: &str, size: f32, radius: f32
         .bg(palette::selected(cx))
         .text_color(palette::strong(cx))
         .text_size(px((size * 0.38).round()))
-        .font_weight(FontWeight::BOLD)
+        .font_weight(FontWeight::SEMIBOLD)
         .flex()
         .items_center()
         .justify_center()
@@ -875,7 +875,7 @@ impl Rustcord {
             .items_center()
             .text_size(px(14.))
             .line_height(px(20.))
-            .font_weight(FontWeight::MEDIUM)
+            .font_weight(FontWeight::NORMAL)
             .text_color(palette::strong(cx))
             .child(text.clone());
         // Rises 8px into place from scale 0.97 with its fade (CSS `toast-in`, 240ms).

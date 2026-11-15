@@ -204,8 +204,8 @@ impl DesignSystem {
             .border_b_1()
             .border_color(palette::line(cx))
             .child(svg().path(MARK).size(px(22.)).text_color(gpui_kit::rgb(0xE8326F)))
-            .child(div().text_size(px(17.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child("Wave"))
-            .child(div().text_size(px(17.)).font_weight(FontWeight::MEDIUM).text_color(palette::faint(cx)).child("Design system"))
+            .child(div().text_size(px(17.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child("Wave"))
+            .child(div().text_size(px(17.)).font_weight(FontWeight::NORMAL).text_color(palette::faint(cx)).child("Design system"))
             .child(div().flex_1())
             .child(ui::segmented_live("theme", &["Light", "Dark"], dark as usize, move |i, window, cx| {
                 this.update(cx, |this, cx| this.set_theme(i == 1, window, cx)).ok();
@@ -233,7 +233,7 @@ impl DesignSystem {
             })
         };
         div()
-            .child(div().pt(px(32.)).text_size(px(28.)).line_height(relative(1.2)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child("Primitives"))
+            .child(div().pt(px(32.)).text_size(px(28.)).line_height(relative(1.2)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child("Primitives"))
             .child(lede("The small parts every screen is built from. Everything here is live: hover, press, Tab to focus, toggle.", cx).mt(px(4.)).mb(px(16.)))
             .child(
                 section("Buttons", "Verb plus object, sentence case. One primary per surface; secondary is the quiet fill, ghost for low-stakes actions in dense rows, danger only for the destructive step itself.", cx)
@@ -512,7 +512,7 @@ impl DesignSystem {
                         .when(block, |d| d.child(ui::skeleton((id, 3usize), ui::RADIUS_LG, cx).w(px(240.)).h(px(140.)))),
                 )
         };
-        let strong = |text: &'static str, cx: &App| div().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(text);
+        let strong = |text: &'static str, cx: &App| div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(text);
         section("Feedback", "Progress shows a count when the work is countable. Waits look alive: the wave, or a calm shimmer that sweeps then rests. Callouts sit inside the view they're about.", cx).child(
             board(cx)
                 .gap(px(24.))
@@ -573,7 +573,7 @@ impl DesignSystem {
                 .p(px(16.))
                 .gap(px(12.))
                 .cursor_pointer()
-                .child(div().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(name))
+                .child(div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(name))
                 .child(note(detail, cx))
                 .child(
                     div().relative().h(px(40.)).squircle(ui::RADIUS_MD).bg(palette::surface(Level::Page, cx)).child(
@@ -597,7 +597,7 @@ fn section(title: &'static str, lede_text: &'static str, cx: &App) -> gpui_kit::
         .border_color(palette::line(cx))
         .flex()
         .flex_col()
-        .child(div().text_size(px(20.)).line_height(relative(1.2)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).mb(px(4.)).child(title))
+        .child(div().text_size(px(20.)).line_height(relative(1.2)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).mb(px(4.)).child(title))
         .child(lede(lede_text, cx).mb(px(16.)))
 }
 
@@ -612,7 +612,7 @@ fn board(cx: &App) -> gpui_kit::Div {
 
 // A titled group inside a board.
 fn group(title: &'static str, cx: &App) -> gpui_kit::Div {
-    stack().child(div().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(title))
+    stack().child(div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(title))
 }
 
 fn row() -> gpui_kit::Div {
@@ -634,7 +634,7 @@ fn glyph(glyph: Glyph) -> impl IntoElement {
 fn colour(cx: &App) -> impl IntoElement {
     let page = palette::surface(Level::Page, cx);
     let surface = |name: &'static str, token: &'static str, level: Level| {
-        div().flex_1().h(px(92.)).p(px(10.)).bg(palette::surface(level, cx)).flex().flex_col().justify_end().text_size(px(12.)).text_color(palette::muted(cx)).child(div().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(name)).child(token)
+        div().flex_1().h(px(92.)).p(px(10.)).bg(palette::surface(level, cx)).flex().flex_col().justify_end().text_size(px(12.)).text_color(palette::muted(cx)).child(div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(name)).child(token)
     };
     let ink = |name: &'static str, color: Hsla, use_: &'static str| {
         div()
@@ -646,7 +646,7 @@ fn colour(cx: &App) -> impl IntoElement {
             .py(px(8.))
             .squircle(ui::RADIUS_SM)
             .bg(page)
-            .child(div().flex().gap(px(4.)).child(div().font_weight(FontWeight::SEMIBOLD).text_color(color).child(name)).child(div().text_color(palette::faint(cx)).child(format!("· {use_}"))))
+            .child(div().flex().gap(px(4.)).child(div().font_weight(FontWeight::MEDIUM).text_color(color).child(name)).child(div().text_color(palette::faint(cx)).child(format!("· {use_}"))))
             .child(pass(color, page, cx))
     };
     let swatch = |token: &'static str, name: &'static str, color: Hsla, white_text: bool| {
@@ -655,8 +655,8 @@ fn colour(cx: &App) -> impl IntoElement {
             .border_1()
             .border_color(palette::line(cx))
             .bg(palette::surface(Level::Raised, cx))
-            .child(edge_top(div().h(px(64.)).p(px(8.)).bg(color).flex().items_end().justify_end().when(white_text, |d| d.child(div().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(gpui_kit::white()).child(ratio(gpui_kit::white(), color))))))
-            .child(div().px(px(10.)).py(px(8.)).text_size(px(12.)).child(div().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(token)).child(div().text_color(palette::faint(cx)).child(name)))
+            .child(edge_top(div().h(px(64.)).p(px(8.)).bg(color).flex().items_end().justify_end().when(white_text, |d| d.child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(gpui_kit::white()).child(ratio(gpui_kit::white(), color))))))
+            .child(div().px(px(10.)).py(px(8.)).text_size(px(12.)).child(div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(token)).child(div().text_color(palette::faint(cx)).child(name)))
     };
     section("Colour", "Restrained: warm neutrals plus one magenta. Depth in the dark theme comes from lighter surfaces, never shadows. Contrast figures are measured live against the page.", cx)
         .child(h3("Surfaces, deepest to highest", cx))
@@ -706,7 +706,7 @@ fn edge_top(el: gpui_kit::Div) -> gpui_kit::Div {
 }
 
 fn h3(text: &'static str, cx: &App) -> gpui_kit::Div {
-    div().mt(px(24.)).mb(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(text)
+    div().mt(px(24.)).mb(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(text)
 }
 
 // "4.62:1 AA", the way the page labels each ink against what it sits on.
@@ -741,11 +741,11 @@ fn type_scale(cx: &App) -> impl IntoElement {
     section("Type", "One family for the interface, a mono for code. Gabarito is the proposal: geometric and friendly like the bars, and nobody else's.", cx).child(
         board(cx)
             .gap(px(0.))
-            .child(spec("28 · bold · 1.2", true, div().text_size(px(28.)).line_height(relative(1.2)).font_weight(FontWeight::BOLD).text_color(strong).child("Welcome to Night Shift")))
-            .child(spec("20 · bold · 1.2", false, div().text_size(px(20.)).font_weight(FontWeight::BOLD).text_color(strong).child("Voice and video")))
+            .child(spec("28 · bold · 1.2", true, div().text_size(px(28.)).line_height(relative(1.2)).font_weight(FontWeight::SEMIBOLD).text_color(strong).child("Welcome to Night Shift")))
+            .child(spec("20 · bold · 1.2", false, div().text_size(px(20.)).font_weight(FontWeight::SEMIBOLD).text_color(strong).child("Voice and video")))
             .child(spec("16 · regular · 1.45", false, div().text_size(px(16.)).line_height(relative(1.45)).text_color(text).child("anyone up for a few rounds after dinner? bringing snacks this time, promise")))
-            .child(spec("14 · medium", false, div().font_weight(FontWeight::MEDIUM).text_color(text).child("general · looking-for-group · Lounge")))
-            .child(spec("12 · semibold", false, div().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(faint).child("Today at 9:41 PM · Online · 3")))
+            .child(spec("14 · medium", false, div().font_weight(FontWeight::NORMAL).text_color(text).child("general · looking-for-group · Lounge")))
+            .child(spec("12 · semibold", false, div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(faint).child("Today at 9:41 PM · Online · 3")))
             .child(spec("mono 14", false, div().font_family(cx.theme().mono_font_family.clone()).text_color(text).child("cargo run --release"))),
     )
 }
@@ -770,7 +770,7 @@ fn space(cx: &App) -> impl IntoElement {
             .gap(px(6.))
             .text_size(px(12.))
             .child(div().size(px(76.)).squircle(radius).bg(palette::surface(Level::Raised, cx)).border(px(1.5)).border_color(palette::line_strong(cx)))
-            .child(div().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).font_family(cx.theme().mono_font_family.clone()).child(name))
+            .child(div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).font_family(cx.theme().mono_font_family.clone()).child(name))
             .child(div().text_color(palette::faint(cx)).child(use_))
     };
     section("Space and shape", "A 4px scale. Controls 10, surfaces 14, dialogs 20; nested corners stay concentric.", cx).child(
@@ -877,7 +877,7 @@ fn avatars(cx: &App) -> impl IntoElement {
         };
         row().child(avatar).child(div().text_color(palette::muted(cx)).child(label))
     };
-    let more = div().size(px(24.)).rounded_full().bg(palette::surface(Level::Overlay, cx)).text_color(palette::strong(cx)).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().justify_center().child("+3");
+    let more = div().size(px(24.)).rounded_full().bg(palette::surface(Level::Overlay, cx)).text_color(palette::strong(cx)).text_size(px(11.)).font_weight(FontWeight::SEMIBOLD).flex().items_center().justify_center().child("+3");
     section("Avatars and status", "Status is never colour alone: online is a dot, idle a moon, do not disturb a bar, offline a ring. Speaking is the accent ring plus the bars.", cx).child(
         board(cx)
             .gap(px(24.))

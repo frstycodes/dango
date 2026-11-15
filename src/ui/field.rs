@@ -24,7 +24,7 @@ pub fn field(label: impl Into<SharedString>, cx: &App) -> Div {
         .flex_col()
         .gap(px(6.))
         .min_w_0()
-        .child(div().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::muted(cx)).child(label.into()))
+        .child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(label.into()))
 }
 
 // Help under a field, with an optional count or note at the far end.
@@ -166,7 +166,7 @@ pub fn stepper(id: impl Into<ElementId>, value: impl Into<SharedString>, less: i
         .border_color(palette::line_strong(cx))
         .bg(palette::surface(palette::Level::Page, cx))
         .child(side("less", cx).rounded_l(px(RADIUS_MD - 1.)).child(Icon::new(Glyph::MinusBold).size(px(18.))).on_click(less))
-        .child(div().min_w(px(44.)).text_center().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(value.into()))
+        .child(div().min_w(px(44.)).text_center().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(value.into()))
         .child(side("more", cx).rounded_r(px(RADIUS_MD - 1.)).child(Icon::new(Glyph::Plus).size(px(18.))).on_click(more))
 }
 
@@ -186,7 +186,7 @@ pub fn code_cell(digit: Option<char>, focused: bool, cx: &App) -> Div {
         .bg(palette::surface(palette::Level::Page, cx))
         .font_family(cx.theme().mono_font_family.clone())
         .text_size(px(20.))
-        .font_weight(FontWeight::BOLD)
+        .font_weight(FontWeight::SEMIBOLD)
         .text_color(palette::strong(cx))
         .when_some(digit, |d, digit| d.child(SharedString::from(digit.to_string())))
 }
@@ -208,5 +208,5 @@ pub fn drop_zone(over: bool, glyph: Glyph, title: impl Into<SharedString>, cx: &
         .text_color(palette::muted(cx))
         .text_center()
         .child(div().text_color(if over { palette::accent_ink(cx) } else { palette::faint(cx) }).child(Icon::new(glyph).size(px(28.))))
-        .child(div().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(title.into()))
+        .child(div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(title.into()))
 }

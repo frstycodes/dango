@@ -89,7 +89,7 @@ impl Rustcord {
             .items_center()
             .gap(px(6.))
             .text_size(px(16.))
-            .font_weight(FontWeight::BOLD)
+            .font_weight(FontWeight::SEMIBOLD)
             .text_color(strong)
             .child(Icon::new(glyph).size(px(20.)).text_color(faint))
             .child(div().min_w_0().truncate().child(channel.name.clone()));
@@ -191,7 +191,7 @@ impl Rustcord {
                 .squircle(RADIUS_SM)
                 .bg(tint)
                 .text_size(px(14.))
-                .font_weight(FontWeight::SEMIBOLD)
+                .font_weight(FontWeight::MEDIUM)
                 .text_color(palette::accent_ink(cx))
                 .child(
                     button("unread-jump")
@@ -240,8 +240,8 @@ impl Rustcord {
                         .items_center()
                         .gap_2()
                         .text_color(gpui_kit::white())
-                        .child(div().h(px(18.)).px_1().squircle(RADIUS_XS).bg(theme.danger).text_size(px(11.)).font_weight(FontWeight::BOLD).flex().items_center().child("LIVE"))
-                        .child(div().flex_1().truncate().font_weight(FontWeight::SEMIBOLD).child(format!("{name}'s screen")))
+                        .child(div().h(px(18.)).px_1().squircle(RADIUS_XS).bg(theme.danger).text_size(px(11.)).font_weight(FontWeight::SEMIBOLD).flex().items_center().child("LIVE"))
+                        .child(div().flex_1().truncate().font_weight(FontWeight::MEDIUM).child(format!("{name}'s screen")))
                         .child(
                             div()
                                 .id("stop-watching")
@@ -440,7 +440,7 @@ impl Rustcord {
             .cursor_pointer()
             .whitespace_nowrap()
             .text_size(px(14.))
-            .font_weight(FontWeight::SEMIBOLD)
+            .font_weight(FontWeight::MEDIUM)
             .text_color(palette::strong(cx))
             .hover(move |s| s.bg(hover))
             .child(Icon::new(Glyph::ArrowDown).size(px(16.)))
@@ -500,7 +500,7 @@ impl Rustcord {
             .squircle(RADIUS_XS)
             .cursor_pointer()
             .text_size(px(12.))
-            .font_weight(FontWeight::BOLD)
+            .font_weight(FontWeight::SEMIBOLD)
             .text_color(if on { palette::accent_ink(cx) } else { palette::faint(cx) })
             .hover(move |s| s.bg(hover))
             .child(Icon::new(Glyph::AtBold).size(px(16.)))
@@ -547,7 +547,7 @@ impl Rustcord {
                             .flex()
                             .flex_col()
                             .gap(px(2.))
-                            .child(div().truncate().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(strong).child(name))
+                            .child(div().truncate().text_size(px(14.)).font_weight(FontWeight::MEDIUM).text_color(strong).child(name))
                             .child(div().truncate().text_size(px(12.)).text_color(faint).child(size)),
                     )
                     .child(ui::icon_button(SharedString::from(format!("remove-file-{i}")), Glyph::X, "Remove Attachment", cx).small().on_click(cx.listener(move |this, _, _, cx| this.remove_file(i, cx)))),
@@ -605,7 +605,7 @@ impl Rustcord {
                 .when(i == auto.selected, |r| r.bg(selected))
                 .when(i != auto.selected, |r| r.hover(move |s| s.bg(hover)))
                 .child(lead)
-                .child(div().flex_1().min_w_0().truncate().font_weight(FontWeight::SEMIBOLD).text_color(strong).child(item.label.clone()))
+                .child(div().flex_1().min_w_0().truncate().font_weight(FontWeight::MEDIUM).text_color(strong).child(item.label.clone()))
                 .on_click(cx.listener(move |this, _, window, cx| {
                     if let Some(auto) = &mut this.autocomplete {
                         auto.selected = i;
@@ -630,7 +630,7 @@ impl Rustcord {
                 .bg(palette::surface(Level::Overlay, cx))
                 .shadow(ui::shadow_pop(cx))
                 .text_size(px(14.))
-                .child(div().pt(px(6.)).px(px(10.)).pb(px(4.)).text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(muted).child(heading))
+                .child(div().pt(px(6.)).px(px(10.)).pb(px(4.)).text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(muted).child(heading))
                 .children(rows)
                 .transform_origin(point(gpui_kit::relative(0.5), gpui_kit::relative(1.)))
                 .with_animation("autocomplete", Animation::new(ui::DUR_POP).with_easing(gpui_kit::ease_out_quint()), |el, t| el.opacity(t).scale(0.95 + 0.05 * t)),
@@ -773,7 +773,7 @@ fn message_head(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> impl IntoE
                 .min_w_0()
                 .truncate()
                 .text_size(px(16.))
-                .font_weight(FontWeight::SEMIBOLD)
+                .font_weight(FontWeight::MEDIUM)
                 .text_color(name_color)
                 .hover(|s| s.underline())
                 .child(ctx.name_of(&message.author)),
@@ -849,7 +849,7 @@ fn reply_preview(reply: &Message, target: Option<String>, ctx: &Rc<RowContext>, 
         .hover(move |s| s.text_color(text))
         .child(Icon::new(Glyph::ReplyRight).size(px(14.)))
         .child(ui::avatar(reply.author.avatar.clone(), 16.))
-        .child(div().flex_none().font_weight(FontWeight::SEMIBOLD).text_color(muted).child(ctx.name_of(&reply.author)))
+        .child(div().flex_none().font_weight(FontWeight::MEDIUM).text_color(muted).child(ctx.name_of(&reply.author)))
         .child(snippet)
         .on_click(move |_, _, cx| {
             let Some(id) = target.clone() else { return };
@@ -998,7 +998,7 @@ fn send_failure(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> AnyElement
         .gap_x(px(8.))
         .gap_y(px(4.))
         .text_size(px(14.))
-        .font_weight(FontWeight::MEDIUM)
+        .font_weight(FontWeight::NORMAL)
         .text_color(palette::danger_ink(cx))
         .child(Icon::new(Glyph::WarningCircle).size(px(16.)))
         .child("Not sent.")
@@ -1035,14 +1035,14 @@ fn thread_card(thread: &Channel, ctx: &Rc<RowContext>, cx: &App) -> AnyElement {
         .hover(move |s| s.border_color(edge))
         .cursor_pointer()
         .text_size(px(14.))
-        .child(div().min_w_0().truncate().font_weight(FontWeight::SEMIBOLD).text_color(if archived { palette::muted(cx) } else { palette::strong(cx) }).child(thread.name.clone()))
+        .child(div().min_w_0().truncate().font_weight(FontWeight::MEDIUM).text_color(if archived { palette::muted(cx) } else { palette::strong(cx) }).child(thread.name.clone()))
         .child(
             div()
                 .flex_none()
                 .flex()
                 .items_center()
                 .gap(px(2.))
-                .font_weight(FontWeight::SEMIBOLD)
+                .font_weight(FontWeight::MEDIUM)
                 .text_color(palette::muted(cx))
                 .child(format!("{count} {}", if count == 1 { "message" } else { "messages" }))
                 .child(Icon::new(Glyph::ChevronRight).size(px(14.))),
@@ -1093,7 +1093,7 @@ fn media_grid(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Option<A
                             .bg(on_media(0.55))
                             .text_color(gpui_kit::white())
                             .text_size(px(20.))
-                            .font_weight(FontWeight::BOLD)
+                            .font_weight(FontWeight::SEMIBOLD)
                             .child(format!("+{rest}")),
                     )
                 }),
@@ -1136,7 +1136,7 @@ fn media_tile(message: &Message, i: usize, (w, h): (f32, f32), corners: Corners<
 
 // A label over media (GIF, a duration): fixed dark values, since it sits on pictures in both themes.
 fn media_tag(text: &'static str) -> Div {
-    div().absolute().h(px(20.)).px(px(6.)).flex().items_center().gap(px(4.)).squircle(RADIUS_XS).bg(on_media(0.72)).text_color(gpui_kit::white()).text_size(px(11.)).font_weight(FontWeight::BOLD).child(text)
+    div().absolute().h(px(20.)).px(px(6.)).flex().items_center().gap(px(4.)).squircle(RADIUS_XS).bg(on_media(0.72)).text_color(gpui_kit::white()).text_size(px(11.)).font_weight(FontWeight::SEMIBOLD).child(text)
 }
 
 // The design's media scrim, oklch(0.14 0.01 350), at `alpha`.
@@ -1203,7 +1203,7 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
     let md = |part: &str, text: &str| markdown(SharedString::from(format!("{key}-{part}")), readable(text, ctx), ctx);
     let site = embed.provider.clone().map(|provider| {
         let mark: Hsla = embed.color.filter(|c| *c != 0).map(|c| gpui_kit::rgb(c).into()).unwrap_or(palette::info_ink(cx));
-        div().flex().items_center().gap(px(6.)).min_w_0().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(faint).child(div().size(px(14.)).flex_none().squircle(4.).bg(mark)).child(div().min_w_0().truncate().child(provider))
+        div().flex().items_center().gap(px(6.)).min_w_0().text_size(px(12.)).font_weight(FontWeight::NORMAL).text_color(faint).child(div().size(px(14.)).flex_none().squircle(4.).bg(mark)).child(div().min_w_0().truncate().child(provider))
     });
     let author = embed.author.clone().map(|name| {
         let url = embed.author_url.clone();
@@ -1213,7 +1213,7 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
             .items_center()
             .gap(px(6.))
             .text_size(px(14.))
-            .font_weight(FontWeight::SEMIBOLD)
+            .font_weight(FontWeight::MEDIUM)
             .text_color(strong)
             .children(embed.author_icon.clone().map(|icon| ui::avatar(icon, 20.)))
             .child(div().when(url.is_some(), |d| d.cursor_pointer().hover(|s| s.underline())).child(name))
@@ -1224,7 +1224,7 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
         div()
             .id(SharedString::from(format!("{key}-title")))
             .text_size(px(14.))
-            .font_weight(FontWeight::SEMIBOLD)
+            .font_weight(FontWeight::MEDIUM)
             .text_color(if link.is_some() { link_ink } else { strong })
             .when_some(link.clone(), |t, url| t.cursor_pointer().hover(|s| s.underline()).on_click(move |_, _, cx| cx.open_url(&url)))
             .child(title)
@@ -1237,7 +1237,7 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
                 .flex()
                 .flex_col()
                 .gap(px(2.))
-                .child(div().font_weight(FontWeight::SEMIBOLD).text_color(strong).child(name.clone()))
+                .child(div().font_weight(FontWeight::MEDIUM).text_color(strong).child(name.clone()))
                 .child(div().text_color(muted).child(md(&format!("field-{i}"), value)))
         }))
     });
@@ -1317,7 +1317,7 @@ fn files(message: &Message, cx: &App) -> Vec<AnyElement> {
                                 .truncate()
                                 .cursor_pointer()
                                 .text_size(px(14.))
-                                .font_weight(FontWeight::SEMIBOLD)
+                                .font_weight(FontWeight::MEDIUM)
                                 .text_color(strong)
                                 .hover(|s| s.underline())
                                 .child(file.name.clone())
@@ -1396,7 +1396,7 @@ fn reaction_pill(id: SharedString, mine: bool, cx: &App) -> ui::Pressable {
         .border_1()
         .cursor_pointer()
         .text_size(px(14.))
-        .font_weight(FontWeight::SEMIBOLD)
+        .font_weight(FontWeight::MEDIUM)
         .when(mine, |p| p.bg(palette::accent_soft(cx)).border_color(palette::accent().opacity(0.55)).text_color(palette::accent_ink(cx)))
         .when(!mine, |p| p.bg(palette::selected(cx)).border_color(gpui_kit::transparent_black()).text_color(palette::muted(cx)).hover(move |s| s.border_color(edge)))
 }
@@ -1652,7 +1652,7 @@ fn emphasised(parts: &[(String, bool)], strong: Hsla) -> StyledText {
         let start = text.len();
         text.push_str(part);
         if *bold {
-            runs.push((start..text.len(), HighlightStyle { color: Some(strong), font_weight: Some(FontWeight::SEMIBOLD), ..Default::default() }));
+            runs.push((start..text.len(), HighlightStyle { color: Some(strong), font_weight: Some(FontWeight::MEDIUM), ..Default::default() }));
         }
     }
     StyledText::new(text).with_highlights(runs)
@@ -1660,7 +1660,7 @@ fn emphasised(parts: &[(String, bool)], strong: Hsla) -> StyledText {
 
 // A keycap and what it does, for the edit bar.
 fn key_hint(key: &'static str, label: &'static str, cx: &App) -> Div {
-    div().flex_none().flex().items_center().gap(px(6.)).text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::muted(cx)).child(ui::kbd(key, cx)).child(label)
+    div().flex_none().flex().items_center().gap(px(6.)).text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(ui::kbd(key, cx)).child(label)
 }
 
 // Placeholders shaped like the real transcript, sweeping in step.
@@ -1713,7 +1713,7 @@ fn day_divider(timestamp: &str, cx: &App) -> AnyElement {
         .gap(px(10.))
         .whitespace_nowrap()
         .text_size(px(12.))
-        .font_weight(FontWeight::SEMIBOLD)
+        .font_weight(FontWeight::MEDIUM)
         .text_color(palette::faint(cx))
         .child(line())
         .child(day(timestamp).map(|d| d.format("%A, %B %-d, %Y").to_string()).unwrap_or_default())
@@ -1784,7 +1784,7 @@ fn crumb(id: &'static str, cx: &App) -> Stateful<Div> {
         .squircle(RADIUS_SM)
         .cursor_pointer()
         .whitespace_nowrap()
-        .font_weight(FontWeight::MEDIUM)
+        .font_weight(FontWeight::NORMAL)
         .text_color(palette::muted(cx))
         .hover(move |s| s.bg(hover).text_color(strong))
 }
