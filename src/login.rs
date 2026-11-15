@@ -51,7 +51,8 @@ impl Login {
     }
 }
 
-pub fn render(login: &Login, _: &mut Window, cx: &mut Context<Rustcord>) -> AnyElement {
+// `back` is the signed-in account to return to while adding another.
+pub fn render(login: &Login, back: Option<crate::accounts::Account>, _: &mut Window, cx: &mut Context<Rustcord>) -> AnyElement {
     let (phase, title, detail): (&str, SharedString, SharedString) = match login {
         Login::Preparing => ("preparing", "Sign in with your phone".into(), "Getting a fresh code from Discord\u{2026}".into()),
         Login::Qr(_) => ("qr", "Sign in with your phone".into(), "Scan with the Discord app on your phone.".into()),
@@ -125,6 +126,10 @@ pub fn render(login: &Login, _: &mut Window, cx: &mut Context<Rustcord>) -> AnyE
         .children(reason)
         .children(card.map(|card| div().mt(px(4.)).child(card)))
         .children(after)
+        .children(back.map(|account| {
+            let label = format!("Back to {}", account.name);
+            link("back-to-account", label, cx).on_click(cx.listener(move |this, _, window, cx| this.switch_account(account.id.clone(), window, cx)))
+        }))
         .child(div().flex_1())
         .child(
             div()
@@ -259,8 +264,8 @@ fn waiting(id: &'static str, text: &'static str, cx: &App) -> Div {
     div().flex().items_center().gap(px(8.)).font_weight(FontWeight::NORMAL).text_color(palette::muted(cx)).child(ui::bars(id, palette::accent(), 12.)).child(text)
 }
 
-fn link(id: &'static str, text: &'static str, cx: &App) -> gpui_kit::Stateful<Div> {
-    div().id(id).cursor_pointer().font_weight(FontWeight::MEDIUM).text_color(palette::accent_ink(cx)).hover(|s| s.underline()).child(text)
+fn link(id: &'static str, text: impl Into<SharedString>, cx: &App) -> gpui_kit::Stateful<Div> {
+    div().id(id).cursor_pointer().font_weight(FontWeight::MEDIUM).text_color(palette::accent_ink(cx)).hover(|s| s.underline()).child(text.into())
 }
 
 // The account that scanned springs in from half size, the phone it's approving on badged at its foot.

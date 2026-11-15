@@ -1,3 +1,4 @@
+mod accounts;
 mod auth;
 mod cache;
 mod captcha;
@@ -112,7 +113,7 @@ fn main() {
         }
 
         // Signed in: a small splash window shows while the main window loads hidden behind it.
-        let signed_in = std::env::var("DISCORD_TOKEN").is_ok_and(|t| !t.trim().is_empty()) || auth::stored_token().is_some();
+        let signed_in = accounts::startup_token(&settings::Prefs::load()).is_some();
         let demo = cfg!(debug_assertions) && std::env::var_os("CHORD_DEMO").is_some();
         let splash = if signed_in && !demo { splash::open(cx) } else { None };
         let options = WindowOptions {
@@ -417,6 +418,8 @@ type ComposerState = TextareaState;
 pub struct Rustcord {
     status: Status,
     client: Option<Client>,
+    // The connected account's token, filed under its id once READY names the user.
+    token: Option<String>,
     _session: Option<Task<()>>,
     me: Option<User>,
     my_status: discord::Status,
@@ -593,6 +596,36 @@ struct Arrivals {
 
 impl Rustcord {
     fn new(window: &mut Window, splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut Context<Self>) -> Self {
+        cx.observe_window_appearance(window, |_, window, cx| palette::sync(window, cx)).detach();
+        cx.observe_window_activation(window, |this: &mut Self, window, cx| {
+            this.window_active = window.is_window_active();
+            cx.notify();
+        })
+        .detach();
+        #[allow(unused_mut)]
+        let mut chord = Self::build(window, splash, cx);
+        #[cfg(debug_assertions)]
+        if let Ok(scene) = std::env::var("CHORD_DEMO") {
+            demo::load(&mut chord, &scene, window, cx);
+            return chord;
+        }
+        chord.start_hotkeys(cx);
+        match accounts::startup_token(&chord.prefs) {
+            Some(token) => chord.connect(token, cx),
+            None => chord.sign_in(cx),
+        }
+        if chord.splash.is_some() {
+            cx.spawn(async move |this, cx| {
+                cx.background_executor().timer(SPLASH_LIMIT).await;
+                this.update(cx, |this, cx| this.finish_splash(cx)).ok();
+            })
+            .detach();
+        }
+        chord
+    }
+
+    // Everything one signed-in session owns; switching accounts builds it afresh.
+    fn build(window: &mut Window, splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut Context<Self>) -> Self {
         let composer = cx.new(|cx| {
             let mut state = ComposerState::new(window, cx).placeholder("Message").submit_on_enter(true);
             state.set_auto_grow(1, 10, cx);
@@ -601,12 +634,6 @@ impl Rustcord {
         cx.subscribe_in(&composer, window, Self::on_composer).detach();
         let search_input = cx.new(|cx| SearchState::new(window, cx).placeholder("Search"));
         cx.subscribe_in(&search_input, window, Self::on_search_input).detach();
-        cx.observe_window_appearance(window, |_, window, cx| palette::sync(window, cx)).detach();
-        cx.observe_window_activation(window, |this: &mut Self, window, cx| {
-            this.window_active = window.is_window_active();
-            cx.notify();
-        })
-        .detach();
         // Typing filters the picker and switcher; the views read the inputs' text on render.
         let emoji_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Find the perfect emoji"));
         cx.subscribe_in(&emoji_search, window, Self::on_emoji_search).detach();
@@ -617,10 +644,10 @@ impl Rustcord {
         let settings_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search settings"));
         let dialog_input = cx.new(|cx| SearchState::new(window, cx));
         cx.subscribe(&settings_search, |_, _, _: &InputEvent, cx| cx.notify()).detach();
-        #[allow(unused_mut)]
         let mut chord = Self {
             status: Status::Connecting,
             client: None,
+            token: None,
             _session: None,
             me: None,
             my_status: discord::Status::Online,
@@ -710,7 +737,7 @@ impl Rustcord {
             inbox: None,
             gif_picker: None,
             gif_search,
-            restore: home::load_last_channel(),
+            restore: None,
             editing: None,
             mention_wire: HashMap::new(),
             autocomplete: None,
@@ -755,23 +782,6 @@ impl Rustcord {
             .ok();
         });
         chord.apply_prefs();
-        #[cfg(debug_assertions)]
-        if let Ok(scene) = std::env::var("CHORD_DEMO") {
-            demo::load(&mut chord, &scene, window, cx);
-            return chord;
-        }
-        chord.start_hotkeys(cx);
-        match std::env::var("DISCORD_TOKEN").ok().filter(|t| !t.trim().is_empty()).or_else(auth::stored_token) {
-            Some(token) => chord.connect(token, cx),
-            None => chord.sign_in(cx),
-        }
-        if chord.splash.is_some() {
-            cx.spawn(async move |this, cx| {
-                cx.background_executor().timer(SPLASH_LIMIT).await;
-                this.update(cx, |this, cx| this.finish_splash(cx)).ok();
-            })
-            .detach();
-        }
         chord
     }
 
@@ -809,7 +819,8 @@ impl Rustcord {
 
     fn connect(&mut self, token: String, cx: &mut Context<Self>) {
         self.splash_stage(0, "Signing in…", cx);
-        let (client, mut events) = discord::connect(token);
+        let (client, mut events) = discord::connect(token.clone());
+        self.token = Some(token);
         self.client = Some(client);
         self.status = Status::Connecting;
         self._session = Some(cx.spawn(async move |this, cx| {
@@ -826,6 +837,7 @@ impl Rustcord {
         // Signing in happens in the main window, so the splash steps aside.
         self.finish_splash(cx);
         self.client = None;
+        self.token = None;
         self.me = None;
         self.channel = None;
         self.guilds.clear();
@@ -845,17 +857,9 @@ impl Rustcord {
         cx.notify();
     }
 
-    fn sign_out(&mut self, cx: &mut Context<Self>) {
-        auth::forget_token();
-        self.sign_in(cx);
-    }
-
     fn on_auth(&mut self, event: auth::AuthEvent, cx: &mut Context<Self>) {
         let login = match event {
-            auth::AuthEvent::SignedIn(token) => {
-                auth::store_token(&token);
-                return self.connect(token, cx);
-            }
+            auth::AuthEvent::SignedIn(token) => return self.connect(token, cx),
             auth::AuthEvent::Qr(url) => Login::qr(&url),
             auth::AuthEvent::Scanned(user) => Login::Scanned(user),
             auth::AuthEvent::Captcha(url) => {
@@ -873,8 +877,12 @@ impl Rustcord {
             Event::Ready(ready) => {
                 let ready = *ready;
                 self.channel_info_requested.clear();
-                self.me = Some(ready.me);
+                if self.me.is_none() {
+                    self.restore = home::load_last_channel(&ready.me.id);
+                }
                 self.my_status = ready.status;
+                self.remember_account(&ready.me);
+                self.me = Some(ready.me);
                 self.custom_status = ready.custom_status;
                 for channel in ready.guilds.iter().flat_map(|g| &g.channels).chain(&ready.dms) {
                     if let Some(id) = channel.last_message_id.as_deref().and_then(|id| id.parse().ok()) {
@@ -1121,7 +1129,7 @@ impl Rustcord {
                 self.status = Status::Reconnecting(reason.into());
             }
             Event::AuthFailed => {
-                auth::forget_token();
+                self.forget_rejected_account();
                 return self.sign_in(cx);
             }
         }
@@ -1271,7 +1279,7 @@ impl Rustcord {
         let search = format!("Search {}", self.guild().map(|g| g.name.as_str()).unwrap_or("messages"));
         self.search_input.update(cx, |state, cx| state.set_placeholder(search, window, cx));
         self.last_channel.insert(self.guild_id.clone(), channel.id.clone());
-        home::save_last_channel(self.guild_id.as_deref(), &channel.id);
+        home::save_last_channel(self.my_id(), self.guild_id.as_deref(), &channel.id);
         let id = channel.id.clone();
         if let (Some(client), Some(guild_id)) = (&self.client, &self.guild_id) {
             client.request_member_list(guild_id, &id);
