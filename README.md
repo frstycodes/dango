@@ -1,4 +1,4 @@
-# Wave
+# Dango
 
 A lightweight Discord client in Rust and gpui (the crate and data folders still use its first name, Rustcord).
 
@@ -44,8 +44,8 @@ Release builds update themselves at launch from this repository's GitHub Release
 `.github/workflows/release.yml` checks the tag matches `Cargo.toml`, creates the release, and attaches, each with
 a `.sha256`:
 
-- installers: `wave-macos-aarch64.dmg`, `wave-macos-x86_64.dmg`, `wave-windows-x86_64-setup.exe` (per-user, no admin)
-- what the updater downloads: `wave-macos-*.zip` (zipped `Wave.app`) and `wave-windows-x86_64.exe`
+- installers: `dango-macos-aarch64.dmg`, `dango-macos-x86_64.dmg`, `dango-windows-x86_64-setup.exe` (per-user, no admin)
+- what the updater downloads: `dango-macos-*.zip` (zipped `Dango.app`) and `dango-windows-x86_64.exe`
 
 Running copies older than the tag download theirs on next launch and restart into it.
 

@@ -57,7 +57,7 @@ pub fn render(login: &Login, back: Option<crate::accounts::Account>, _: &mut Win
         Login::Preparing => ("preparing", "Sign in with your phone".into(), "Getting a fresh code from Discord\u{2026}".into()),
         Login::Qr(_) => ("qr", "Sign in with your phone".into(), "Scan with the Discord app on your phone.".into()),
         Login::Scanned(user) => ("scanned", format!("Hi, {}!", first_name(&user.name)).into(), "Approve the sign-in on your phone to finish.".into()),
-        Login::Captcha(_) => ("captcha", "One more step".into(), "Discord wants a quick check. Solve the captcha in your browser and Wave will finish signing in.".into()),
+        Login::Captcha(_) => ("captcha", "One more step".into(), "Discord wants a quick check. Solve the captcha in your browser and Dango will finish signing in.".into()),
         Login::Failed(_) => ("failed", "Sign-in didn't finish".into(), "Sign-in stopped before it was approved. Get a new code and scan it again.".into()),
     };
     let lead = match login {
@@ -139,7 +139,7 @@ pub fn render(login: &Login, back: Option<crate::accounts::Account>, _: &mut Win
                 .text_size(px(12.))
                 .text_color(muted)
                 .child(Icon::new(Glyph::HashtagLock).size(px(14.)))
-                .child("Wave never sees your password."),
+                .child("Dango never sees your password."),
         )
         .into_any_element()
 }
@@ -176,7 +176,7 @@ fn blank_card(cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-// Warm ink squircles on white, finder patterns as rounded rings, the wave mark in the cleared centre.
+// Warm ink squircles on white, finder patterns as rounded rings, the dango mark in the cleared centre.
 fn qr_card(modules: Rc<Modules>, cx: &App) -> AnyElement {
     let inner = QR_SIDE - 2. * QR_PAD;
     let module = inner / modules.width as f32;

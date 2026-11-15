@@ -1,51 +1,30 @@
-// Rustcord's app icon choices: the voice wave in many media, picked in Settings › Appearance.
+// Dango's app icon choices: the three dumplings in many media, picked in Settings › Appearance.
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AppIcon {
-    #[default]
-    Glass,
-    Bone,
     Brand,
     Graphite,
-    Paper,
-    Blueprint,
-    Riso,
-    Pixel,
     Sticker,
     Peek,
-    Sleepy,
+    // Last because it also takes any icon no longer offered (glass, riso, …), so an old pick can't fail
+    // the whole prefs file, and serde wants that catch-all at the end.
+    #[default]
+    #[serde(other)]
+    Bone,
 }
 
 impl AppIcon {
-    pub const ALL: [AppIcon; 11] = [
-        AppIcon::Glass,
-        AppIcon::Bone,
-        AppIcon::Brand,
-        AppIcon::Graphite,
-        AppIcon::Paper,
-        AppIcon::Blueprint,
-        AppIcon::Riso,
-        AppIcon::Pixel,
-        AppIcon::Sticker,
-        AppIcon::Peek,
-        AppIcon::Sleepy,
-    ];
+    pub const ALL: [AppIcon; 5] = [AppIcon::Bone, AppIcon::Brand, AppIcon::Graphite, AppIcon::Sticker, AppIcon::Peek];
 
     pub fn label(self) -> &'static str {
         match self {
-            AppIcon::Glass => "Glass",
             AppIcon::Bone => "Bone",
-            AppIcon::Brand => "Magenta",
+            AppIcon::Brand => "Chili",
             AppIcon::Graphite => "Graphite",
-            AppIcon::Paper => "Paper",
-            AppIcon::Blueprint => "Blueprint",
-            AppIcon::Riso => "Riso",
-            AppIcon::Pixel => "Pixel",
             AppIcon::Sticker => "Sticker",
             AppIcon::Peek => "Peek",
-            AppIcon::Sleepy => "Sleepy",
         }
     }
 
@@ -59,7 +38,8 @@ impl AppIcon {
     }
 
     // Shows this icon in the Dock right away. On other systems the icon comes from the build.
-    // GAP: Windows and Linux would need the executable's icon resource and a taskbar update.
+    // GAP: on Windows the exe, window and taskbar keep the build's icon (assets/windows/app.ico); following
+    // the pick there needs WM_SETICON on the window.
     pub fn apply(self) {
         #[cfg(target_os = "macos")]
         set_dock_icon(self.bytes());
@@ -70,18 +50,12 @@ impl AppIcon {
 }
 
 // Order matches `AppIcon`.
-pub const BRAND_ICONS: [(&str, &[u8]); 11] = [
-    ("brand/icons/glass.png", include_bytes!("../assets/brand/icons/glass.png")),
-    ("brand/icons/bone.png", include_bytes!("../assets/brand/icons/bone.png")),
+pub const BRAND_ICONS: [(&str, &[u8]); 5] = [
     ("brand/icons/brand.png", include_bytes!("../assets/brand/icons/brand.png")),
     ("brand/icons/graphite.png", include_bytes!("../assets/brand/icons/graphite.png")),
-    ("brand/icons/paper.png", include_bytes!("../assets/brand/icons/paper.png")),
-    ("brand/icons/blueprint.png", include_bytes!("../assets/brand/icons/blueprint.png")),
-    ("brand/icons/riso.png", include_bytes!("../assets/brand/icons/riso.png")),
-    ("brand/icons/pixel.png", include_bytes!("../assets/brand/icons/pixel.png")),
     ("brand/icons/sticker.png", include_bytes!("../assets/brand/icons/sticker.png")),
     ("brand/icons/peek.png", include_bytes!("../assets/brand/icons/peek.png")),
-    ("brand/icons/sleepy.png", include_bytes!("../assets/brand/icons/sleepy.png")),
+    ("brand/icons/bone.png", include_bytes!("../assets/brand/icons/bone.png")),
 ];
 
 #[cfg(target_os = "macos")]
@@ -117,7 +91,13 @@ mod tests {
             assert!(path.ends_with(&format!("{}.png", serde_json::to_string(&icon).unwrap().trim_matches('"'))), "{path}");
             assert_eq!(&bytes[1..4], b"PNG", "{path} is a PNG");
         }
+        let saved: AppIcon = serde_json::from_str("\"peek\"").unwrap();
+        assert_eq!(saved, AppIcon::Peek);
+    }
+
+    #[test]
+    fn a_retired_icon_falls_back_to_the_default() {
         let saved: AppIcon = serde_json::from_str("\"riso\"").unwrap();
-        assert_eq!(saved, AppIcon::Riso);
+        assert_eq!(saved, AppIcon::default());
     }
 }

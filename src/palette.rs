@@ -4,17 +4,19 @@ use gpui_kit::{
     rgb,
 };
 
-// Wave's colours, ported from the design system (design/tokens.css, Graphite neutrals). The OKLCH
+// Dango's colours, ported from the design system (design/tokens.css, Graphite neutrals). The OKLCH
 // tokens there are converted to sRGB here; keep the two in step.
 //
-// Magenta is the one accent: primary actions, current selection, focus, and what asks for you
-// (mentions, unread counts, live). The fill is a shade deeper than the logo's #E8326F so white on it
-// clears 4.5:1.
-const ACCENT: u32 = 0xDB2B65;
-const ACCENT_HOVER: u32 = 0xC2215A;
-const ACCENT_PRESS: u32 = 0xA81C4E;
-const DANGER: u32 = 0xCC2A1B;
-const DANGER_HOVER: u32 = 0xB71C0E;
+// Chili is the one accent: primary actions, current selection, focus, and what asks for you
+// (mentions, unread counts, live). The fill is a shade deeper than the logo's #E25B26 so white on it
+// clears 4.5:1. Danger is crimson, a clearly different hue, so Delete never looks like the primary action.
+const ACCENT: u32 = 0xC8471A;
+// The mark's own chili, brighter than the fill: only for the logo and mascot, never behind text.
+const LOGO: u32 = 0xE25B26;
+const ACCENT_HOVER: u32 = 0xB23C14;
+const ACCENT_PRESS: u32 = 0x9A330F;
+const DANGER: u32 = 0xC21F3A;
+const DANGER_HOVER: u32 = 0xA8172F;
 const SUCCESS: u32 = 0x00753E;
 const DND: u32 = 0xF05136;
 const OFFLINE: u32 = 0x83868C;
@@ -65,8 +67,8 @@ const DARK: Tokens = Tokens {
     text: 0xD4D8DD,
     muted: 0xA0A5AC,
     faint: 0x8B8F97,
-    accent_ink: 0xFF6B9C,
-    danger_ink: 0xFF8068,
+    accent_ink: 0xFF8A57,
+    danger_ink: 0xFF7A8C,
     online: 0x3EC87D,
     online_ink: 0x59D38C,
     idle: 0xF2B036,
@@ -79,7 +81,7 @@ const DARK: Tokens = Tokens {
     selected: 0.08,
     line: 0.08,
     line_strong: 0.14,
-    accent_soft: (0xF33D7D, 0.14),
+    accent_soft: (0xF2652E, 0.14),
     shade: 0x000000,
     shimmer: (0xFFFFFF, 0.06),
     seg_track: (0x000000, 0.3),
@@ -96,8 +98,8 @@ const LIGHT: Tokens = Tokens {
     text: 0x2B2E32,
     muted: 0x55585E,
     faint: 0x5D6166,
-    accent_ink: 0xB81F55,
-    danger_ink: 0xB71C0E,
+    accent_ink: 0xA83A12,
+    danger_ink: 0xB0182F,
     online: 0x00A159,
     online_ink: 0x00723B,
     idle: 0xDA950B,
@@ -110,7 +112,7 @@ const LIGHT: Tokens = Tokens {
     selected: 0.09,
     line: 0.1,
     line_strong: 0.18,
-    accent_soft: (0xE1276E, 0.1),
+    accent_soft: (0xD9531F, 0.1),
     shade: 0x3B2922,
     shimmer: (0xFFFFFF, 0.6),
     seg_track: (0x2B2E32, 0.1),
@@ -140,7 +142,7 @@ pub fn sync(window: &mut Window, cx: &mut App) {
     apply(cx);
 }
 
-// Paints Wave's tokens onto the current theme mode (call after `Theme::change`).
+// Paints Dango's tokens onto the current theme mode (call after `Theme::change`).
 pub fn apply(cx: &mut App) {
     let t = tokens(cx);
     // `update`, not `global_mut`: gpui-component's own widgets paint from `theme.tokens`, which only
@@ -187,6 +189,10 @@ pub fn apply(cx: &mut App) {
 
 pub fn accent() -> Hsla {
     hex(ACCENT)
+}
+
+pub fn logo() -> Hsla {
+    hex(LOGO)
 }
 
 pub fn accent_hover() -> Hsla {

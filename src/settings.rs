@@ -1,5 +1,5 @@
 // Settings, ported from design/settings.html: the whole window, the nav on the sidebar tone, one page
-// of titled groups on the right. Only settings Wave honours are shown.
+// of titled groups on the right. Only settings Dango honours are shown.
 use std::{collections::HashMap, time::Duration};
 
 use gpui_kit::{
@@ -793,7 +793,7 @@ impl Rustcord {
                     .text_size(px(12.))
                     .line_height(px(18.))
                     .text_color(palette::muted(cx))
-                    .child(format!("Wave {} ({})", env!("CARGO_PKG_VERSION"), os_name())),
+                    .child(format!("Dango {} ({})", env!("CARGO_PKG_VERSION"), os_name())),
             )
     }
 
@@ -839,7 +839,7 @@ impl Rustcord {
                         .text_size(px(14.))
                         .font_weight(FontWeight::NORMAL)
                         .text_color(palette::strong(cx))
-                        .child("Log out of Wave on this computer?")
+                        .child("Log out of Dango on this computer?")
                         .child(div().mt(px(2.)).text_size(px(12.)).font_weight(FontWeight::NORMAL).text_color(palette::muted(cx)).child("You'll scan a new code with your phone to sign back in.")),
                 )
                 .child(buttons),
@@ -916,7 +916,7 @@ impl Rustcord {
         vec![Section::new(
             ui::settings_group("Sounds", cx)
                 .child(ui::settings_card(cx).children(rows))
-                .child(ui::settings_caption("Sounds Wave plays for new direct messages and for mentions. Voice sounds are under Voice and video.", cx)),
+                .child(ui::settings_caption("Sounds Dango plays for new direct messages and for mentions. Voice sounds are under Voice and video.", cx)),
         )]
     }
 
@@ -972,8 +972,8 @@ impl Rustcord {
         // GAP: the design's Neutrals, Message density and Chat font size groups have no setting in the
         // app yet; they appear here once Prefs carries them.
         vec![
-            Section::new(ui::settings_group("Theme", cx).child(picks).child(ui::settings_caption("Midnight is the darkest theme, the one Wave is built on.", cx))),
-            Section::new(ui::settings_group("App icon", cx).child(self.app_icon_grid(cx)).child(ui::settings_caption("How Wave looks in your Dock: the same voice wave in different media. Changes right away; no restart.", cx))),
+            Section::new(ui::settings_group("Theme", cx).child(picks).child(ui::settings_caption("Midnight is the darkest theme, the one Dango is built on.", cx))),
+            Section::new(ui::settings_group("App icon", cx).child(self.app_icon_grid(cx)).child(ui::settings_caption("How Dango looks in your Dock: the same dango in different media. Changes right away; no restart.", cx))),
         ]
     }
 
@@ -1019,7 +1019,7 @@ impl Rustcord {
 
         let mut lines = Hairlines::default();
         let profiles = [
-            ("profile-isolation", "Voice isolation", "Just your beautiful voice: Wave cuts through the noise around you", InputProfile::VoiceIsolation),
+            ("profile-isolation", "Voice isolation", "Just your beautiful voice: Dango cuts through the noise around you", InputProfile::VoiceIsolation),
             ("profile-studio", "Studio", "Pure audio: an open mic with no processing", InputProfile::Studio),
             ("profile-custom", "Custom", "Advanced mode: every button and dial, set your way", InputProfile::Custom),
         ];
@@ -1123,7 +1123,7 @@ impl Rustcord {
             ui::Notice::Warning,
             Glyph::MicOff,
             "No audio detected from your mic",
-            format!("Wave hears nothing from {mic}. Turn up Microphone volume above, pick another input, or let Wave use the microphone in System Settings."),
+            format!("Dango hears nothing from {mic}. Turn up Microphone volume above, pick another input, or let Dango use the microphone in System Settings."),
             actions,
             cx,
         )
@@ -1177,14 +1177,14 @@ impl Rustcord {
             let auto = prefs.sensitivity_auto;
             card = card
                 .child(self.switch_row(
-                    SwitchRow { id: "set-auto-sensitivity", title: "Set sensitivity automatically", detail: Some("Wave adjusts to the noise around you. When the bar fills, you're transmitting."), on: auto, enabled: true, field: |p| &mut p.sensitivity_auto },
+                    SwitchRow { id: "set-auto-sensitivity", title: "Set sensitivity automatically", detail: Some("Dango adjusts to the noise around you. When the bar fills, you're transmitting."), on: auto, enabled: true, field: |p| &mut p.sensitivity_auto },
                     lines.next(),
                     window,
                     cx,
                 ))
                 .child(
                     stack_row("input-sensitivity", lines.next(), cx)
-                        .child(row_text("Input sensitivity", Some(if auto { "Your mic transmits when Wave hears your voice" } else { "Your mic transmits when the level passes the handle" }), cx))
+                        .child(row_text("Input sensitivity", Some(if auto { "Your mic transmits when Dango hears your voice" } else { "Your mic transmits when the level passes the handle" }), cx))
                         .child(if auto { sensitivity_track(None, self.mic_level, cx).into_any_element() } else { self.slider(Slider::Sensitivity, Some(self.mic_level), cx) })
                         .when(!auto, |d| d.child(scale(&["\u{2212}100 dB", "0 dB"], cx))),
                 );
@@ -1331,7 +1331,7 @@ impl Rustcord {
         ]
     }
 
-    // macOS keeps keys from Wave until it's allowed Input Monitoring; the hook starts once it is.
+    // macOS keeps keys from Dango until it's allowed Input Monitoring; the hook starts once it is.
     fn input_monitoring_notice(&self, cx: &mut Context<Self>) -> Option<Div> {
         if !self.keys_unheard() {
             return None;
@@ -1341,7 +1341,7 @@ impl Rustcord {
             ui::Notice::Warning,
             Glyph::Keyboard,
             "Keybinds need Input Monitoring",
-            "Turn on Wave in System Settings, under Privacy & Security, Input Monitoring. Keybinds start working as soon as you do.",
+            "Turn on Dango in System Settings, under Privacy & Security, Input Monitoring. Keybinds start working as soon as you do.",
             div().mt(px(8.)).flex().child(open),
             cx,
         ))
@@ -1388,7 +1388,7 @@ impl Rustcord {
             .child(div().flex_grow(1.).flex_basis(px(0.)).min_w_0().child(action))
             .child(self.keybind_recorder(index, cx).flex_grow(1.25).flex_basis(px(0.)))
             .child(remove)
-            .children(unknown.then(|| error_line("Wave can't listen for this shortcut. Record it again.", cx).w_full()))
+            .children(unknown.then(|| error_line("Dango can't listen for this shortcut. Record it again.", cx).w_full()))
             .into_any_element()
     }
 
@@ -1470,7 +1470,7 @@ impl Rustcord {
         }
         rows.push(
             self.switch_row(
-                SwitchRow { id: "set-silence-warning", title: "No audio detected warning", detail: Some("Warns you in a call when Wave hears nothing from your mic"), on: prefs.silence_warning, enabled: true, field: |p| &mut p.silence_warning },
+                SwitchRow { id: "set-silence-warning", title: "No audio detected warning", detail: Some("Warns you in a call when Dango hears nothing from your mic"), on: prefs.silence_warning, enabled: true, field: |p| &mut p.silence_warning },
                 lines.next(),
                 window,
                 cx,
@@ -1503,7 +1503,7 @@ impl Rustcord {
                 SwitchRow {
                     id: "set-qos",
                     title: "Quality of service",
-                    detail: Some("Asks your router to send Wave's voice first. Turn it off if calls drop; some routers handle it badly."),
+                    detail: Some("Asks your router to send Dango's voice first. Turn it off if calls drop; some routers handle it badly."),
                     on: prefs.qos,
                     enabled: true,
                     field: |p| &mut p.qos,
@@ -1717,7 +1717,7 @@ impl Rustcord {
         self.range(format!("{slider:?}").into(), slider.fraction(&self.prefs), fill, move |this, f, cx| this.update_prefs(cx, |p| slider.set(p, f)), cx)
     }
 
-    // Wave's slider: the done part, a gap, a tall narrow thumb, a gap, the rest; click or drag anywhere
+    // Dango's slider: the done part, a gap, a tall narrow thumb, a gap, the rest; click or drag anywhere
     // on it. The sensitivity slider draws the live level under its handle instead.
     pub(crate) fn range(
         &self,

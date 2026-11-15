@@ -2,9 +2,9 @@ use std::borrow::Cow;
 
 use gpui_kit::{AssetSource, Result, SharedString, assets::IconNamed};
 
-// Wave's own mark, the voice wave, in its magenta and in white.
-pub const MARK: &str = "brand/rustcord-mark.svg";
-pub const MARK_WHITE: &str = "brand/rustcord-mark-white.svg";
+// Dango's own mark, three dumplings on a skewer, in chili and in white.
+pub const MARK: &str = "brand/dango-mark.svg";
+pub const MARK_WHITE: &str = "brand/dango-mark-white.svg";
 
 // Phosphor icons (MIT, assets/icons/phosphor/LICENSE): bold everywhere, so strokes hold their own
 // beside Gabarito (regular read hairline at 16px), and fill for on and playing states. Order matches `Glyph`.
@@ -152,8 +152,8 @@ const GLYPHS: [(&str, &[u8]); 140] = [
 ];
 
 const BRAND: [(&str, &[u8]); 4] = [
-    (MARK, include_bytes!("../assets/brand/rustcord-mark.svg")),
-    (MARK_WHITE, include_bytes!("../assets/brand/rustcord-mark-white.svg")),
+    (MARK, include_bytes!("../assets/brand/dango-mark.svg")),
+    (MARK_WHITE, include_bytes!("../assets/brand/dango-mark-white.svg")),
     // Stand-in art for the demo's profile scene, which stays offline.
     ("demo/decoration.png", include_bytes!("../assets/demo/decoration.png")),
     ("demo/banner.png", include_bytes!("../assets/demo/banner.png")),

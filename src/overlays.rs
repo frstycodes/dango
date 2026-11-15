@@ -625,7 +625,7 @@ impl Rustcord {
                             .child(div().text_size(px(12.)).text_color(palette::muted(cx)).child(source)),
                     )
             }));
-        // GAP: the design's skin-tone button sits beside search; Wave has no skin tones yet.
+        // GAP: the design's skin-tone button sits beside search; Dango has no skin tones yet.
         let head = div().p(px(10.)).child(
             div()
                 .h(px(36.))

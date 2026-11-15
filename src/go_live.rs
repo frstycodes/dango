@@ -477,7 +477,7 @@ impl Rustcord {
     // The sound switch, saying whose sound viewers get.
     fn share_audio(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let what = match (self.share_choice, &self.share_choice_label) {
-            (Some(ShareSource::Screen(_)) | None, _) => "Viewers hear everything except Wave".to_owned(),
+            (Some(ShareSource::Screen(_)) | None, _) => "Viewers hear everything except Dango".to_owned(),
             (Some(_), Some(label)) => format!("Viewers hear {label}, not your other apps"),
             (Some(_), None) => "Viewers hear this app, not your other apps".to_owned(),
         };

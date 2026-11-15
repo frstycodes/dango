@@ -1,4 +1,4 @@
-// Wave's shared controls, ported from the design system (design/css/primitives.css, overlays.css). Each
+// Dango's shared controls, ported from the design system (design/css/primitives.css, overlays.css). Each
 // returns an element the caller keeps composing (`.on_click`, layout, extra children), so call sites never
 // restate a control's look. `design_system.rs` shows every one of them in both themes, section for
 // section with design/primitives.html.
@@ -69,7 +69,7 @@ pub const DUR_PANEL: Duration = Duration::from_millis(260);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Tone {
-    // Magenta, the one accent: the action the surface is for.
+    // Chili, the one accent: the action the surface is for.
     Primary,
     // The quiet fill: every other action.
     Secondary,
@@ -92,7 +92,7 @@ pub fn split(main: Control, options: Control) -> Div {
         .child(options.px(px(8.)).rounded_r(px(RADIUS_MD)).rounded_l(px(4.)))
 }
 
-// The LIVE badge: magenta, with the mini wave at its own 2px weight.
+// The LIVE badge: chili, with the mini wave at its own 2px weight.
 pub fn live_badge() -> Div {
     let white = gpui_kit::white();
     let wave = div().h(px(9.)).flex().items_center().gap(px(1.5)).children([0.55_f32, 1., 0.7].map(|base| div().w(px(2.)).h(px(9. * base)).rounded_full().bg(white)));
@@ -216,7 +216,7 @@ fn knob_shadow() -> Vec<BoxShadow> {
     vec![shadow(black.opacity(0.22), 0., 2., 6., 0., false), shadow(black.opacity(0.06), 0., 0., 0., 0.5, false)]
 }
 
-// The switch: a wide pill with a capsule knob, magenta when on (iOS-style). The knob springs across (300ms
+// The switch: a wide pill with a capsule knob, chili when on (iOS-style). The knob springs across (300ms
 // on the touch spring) while the track's fill fades to the accent, and while pressed it swells into glass.
 pub fn switch_live(id: impl Into<ElementId>, on: bool, window: &mut Window, cx: &mut App) -> Stateful<Div> {
     let id: ElementId = id.into();
@@ -308,7 +308,7 @@ fn check_box(state: Check, edge: Hsla, fill: Hsla) -> Div {
         .when(state == Check::Mixed, |d| d.child(div().w(px(10.)).h(px(2.)).squircle(1.).bg(gpui_kit::white())))
 }
 
-// Off: a thin ring. On: the ring thickens to a magenta band around the surface's colour.
+// Off: a thin ring. On: the ring thickens to a chili band around the surface's colour.
 pub fn radio(on: bool, cx: &App) -> Div {
     radio_with(on, 20., palette::line_strong(cx))
 }

@@ -1040,7 +1040,7 @@ fn identify(token: &str) -> String {
         "d": {
             "token": token,
             "capabilities": 0,
-            "properties": { "os": std::env::consts::OS, "browser": "Wave", "device": "" },
+            "properties": { "os": std::env::consts::OS, "browser": "Dango", "device": "" },
             "presence": { "status": "online", "since": 0, "activities": [], "afk": false },
             "compress": false,
         }
