@@ -256,40 +256,54 @@ fn reopen(first: bool, ready: &mpsc::Sender<Result<(), String>>, opened: Result<
 fn open_output(settings: Arc<AudioSettings>, mixer: Arc<Mixer>, id: Option<&str>) -> Result<Stream, String> {
     let output = find_device(false, id).ok_or("No speaker found")?;
     let config = pick_config(output.supported_output_configs().map_err(|e| e.to_string())?, output.default_output_config().ok())?;
-    let channels = (config.channels as usize).max(1);
-    let mut to_device = Resampler::new(SAMPLE_RATE, config.sample_rate);
-    let mut pending: VecDeque<f32> = VecDeque::new();
-    let mut chunk = vec![0f32; FRAME_LEN / 2];
+    let mut playback = Playback::new(config.sample_rate, config.channels as usize);
     let stream = output
         .build_output_stream(
             config,
-            move |data: &mut [f32], _: &_| {
-                let frames = data.len() / channels;
-                while pending.len() < frames * 2 {
-                    mixer.fill(&mut chunk);
-                    let volume = settings.output_volume();
-                    chunk.iter_mut().for_each(|s| *s = (*s * volume).clamp(-1.0, 1.0));
-                    settings.processor.render(&chunk);
-                    pending.extend(to_device.process(&chunk));
-                }
-                for frame in data.chunks_mut(channels) {
-                    let (l, r) = (pending.pop_front().unwrap_or(0.0), pending.pop_front().unwrap_or(0.0));
-                    match frame {
-                        [mono] => *mono = (l + r) * 0.5,
-                        [left, right, rest @ ..] => {
-                            (*left, *right) = (l, r);
-                            rest.fill(0.0);
-                        }
-                        [] => {}
-                    }
-                }
-            },
+            move |data: &mut [f32], _: &_| playback.fill(&settings, &mixer, data),
             |e| eprintln!("voice: output stream error: {e}"),
             None,
         )
         .map_err(|e| e.to_string())?;
     stream.play().map_err(|e| e.to_string())?;
     Ok(stream)
+}
+
+// The speaker side of the output callback: mixes 10 ms blocks at output volume, hands each one to
+// echo cancellation as exactly what is about to be played, and converts it to the device's format.
+pub struct Playback {
+    channels: usize,
+    to_device: Resampler,
+    pending: VecDeque<f32>,
+    chunk: [f32; FRAME_LEN / 2],
+}
+
+impl Playback {
+    pub fn new(device_rate: u32, channels: usize) -> Self {
+        Self { channels: channels.max(1), to_device: Resampler::new(SAMPLE_RATE, device_rate), pending: VecDeque::new(), chunk: [0.0; FRAME_LEN / 2] }
+    }
+
+    pub fn fill(&mut self, settings: &AudioSettings, mixer: &Mixer, data: &mut [f32]) {
+        let frames = data.len() / self.channels;
+        while self.pending.len() < frames * 2 {
+            mixer.fill(&mut self.chunk);
+            let volume = settings.output_volume();
+            self.chunk.iter_mut().for_each(|s| *s = (*s * volume).clamp(-1.0, 1.0));
+            settings.processor.render(&self.chunk);
+            self.pending.extend(self.to_device.process(&self.chunk));
+        }
+        for frame in data.chunks_mut(self.channels) {
+            let (l, r) = (self.pending.pop_front().unwrap_or(0.0), self.pending.pop_front().unwrap_or(0.0));
+            match frame {
+                [mono] => *mono = (l + r) * 0.5,
+                [left, right, rest @ ..] => {
+                    (*left, *right) = (l, r);
+                    rest.fill(0.0);
+                }
+                [] => {}
+            }
+        }
+    }
 }
 
 fn open_input(pcm_tx: mpsc::Sender<Vec<f32>>, id: Option<&str>) -> Result<Stream, String> {
@@ -359,7 +373,7 @@ impl Resampler {
     }
 }
 
-fn to_stereo(data: &[f32], channels: usize) -> Vec<f32> {
+pub fn to_stereo(data: &[f32], channels: usize) -> Vec<f32> {
     match channels {
         0 => Vec::new(),
         1 => data.iter().flat_map(|&s| [s, s]).collect(),
