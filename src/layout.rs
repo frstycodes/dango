@@ -415,7 +415,7 @@ impl Rustcord {
         let url = item.url.clone();
         let stage = match &item.kind {
             MediaKind::Image => crate::chat::animated_image(item.url.clone()).w(px(w)).h(px(h)).squircle(ui::RADIUS_MD).into_any_element(),
-            MediaKind::Gif { poster } => div().w(px(w)).h(px(h)).squircle(ui::RADIUS_MD).overflow_hidden().child(crate::gif::top_tile(format!("viewer-{}", item.url), &item.url, poster, ui::all(ui::RADIUS_MD), cx)).into_any_element(),
+            MediaKind::Gif { poster } => div().w(px(w)).h(px(h)).squircle(ui::RADIUS_MD).overflow_hidden().child(crate::gif::top_tile(format!("viewer-{}", item.url), &item.url, poster, gpui_kit::size(px(w), px(h)), ui::all(ui::RADIUS_MD), cx)).into_any_element(),
             // ponytail: video plays in the system player; an in-app AVPlayer view is the upgrade.
             MediaKind::Video { poster } => {
                 let open = item.url.clone();
