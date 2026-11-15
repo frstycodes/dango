@@ -1,6 +1,6 @@
 # Discord's own assets
 
-Sound cues, icons and the gg sans fonts (converted from woff2, no longer used: the app sets Gabarito and Roboto Mono) taken from Discord's web app for the user's personal use of Rustcord.
+Icons and the gg sans fonts (converted from woff2, no longer used: the app sets Gabarito and Roboto Mono) taken from Discord's web app for the user's personal use of Rustcord.
 They are Discord's copyrighted work under no licence: never redistribute them or ship them in a
 public build.
 
