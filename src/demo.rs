@@ -77,6 +77,18 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             })
             .detach(),
         "hover" => chord.hovered_message = Some("105".into()),
+        // Four pictures of mixed shapes on one message: the 2x2 gallery.
+        "gallery-grid" => {
+            if let Some(feed) = chord.feeds.get_mut("general") {
+                let mut messages = feed.messages.as_ref().clone();
+                if let Some(last) = messages.iter_mut().find(|m| m.id == "102") {
+                    last.media = [("3", 1200., 600.), ("5", 600., 900.), ("2", 800., 800.), ("4", 700., 1100.)]
+                        .map(|(id, width, height)| Media { url: avatar_url(id, None), width, height, kind: MediaKind::Image })
+                        .to_vec();
+                }
+                feed.messages = std::sync::Arc::new(messages);
+            }
+        }
         "home" => {
             chord.restore = None;
             chord.open_home(cx);
