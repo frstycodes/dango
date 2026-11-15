@@ -109,9 +109,7 @@ impl Rustcord {
             .overflow_y_scroll()
             .text_size(px(14.))
             .child(home)
-            .child(rail_rule(cx))
             .children(items)
-            .child(rail_rule(cx))
             .child(rail_action("rail-discover", Nav::Compass, "Discover servers", cx).on_click(|_, _, cx| cx.open_url("https://discord.com/servers")))
             .child(div().flex_none().h(self.user_panel_clearance()))
     }
@@ -442,8 +440,6 @@ impl Rustcord {
                     .flex_none()
                     .flex()
                     .items_center()
-                    .border_b_1()
-                    .border_color(palette::line(cx))
                     .map(|h| if self.guild_id.is_some() { h.p(px(6.)) } else { h.px_2() })
                     .child(header),
             )
@@ -1226,10 +1222,6 @@ fn letters_tile(label: &str, size: f32, radius: f32, cx: &App) -> Div {
 }
 
 // The hairline between home, the servers and the actions.
-fn rail_rule(cx: &App) -> Div {
-    div().w(px(28.)).h(px(2.)).flex_none().rounded(px(2.)).bg(palette::line_strong(cx))
-}
-
 // Add and Discover: a quiet tile that lifts to the raised tone on hover.
 fn rail_action(id: &'static str, glyph: Nav, tooltip: &'static str, cx: &App) -> Stateful<Div> {
     let (raised, strong) = (palette::surface(palette::Level::Raised, cx), palette::strong(cx));
