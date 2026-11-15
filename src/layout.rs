@@ -100,8 +100,7 @@ impl Rustcord {
             .flex_1()
             .min_h_0()
             .flex()
-            .child(self.render_rail(window, cx))
-            .child(self.render_channels(window, cx))
+            .child(self.render_nav(window, cx))
             .child(match self.call_view.then(|| self.render_call_with_chat(window, cx)).flatten() {
                 Some(call) => div().flex_1().min_w_0().h_full().child(call).into_any_element(),
                 None if self.guild_id.is_none() && self.channel.is_none() => self.render_home(cx),
@@ -329,10 +328,13 @@ impl Rustcord {
             );
         let voice = self.voice_panel(cx);
         div()
-            .flex_none()
-            .mx_2()
-            .mb_2()
+            .absolute()
+            .left_2()
+            .right_2()
+            .bottom_2()
             .squircle(ui::RADIUS_MD)
+            .border_1()
+            .border_color(palette::line(cx))
             .overflow_hidden()
             .bg(rail)
             .flex()
@@ -348,6 +350,27 @@ impl Rustcord {
                     .child(div().relative().size_full().pt_2().px_2().pb(px(10.)).flex().items_center().gap_1().child(who).child(mic).child(headphones).child(settings)),
             )
             .into_any_element()
+    }
+
+    // The rail and the channel list, with the user area floating across the foot of both.
+    fn render_nav(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let user_panel = self.me.clone().map(|me| self.user_panel(me, cx));
+        div()
+            .relative()
+            .h_full()
+            .flex_none()
+            .flex()
+            .child(self.render_rail(window, cx))
+            .child(self.render_channels(window, cx))
+            .children(user_panel)
+    }
+
+    /// Room the columns leave at their foot so their last rows scroll clear of the user area.
+    pub(crate) fn user_panel_clearance(&self) -> gpui_kit::Pixels {
+        match self.me.is_some() {
+            true => px(self.panel_stack_height() + 16.),
+            false => px(0.),
+        }
     }
 
     /// The user area's height with the voice panel above it, for overlays that open just over it.
