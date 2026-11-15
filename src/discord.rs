@@ -496,7 +496,8 @@ pub struct Message {
 }
 
 // What a profile popout shows beyond the user object. From GET /users/{id}/profile (user-account API, Not verified).
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct Profile {
     pub username: String,
     pub bio: Option<String>,
@@ -515,7 +516,7 @@ pub struct Profile {
     pub games: Vec<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Badge {
     pub description: String,
     pub icon: String,

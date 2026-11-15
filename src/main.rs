@@ -2,6 +2,7 @@ mod accounts;
 mod auth;
 mod cache;
 mod captcha;
+mod query;
 mod call;
 mod channel_menu;
 mod chat;
@@ -569,6 +570,8 @@ pub struct Rustcord {
     hovered_row: Option<String>,
     // The message under the pointer, which shows its toolbar and, on a continuation, its time.
     hovered_message: Option<String>,
+    // Profiles by user and server, shown at once from the last fetch while a fresh one loads.
+    profiles: query::Query<discord::Profile>,
     emoji_picker: Option<EmojiTarget>,
     emoji_search: Entity<SearchState>,
     switcher: Option<usize>,
@@ -757,6 +760,7 @@ impl Rustcord {
             status_menu: false,
             hovered_row: None,
             hovered_message: None,
+            profiles: query::Query::new("profiles", Duration::from_secs(5 * 60)),
             composer_height: Rc::new(std::cell::Cell::new(86.)),
             emoji_picker: None,
             emoji_search,
@@ -955,6 +959,7 @@ impl Rustcord {
                 }
             }
             Event::MemberUpdate { guild_id, user, roles } => {
+                self.profile_changed(&user.id);
                 if self.me.as_ref().is_some_and(|me| me.id == user.id)
                     && let Some(guild) = self.guilds.iter_mut().find(|g| g.id == guild_id)
                 {

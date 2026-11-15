@@ -32,15 +32,23 @@ const MAX_GAMES: usize = 3;
 impl Rustcord {
     pub(crate) fn open_profile(&mut self, user: User, at: Point<Pixels>, cx: &mut Context<Self>) {
         let guild_id = self.guild_id.clone();
-        self.profile_card = Some(ProfileCard { user: user.clone(), guild_id: guild_id.clone(), at, profile: None });
+        // The last profile we fetched shows at once; a stale one refreshes underneath it.
+        let key = profile_key(&user.id, guild_id.as_deref());
+        let cached = self.profiles.cached(&key);
+        self.profile_card = Some(ProfileCard { user: user.clone(), guild_id: guild_id.clone(), at, profile: cached });
         cx.notify();
         if self.presences.get(&user.id).and_then(|p| p.rich.as_ref()).is_some_and(|r| r.started.is_some()) {
             self.tick_profile_timer(user.id.clone(), cx);
         }
         let Some(client) = self.client.clone() else { return };
+        if !self.profiles.should_fetch(&key) {
+            return;
+        }
         cx.spawn(async move |this, cx| {
-            let Ok(profile) = client.profile(&user.id, guild_id.as_deref()).await else { return };
+            let fetched = client.profile(&user.id, guild_id.as_deref()).await;
             this.update(cx, |this, cx| {
+                let Ok(profile) = fetched else { return this.profiles.failed(&key) };
+                this.profiles.store(&key, profile.clone());
                 if let Some(card) = this.profile_card.as_mut().filter(|c| c.user.id == user.id) {
                     card.profile = Some(profile);
                 }
@@ -49,6 +57,12 @@ impl Rustcord {
             .ok();
         })
         .detach();
+    }
+
+    // A changed member or user: their cached profiles refetch on next open, still shown meanwhile.
+    pub(crate) fn profile_changed(&mut self, user_id: &str) {
+        let prefix = format!("{user_id}-");
+        self.profiles.changed(|key| key.starts_with(&prefix));
     }
 
     // The activity's elapsed time counts up each second while the card stays open on this user.
@@ -470,4 +484,9 @@ fn message_field(user: &User, ink: Ink, cx: &mut Context<Rustcord>) -> Div {
         .child(Icon::new(Glyph::Emoji).size(px(20.)).flex_none().text_color(ink.muted))
         .on_click(cx.listener(move |this, _, window, cx| this.message_user(dm_user.clone(), window, cx)));
     div().flex_none().px_4().pt_1().pb_4().child(field)
+}
+
+// A profile differs per server (nickname, roles, server avatar), so the server is part of its key.
+fn profile_key(user_id: &str, guild_id: Option<&str>) -> String {
+    format!("{user_id}-{}", guild_id.unwrap_or("dm"))
 }
