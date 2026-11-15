@@ -296,7 +296,9 @@ impl Neural {
             self.degraded = true;
             return false;
         };
-        if self.overrun.record(started.elapsed()) {
+        // Tests measure DeepFilterNet itself; on a loaded test machine the switch would make them
+        // measure RNNoise instead. `overrun_trips_only_on_a_slow_average` covers the check.
+        if !cfg!(test) && self.overrun.record(started.elapsed()) {
             eprintln!("voice: DeepFilterNet can't keep up on this CPU; switching to RNNoise");
             self.dfn = None;
             self.degraded = true;
