@@ -1,47 +1,67 @@
 # Synthesises Wave's sound cues into assets/sounds/*.mp3 (needs `lame`): python3 tools/sound_cues.py
-# They follow Discord's cues in length, register and direction (up for on and join, down for off and
-# leave) so they read the same, but sit in E-flat pentatonic on thirds and sixths, and every note
-# glides into its pitch: a soft "bloop", Wave's own timbre.
+# Each plays Discord's own notes on Discord's timing (measured from its cues), so they read the same,
+# in Wave's own voice: every note glides into its pitch (a soft "bloop"), left and right sit a few
+# cents apart, and a small room rings after.
 import math, os, struct, subprocess, tempfile, wave
 
 RATE = 48000
-NOTE = {"Bb2": 46, "Eb3": 51, "F3": 53, "G3": 55, "Bb3": 58, "C4": 60, "Eb4": 63, "F4": 65, "G4": 67,
-        "Bb4": 70, "C5": 72, "Eb5": 75, "F5": 77, "G5": 79, "Bb5": 82, "C6": 84, "Eb6": 87}
+NAMES = {"C": 0, "C#": 1, "D": 2, "D#": 3, "E": 4, "F": 5, "F#": 6, "G": 7, "G#": 8, "A": 9, "A#": 10, "B": 11}
 
-# name: (notes, seconds between onsets, seconds until it fades out (where Discord's does), glide direction, peak, brightness)
+# name: (notes, onset of each in seconds, seconds until it fades out (where Discord's does), glide direction, peak, brightness)
 CUES = {
-    "mute":               (["Bb4", "G4"], 0.075, 0.34, -1, 0.42, 0.20),
-    "unmute":             (["G4", "Bb4"], 0.075, 0.36, +1, 0.42, 0.20),
-    "deafen":             (["G4", "Eb4", "Bb3"], 0.075, 0.50, -1, 0.42, 0.18),
-    "undeafen":           (["Bb3", "Eb4", "G4"], 0.075, 0.54, +1, 0.42, 0.18),
-    "user_join":          (["Eb4", "C5"], 0.085, 0.48, +1, 0.45, 0.22),
-    "user_leave":         (["C4", "Eb3"], 0.085, 0.46, -1, 0.45, 0.18),
-    "disconnect":         (["Bb4", "F4", "Bb3"], 0.11, 0.64, -1, 0.45, 0.18),
-    "stream_started":     (["Eb3", "G3", "Bb3", "Eb4", "G4"], 0.065, 0.66, +1, 0.5, 0.22),
-    "stream_ended":       (["G4", "Eb4", "Bb3", "Eb3"], 0.075, 0.62, -1, 0.5, 0.18),
-    "stream_user_joined": (["Bb3", "Eb4", "F4"], 0.08, 0.54, +1, 0.45, 0.18),
-    "stream_user_left":   (["F4", "C4", "Bb3"], 0.08, 0.48, -1, 0.45, 0.16),
-    "message":            (["Eb5", "Bb5"], 0.055, 0.26, +1, 0.36, 0.25),
-    "mention":            (["Bb5", "Eb6", "Bb5"], 0.06, 0.32, +1, 0.42, 0.30),
-    "ptt_start":          (["Bb4"], 0.0, 0.08, +1, 0.40, 0.15),
-    "ptt_stop":           (["F4"], 0.0, 0.11, -1, 0.40, 0.15),
+    "mute":               (["C5", "G4"], [0, 0.08], 0.34, -1, 0.42, 0.20),
+    "unmute":             (["G4", "D5", "C5"], [0, 0.075, 0.15], 0.40, +1, 0.42, 0.20),
+    "deafen":             (["D5", "G4", "D4", "G3"], [0, 0.04, 0.11, 0.19], 0.50, -1, 0.42, 0.18),
+    "undeafen":           (["G3", "D4", "G4", "D5"], [0, 0.075, 0.14, 0.235], 0.56, +1, 0.42, 0.18),
+    "user_join":          (["C4", "G4"], [0, 0.075], 0.48, +1, 0.45, 0.22),
+    "user_leave":         (["D4", "G3"], [0, 0.08], 0.46, -1, 0.45, 0.18),
+    "user_moved":         (["C4", "F4", "G4", "C5"], [0, 0.06, 0.13, 0.195], 0.52, +1, 0.45, 0.20),
+    "disconnect":         (["F4", "C5", "F3", "F4"], [0, 0.125, 0.215, 0.215], 0.64, -1, 0.45, 0.18),
+    "stream_started":     (["D3", "B3", "A3", "E4", "A4", "E5"], [0, 0.06, 0.15, 0.2, 0.27, 0.36], 0.70, +1, 0.5, 0.22),
+    "stream_ended":       (["E4", "A3", "B3", "D3"], [0, 0.05, 0.1, 0.2], 0.56, -1, 0.5, 0.18),
+    "stream_user_joined": (["D4", "D3", "G3", "A3"], [0, 0.075, 0.17, 0.26], 0.58, +1, 0.45, 0.18),
+    "stream_user_left":   (["A3", "A2", "D3"], [0, 0.1, 0.18], 0.50, -1, 0.45, 0.16),
+    "message":            (["G4", "G5"], [0, 0.085], 0.26, +1, 0.36, 0.25),
+    "mention":            (["D5", "D6"], [0, 0.08], 0.32, +1, 0.42, 0.30),
+    "ptt_start":          (["G4"], [0], 0.08, +1, 0.40, 0.15),
+    "ptt_stop":           (["G4", "F#3"], [0, 0.03], 0.11, -1, 0.40, 0.15),
 }
-# A small room so the tails don't stop dead: (delay seconds, gain).
-ROOM = [(0.031, 0.16), (0.053, 0.11), (0.089, 0.07), (0.131, 0.04)]
+# A small, warm stereo room after the notes, like Discord's: Freeverb's combs and allpasses, shrunk.
+ROOM_RT60 = 1.0     # seconds for the tail to fall 60 dB
+ROOM_WET = 0.32     # tail level against the notes, for cues 0.5 s and longer
+ROOM_DAMP = 0.35    # how much each pass through the room darkens it
+ROOM_PREDELAY = 0.012
+TAIL = 0.6          # most seconds of tail kept after the notes fade (1.5x the notes at most), cut under -46 dB
+DETUNE = 4      # cents each channel sits off pitch
 GLIDE = 0.022   # each note slides into pitch over this long...
 BEND = 0.06     # ...from this far off (a fraction of the pitch).
 
 
 def hz(note):
-    return 440 * 2 ** ((NOTE[note] - 69) / 12)
+    midi = NAMES[note[:-1]] + 12 * (int(note[-1]) + 1)
+    return 440 * 2 ** ((midi - 69) / 12)
 
 
-def render(notes, step, length, glide, peak, bright):
+def render(notes, onsets, length, glide, peak, bright):
+    tail = int(min(TAIL, length * 1.5) * RATE)
+    # Short blips get less room, as Discord's do: a mute click shouldn't hang in the air.
+    wet = ROOM_WET * min(1, length / 0.5)
+    left = room(play(notes, onsets, length, glide, bright, DETUNE) + [0.0] * tail, 0, wet)
+    right = room(play(notes, onsets, length, glide, bright, -DETUNE) + [0.0] * tail, 23, wet)
+    top = max(max(abs(v) for v in left), max(abs(v) for v in right))
+    last = max(n for n in range(len(left)) if max(abs(left[n]), abs(right[n])) > top * 0.005)
+    fade = int(0.03 * RATE)
+    gain = [peak / top * min(1, (last - n) / fade) for n in range(last)]
+    return [(left[n] * g, right[n] * g) for n, g in enumerate(gain)]
+
+
+# One channel's notes, `cents` off pitch so left and right beat slowly against each other into width.
+def play(notes, onsets, length, glide, bright, cents):
     # The last note rings 1.6x the first and fades to -40 dB (4.6 time constants) right at `length`.
-    decay = (length - step * (len(notes) - 1)) / 4.6 / 1.6
-    out = [0.0] * int((length + ROOM[-1][0]) * RATE)
+    decay = (length - onsets[-1]) / 4.6 / 1.6
+    out = [0.0] * int(length * RATE)
     for i, note in enumerate(notes):
-        f, start, phase = hz(note), int(i * step * RATE), 0.0
+        f, start, phase = hz(note) * 2 ** (cents / 1200), int(onsets[i] * RATE), 0.0
         # Later notes ring a little longer, so a phrase ends on its last note.
         tau = decay * (1 + 0.6 * i / max(1, len(notes) - 1))
         for n in range(int(tau * 5 * RATE)):
@@ -53,16 +73,30 @@ def render(notes, step, length, glide, peak, bright):
                 + 0.35 * bright * math.exp(-t / (tau * 0.2)) * math.sin(3 * phase)
             if start + n < len(out):
                 out[start + n] += env * tone
-    dry = out[:]
-    for delay, gain in ROOM:
-        d = int(delay * RATE)
-        for n in range(d, len(out)):
-            out[n] += dry[n - d] * gain
-    top = max(abs(v) for v in out)
-    end = min(int(length * RATE), max(n for n, v in enumerate(out) if abs(v) > top * 0.01))
-    fade = int(0.01 * RATE)
-    out = [v * peak / top * min(1, (end - n) / fade) for n, v in enumerate(out[:end])]
     return out
+
+
+# One channel of the room: the dry notes plus a damped comb-and-allpass tail. `spread` offsets the
+# delay lines between channels so left and right decorrelate into width.
+def room(dry, spread, wet_level):
+    scale, pre = RATE / 44100 * 0.7, int(ROOM_PREDELAY * RATE)
+    wet = [0.0] * len(dry)
+    for size in (1116, 1188, 1277, 1356):
+        d = int((size + spread) * scale)
+        g, buf, lp = 10 ** (-3 * d / (ROOM_RT60 * RATE)), [0.0] * d, 0.0
+        for n in range(len(dry)):
+            y = buf[n % d]
+            lp += (1 - ROOM_DAMP) * (y - lp)
+            buf[n % d] = (dry[n - pre] if n >= pre else 0.0) + lp * g
+            wet[n] += y / 4
+    for size in (556, 441):
+        d = int((size + spread) * scale)
+        buf = [0.0] * d
+        for n in range(len(wet)):
+            y = buf[n % d]
+            buf[n % d] = wet[n] + y * 0.5
+            wet[n] = y - wet[n] * 0.5
+    return [v + w * wet_level for v, w in zip(dry, wet)]
 
 
 def main():
@@ -73,10 +107,10 @@ def main():
             samples = render(*spec)
             path = os.path.join(tmp, name + ".wav")
             with wave.open(path, "wb") as w:
-                w.setnchannels(1)
+                w.setnchannels(2)
                 w.setsampwidth(2)
                 w.setframerate(RATE)
-                w.writeframes(b"".join(struct.pack("<h", int(v * 32767)) for v in samples))
+                w.writeframes(b"".join(struct.pack("<hh", int(l * 32767), int(r * 32767)) for l, r in samples))
             subprocess.run(["lame", "--quiet", "-V", "4", path, os.path.join(root, name + ".mp3")], check=True)
             print(f"{name}: {len(samples) / RATE * 1000:.0f}ms")
 
