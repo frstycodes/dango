@@ -462,7 +462,9 @@ impl Rustcord {
         }
         let overlay = palette::surface(Level::Overlay, cx);
         let hover = ui::mix(overlay, palette::strong(cx), 0.06);
+        // Occludes what's under it, or a click would land on the message behind as well.
         let capsule = ui::pressable(div().id("jump-to-present"), 0.97)
+            .occlude()
             .h(px(32.))
             .px(px(14.))
             .flex()
