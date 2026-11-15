@@ -101,7 +101,7 @@ pub fn render(login: &Login, _: &mut Window, cx: &mut Context<Rustcord>) -> AnyE
                 .max_w(px(TEXT_WIDTH))
                 .text_size(px(12.))
                 .text_color(muted)
-                .child(StyledText::new(format!("{REASON}{error}")).with_highlights([(REASON.len()..REASON.len() + error.len(), HighlightStyle { color: Some(palette::text(cx)), font_weight: Some(FontWeight::SEMIBOLD), ..Default::default() })])),
+                .child(StyledText::new(format!("{REASON}{error}")).with_highlights([(REASON.len()..REASON.len() + error.len(), HighlightStyle { color: Some(palette::text(cx)), font_weight: Some(FontWeight::MEDIUM), ..Default::default() })])),
         ),
         _ => None,
     };
@@ -120,7 +120,7 @@ pub fn render(login: &Login, _: &mut Window, cx: &mut Context<Rustcord>) -> AnyE
         .window_control_area(gpui_kit::WindowControlArea::Drag)
         .child(div().flex_1())
         .children(lead)
-        .child(div().max_w_full().truncate().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child(title))
+        .child(div().max_w_full().truncate().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(title))
         .child(div().max_w(px(TEXT_WIDTH)).text_color(muted).child(detail))
         .children(reason)
         .children(card.map(|card| div().mt(px(4.)).child(card)))
@@ -239,8 +239,8 @@ fn steps(cx: &App) -> Div {
             .flex()
             .items_center()
             .gap(px(8.))
-            .child(div().size(px(20.)).flex_none().squircle(ui::RADIUS_XS).bg(palette::selected(cx)).text_color(strong).text_size(px(12.)).font_weight(FontWeight::BOLD).flex().items_center().justify_center().child(n))
-            .child(StyledText::new(text).with_highlights([(range, HighlightStyle { color: Some(strong), font_weight: Some(FontWeight::SEMIBOLD), ..Default::default() })]))
+            .child(div().size(px(20.)).flex_none().squircle(ui::RADIUS_XS).bg(palette::selected(cx)).text_color(strong).text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).flex().items_center().justify_center().child(n))
+            .child(StyledText::new(text).with_highlights([(range, HighlightStyle { color: Some(strong), font_weight: Some(FontWeight::MEDIUM), ..Default::default() })]))
     };
     div()
         .mt(px(4.))
@@ -256,11 +256,11 @@ fn steps(cx: &App) -> Div {
 
 // The mini wave and what it waits on.
 fn waiting(id: &'static str, text: &'static str, cx: &App) -> Div {
-    div().flex().items_center().gap(px(8.)).font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(ui::bars(id, palette::accent(), 12.)).child(text)
+    div().flex().items_center().gap(px(8.)).font_weight(FontWeight::NORMAL).text_color(palette::muted(cx)).child(ui::bars(id, palette::accent(), 12.)).child(text)
 }
 
 fn link(id: &'static str, text: &'static str, cx: &App) -> gpui_kit::Stateful<Div> {
-    div().id(id).cursor_pointer().font_weight(FontWeight::SEMIBOLD).text_color(palette::accent_ink(cx)).hover(|s| s.underline()).child(text)
+    div().id(id).cursor_pointer().font_weight(FontWeight::MEDIUM).text_color(palette::accent_ink(cx)).hover(|s| s.underline()).child(text)
 }
 
 // The account that scanned springs in from half size, the phone it's approving on badged at its foot.

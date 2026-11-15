@@ -7,7 +7,7 @@ use crate::palette;
 
 // A heading over a card; the caller adds the card and any caption under it.
 pub fn settings_group(title: impl Into<SharedString>, cx: &App) -> Div {
-    div().min_w_0().flex().flex_col().gap(px(8.)).child(div().px(px(4.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(title.into()))
+    div().min_w_0().flex().flex_col().gap(px(8.)).child(div().px(px(4.)).font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(title.into()))
 }
 
 // The note under a group's card: what the settings above it affect.

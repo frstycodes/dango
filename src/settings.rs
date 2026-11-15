@@ -644,7 +644,7 @@ impl Rustcord {
             .items_center()
             .gap(px(4.))
             .text_size(px(12.))
-            .font_weight(FontWeight::SEMIBOLD)
+            .font_weight(FontWeight::MEDIUM)
             .text_color(muted)
             .child(
                 ui::pressable(div().id("settings-close"), 0.94)
@@ -692,7 +692,7 @@ impl Rustcord {
                         .flex()
                         .flex_col()
                         .line_height(px(18.))
-                        .child(div().truncate().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(me.name.clone()))
+                        .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(me.name.clone()))
                         .child(div().text_size(px(12.)).text_color(palette::muted(cx)).child(self.my_status.label())),
                 )
         });
@@ -721,7 +721,7 @@ impl Rustcord {
                 continue;
             }
             if let Some(heading) = heading {
-                list.push(div().pt(px(14.)).px(px(10.)).pb(px(4.)).text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::muted(cx)).child(heading).into_any_element());
+                list.push(div().pt(px(14.)).px(px(10.)).pb(px(4.)).text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(heading).into_any_element());
             }
             for page in pages {
                 let current = view.page == page;
@@ -778,7 +778,7 @@ impl Rustcord {
             .items_center()
             .gap(px(10.))
             .cursor_pointer()
-            .font_weight(FontWeight::MEDIUM)
+            .font_weight(FontWeight::NORMAL)
             .text_color(palette::danger_ink(cx))
             .hover(move |s| s.bg(tint))
             .child(Icon::new(Glyph::DoorExit).size(px(18.)))
@@ -806,7 +806,7 @@ impl Rustcord {
                 .child(
                     div()
                         .text_size(px(14.))
-                        .font_weight(FontWeight::MEDIUM)
+                        .font_weight(FontWeight::NORMAL)
                         .text_color(palette::strong(cx))
                         .child("Log out of Wave on this computer?")
                         .child(div().mt(px(2.)).text_size(px(12.)).font_weight(FontWeight::NORMAL).text_color(palette::muted(cx)).child("You'll scan a new code with your phone to sign back in.")),
@@ -838,7 +838,7 @@ impl Rustcord {
             .items_end()
             .gap(px(16.))
             .child(avatar)
-            .child(div().flex_1().min_w_0().pb(px(12.)).truncate().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child(me.name.clone()));
+            .child(div().flex_1().min_w_0().pb(px(12.)).truncate().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(me.name.clone()));
         let copied = self.settings.as_ref().is_some_and(|s| s.copied);
         let id = me.id.clone();
         let copy = ui::button("copy-user-id", Tone::Secondary, cx).small()
@@ -905,7 +905,7 @@ impl Rustcord {
                 .flex_col()
                 .gap(px(8.))
                 .cursor_pointer()
-                .font_weight(FontWeight::MEDIUM)
+                .font_weight(FontWeight::NORMAL)
                 .text_color(if on { palette::strong(cx) } else { palette::text(cx) })
                 .when(on, |d| d.bg(palette::selected(cx)))
                 .when(!on, |d| {
@@ -963,7 +963,7 @@ impl Rustcord {
                 .gap(px(6.))
                 .cursor_pointer()
                 .text_size(px(12.))
-                .font_weight(FontWeight::MEDIUM)
+                .font_weight(FontWeight::NORMAL)
                 .text_color(if on { palette::strong(cx) } else { palette::text(cx) })
                 .when(on, |d| d.bg(palette::selected(cx)).shadow(vec![inset_ring(palette::accent(), 2.)]))
                 .when(!on, |d| d.hover(move |s| s.bg(hover)))
@@ -1108,7 +1108,7 @@ impl Rustcord {
                     .flex()
                     .justify_between()
                     .text_size(px(12.))
-                    .font_weight(FontWeight::SEMIBOLD)
+                    .font_weight(FontWeight::MEDIUM)
                     .text_color(palette::muted(cx))
                     .child(label)
                     .child(div().text_color(palette::strong(cx)).child(value.to_owned())),
@@ -1205,7 +1205,7 @@ impl Rustcord {
                     .flex_wrap()
                     .items_center()
                     .gap(px(8.))
-                    .child(div().flex_1().min_w(px(200.)).font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child("Reset every voice and video setting to its default?"))
+                    .child(div().flex_1().min_w(px(200.)).font_weight(FontWeight::NORMAL).text_color(palette::strong(cx)).child("Reset every voice and video setting to its default?"))
                     .child(
                         div()
                             .flex()
@@ -1220,7 +1220,7 @@ impl Rustcord {
                 .flex()
                 .items_center()
                 .gap(px(6.))
-                .font_weight(FontWeight::MEDIUM)
+                .font_weight(FontWeight::NORMAL)
                 .text_color(palette::positive_ink(cx))
                 .child(Icon::new(Glyph::CheckCircle).size(px(16.)))
                 .child("Voice and video settings reset")
@@ -1229,7 +1229,7 @@ impl Rustcord {
                         .id("reset-undo")
                         .ml(px(4.))
                         .cursor_pointer()
-                        .font_weight(FontWeight::SEMIBOLD)
+                        .font_weight(FontWeight::MEDIUM)
                         .text_color(palette::accent_ink(cx))
                         .hover(|s| s.underline())
                         .child("Undo")
@@ -1385,7 +1385,7 @@ impl Rustcord {
             .items_center()
             .gap(px(8.))
             .children(recording.then(|| pulse_ring(SharedString::from(format!("record-ring-{index}")), cx)))
-            .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(value))
+            .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().font_weight(FontWeight::NORMAL).text_color(palette::strong(cx)).child(value))
             .child(ui::button(SharedString::from(format!("record-{index}")), Tone::Secondary, cx).small().child(label).on_click(cx.listener(move |this, _, window, cx| {
                 if let Some(s) = &mut this.settings {
                     s.recording = if s.recording == Some(index) { None } else { Some(index) };
@@ -1481,7 +1481,7 @@ impl Rustcord {
                 .items_center()
                 .gap(px(4.))
                 .text_size(px(12.))
-                .font_weight(FontWeight::MEDIUM)
+                .font_weight(FontWeight::NORMAL)
                 .text_color(palette::warning_ink(cx))
                 .child(Icon::new(Glyph::WarningBold).size(px(14.)))
                 .child("Your computer couldn't run DeepFilterNet in real time, so this call uses Standard.")
@@ -1560,7 +1560,7 @@ impl Rustcord {
                 .flex()
                 .flex_col()
                 .gap(px(2.))
-                .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(title))
+                .child(div().truncate().font_weight(FontWeight::NORMAL).text_color(palette::muted(cx)).child(title))
                 .child(div().flex().items_center().gap(px(4.)).text_size(px(12.)).text_color(palette::muted(cx)).child(Icon::new(Glyph::Info).size(px(14.))).children(detail))
         };
         let switch = ui::switch_live(id, on, window, cx);
@@ -1606,7 +1606,7 @@ impl Rustcord {
             .gap(px(8.))
             .cursor_pointer()
             .text_size(px(14.))
-            .font_weight(FontWeight::MEDIUM)
+            .font_weight(FontWeight::NORMAL)
             .text_color(palette::strong(cx))
             .children(glyph.map(|g| div().text_color(muted).child(Icon::new(g).size(px(18.)))))
             .child(div().flex_1().min_w_0().truncate().child(value))
@@ -1807,7 +1807,7 @@ fn nav_item(page: Page, selected: bool, cx: &mut Context<Rustcord>) -> impl Into
         .gap(px(10.))
         .cursor_pointer()
         .whitespace_nowrap()
-        .font_weight(FontWeight::MEDIUM)
+        .font_weight(FontWeight::NORMAL)
         .text_color(if selected { strong } else { palette::text(cx) })
         .when(selected, |d| d.bg(palette::selected(cx)))
         .when(!selected, |d| d.hover(move |s| s.bg(hover).text_color(strong)))
@@ -1838,7 +1838,7 @@ fn sub_items(page: Page, current: usize, anchors: &[usize], cx: &mut Context<Rus
             .flex()
             .items_center()
             .cursor_pointer()
-            .font_weight(FontWeight::MEDIUM)
+            .font_weight(FontWeight::NORMAL)
             .text_color(if i == current { strong } else { muted })
             .hover(move |s| s.bg(hover).text_color(strong))
             .child(*name)
@@ -1853,7 +1853,7 @@ fn sub_items(page: Page, current: usize, anchors: &[usize], cx: &mut Context<Rus
 }
 
 fn page_title(text: &'static str, cx: &App) -> Div {
-    div().text_size(px(28.)).line_height(px(34.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).truncate().child(text)
+    div().text_size(px(28.)).line_height(px(34.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).truncate().child(text)
 }
 
 fn card_pad(cx: &App) -> Div {
@@ -1878,7 +1878,7 @@ fn row_text(title: impl Into<SharedString>, detail: Option<impl Into<SharedStrin
         .flex()
         .flex_col()
         .gap(px(2.))
-        .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(title.into()))
+        .child(div().truncate().font_weight(FontWeight::NORMAL).text_color(palette::strong(cx)).child(title.into()))
         .children(detail.map(|d| div().text_size(px(12.)).line_height(px(17.)).text_color(palette::muted(cx)).child(d.into())))
 }
 
@@ -1890,17 +1890,17 @@ fn field_text(label: &'static str, value: impl Into<SharedString>, cx: &App) -> 
         .flex()
         .flex_col()
         .gap(px(2.))
-        .child(div().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::muted(cx)).child(label))
-        .child(div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(value.into()))
+        .child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(label))
+        .child(div().font_weight(FontWeight::NORMAL).text_color(palette::strong(cx)).child(value.into()))
 }
 
 fn field_label(text: &'static str, cx: &App) -> Div {
-    div().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::muted(cx)).child(text)
+    div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(text)
 }
 
 // A title and description with the value it sets on the right.
 fn numbered(title: &'static str, detail: &'static str, value: &str, cx: &App) -> Div {
-    div().flex().items_start().justify_between().gap(px(16.)).child(row_text(title, Some(detail), cx)).child(div().whitespace_nowrap().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(value.to_owned()))
+    div().flex().items_start().justify_between().gap(px(16.)).child(row_text(title, Some(detail), cx)).child(div().whitespace_nowrap().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(value.to_owned()))
 }
 
 fn scale(stops: &[&'static str], cx: &App) -> Div {
@@ -1935,7 +1935,7 @@ fn error_line(text: &'static str, cx: &App) -> Div {
         .items_start()
         .gap(px(6.))
         .text_size(px(12.))
-        .font_weight(FontWeight::MEDIUM)
+        .font_weight(FontWeight::NORMAL)
         .text_color(palette::danger_ink(cx))
         .child(div().mt(px(1.)).flex_none().child(Icon::new(Glyph::WarningCircle).size(px(14.))))
         .child(text)

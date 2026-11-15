@@ -67,8 +67,8 @@ impl Render for Splash {
                 .justify_center()
                 .gap(px(10.))
                 .child(mascot_at("splash", Mood::Happy, 0.6, cx))
-                .child(div().mt(px(4.)).text_size(px(20.)).line_height(px(20.)).font_weight(FontWeight::EXTRA_BOLD).text_color(rgb(card.ink)).child("Wave"))
-                .child(div().max_w_full().truncate().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(rgb(card.muted)).child(self.stage.clone()))
+                .child(div().mt(px(4.)).text_size(px(20.)).line_height(px(20.)).font_weight(FontWeight::BOLD).text_color(rgb(card.ink)).child("Wave"))
+                .child(div().max_w_full().truncate().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(rgb(card.muted)).child(self.stage.clone()))
                 .child(div().flex().gap(px(5.)).children(dots)),
         )
     }

@@ -276,6 +276,10 @@ fn members() -> Vec<ListItem> {
     let member = |id: &str, name: &str, roles: &[&str], status, activity: Option<(ActivityKind, &str)>, bot: bool| {
         let mut user = user(id, name);
         user.bot = bot;
+        // A nameplate, with bundled art standing in for Discord's (the demo stays offline).
+        if id == "4194304" {
+            user.nameplate = Some(crate::discord::Nameplate { art: "brand/icons/glass.png".into(), tint: (0x2D6A4F, 0x95D5B2) });
+        }
         ListItem::Member(Member { user, roles: roles.iter().map(|r| r.to_string()).collect(), presence: Presence { status, activity: activity.map(|(kind, text)| Activity { kind, text: text.into(), more: 0 }) } })
     };
     vec![

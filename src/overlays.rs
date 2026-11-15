@@ -298,7 +298,7 @@ impl Rustcord {
                         .flex_col()
                         .gap_1()
                         .child(div().text_size(px(12.)).text_color(theme.muted_foreground).child(place))
-                        .child(div().flex().items_center().gap_2().child(crate::ui::avatar(m.author.avatar.clone(), 24.)).child(div().font_weight(FontWeight::MEDIUM).child(m.author.name.clone())))
+                        .child(div().flex().items_center().gap_2().child(crate::ui::avatar(m.author.avatar.clone(), 24.)).child(div().font_weight(FontWeight::NORMAL).child(m.author.name.clone())))
                         .child(div().text_size(px(14.)).line_clamp(3).child(m.content.clone()))
                         .on_click(cx.listener(move |this, _, window, cx| {
                             this.inbox = None;
@@ -323,7 +323,7 @@ impl Rustcord {
                         .w(px(480.))
                         .max_h(px(600.))
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .child(div().px_4().py_3().flex().items_center().gap_2().border_b_1().border_color(theme.border).child(Icon::new(Glyph::Inbox).size(px(20.))).child(div().font_weight(FontWeight::SEMIBOLD).child("Inbox")).child(div().text_color(theme.muted_foreground).child("· Mentions")))
+                        .child(div().px_4().py_3().flex().items_center().gap_2().border_b_1().border_color(theme.border).child(Icon::new(Glyph::Inbox).size(px(20.))).child(div().font_weight(FontWeight::MEDIUM).child("Inbox")).child(div().text_color(theme.muted_foreground).child("· Mentions")))
                         .child(div().id("inbox-list").flex_1().min_h_0().overflow_y_scroll().p_3().child(body)),
                 )
                 .into_any_element(),
@@ -409,7 +409,7 @@ impl Rustcord {
                                 .flex()
                                 .flex_col()
                                 .gap_1()
-                                .child(div().flex().items_center().gap_2().child(div().font_weight(FontWeight::MEDIUM).child(m.author.name.clone())).child(div().flex_1()).child(
+                                .child(div().flex().items_center().gap_2().child(div().font_weight(FontWeight::NORMAL).child(m.author.name.clone())).child(div().flex_1()).child(
                                     div()
                                         .id(SharedString::from(format!("jump-{}", m.id)))
                                         .text_size(px(12.))
@@ -437,7 +437,7 @@ impl Rustcord {
                         .w(px(420.))
                         .max_h(px(560.))
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .child(div().px_4().py_3().flex().items_center().gap_2().border_b_1().border_color(theme.border).child(Icon::new(Glyph::Pin).size(px(20.))).child(div().font_weight(FontWeight::SEMIBOLD).child("Pinned Messages")))
+                        .child(div().px_4().py_3().flex().items_center().gap_2().border_b_1().border_color(theme.border).child(Icon::new(Glyph::Pin).size(px(20.))).child(div().font_weight(FontWeight::MEDIUM).child("Pinned Messages")))
                         .child(div().id("pins-list").flex_1().min_h_0().overflow_y_scroll().p_3().child(body)),
                 )
                 .into_any_element(),
@@ -497,7 +497,7 @@ impl Rustcord {
                         })),
                 )
             });
-        let block = |title: &'static str| div().flex().flex_col().gap(px(6.)).child(div().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::muted(cx)).child(title));
+        let block = |title: &'static str| div().flex().flex_col().gap(px(6.)).child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(title));
         let body = div()
             .pt_3()
             .px_4()
@@ -510,7 +510,7 @@ impl Rustcord {
                     .flex()
                     .flex_col()
                     .gap(px(2.))
-                    .child(div().flex().items_center().gap_2().min_w_0().child(div().truncate().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child(user.name.clone())).children(
+                    .child(div().flex().items_center().gap_2().min_w_0().child(div().truncate().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(user.name.clone())).children(
                         user.tag.clone().map(|tag| crate::ui::badge(palette::selected(cx), palette::text(cx)).child(tag.text)),
                     ))
                     .when(!handle.is_empty(), |n| n.child(div().truncate().text_color(palette::muted(cx)).child(handle))),
@@ -668,7 +668,7 @@ impl Rustcord {
                             .py(px(6.))
                             .px(px(4.))
                             .text_size(px(12.))
-                            .font_weight(FontWeight::SEMIBOLD)
+                            .font_weight(FontWeight::MEDIUM)
                             .text_color(palette::muted(cx))
                             .child(section.lead.small(cx))
                             .child(section.name.clone()),
@@ -701,7 +701,7 @@ impl Rustcord {
                             .min_w_0()
                             .flex()
                             .flex_col()
-                            .child(div().truncate().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(crate::message_menu::shortcode(&emoji)))
+                            .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(crate::message_menu::shortcode(&emoji)))
                             .child(div().text_size(px(12.)).text_color(palette::muted(cx)).child(source)),
                     )
             }));
@@ -780,7 +780,7 @@ impl Rustcord {
         for (i, (guild_id, channel, place)) in results.into_iter().enumerate() {
             let group = if channel.recipient.is_some() || channel.kind == ChannelKind::Dm { "People" } else { "Channels" };
             if last_group != Some(group) {
-                list.push(div().pt(px(10.)).px(px(10.)).pb(px(4.)).text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::faint(cx)).child(group).into_any_element());
+                list.push(div().pt(px(10.)).px(px(10.)).pb(px(4.)).text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::faint(cx)).child(group).into_any_element());
                 last_group = Some(group);
             }
             list.push(self.switcher_row(i == selected, guild_id, channel, place, &query, cx).into_any_element());
@@ -866,7 +866,7 @@ impl Rustcord {
         let name: SharedString = channel.name.clone().into();
         let strong = palette::strong(cx);
         let mark = name.to_lowercase().find(&query.to_lowercase()).filter(|_| !query.is_empty()).map(|at| at..at + query.len()).filter(|r| name.is_char_boundary(r.start) && name.is_char_boundary(r.end));
-        let label = StyledText::new(name.clone()).with_highlights(mark.map(|r| (r, HighlightStyle { color: Some(strong), font_weight: Some(FontWeight::BOLD), ..Default::default() })));
+        let label = StyledText::new(name.clone()).with_highlights(mark.map(|r| (r, HighlightStyle { color: Some(strong), font_weight: Some(FontWeight::SEMIBOLD), ..Default::default() })));
         let hover = palette::hover(cx);
         div()
             .id(SharedString::from(format!("switch-{}", channel.id)))

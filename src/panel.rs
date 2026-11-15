@@ -60,7 +60,7 @@ impl Rustcord {
             .border_b_1()
             .border_color(palette::line(cx))
             .text_color(palette::strong(cx))
-            .child(div().flex_1().min_w_0().truncate().text_size(px(16.)).font_weight(FontWeight::BOLD).child(title))
+            .child(div().flex_1().min_w_0().truncate().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).child(title))
             .child(back)
     }
 
@@ -128,7 +128,7 @@ impl Rustcord {
                             .flex()
                             .items_center()
                             .gap(px(6.))
-                            .child(div().min_w_0().truncate().font_weight(FontWeight::MEDIUM).text_color(name_ink).child(member.user.name.clone()))
+                            .child(div().min_w_0().truncate().font_weight(FontWeight::NORMAL).text_color(name_ink).child(member.user.name.clone()))
                             .when(owner, |r| r.child(Icon::new(Glyph::Crown).size(px(14.)).flex_none().text_color(crown)))
                             .when(member.user.bot, |r| r.child(ui::tag("App", cx))),
                     )
@@ -171,7 +171,7 @@ impl Rustcord {
                             .flex_col()
                             .gap_1()
                             .child(div().text_size(px(12.)).text_color(faint).child(format!("#{}", channel.map(|c| c.name).unwrap_or_default())))
-                            .child(div().flex().items_center().gap_2().child(ui::avatar(hit.author.avatar.clone(), 20.)).child(div().font_weight(FontWeight::SEMIBOLD).text_color(strong).child(hit.author.name.clone())))
+                            .child(div().flex().items_center().gap_2().child(ui::avatar(hit.author.avatar.clone(), 20.)).child(div().font_weight(FontWeight::MEDIUM).text_color(strong).child(hit.author.name.clone())))
                             .child(div().line_clamp(3).child(hit.content.clone()))
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 let Some(channel) = target.clone() else { return };
@@ -189,12 +189,12 @@ impl Rustcord {
 
 // A group heading (.cat): "Online · 4".
 fn group_label(text: impl Into<SharedString>, cx: &App) -> Div {
-    div().h(px(28.)).flex_none().px(px(6.)).flex().items_center().whitespace_nowrap().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::faint(cx)).child(text.into())
+    div().h(px(28.)).flex_none().px(px(6.)).flex().items_center().whitespace_nowrap().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::faint(cx)).child(text.into())
 }
 
 // A wait names what it waits on, beside the mini wave (.pwait).
 fn wait_line(id: &'static str, text: &'static str, cx: &App) -> Div {
-    div().min_h(px(32.)).px_2().flex().items_center().gap_2().text_color(palette::muted(cx)).font_weight(FontWeight::MEDIUM).child(ui::bars(id, palette::muted(cx), 12.)).child(text)
+    div().min_h(px(32.)).px_2().flex().items_center().gap_2().text_color(palette::muted(cx)).font_weight(FontWeight::NORMAL).child(ui::bars(id, palette::muted(cx), 12.)).child(text)
 }
 
 // The list before Discord sends it: the static label, no false count, rows shaped like the real ones.

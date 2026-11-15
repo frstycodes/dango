@@ -264,7 +264,7 @@ impl Rustcord {
                             .flex()
                             .items_center()
                             .gap_2()
-                            .font_weight(FontWeight::SEMIBOLD)
+                            .font_weight(FontWeight::MEDIUM)
                             .text_color(palette::strong(cx))
                             .child(mark)
                             .child(div().min_w_0().truncate().child(title)),
@@ -323,7 +323,7 @@ impl Rustcord {
                     .min_w_0()
                     .flex()
                     .flex_col()
-                    .child(div().truncate().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(me.name.clone()))
+                    .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(me.name.clone()))
                     .child(div().text_size(px(12.)).text_color(faint).child(status_line)),
             );
         let voice = self.voice_panel(cx);
@@ -608,7 +608,7 @@ fn brand(cx: &App) -> Div {
         .flex()
         .items_center()
         .gap_2()
-        .font_weight(FontWeight::SEMIBOLD)
+        .font_weight(FontWeight::MEDIUM)
         .text_color(palette::strong(cx))
         .child(img(crate::icons::MARK).size(px(18.)))
         .child("Wave")

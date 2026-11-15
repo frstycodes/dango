@@ -429,7 +429,7 @@ impl Rustcord {
             .cursor_pointer()
             .hover(move |s| s.bg(hover))
             .when(self.connection_info, |d| d.bg(hover))
-            .child(div().h(px(20.)).flex().items_center().gap(px(6.)).text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(tone).child(bars).child(div().truncate().child(link.label())))
+            .child(div().h(px(20.)).flex().items_center().gap(px(6.)).text_size(px(14.)).font_weight(FontWeight::MEDIUM).text_color(tone).child(bars).child(div().truncate().child(link.label())))
             .child(second)
             .tooltip(move |window, cx| Tooltip::new(tip.clone()).build(window, cx))
             .on_click(cx.listener(|this, _, _, cx| {
@@ -489,7 +489,7 @@ impl Rustcord {
                     div()
                         .flex_1()
                         .min_w_0()
-                        .child(div().h(px(20.)).flex().items_center().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(tone).child("Voice disconnected"))
+                        .child(div().h(px(20.)).flex().items_center().text_size(px(14.)).font_weight(FontWeight::MEDIUM).text_color(tone).child("Voice disconnected"))
                         .child(why_line(error, tone)),
                 )
                 .child(ui::icon_button("dismiss-voice", Glyph::X, "Dismiss", cx).on_click(cx.listener(|this, _, _, cx| {
@@ -669,7 +669,7 @@ impl Rustcord {
                     .border_b_1()
                     .border_color(theme.sidebar_border)
                     .child(Icon::new(Glyph::VolumeHigh).size(px(20.)).text_color(theme.muted_foreground))
-                    .child(div().flex_1().min_w_0().truncate().font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(channel.name.clone()))
+                    .child(div().flex_1().min_w_0().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(channel.name.clone()))
                     .child(ui::icon_button("call-chat-close", Glyph::X, "Close Chat", cx).on_click(cx.listener(|this, _, _, cx| {
                         this.call_chat = false;
                         cx.notify();
@@ -826,7 +826,7 @@ impl Rustcord {
             .cursor(if dragging { gpui_kit::CursorStyle::ClosedHand } else { gpui_kit::CursorStyle::OpenHand })
             .child(frame)
             .child(scrim_bottom(RADIUS_LG))
-            .child(div().absolute().left(px(10.)).right(px(10.)).bottom(px(8.)).flex().items_center().gap(px(6.)).text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(gpui_kit::white()).child(div().truncate().child("You")))
+            .child(div().absolute().left(px(10.)).right(px(10.)).bottom(px(8.)).flex().items_center().gap(px(6.)).text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(gpui_kit::white()).child(div().truncate().child("You")))
             .child(
                 div()
                     .id("self-view-close")
@@ -884,7 +884,7 @@ impl Rustcord {
             .shadow(ring)
             .text_color(gpui_kit::white())
             .text_size(px(12.))
-            .font_weight(FontWeight::SEMIBOLD)
+            .font_weight(FontWeight::MEDIUM)
             .whitespace_nowrap()
             .hover(|s| s.bg(stage::raised().opacity(0.9)))
             .child(Icon::new(Glyph::User).size(px(16.)))
@@ -978,7 +978,7 @@ impl Rustcord {
             .bg(stage::wash(0.08))
             .text_color(stage::muted())
             .text_size(px(12.))
-            .font_weight(FontWeight::SEMIBOLD)
+            .font_weight(FontWeight::MEDIUM)
             .font_features(tabular())
             .child(div().size(px(6.)).rounded_full().bg(stage::online()))
             .child(clock(call.joined.elapsed().as_secs()));
@@ -996,7 +996,7 @@ impl Rustcord {
             .gap(px(6.))
             .text_color(stage::muted())
             .text_size(px(12.))
-            .font_weight(FontWeight::SEMIBOLD)
+            .font_weight(FontWeight::MEDIUM)
             .child(ui::avatar_stack(faces, 22., stage::bg()))
             .child(count.to_string())
             .tooltip(move |window, cx| Tooltip::new(format!("{count} in {}", if count == 1 { "the call alone" } else { "the call" })).build(window, cx));
@@ -1044,7 +1044,7 @@ impl Rustcord {
             .gap(px(8.))
             .text_color(stage::strong())
             .child(Icon::new(glyph).size(px(20.)).text_color(stage::muted()))
-            .child(div().min_w_0().truncate().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).child(title))
+            .child(div().min_w_0().truncate().text_size(px(16.)).font_weight(FontWeight::MEDIUM).child(title))
             .child(timer)
             .children(health)
             .child(div().flex_1())
@@ -1242,7 +1242,7 @@ impl Rustcord {
                     .justify_center()
                     .gap(px(4.))
                     .p(px(12.))
-                    .child(div().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).text_color(stage::strong()).child("Stream ended"))
+                    .child(div().text_size(px(16.)).font_weight(FontWeight::MEDIUM).text_color(stage::strong()).child("Stream ended"))
                     .child(div().text_size(px(12.)).text_color(stage::muted()).child(line))
                     .child(div().mt(px(6.)).child(stage_button("ended-back", "Back to call").on_click(cx.listener(|this, _, _, cx| {
                         if let Some(call) = &mut this.call {
@@ -1537,7 +1537,7 @@ impl Rustcord {
                 .justify_between()
                 .gap(px(12.))
                 .child(div().flex_none().text_color(muted).child(label))
-                .child(div().min_w_0().truncate().text_color(strong).font_weight(FontWeight::SEMIBOLD).font_features(tabular()).child(value))
+                .child(div().min_w_0().truncate().text_color(strong).font_weight(FontWeight::MEDIUM).font_features(tabular()).child(value))
         };
         let (lock_ink, secured) = match stats.dave {
             true => (palette::positive_ink(cx), "Voice and video in this call are end-to-end encrypted. Only the people in it can hear them."),
@@ -1558,7 +1558,7 @@ impl Rustcord {
             .gap(px(12.))
             .text_size(px(14.))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .child(div().flex().items_baseline().justify_between().gap(px(8.)).child(div().text_color(strong).font_weight(FontWeight::SEMIBOLD).child("Connection")).child(div().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(verdict_ink).child(verdict)))
+            .child(div().flex().items_baseline().justify_between().gap(px(8.)).child(div().text_color(strong).font_weight(FontWeight::MEDIUM).child("Connection")).child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(verdict_ink).child(verdict)))
             .child(
                 div()
                     .flex()
@@ -1614,7 +1614,7 @@ impl Rustcord {
                 let on = id == chosen;
                 choice_row(SharedString::from(format!("device-{title}-{i}")), &ink)
                     .child(ui::radio_with(on, 18., ink.line_strong))
-                    .child(div().flex_1().min_w_0().truncate().font_weight(FontWeight::MEDIUM).text_color(ink.strong).child(name))
+                    .child(div().flex_1().min_w_0().truncate().font_weight(FontWeight::NORMAL).text_color(ink.strong).child(name))
                     .on_click(cx.listener(move |this, _, _, cx| this.choose_device(which, id.clone(), cx)))
                     .into_any_element()
             }));
@@ -1649,7 +1649,7 @@ impl Rustcord {
             let noise = self.prefs.noise_suppression;
             body.push(
                 choice_row("device-noise", &ink)
-                    .child(div().flex_1().min_w_0().child(div().font_weight(FontWeight::MEDIUM).text_color(ink.strong).child("Noise suppression")).child(div().text_size(px(12.)).text_color(ink.muted).child("Filters fans and keys on this device")))
+                    .child(div().flex_1().min_w_0().child(div().font_weight(FontWeight::NORMAL).text_color(ink.strong).child("Noise suppression")).child(div().text_size(px(12.)).text_color(ink.muted).child("Filters fans and keys on this device")))
                     .child(ui::switch_live("device-noise-switch", noise, window, cx))
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_noise_suppression(cx)))
                     .into_any_element(),
@@ -1660,7 +1660,7 @@ impl Rustcord {
         body.push(
             choice_row("device-settings", &ink)
                 .child(Icon::new(Glyph::Settings).size(px(18.)).text_color(ink.muted))
-                .child(div().flex_1().font_weight(FontWeight::MEDIUM).text_color(ink.text).child(settings_label))
+                .child(div().flex_1().font_weight(FontWeight::NORMAL).text_color(ink.text).child(settings_label))
                 .child(Icon::new(Glyph::ChevronRight).size(px(14.)).text_color(ink.faint))
                 .on_click(cx.listener(|this, _, window, cx| {
                     this.device_menu = None;
@@ -1721,7 +1721,7 @@ impl Rustcord {
             .flex()
             .flex_col()
             .gap(px(8.))
-            .child(div().flex().justify_between().font_weight(FontWeight::MEDIUM).text_color(ink.text).child(label).child(div().text_color(ink.muted).font_features(tabular()).child(format!("{:.0}%", fraction * 100.))))
+            .child(div().flex().justify_between().font_weight(FontWeight::NORMAL).text_color(ink.text).child(label).child(div().text_color(ink.muted).font_features(tabular()).child(format!("{:.0}%", fraction * 100.))))
             .child(slider)
     }
 
@@ -1950,7 +1950,7 @@ fn stage_button(id: &'static str, label: &'static str) -> Stateful<Div> {
         .hover(|s| s.bg(stage::wash(0.09)))
         .text_color(stage::strong())
         .text_size(px(14.))
-        .font_weight(FontWeight::SEMIBOLD)
+        .font_weight(FontWeight::MEDIUM)
         .whitespace_nowrap()
         .child(label)
 }
@@ -1968,7 +1968,7 @@ pub(crate) fn watch_button(label: &'static str) -> Div {
         .hover(|s| s.bg(gpui_kit::white()))
         .text_color(stage::on_ink())
         .text_size(px(14.))
-        .font_weight(FontWeight::SEMIBOLD)
+        .font_weight(FontWeight::MEDIUM)
         .child(Icon::new(Glyph::Play).size(px(16.)))
         .child(label)
 }
@@ -2020,7 +2020,7 @@ fn split_control(main: impl Styled + IntoElement, chevron: impl Styled + IntoEle
 // .tile .name: 12px semibold white along the tile's foot.
 // GAP: gpui has no text-shadow, so the 1px shadow under the label is left to the scrim.
 fn tile_name(content: Div) -> Div {
-    content.absolute().left(px(10.)).right(px(10.)).bottom(px(8.)).flex().items_center().gap(px(6.)).min_w_0().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(gpui_kit::white())
+    content.absolute().left(px(10.)).right(px(10.)).bottom(px(8.)).flex().items_center().gap(px(6.)).min_w_0().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(gpui_kit::white())
 }
 
 // The tile's edge, drawn above its media so a stream can't hide it: a faint 1px line, or while
@@ -2058,7 +2058,7 @@ fn viewer_chip(viewers: usize) -> Div {
         .bg(gpui_kit::black().opacity(0.45))
         .text_color(gpui_kit::white())
         .text_size(px(11.))
-        .font_weight(FontWeight::BOLD)
+        .font_weight(FontWeight::SEMIBOLD)
         .font_features(tabular())
         .child(Icon::new(Glyph::EyeBold).size(px(12.)))
         .child(viewers.to_string())
@@ -2084,7 +2084,7 @@ fn vmark(glyph: Glyph, words: Option<&'static str>, kind: MarkKind) -> Div {
         .justify_center()
         .gap(px(4.))
         .text_size(px(11.))
-        .font_weight(FontWeight::BOLD)
+        .font_weight(FontWeight::SEMIBOLD)
         .whitespace_nowrap()
         .text_color(gpui_kit::white())
         .when(words.is_some(), |d| d.pl(px(4.)).pr(px(6.)))
@@ -2105,7 +2105,7 @@ pub(crate) fn stream_fill(radius: f32) -> Div {
 
 // .mlabel
 fn menu_label(text: &'static str, ink: &Inks) -> Div {
-    div().pt(px(6.)).px(px(10.)).pb(px(2.)).text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(ink.muted).child(text)
+    div().pt(px(6.)).px(px(10.)).pb(px(2.)).text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(ink.muted).child(text)
 }
 
 // .devmenu hr
