@@ -7890,6 +7890,7 @@ dependencies = [
  "deep_filter",
  "dhat",
  "earshot",
+ "embed-resource",
  "emojis",
  "futures",
  "gpui-kit",
