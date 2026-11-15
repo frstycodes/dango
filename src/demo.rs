@@ -121,15 +121,17 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             chord.empty_share_picker(cx);
             chord.list_shareables(Ok(windows), Ok(vec![screen(1, "Screen 1"), screen(2, "Screen 2")]), cx);
         }
-        "call" | "call-info" | "call-devices" | "call-watch" => {
+        "call" | "call-info" | "call-devices" | "call-watch" | "pip" => {
             demo_call(chord);
             match scene {
                 "call-info" => chord.connection_info = true,
                 // Watching moss lantern's Go Live: the stream over the filmstrip.
-                "call-watch" => {
+                "call-watch" | "pip" => {
                     if let Some(call) = chord.call.as_mut() {
                         call.watching.push(crate::Watching { streamer_id: "12582912".into(), frame: None, arrivals: Default::default(), _watch: None });
                     }
+                    // Reading #general meanwhile: the stream floats as a picture-in-picture.
+                    chord.call_view = scene != "pip";
                 }
                 "call-devices" => chord.open_device_menu(crate::call::DeviceKind::Input, gpui_kit::point(gpui_kit::px(260.), gpui_kit::px(760.)), cx),
                 _ => {}
