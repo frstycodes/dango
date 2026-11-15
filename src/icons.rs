@@ -152,9 +152,12 @@ const GLYPHS: [(&str, &[u8]); 141] = [
     ("icons/arrow-right-bold.svg", include_bytes!("../assets/icons/phosphor/arrow-right-bold.svg")),
 ];
 
-const BRAND: [(&str, &[u8]); 2] = [
+const BRAND: [(&str, &[u8]); 4] = [
     (MARK, include_bytes!("../assets/brand/rustcord-mark.svg")),
     (MARK_WHITE, include_bytes!("../assets/brand/rustcord-mark-white.svg")),
+    // Stand-in art for the demo's profile scene, which stays offline.
+    ("demo/decoration.png", include_bytes!("../assets/demo/decoration.png")),
+    ("demo/banner.png", include_bytes!("../assets/demo/banner.png")),
 ];
 
 #[derive(Clone, Copy)]

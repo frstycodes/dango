@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | gallery | profile | emoji | switcher | status | unread | home | folder | stream-card | login | scanned | failed | empty.
+// CHORD_DEMO=chat | gallery | profile | profile-plain | emoji | switcher | status | unread | home | folder | stream-card | login | scanned | failed | empty.
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -34,7 +34,17 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
     chord.on_event(Event::Typing { channel_id: "general".into(), user_id: "8388608".into(), name: Some("Wren".into()) }, cx);
     match scene {
         "gallery" => chord.open_viewer(&avatar_url("3", None), window, cx),
-        "profile" => chord.open_profile(user("8388608", "Wren"), gpui_kit::point(gpui_kit::px(520.), gpui_kit::px(260.)), cx),
+        "profile" => demo_profile(chord, cx),
+        // No theme, banner, badges or games: the plain surface, and the Add role row in view.
+        "profile-plain" => {
+            demo_profile(chord, cx);
+            if let Some(profile) = chord.profile_card.as_mut().and_then(|c| c.profile.as_mut()) {
+                profile.theme = None;
+                profile.banner = None;
+                profile.badges.clear();
+                profile.games.clear();
+            }
+        }
         "emoji" => chord.open_emoji_picker(crate::EmojiTarget::Composer, window, cx),
         "switcher" => chord.open_switcher(window, cx),
         "status" => chord.status_menu = true,
@@ -60,7 +70,7 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         "stream-card" => {
             let key = "guild:1:lounge:12582912".to_owned();
             let blender = Activity { kind: ActivityKind::Playing, text: "Blender".into(), more: 0 };
-            chord.presences.insert("12582912".into(), Presence { status: Presence_::Online, activity: Some(blender) });
+            chord.presences.insert("12582912".into(), Presence { status: Presence_::Online, activity: Some(blender), rich: None });
             let since = std::time::Instant::now().checked_sub(std::time::Duration::from_secs(24 * 60)).unwrap_or_else(std::time::Instant::now);
             chord.stream_live_since.insert(key.clone(), since);
             chord.on_event(Event::StreamViewers { key, viewers: vec!["8388608".into(), "16777216".into(), "20971520".into(), "4194304".into()] }, cx);
@@ -116,6 +126,45 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             }
         }
         _ => {}
+    }
+}
+
+// Wren's popout with every section filled: theme, decoration, tag, badges, mutuals, an emoji bio, games and a joinable party.
+fn demo_profile(chord: &mut Rustcord, cx: &mut Context<Rustcord>) {
+    let started = chrono::Utc::now().timestamp_millis() - 7 * 60_000 - 2_000;
+    let rich = crate::discord::RichPresence {
+        kind: ActivityKind::Playing,
+        name: "PUBG: BATTLEGROUNDS".into(),
+        details: Some("Normal, Erangel, 58/99".into()),
+        state: Some("4 Squad".into()),
+        image: Some("brand/icons/blueprint.png".into()),
+        party: Some((4, 4)),
+        started: Some(started),
+        joinable: true,
+    };
+    let playing = Activity { kind: ActivityKind::Playing, text: rich.name.clone(), more: 0 };
+    chord.presences.insert("8388608".into(), Presence { status: Presence_::Dnd, activity: Some(playing), rich: Some(rich) });
+    let mut zoe = user("8388608", "Wren");
+    zoe.tag = Some(GuildTag { text: "wony".into(), badge: Some("brand/icons/sticker.png".into()) });
+    zoe.decoration = Some("demo/decoration.png".into());
+    chord.open_profile(zoe, gpui_kit::point(gpui_kit::px(520.), gpui_kit::px(120.)), cx);
+    let badge = |name: &str, description: &str| crate::discord::Badge { description: description.into(), icon: format!("brand/icons/{name}.png") };
+    let profile = crate::discord::Profile {
+        username: "wren.lark".into(),
+        bio: Some("LUCKY VICKY <a:aWonUwu:1328465377218269257>\n**gpui** fan, _probably_ in voice".into()),
+        pronouns: Some("she/her".into()),
+        banner: Some("demo/banner.png".into()),
+        roles: vec!["r2".into()],
+        theme: Some((0x9B1FA8, 0xE9A6C9)),
+        badges: ["brand", "glass", "pixel", "paper", "graphite", "sticker", "peek", "sleepy", "bone"].iter().map(|n| badge(n, "Subscriber since 14 Nov 2024")).collect(),
+        mutual_friends: vec![user("12582912", "moss lantern"), user("16777216", "toma reed"), user("20971520", "ferris")],
+        mutual_friend_count: 5,
+        mutual_server_count: 1,
+        games: ["peek", "riso", "pixel", "brand", "glass"].iter().map(|n| format!("brand/icons/{n}.png")).collect(),
+        ..Default::default()
+    };
+    if let Some(card) = chord.profile_card.as_mut() {
+        card.profile = Some(profile);
     }
 }
 
@@ -263,7 +312,7 @@ fn ready(me: User) -> Ready {
             ("media".into(), ReadState { last_read: 100, mentions: 0 }),
             ("staff".into(), ReadState { last_read: 100, mentions: 2 }),
         ],
-        presences: vec![("8388608".into(), Presence { status: Presence_::Online, activity: None })],
+        presences: vec![("8388608".into(), Presence { status: Presence_::Online, activity: None, rich: None })],
         relationships: vec![
             Relationship { user: user("8388608", "Wren"), kind: Relation::Friend },
             Relationship { user: user("12582912", "moss lantern"), kind: Relation::Friend },
@@ -280,7 +329,7 @@ fn members() -> Vec<ListItem> {
         if id == "4194304" {
             user.nameplate = Some(crate::discord::Nameplate { art: "brand/icons/glass.png".into(), tint: (0x2D6A4F, 0x95D5B2) });
         }
-        ListItem::Member(Member { user, roles: roles.iter().map(|r| r.to_string()).collect(), presence: Presence { status, activity: activity.map(|(kind, text)| Activity { kind, text: text.into(), more: 0 }) } })
+        ListItem::Member(Member { user, roles: roles.iter().map(|r| r.to_string()).collect(), presence: Presence { status, activity: activity.map(|(kind, text)| Activity { kind, text: text.into(), more: 0 }), rich: None } })
     };
     vec![
         ListItem::Group { id: "r1".into(), count: 2 },

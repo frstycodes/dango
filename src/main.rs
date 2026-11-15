@@ -27,6 +27,7 @@ mod message_menu;
 mod motion;
 mod palette;
 mod presence;
+mod profile;
 mod notify;
 mod panel;
 mod rail_drag;
