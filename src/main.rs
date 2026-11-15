@@ -567,6 +567,8 @@ pub struct Rustcord {
     unread_marker: Option<u64>,
     // Scrolled well above the newest message: shows Discord's "Jump to Present" bar.
     scrolled_up: bool,
+    // The floating composer's height, measured as it paints; the feed keeps that much room at its foot.
+    composer_height: Rc<std::cell::Cell<f32>>,
     copied: Option<String>,
     focus: FocusHandle,
     channels_width: f32,
@@ -719,6 +721,7 @@ impl Rustcord {
             status_menu: false,
             hovered_row: None,
             hovered_message: None,
+            composer_height: Rc::new(std::cell::Cell::new(86.)),
             emoji_picker: None,
             emoji_search,
             switcher: None,
