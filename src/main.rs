@@ -33,6 +33,7 @@ mod rail_drag;
 mod sidebar;
 mod search;
 mod settings;
+mod shell;
 mod user_menu;
 mod video;
 mod hotkeys;
@@ -113,7 +114,7 @@ fn main() {
             palette::sync(window, cx);
             #[cfg(target_os = "windows")]
             tray::install(window, cx);
-            cx.new(|cx| Rustcord::new(window, cx))
+            cx.new(|cx| shell::Shell::new(window, cx))
         })
         .expect("open window");
         if material::NATIVE_SIDEBAR {

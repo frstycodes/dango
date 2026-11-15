@@ -264,7 +264,7 @@ impl Rustcord {
             manage_messages: self.guild().is_some_and(|g| self.me.as_ref().is_some_and(|me| g.can(&me.id, crate::discord::perm::MANAGE_MESSAGES))),
         });
         let arrivals = self.arrivals.clone();
-        list(self.list.clone(), move |ix, window, cx| {
+        let messages = list(self.list.clone(), move |ix, window, cx| {
             if ix == 0 && ctx.has_more {
                 let this = ctx.this.clone();
                 cx.defer(move |cx| {
@@ -307,8 +307,15 @@ impl Rustcord {
             frame.apply(div().w_full().child(row)).into_any_element()
         })
         .size_full()
-        .pb_2()
-        .into_any_element()
+        .pb_2();
+        // The visible message area, which inline GIFs are clipped to (see gif.rs). Pinned to the top
+        // left: an absolute element without offsets sits where it would flow, after the list.
+        div()
+            .relative()
+            .size_full()
+            .child(messages)
+            .child(gpui_kit::canvas(|_, _, _| {}, |bounds, _, _, _| crate::gif::set_chat_clip(bounds)).absolute().top_0().left_0().size_full())
+            .into_any_element()
     }
 
     pub(crate) fn render_composer(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -952,7 +959,7 @@ fn media_grid(message: &Message, ctx: &std::rc::Rc<RowContext>, cx: &mut App) ->
         let (shown_w, shown_h) = (item.width * scale, item.height * scale);
         let sized = |url: &str| crate::discord::sized_image(url, shown_w, shown_h, (item.width, item.height));
         let picture = match &item.kind {
-            MediaKind::Gif { poster } => div().size_full().rounded(px(8.)).overflow_hidden().child(crate::gif::tile(format!("{}-{i}-{}", message.id, item.url), &item.url, &sized(poster), cx)).into_any_element(),
+            MediaKind::Gif { poster } => div().size_full().rounded(px(8.)).overflow_hidden().child(crate::gif::tile(format!("{}-{i}-{}", message.id, item.url), &item.url, &sized(poster), 8., false, cx)).into_any_element(),
             _ => animated_image(sized(&item.url)).size_full().rounded(px(8.)).into_any_element(),
         };
         let (this, url) = (ctx.this.clone(), item.url.clone());

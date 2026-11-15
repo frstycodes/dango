@@ -477,6 +477,7 @@ impl Render for VideoPlayer {
             .child(center)
             .children(failed.map(failed_note))
             .when(bar.target().alpha() > 0.01, |d| d.child(self.bar(bar.target().alpha(), window, cx)))
+            .when(self.corners_shown(), |d| d.child(self.corners(window, cx)))
             .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
                 this.hovered = *hovered;
                 cx.notify();
@@ -531,21 +532,12 @@ impl VideoPlayer {
         let playing = self.is_playing();
         let play = self.icon_button(Control::Play, if playing { Glyph::Pause } else { Glyph::Play }, if playing { "Pause" } else { "Play" }, |this, _, cx| this.toggle(cx), window, cx);
         let scrubber = self.scrubber(if duration.is_zero() { 0. } else { position.as_secs_f32() / duration.as_secs_f32() }, window, cx);
-        let volume = self.volume(window, cx);
-        let full = self.icon_button(
-            Control::Fullscreen,
-            if self.fullscreen { Glyph::FullscreenExit } else { Glyph::Fullscreen },
-            if self.fullscreen { "Exit Full Screen" } else { "Full Screen" },
-            |this, window, cx| this.set_fullscreen(!this.fullscreen, window, cx),
-            window,
-            cx,
-        );
         let tabular = FontFeatures(Arc::new(vec![("tnum".into(), 1)]));
         let time = div()
             .flex_none()
             .flex()
             .gap_1()
-            .text_size(px(14.))
+            .text_size(px(12.))
             .font_features(tabular)
             .text_color(gpui_kit::white())
             .child(crate::playback::time_label(position))
@@ -573,9 +565,9 @@ impl VideoPlayer {
                     .items_center()
                     .gap(px(16.))
                     .child(play)
-                    .child(div().flex_1().min_w_0().flex().items_center().gap(px(8.)).child(time).child(scrubber))
-                    .child(volume)
-                    .child(full),
+                    // The time sits above the scrubber so even a narrow video shows it whole; volume
+                    // and full screen live in the top corners (see `corners`).
+                    .child(div().flex_1().min_w_0().flex().flex_col().gap(px(2.)).child(time).child(scrubber)),
             )
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .on_click(|_, _, cx| cx.stop_propagation())
@@ -693,12 +685,43 @@ impl VideoPlayer {
     }
 
     // The speaker mutes on click; hovering it raises Discord's vertical volume slider above it.
+    // Shown while the pointer is over the video (in full screen, until it rests), or while one of
+    // them is in use.
+    fn corners_shown(&self) -> bool {
+        let busy = self.adjusting_volume || matches!(self.hot, Some(Control::Volume | Control::VolumePanel | Control::Fullscreen));
+        busy || (self.hovered && (!self.fullscreen || self.pointer_at.elapsed() < IDLE))
+    }
+
+    // Full screen in the top-left corner and volume in the top-right, each on a dark pill so they
+    // read over any picture.
+    fn corners(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let full = self.icon_button(
+            Control::Fullscreen,
+            if self.fullscreen { Glyph::FullscreenExit } else { Glyph::Fullscreen },
+            if self.fullscreen { "Exit Full Screen" } else { "Full Screen" },
+            |this, window, cx| this.set_fullscreen(!this.fullscreen, window, cx),
+            window,
+            cx,
+        );
+        let volume = self.volume(window, cx);
+        // A click on a pill's edge stays off the video under it.
+        let pill = || {
+            div().absolute().top(px(8.)).p(px(4.)).rounded(px(RADIUS)).bg(gpui_kit::black().opacity(0.56)).on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        };
+        div()
+            .absolute()
+            .inset_0()
+            .child(pill().left(px(8.)).child(full))
+            .child(pill().right(px(8.)).child(volume))
+            .into_any_element()
+    }
+
     fn volume(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let glyph = if self.level.heard() == 0. { Glyph::VolumeOff } else { Glyph::VolumeHigh };
         let label = if self.level.muted { "Unmute" } else { "Mute" };
         let button = self.icon_button(Control::Volume, glyph, label, |this, _, cx| this.set_level(Level { muted: !this.level.muted, ..this.level }, cx), window, cx);
         let open = matches!(self.hot, Some(Control::Volume | Control::VolumePanel)) || self.adjusting_volume;
-        let hidden = Target::default().opacity(0.).y(6.);
+        let hidden = Target::default().opacity(0.).y(-6.);
         let panel = self.motions.frame_one(Control::VolumePanel, Motion::new(Target::default()).initial(hidden).exit(hidden).present(open).transition(pop()), window, cx);
         let level = relative(self.level.heard());
         let record = self.volume_bounds.clone();
@@ -745,13 +768,14 @@ impl VideoPlayer {
                 }
             }))
             .on_click(|_, _, cx| cx.stop_propagation());
-        // The gap above the speaker belongs to the panel, so moving up to it never closes it.
+        // The speaker is in the top corner, so the panel opens below it. The gap between them belongs to
+        // the panel, so moving down to it never closes it.
         let reach = div()
             .id("video-volume-reach")
             .absolute()
-            .bottom(px(SLOT))
+            .top(px(SLOT))
             .left(px((SLOT - 32.) / 2.))
-            .pb(px(8.))
+            .pt(px(8.))
             .child(panel.render(|f| f.apply(slider)))
             .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
                 match *hovered {
