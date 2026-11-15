@@ -29,7 +29,7 @@ use std::{
         atomic::{AtomicBool, AtomicU8, Ordering},
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use futures::{SinkExt, StreamExt, channel::mpsc, channel::oneshot};
@@ -325,6 +325,9 @@ struct Shared {
     session_id: Mutex<Option<String>>,
     muted: AtomicBool,
     deafened: AtomicBool,
+    // A voice-state update is waiting to go out, and when the last one did (see `send_flags_soon`).
+    flags_pending: AtomicBool,
+    flags_sent: Mutex<Option<Instant>>,
     talk_key_held: AtomicBool,
     input_mode: Mutex<InputMode>,
     audio: Arc<audio::AudioSettings>,
@@ -343,6 +346,28 @@ struct Shared {
     others_speaking: AtomicBool,
     // "No Audio Detected": 0 not known yet, 1 detected, 2 not detected.
     input_detected: AtomicU8,
+}
+
+// Spamming mute or deafen sent an update per press, and Discord rate-limits the gateway (about 120
+// messages a minute): updates were dropped, the shown state went stale, and rejoining could fail. Presses
+// now coalesce into one update with the latest flags, at most one per `FLAGS_GAP`.
+const FLAGS_GAP: Duration = Duration::from_millis(500);
+
+fn send_flags_soon(shared: &Arc<Shared>) {
+    if shared.flags_pending.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let shared = shared.clone();
+    crate::discord::runtime().spawn(async move {
+        let since = shared.flags_sent.lock().ok().and_then(|sent| *sent).map(|at| at.elapsed());
+        let wait = since.map_or(Duration::ZERO, |since| FLAGS_GAP.saturating_sub(since));
+        tokio::time::sleep(wait.max(Duration::from_millis(60))).await;
+        shared.flags_pending.store(false, Ordering::Release);
+        if let Ok(mut sent) = shared.flags_sent.lock() {
+            *sent = Some(Instant::now());
+        }
+        shared.send_voice_state(true);
+    });
 }
 
 impl Shared {
@@ -420,6 +445,8 @@ pub fn join(
         session_id: Mutex::new(None),
         muted: AtomicBool::new(false),
         deafened: AtomicBool::new(false),
+        flags_pending: AtomicBool::new(false),
+        flags_sent: Mutex::new(None),
         talk_key_held: AtomicBool::new(false),
         input_mode: Mutex::new(settings.input_mode),
         audio: Arc::new(settings.audio()),
@@ -443,14 +470,11 @@ pub fn join(
 }
 
 impl VoiceSession {
-    pub fn set_muted(&self, muted: bool) {
+    // Mute and deafen go to Discord together, as one voice-state update carrying the latest of both.
+    pub fn set_flags(&self, muted: bool, deafened: bool) {
         self.shared.muted.store(muted, Ordering::Relaxed);
-        self.shared.send_voice_state(true);
-    }
-
-    pub fn set_deafened(&self, deafened: bool) {
         self.shared.deafened.store(deafened, Ordering::Relaxed);
-        self.shared.send_voice_state(true);
+        send_flags_soon(&self.shared);
     }
 
     // Device ids from `input_devices` / `output_devices`; None = system default. Switches live.

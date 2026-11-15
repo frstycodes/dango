@@ -2062,10 +2062,7 @@ impl Rustcord {
             session.set_user_muted(user_id, true);
         }
         if self.muted || self.deafened {
-            session.set_muted(true);
-        }
-        if self.deafened {
-            session.set_deafened(true);
+            session.set_flags(true, self.deafened);
         }
         let task = cx.spawn(async move |this, cx| {
             while let Some(event) = events.next().await {
@@ -2345,8 +2342,7 @@ impl Rustcord {
     // Mute and deafen apply to the call as well as the buttons; deafening also mutes, as in Discord.
     fn sync_voice_flags(&self) {
         let Some(call) = &self.call else { return };
-        call.session.set_muted(self.muted || self.deafened);
-        call.session.set_deafened(self.deafened);
+        call.session.set_flags(self.muted || self.deafened, self.deafened);
     }
 
     fn open_viewer(&mut self, url: &str, window: &mut Window, cx: &mut Context<Self>) {

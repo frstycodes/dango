@@ -533,7 +533,7 @@ impl Rustcord {
             Action::PushToTalk => {}
             Action::PushToMute => {
                 if let Some(call) = &self.call {
-                    call.session.set_muted(pressed || self.muted || self.deafened);
+                    call.session.set_flags(pressed || self.muted || self.deafened, self.deafened);
                 }
             }
             Action::ToggleMute => self.toggle_mute(cx),
