@@ -1763,12 +1763,13 @@ const BANNER: (u32, u32) = (0x8E6AC7, 0x88296F);
 
 const NOTIFY_CUES: [(&str, &str, Cue); 2] = [("cue-message", "Message", Cue::Message), ("cue-mention", "Mention", Cue::Mention)];
 const VOICE_CUES: [(&str, &str, Cue); 4] = [("cue-deafen", "Deafen", Cue::Deafen), ("cue-undeafen", "Undeafen", Cue::Undeafen), ("cue-mute", "Mute", Cue::Mute), ("cue-unmute", "Unmute", Cue::Unmute)];
-const MORE_CUES: [(&str, &str, Cue); 9] = [
+const MORE_CUES: [(&str, &str, Cue); 10] = [
     ("cue-disconnect", "Voice disconnected", Cue::Disconnect),
     ("cue-ptt-start", "PTT activate", Cue::PttStart),
     ("cue-ptt-stop", "PTT deactivate", Cue::PttStop),
     ("cue-user-join", "User join", Cue::UserJoin),
     ("cue-user-leave", "User leave", Cue::UserLeave),
+    ("cue-user-moved", "User moved", Cue::UserMoved),
     ("cue-stream-started", "Stream started", Cue::StreamStarted),
     ("cue-stream-stopped", "Stream stopped", Cue::StreamEnded),
     ("cue-viewer-join", "Viewer join", Cue::StreamUserJoined),
