@@ -557,6 +557,8 @@ pub struct Rustcord {
     status_menu: bool,
     // The channel or DM row under the pointer, which shows its hover-only controls.
     hovered_row: Option<String>,
+    // The message under the pointer, which shows its toolbar and, on a continuation, its time.
+    hovered_message: Option<String>,
     emoji_picker: Option<EmojiTarget>,
     emoji_search: Entity<SearchState>,
     switcher: Option<usize>,
@@ -716,6 +718,7 @@ impl Rustcord {
             profile_card: None,
             status_menu: false,
             hovered_row: None,
+            hovered_message: None,
             emoji_picker: None,
             emoji_search,
             switcher: None,

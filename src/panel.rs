@@ -19,16 +19,13 @@ use crate::{
 impl Rustcord {
     pub fn render_panel(&mut self, _: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         self.guild_id.as_ref()?;
-        let (title, body): (SharedString, AnyElement) = match &self.right_panel {
+        // The member list needs no head: the header's toggle opens and closes it. Search results keep
+        // theirs, which names the query and leads back to the members.
+        let (head, body): (Option<Div>, AnyElement) = match &self.right_panel {
             RightPanel::Hidden => return None,
-            RightPanel::Members => ("Members".into(), self.member_list(cx)),
-            RightPanel::Search { query, results } => (format!("Results for “{query}”").into(), self.search_results(results.clone(), cx)),
+            RightPanel::Members => (None, self.member_list(cx)),
+            RightPanel::Search { query, results } => (Some(self.panel_head(format!("Results for “{query}”").into(), cx)), self.search_results(results.clone(), cx)),
         };
-        let searching = matches!(self.right_panel, RightPanel::Search { .. });
-        let close = ui::icon_button("close-panel", Glyph::X, if searching { "Back to members" } else { "Close" }, cx).on_click(cx.listener(move |this, _, _, cx| {
-            this.right_panel = if searching { RightPanel::Members } else { RightPanel::Hidden };
-            cx.notify();
-        }));
         Some(
             div()
                 .relative()
@@ -41,24 +38,30 @@ impl Rustcord {
                 .text_color(palette::text(cx))
                 .text_size(px(14.))
                 .child(self.resize_handle(Edge::Panel, cx))
-                .child(
-                    div()
-                        .h(px(48.))
-                        .flex_none()
-                        .pl_4()
-                        .pr_2()
-                        .flex()
-                        .items_center()
-                        .gap_2()
-                        .border_b_1()
-                        .border_color(palette::line(cx))
-                        .text_color(palette::strong(cx))
-                        .child(div().flex_1().min_w_0().truncate().text_size(px(16.)).font_weight(FontWeight::BOLD).child(title))
-                        .child(close),
-                )
+                .children(head)
                 .child(div().id("right-panel").flex_1().min_h_0().overflow_y_scroll().p_2().flex().flex_col().gap(px(2.)).child(body))
                 .into_any_element(),
         )
+    }
+
+    fn panel_head(&self, title: SharedString, cx: &mut Context<Self>) -> Div {
+        let back = ui::icon_button("close-panel", Glyph::X, "Back to members", cx).on_click(cx.listener(|this, _, _, cx| {
+            this.right_panel = RightPanel::Members;
+            cx.notify();
+        }));
+        div()
+            .h(px(48.))
+            .flex_none()
+            .pl_4()
+            .pr_2()
+            .flex()
+            .items_center()
+            .gap_2()
+            .border_b_1()
+            .border_color(palette::line(cx))
+            .text_color(palette::strong(cx))
+            .child(div().flex_1().min_w_0().truncate().text_size(px(16.)).font_weight(FontWeight::BOLD).child(title))
+            .child(back)
     }
 
     // Who is here, grouped by top role, then online and offline (navigation.css .members).

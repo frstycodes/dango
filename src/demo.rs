@@ -49,6 +49,7 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         }
         "appearance" => chord.open_settings(crate::settings::Page::Appearance, window, cx),
         "unread" => chord.unread_marker = Some(103),
+        "hover" => chord.hovered_message = Some("105".into()),
         "home" => {
             chord.restore = None;
             chord.open_home(cx);
