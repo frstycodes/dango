@@ -681,7 +681,7 @@ impl Rustcord {
             Page::Account => self.account_page(cx),
             Page::Notifications => self.notifications_page(window, cx),
             Page::VoiceVideo => self.voice_page(window, cx),
-            Page::Keybinds => self.keybinds_page(window, cx),
+            Page::Keybinds => self.keybinds_page(cx),
             Page::Appearance => self.appearance_page(window, cx),
         };
         // The scroll list's first item is the page title, so a section's item index is one past its own.
@@ -861,20 +861,8 @@ impl Rustcord {
     }
 
     fn log_out_item(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let tint = palette::danger().opacity(0.12);
-        div()
-            .id("nav-log-out")
-            .min_h(px(32.))
-            .px(px(10.))
-            .flex_none()
-            .squircle(ui::RADIUS_SM)
-            .flex()
-            .items_center()
-            .gap(px(10.))
-            .cursor_pointer()
-            .font_weight(FontWeight::NORMAL)
-            .text_color(palette::danger_ink(cx))
-            .hover(move |s| s.bg(tint))
+        ui::menu_row("nav-log-out", cx)
+            .danger(cx)
             .child(Icon::new(Glyph::DoorExit).size(px(18.)))
             .child("Log out")
             .on_click(cx.listener(|this, _, _, cx| this.set_ask(Some(Ask::LogOut), cx)))
@@ -1105,7 +1093,7 @@ impl Rustcord {
         let (inputs, outputs, cameras) = (view.devices.inputs.clone(), view.devices.outputs.clone(), view.devices.cameras.clone());
         let advanced = view.advanced;
         let (custom, studio) = (prefs.input_profile == InputProfile::Custom, prefs.input_profile == InputProfile::Studio);
-        let mut out = vec![Section::anchored("Voice", self.devices_group(&inputs, &outputs, window, cx))];
+        let mut out = vec![Section::anchored("Voice", self.devices_group(&inputs, &outputs, cx))];
 
         let mut lines = Hairlines::default();
         let profiles = [
@@ -1147,7 +1135,7 @@ impl Rustcord {
             .flex_col()
             .gap(px(6.))
             .child(field_label("Camera", cx))
-            .child(self.device_select(Select::Camera, Glyph::Video, &cameras, prefs.camera.as_deref(), 40., window, cx));
+            .child(self.device_select(Select::Camera, Glyph::Video, &cameras, prefs.camera.as_deref(), 40., cx));
         // GAP: the design's camera preview tile (Test video, mirrored self view) needs a local camera
         // preview the settings page doesn't have yet.
         out.push(Section::anchored("Camera", ui::settings_group("Camera", cx).child(card_pad(cx).child(camera))));
@@ -1156,7 +1144,7 @@ impl Rustcord {
         out
     }
 
-    fn devices_group(&mut self, inputs: &[(String, String)], outputs: &[(String, String)], window: &mut Window, cx: &mut Context<Self>) -> Div {
+    fn devices_group(&mut self, inputs: &[(String, String)], outputs: &[(String, String)], cx: &mut Context<Self>) -> Div {
         let prefs = self.prefs.clone();
         let view = self.settings.as_ref().expect("settings are open");
         let testing = self.mic_test.is_some();
@@ -1168,8 +1156,8 @@ impl Rustcord {
         let devices = div()
             .flex()
             .gap(px(24.))
-            .child(column("Microphone", self.device_select(Select::Microphone, Glyph::Mic, inputs, prefs.input_device.as_deref(), 40., window, cx), cx))
-            .child(column("Speaker", self.device_select(Select::Speaker, Glyph::Headphones, outputs, prefs.output_device.as_deref(), 40., window, cx), cx));
+            .child(column("Microphone", self.device_select(Select::Microphone, Glyph::Mic, inputs, prefs.input_device.as_deref(), 40., cx), cx))
+            .child(column("Speaker", self.device_select(Select::Speaker, Glyph::Headphones, outputs, prefs.output_device.as_deref(), 40., cx), cx));
         let volumes = div()
             .flex()
             .gap(px(24.))
@@ -1345,17 +1333,7 @@ impl Rustcord {
                 .text_color(palette::positive_ink(cx))
                 .child(Icon::new(Glyph::CheckCircle).size(px(16.)))
                 .child("Voice and video settings reset")
-                .child(
-                    div()
-                        .id("reset-undo")
-                        .ml(px(4.))
-                        .cursor_pointer()
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(palette::accent_ink(cx))
-                        .hover(|s| s.underline())
-                        .child("Undo")
-                        .on_click(cx.listener(|this, _, _, cx| this.undo_reset(cx))),
-                )
+                .child(ui::button("reset-undo", ui::Tone::Link, cx).ml(px(4.)).child("Undo").on_click(cx.listener(|this, _, _, cx| this.undo_reset(cx))))
         });
         ui::settings_row("reset", false, cx)
             .flex_wrap()
@@ -1393,7 +1371,7 @@ impl Rustcord {
         self.update_prefs(cx, |p| *p = before);
     }
 
-    fn keybinds_page(&self, window: &mut Window, cx: &mut Context<Self>) -> Vec<Section> {
+    fn keybinds_page(&self, cx: &mut Context<Self>) -> Vec<Section> {
         let header = div()
             .flex()
             .items_start()
@@ -1407,7 +1385,7 @@ impl Rustcord {
                 }
             })));
         let mut lines = Hairlines::default();
-        let rows: Vec<AnyElement> = self.prefs.keybinds.iter().enumerate().map(|(index, keybind)| self.keybind_row(index, keybind, lines.next(), window, cx)).collect();
+        let rows: Vec<AnyElement> = self.prefs.keybinds.iter().enumerate().map(|(index, keybind)| self.keybind_row(index, keybind, lines.next(), cx)).collect();
         let yours = ui::settings_group("Your keybinds", cx).children(self.input_monitoring_notice(cx)).when(!rows.is_empty(), |g| g.child(ui::settings_card(cx).children(rows)));
         let mut lines = Hairlines::default();
         let defaults = DEFAULT_KEYBINDS.iter().map(|&(action, combos)| {
@@ -1442,10 +1420,10 @@ impl Rustcord {
     }
 
     // Action picker, recorder, and a remove button that's always there.
-    fn keybind_row(&self, index: usize, keybind: &Keybind, line: bool, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    fn keybind_row(&self, index: usize, keybind: &Keybind, line: bool, cx: &mut Context<Self>) -> AnyElement {
         let unknown = keybind.keys.as_ref().is_some_and(|k| self.keybind_errors.contains(k));
         let actions: Vec<(String, String)> = Action::ALL.iter().map(|a| (format!("{a:?}"), sentence(a.label()))).collect();
-        let action = self.select_field(Select::Action(index), None, &actions, &format!("{:?}", keybind.action), sentence(keybind.action.label()).into(), 36., window, cx);
+        let action = self.select_field(Select::Action(index), None, &actions, &format!("{:?}", keybind.action), sentence(keybind.action.label()).into(), 36., cx);
         let (danger, hover, press) = (palette::danger_ink(cx), palette::hover(cx), palette::press(cx));
         // The design's .iconbtn.rm: ui::icon_button, but hovering to the danger ink.
         let remove = div()
@@ -1718,46 +1696,23 @@ impl Rustcord {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn device_select(&self, select: Select, glyph: Glyph, devices: &[(String, String)], chosen: Option<&str>, height: f32, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    fn device_select(&self, select: Select, glyph: Glyph, devices: &[(String, String)], chosen: Option<&str>, height: f32, cx: &mut Context<Self>) -> AnyElement {
         let mut options = vec![(String::new(), "Default".to_owned())];
         options.extend(devices.iter().cloned());
         let value = chosen.and_then(|id| devices.iter().find(|(d, _)| d == id)).map_or("Default".to_owned(), |(_, name)| name.clone());
-        self.select_field(select, Some(glyph), &options, chosen.unwrap_or(""), value.into(), height, window, cx)
+        self.select_field(select, Some(glyph), &options, chosen.unwrap_or(""), value.into(), height, cx)
     }
 
     // A dropdown trigger whose list rises from it; the chosen option carries a check.
     #[allow(clippy::too_many_arguments)]
-    fn select_field(&self, select: Select, glyph: Option<Glyph>, options: &[(String, String)], chosen: &str, value: SharedString, height: f32, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    fn select_field(&self, select: Select, glyph: Option<Glyph>, options: &[(String, String)], chosen: &str, value: SharedString, height: f32, cx: &mut Context<Self>) -> AnyElement {
         let open = self.settings.as_ref().and_then(|s| s.select) == Some(select);
-        let caret = turn(format!("caret-{select:?}"), if open { 180. } else { 0. }, window, cx);
-        let (muted, faint) = (palette::muted(cx), palette::faint(cx));
-        let hover_border = faint.opacity(0.6);
-        let field = div()
-            .id(SharedString::from(format!("select-{select:?}")))
-            .h(px(height))
-            .px(px(12.))
-            .w_full()
-            .squircle(ui::RADIUS_MD)
-            .bg(palette::surface(Level::Page, cx))
-            .border_1()
-            .border_color(if open { palette::accent() } else { palette::line_strong(cx) })
-            .when(!open, |d| d.hover(move |s| s.border_color(hover_border)))
-            .flex()
-            .items_center()
-            .gap(px(8.))
-            .cursor_pointer()
-            .text_size(px(14.))
-            .font_weight(FontWeight::NORMAL)
-            .text_color(palette::strong(cx))
-            .children(glyph.map(|g| div().text_color(muted).child(Icon::new(g).size(px(18.)))))
-            .child(div().flex_1().min_w_0().truncate().child(value))
-            .child(div().text_color(faint).child(Icon::new(Glyph::ChevronDown).size(px(14.)).rotate(caret)))
-            .on_click(cx.listener(move |this, _, _, cx| {
-                if let Some(s) = &mut this.settings {
-                    s.select = if s.select == Some(select) { None } else { Some(select) };
-                }
-                cx.notify();
-            }));
+        let field = ui::select(SharedString::from(format!("select-{select:?}")), glyph, value, open, cx).h(px(height)).on_click(cx.listener(move |this, _, _, cx| {
+            if let Some(s) = &mut this.settings {
+                s.select = if s.select == Some(select) { None } else { Some(select) };
+            }
+            cx.notify();
+        }));
         let list = open.then(|| {
             let accent_ink = palette::accent_ink(cx);
             let rows: Vec<AnyElement> = options
@@ -1940,22 +1895,9 @@ fn os_name() -> &'static str {
 }
 
 fn nav_item(page: Page, selected: bool, cx: &mut Context<Rustcord>) -> impl IntoElement {
-    let (strong, hover) = (palette::strong(cx), palette::hover(cx));
-    div()
-        .id(SharedString::from(format!("nav-{page:?}")))
-        .min_h(px(32.))
-        .px(px(10.))
-        .flex_none()
-        .squircle(ui::RADIUS_SM)
-        .flex()
-        .items_center()
-        .gap(px(10.))
-        .cursor_pointer()
-        .whitespace_nowrap()
-        .font_weight(FontWeight::NORMAL)
-        .text_color(if selected { strong } else { palette::text(cx) })
-        .when(selected, |d| d.bg(palette::selected(cx)))
-        .when(!selected, |d| d.hover(move |s| s.bg(hover).text_color(strong)))
+    let strong = palette::strong(cx);
+    ui::menu_row(SharedString::from(format!("nav-{page:?}")), cx)
+        .toggled(selected, cx)
         .child(div().text_color(if selected { strong } else { palette::muted(cx) }).child(Icon::new(page.glyph()).size(px(18.))))
         .child(div().flex_1().min_w_0().truncate().child(page.label()))
         .on_click(cx.listener(move |this, _, window, cx| {
