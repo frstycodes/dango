@@ -33,8 +33,10 @@
 /* The left header row is split by column: the rail's slot holds the traffic lights (macOS, windowed) or
    the Home tile, and the server name sits over the channel list, starting where the channel rows start. */
 .rail-head { grid-column: 1; grid-row: 1; display: grid; place-items: center; }
-/* In the header row the Home tile is a header control: 34px, inset 7px like the server name and the tools. */
-.rail-head .tile { width: 34px; height: 34px; border-radius: var(--radius-sm); }
+/* The Home tile keeps its rail size and takes the header's 7px top inset, like the server name and the tools;
+   it runs 3px past the row, so the rail below starts 11px down to keep its 8px gap. */
+.win.full .rail-head, .win.windows .rail-head { align-items: start; padding-top: 7px; }
+.win.full .rail, .win.windows .rail { padding-top: 11px; }
 .list-head { grid-column: 2; grid-row: 1; display: flex; align-items: center; padding: 0 8px; min-width: 0; }
 .lights { display: flex; gap: 8px; flex: none; margin-left: 4px; }
 .lights i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; }
