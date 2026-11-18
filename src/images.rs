@@ -103,6 +103,16 @@ impl Images {
         self.publish();
     }
 
+    // Drops a load still in flight, which stops its download. Finished images are left to eviction.
+    pub fn cancel(&mut self, url: &str) {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        Resource::Uri(url.to_owned().into()).hash(&mut hasher);
+        let key = hasher.finish();
+        if self.items.get(&key).is_some_and(|item| item.load.get().is_none()) {
+            self.items.remove(&key);
+        }
+    }
+
     pub fn stats(&self) -> Stats {
         let decoded_bytes = self
             .items
