@@ -470,7 +470,7 @@ impl Rustcord {
         let flag_rows = [(JOIN, "Welcome people when they join", "A random greeting with their name", "ss-flag-join"), (JOIN_STICKER_REPLIES, "Suggest a sticker reply to welcomes", "Members see a wave button under the greeting", "ss-flag-sticker"), (BOOSTS, "Thank people who boost", "A message when someone boosts this server", "ss-flag-boost"), (SETUP_TIPS, "Send setup tips", "Helpful tips for setting up the server", "ss-flag-tips")].map(|(bit, title, detail, id)| {
             // The flags are "suppress" bits: on means the message is sent.
             let on = draft.system_channel_flags & bit == 0;
-            switch_row(id, title, detail, on, true, window, cx).on_click(cx.listener(move |this, _, _, cx| this.edit_server_draft(cx, |d| d.system_channel_flags ^= bit))).into_any_element()
+            ui::settings_switch(id, title, detail, on, true, window, cx).on_click(cx.listener(move |this, _, _, cx| this.edit_server_draft(cx, |d| d.system_channel_flags ^= bit))).into_any_element()
         });
         let notifications = [(0u8, "All messages", "Every new message counts as unread"), (1, "Only @mentions", "Recommended once a server has more than a few dozen people")].map(|(level, title, detail)| {
             let row = ui::settings_row(SharedString::from(format!("ss-notify-{level}")), level > 0, cx).child(ui::radio(draft.default_message_notifications == level, cx)).child(ui::settings_text(title, Some(detail), cx));
@@ -500,7 +500,7 @@ impl Rustcord {
                 let (enabled, channel) = (*enabled, channel.clone());
                 let toggle = {
                     let channel = channel.clone();
-                    switch_row("ss-widget", "Show a widget on your website", "Online members, voice channels and an invite", enabled, false, window, cx).on_click(cx.listener(move |this, _, _, cx| this.set_widget(!enabled, channel.clone(), cx)))
+                    ui::settings_switch("ss-widget", "Show a widget on your website", "Online members, voice channels and an invite", enabled, false, window, cx).on_click(cx.listener(move |this, _, _, cx| this.set_widget(!enabled, channel.clone(), cx)))
                 };
                 let mut options = vec![(String::new(), "No invite".to_owned())];
                 options.extend(channels.iter().cloned());
@@ -536,7 +536,7 @@ impl Rustcord {
             None => format!("{} · the top level", plural(info.boosts, "boost", "boosts")),
         };
         let level = ui::settings_row("ss-boost-level", false, cx).child(ui::settings_text("Boost level", Some(progress), cx)).child(value_text(if info.premium_tier == 0 { "None".into() } else { format!("Level {}", info.premium_tier) }, cx));
-        let bar = switch_row("ss-progress-bar", "Show the boost progress bar", "Above your channels, so members see how close the next level is", draft.premium_progress_bar_enabled, true, window, cx)
+        let bar = ui::settings_switch("ss-progress-bar", "Show the boost progress bar", "Above your channels, so members see how close the next level is", draft.premium_progress_bar_enabled, true, window, cx)
             .on_click(cx.listener(|this, _, _, cx| this.edit_server_draft(cx, |d| d.premium_progress_bar_enabled = !d.premium_progress_bar_enabled)));
         let splash_open = info.features.iter().any(|f| f == access::INVITE_SPLASH.0);
         let splash = image_row("ss-splash", "Invite background", if splash_open { "16:9, shown behind your invite page." } else { "Unlocks at boost level 1." }, draft.splash.is_some(), splash_open, ImageField::Splash, false, cx);
@@ -812,10 +812,6 @@ pub fn glyph(page: Page) -> Glyph {
     }
 }
 
-pub fn switch_row(id: &'static str, title: &'static str, detail: &'static str, on: bool, line: bool, window: &mut Window, cx: &mut App) -> gpui_kit::Stateful<Div> {
-    let row = ui::settings_row(id, line, cx).child(ui::settings_text(title, Some(detail), cx)).child(ui::switch_live(SharedString::from(format!("{id}-switch")), on, window, cx));
-    ui::settings_choice(row, cx)
-}
 
 pub fn value_text(text: String, cx: &App) -> Div {
     div().flex_none().whitespace_nowrap().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(text)

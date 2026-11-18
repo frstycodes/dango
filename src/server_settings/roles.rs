@@ -16,7 +16,7 @@ use super::{
     access::{self, RoleLock},
     api::{self, RoleDraft},
     perms,
-    view::{failed, loading_line, plural, switch_row},
+    view::{failed, loading_line, plural},
 };
 use crate::{
     Rustcord,
@@ -362,8 +362,8 @@ impl Rustcord {
         } else {
             colour = colour.child(ui::settings_caption("Gradient and holographic styles unlock at boost level 2.", cx));
         }
-        let hoist = switch_row("ss-role-hoist", "Show members separately", "They get their own group in the member list", draft.hoist, false, window, cx).on_click(cx.listener(|this, _, _, cx| this.edit_role_draft(cx, |d| d.hoist = !d.hoist)));
-        let mention = switch_row("ss-role-mention", "Let anyone @mention this role", "Members with Mention @everyone can always mention it", draft.mentionable, true, window, cx).on_click(cx.listener(|this, _, _, cx| this.edit_role_draft(cx, |d| d.mentionable = !d.mentionable)));
+        let hoist = ui::settings_switch("ss-role-hoist", "Show members separately", "They get their own group in the member list", draft.hoist, false, window, cx).on_click(cx.listener(|this, _, _, cx| this.edit_role_draft(cx, |d| d.hoist = !d.hoist)));
+        let mention = ui::settings_switch("ss-role-mention", "Let anyone @mention this role", "Members with Mention @everyone can always mention it", draft.mentionable, true, window, cx).on_click(cx.listener(|this, _, _, cx| this.edit_role_draft(cx, |d| d.mentionable = !d.mentionable)));
         let mut out = vec![
             ui::settings_card(cx).p(px(16.)).child(name).into_any_element(),
             ui::settings_group("Style", cx).child(colour).into_any_element(),
