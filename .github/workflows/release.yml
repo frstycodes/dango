@@ -41,36 +41,44 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # `asset` is what the updater downloads; `installer` is what people install from; `legacy` is the
-          # bare .exe that v0.4.0 and older still update from (72 MB; deflate shrinks it to roughly the installer's size).
-          - { os: macos-latest, target: aarch64-apple-darwin, asset: dango-macos-aarch64.zip, installer: dango-macos-aarch64.dmg }
-          - { os: macos-latest, target: x86_64-apple-darwin, asset: dango-macos-x86_64.zip, installer: dango-macos-x86_64.dmg }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: dango-windows-x86_64.zip, installer: dango-windows-x86_64-setup.exe, legacy: dango-windows-x86_64.exe }
+          # One macOS job builds both arches: GitHub's macOS runners are scarce, and a second macOS job
+          # was often cancelled waiting for one. `files` is what the release gets: per arch a .zip the
+          # updater downloads and a .dmg people install from; on Windows the .zip the updater downloads,
+          # the setup .exe, and the bare .exe that v0.4.0 and older still update from.
+          - { os: macos-latest, cache: macos, targets: aarch64-apple-darwin x86_64-apple-darwin, files: dango-macos-aarch64.zip dango-macos-aarch64.dmg dango-macos-x86_64.zip dango-macos-x86_64.dmg }
+          - { os: windows-latest, cache: x86_64-pc-windows-msvc, targets: x86_64-pc-windows-msvc, files: dango-windows-x86_64.zip dango-windows-x86_64-setup.exe dango-windows-x86_64.exe }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-      # The macOS image is nearly full; a release build plus the .dmg ran out of space. Dango never
-      # uses the preinstalled Android SDK.
+      # The macOS image is nearly full: two release builds plus their .dmgs ran out of space. Dango needs
+      # none of the preinstalled Android SDK, simulators, other Xcodes or language toolchains. The build's
+      # own files stay, since the cache saves them on main.
       - name: Free disk space
         if: runner.os == 'macOS'
-        run: df -h / && sudo rm -rf "$HOME/Library/Android" && df -h /
-      - run: rustup target add ${{ matrix.target }}
+        run: |
+          df -h /
+          keep=$(xcode-select -p | sed 's|/Contents/Developer||')
+          for x in /Applications/Xcode*.app; do [ "$x" = "$keep" ] || sudo rm -rf "$x"; done
+          sudo rm -rf "$HOME/Library/Android" "$HOME/Library/Developer/CoreSimulator" /Library/Developer/CoreSimulator/Profiles/Runtimes \
+            "$RUNNER_TOOL_CACHE"/{CodeQL,go,Ruby,PyPy,node} || true
+          df -h /
+      - run: rustup target add ${{ matrix.targets }}
       # One cache per target for all of CI: a run can restore caches saved on its own ref or on main,
       # never another tag's, so only main saves and every other ref (tags, branches) reads it.
       # Any new workflow should use the same shared-key and save-if, and build the release profile.
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: dango-${{ matrix.target }}
+          shared-key: dango-${{ matrix.cache }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
       # Even on a full rust-cache hit, the crates in this repo (vendor/gpui-pre*) and everything built on
       # them recompile every run; sccache keys each compile by its inputs, so those come back too.
       # Binaries and proc-macros still compile every time: sccache only caches libraries.
       - uses: mozilla-actions/sccache-action@v0.0.11
       - run: echo "VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)" >> "$GITHUB_ENV"
-      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - run: for target in ${{ matrix.targets }}; do cargo build --release --locked --target "$target"; done
         env:
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: sccache
@@ -79,13 +87,15 @@ jobs:
       - name: Package Dango.app
         if: runner.os == 'macOS'
         run: |
-          app=Dango.app
-          mkdir -p $app/Contents/MacOS $app/Contents/Resources
-          cp target/${{ matrix.target }}/release/dango $app/Contents/MacOS/dango
-          # Bridge for v0.4.0 and older: their updater relaunches Contents/MacOS/rustcord after swapping the bundle.
-          ln -s dango $app/Contents/MacOS/rustcord
-          cp assets/macos/AppIcon.icns $app/Contents/Resources/AppIcon.icns
-          cat > $app/Contents/Info.plist <<EOF
+          for target in ${{ matrix.targets }}; do
+            arch=${target%%-*}
+            app=build-$arch/Dango.app
+            mkdir -p $app/Contents/MacOS $app/Contents/Resources
+            cp target/$target/release/dango $app/Contents/MacOS/dango
+            # Bridge for v0.4.0 and older: their updater relaunches Contents/MacOS/rustcord after swapping the bundle.
+            ln -s dango $app/Contents/MacOS/rustcord
+            cp assets/macos/AppIcon.icns $app/Contents/Resources/AppIcon.icns
+            cat > $app/Contents/Info.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict>
@@ -103,25 +113,29 @@ jobs:
             <key>NSCameraUsageDescription</key><string>Dango uses the camera for video calls.</string>
           </dict></plist>
           EOF
-          codesign --force --deep --sign - $app
-          ditto -c -k --keepParent $app ${{ matrix.asset }}
-          mkdir dmg && cp -R $app dmg/ && ln -s /Applications dmg/Applications
-          # The mounted volume shows the app icon too: a .VolumeIcon.icns plus the custom-icon flag, which
-          # only sticks when set on the mounted volume, so build read-write, flag it, then compress.
-          cp assets/macos/AppIcon.icns dmg/.VolumeIcon.icns
-          hdiutil create -volname Dango -srcfolder dmg -format UDRW -ov rw.dmg
-          hdiutil attach -nobrowse -mountpoint mnt rw.dmg
-          SetFile -a C mnt
-          hdiutil detach mnt
-          hdiutil convert rw.dmg -format UDZO -ov -o ${{ matrix.installer }}
+            codesign --force --deep --sign - $app
+            ditto -c -k --keepParent $app dango-macos-$arch.zip
+            dmg=build-$arch/dmg
+            mkdir $dmg && cp -R $app $dmg/ && ln -s /Applications $dmg/Applications
+            # The mounted volume shows the app icon too: a .VolumeIcon.icns plus the custom-icon flag, which
+            # only sticks when set on the mounted volume, so build read-write, flag it, then compress.
+            cp assets/macos/AppIcon.icns $dmg/.VolumeIcon.icns
+            hdiutil create -volname Dango -srcfolder $dmg -format UDRW -ov build-$arch/rw.dmg
+            hdiutil attach -nobrowse -mountpoint build-$arch/mnt build-$arch/rw.dmg
+            SetFile -a C build-$arch/mnt
+            hdiutil detach build-$arch/mnt
+            hdiutil convert build-$arch/rw.dmg -format UDZO -ov -o dango-macos-$arch.dmg
+            # Only the zip and dmg are kept; the read-write image is the size of the app.
+            rm -rf build-$arch
+          done
 
       - name: Package exe
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Copy-Item target/${{ matrix.target }}/release/dango.exe Dango.exe
-          Copy-Item Dango.exe ${{ matrix.legacy }}
-          Compress-Archive -Path Dango.exe -DestinationPath ${{ matrix.asset }}
+          Copy-Item target/x86_64-pc-windows-msvc/release/dango.exe Dango.exe
+          Copy-Item Dango.exe dango-windows-x86_64.exe
+          Compress-Archive -Path Dango.exe -DestinationPath dango-windows-x86_64.zip
 
       - name: Build setup
         if: runner.os == 'Windows'
@@ -137,7 +151,7 @@ jobs:
         run: |
           # Git Bash on Windows has sha256sum; macOS has shasum. Both print "<hex> <name>".
           if command -v sha256sum >/dev/null; then sum="sha256sum"; else sum="shasum -a 256"; fi
-          for file in ${{ matrix.asset }} ${{ matrix.installer }} ${{ matrix.legacy }}; do
+          for file in ${{ matrix.files }}; do
             $sum "$file" > "$file.sha256"
             gh release upload "$TAG" "$file" "$file.sha256" --clobber
           done
