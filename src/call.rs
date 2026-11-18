@@ -573,7 +573,7 @@ impl Rustcord {
 
     fn call_chat_drawer(&mut self, channel: &discord::Channel, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme().clone();
-        let messages = self.render_messages(cx).into_any_element();
+        let messages = self.render_messages(0., cx).into_any_element();
         let composer = self.render_composer(window, cx).into_any_element();
         div()
             .w(px(CHAT_WIDTH))
@@ -629,7 +629,7 @@ impl Rustcord {
         let chat = if self.call_chat && self.channel.as_ref().is_some_and(|c| c.id == call.channel.id) { CHAT_WIDTH } else { 0. };
         let stage_size = match self.call_fullscreen {
             true => (f32::from(viewport.width) - chat, f32::from(viewport.height)),
-            false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - chat, f32::from(viewport.height) - crate::layout::TITLE_HEIGHT - 1.),
+            false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - chat, f32::from(viewport.height) - 1.),
         };
         let (_, _, width, height) = tile_area(stage_size);
         let watching = !call.watching.is_empty();

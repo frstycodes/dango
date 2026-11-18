@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use gpui_kit::{
-    AnyElement, Context, FontWeight, HighlightStyle, SharedString, StyledText, Window,
+    AnyElement, Context, FontWeight, HighlightStyle, SharedString, StyledText, Window, WindowControlArea,
     component::Icon,
     div, prelude::*, px,
 };
@@ -147,6 +147,8 @@ impl Rustcord {
             .gap(px(8.))
             .border_b_1()
             .border_color(palette::line(cx))
+            .window_control_area(WindowControlArea::Drag)
+            .child(self.header_lead(cx))
             .child(
                 div()
                     .h(px(32.))
@@ -163,7 +165,8 @@ impl Rustcord {
                     .child(Icon::new(Glyph::Forum).size(px(20.)).text_color(faint))
                     .child(div().min_w_0().truncate().child(forum.name.clone())),
             )
-            .children(forum.topic.clone().map(|t| div().flex_1().min_w_0().pl(px(12.)).border_l_1().border_color(palette::line_strong(cx)).truncate().text_size(px(14.)).text_color(faint).child(t)));
+            .children(forum.topic.clone().map(|t| div().flex_1().min_w_0().pl(px(12.)).border_l_1().border_color(palette::line_strong(cx)).truncate().text_size(px(14.)).text_color(faint).child(t)))
+            .child(div().ml_auto().child(self.header_trail(cx)));
         let forum_id = forum.id.clone();
         let new_post = ui::button("forum-new-post", ui::Tone::Primary, cx)
             .child(Icon::new(Glyph::Plus).size(px(16.)))

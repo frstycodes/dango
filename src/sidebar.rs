@@ -108,6 +108,8 @@ impl Rustcord {
             .gap(px(RAIL_GAP))
             .overflow_y_scroll()
             .text_size(px(14.))
+            // The rail's top is the window's title bar: macOS's traffic lights sit here, and it drags the window.
+            .child(div().flex_none().w_full().h(px(crate::layout::HEADER_HEIGHT - 12. - RAIL_GAP)).window_control_area(gpui_kit::WindowControlArea::Drag))
             .child(home)
             .children(items)
             .child(rail_action("rail-discover", Nav::Compass, "Discover servers", cx).on_click(|_, _, cx| cx.open_url("https://discord.com/servers")))
@@ -455,11 +457,12 @@ impl Rustcord {
             .child(self.resize_handle(Edge::Channels, cx))
             .child(
                 div()
-                    .h(px(48.))
+                    .h(px(crate::layout::HEADER_HEIGHT))
                     .flex_none()
                     .flex()
                     .items_center()
                     .map(|h| if self.guild_id.is_some() { h.p(px(6.)) } else { h.px_2() })
+                    .window_control_area(gpui_kit::WindowControlArea::Drag)
                     .child(header),
             )
             .child(div().id("channels").flex_1().min_h_0().overflow_y_scroll().p_2().flex().flex_col().gap(px(ROW_GAP)).children(rows))
@@ -472,6 +475,7 @@ impl Rustcord {
         let hover = palette::hover(cx);
         div()
             .id("server-header")
+            .occlude()
             .flex_1()
             .min_w_0()
             .h_full()
@@ -490,7 +494,7 @@ impl Rustcord {
             .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(|this, _: &gpui_kit::MouseDownEvent, _, cx| {
                 let Some(guild_id) = this.guild_id.clone() else { return };
                 // Drops from the header's bottom edge, inset by the header's padding.
-                let at = gpui_kit::point(px(RAIL_WIDTH + 6.), px(crate::layout::TITLE_HEIGHT + 48.));
+                let at = gpui_kit::point(px(RAIL_WIDTH + 6.), px(crate::layout::HEADER_HEIGHT));
                 this.open_server_menu(guild_id, at, true, cx);
             }))
     }
@@ -1102,6 +1106,7 @@ fn dm_find(cx: &App) -> Stateful<Div> {
     let strong = palette::strong(cx);
     div()
         .id("dm-find")
+        .occlude()
         .w_full()
         .h(px(32.))
         .px(px(10.))
