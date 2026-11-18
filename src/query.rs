@@ -34,7 +34,7 @@ impl<V: Clone + Serialize + DeserializeOwned + Send + 'static> Query<V> {
         Self::at(crate::data_dir().map(|d| d.join("cache").join(name)), fresh_for)
     }
 
-    fn at(dir: Option<PathBuf>, fresh_for: Duration) -> Self {
+    pub(crate) fn at(dir: Option<PathBuf>, fresh_for: Duration) -> Self {
         Self { dir, fresh_for, memory: HashMap::new(), changed: HashSet::new(), in_flight: HashSet::new() }
     }
 

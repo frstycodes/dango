@@ -20,6 +20,7 @@ mod drag;
 mod icons;
 mod images;
 mod layout;
+mod link_preview;
 mod login;
 mod mascot;
 mod material;
@@ -682,6 +683,8 @@ pub struct Rustcord {
     call_area: Rc<std::cell::Cell<(f32, f32)>>,
     // Profiles by user and server, shown at once from the last fetch while a fresh one loads.
     profiles: query::Query<discord::Profile>,
+    // Previews of Discord's own links (messages, invites), shared with the rows that draw them.
+    link_previews: link_preview::Previews,
     emoji_picker: Option<EmojiTarget>,
     emoji_search: Entity<SearchState>,
     switcher: Option<usize>,
@@ -896,6 +899,7 @@ impl Rustcord {
             call_focus: None,
             call_area: Rc::new(std::cell::Cell::new((0., 0.))),
             profiles: query::Query::new("profiles", Duration::from_secs(5 * 60)),
+            link_previews: link_preview::previews(),
             composer_height: Rc::new(std::cell::Cell::new(86.)),
             pip: Default::default(),
             emoji_picker: None,
