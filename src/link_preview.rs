@@ -293,7 +293,7 @@ fn message_card(id: String, guild: &str, channel: &str, message: &Message, ctx: 
         .hover(move |s| s.bg(hover))
         .child(text)
         .children(thumb.map(|url| img(url).size(px(THUMB)).flex_none().squircle(RADIUS_SM).object_fit(gpui_kit::ObjectFit::Cover)))
-        .on_click(move |_, window, cx| {
+        .on_click(move |_, window, cx| { cx.stop_propagation();
             let (guild, channel, target) = (guild.clone(), channel.clone(), target.clone());
             this.update(cx, |this, cx| this.open_linked_message(guild, channel, target, window, cx)).ok();
         })
@@ -319,12 +319,12 @@ fn invite_card(id: String, code: &str, invite: &Invite, ctx: &CardContext, cx: &
     };
     let (this, guild_id, url) = (ctx.this.clone(), invite.guild_id.clone(), format!("https://discord.gg/{code}"));
     let action = match joined {
-        true => ui::button(SharedString::from(format!("{id}-open")), Tone::Secondary, cx).child("Joined").on_click(move |_, window, cx| {
+        true => ui::button(SharedString::from(format!("{id}-open")), Tone::Secondary, cx).child("Joined").on_click(move |_, window, cx| { cx.stop_propagation();
             let guild_id = guild_id.clone();
             this.update(cx, |this, cx| this.open_guild(Some(guild_id), window, cx)).ok();
         }),
         // GAP: Dango has no join flow yet (Discord's needs a captcha step), so Join opens the invite.
-        false => ui::button(SharedString::from(format!("{id}-join")), Tone::Primary, cx).child("Join").on_click(move |_, _, cx| cx.open_url(&url)),
+        false => ui::button(SharedString::from(format!("{id}-join")), Tone::Primary, cx).child("Join").on_click(move |_, _, cx| { cx.stop_propagation(); cx.open_url(&url) }),
     };
     let name = div().min_w_0().truncate().text_size(px(16.)).font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(invite.name.clone());
     let row = div().child(icon).child(div().flex_1().min_w_0().flex().flex_col().gap(px(2.)).child(name).child(counts)).child(div().flex_none().child(action));

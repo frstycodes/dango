@@ -234,7 +234,7 @@ fn card(card: Card, cx: &App) -> Stateful<Div> {
                 .py(px(6.))
                 .children(expanded.map(|open| {
                     let url = file.url.clone();
-                    button("expand", if open { Glyph::ChevronUp } else { Glyph::ChevronDown }, if open { "Collapse" } else { "Expand" }).on_click(move |_, _, cx| {
+                    button("expand", if open { Glyph::ChevronUp } else { Glyph::ChevronDown }, if open { "Collapse" } else { "Expand" }).on_click(move |_, _, cx| { cx.stop_propagation();
                         expand_this
                             .update(cx, |this, cx| {
                                 let mut files = this.text_files.borrow_mut();
@@ -258,20 +258,20 @@ fn card(card: Card, cx: &App) -> Stateful<Div> {
                         .text_color(palette::strong(cx))
                         .hover(|s| s.underline())
                         .child(file.name.clone())
-                        .on_click(move |_, _, cx| cx.open_url(&open)),
+                        .on_click(move |_, _, cx| { cx.stop_propagation(); cx.open_url(&open) }),
                 )
                 .child(div().flex_1().min_w_0().truncate().text_size(px(12.)).text_color(palette::faint(cx)).child(size))
                 .when(text.is_some(), |d| {
                     d.child(
                         button("copy", if copied { Glyph::Checkmark } else { Glyph::Copy }, if copied { "Copied" } else { "Copy contents" })
                             .when(copied, |b| b.text_color(palette::positive_ink(cx)))
-                            .on_click(move |_, _, cx| {
+                            .on_click(move |_, _, cx| { cx.stop_propagation();
                                 copy_this.update(cx, |this, cx| this.copy_text_file(copy_url.clone(), cx)).ok();
                             }),
                     )
                 })
                 .when(!full && text.is_some(), |d| {
-                    d.child(button("open", Glyph::Fullscreen, "Open full size").on_click(move |_, _, cx| {
+                    d.child(button("open", Glyph::Fullscreen, "Open full size").on_click(move |_, _, cx| { cx.stop_propagation();
                         open_this
                             .update(cx, |this, cx| {
                                 this.text_files.borrow_mut().viewer = Some(viewer_file.clone());
@@ -280,9 +280,9 @@ fn card(card: Card, cx: &App) -> Stateful<Div> {
                             .ok();
                     }))
                 })
-                .child(button("download", Glyph::Download, "Download").on_click(move |_, _, cx| cx.open_url(&download)))
+                .child(button("download", Glyph::Download, "Download").on_click(move |_, _, cx| { cx.stop_propagation(); cx.open_url(&download) }))
                 .when(full, |d| {
-                    d.child(button("close", Glyph::X, "Close").on_click(move |_, _, cx| {
+                    d.child(button("close", Glyph::X, "Close").on_click(move |_, _, cx| { cx.stop_propagation();
                         close_this
                             .update(cx, |this, cx| {
                                 this.text_files.borrow_mut().viewer = None;

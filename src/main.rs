@@ -3,6 +3,7 @@
 
 mod accounts;
 mod app_keys;
+mod feed_keys;
 mod auth;
 mod cache;
 mod captcha;
@@ -680,6 +681,9 @@ pub struct Rustcord {
     hovered_row: Option<String>,
     // The message under the pointer, which shows its toolbar and, on a continuation, its time.
     hovered_message: Option<String>,
+    // The message with keyboard focus in the feed (feed_keys.rs); kept only while `feed_focus` holds focus.
+    focused_message: Option<String>,
+    feed_focus: FocusHandle,
     // The call card shown big (`call::tile_key`), or None for the even grid.
     call_focus: Option<String>,
     // The call stage's measured card area, which the grid is fitted to.
@@ -730,6 +734,11 @@ impl Rustcord {
         #[allow(unused_mut)]
         let mut chord = Self::build(window, splash, cx);
         chord.watch_for_updates(cx);
+        cx.on_focus_out(&chord.feed_focus, window, |this, _, _, cx| {
+            this.focused_message = None;
+            cx.notify();
+        })
+        .detach();
         #[cfg(debug_assertions)]
         if let Ok(scene) = std::env::var("CHORD_DEMO") {
             demo::load(&mut chord, &scene, window, cx);
@@ -763,6 +772,7 @@ impl Rustcord {
         // Typing filters the picker and switcher; the views read the inputs' text on render.
         let emoji_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Find the perfect emoji"));
         cx.subscribe_in(&emoji_search, window, Self::on_emoji_search).detach();
+        let feed_focus = cx.focus_handle();
         let switcher_input = cx.new(|cx| SearchState::new(window, cx).placeholder("Where would you like to go?"));
         let gif_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search Tenor"));
         cx.subscribe_in(&gif_search, window, Self::on_gif_search).detach();
@@ -903,6 +913,8 @@ impl Rustcord {
             update_ready: None,
             hovered_row: None,
             hovered_message: None,
+            focused_message: None,
+            feed_focus,
             call_focus: None,
             call_area: Rc::new(std::cell::Cell::new((0., 0.))),
             profiles: query::Query::new("profiles", Duration::from_secs(5 * 60)),

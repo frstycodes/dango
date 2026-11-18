@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | updating (the launch splash alone).
+// CHORD_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -132,6 +132,21 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             })
             .detach(),
         "hover" => chord.hovered_message = Some("105".into()),
+        // Keyboard focus on the code message; "-menu" also opens your own message's menu, with its key caps.
+        // "-delete": D on your own message, its confirm up with the D cap.
+        "message-focus" | "message-focus-menu" | "message-focus-delete" => {
+            chord.focus_message("105".into(), window, cx);
+            let mine = chord.feeds.get("general").and_then(|f| f.messages.iter().find(|m| m.id == "103").cloned());
+            if let Some(message) = mine.as_ref().filter(|_| scene == "message-focus-delete") {
+                chord.run_message_action(crate::message_menu::MessageAction::Delete, message, false, window, cx);
+            }
+            if scene == "message-focus-menu" {
+                chord.developer_mode = true;
+                if let Some(message) = mine {
+                    chord.open_message_menu(message, gpui_kit::point(gpui_kit::px(560.), gpui_kit::px(120.)), cx);
+                }
+            }
+        }
         "search" | "search-from" | "search-date" => demo_search(chord, scene, window, cx),
         "search-results" | "search-filters" => demo_search_results(chord, scene == "search-filters", window, cx),
         "search-dm" | "search-dm-results" => demo_search_dm(chord, scene == "search-dm-results", window, cx),

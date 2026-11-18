@@ -237,15 +237,22 @@ pub fn role_chip(name: impl Into<SharedString>, color: Hsla, cx: &App) -> Div {
 // A keycap: the raised fill, a hairline ring and a deeper bottom edge, so it reads as a key you could press.
 pub fn kbd(key: impl Into<SharedString>, cx: &App) -> Div {
     let line = palette::line_strong(cx);
+    key_cap(key).bg(palette::surface(palette::Level::Raised, cx)).shadow(vec![shadow(line, 0., -1., 0., 0., true), shadow(line, 0., 0., 0., 1., false)]).text_color(palette::strong(cx))
+}
+
+// A key cap on a coloured fill (a danger button): a wash of `ink` with an inset edge, lettered in `ink`,
+// so it takes the fill's colour instead of sitting on it as a raised cap.
+pub fn kbd_translucent(key: impl Into<SharedString>, ink: Hsla) -> Div {
+    key_cap(key).bg(ink.opacity(0.16)).shadow(vec![shadow(ink.opacity(0.24), 0., 0., 0., 1., true)]).text_color(ink)
+}
+
+fn key_cap(key: impl Into<SharedString>) -> Div {
     div()
         .min_w(px(22.))
         .h(px(22.))
         .px(px(6.))
         .flex_none()
         .squircle(RADIUS_XS)
-        .bg(palette::surface(palette::Level::Raised, cx))
-        .shadow(vec![shadow(line, 0., -1., 0., 0., true), shadow(line, 0., 0., 0., 1., false)])
-        .text_color(palette::strong(cx))
         .text_size(px(12.))
         .font_weight(FontWeight::MEDIUM)
         .whitespace_nowrap()
