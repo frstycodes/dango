@@ -627,7 +627,7 @@ impl Rustcord {
         let in_call = self.call.as_ref().is_some_and(|c| c.channel.id == channel.id);
         let state = RowState { selected, unread, muted, strong: in_call };
         let elapsed = self.call.as_ref().filter(|c| c.channel.id == channel.id && c.connected).and_then(|_| self.voice_elapsed(&channel.id)).map(|secs| {
-            div().flex_none().text_size(px(12.)).font_weight(FontWeight::NORMAL).text_color(palette::positive_ink(cx)).child(format!("{}:{:02}", secs / 60, secs % 60))
+            div().flex_none().text_size(px(12.)).font_weight(FontWeight::NORMAL).text_color(palette::positive_ink(cx)).child(crate::call::clock(secs))
         });
         let group: SharedString = format!("ch-{}", channel.id).into();
         let hovered = self.hovered_row.as_deref() == Some(channel.id.as_str());
