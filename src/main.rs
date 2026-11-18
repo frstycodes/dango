@@ -324,6 +324,8 @@ struct Feed {
 
 enum RightPanel {
     Members,
+    // Every Activity card, from the section's chevron.
+    Activity,
     Search { query: SharedString, results: Option<Result<Vec<Message>, SharedString>> },
     Hidden,
 }
@@ -566,6 +568,7 @@ pub struct Rustcord {
     stream_card_bounds: Rc<std::cell::Cell<gpui_kit::Bounds<gpui_kit::Pixels>>>,
     stream_tunnel: ui::Tunnel,
     stream_hold: Option<String>,
+    activity_feed: Vec<discord::FeedEntry>,
     // A stream to start watching as soon as the call we're joining connects.
     watch_on_connect: Option<String>,
     // The window is in front; notifications for the open channel are skipped then.
@@ -783,6 +786,7 @@ impl Rustcord {
             stream_card_bounds: Rc::default(),
             stream_tunnel: ui::Tunnel::default(),
             stream_hold: None,
+            activity_feed: Vec::new(),
             watch_on_connect: None,
             window_active: true,
             dialog: None,
@@ -994,6 +998,7 @@ impl Rustcord {
                 self.ignored = ready.ignored.into_iter().collect();
                 self.presences = ready.presences.into_iter().collect();
                 self.status = Status::Online;
+                self.load_activity_feed(cx);
                 self.splash_ready(cx);
             }
             Event::Batch(events) => {
