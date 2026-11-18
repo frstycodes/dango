@@ -6,7 +6,21 @@ fn main() {
         // The exe's icon: Explorer shows it, and gpui loads it for the window and taskbar.
         Ok("windows") => {
             println!("cargo:rerun-if-changed=assets/windows/app.ico");
-            embed_resource::compile("assets/windows/app.rc", embed_resource::NONE).manifest_optional().expect("embed the app icon");
+            println!("cargo:rerun-if-changed=assets/windows/app.rc");
+            // rc.exe can't take quoted strings as /D macros reliably, so the version is written into a copy.
+            let version = std::env::var("CARGO_PKG_VERSION").expect("cargo sets the version");
+            let mut parts = version.split(['.', '-']).map(|p| p.parse::<u16>().unwrap_or(0));
+            let tuple = format!("{},{},{},0", parts.next().unwrap_or(0), parts.next().unwrap_or(0), parts.next().unwrap_or(0));
+            let manifest = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets the manifest dir"));
+            let icon = manifest.join("assets/windows/app.ico").display().to_string().replace('\\', "\\\\");
+            let rc = std::fs::read_to_string(manifest.join("assets/windows/app.rc"))
+                .expect("read app.rc")
+                .replace("ICON_PATH", &icon)
+                .replace("VERSION_TUPLE", &tuple)
+                .replace("VERSION_STRING", &format!("\"{version}\""));
+            let out = std::path::PathBuf::from(std::env::var("OUT_DIR").expect("cargo sets OUT_DIR")).join("app.rc");
+            std::fs::write(&out, rc).expect("write app.rc");
+            embed_resource::compile(&out, embed_resource::NONE).manifest_optional().expect("embed the app icon and version info");
         }
         _ => {}
     }
