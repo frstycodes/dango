@@ -4,10 +4,14 @@ use std::{collections::HashMap, time::Duration};
 
 use gpui_kit::{
     Animation, AnimationExt, AnyElement, App, BoxShadow, Context, Div, ElementId, FontWeight, Hsla, MouseButton, Pixels, Radians, ScrollHandle, SharedString, Stateful, Task, Window, canvas,
-    component::{Icon, input::Input},
+    component::Icon,
     div, img, point, prelude::*, px, relative, rgb,
 };
 use serde::{Deserialize, Serialize};
+
+mod profile;
+pub(crate) mod registry;
+mod view;
 
 use crate::{
     Rustcord,
@@ -23,30 +27,42 @@ use crate::{
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Page {
     Account,
-    Notifications,
-    VoiceVideo,
-    Keybinds,
+    ContentSocial,
     Appearance,
+    VoiceVideo,
+    Chat,
+    Notifications,
+    Keybinds,
+    Advanced,
+    ActivityPrivacy,
 }
 
 impl Page {
-    fn label(self) -> &'static str {
+    pub(crate) fn label(self) -> &'static str {
         match self {
-            Page::Account => "Account",
-            Page::Notifications => "Notifications",
-            Page::VoiceVideo => "Voice and video",
-            Page::Keybinds => "Keybinds",
+            Page::Account => "My account",
+            Page::ContentSocial => "Content and social",
             Page::Appearance => "Appearance",
+            Page::VoiceVideo => "Voice and video",
+            Page::Chat => "Chat",
+            Page::Notifications => "Notifications",
+            Page::Keybinds => "Keybinds",
+            Page::Advanced => "Advanced",
+            Page::ActivityPrivacy => "Activity privacy",
         }
     }
 
     fn glyph(self) -> Glyph {
         match self {
             Page::Account => Glyph::UserCircle,
-            Page::Notifications => Glyph::Bell,
-            Page::VoiceVideo => Glyph::Mic,
-            Page::Keybinds => Glyph::Keyboard,
+            Page::ContentSocial => Glyph::Shield,
             Page::Appearance => Glyph::Palette,
+            Page::VoiceVideo => Glyph::Mic,
+            Page::Chat => Glyph::ChatRound,
+            Page::Notifications => Glyph::Bell,
+            Page::Keybinds => Glyph::Keyboard,
+            Page::Advanced => Glyph::Settings,
+            Page::ActivityPrivacy => Glyph::Game,
         }
     }
 
@@ -59,8 +75,12 @@ impl Page {
     }
 }
 
-const NAV: [(Option<&str>, &[Page]); 2] =
-    [(None, &[Page::Account, Page::Notifications]), (Some("Experience"), &[Page::VoiceVideo, Page::Keybinds, Page::Appearance])];
+// Discord's three headings. My account sits on its own as the identity row at the top of the nav.
+const NAV: [(&str, &[Page]); 3] = [
+    ("User settings", &[Page::ContentSocial]),
+    ("App settings", &[Page::Appearance, Page::VoiceVideo, Page::Chat, Page::Notifications, Page::Keybinds, Page::Advanced]),
+    ("Activity settings", &[Page::ActivityPrivacy]),
+];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
 pub enum ThemePref {
@@ -145,6 +165,9 @@ pub struct Prefs {
     // Signed-in accounts (no tokens: those live in the keyring) and the one to start with.
     pub accounts: Vec<crate::accounts::Account>,
     pub account: Option<String>,
+    pub desktop_notifications: bool,
+    pub dock_badge: bool,
+    pub clock_24h: bool,
 }
 
 const KEYBINDS_VERSION: u32 = 1;
@@ -190,6 +213,9 @@ impl Default for Prefs {
             keybinds_version: KEYBINDS_VERSION,
             accounts: Vec::new(),
             account: None,
+            desktop_notifications: true,
+            dock_badge: true,
+            clock_24h: false,
         }
     }
 }
@@ -435,6 +461,10 @@ pub struct SettingsView {
     // "isn't detecting any input" state.
     mic_speaking: bool,
     mic_input: Option<bool>,
+    // The highlighted search result, and the group a jump still has to scroll to once its page is drawn.
+    result: usize,
+    pending_jump: Option<&'static str>,
+    editing: Option<profile::ProfileEdit>,
 }
 
 #[derive(Default)]
@@ -452,6 +482,10 @@ impl Devices {
 }
 
 impl SettingsView {
+    pub(crate) fn reset_result(&mut self) {
+        self.result = 0;
+    }
+
     // Demo scenes open the first keybind's action list.
     #[cfg(debug_assertions)]
     pub fn open_first_select(&mut self) {
@@ -473,6 +507,9 @@ impl SettingsView {
             devices: Devices::list(),
             mic_speaking: false,
             mic_input: None,
+            result: 0,
+            pending_jump: None,
+            editing: None,
         }
     }
 }
@@ -480,6 +517,15 @@ impl SettingsView {
 impl Rustcord {
     pub(crate) fn open_settings(&mut self, page: Page, window: &mut Window, cx: &mut Context<Self>) {
         self.settings = Some(SettingsView::new(page));
+        self.settings_search.update(cx, |state, cx| state.set_value("", window, cx));
+        cx.notify();
+    }
+
+    fn open_page(&mut self, page: Page, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(s) = &mut self.settings {
+            (s.page, s.section, s.select, s.recording, s.asking) = (page, 0, None, None, None);
+            s.scroll.set_offset(gpui_kit::point(px(0.), px(0.)));
+        }
         self.settings_search.update(cx, |state, cx| state.set_value("", window, cx));
         cx.notify();
     }
@@ -502,6 +548,7 @@ impl Rustcord {
 
     pub(crate) fn apply_prefs(&mut self) {
         sounds::silence(&self.prefs.silenced_cues);
+        crate::chat::set_clock_24(self.prefs.clock_24h);
         if let Some(hotkeys) = &mut self.hotkeys {
             let active: Vec<Keybind> = self.prefs.keybinds.iter().filter(|k| self.prefs.push_to_talk || k.action != Action::PushToTalk).cloned().collect();
             self.keybind_errors = hotkeys.bind(&active);
@@ -676,13 +723,33 @@ impl Rustcord {
     pub(crate) fn render_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let view = self.settings.as_ref()?;
         let (page, scroll) = (view.page, view.scroll.clone());
-        let sections = match page {
+        let mut sections: Vec<Section> = match page {
             Page::Account => self.account_page(cx),
             Page::Notifications => self.notifications_page(window, cx),
             Page::VoiceVideo => self.voice_page(window, cx),
             Page::Keybinds => self.keybinds_page(cx),
             Page::Appearance => self.appearance_page(window, cx),
+            Page::ContentSocial | Page::Chat | Page::Advanced | Page::ActivityPrivacy => Vec::new(),
         };
+        sections.extend(self.registry_sections(page, window, cx));
+        // Groups follow the registry's order; an unkeyed section stays with the one before it.
+        let order = registry::groups(registry::SETTINGS, page);
+        let mut rank = 0;
+        let mut ranked: Vec<(usize, Section)> = sections
+            .into_iter()
+            .map(|section| {
+                rank = section.key.and_then(|k| order.iter().position(|g| *g == k)).unwrap_or(rank);
+                (rank, section)
+            })
+            .collect();
+        ranked.sort_by_key(|(rank, _)| *rank);
+        let sections: Vec<Section> = ranked.into_iter().map(|(_, s)| s).collect();
+        // A search jump scrolls once its page is laid out: the title is the list's first item.
+        if let Some(group) = self.settings.as_mut().and_then(|v| v.pending_jump.take())
+            && let Some(i) = sections.iter().position(|s| s.key == Some(group))
+        {
+            scroll.scroll_to_top_of_item(i + 1);
+        }
         // The scroll list's first item is the page title, so a section's item index is one past its own.
         let anchors: Vec<usize> = page.sections().iter().map(|name| sections.iter().position(|s| s.anchor == Some(*name)).map_or(0, |i| i + 1)).collect();
         let title = (page != Page::Keybinds).then(|| ui::settings_title(page.label(), cx).flex_none());
@@ -697,80 +764,49 @@ impl Rustcord {
             .bg(palette::surface(Level::Page, cx))
             .child(div().size_full().relative().child(body).with_animation(SharedString::from(format!("set-page-{page:?}")), Animation::new(ui::DUR_POP).with_easing(|t| motion::ease_out().sample(t)), |el, t| el.top(px(-4. * (1. - t))).opacity(t)))
             .child(ui::settings_close("settings-close", cx.listener(|this, _, _, cx| this.close_settings(cx)), cx));
-        let nav = self.settings_nav(&anchors, window, cx).into_any_element();
-        Some(ui::settings_window("settings", nav, main, cx).into_any_element())
+        let nav = self.settings_nav(&anchors, cx).into_any_element();
+        Some(ui::settings_window("settings", nav, main, cx).capture_key_down(cx.listener(Self::settings_search_key)).into_any_element())
     }
 
-    fn settings_nav(&self, anchors: &[usize], window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn settings_nav(&self, anchors: &[usize], cx: &mut Context<Self>) -> impl IntoElement {
         let view = self.settings.as_ref().expect("settings are open");
         let query = self.settings_search.read(cx).value().to_lowercase();
         let searching = !query.is_empty();
-        let sidebar = palette::surface(Level::Sidebar, cx);
-        let me = self.me.clone().map(|me| {
-            div()
-                .flex()
-                .items_center()
-                .gap(px(10.))
-                .px(px(6.))
-                .pb(px(12.))
+        // Search first, then you as the My account row, as macOS System Settings does: one compact row
+        // instead of an identity block stacked over the field.
+        let search = div().flex_none().pb(px(12.)).child(ui::search_field("settings-search", &self.settings_search, cx));
+        let me = (!searching).then(|| self.me.clone()).flatten().map(|me| {
+            let sidebar = palette::surface(Level::Sidebar, cx);
+            let avatar = div().relative().flex_none().child(ui::avatar(me.avatar.clone(), 32.)).child(div().absolute().right(px(-2.)).bottom(px(-2.)).child(ui::status_mark(self.my_status, 12., sidebar, cx)));
+            let text = div()
+                .flex_1()
                 .min_w_0()
-                .child(
-                    div()
-                        .relative()
-                        .flex_none()
-                        .child(ui::avatar(me.avatar.clone(), 40.))
-                        .child(div().absolute().right(px(-2.)).bottom(px(-2.)).child(ui::status_mark(self.my_status, 16., sidebar, cx))),
-                )
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .flex()
-                        .flex_col()
-                        .line_height(px(18.))
-                        .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(me.name.clone()))
-                        .child(div().text_size(px(12.)).text_color(palette::muted(cx)).child(self.my_status.label())),
-                )
+                .flex()
+                .flex_col()
+                .line_height(px(18.))
+                .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(me.name.clone()))
+                .child(div().text_size(px(12.)).text_color(palette::muted(cx)).child(Page::Account.label()));
+            ui::menu_row("nav-Account", cx).toggled(view.page == Page::Account, cx).h_auto().py(px(6.)).child(avatar).child(text).on_click(cx.listener(|this, _, window, cx| this.open_page(Page::Account, window, cx)))
         });
-        let focused = gpui_kit::Focusable::focus_handle(self.settings_search.read(cx), cx).is_focused(window);
-        let search = div()
-            .h(px(34.))
-            .mb(px(8.))
-            .pl(px(10.))
-            .pr(px(4.))
-            .flex_none()
-            .squircle(ui::RADIUS_MD)
-            .bg(palette::surface(Level::Page, cx))
-            .border_1()
-            .border_color(if focused { palette::accent() } else { palette::line_strong(cx) })
-            .when(focused, |d| d.shadow(vec![ring(palette::accent_soft(cx), 3.)]))
-            .flex()
-            .items_center()
-            .gap(px(8.))
-            .text_color(palette::faint(cx))
-            .child(Icon::new(Glyph::Search).size(px(16.)))
-            .child(div().flex_1().min_w_0().text_size(px(14.)).child(Input::new(&self.settings_search).appearance(false)));
         let mut list: Vec<AnyElement> = Vec::new();
-        for (heading, pages) in NAV {
-            let pages: Vec<Page> = pages.iter().copied().filter(|p| !searching || p.label().to_lowercase().contains(&query)).collect();
-            if pages.is_empty() {
-                continue;
-            }
-            if let Some(heading) = heading {
-                list.push(div().pt(px(14.)).px(px(10.)).pb(px(4.)).text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(heading).into_any_element());
-            }
-            for page in pages {
+        if searching {
+            list.push(div().px(px(10.)).pb(px(4.)).text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child("Results").into_any_element());
+            list.extend(self.setting_results(&query, cx));
+        }
+        for (heading, pages) in NAV.iter().filter(|_| !searching) {
+            list.push(div().pt(px(16.)).px(px(10.)).pb(px(4.)).text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(*heading).into_any_element());
+            for &page in *pages {
                 let current = view.page == page;
-                list.push(nav_item(page, current && !searching, cx).into_any_element());
-                if current && !searching && !page.sections().is_empty() {
+                list.push(nav_item(page, current, cx).into_any_element());
+                if current && !page.sections().is_empty() {
                     list.push(sub_items(page, view.section, anchors, cx).into_any_element());
                 }
             }
         }
         let asking = view.asking == Some(Ask::LogOut);
         ui::settings_sidebar("settings-nav", cx)
-            .children(me)
             .child(search)
+            .children(me)
             .children(list)
             .child(div().h(px(1.)).mx(px(10.)).my(px(8.)).flex_none().bg(palette::line(cx)))
             .child(self.log_out_item(cx))
@@ -835,7 +871,14 @@ impl Rustcord {
     fn account_page(&self, cx: &mut Context<Self>) -> Vec<Section> {
         let Some(me) = self.me.clone() else { return Vec::new() };
         let fill = palette::surface(Level::Group, cx);
-        let banner = ui::edge(div().h(px(96.)).bg(gpui_kit::linear_gradient(135., gpui_kit::linear_color_stop(rgb(BANNER.0), 0.), gpui_kit::linear_color_stop(rgb(BANNER.1), 1.))), ui::top(ui::RADIUS_XL)).corner_shape(ui::SQUIRCLE);
+        let banner_fill = div().size_full().bg(gpui_kit::linear_gradient(135., gpui_kit::linear_color_stop(rgb(BANNER.0), 0.), gpui_kit::linear_color_stop(rgb(BANNER.1), 1.)));
+        let banner_art = match &self.my_account.banner {
+            Some(url) => ui::edge(crate::chat::animated_image(url.clone()).size_full().object_fit(gpui_kit::ObjectFit::Cover), ui::top(ui::RADIUS_XL)).into_any_element(),
+            None => ui::edge(banner_fill, ui::top(ui::RADIUS_XL)).into_any_element(),
+        };
+        // Over a banner Dango doesn't choose, so its own scrim, not a theme fill.
+        let banner_button = ui::button("change-banner", Tone::OnMedia, cx).small().child("Change banner").on_click(cx.listener(|this, _, _, cx| this.pick_profile_image(profile::ProfileImage::Banner, cx)));
+        let banner = div().relative().h(px(120.)).child(banner_art).child(div().absolute().top(px(12.)).right(px(12.)).child(banner_button));
         let avatar = div()
             .relative()
             .flex_none()
@@ -848,7 +891,8 @@ impl Rustcord {
             .items_end()
             .gap(px(16.))
             .child(avatar)
-            .child(div().flex_1().min_w_0().pb(px(12.)).truncate().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(me.name.clone()));
+            .child(div().flex_1().min_w_0().pb(px(12.)).truncate().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(me.name.clone()))
+            .child(div().flex_none().pb(px(10.)).child(ui::button("change-avatar", Tone::Secondary, cx).small().child("Change avatar").on_click(cx.listener(|this, _, _, cx| this.pick_profile_image(profile::ProfileImage::Avatar, cx)))));
         let copied = self.settings.as_ref().is_some_and(|s| s.copied);
         let id = me.id.clone();
         let copy = ui::button("copy-user-id", Tone::Secondary, cx).small()
@@ -864,10 +908,19 @@ impl Rustcord {
             .pb(px(4.))
             .flex()
             .flex_col()
-            .child(ui::settings_row("acct-name", lines.next(), cx).child(field_text("Display name", me.name.clone(), cx)))
+            .child(self.profile_row("acct-name", profile::ProfileField::DisplayName, "Display name", me.name.clone().into(), lines.next(), cx))
+            .child(self.profile_row("acct-username", profile::ProfileField::Username, "Username", self.my_account.username.clone().into(), lines.next(), cx))
             .child(ui::settings_row("acct-id", lines.next(), cx).child(field_text("User ID", me.id.clone(), cx)).child(copy));
         let card = div().squircle(ui::RADIUS_XL).bg(fill).flex().flex_col().child(banner).child(identity).child(fields);
-        vec![Section::new(ui::settings_group("Account info", cx).child(card))]
+        vec![Section::keyed("Account info", ui::settings_group("Account info", cx).child(card))]
+    }
+
+    // A field with Edit at the end, which turns the value into its input in place.
+    fn profile_row(&self, id: &'static str, field: profile::ProfileField, label: &'static str, value: SharedString, line: bool, cx: &mut Context<Self>) -> impl IntoElement {
+        let editing = self.settings.as_ref().and_then(|v| v.editing.as_ref()).is_some_and(|e| e.field == field);
+        ui::settings_row(id, line, cx).child(self.profile_value(field, label, value, cx)).when(!editing, |row| {
+            row.child(ui::button(SharedString::from(format!("{id}-edit")), Tone::Secondary, cx).small().child("Edit").on_click(cx.listener(move |this, _, window, cx| this.start_profile_edit(field, window, cx))))
+        })
     }
 
     fn copy_user_id(&mut self, id: &str, cx: &mut Context<Self>) {
@@ -892,7 +945,8 @@ impl Rustcord {
     fn notifications_page(&self, window: &mut Window, cx: &mut Context<Self>) -> Vec<Section> {
         let mut lines = Hairlines::default();
         let rows: Vec<AnyElement> = NOTIFY_CUES.iter().map(|&(id, label, cue)| self.cue_row(id, label, cue, lines.next(), window, cx)).collect();
-        vec![Section::new(
+        vec![Section::keyed(
+            "Sounds",
             ui::settings_group("Sounds", cx)
                 .child(ui::settings_card(cx).children(rows))
                 .child(ui::settings_caption("Sounds Dango plays for new direct messages and for mentions. Voice sounds are under Voice and video.", cx)),
@@ -977,9 +1031,9 @@ impl Rustcord {
         // GAP: the design's Message density and Chat font size groups have no setting in the
         // app yet; they appear here once Prefs carries them.
         vec![
-            Section::new(ui::settings_group("Theme", cx).child(picks).child(ui::settings_caption("Midnight is the darkest theme, the one Dango is built on.", cx))),
-            Section::new(ui::settings_group("Font", cx).child(fonts).child(ui::settings_caption("The interface's typeface. Compare System with other Mac apps: if it looks heavier here, the rendering is the cause; if only Gabarito does, the font is.", cx))),
-            Section::new(ui::settings_group("App icon", cx).child(self.app_icon_grid(cx)).child(ui::settings_caption("How Dango looks in your Dock: the same dango in different media. Changes right away; no restart.", cx))),
+            Section::keyed("Theme", ui::settings_group("Theme", cx).child(picks).child(ui::settings_caption("Midnight is the darkest theme, the one Dango is built on.", cx))),
+            Section::keyed("Font", ui::settings_group("Font", cx).child(fonts).child(ui::settings_caption("The interface's typeface. Compare System with other Mac apps: if it looks heavier here, the rendering is the cause; if only Gabarito does, the font is.", cx))),
+            Section::keyed("App icon", ui::settings_group("App icon", cx).child(self.app_icon_grid(cx)).child(ui::settings_caption("How Dango looks in your Dock: the same dango in different media. Changes right away; no restart.", cx))),
         ]
     }
 
@@ -1035,19 +1089,20 @@ impl Rustcord {
                 radio_row(id, lines.next(), title, detail, prefs.input_profile == value, cx).on_click(cx.listener(move |this, _, _, cx| this.update_prefs(cx, |p| p.set_profile(value))))
             })
             .collect();
-        out.push(Section::new(
+        out.push(Section::keyed(
+            "Input profile",
             ui::settings_group("Input profile", cx)
                 .child(ui::settings_card(cx).children(profile_rows))
                 .when(!custom, |g| g.child(ui::settings_caption("This profile sets noise suppression, echo cancellation and sensitivity for you. Pick Custom to change them.", cx))),
         ));
         if !studio {
-            out.push(Section::new(ui::settings_group("Input mode", cx).child(self.input_mode_card(custom, window, cx))));
+            out.push(Section::keyed("Input mode", ui::settings_group("Input mode", cx).child(self.input_mode_card(custom, window, cx))));
         }
         if custom {
             let mut lines = Hairlines::default();
             let noise = self.noise_row(lines.next(), window, cx);
             let echo = self.switch_row(SwitchRow { id: "set-echo", title: "Echo cancellation", detail: Some("Stops others hearing themselves through your speakers"), on: prefs.echo_cancellation, enabled: true, field: |p| &mut p.echo_cancellation }, lines.next(), window, cx);
-            out.push(Section::new(ui::settings_group("Voice processing", cx).child(ui::settings_card(cx).child(noise).child(echo))));
+            out.push(Section::keyed("Voice processing", ui::settings_group("Voice processing", cx).child(ui::settings_card(cx).child(noise).child(echo))));
         }
         let expander = expander_row("voice-advanced", false, if advanced { "Hide advanced voice settings" } else { "Show advanced voice settings" }, &advanced_summary(custom), advanced, window, cx).on_click(cx.listener(|this, _, _, cx| {
             if let Some(s) = &mut this.settings {
@@ -1322,8 +1377,8 @@ impl Rustcord {
         let platform = if cfg!(target_os = "macos") { "Built in and always on." } else { "Built in and always on. Ctrl reads \u{2318} on a Mac." };
         vec![
             Section::new(header),
-            Section::new(yours),
-            Section::new(ui::settings_group("Default keybinds", cx).child(ui::settings_card(cx).children(defaults)).child(ui::settings_caption(platform, cx))),
+            Section::keyed("Your keybinds", yours),
+            Section::keyed("Default keybinds", ui::settings_group("Default keybinds", cx).child(ui::settings_card(cx).children(defaults)).child(ui::settings_caption(platform, cx))),
         ]
     }
 
@@ -1729,16 +1784,22 @@ enum Ask {
 // A group on a settings page, with the nav anchor (Voice, Camera, …) that scrolls to it.
 struct Section {
     anchor: Option<&'static str>,
+    // The registry group it holds, for a search jump to scroll to.
+    key: Option<&'static str>,
     body: AnyElement,
 }
 
 impl Section {
     fn new(body: impl IntoElement) -> Self {
-        Self { anchor: None, body: body.into_any_element() }
+        Self { anchor: None, key: None, body: body.into_any_element() }
+    }
+
+    fn keyed(key: &'static str, body: impl IntoElement) -> Self {
+        Self { anchor: None, key: Some(key), body: body.into_any_element() }
     }
 
     fn anchored(anchor: &'static str, body: impl IntoElement) -> Self {
-        Self { anchor: Some(anchor), body: body.into_any_element() }
+        Self { anchor: Some(anchor), key: Some(anchor), body: body.into_any_element() }
     }
 }
 
@@ -1806,14 +1867,7 @@ fn os_name() -> &'static str {
 }
 
 fn nav_item(page: Page, selected: bool, cx: &mut Context<Rustcord>) -> impl IntoElement {
-    ui::settings_nav_item(SharedString::from(format!("nav-{page:?}")), page.glyph(), page.label(), selected, cx).on_click(cx.listener(move |this, _, window, cx| {
-        if let Some(s) = &mut this.settings {
-            (s.page, s.section, s.select, s.recording, s.asking) = (page, 0, None, None, None);
-            s.scroll.set_offset(gpui_kit::point(px(0.), px(0.)));
-        }
-        this.settings_search.update(cx, |state, cx| state.set_value("", window, cx));
-        cx.notify();
-    }))
+    ui::settings_nav_item(SharedString::from(format!("nav-{page:?}")), page.glyph(), page.label(), selected, cx).on_click(cx.listener(move |this, _, window, cx| this.open_page(page, window, cx)))
 }
 
 // The open page's sections, listed under it in the nav.
@@ -1855,7 +1909,7 @@ fn stack_row(id: &'static str, line: bool, cx: &App) -> Stateful<Div> {
 }
 
 // A label over its value, as Account info lists them.
-fn field_text(label: &'static str, value: impl Into<SharedString>, cx: &App) -> Div {
+pub(super) fn field_text(label: &'static str, value: impl Into<SharedString>, cx: &App) -> Div {
     div()
         .flex_1()
         .min_w_0()
@@ -1866,7 +1920,7 @@ fn field_text(label: &'static str, value: impl Into<SharedString>, cx: &App) -> 
         .child(div().font_weight(FontWeight::NORMAL).text_color(palette::strong(cx)).child(value.into()))
 }
 
-fn field_label(text: &'static str, cx: &App) -> Div {
+pub(super) fn field_label(text: &'static str, cx: &App) -> Div {
     div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(text)
 }
 

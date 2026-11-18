@@ -58,6 +58,9 @@ impl Rustcord {
     }
 
     pub(crate) fn notify(&self, message: &Message) {
+        if !self.prefs.desktop_notifications {
+            return;
+        }
         let place = match &message.guild_id {
             None => message.author.name.clone(),
             Some(guild_id) => {
@@ -76,7 +79,7 @@ impl Rustcord {
 
     // Discord's Dock badge: the number of unread mentions and DMs, or nothing.
     pub(crate) fn update_badge(&self) {
-        let total: u32 = self.read_states.values().map(|r| r.mentions).sum();
+        let total: u32 = if self.prefs.dock_badge { self.read_states.values().map(|r| r.mentions).sum() } else { 0 };
         set_badge(if total == 0 { None } else { Some(total) });
     }
 }

@@ -566,6 +566,8 @@ pub struct Rustcord {
     // Forum channels' archived posts and post previews, by forum id.
     forums: HashMap<String, forum::ForumState>,
     developer_mode: bool,
+    account_settings: crate::discord::AccountSettings,
+    my_account: crate::discord::MyAccount,
     // Notification settings per server, "@me" for DMs.
     guild_settings: HashMap<String, discord::GuildSettings>,
     ignored: HashSet<String>,
@@ -760,7 +762,14 @@ impl Rustcord {
         cx.subscribe_in(&switcher_input, window, Self::on_switcher_input).detach();
         let settings_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search settings"));
         let dialog_input = cx.new(|cx| SearchState::new(window, cx));
-        cx.subscribe(&settings_search, |_, _, _: &InputEvent, cx| cx.notify()).detach();
+        cx.subscribe(&settings_search, |this: &mut Self, _, _: &InputEvent, cx| {
+            // A new query starts at its best result.
+            if let Some(view) = this.settings.as_mut() {
+                view.reset_result();
+            }
+            cx.notify();
+        })
+        .detach();
         let mut chord = Self {
             status: Status::Connecting,
             client: None,
@@ -816,6 +825,8 @@ impl Rustcord {
             stream_previews: HashMap::new(),
             forums: HashMap::new(),
             developer_mode: false,
+            account_settings: Default::default(),
+            my_account: Default::default(),
             guild_settings: HashMap::new(),
             ignored: HashSet::new(),
             ring_on_connect: None,
@@ -1008,6 +1019,11 @@ impl Rustcord {
 
     pub fn on_event(&mut self, event: Event, cx: &mut Context<Self>) {
         match event {
+            Event::UserSettings(changed) => {
+                self.account_settings.apply(&changed);
+                self.developer_mode = self.account_settings.developer_mode;
+                cx.notify();
+            }
             Event::Ready(ready) => {
                 let ready = *ready;
                 self.channel_info_requested.clear();
@@ -1047,6 +1063,8 @@ impl Rustcord {
                 self.read_states = ready.read_states.into_iter().collect();
                 self.relationships = ready.relationships;
                 self.developer_mode = ready.developer_mode;
+                self.account_settings = ready.account_settings;
+                self.my_account = ready.my_account;
                 self.guild_settings = ready.guild_settings.into_iter().collect();
                 self.ignored = ready.ignored.into_iter().collect();
                 self.presences = ready.presences.into_iter().collect();

@@ -275,6 +275,8 @@ impl Rustcord {
         let messages = feed.messages.clone();
         let ctx = Rc::new(RowContext {
             me: self.me.clone(),
+            embeds: self.account_settings.render_embeds,
+            reactions: self.account_settings.render_reactions,
             // Later entries win: the server's member cache last, so nicknames beat the account names
             // that history loaded over REST carries (it has no member objects).
             names: messages
@@ -701,6 +703,9 @@ impl RowContext {
 
 struct RowContext {
     me: Option<User>,
+    // Settings › Chat: Discord's render_embeds and render_reactions.
+    embeds: bool,
+    reactions: bool,
     names: HashMap<String, String>,
     colors: HashMap<String, Hsla>,
     mentions_me: std::collections::HashSet<String>,
@@ -766,10 +771,10 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .text_color(ink)
         .children(content(message, ctx, cx))
         .children(media.map(|m| div().when(pending, |d| d.opacity(0.6)).child(m)))
-        .children(message.embeds.iter().enumerate().map(|(i, e)| embed_card(e, format!("embed-{}-{i}", message.id), ctx, cx)))
+        .children(message.embeds.iter().filter(|_| ctx.embeds).enumerate().map(|(i, e)| embed_card(e, format!("embed-{}-{i}", message.id), ctx, cx)))
         .children(message.thread.as_ref().map(|t| thread_card(t, ctx, cx)))
         .children(files(message, ctx, cx))
-        .children(reactions(message, ctx, cx))
+        .children(reactions(message, ctx, cx).filter(|_| ctx.reactions))
         .when(message.state == SendState::Failed, |b| b.child(send_failure(message, ctx, cx)));
     let row = div()
         .id(group.clone())
@@ -1983,25 +1988,42 @@ fn day(timestamp: &str) -> Option<NaiveDate> {
     Some(local(timestamp)?.date_naive())
 }
 
-// "Today at 9:41 PM", "Yesterday at 11:58 PM", the weekday within the week, then the date.
-fn format_stamp(timestamp: &str) -> String {
-    let Some(time) = local(timestamp) else { return String::new() };
-    match (Local::now().date_naive() - time.date_naive()).num_days() {
-        0 => time.format("Today at %-I:%M %p").to_string(),
-        1 => time.format("Yesterday at %-I:%M %p").to_string(),
-        2..=6 => time.format("%A at %-I:%M %p").to_string(),
-        _ => time.format("%B %-d, %Y at %-I:%M %p").to_string(),
+// Settings › Chat › Use a 24-hour clock. A global, not a parameter: the formatters sit deep under
+// rendering code that has no prefs to hand.
+static CLOCK_24: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub(crate) fn set_clock_24(on: bool) {
+    CLOCK_24.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn time_format(gutter: bool) -> &'static str {
+    match (CLOCK_24.load(std::sync::atomic::Ordering::Relaxed), gutter) {
+        (true, _) => "%H:%M",
+        (false, false) => "%-I:%M %p",
+        (false, true) => "%-I:%M",
     }
 }
 
-// "9:41 PM".
+// "Today at 9:41 PM", "Yesterday at 11:58 PM", the weekday within the week, then the date.
+fn format_stamp(timestamp: &str) -> String {
+    let Some(time) = local(timestamp) else { return String::new() };
+    let clock = time.format(time_format(false));
+    match (Local::now().date_naive() - time.date_naive()).num_days() {
+        0 => format!("Today at {clock}"),
+        1 => format!("Yesterday at {clock}"),
+        2..=6 => format!("{} at {clock}", time.format("%A")),
+        _ => format!("{} at {clock}", time.format("%B %-d, %Y")),
+    }
+}
+
+// "9:41 PM", or "21:41".
 fn clock(timestamp: &str) -> String {
-    local(timestamp).map(|t| t.format("%-I:%M %p").to_string()).unwrap_or_default()
+    local(timestamp).map(|t| t.format(time_format(false)).to_string()).unwrap_or_default()
 }
 
 // The continuation gutter's "9:41": the half of the day is the header's to say.
 fn gutter_clock(timestamp: &str) -> String {
-    local(timestamp).map(|t| t.format("%-I:%M").to_string()).unwrap_or_default()
+    local(timestamp).map(|t| t.format(time_format(true)).to_string()).unwrap_or_default()
 }
 
 pub(crate) fn format_size(bytes: u64) -> String {

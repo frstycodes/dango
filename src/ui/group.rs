@@ -23,6 +23,12 @@ pub fn settings_card(cx: &App) -> Div {
     div().min_w_0().p(px(CARD_INSET)).squircle(RADIUS_XL).bg(palette::surface(palette::Level::Group, cx)).flex().flex_col()
 }
 
+// The row a settings search just jumped to, lit for a moment (`settings_row` reads it).
+#[derive(Default)]
+pub struct SettingsHighlight(pub Option<SharedString>);
+
+impl gpui_kit::Global for SettingsHighlight {}
+
 // A row in a settings card: title and description first, the control last. `line` draws the inset hairline
 // above it (every row but the first), hidden while the row itself is hovered.
 // GAP: CSS also hides the hairline under a hovered row (the next row's); gpui can't style a sibling.
@@ -40,6 +46,7 @@ pub fn settings_row(id: impl Into<SharedString>, line: bool, cx: &App) -> Statef
         .items_center()
         .gap(px(16.))
         .text_color(palette::text(cx))
+        .when(cx.try_global::<SettingsHighlight>().is_some_and(|h| h.0.as_ref() == Some(&id)), |d| d.bg(palette::accent_soft(cx)))
         .when(line, |d| d.child(hairline(id, cx)))
 }
 

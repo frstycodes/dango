@@ -4,8 +4,11 @@
 .set-wrap { container-type: inline-size; }
 .set { display: grid; grid-template-columns: 240px minmax(0, 1fr); height: 780px; border-radius: var(--radius-lg); border: 1px solid var(--line-strong); overflow: hidden; background: var(--bg-page); }
 .set-nav { background: var(--bg-sidebar); padding: 16px 8px 12px; display: flex; flex-direction: column; gap: 1px; overflow: auto; min-height: 0; --bg-ring: var(--bg-sidebar); }
-.set-me { display: flex; align-items: center; gap: 10px; padding: 0 6px 12px; min-width: 0; }
-.set-me .av { --size: 40px; }
+/* You, as the My account row under search (System Settings style), not a block stacked over the field. */
+.set-me { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 10px; border-radius: var(--radius-sm); text-align: left; width: 100%; min-width: 0; transition: background var(--dur-hover); }
+.set-me:hover { background: var(--hover); }
+.set-me[aria-current="page"] { background: var(--selected); }
+.set-me .av { --size: 32px; }
 .set-me > div { min-width: 0; display: grid; line-height: 1.3; }
 .set-me b { color: var(--text-strong); font-weight: var(--weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .set-me span:not(.av, .status) { color: var(--text-muted); font-size: var(--text-xs); }
