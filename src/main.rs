@@ -29,6 +29,7 @@ mod go_live;
 mod h264;
 mod home;
 mod overlays;
+mod overwrites;
 mod playback;
 mod memory;
 mod menu;
