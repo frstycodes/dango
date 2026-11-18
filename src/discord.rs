@@ -338,6 +338,12 @@ pub struct Channel {
     pub private: bool,
     // A 1:1 DM's other person, for their avatar and status dot.
     pub recipient: Option<User>,
+    // Everyone in a DM but us; a group's faces come from the first two.
+    #[serde(default)]
+    pub recipients: Vec<User>,
+    // A group DM's own icon.
+    #[serde(default)]
+    pub icon: Option<String>,
     pub thread: Option<ThreadMeta>,
     // Discord's own channel type number (0 text, 2 voice, 5 announcement, 15 forum, …).
     #[serde(default)]
@@ -1307,6 +1313,8 @@ fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
         last_message_id: c["last_message_id"].as_str().map(str::to_owned),
         private,
         recipient: None,
+        recipients: Vec::new(),
+        icon: None,
         thread,
         raw_type: c["type"].as_u64().unwrap_or(0) as u8,
         overwrites,
@@ -1325,8 +1333,10 @@ fn parse_dm(c: &Value, users: &Value) -> Option<Channel> {
     };
     let names: Vec<&str> = recipients.iter().map(|u| u.name.as_str()).collect();
     let name = c["name"].as_str().filter(|n| !n.is_empty()).map(str::to_owned).unwrap_or_else(|| names.join(", "));
+    let id = c["id"].as_str()?.to_owned();
+    let icon = c["icon"].as_str().map(|hash| format!("{CDN}/channel-icons/{id}/{hash}.png?size=128"));
     Some(Channel {
-        id: c["id"].as_str()?.to_owned(),
+        id,
         name,
         kind: ChannelKind::Dm,
         parent_id: None,
@@ -1334,7 +1344,9 @@ fn parse_dm(c: &Value, users: &Value) -> Option<Channel> {
         topic: None,
         last_message_id: c["last_message_id"].as_str().map(str::to_owned),
         private: false,
-        recipient: (recipients.len() == 1).then(|| recipients[0].clone()),
+        recipient: (recipients.len() == 1 && c["type"].as_u64() != Some(3)).then(|| recipients[0].clone()),
+        recipients,
+        icon,
         thread: None,
         raw_type: c["type"].as_u64().unwrap_or(1) as u8,
         overwrites: Vec::new(),
@@ -1477,6 +1489,33 @@ pub fn avatar_url(user_id: &str, hash: Option<&str>) -> String {
         Some(hash) => format!("{CDN}/avatars/{user_id}/{hash}.png?size=128"),
         // Discord's default avatars, chosen by (id >> 22) % 6 for accounts on the new username system.
         None => format!("{CDN}/embed/avatars/{}.png", user_id.parse::<u64>().map(|id| (id >> 22) % 6).unwrap_or(0)),
+    }
+}
+
+// What stands for a DM wherever it shows: a group's own icon, the other person, or (a group without
+// an icon) two members on a diagonal, as Discord draws it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum DmFace {
+    Icon(String),
+    One(String),
+    Pair(String, String),
+    // A group everyone else has left.
+    Letters(String),
+}
+
+impl Channel {
+    pub fn face(&self) -> DmFace {
+        if let Some(icon) = &self.icon {
+            return DmFace::Icon(icon.clone());
+        }
+        if let Some(user) = &self.recipient {
+            return DmFace::One(user.avatar.clone());
+        }
+        match self.recipients.as_slice() {
+            [] => DmFace::Letters(self.name.clone()),
+            [only] => DmFace::One(only.avatar.clone()),
+            [back, front, ..] => DmFace::Pair(back.avatar.clone(), front.avatar.clone()),
+        }
     }
 }
 
@@ -1735,6 +1774,26 @@ mod tests {
         let dm = parse_dm(&json!({ "id": "d", "type": 1, "recipient_ids": ["9"] }), &users).unwrap();
         assert_eq!(dm.name, "Ferris");
         assert_eq!(dm.recipient.unwrap().avatar, "https://cdn.discordapp.com/avatars/9/h.png?size=128");
+    }
+
+    #[test]
+    fn group_dm_faces() {
+        let users = json!([]);
+        let group = |extra: Value| {
+            let mut c = json!({ "id": "g", "type": 3, "recipients": [{ "id": "1", "username": "a", "avatar": "x" }, { "id": "2", "username": "b", "avatar": "y" }, { "id": "3", "username": "c" }] });
+            c.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            parse_dm(&c, &users).unwrap()
+        };
+        let plain = group(json!({}));
+        assert_eq!(plain.recipients.len(), 3);
+        assert_eq!(plain.face(), DmFace::Pair(avatar_url("1", Some("x")), avatar_url("2", Some("y"))));
+        assert_eq!(group(json!({ "icon": "i" })).face(), DmFace::Icon("https://cdn.discordapp.com/channel-icons/g/i.png?size=128".into()));
+
+        let left = parse_dm(&json!({ "id": "g", "type": 3, "name": "squad", "recipients": [{ "id": "1", "username": "a", "avatar": "x" }] }), &users).unwrap();
+        assert!(left.recipient.is_none());
+        assert_eq!(left.face(), DmFace::One(avatar_url("1", Some("x"))));
+        let alone = parse_dm(&json!({ "id": "g", "type": 3, "name": "squad", "recipients": [] }), &users).unwrap();
+        assert_eq!(alone.face(), DmFace::Letters("squad".into()));
     }
 
     #[test]

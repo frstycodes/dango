@@ -50,6 +50,16 @@ impl<V: Clone + Serialize + DeserializeOwned + Send + 'static> Query<V> {
         Some(value)
     }
 
+    // Demo fixtures: held in memory as fresh, never written to disk.
+    pub fn seed(&mut self, key: &str, value: V) {
+        self.remember(key, Entry { fetched_ms: now_ms(), value });
+    }
+
+    // What `cached` has already brought into memory, for callers that can't borrow mutably.
+    pub fn peek(&self, key: &str) -> Option<V> {
+        self.memory.get(key).map(|e| e.value.clone())
+    }
+
     // Whether to fetch `key` now: never fetched, stale, or changed, and no fetch already running. A yes
     // counts as the fetch starting; finish it with `store` or `failed`.
     pub fn should_fetch(&mut self, key: &str) -> bool {
