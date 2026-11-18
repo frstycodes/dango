@@ -616,7 +616,11 @@ mod tests {
     #[test]
     fn decoder_holds_only_a_few_pictures() {
         let pictures = decode_looping(Arc::from(&include_bytes!("../testdata/gifv.mp4")[..]));
-        std::thread::sleep(Duration::from_millis(300));
+        // A fixed wait from the start flaked in the full suite: time from the first picture, so
+        // opening the clip and starting the decoder don't count, and wait far longer than four
+        // pictures take, so a decoder the channel didn't stop would get through the clip.
+        pictures.recv_timeout(Duration::from_secs(5)).expect("a picture");
+        std::thread::sleep(Duration::from_secs(1));
         // Draining lets the decoder slip in one or two more; a whole loop would be 15.
         let held = pictures.try_iter().count();
         assert!((AHEAD..AHEAD + 3).contains(&held), "bounded by the channel, not the clip: {held}");
