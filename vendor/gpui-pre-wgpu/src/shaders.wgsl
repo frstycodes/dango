@@ -1539,6 +1539,10 @@ struct BackdropBlurPass {
     saturation: f32,
     opacity: f32,
     fade: vec4<f32>,
+    corner_exponent: f32,
+    corner_padding_0: f32,
+    corner_padding_1: f32,
+    corner_padding_2: f32,
 }
 
 @group(1) @binding(0) var<uniform> backdrop_blur_pass: BackdropBlurPass;
@@ -1629,7 +1633,7 @@ fn fs_backdrop_blur_composite(input: BackdropBlurVarying) -> @location(0) vec4<f
     let luminance = dot(color.rgb, vec3<f32>(0.213, 0.715, 0.072));
     let saturated = saturate(mix(vec3<f32>(luminance), color.rgb, backdrop_blur_pass.saturation));
 
-    let distance = quad_sdf(input.position.xy, backdrop_blur_pass.bounds, backdrop_blur_pass.corner_radii);
+    let distance = shaped_quad_sdf(input.position.xy, backdrop_blur_pass.bounds, backdrop_blur_pass.corner_radii, backdrop_blur_pass.corner_exponent);
     let fade = backdrop_edge_fade(input.position.xy, backdrop_blur_pass.bounds, backdrop_blur_pass.fade);
     return blend_color(vec4<f32>(saturated, 1.0), saturate(0.5 - distance) * backdrop_blur_pass.opacity * fade);
 }

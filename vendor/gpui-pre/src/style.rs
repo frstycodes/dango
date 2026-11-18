@@ -778,7 +778,9 @@ impl Style {
             .to_pixels(rem_size)
             .clamp_radii_for_quad_size(bounds.size);
 
-        window.paint_backdrop_filter(bounds, corner_radii, self.backdrop_filter);
+        window.with_corner_shape(self.corner_shape, |window| {
+            window.paint_backdrop_filter(bounds, corner_radii, self.backdrop_filter)
+        });
         window.with_corner_shape(self.corner_shape, |window| {
             window.paint_drop_shadows(bounds, corner_radii, &self.box_shadow);
         });

@@ -1575,7 +1575,8 @@ fragment float4 backdrop_blur_composite_fragment(
   float luminance = dot(color.rgb, float3(0.213, 0.715, 0.072));
   float3 saturated = saturate(mix(float3(luminance), color.rgb, pass->saturation));
 
-  float distance = quad_sdf(input.position.xy, pass->bounds, pass->corner_radii);
+  float distance = shaped_quad_sdf(input.position.xy, pass->bounds, pass->corner_radii,
+                                   pass->corner_exponent);
   float coverage = saturate(0.5 - distance) * pass->opacity *
                    backdrop_edge_fade(input.position.xy, pass->bounds,
                                       float4(pass->fade[0], pass->fade[1], pass->fade[2], pass->fade[3]));

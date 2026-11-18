@@ -1463,6 +1463,8 @@ struct BackdropBlurPass {
     float saturation;
     float opacity;
     float4 fade;
+    float corner_exponent;
+    float3 corner_padding;
 };
 
 struct BackdropBlurVertexOutput {
@@ -1558,7 +1560,7 @@ float4 backdrop_blur_composite_fragment(BackdropBlurVertexOutput input): SV_Targ
     float luminance = dot(color.rgb, float3(0.213, 0.715, 0.072));
     float3 saturated = saturate(lerp(float3(luminance, luminance, luminance), color.rgb, blur_pass.saturation));
 
-    float distance = quad_sdf(input.position.xy, blur_pass.bounds, blur_pass.corner_radii);
+    float distance = shaped_quad_sdf(input.position.xy, blur_pass.bounds, blur_pass.corner_radii, blur_pass.corner_exponent);
     float coverage = saturate(0.5 - distance) * blur_pass.opacity * backdrop_edge_fade(input.position.xy, blur_pass.bounds, blur_pass.fade);
     return float4(saturated, coverage);
 }
