@@ -349,7 +349,8 @@ pub fn mic_test_loop(
             let mic = audio.process_mic(&mut frame);
             let input_detected = watch.update(mic.raw_db);
             let speaking = gate.update(mode, audio.processor.gain(), &mic.blocks, false);
-            mixer.push(0, &frame, 1.0);
+            // Only what a call would send: silence while the voice gate is closed.
+            mixer.push(0, &frame, if speaking { 1.0 } else { 0.0 });
             frames = frames.wrapping_add(1);
             if frames.is_multiple_of(LEVEL_EVERY) && levels.unbounded_send(MicLevel { db: mic.db, speaking, input_detected }).is_err() {
                 return;
