@@ -3,6 +3,7 @@
 
 mod accounts;
 mod app_keys;
+mod restart;
 mod feed_keys;
 mod auth;
 mod cache;
@@ -734,6 +735,8 @@ impl Rustcord {
         .detach();
         #[allow(unused_mut)]
         let mut chord = Self::build(window, splash, cx);
+        let main = restart::Main(cx.entity().downgrade());
+        cx.set_global(main);
         chord.watch_for_updates(cx);
         cx.on_focus_out(&chord.feed_focus, window, |this, _, _, cx| {
             this.focused_message = None;
