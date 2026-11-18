@@ -194,7 +194,7 @@ pub fn tag_with(glyph: Glyph, text: impl Into<SharedString>, cx: &App) -> Div {
     badge(palette::accent_soft(cx), palette::accent_ink(cx)).h(px(18.)).px(px(6.)).gap(px(3.)).child(Icon::new(glyph).size(px(11.))).child(text.to_uppercase())
 }
 
-// A count asks for you, so it takes the accent. A capsule that grows with the number.
+// A count asks for you, so it takes the alert red. A capsule that grows with the number.
 pub fn count_badge(count: u32) -> Div {
     let text = if count > 99 { "99+".to_owned() } else { count.to_string() };
     div()
@@ -203,7 +203,7 @@ pub fn count_badge(count: u32) -> Div {
         .px(px(5.))
         .flex_none()
         .rounded_full()
-        .bg(palette::accent())
+        .bg(palette::alert())
         .text_color(gpui_kit::white())
         .text_size(px(12.))
         .font_weight(FontWeight::SEMIBOLD)
@@ -216,7 +216,7 @@ pub fn count_badge(count: u32) -> Div {
 
 // Something unread, without a count.
 pub fn unread_dot() -> Div {
-    div().size(px(8.)).flex_none().rounded_full().bg(palette::accent())
+    div().size(px(8.)).flex_none().rounded_full().bg(palette::alert())
 }
 
 // A role: its colour as a dot, never as the text's colour.

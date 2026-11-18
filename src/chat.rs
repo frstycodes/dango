@@ -1954,8 +1954,8 @@ fn unread_line() -> AnyElement {
         .flex()
         .items_center()
         .gap(px(8.))
-        .child(div().flex_1().h(px(1.)).bg(palette::accent()))
-        .child(ui::badge(palette::accent(), gpui_kit::white()).h(px(18.)).px(px(6.)).child("New"))
+        .child(div().flex_1().h(px(1.)).bg(palette::alert()))
+        .child(ui::badge(palette::alert(), gpui_kit::white()).h(px(18.)).px(px(6.)).child("New"))
         .into_any_element()
 }
 
