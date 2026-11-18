@@ -101,6 +101,7 @@ pub struct Received {
     pub payload_type: u8,
     pub marker: bool,
     pub sequence: u16,
+    pub timestamp: u32,
     pub payload: Vec<u8>,
 }
 
@@ -158,6 +159,7 @@ impl Cipher {
             payload_type: packet[1] & 0x7f,
             marker: packet[1] & 0x80 != 0,
             sequence: u16::from_be_bytes([packet[2], packet[3]]),
+            timestamp: u32::from_be_bytes(packet[4..8].try_into().ok()?),
             payload: plain,
         })
     }
