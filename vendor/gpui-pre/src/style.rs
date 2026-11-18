@@ -426,6 +426,9 @@ pub struct BackdropFilter {
     pub blur_radius: Pixels,
     /// Applied after the blur, like CSS `saturate()`: 0 is grayscale and 1 leaves colors unchanged.
     pub saturation: f32,
+    /// How far in from each edge (top, right, bottom, left) the filter fades in from nothing,
+    /// like a CSS `mask-image` gradient over the backdrop filter. Zero is a hard edge.
+    pub fade: [Pixels; 4],
 }
 
 impl BackdropFilter {
@@ -440,6 +443,7 @@ impl Default for BackdropFilter {
         Self {
             blur_radius: Pixels::ZERO,
             saturation: 1.,
+            fade: [Pixels::ZERO; 4],
         }
     }
 }

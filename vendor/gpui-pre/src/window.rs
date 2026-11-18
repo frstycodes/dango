@@ -4704,6 +4704,7 @@ impl Window {
             corner_radii: corner_radii.scale(scale_factor),
             saturation: filter.saturation.max(0.),
             opacity,
+            fade: filter.fade.map(|length| length.max(Pixels::ZERO).scale(scale_factor)),
         });
     }
 

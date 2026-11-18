@@ -976,6 +976,8 @@ pub struct BackdropBlur {
     /// Like CSS `saturate()`: 0 is grayscale and 1 leaves colors unchanged.
     pub saturation: f32,
     pub opacity: f32,
+    /// See [`crate::BackdropFilter::fade`].
+    pub fade: [ScaledPixels; 4],
 }
 
 impl From<BackdropBlur> for Primitive {
@@ -1112,6 +1114,7 @@ impl BackdropBlurPlan {
             },
             saturation: 1.,
             opacity: 1.,
+            fade: [0.; 4],
         }
     }
 
@@ -1141,6 +1144,7 @@ impl BackdropBlurPlan {
             },
             saturation: blur.saturation,
             opacity: blur.opacity,
+            fade: blur.fade.map(|length| length.0),
         }
     }
 }
@@ -1177,6 +1181,9 @@ pub struct BackdropBlurPass {
     pub saturation: f32,
     /// The composite's opacity.
     pub opacity: f32,
+    /// How far in from each edge (top, right, bottom, left) the composite fades in, in target
+    /// pixels. Last, so it lands on a 16-byte boundary for the shaders' vec4.
+    pub fade: [f32; 4],
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -1374,6 +1381,7 @@ mod tests {
             corner_radii: Corners::default(),
             saturation: 1.,
             opacity: 1.,
+            fade: [ScaledPixels(0.); 4],
         }
     }
 

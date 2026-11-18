@@ -1462,6 +1462,7 @@ struct BackdropBlurPass {
     float tap_offset;
     float saturation;
     float opacity;
+    float4 fade;
 };
 
 struct BackdropBlurVertexOutput {
@@ -1539,6 +1540,16 @@ BackdropBlurVertexOutput backdrop_blur_composite_vertex(uint vertex_id: SV_Verte
     return backdrop_blur_vertex(vertex_id, instance_id);
 }
 
+// 0 at an edge with a fade, easing to 1 at the fade's length in from it; 1 along edges without.
+float backdrop_edge_fade(float2 position, Bounds bounds, float4 fade) {
+    float4 inset = float4(position.y - bounds.origin.y,
+                          bounds.origin.x + bounds.size.x - position.x,
+                          bounds.origin.y + bounds.size.y - position.y,
+                          position.x - bounds.origin.x);
+    float4 ramp = fade > 0. ? smoothstep(0., max(fade, 1e-4), inset) : float4(1., 1., 1., 1.);
+    return ramp.x * ramp.y * ramp.z * ramp.w;
+}
+
 float4 backdrop_blur_composite_fragment(BackdropBlurVertexOutput input): SV_Target {
     BackdropBlurPass blur_pass = backdrop_blur_passes[input.pass_id];
     float4 color = backdrop_upsample(blur_pass, backdrop_source_position(blur_pass, input.position.xy));
@@ -1548,6 +1559,6 @@ float4 backdrop_blur_composite_fragment(BackdropBlurVertexOutput input): SV_Targ
     float3 saturated = saturate(lerp(float3(luminance, luminance, luminance), color.rgb, blur_pass.saturation));
 
     float distance = quad_sdf(input.position.xy, blur_pass.bounds, blur_pass.corner_radii);
-    float coverage = saturate(0.5 - distance) * blur_pass.opacity;
+    float coverage = saturate(0.5 - distance) * blur_pass.opacity * backdrop_edge_fade(input.position.xy, blur_pass.bounds, blur_pass.fade);
     return float4(saturated, coverage);
 }
