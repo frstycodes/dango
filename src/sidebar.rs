@@ -359,9 +359,11 @@ impl Rustcord {
                     .child(div().truncate().text_size(px(12.)).text_color(palette::faint(cx)).child(detail.join(" · "))),
             )
             .when_some(who, |d, who| d.tooltip(move |window, cx| Tooltip::new(who.clone()).build(window, cx)));
+        let record = self.stream_card_bounds.clone();
         div()
             .id(SharedString::from(format!("stream-card-{}", streamer.id)))
             .w(px(STREAM_CARD_WIDTH))
+            .child(gpui_kit::canvas(move |bounds, _, _| record.set(bounds), |_, _, _, _| {}).absolute().inset_0())
             .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
                 this.stream_card_hover = hovered.then(|| hover_key.clone());
                 cx.notify();
@@ -674,6 +676,28 @@ impl Rustcord {
             .collect()
     }
 
+    // Leaving a streaming row toward its card holds the card open for the tunnel's grace.
+    fn hover_stream_row(&mut self, key: &str, hovered: bool, at: gpui_kit::Point<gpui_kit::Pixels>, cx: &mut Context<Self>) {
+        if !hovered && self.stream_tunnel.heading_to(at, self.stream_card_bounds.get()) {
+            self.stream_hold = Some(key.to_owned());
+            let key = key.to_owned();
+            cx.spawn(async move |this, cx| {
+                cx.background_executor().timer(ui::TUNNEL_GRACE).await;
+                this.update(cx, |this, cx| {
+                    if this.stream_hold.as_deref() == Some(key.as_str()) {
+                        this.stream_hold = None;
+                        this.set_hovered(&key, false, cx);
+                    }
+                })
+                .ok();
+            })
+            .detach();
+            return;
+        }
+        self.stream_hold = None;
+        self.set_hovered(key, hovered, cx);
+    }
+
     // Rows show their hover-only controls from this, not from `group_hover`: gpui resolves group hover
     // only while painting, so a `display` toggled by it paints children that were never prepainted.
     fn track_row_hover(&self, row: Stateful<Div>, id: &str, prefetch: bool, cx: &mut Context<Self>) -> Stateful<Div> {
@@ -742,7 +766,7 @@ impl Rustcord {
                 let stream_key = format!("guild:{}:{}:{}", guild.id, channel.id, state.user_id);
                 self.stream_card(Streamer { id: &state.user_id, name: &name, avatar: &avatar }, channel, &stream_key, connected, window, cx).into_any_element()
             });
-            let stream_hover = cx.listener(move |this, hovered: &bool, _, cx| this.set_hovered(&hover_key, *hovered, cx));
+            let stream_hover = cx.listener(move |this, hovered: &bool, window, cx| this.hover_stream_row(&hover_key, *hovered, window.mouse_position(), cx));
             let end = voice_mark_for(state, cx);
             let key = SharedString::from(format!("voice-{}", state.user_id));
             let carried = self.drag_motion.row(&key);
@@ -778,7 +802,7 @@ impl Rustcord {
                         let user_id = state.user_id.clone();
                         cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.voice_user_menu(&user_id, e.position, cx))
                     })
-                    .when(state.streaming, |r| r.on_hover(stream_hover).children(stream_card.map(|card| div().absolute().top_0().right(px(4.)).child(gpui_kit::deferred(gpui_kit::anchored().snap_to_window_with_margin(px(8.)).child(card))))))
+                    .when(state.streaming, |r| r.on_hover(stream_hover).on_mouse_move(cx.listener(|this, e: &gpui_kit::MouseMoveEvent, _, _| this.stream_tunnel.track(e.position))).children(stream_card.map(|card| div().absolute().top_0().right(px(4.)).child(gpui_kit::deferred(gpui_kit::anchored().snap_to_window_with_margin(px(8.)).child(card))))))
                     .when(state.streaming && connected, |r| {
                         r.cursor_pointer()
                             .when(is_watched, |r| r.bg(selected))

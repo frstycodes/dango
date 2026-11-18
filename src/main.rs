@@ -561,6 +561,11 @@ pub struct Rustcord {
     shift_held: bool,
     // The stream hover card under the pointer, which keeps it open off the row.
     stream_card_hover: Option<String>,
+    // The open stream card's bounds as last drawn, the pointer's tunnel toward it, and the row whose
+    // card the tunnel is holding open.
+    stream_card_bounds: Rc<std::cell::Cell<gpui_kit::Bounds<gpui_kit::Pixels>>>,
+    stream_tunnel: ui::Tunnel,
+    stream_hold: Option<String>,
     // A stream to start watching as soon as the call we're joining connects.
     watch_on_connect: Option<String>,
     // The window is in front; notifications for the open channel are skipped then.
@@ -775,6 +780,9 @@ impl Rustcord {
             hidden_voice_names: HashSet::new(),
             shift_held: false,
             stream_card_hover: None,
+            stream_card_bounds: Rc::default(),
+            stream_tunnel: ui::Tunnel::default(),
+            stream_hold: None,
             watch_on_connect: None,
             window_active: true,
             dialog: None,
