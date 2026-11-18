@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dango Window Chrome</title>
+<meta name="description" content="The window's top on macOS and Windows: a brand strip over the navigation, the content header as the title bar.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<style>
+.frames { display: grid; gap: var(--space-6); }
+.frame { border-radius: 12px; overflow: hidden; border: 1px solid var(--line-strong); background: var(--bg-rail); box-shadow: 0 18px 50px oklch(0 0 0 / 0.25); display: grid; grid-template-columns: 52px 200px minmax(0, 1fr); grid-template-rows: 32px 40px 1fr; height: 360px; font-size: 13px; position: relative; }
+.frame.win { border-radius: 8px; }
+.ri { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+/* Row 1, over the rail and channel list: the brand strip. */
+.brand { grid-column: 1 / 3; grid-row: 1; display: flex; align-items: center; gap: 6px; padding-left: 64px; color: var(--text-strong); font-weight: var(--weight-semibold); }
+.win .brand { padding-left: 12px; }
+.brand img { width: 16px; height: 16px; }
+.lights { position: absolute; left: 10px; top: 10px; display: flex; gap: 7px; }
+.lights i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; }
+.lights i:nth-child(2) { background: #febc2e; }
+.lights i:nth-child(3) { background: #28c840; }
+/* The rail and the channel list start under the strip. */
+.rail { grid-column: 1; grid-row: 2 / 4; display: grid; justify-items: center; align-content: start; gap: 6px; padding-top: 4px; }
+.rail b { width: 34px; height: 34px; border-radius: 11px; background: var(--bg-raised); display: grid; place-items: center; color: var(--text-strong); font-size: 11px; }
+.rail b.on { background: var(--accent); color: #fff; }
+.side { grid-column: 2; grid-row: 2 / 4; background: var(--bg-sidebar); border-top-left-radius: 12px; padding: 6px; display: grid; align-content: start; gap: 2px; color: var(--text-muted); }
+.side .head { height: 34px; display: flex; align-items: center; gap: 6px; padding: 0 8px; color: var(--text-strong); font-weight: var(--weight-semibold); font-size: 14px; min-width: 0; }
+.side .head span, .side .row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.side { min-width: 0; }
+.side .row { height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: 9px; }
+.side .row.on { background: var(--selected); color: var(--text-strong); }
+/* The content column runs to the window's top; its header is the title bar and floats over the feed. */
+.content { grid-column: 3; grid-row: 1 / 4; position: relative; background: var(--bg-page); overflow: hidden; }
+.feed { position: absolute; inset: 0; padding: 52px 16px 16px; display: grid; gap: 10px; align-content: start; }
+.feed .msg { display: flex; gap: 10px; }
+.feed .av { width: 30px; height: 30px; border-radius: 50%; background: oklch(0.7 0.13 60); flex: none; }
+.feed .img { height: 90px; border-radius: 12px; background: oklch(0.58 0.16 270); max-width: 260px; }
+.feed p { color: var(--text); }
+.chanbar { position: absolute; inset: 0 0 auto; height: 64px; display: flex; align-items: flex-start; }
+.chanbar::before { content: ""; position: absolute; inset: 0; backdrop-filter: blur(14px); -webkit-mask: linear-gradient(#000 60%, transparent); mask: linear-gradient(#000 60%, transparent); background: linear-gradient(color-mix(in oklch, var(--bg-page) 88%, transparent), transparent); }
+.chanbar .bar { position: relative; height: 44px; width: 100%; display: flex; align-items: center; gap: 8px; padding: 0 10px 0 14px; color: var(--text-strong); font-weight: var(--weight-semibold); }
+.chanbar .tools { margin-left: auto; display: flex; gap: 10px; color: var(--text-muted); }
+.win .chanbar .tools { margin-right: 138px; }
+/* Windows' caption buttons: 46 by 32, flush to the top right, over the content header. */
+.caption { position: absolute; top: 0; right: 0; display: flex; z-index: 2; }
+.caption button { width: 46px; height: 32px; display: grid; place-items: center; color: var(--text-muted); }
+.caption button:hover { background: var(--hover); color: var(--text-strong); }
+.caption button.close:hover { background: #c42b1c; color: #fff; }
+.caption svg { width: 10px; height: 10px; stroke: currentColor; stroke-width: 1.2; fill: none; }
+.label { margin-bottom: var(--space-2); color: var(--text-muted); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+@media (max-width: 700px) { .frame { grid-template-columns: 44px 120px minmax(0, 1fr); } .chanbar .tools .opt { display: none; } .win .chanbar .tools { margin-right: 140px; } }
+</style>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+<section id="chrome">
+  <h1>Window chrome</h1>
+  <p class="lede">No separate title bar. A slim brand strip sits over the rail and channel list: on macOS the traffic lights lead it, on Windows the mark does. The content column runs up to the window's top, and its header doubles as the title bar, blurring the feed as it scrolls under. Every header and the strip drag the window. On Windows the caption buttons sit flush at the top right, over the content header, and the header's tools keep clear of them. History has no buttons: ⌘[ / ⌘] on macOS, Alt+←/→ on Windows, and the mouse's side buttons.</p>
+  <div class="frames" id="frames"></div>
+</section>
+</main>
+</div>
+<script src="site.js"></script>
+<script src="icons-data.js"></script>
+<script>
+const ic = n => `<svg class="ri" viewBox="0 0 24 24">${(REICON_FILLED[n] && !["hashtag2", "search"].includes(n)) ? REICON_FILLED[n] : REICON[n]}</svg>`;
+const frame = win => `<div><div class="label">${win ? "Windows" : "macOS"}</div><div class="frame${win ? " win" : ""}">
+  ${win ? "" : '<div class="lights"><i></i><i></i><i></i></div>'}
+  <div class="brand"><img src="/assets/brand/dango-mark.svg" alt="">Dango</div>
+  <div class="rail"><b class="on">${ic("messages3")}</b><b>WaS</b><b>gz</b></div>
+  <div class="side"><div class="head"><span>We are Sandesh Pandey</span>${ic("chevron-down")}</div>
+    <div class="row on">${ic("hashtag2")}<span>general</span></div><div class="row">${ic("hashtag2")}<span>media</span></div><div class="row">${ic("volume-high")}<span>team-lounge</span></div></div>
+  <div class="content">
+    <div class="feed">
+      <div class="msg"><span class="av"></span><div><p><b>abyss reverie</b></p><div class="img"></div></div></div>
+      <div class="msg"><span class="av" style="background: oklch(0.62 0.14 150)"></span><div><p><b>Zoë</b></p><p>it already feels faster than the real one</p></div></div>
+      <div class="msg"><span class="av" style="background: oklch(0.6 0.17 20)"></span><div><p><b>frsty</b></p><p>discord on rust, check #media</p></div></div>
+    </div>
+    <div class="chanbar"><div class="bar">${ic("hashtag2")} general<span class="tools"><span class="opt">${ic("messages3")}</span><span class="opt">${ic("pin")}</span>${ic("users")}${ic("search")}${ic("inbox")}${ic("help-circle")}</span></div></div>
+  </div>
+  ${win ? `<div class="caption"><button aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5h10"/></svg></button><button aria-label="Maximize"><svg viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" rx="1.5"/></svg></button><button class="close" aria-label="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0 0 10"/></svg></button></div>` : ""}
+</div></div>`;
+$("#frames").innerHTML = frame(false) + frame(true);
+</script>
+</body>
+</html>

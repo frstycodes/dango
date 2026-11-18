@@ -190,7 +190,7 @@ fn open_main(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gp
         window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(1280.), px(820.)), cx))),
         window_min_size: Some(size(px(940.), px(520.))),
         // The traffic lights centre in the 36px title bar, leaving the first 72px to them.
-        titlebar: Some(TitlebarOptions { title: Some("Dango".into()), appears_transparent: true, traffic_light_position: Some(gpui_kit::point(px(12.), px(18.))) }),
+        titlebar: Some(TitlebarOptions { title: Some("Dango".into()), appears_transparent: true, traffic_light_position: Some(gpui_kit::point(px(12.), px(14.))) }),
         window_background: material::window_background(),
         ..Default::default()
     };

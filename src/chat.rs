@@ -139,7 +139,6 @@ impl Rustcord {
             .gap(px(8.))
             // Drag area: every control inside it occludes it, or Windows' caption takes its clicks.
             .window_control_area(WindowControlArea::Drag)
-            .child(self.header_lead(cx))
             .child(crumbs)
             .children(topic)
             .child(div().ml_auto().flex_none().flex().items_center().gap(px(2.)).children(threads).child(pins).children(members).children(search))
