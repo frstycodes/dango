@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="css/community.css">
 <link rel="stylesheet" href="css/server-settings.css">
 <link rel="stylesheet" href="css/flows.css">
-<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 </head>
 <body>
 <header id="top"></header>
@@ -64,7 +64,7 @@
       <button class="cbtn leave" aria-label="Leave call" title="Leave call"><i class="ph-fill ph-phone-x"></i></button>
     </div>
   </div>
-  <p class="note" style="margin-top: 8px">Stage <code>oklch(0.13 0.01 350)</code>; <code>.call</code> and <code>.onstage</code> pin the dark tokens, so menus, sliders and switches inside render dark in either theme.</p>
+  <p class="note" style="margin-top: 8px">Stage <code>oklch(0.15 0.004 260)</code>, Graphite's dark rail; <code>.call</code> and <code>.onstage</code> pin the dark tokens, so menus, sliders and switches inside render dark in either theme.</p>
 </section>
 
 <section id="voice-panel">
@@ -516,10 +516,10 @@
       <div class="srcs">
         <button class="src" aria-pressed="true"><span class="shot"><span class="tile stream"></span></span><span class="label"><i class="ph ph-game-controller"></i><span>Hades II</span></span></button>
         <button class="src" aria-pressed="false"><span class="shot"><span class="tile stream alt"></span></span><span class="label"><i class="ph ph-music-notes"></i><span>Music</span></span></button>
-        <button class="src" aria-pressed="false"><span class="shot"><span class="tile" style="--hue: 75; background: linear-gradient(oklch(0.93 0.01 75) 0 18%, oklch(0.98 0.005 75) 18%)"></span></span><span class="label"><i class="ph ph-browser"></i><span>Season 7: the long night · Patch notes</span></span></button>
+        <button class="src" aria-pressed="false"><span class="shot"><span class="tile" style="--hue: 75; background: linear-gradient(oklch(0.93 0.004 260) 0 18%, oklch(0.98 0.004 260) 18%)"></span></span><span class="label"><i class="ph ph-browser"></i><span>Season 7: the long night · Patch notes</span></span></button>
         <button class="src" aria-pressed="false"><span class="shot"><span class="tile" style="background: linear-gradient(90deg, oklch(0.22 0.01 260) 0 22%, oklch(0.26 0.01 260) 22%)"></span></span><span class="label"><i class="ph ph-code"></i><span>main.rs · wave</span></span></button>
-        <button class="src" aria-pressed="false"><span class="shot"><span class="tile" style="background: oklch(0.18 0.01 350)"></span></span><span class="label"><i class="ph ph-terminal-window"></i><span>Terminal</span></span></button>
-        <button class="src" aria-pressed="false"><span class="shot"><span class="tile" style="background: linear-gradient(90deg, oklch(0.9 0.01 75) 0 26%, oklch(0.97 0.005 75) 26%)"></span></span><span class="label"><i class="ph ph-folder-simple"></i><span>Downloads</span></span></button>
+        <button class="src" aria-pressed="false"><span class="shot"><span class="tile" style="background: oklch(0.18 0.004 260)"></span></span><span class="label"><i class="ph ph-terminal-window"></i><span>Terminal</span></span></button>
+        <button class="src" aria-pressed="false"><span class="shot"><span class="tile" style="background: linear-gradient(90deg, oklch(0.9 0.01 260) 0 26%, oklch(0.97 0.004 260) 26%)"></span></span><span class="label"><i class="ph ph-folder-simple"></i><span>Downloads</span></span></button>
       </div>
       <div class="quality">
         <div class="field"><label>Resolution</label><div class="seg" role="group" aria-label="Resolution"><button aria-pressed="false">720p</button><button aria-pressed="true">1080p</button><button aria-pressed="false">Source</button></div></div>

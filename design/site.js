@@ -30,7 +30,6 @@ const PAGES = [
   ["flows-community.html", "Flows: people and servers"],
 ];
 const FONTS = [["Figtree", "Figtree"], ["Gabarito", "Gabarito"], ["Onest", "Onest"], ["Rubik", "Rubik"], ["gg sans", "gg sans (current)"]];
-const NEUTRALS = [["", "Ink and bone"], ["plum", "Plum"], ["graphite", "Graphite"]];
 const LOGO = `<svg width="22" height="22" viewBox="0 0 64 66" aria-hidden="true"><g fill="#e8326f"><rect x="2" y="21" width="8" height="24" rx="4"/><rect x="15" y="10.5" width="8" height="45" rx="4"/><rect x="28" y="1" width="8" height="64" rx="4"/><rect x="41" y="13.5" width="8" height="39" rx="4"/><rect x="54" y="22" width="8" height="22" rx="4"/></g></svg>`;
 
 const prefs = (() => { try { return JSON.parse(localStorage.getItem("wave-ds") || "{}"); } catch { return {}; } })();
@@ -51,7 +50,6 @@ $("#top").innerHTML = `
   <div class="tools">
     <div class="seg" role="group" aria-label="Theme" id="theme">${[["", "System"], ["light", "Light"], ["dark", "Dark"]].map(([v, n]) => `<button aria-pressed="${(prefs.theme || "") === v}" data-v="${v}">${n}</button>`).join("")}</div>
     <select class="select" id="font" aria-label="Typeface">${FONTS.map(([v, n]) => `<option value="${v}" ${prefs.font === v ? "selected" : ""}>${n}</option>`).join("")}</select>
-    <select class="select" id="neutral" aria-label="Neutrals">${NEUTRALS.map(([v, n]) => `<option value="${v}" ${(prefs.neutral || "") === v ? "selected" : ""}>${n}</option>`).join("")}</select>
   </div>`;
 $("#theme").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
@@ -60,7 +58,6 @@ $("#theme").addEventListener("click", e => {
   save("theme", b.dataset.v);
 });
 $("#font").addEventListener("change", e => { root.style.setProperty("--font-ui", `"${e.target.value}", system-ui, sans-serif`); save("font", e.target.value); });
-$("#neutral").addEventListener("change", e => { e.target.value ? root.dataset.neutral = e.target.value : delete root.dataset.neutral; save("neutral", e.target.value); });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => document.dispatchEvent(new CustomEvent("wave:prefs")));
 
 // ?only=section-id shows one section, so a headless screenshot of a long page can be taken in parts.

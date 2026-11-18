@@ -13,11 +13,11 @@
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="site.css">
 <link rel="stylesheet" href="css/primitives.css">
-<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 <style>
 /* Each preview shows both themes side by side, whatever the page theme. */
-.ic-light { --tile: oklch(0.982 0.007 75); --ink: oklch(0.30 0.015 350); }
-.ic-dark { --tile: oklch(0.21 0.01 350); --ink: oklch(0.88 0.008 350); }
+.ic-light { --tile: oklch(0.982 0.004 260); --ink: oklch(0.30 0.004 260); }
+.ic-dark { --tile: oklch(0.21 0.004 260); --ink: oklch(0.88 0.008 260); }
 svg.ri { display: block; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
 .ic-grid { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 228px), 1fr)); }
 .ic { background: var(--bg-sidebar); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-3); display: grid; gap: var(--space-2); align-content: start; min-width: 0; }

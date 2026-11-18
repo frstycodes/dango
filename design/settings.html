@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="css/community.css">
 <link rel="stylesheet" href="css/server-settings.css">
 <link rel="stylesheet" href="css/flows.css">
-<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 </head>
 <body>
 <header id="top"></header>
@@ -381,7 +381,7 @@
 
 <section id="appearance" data-page="appearance" data-label="Appearance" data-icon="palette">
   <h2>Appearance</h2>
-  <p class="lede">Previews show the real thing at small size. The chosen option takes the fill and an accent ring; nothing else greys out. Theme and neutrals here are live: they change this whole site.</p>
+  <p class="lede">Previews show the real thing at small size. The chosen option takes the fill and an accent ring; nothing else greys out. The theme here is live: it changes this whole site.</p>
   <div class="board set-sheet">
     <div class="set-page" data-src>
       <h4 class="set-h">Appearance</h4>
@@ -393,15 +393,6 @@
           <button class="set-pick" role="radio" aria-checked="true" data-v=""><span class="mini mini--light mini--sync"><span class="r"></span><span class="s"><i></i><i></i><i></i><i></i></span><span class="c"><i></i><i></i><i></i><i></i><i></i></span><span class="half"><span class="r"></span><span class="s"><i></i><i></i><i></i><i></i></span><span class="c"><i></i><i></i><i></i><i></i><i></i></span></span></span><span>Sync with OS <small data-os-theme>Midnight now</small></span></button>
         </div>
         <p class="set-cap">Midnight is the darkest theme, the one Wave is built on.</p>
-      </div>
-      <div class="set-group" data-s="neutrals greys tint ink bone plum graphite colour">
-        <h5>Neutrals</h5>
-        <div class="set-picks" role="radiogroup" aria-label="Neutrals" data-pick="neutral">
-          <button class="set-pick" role="radio" aria-checked="true" data-v=""><span class="set-neu set-neu--ink"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span>Ink and bone <small>Default. Plum-tinted ink, warm paper</small></span></button>
-          <button class="set-pick" role="radio" aria-checked="false" data-v="plum"><span class="set-neu set-neu--plum"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span>Plum <small>More colour in every grey</small></span></button>
-          <button class="set-pick" role="radio" aria-checked="false" data-v="graphite"><span class="set-neu set-neu--graphite"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span>Graphite <small>Nearly neutral, a cool hint</small></span></button>
-        </div>
-        <p class="set-cap">The tint of every surface and grey, in both themes. Each preview shows the four surface steps in Midnight over the same four in Light.</p>
       </div>
       <div class="set-group" data-s="app icon dock">
         <h5>App icon</h5>
@@ -459,7 +450,7 @@
     <div><p>Opens a modal to ask if you're sure.</p><p><b><a href="#rows">Reset and log out</a></b>The row asks in place, naming what happens; reset then offers Undo.</p><p>A single reversible decision doesn't need a dialog over the page.</p></div>
     <div><p>Edit opens a modal with one field.</p><p><b><a href="#account">Display name</a></b>The row becomes the field; Enter saves, Esc cancels, the new name shows at once.</p><p>One field, edited where you read it.</p></div>
     <div><p>Hides it until you turn on Developer Mode, then a right-click copies it.</p><p><b><a href="#account">User ID</a></b>Shows it in Account info with Copy ID and a Copied state.</p><p>Support, bots and friends ask for it; no hidden mode to find first.</p></div>
-    <div><p>Plain colour discs.</p><p><b><a href="#appearance">Theme picker</a></b>A small window in each theme, and the neutrals with their real surface steps.</p><p>You see what you'll get before you pick it.</p></div>
+    <div><p>Plain colour discs.</p><p><b><a href="#appearance">Theme picker</a></b>A small window in each theme.</p><p>You see what you'll get before you pick it.</p></div>
   </div>
 </section>
 
@@ -639,19 +630,17 @@ document.addEventListener("keydown", e => {
   if (row) { row.classList.remove("is-editing", "is-invalid"); $("[data-edit]", row).focus(); }
 });
 
-// Radio pickers (theme, neutrals, icon, density): the chosen one takes the fill. Theme and neutrals drive the site.
+// Radio pickers (theme, icon, density): the chosen one takes the fill. Theme drives the site.
 document.addEventListener("click", e => {
   const pick = e.target.closest("[data-pick] > [role=radio]");
   if (!pick) return;
   for (const r of pick.parentElement.children) r.setAttribute("aria-checked", r === pick);
   const kind = pick.parentElement.dataset.pick;
   if (kind === "theme") $(`#theme button[data-v="${pick.dataset.v}"]`)?.click();
-  if (kind === "neutral") { const sel = $("#neutral"); sel.value = pick.dataset.v; sel.dispatchEvent(new Event("change")); }
 });
 function syncPicks() {
-  const theme = root.dataset.theme || "", neutral = root.dataset.neutral || "";
+  const theme = root.dataset.theme || "";
   for (const r of $$('[data-pick="theme"] > [role=radio]')) r.setAttribute("aria-checked", r.dataset.v === theme);
-  for (const r of $$('[data-pick="neutral"] > [role=radio]')) r.setAttribute("aria-checked", r.dataset.v === neutral);
   const osDark = matchMedia("(prefers-color-scheme: dark)").matches;
   for (const s of $$("[data-os-theme]")) s.textContent = osDark ? "Midnight now" : "Light now";
 }

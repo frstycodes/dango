@@ -14,7 +14,7 @@
 .flow-frame.top { justify-content: flex-start; }
 .flow-frame.center { justify-content: center; align-items: center; }
 .flow-frame.sidebar { background: var(--bg-sidebar); }
-.flow-frame.stage { background: oklch(0.13 0.01 350); }
+.flow-frame.stage { background: oklch(0.15 0.004 260); }
 
 /* The arrow to the next step, level with the frame's middle. */
 .flow-step:not(:last-child) > .flow-frame::after { content: ""; position: absolute; right: -40px; top: 50%; width: 32px; height: 2px; margin-top: -1px; background: var(--text-faint); }

@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="css/community.css">
 <link rel="stylesheet" href="css/server-settings.css">
 <link rel="stylesheet" href="css/flows.css">
-<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 </head>
 <body>
 <header id="top"></header>
@@ -530,7 +530,7 @@
         <span class="role" style="--role: #71368a"><span class="role-ink">Old guard</span></span>
         <span class="role" style="--role: #e91e63"><span class="role-ink">Mod</span></span>
       </div>
-      <p class="note">The dot is the colour the server picked; the label is what Wave draws. Same hue, lightness clamped per theme: 0.72 to 0.92 on ink, 0.30 to 0.45 on bone, chroma capped at 0.16. Every pick clears 4.5:1 on sidebar, page, popover and the selected fill in both themes.</p>
+      <p class="note">The dot is the colour the server picked; the label is what Wave draws. Same hue, lightness clamped per theme: 0.72 to 0.92 in dark, 0.30 to 0.45 in light, chroma capped at 0.16. Every pick clears 4.5:1 on sidebar, page, popover and the selected fill in both themes.</p>
       <p class="note">CSS: <code>oklch(from var(--role) clamp(lo, l, hi) min(c, 0.16) h)</code>. The port does the same in OKLCH, then gamut-maps by lowering chroma.</p>
     </div>
   </div>

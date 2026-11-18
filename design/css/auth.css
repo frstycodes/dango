@@ -46,15 +46,15 @@
 
 /* QR card: dark modules on white in both themes, or phones can't read it. Modules and finders are
    squircles; the wave mark sits in the cleared centre. Drawn by auth.html's script from data-qr. */
-.au-qr { position: relative; width: 204px; height: 204px; padding: 14px; border-radius: var(--radius-lg); background: #fff; box-shadow: 0 0 0 1px var(--line-strong), 0 8px 24px oklch(0.2 0.02 350 / 0.18); }
+.au-qr { position: relative; width: 204px; height: 204px; padding: 14px; border-radius: var(--radius-lg); background: #fff; box-shadow: 0 0 0 1px var(--line-strong), 0 8px 24px oklch(0.2 0.004 260 / 0.18); }
 .au-qr svg { display: block; width: 100%; height: 100%; }
-.au-qr .ink { fill: oklch(0.22 0.02 350); }
+.au-qr .ink { fill: oklch(0.22 0.004 260); }
 .au-qr .mark { fill: var(--logo); }
 .au-qr .paper { fill: #fff; }
 .au-qr.is-blank { background: var(--selected); box-shadow: none; overflow: hidden; }
 .au-qr.is-blank::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, var(--shimmer), transparent); transform: translateX(-100%); animation: sweep 2.3s ease-in-out infinite; }
 .au-qr.is-expired svg { filter: blur(5px); opacity: 0.3; }
-.au-qr .au-over { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: var(--space-2); color: oklch(0.30 0.015 350); font-weight: var(--weight-semibold); }
+.au-qr .au-over { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: var(--space-2); color: oklch(0.30 0.004 260); font-weight: var(--weight-semibold); }
 .au-qr .au-over > i { font-size: 28px; }
 
 /* Avatar pop: the account that scanned springs in */

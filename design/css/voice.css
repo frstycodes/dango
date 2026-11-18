@@ -4,21 +4,21 @@
    Stage-coloured pieces that can sit outside a .call (an ended or popped-out tile in a hover preview, the pop-out window) carry the scope themselves. */
 .call, .onstage, .popout, .tile.ended, .tile.is-popped {
   color-scheme: dark;
-  --stage: oklch(0.13 0.01 350);
-  --bg-rail: oklch(0.150 0.010 350);
-  --bg-sidebar: oklch(0.180 0.010 350);
-  --bg-page: oklch(0.210 0.010 350);
-  --bg-raised: oklch(0.250 0.012 350);
-  --bg-overlay: oklch(0.275 0.012 350);
+  --stage: oklch(0.15 0.004 260);
+  --bg-rail: oklch(0.150 0.004 260);
+  --bg-sidebar: oklch(0.180 0.004 260);
+  --bg-page: oklch(0.210 0.004 260);
+  --bg-raised: oklch(0.250 0.004 260);
+  --bg-overlay: oklch(0.275 0.004 260);
   --hover: oklch(1 0 0 / 0.05);
   --press: oklch(1 0 0 / 0.09);
   --selected: oklch(1 0 0 / 0.08);
   --line: oklch(1 0 0 / 0.08);
   --line-strong: oklch(1 0 0 / 0.14);
-  --text-strong: oklch(0.97 0.004 350);
-  --text: oklch(0.88 0.008 350);
-  --text-muted: oklch(0.72 0.012 350);
-  --text-faint: oklch(0.65 0.012 350);
+  --text-strong: oklch(0.97 0.004 260);
+  --text: oklch(0.88 0.008 260);
+  --text-muted: oklch(0.72 0.012 260);
+  --text-faint: oklch(0.65 0.012 260);
   --accent-ink: #ff8a57;
   --accent-soft: oklch(0.66 0.18 45 / 0.14);
   --danger-ink: #ff7a8c;
@@ -126,7 +126,7 @@
 .tile .av { --size: 64px; --bg-ring: var(--tile-bg); }
 .tiles.g3 .tile .av, .filmstrip .tile .av { --size: 40px; }
 .tile::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2; box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.06); transition: box-shadow var(--dur-hover); }
-.tile.speaking::after { box-shadow: inset 0 0 0 2px var(--online), inset 0 0 0 4px oklch(0.13 0.01 350 / 0.6); }
+.tile.speaking::after { box-shadow: inset 0 0 0 2px var(--online), inset 0 0 0 4px oklch(0.15 0.004 260 / 0.6); }
 .tile .name { position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px); z-index: 1; display: flex; align-items: center; gap: 6px; min-width: 0; height: 24px; padding: 0 8px; border-radius: var(--radius-xs); background: oklch(0 0 0 / 0.6); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
 /* Whose stream it is, on every stream card: the screen glyph leads the chip */
 .tile .name .scr { font-size: 14px; color: #fff; flex: none; }
@@ -155,15 +155,15 @@
   radial-gradient(80% 70% at 75% 15%, oklch(0.62 0.06 calc(var(--hue, 20) + 60)), transparent 70%),
   oklch(0.36 0.04 var(--hue, 20)); }
 .tile.connecting .av { opacity: 0.6; }
-.tile.connecting .name .bars { --c: oklch(0.8 0.01 350); }
-.tile.ended { background: oklch(0.19 0.01 350); }
+.tile.connecting .name .bars { --c: oklch(0.8 0.01 260); }
+.tile.ended { background: oklch(0.19 0.004 260); }
 .tile .center { position: relative; z-index: 1; display: grid; justify-items: center; gap: 4px; text-align: center; padding: var(--space-3); }
 .tile .center b { font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--text-strong); }
 .tile .center span { font-size: var(--text-xs); color: var(--text-muted); }
 .tile .center .btn { margin-top: 6px; }
-.tile.more { background: oklch(0.2 0.01 350); }
+.tile.more { background: oklch(0.2 0.004 260); }
 .tile.more .center b { font-size: var(--text-lg); font-variant-numeric: tabular-nums; }
-.tile.more .stackav .av { --size: 28px; box-shadow: 0 0 0 2px oklch(0.2 0.01 350); }
+.tile.more .stackav .av { --size: 28px; box-shadow: 0 0 0 2px oklch(0.2 0.004 260); }
 button.tile { cursor: pointer; transition: transform var(--dur-press) var(--ease-out); }
 button.tile:active { transform: scale(0.98); }
 button.tile:hover::after, .tile.clickable:hover::after { box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.2); }
@@ -199,7 +199,7 @@ button.tile:hover::after, .tile.clickable:hover::after { box-shadow: inset 0 0 0
 .preview { width: 260px; padding: 6px; border-radius: var(--radius-lg); background: var(--bg-overlay); box-shadow: var(--shadow-pop); display: grid; gap: 6px; }
 .preview .thumb { position: relative; aspect-ratio: 16/9; border-radius: var(--radius-md); overflow: hidden; display: grid; place-items: center; }
 .preview .thumb .tile { position: absolute; inset: 0; border-radius: 0; aspect-ratio: auto; }
-.preview .thumb .watch { --bg: oklch(0.97 0.004 350); --bg-h: #fff; --fg: oklch(0.2 0.01 350); position: relative; z-index: 3; opacity: 0; transition: opacity var(--dur-hover); }
+.preview .thumb .watch { --bg: oklch(0.97 0.004 260); --bg-h: #fff; --fg: oklch(0.2 0.004 260); position: relative; z-index: 3; opacity: 0; transition: opacity var(--dur-hover); }
 .preview .thumb::after { content: ""; position: absolute; inset: 0; z-index: 2; background: oklch(0 0 0 / 0.45); opacity: 0; transition: opacity var(--dur-hover); pointer-events: none; }
 .preview .thumb:hover .watch, .preview .thumb:focus-within .watch, .preview.hover .watch,
 .preview .thumb:hover::after, .preview .thumb:focus-within::after, .preview.hover .thumb::after { opacity: 1; }
@@ -226,8 +226,8 @@ button.tile:hover::after, .tile.clickable:hover::after { box-shadow: inset 0 0 0
 .call.overlay > .tiles, .call.overlay > .tile { position: absolute; inset: 0; }
 .call.overlay > .tile { aspect-ratio: auto; border-radius: 0; }
 .call.overlay .chrome { position: absolute; left: 0; right: 0; z-index: 4; padding: 10px 12px; transition: opacity var(--dur-panel) var(--ease-out), transform var(--dur-panel) var(--ease-out); }
-.call.overlay .chrome.head { top: 0; background: linear-gradient(oklch(0.13 0.01 350 / 0.85), transparent); }
-.call.overlay .chrome.foot { bottom: 0; background: linear-gradient(transparent, oklch(0.13 0.01 350 / 0.85)); padding-top: 28px; }
+.call.overlay .chrome.head { top: 0; background: linear-gradient(oklch(0.15 0.004 260 / 0.85), transparent); }
+.call.overlay .chrome.foot { bottom: 0; background: linear-gradient(transparent, oklch(0.15 0.004 260 / 0.85)); padding-top: 28px; }
 .call.overlay .chrome .cbtn { width: 44px; height: 40px; border-radius: 14px; }
 .call.overlay .chrome .cbtn i { font-size: 20px; }
 .call.overlay .chrome .cbtn.leave { width: 56px; }
@@ -245,8 +245,8 @@ button.tile:hover::after, .tile.clickable:hover::after { box-shadow: inset 0 0 0
 .cbtn i { font-size: 22px; }
 .cbtn.off { background: var(--off-bg, oklch(0.65 0.20 32 / 0.2)); color: var(--off-ink, oklch(0.78 0.15 32)); }
 .cbtn.off:hover { background: var(--off-bg-h, oklch(0.65 0.20 32 / 0.3)); }
-.cbtn.on { background: oklch(0.95 0.004 350); color: oklch(0.2 0.01 350); }
-.cbtn.on:hover { background: oklch(0.88 0.006 350); }
+.cbtn.on { background: oklch(0.95 0.004 260); color: oklch(0.2 0.004 260); }
+.cbtn.on:hover { background: oklch(0.88 0.006 260); }
 .cbtn.active { background: var(--accent); }
 .cbtn.active:hover { background: var(--accent-hover); }
 .cbtn.leave { width: 68px; background: var(--danger); }
@@ -261,8 +261,8 @@ button.tile:hover::after, .tile.clickable:hover::after { box-shadow: inset 0 0 0
 .csplit > .cbtn.chev i { font-size: 14px; }
 .csplit.off > .cbtn { background: var(--off-bg); color: var(--off-ink); }
 .csplit.off > .cbtn:hover { background: var(--off-bg-h); }
-.csplit.on > .cbtn { background: oklch(0.95 0.004 350); color: oklch(0.2 0.01 350); }
-.csplit.on > .cbtn:hover { background: oklch(0.88 0.006 350); }
+.csplit.on > .cbtn { background: oklch(0.95 0.004 260); color: oklch(0.2 0.004 260); }
+.csplit.on > .cbtn:hover { background: oklch(0.88 0.006 260); }
 
 /* Device menu */
 .menu.devmenu { --menu-w: 300px; }
@@ -375,16 +375,16 @@ button.tile:hover::after, .tile.clickable:hover::after { box-shadow: inset 0 0 0
 .vmark:has(> span) { padding: 0 6px 0 4px; }
 .vmark--server { background: var(--danger); color: #fff; }
 .vmark--local, .vmark--blocked { background: var(--selected); color: var(--text-strong); box-shadow: inset 0 0 0 1px var(--line); }
-.tile .vmark--local, .tile .vmark--blocked { background: oklch(0.13 0.01 350 / 0.72); color: #fff; box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.16); }
+.tile .vmark--local, .tile .vmark--blocked { background: oklch(0.15 0.004 260 / 0.72); color: #fff; box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.16); }
 .tile .name .who + .vmark { margin-left: 2px; }
 .tile.is-local-muted .av, .tile.is-blocked .av { opacity: 0.5; }
 /* Speaking but muted for you: the ring stays, in neutral, so you can see them talk without hearing them */
-.tile.speaking.is-local-muted::after { box-shadow: inset 0 0 0 2px oklch(1 0 0 / 0.42), inset 0 0 0 4px oklch(0.13 0.01 350 / 0.6); }
+.tile.speaking.is-local-muted::after { box-shadow: inset 0 0 0 2px oklch(1 0 0 / 0.42), inset 0 0 0 4px oklch(0.15 0.004 260 / 0.6); }
 
 /* Soundboard: the played sound's emoji on whoever played it, for as long as it plays */
 .sfx { display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; corner-shape: round; background: var(--bg-overlay); box-shadow: 0 0 0 2px var(--bg-ring, var(--bg-page)); font-size: 13px; line-height: 1; animation: sfx-pop 260ms var(--ease-spring) both; }
 .av > .sfx { position: absolute; right: -4px; top: -4px; width: max(22px, calc(var(--size) * 0.42)); height: max(22px, calc(var(--size) * 0.42)); font-size: max(13px, calc(var(--size) * 0.24)); }
-.tile .sfx { --bg-ring: var(--tile-bg); background: oklch(0.3 0.012 350); }
+.tile .sfx { --bg-ring: var(--tile-bg); background: oklch(0.3 0.004 260); }
 .sfx.is-leaving { animation: sfx-out 150ms var(--ease-out) forwards; }
 @keyframes sfx-pop { from { opacity: 0; transform: scale(0.5); } }
 @keyframes sfx-out { to { opacity: 0; transform: scale(0.8); } }
@@ -405,9 +405,9 @@ button.tile:hover::after, .tile.clickable:hover::after { box-shadow: inset 0 0 0
 .pip-stage.is-dragging .pip-snap { opacity: 1; }
 .pip-snap.is-near { background: oklch(0.66 0.18 45 / 0.18); box-shadow: inset 0 0 0 2px var(--accent); }
 /* Show self-view again: a small control left in the corner the self-view closed from */
-.pip-restore { position: absolute; right: 12px; bottom: 12px; z-index: 3; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 10px; border-radius: var(--radius-md); background: oklch(0.13 0.01 350 / 0.78); box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.16), 0 6px 16px oklch(0 0 0 / 0.35); color: #fff; font-size: var(--text-xs); font-weight: var(--weight-semibold); white-space: nowrap; transform-origin: bottom right; animation: v-rise var(--dur-pop) var(--ease-out) both; transition: background var(--dur-hover), transform var(--dur-press) var(--ease-out); }
+.pip-restore { position: absolute; right: 12px; bottom: 12px; z-index: 3; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 10px; border-radius: var(--radius-md); background: oklch(0.15 0.004 260 / 0.78); box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.16), 0 6px 16px oklch(0 0 0 / 0.35); color: #fff; font-size: var(--text-xs); font-weight: var(--weight-semibold); white-space: nowrap; transform-origin: bottom right; animation: v-rise var(--dur-pop) var(--ease-out) both; transition: background var(--dur-hover), transform var(--dur-press) var(--ease-out); }
 .pip-restore i { font-size: 16px; }
-.pip-restore:hover { background: oklch(0.2 0.01 350 / 0.9); }
+.pip-restore:hover { background: oklch(0.2 0.004 260 / 0.9); }
 .pip-restore:active { transform: scale(0.97); }
 .pip-restore[data-corner="tl"] { left: 12px; top: 12px; right: auto; bottom: auto; transform-origin: top left; }
 .pip-restore[data-corner="tr"] { top: 12px; bottom: auto; transform-origin: top right; }
@@ -419,7 +419,7 @@ button.tile:hover::after, .tile.clickable:hover::after { box-shadow: inset 0 0 0
 .popout { position: relative; width: 360px; max-width: 100%; aspect-ratio: 16/10; border-radius: var(--radius-lg); overflow: hidden; isolation: isolate; background: var(--stage); box-shadow: 0 18px 44px oklch(0 0 0 / 0.4), 0 0 0 1px oklch(1 0 0 / 0.12); }
 .popout > .tile { position: absolute; inset: 0; border-radius: 0; aspect-ratio: auto; }
 .popout-bar, .popout-foot { position: absolute; left: 0; right: 0; z-index: 3; display: flex; align-items: center; gap: 8px; transition: opacity var(--dur-panel) var(--ease-out); }
-.popout-bar { top: 0; height: 40px; padding: 0 8px 0 12px; background: linear-gradient(oklch(0.13 0.01 350 / 0.85), transparent); color: #fff; font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.popout-bar { top: 0; height: 40px; padding: 0 8px 0 12px; background: linear-gradient(oklch(0.15 0.004 260 / 0.85), transparent); color: #fff; font-size: var(--text-xs); font-weight: var(--weight-semibold); }
 .popout-bar .title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px oklch(0 0 0 / 0.6); }
 .popout-bar .live { flex: none; }
 .popout-bar .iconbtn { width: 28px; height: 28px; color: #fff; }
@@ -427,12 +427,12 @@ button.tile:hover::after, .tile.clickable:hover::after { box-shadow: inset 0 0 0
 .popout-lights i { width: 12px; height: 12px; border-radius: 50%; corner-shape: round; background: #ff5f57; box-shadow: inset 0 0 0 0.5px oklch(0 0 0 / 0.2); }
 .popout-lights i:nth-child(2) { background: #febc2e; }
 .popout-lights i:nth-child(3) { background: #28c840; }
-.popout-foot { bottom: 0; justify-content: center; padding: 28px 10px 10px; background: linear-gradient(transparent, oklch(0.13 0.01 350 / 0.85)); }
+.popout-foot { bottom: 0; justify-content: center; padding: 28px 10px 10px; background: linear-gradient(transparent, oklch(0.15 0.004 260 / 0.85)); }
 .popout-foot .iconbtn { width: 32px; height: 32px; color: #fff; background: oklch(1 0 0 / 0.1); }
 .popout-foot .iconbtn:hover { background: oklch(1 0 0 / 0.18); }
 .popout:not(:hover):not(:focus-within):not(.is-hover) :is(.popout-bar, .popout-foot) { opacity: 0; }
 /* The tile a popped-out stream leaves behind: same slot, the picture dimmed under a way back */
-.tile.is-popped::before { content: ""; position: absolute; inset: 0; z-index: 0; background: oklch(0.13 0.01 350 / 0.84); pointer-events: none; }
+.tile.is-popped::before { content: ""; position: absolute; inset: 0; z-index: 0; background: oklch(0.15 0.004 260 / 0.84); pointer-events: none; }
 .tile.is-popped .center b { display: flex; align-items: center; gap: 6px; }
 .tile.is-popped .center b i { font-size: 18px; color: var(--text-muted); }
 

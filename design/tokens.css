@@ -1,8 +1,11 @@
-/* Wave design tokens: the source of truth `src/palette.rs` and `src/ui.rs` are ported from.
+/* Dango design tokens: the source of truth `src/palette.rs` and `src/ui.rs` are ported from.
    Themes: [data-theme=dark|light] on <html>, following the system when unset.
-   Neutrals: [data-neutral=ink|plum|graphite]; ink is the proposal, the others are for comparison. */
+   Neutrals: Graphite, a faint cool cast (hue 260, chroma 0.004) in both themes. */
 
 :root {
+  --n-h: 260;
+  --n-c: 0.004;
+
   /* Brand */
   --logo: #e25b26;
   --accent: #c8471a;
@@ -59,7 +62,7 @@
   --online: oklch(0.74 0.16 155);
   --idle: oklch(0.80 0.15 78);
   --dnd: oklch(0.65 0.20 32);
-  --offline: oklch(0.62 0.01 350);
+  --offline: oklch(0.62 0.01 var(--n-h));
   --danger: #c21f3a;
   --danger-hover: #a8172f;
   --success: oklch(0.49 0.13 155);
@@ -70,8 +73,6 @@
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --n-h: 350;
-  --n-c: 0.010;
   --bg-rail: oklch(0.150 var(--n-c) var(--n-h));
   --bg-sidebar: oklch(0.180 var(--n-c) var(--n-h));
   --bg-page: oklch(0.210 var(--n-c) var(--n-h));
@@ -98,27 +99,25 @@
   --seg-thumb: oklch(1 0 0 / 0.15);
   --seg-shadow: 0 1px 3px oklch(0 0 0 / 0.4), inset 0 0.5px 0 oklch(1 0 0 / 0.14);
   --shadow-pop: 0 12px 32px oklch(0 0 0 / 0.45), 0 0 0 1px var(--line-strong);
-  --scrim: oklch(0.08 0.01 350 / 0.7);
+  --scrim: oklch(0.08 var(--n-c) var(--n-h) / 0.7);
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --n-h: 75;
-  --n-c: 0.012;
   --bg-rail: oklch(0.905 calc(var(--n-c) * 1.2) var(--n-h));
   --bg-sidebar: oklch(0.948 var(--n-c) var(--n-h));
   --bg-page: oklch(0.982 calc(var(--n-c) * 0.6) var(--n-h));
   --bg-raised: oklch(0.995 calc(var(--n-c) * 0.3) var(--n-h));
   --bg-overlay: oklch(0.998 calc(var(--n-c) * 0.2) var(--n-h));
-  --hover: oklch(0.35 0.03 40 / 0.06);
-  --press: oklch(0.35 0.03 40 / 0.1);
-  --selected: oklch(0.35 0.03 40 / 0.09);
-  --line: oklch(0.35 0.03 40 / 0.1);
-  --line-strong: oklch(0.35 0.03 40 / 0.18);
-  --text-strong: oklch(0.20 0.015 350);
-  --text: oklch(0.30 0.015 350);
-  --text-muted: oklch(0.46 0.015 350);
-  --text-faint: oklch(0.49 0.014 350);
+  --hover: oklch(0.3 0.008 var(--n-h) / 0.06);
+  --press: oklch(0.3 0.008 var(--n-h) / 0.1);
+  --selected: oklch(0.3 0.008 var(--n-h) / 0.09);
+  --line: oklch(0.3 0.008 var(--n-h) / 0.1);
+  --line-strong: oklch(0.3 0.008 var(--n-h) / 0.18);
+  --text-strong: oklch(0.20 0.009 var(--n-h));
+  --text: oklch(0.30 0.009 var(--n-h));
+  --text-muted: oklch(0.46 0.009 var(--n-h));
+  --text-faint: oklch(0.49 0.009 var(--n-h));
   --accent-ink: #a83a12;
   --accent-soft: oklch(0.6 0.18 45 / 0.10);
   --danger-ink: #b0182f;
@@ -126,35 +125,33 @@
   --info-ink: oklch(0.50 0.13 245);
   --warning-ink: oklch(0.52 0.12 65);
   --shimmer: oklch(1 0 0 / 0.6);
-  --track-rest: oklch(0.87 0.012 var(--n-h));
-  --seg-track: oklch(0.35 0.03 40 / 0.1);
+  --track-rest: oklch(0.87 0.009 var(--n-h));
+  --seg-track: oklch(0.3 0.008 var(--n-h) / 0.1);
   --seg-thumb: oklch(1 0 0);
-  --seg-shadow: 0 1px 3px oklch(0.3 0.03 40 / 0.2), 0 0 0 0.5px oklch(0.3 0.03 40 / 0.1);
+  --seg-shadow: 0 1px 3px oklch(0.3 0.008 var(--n-h) / 0.2), 0 0 0 0.5px oklch(0.3 0.008 var(--n-h) / 0.1);
   --online: oklch(0.62 0.16 155);
   --idle: oklch(0.72 0.15 75);
-  --shadow-pop: 0 12px 32px oklch(0.3 0.03 40 / 0.16), 0 0 0 1px var(--line-strong);
-  --scrim: oklch(0.2 0.02 350 / 0.4);
+  --shadow-pop: 0 12px 32px oklch(0.3 0.008 var(--n-h) / 0.16), 0 0 0 1px var(--line-strong);
+  --scrim: oklch(0.2 var(--n-c) var(--n-h) / 0.4);
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
     color-scheme: light;
-    --n-h: 75;
-    --n-c: 0.012;
     --bg-rail: oklch(0.905 calc(var(--n-c) * 1.2) var(--n-h));
     --bg-sidebar: oklch(0.948 var(--n-c) var(--n-h));
     --bg-page: oklch(0.982 calc(var(--n-c) * 0.6) var(--n-h));
     --bg-raised: oklch(0.995 calc(var(--n-c) * 0.3) var(--n-h));
     --bg-overlay: oklch(0.998 calc(var(--n-c) * 0.2) var(--n-h));
-    --hover: oklch(0.35 0.03 40 / 0.06);
-    --press: oklch(0.35 0.03 40 / 0.1);
-    --selected: oklch(0.35 0.03 40 / 0.09);
-    --line: oklch(0.35 0.03 40 / 0.1);
-    --line-strong: oklch(0.35 0.03 40 / 0.18);
-    --text-strong: oklch(0.20 0.015 350);
-    --text: oklch(0.30 0.015 350);
-    --text-muted: oklch(0.46 0.015 350);
-    --text-faint: oklch(0.49 0.014 350);
+    --hover: oklch(0.3 0.008 var(--n-h) / 0.06);
+    --press: oklch(0.3 0.008 var(--n-h) / 0.1);
+    --selected: oklch(0.3 0.008 var(--n-h) / 0.09);
+    --line: oklch(0.3 0.008 var(--n-h) / 0.1);
+    --line-strong: oklch(0.3 0.008 var(--n-h) / 0.18);
+    --text-strong: oklch(0.20 0.009 var(--n-h));
+    --text: oklch(0.30 0.009 var(--n-h));
+    --text-muted: oklch(0.46 0.009 var(--n-h));
+    --text-faint: oklch(0.49 0.009 var(--n-h));
     --accent-ink: #a83a12;
     --accent-soft: oklch(0.6 0.18 45 / 0.10);
     --danger-ink: #b0182f;
@@ -162,17 +159,13 @@
     --info-ink: oklch(0.50 0.13 245);
     --warning-ink: oklch(0.52 0.12 65);
     --shimmer: oklch(1 0 0 / 0.6);
-    --track-rest: oklch(0.87 0.012 var(--n-h));
-    --seg-track: oklch(0.35 0.03 40 / 0.1);
+    --track-rest: oklch(0.87 0.009 var(--n-h));
+    --seg-track: oklch(0.3 0.008 var(--n-h) / 0.1);
     --seg-thumb: oklch(1 0 0);
-    --seg-shadow: 0 1px 3px oklch(0.3 0.03 40 / 0.2), 0 0 0 0.5px oklch(0.3 0.03 40 / 0.1);
+    --seg-shadow: 0 1px 3px oklch(0.3 0.008 var(--n-h) / 0.2), 0 0 0 0.5px oklch(0.3 0.008 var(--n-h) / 0.1);
     --online: oklch(0.62 0.16 155);
     --idle: oklch(0.72 0.15 75);
-    --shadow-pop: 0 12px 32px oklch(0.3 0.03 40 / 0.16), 0 0 0 1px var(--line-strong);
-    --scrim: oklch(0.2 0.02 350 / 0.4);
+    --shadow-pop: 0 12px 32px oklch(0.3 0.008 var(--n-h) / 0.16), 0 0 0 1px var(--line-strong);
+    --scrim: oklch(0.2 var(--n-c) var(--n-h) / 0.4);
   }
 }
-
-/* Neutral alternatives, for comparison only. */
-:root[data-neutral="plum"] { --n-h: 350 !important; --n-c: 0.022 !important; }
-:root[data-neutral="graphite"] { --n-h: 260 !important; --n-c: 0.004 !important; }
