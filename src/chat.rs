@@ -439,7 +439,7 @@ impl Rustcord {
             .gap(px(4.))
             .child(ui::icon_button("attach", Glyph::PlusCircle, "Upload a File", cx).on_click(cx.listener(|this, _, window, cx| this.upload(window, cx))))
             // XSmall gives the editor 0/4px padding of its own; with these, the design's 4/6.
-            .child(div().flex_1().min_w_0().child(Textarea::new(&self.composer).appearance(false).with_size(Size::XSmall).py(px(4.)).px(px(2.)).text_size(px(16.)).line_height(px(24.)).text_color(strong)))
+            .child(div().flex_1().min_w_0().child(Textarea::new(&self.composer).appearance(false).with_size(Size::XSmall).py(px(4.)).px(px(2.)).text_size(px(15.)).line_height(px(22.)).text_color(strong)))
             .child(ui::icon_button("composer-gif", Glyph::Gif, "Open GIF picker", cx).on_click(cx.listener(|this, _, window, cx| this.open_gifs(window, cx))))
             .child(ui::icon_button("composer-emoji", Glyph::Emoji, "Select Emoji", cx).on_click(cx.listener(|this, _, window, cx| this.open_emoji_picker(EmojiTarget::Composer, window, cx))));
         let card = div()
