@@ -77,6 +77,8 @@ screencapturekit = { version = "11", features = ["macos_14_0"] }
 # RSA key generation takes seconds unoptimised; dependencies build optimised even in debug.
 [profile.dev.package."*"]
 opt-level = 2
+# Dependency debug info was most of each worktree's target/; our own crate keeps full debug info.
+debug = false
 
 # tract 0.21.4's debug-only graph check rejects DeepFilterNet3's encoder ("duplicate name
 # /convt3/Conv.bias") although release builds run it fine; debug builds skip the check like release.
