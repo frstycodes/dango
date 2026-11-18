@@ -43,6 +43,7 @@ mod rail_drag;
 mod sidebar;
 mod search;
 mod search_menu;
+mod search_results;
 mod settings;
 mod shell;
 mod user_menu;
@@ -341,7 +342,7 @@ enum RightPanel {
     Members,
     // Every Activity card, from the section's chevron.
     Activity,
-    Search { query: SharedString, results: Option<Result<Vec<Message>, SharedString>> },
+    Search(Box<search_results::Results>),
     Hidden,
 }
 

@@ -103,14 +103,10 @@ impl Rustcord {
             Key::From | Key::Mentions => {
                 let mut seen = std::collections::HashSet::new();
                 let guild = self.guild_id.as_ref().and_then(|g| self.members.get(g));
-                guild
-                    .into_iter()
-                    .flat_map(|m| m.values().cloned())
-                    .chain(self.known_users())
-                    .filter(|u| seen.insert(u.id.clone()) && u.name.to_lowercase().contains(&typed))
-                    .take(VALUES_SHOWN)
-                    .map(|u| pick(&u.id, &u.name, Lead::Avatar(u.avatar.clone())))
-                    .collect()
+                let mut users: Vec<crate::discord::User> = guild.into_iter().flat_map(|m| m.values().cloned()).chain(self.known_users()).filter(|u| seen.insert(u.id.clone()) && u.name.to_lowercase().contains(&typed)).collect();
+                // Names that start with what's typed first, then by name, so the top row is the likely pick.
+                users.sort_by_key(|u| (!u.name.to_lowercase().starts_with(&typed), u.name.to_lowercase()));
+                users.into_iter().take(VALUES_SHOWN).map(|u| pick(&u.id, &u.name, Lead::Avatar(u.avatar.clone()))).collect()
             }
             Key::In => self
                 .guild()
@@ -139,14 +135,17 @@ impl Rustcord {
         match event {
             InputEvent::Change => {
                 self.search_pick = None;
+                self.chip_search_filters(false, window, cx);
                 cx.notify();
             }
-            InputEvent::PressEnter { .. } => match self.search_pick {
-                Some(i) => self.accept_search_row(i, window, cx),
-                None if matches!(self.search_menu(cx), Menu::List(..)) => self.accept_search_row(0, window, cx),
-                None if matches!(self.search_menu(cx), Menu::Calendar(_)) => self.pick_search_day(self.search_day, window, cx),
-                None => self.run_search(window, cx),
-            },
+            InputEvent::PressEnter { .. } => {
+                let menu = self.search_menu(cx);
+                match self.search_pick(&menu) {
+                    Some(i) => self.accept_search_row(i, window, cx),
+                    None if matches!(menu, Menu::Calendar(_)) => self.pick_search_day(self.search_day, window, cx),
+                    None => self.run_search(window, cx),
+                }
+            }
             _ => {}
         }
     }
@@ -179,9 +178,50 @@ impl Rustcord {
             "up" => count - 1,
             _ => return,
         };
-        self.search_pick = Some(self.search_pick.map_or(if step == 1 { 0 } else { count - 1 }, |i| (i + step) % count));
+        self.search_pick = Some(self.search_pick(&menu).map_or(if step == 1 { 0 } else { count - 1 }, |i| (i + step) % count));
         cx.notify();
         cx.stop_propagation();
+    }
+
+    // The keyboard's row: the one moved to, else the first of a list of values or matching filters, so
+    // Enter takes the top match. The home list starts with none, so Enter searches what's typed.
+    fn search_pick(&self, menu: &Menu) -> Option<usize> {
+        self.search_pick.or_else(|| matches!(menu, Menu::List(_, rows) if !rows.is_empty()).then_some(0))
+    }
+
+    // Filters written out as text become tokens. While typing, a person or channel waits for the space
+    // after it; `submit` (Enter) takes one at the very end too.
+    fn chip_search_filters(&mut self, submit: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let mut content = self.search_input.read(cx).content();
+        if submit {
+            content = content.tokens().iter().fold(InputContent::new(format!("{} ", content.text())), |next, t| next.clone().with_token(t.range(), t.token().clone()).unwrap_or(next));
+        }
+        let users: Vec<crate::discord::User> = self.guild_id.as_ref().and_then(|g| self.members.get(g)).into_iter().flat_map(|m| m.values().cloned()).chain(self.known_users()).collect();
+        let channels = self.guild().map(|g| g.channels.clone()).unwrap_or_default();
+        let resolve = |key: Key, value: &str| match key {
+            Key::From | Key::Mentions => users.iter().find(|u| u.id == value || u.name.eq_ignore_ascii_case(value)).map(|u| (u.id.clone(), u.name.clone())),
+            Key::In => channels.iter().find(|c| c.id == value || c.name.eq_ignore_ascii_case(value)).map(|c| (c.id.clone(), c.name.clone())),
+            _ => None,
+        };
+        let Some(next) = search::chip(&content, resolve) else { return };
+        self.search_input.update(cx, |state, cx| state.set_value(next, window, cx));
+    }
+
+    // Filters' Add: types `key:` after what's in the field and focuses it, so its values open.
+    pub(crate) fn type_search_filter(&mut self, key: Key, window: &mut Window, cx: &mut Context<Self>) {
+        let content = self.search_input.read(cx).content();
+        let text = content.text();
+        let gap = if text.is_empty() || text.ends_with(' ') { "" } else { " " };
+        let next = content.tokens().iter().fold(InputContent::new(format!("{text}{gap}{}:", key.word())), |next, t| next.clone().with_token(t.range(), t.token().clone()).unwrap_or(next));
+        self.search_input.update(cx, |state, cx| {
+            state.set_value(next, window, cx);
+            state.focus(window, cx);
+        });
+        if let RightPanel::Search(results) = &mut self.right_panel {
+            results.close_filters();
+        }
+        self.search_pick = None;
+        cx.notify();
     }
 
     fn accept_search_row(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
@@ -236,10 +276,13 @@ impl Rustcord {
         cx.notify();
     }
 
-    fn run_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn run_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.chip_search_filters(true, window, cx);
         let content = self.search_input.read(cx).content();
         let query = content.text().trim().to_owned();
-        let Some(client) = self.client.clone() else { return };
+        if self.client.is_none() {
+            return;
+        }
         // A server searches all its channels; a DM searches itself.
         let scope = match (&self.guild_id, &self.channel) {
             (Some(guild), _) => format!("guilds/{guild}"),
@@ -266,24 +309,14 @@ impl Rustcord {
         if !parsed.unresolved.is_empty() {
             self.show_toast(format!("Couldn't find {}", parsed.unresolved.join(", ")), cx);
         }
-        let saved = Saved::from_content(&content);
-        let title = saved.parts().iter().map(|(key, text)| key.map_or(text.to_string(), |k| format!("{k}: {}", shown(k, text)))).collect::<Vec<_>>().join(" ");
         let account = self.my_id().to_owned();
-        self.update_prefs(cx, |p| search::remember(p.search_history.entry(account).or_default(), saved));
+        self.update_prefs(cx, |p| search::remember(p.search_history.entry(account).or_default(), Saved::from_content(&content)));
         window.blur(cx);
-        self.right_panel = RightPanel::Search { query: title.into(), results: None };
-        cx.notify();
-        cx.spawn(async move |this, cx| {
-            let result = client.search(&scope, &parsed.content, &parsed.params).await;
-            this.update(cx, |this, cx| {
-                if let RightPanel::Search { results, .. } = &mut this.right_panel {
-                    *results = Some(result.map_err(Into::into));
-                }
-                cx.notify();
-            })
-            .ok();
-        })
-        .detach();
+        let sort = match &self.right_panel {
+            RightPanel::Search(results) => results.sort(),
+            _ => search::Sort::default(),
+        };
+        self.show_search(crate::search_results::Results::new(scope, &query, parsed, sort), cx);
     }
 
     fn clear_search_history(&mut self, cx: &mut Context<Self>) {
@@ -303,10 +336,11 @@ impl Rustcord {
     pub(crate) fn search_popover(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let menu = self.search_menu(cx);
         let avatars = self.search_avatars();
+        let pick = self.search_pick(&menu);
         let body: Vec<AnyElement> = match &menu {
             Menu::Hidden => return None,
             Menu::List(_, rows) if rows.is_empty() => vec![group("No matches", cx).into_any_element()],
-            Menu::List(heading, rows) => std::iter::once(group(heading.clone(), cx).into_any_element()).chain(rows.iter().enumerate().map(|(i, row)| self.search_row(i, row, &avatars, cx))).collect(),
+            Menu::List(heading, rows) => std::iter::once(group(heading.clone(), cx).into_any_element()).chain(rows.iter().enumerate().map(|(i, row)| self.search_row(i, row, pick, &avatars, cx))).collect(),
             Menu::Home(rows) => {
                 let mut out = vec![group("Filters", cx).into_any_element()];
                 for (i, row) in rows.iter().enumerate() {
@@ -315,7 +349,7 @@ impl Rustcord {
                         let clear = ui::icon_button("search-history-clear", Glyph::Trash, "Clear history", cx).small().on_click(cx.listener(|this, _, _, cx| this.clear_search_history(cx)));
                         out.push(group("History", cx).child(div().ml_auto().child(clear)).into_any_element());
                     }
-                    out.push(self.search_row(i, row, &avatars, cx));
+                    out.push(self.search_row(i, row, pick, &avatars, cx));
                 }
                 out
             }
@@ -336,9 +370,9 @@ impl Rustcord {
         Some(card.into_any_element())
     }
 
-    fn search_row(&self, index: usize, row: &Row, avatars: &HashMap<String, String>, cx: &mut Context<Self>) -> AnyElement {
+    fn search_row(&self, index: usize, row: &Row, pick: Option<usize>, avatars: &HashMap<String, String>, cx: &mut Context<Self>) -> AnyElement {
         let (muted, strong) = (palette::muted(cx), palette::strong(cx));
-        let base = ui::menu_row(("search-row", index), cx).highlighted(self.search_pick == Some(index)).on_click(cx.listener(move |this, _, window, cx| this.accept_search_row(index, window, cx)));
+        let base = ui::menu_row(("search-row", index), cx).highlighted(pick == Some(index)).on_click(cx.listener(move |this, _, window, cx| this.accept_search_row(index, window, cx)));
         let lead = |glyph: Glyph| div().flex_none().text_color(muted).child(Icon::new(glyph).size(px(18.)));
         match row {
             Row::Filter(key) => base
@@ -465,7 +499,7 @@ fn group(label: impl Into<SharedString>, cx: &App) -> gpui_kit::Div {
     div().flex().items_center().gap(px(4.)).px(px(10.)).pt(px(8.)).pb(px(4.)).text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::muted(cx)).child(label.into())
 }
 
-fn key_glyph(key: Key) -> Glyph {
+pub(crate) fn key_glyph(key: Key) -> Glyph {
     match key {
         Key::From => Glyph::User,
         Key::In => Glyph::Hashtag,

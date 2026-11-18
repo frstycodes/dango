@@ -11,7 +11,7 @@ use gpui_motion_kit::core::{Motion, Target};
 
 use crate::{
     Part, Rustcord, Edge, RightPanel,
-    discord::{ActivityKind, FeedEntry, ListItem, Member, Message, Status},
+    discord::{ActivityKind, FeedEntry, ListItem, Member, Status},
     icons::Glyph,
     layout::{decorated_avatar, nameplate},
     motion, palette,
@@ -27,16 +27,20 @@ impl Rustcord {
         self.guild_id.as_ref()?;
         // Its header sits on the window's top line beside the channel header's: "Members", or the search's
         // query with a way back to the members.
-        let (head, body): (Div, AnyElement) = match &self.right_panel {
+        let (head, body, foot, width): (Div, AnyElement, Option<AnyElement>, f32) = match &self.right_panel {
             RightPanel::Hidden => return None,
-            RightPanel::Members => (self.panel_head("Members".into(), false, cx), self.member_list(window, cx)),
-            RightPanel::Activity => (self.panel_head("Activity".into(), true, cx), self.activity_cards(usize::MAX, cx)),
-            RightPanel::Search { query, results } => (self.panel_head(format!("Results for “{query}”").into(), true, cx), self.search_results(results.clone(), cx)),
+            RightPanel::Members => (self.panel_head("Members".into(), false, cx), self.member_list(window, cx), None, self.panel_width),
+            RightPanel::Activity => (self.panel_head("Activity".into(), true, cx), self.activity_cards(usize::MAX, cx), None, self.panel_width),
+            RightPanel::Search(results) => {
+                let head = self.panel_frame(cx).child(self.search_head(results, self.back_button(cx), cx));
+                (head, self.search_body(results, cx), self.search_pager(results, cx), crate::search_results::PANEL_WIDTH)
+            }
         };
+        let line = palette::line(cx);
         Some(
             div()
                 .relative()
-                .w(px(self.panel_width))
+                .w(px(width))
                 .h_full()
                 .flex_none()
                 .flex()
@@ -48,6 +52,7 @@ impl Rustcord {
                 .child(self.resize_handle(Edge::Panel, cx))
                 .child(head)
                 .child(div().id("right-panel").flex_1().min_h_0().overflow_y_scroll().p_2().flex().flex_col().gap(px(2.)).child(body))
+                .children(foot.map(|pager| div().flex_none().py(px(8.)).border_t_1().border_color(line).child(pager)))
                 .into_any_element(),
         )
     }
@@ -55,12 +60,11 @@ impl Rustcord {
     // The column's header row, clear of Windows' caption buttons at the window's top right; `back` adds the
     // way back to the members.
     fn panel_head(&self, title: SharedString, back: bool, cx: &mut Context<Self>) -> Div {
-        let back = back.then(|| {
-            ui::icon_button("close-panel", Glyph::X, "Back to members", cx).on_click(cx.listener(|this, _, _, cx| {
-                this.right_panel = RightPanel::Members;
-                cx.notify();
-            }))
-        });
+        let back = back.then(|| self.back_button(cx));
+        self.panel_frame(cx).child(div().flex_1().min_w_0().truncate().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).child(title)).children(back)
+    }
+
+    fn panel_frame(&self, cx: &App) -> Div {
         div()
             .h(px(crate::layout::HEADER_HEIGHT))
             .flex_none()
@@ -71,8 +75,13 @@ impl Rustcord {
             .gap_2()
             .window_control_area(gpui_kit::WindowControlArea::Drag)
             .text_color(palette::strong(cx))
-            .child(div().flex_1().min_w_0().truncate().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).child(title))
-            .children(back)
+    }
+
+    fn back_button(&self, cx: &mut Context<Self>) -> ui::Control {
+        ui::icon_button("close-panel", Glyph::X, "Back to members", cx).occlude().on_click(cx.listener(|this, _, _, cx| {
+            this.right_panel = RightPanel::Members;
+            cx.notify();
+        }))
     }
 
     // Who is here, grouped by top role, then online and offline (navigation.css .members).
@@ -287,47 +296,6 @@ impl Rustcord {
                 cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_user_menu(user.clone(), guild_id.clone(), crate::user_menu::Surface::ServerChat, e.position, cx))
             })
             .into_any_element()
-    }
-
-    fn search_results(&self, results: Option<Result<Vec<Message>, SharedString>>, cx: &mut Context<Self>) -> AnyElement {
-        let muted = palette::muted(cx);
-        match results {
-            None => wait_line("search-wait", "Searching…", cx).into_any_element(),
-            Some(Err(error)) => div().px_2().text_color(palette::danger_ink(cx)).child(error).into_any_element(),
-            Some(Ok(hits)) if hits.is_empty() => div().px_2().py_2().text_color(muted).child("No results").into_any_element(),
-            Some(Ok(hits)) => {
-                let (hover, page, faint, strong) = (palette::hover(cx), palette::surface(palette::Level::Page, cx), palette::faint(cx), palette::strong(cx));
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(2.))
-                    .children(hits.into_iter().map(|hit| {
-                        let channel = self.guild().and_then(|g| g.channels.iter().find(|c| c.id == hit.channel_id).cloned());
-                        let (target, message_id) = (channel.clone(), hit.id.clone());
-                        div()
-                            .id(SharedString::from(format!("hit-{}", hit.id)))
-                            .p_2()
-                            .squircle(ui::RADIUS_MD)
-                            .bg(page)
-                            .cursor_pointer()
-                            .hover(move |s| s.bg(hover))
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .child(div().text_size(px(12.)).text_color(faint).child(format!("#{}", channel.map(|c| c.name).unwrap_or_default())))
-                            .child(div().flex().items_center().gap_2().child(ui::avatar(hit.author.avatar.clone(), 20.)).child(div().font_weight(FontWeight::MEDIUM).text_color(strong).child(hit.author.name.clone())))
-                            .child(div().line_clamp(3).child(hit.content.clone()))
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                let Some(channel) = target.clone() else { return };
-                                if this.channel.as_ref().is_none_or(|c| c.id != channel.id) {
-                                    this.open_channel(channel, window, cx);
-                                }
-                                this.jump_to(message_id.clone(), cx);
-                            }))
-                    }))
-                    .into_any_element()
-            }
-        }
     }
 }
 
