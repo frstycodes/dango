@@ -26,7 +26,7 @@ use ndarray::{ArrayView2, ArrayViewMut2};
 use nnnoiseless::DenoiseState;
 use sonora::{
     AudioProcessing, Config, StreamConfig,
-    config::{AdaptiveDigital, EchoCanceller, GainController2},
+    config::{AdaptiveDigital, EchoCanceller, GainController2, MaxProcessingRate, Pipeline},
 };
 
 use super::{
@@ -349,6 +349,7 @@ fn front_config(echo: bool, noise: NoiseSuppression) -> Config {
     Config {
         echo_canceller: echo.then(EchoCanceller::default),
         noise_suppression: (noise == NoiseSuppression::Standard).then(sonora::config::NoiseSuppression::default),
+        pipeline: full_band(),
         ..Default::default()
     }
 }
@@ -358,8 +359,15 @@ fn front_config(echo: bool, noise: NoiseSuppression) -> Config {
 fn back_config(gain: bool) -> Config {
     Config {
         gain_controller2: gain.then(|| GainController2 { adaptive_digital: Some(AdaptiveDigital::default()), ..Default::default() }),
+        pipeline: full_band(),
         ..Default::default()
     }
+}
+
+// sonora defaults to 32 kHz internally: every block went 48 -> 32 -> 48 kHz, losing all above
+// 16 kHz before the neural suppressor (trained on full band) saw it. Discord's APM runs at 48 kHz.
+fn full_band() -> Pipeline {
+    Pipeline { maximum_internal_processing_rate: MaxProcessingRate::Rate48kHz, ..Default::default() }
 }
 
 fn fold(stereo: &[f32; BLOCK * 2], mono: &mut [f32; BLOCK]) {
