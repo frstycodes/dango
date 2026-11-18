@@ -68,6 +68,9 @@ pub enum VoiceEvent {
     // Remote cameras and Go Lives, and our own camera (our user id) for the self-preview.
     StreamFrame { user_id: String, source: VideoSource, frame: Arc<VideoFrame> },
     StreamEnded { user_id: String, reason: String },
+    // Discord moved our session to this channel (someone with Move Members dragged us): the
+    // session has ended without leaving, for the app to join it there.
+    Moved(String),
     Disconnected(String),
 }
 
@@ -379,6 +382,10 @@ fn send_flags_soon(shared: &Arc<Shared>) {
 }
 
 impl Shared {
+    fn supersede(&self) {
+        self.superseded.store(true, Ordering::Release);
+    }
+
     fn send_voice_state(&self, in_channel: bool) {
         let camera_on = self.camera.lock().is_ok_and(|c| c.is_some());
         self.gateway.send(
@@ -622,7 +629,7 @@ impl VoiceSession {
 
     // Once dropped, this session ends without telling Discord we left: the next join's voice state moves us.
     pub fn supersede(&self) {
-        self.shared.superseded.store(true, Ordering::Release);
+        self.shared.supersede();
     }
 }
 
@@ -697,9 +704,12 @@ async fn run(shared: Arc<Shared>, leave: oneshot::Receiver<()>) {
         result = join_voice(&shared, &mut dispatches) => result.err().unwrap_or_else(|| "Voice connection closed".to_owned()),
         _ = leave => "Left".to_owned(),
     };
-    if !shared.superseded.load(Ordering::Acquire) {
-        shared.send_voice_state(false);
+    // A superseded session's call already lives on in the next one: a leave or a Disconnected
+    // from it would end that call.
+    if shared.superseded.load(Ordering::Acquire) {
+        return;
     }
+    shared.send_voice_state(false);
     shared.emit(VoiceEvent::Stage(Stage::Disconnected));
     shared.emit(VoiceEvent::Disconnected(reason));
 }
@@ -729,12 +739,23 @@ fn voice_dispatch(shared: &Shared, kind: &str, d: &Value) -> Option<String> {
     let user_id = d["user_id"].as_str()?;
     let in_channel = d["channel_id"].as_str() == Some(&shared.channel_id);
     if user_id == shared.user_id && !in_channel {
-        return Some("Removed from the voice channel".into());
+        let session = shared.session_id.lock().ok().and_then(|id| id.clone());
+        let Some(channel) = moved_to(session.as_deref(), d) else { return Some("Removed from the voice channel".into()) };
+        shared.supersede();
+        shared.emit(VoiceEvent::Moved(channel.to_owned()));
+        return Some("Moved".into());
     }
     let streaming = in_channel && d["self_stream"].as_bool().unwrap_or(false);
     let camera = in_channel && d["self_video"].as_bool().unwrap_or(false);
     shared.emit(VoiceEvent::VideoState { user_id: user_id.to_owned(), streaming, camera });
     None
+}
+
+// Our own session in another channel is a move. No channel is a disconnect, and another session
+// (we joined from another client) took the call from us: both remove us.
+fn moved_to<'a>(our_session: Option<&str>, d: &'a Value) -> Option<&'a str> {
+    let ours = our_session.is_some() && d["session_id"].as_str() == our_session;
+    d["channel_id"].as_str().filter(|_| ours)
 }
 
 #[derive(Clone)]
@@ -1164,6 +1185,18 @@ mod tests {
         let Ok(VoiceEvent::VideoState { user_id, streaming: true, camera: false }) = rx.try_recv() else { panic!() };
         assert_eq!(user_id, "u");
         assert!(voice_dispatch(&shared, "VOICE_STATE_UPDATE", &json!({ "user_id": "me", "channel_id": null })).is_some());
+    }
+
+    #[test]
+    fn moved_session_follows_without_leaving() {
+        let (shared, mut rx) = shared();
+        *shared.session_id.lock().unwrap() = Some("s".into());
+        assert!(voice_dispatch(&shared, "VOICE_STATE_UPDATE", &json!({ "user_id": "me", "session_id": "other", "channel_id": "d" })).is_some());
+        assert!(!shared.superseded.load(Ordering::Acquire), "another client's join is a removal");
+        assert!(voice_dispatch(&shared, "VOICE_STATE_UPDATE", &json!({ "user_id": "me", "session_id": "s", "channel_id": "d" })).is_some());
+        assert!(shared.superseded.load(Ordering::Acquire), "a move must not send the leave");
+        let Ok(VoiceEvent::Moved(channel)) = rx.try_recv() else { panic!() };
+        assert_eq!(channel, "d");
     }
 
     #[test]
