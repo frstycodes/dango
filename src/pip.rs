@@ -93,10 +93,11 @@ impl Rustcord {
         let channel = call.channel.clone();
         let name = self.user_name(&watching.streamer_id);
         let white = gpui_kit::white();
-        // Inset absolutely, so a 4:3 picture letterboxes inside the frame instead of growing past it.
+        // Inset absolutely, so a 4:3 picture letterboxes inside the frame instead of growing past it; square,
+        // only the frame is rounded.
         let picture: AnyElement = match &watching.frame {
-            Some(frame) => ui::media(gpui_kit::ImageSource::Render(frame.clone()), ui::all(RADIUS_MD)).absolute().inset_0().size_full().object_fit(gpui_kit::ObjectFit::Contain).into_any_element(),
-            None => crate::call::stream_fill(RADIUS_MD).absolute().inset_0().flex().items_center().justify_center().text_size(px(12.)).text_color(white.opacity(0.7)).child(format!("Joining {name}'s stream…")).into_any_element(),
+            Some(frame) => ui::media(gpui_kit::ImageSource::Render(frame.clone()), ui::all(0.)).absolute().inset_0().size_full().object_fit(gpui_kit::ObjectFit::Contain).into_any_element(),
+            None => crate::call::stream_fill(0.).absolute().inset_0().flex().items_center().justify_center().text_size(px(12.)).text_color(white.opacity(0.7)).child(format!("Joining {name}'s stream…")).into_any_element(),
         };
         let bar = div()
             .absolute()
