@@ -9,7 +9,7 @@ pub const MARK_WHITE: &str = "brand/dango-mark-white.svg";
 // Reicon (MIT, github.com/dqev/reicon) in its filled weight, like Discord's chrome, plus Dango's own glyphs
 // (muted, deafened, camera off, GIF...), all written to assets/icons/reicon/ by tools/reicon.py, which also
 // keeps these paths in step with its map (design/icons.html). Order matches `Glyph`.
-const GLYPHS: [(&str, &[u8]); 144] = [
+const GLYPHS: [(&str, &[u8]); 146] = [
     ("icons/hashtag.svg", include_bytes!("../assets/icons/reicon/hashtag2.svg")),
     ("icons/hashtag-lock.svg", include_bytes!("../assets/icons/reicon/lock2.svg")),
     ("icons/volume-high.svg", include_bytes!("../assets/icons/reicon/volume-high.svg")),
@@ -154,6 +154,8 @@ const GLYPHS: [(&str, &[u8]); 144] = [
     ("icons/stage-locked.svg", include_bytes!("../assets/icons/reicon/stage-locked.svg")),
     ("icons/forum-locked.svg", include_bytes!("../assets/icons/reicon/forum-locked.svg")),
     ("icons/media-locked.svg", include_bytes!("../assets/icons/reicon/media-locked.svg")),
+    ("icons/calendar.svg", include_bytes!("../assets/icons/reicon/calendar.svg")),
+    ("icons/filter.svg", include_bytes!("../assets/icons/reicon/filter.svg")),
 ];
 
 const BRAND: [(&str, &[u8]); 4] = [
@@ -310,6 +312,8 @@ pub enum Glyph {
     StageLocked,
     ForumLocked,
     MediaLocked,
+    Calendar,
+    Filter,
 }
 
 impl IconNamed for Glyph {
