@@ -41,6 +41,9 @@ const CONTENT_INSET: f32 = AVATAR + 16.;
 // A reply preview's line, above the message it answers.
 const REPLY_HEIGHT: f32 = 22.;
 
+// The member panel floats this far in from the window's right and bottom edges.
+const PANEL_INSET: f32 = 8.;
+
 // The floating stream player's width; its height keeps 16:9.
 const PIP_WIDTH: f32 = 320.;
 
@@ -68,7 +71,7 @@ impl Rustcord {
             // The composer floats over the feed, which scrolls on under its glass.
             .child(div().relative().flex_1().min_h_0().child(body).children(unread_bar).child(self.render_composer(window, cx)).children(self.stream_pip(cx)));
         // The feed runs up under the header, which blurs and fades it (scroll_edge); the panel starts below.
-        let panel = self.render_panel(window, cx).map(|p| div().h_full().flex_none().pt(px(HEADER_HEIGHT)).child(p));
+        let panel = self.render_panel(window, cx).map(|p| div().h_full().flex_none().pt(px(HEADER_HEIGHT)).pr(px(PANEL_INSET)).pb(px(PANEL_INSET)).child(p));
         main.child(div().flex_1().min_h_0().flex().child(chat).children(panel)).child(header)
     }
 
@@ -143,7 +146,7 @@ impl Rustcord {
             .children(topic)
             .child(div().ml_auto().flex_none().flex().items_center().gap(px(2.)).children(threads).child(pins).children(members).children(search))
             .child(self.header_trail(cx));
-        let panel = if self.guild_id.is_some() && !matches!(self.right_panel, RightPanel::Hidden) { self.panel_width } else { 0. };
+        let panel = if self.guild_id.is_some() && !matches!(self.right_panel, RightPanel::Hidden) { self.panel_width + PANEL_INSET } else { 0. };
         ui::scroll_edge(palette::surface(Level::Page, cx), panel).child(bar)
     }
 
