@@ -30,13 +30,15 @@
 .ri { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .ri.sm { width: 16px; height: 16px; }
 
-/* Left header: traffic lights (macOS, windowed) then the open server, in one 48px row over rail and list. */
-.nav-head { grid-column: 1 / 3; grid-row: 1; display: flex; align-items: center; gap: 12px; padding: 0 8px 0 16px; min-width: 0; }
-.lights { display: flex; gap: 8px; flex: none; margin-right: 6px; }
+/* The left header row is split by column: the rail's slot holds the traffic lights (macOS, windowed) or
+   the Home tile, and the server name sits over the channel list, starting where the channel rows start. */
+.rail-head { grid-column: 1; grid-row: 1; display: grid; place-items: center; }
+.list-head { grid-column: 2; grid-row: 1; display: flex; align-items: center; padding: 0 8px; min-width: 0; }
+.lights { display: flex; gap: 8px; flex: none; margin-left: 4px; }
 .lights i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; }
 .lights i:nth-child(2) { background: #febc2e; }
 .lights i:nth-child(3) { background: #28c840; }
-.server { flex: 1; min-width: 0; height: 34px; display: flex; align-items: center; gap: 6px; padding: 0 8px; margin-left: -8px; border-radius: var(--radius-sm); color: var(--text-strong); font-weight: var(--weight-semibold); font-size: 16px; }
+.server { flex: 1; min-width: 0; height: 34px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: var(--radius-sm); background: transparent; text-align: left; color: var(--text-strong); font-weight: var(--weight-semibold); font-size: 16px; }
 .server span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .server:hover { background: var(--hover); }
 .server .ri { color: var(--text-muted); }
@@ -114,7 +116,7 @@
 <main>
 <section id="frame">
   <h1>Window frame</h1>
-  <p class="lede">One frame and one rule. The first 48px of every column is its header, and the headers line up across the window. Columns are told apart by tone: the navigation and the members sit on the sidebar tone, the content on the page tone. There are no hairlines, cards or extra strips. The content header floats over the feed and blurs it as the feed scrolls under. The only thing that changes between platforms is where the left header starts.</p>
+  <p class="lede">One frame and one rule. The first 48px of every column is its header, and the headers line up across the window. Columns are told apart by tone: the navigation and the members sit on the sidebar tone, the content on the page tone. There are no hairlines, cards or extra strips. The content header floats over the feed and blurs it as the feed scrolls under. The only thing that changes between platforms is what fills the rail's slot in the header row: the traffic lights, or the Home tile.</p>
 </section>
 <section id="variants">
   <h2>On each platform</h2>
@@ -131,15 +133,16 @@ const ic = (n, cls = "") => `<svg class="ri ${cls}" viewBox="0 0 24 24" aria-hid
 const inbox = `<svg class="ri" viewBox="0 0 24 24" aria-hidden="true">${REICON.inbox}<g fill="currentColor" stroke="none">${REICON_FILLED.inbox.match(/<path[^>]*\/>/)[0]}</g></svg>`;
 
 const VARIANTS = [
-  { key: "mac", name: "macOS", note: "The traffic lights lead the left header, and the server name follows them in the same row." },
-  { key: "full", name: "macOS, full screen", note: "No traffic lights: the server name starts at the header's padding. Nothing else moves." },
-  { key: "windows", name: "Windows", note: "The same row as full screen. The caption buttons sit flush at the top right, over the members' header, and the members' title keeps clear of them." },
+  { key: "mac", name: "macOS", note: "The traffic lights take the rail's slot in the header row. The server name sits over the channel list, lined up with the channel rows." },
+  { key: "full", name: "macOS, full screen", note: "No traffic lights, so the Home tile moves up into the rail's slot. The server name stays where it was." },
+  { key: "windows", name: "Windows", note: "The same as full screen. The caption buttons sit flush at the top right, over the members' header, and the members' title keeps clear of them." },
 ];
 
 const frame = v => `<div class="wrap"><div class="win ${v.key === "mac" ? "" : v.key}">
-  <div class="nav-head">${v.key === "mac" ? '<span class="lights"><i></i><i></i><i></i></span>' : ""}<button class="server"><span>We are Sandesh Pandey</span>${ic("chevron-down", "sm")}</button></div>
+  <div class="rail-head">${v.key === "mac" ? '<span class="lights"><i></i><i></i><i></i></span>' : `<div class="tile home">${ic("messages3")}</div>`}</div>
+  <div class="list-head"><button class="server"><span>We are Sandesh Pandey</span>${ic("chevron-down", "sm")}</button></div>
   <div class="rail">
-    <div class="tile home">${ic("messages3")}</div>
+    ${v.key === "mac" ? `<div class="tile home">${ic("messages3")}</div>` : ""}
     <div class="tile on">WaS<span class="badge">2</span></div>
     <div class="tile">gz</div>
     <div class="tile" style="color: var(--text-muted)">${ic("compass")}</div>
