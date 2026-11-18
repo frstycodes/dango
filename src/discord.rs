@@ -645,13 +645,101 @@ pub struct Ready {
     pub relationships: Vec<Relationship>,
     // Settings › Advanced › Developer Mode: shows the Copy … ID items.
     pub developer_mode: bool,
+    pub account_settings: AccountSettings,
+    pub my_account: MyAccount,
     pub guild_settings: Vec<(String, GuildSettings)>,
     // Users we've ignored (Discord's newer, softer block).
     pub ignored: Vec<String>,
 }
 
+// What Settings › My account edits about you, beyond the `User` every screen draws.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct MyAccount {
+    pub username: String,
+    pub global_name: Option<String>,
+    pub banner: Option<String>,
+    // Nitro: Discord takes banners and animated avatars only from subscribers.
+    pub premium: bool,
+}
+
+impl MyAccount {
+    pub fn parse(user: &Value) -> Self {
+        let id = user["id"].as_str().unwrap_or_default();
+        let banner = user["banner"].as_str().map(|hash| format!("{CDN}/banners/{id}/{hash}.{}?size=600", if hash.starts_with("a_") { "gif" } else { "png" }));
+        Self {
+            username: user["username"].as_str().unwrap_or_default().to_owned(),
+            global_name: user["global_name"].as_str().map(str::to_owned),
+            banner,
+            premium: user["premium_type"].as_u64().is_some_and(|t| t > 0),
+        }
+    }
+}
+
+// The account-wide settings Dango shows, from the legacy `user_settings` object (READY, USER_SETTINGS_UPDATE).
+// Field names are Discord's; `default_guilds_restricted` and the friend sources are inverted or split in the UI.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AccountSettings {
+    pub developer_mode: bool,
+    pub render_embeds: bool,
+    pub render_reactions: bool,
+    pub show_current_game: bool,
+    pub default_guilds_restricted: bool,
+    // 0 scans no DMs, 1 DMs from non-friends, 2 every DM.
+    pub explicit_content_filter: u8,
+    pub friends_all: bool,
+    pub friends_mutual_friends: bool,
+    pub friends_mutual_guilds: bool,
+}
+
+impl Default for AccountSettings {
+    fn default() -> Self {
+        Self {
+            developer_mode: false,
+            render_embeds: true,
+            render_reactions: true,
+            show_current_game: true,
+            default_guilds_restricted: false,
+            explicit_content_filter: 1,
+            friends_all: true,
+            friends_mutual_friends: true,
+            friends_mutual_guilds: true,
+        }
+    }
+}
+
+impl AccountSettings {
+    // Takes the fields `v` carries and keeps the rest: USER_SETTINGS_UPDATE sends only what changed.
+    pub fn apply(&mut self, v: &Value) {
+        let flag = |key: &str, into: &mut bool| {
+            if let Some(b) = v[key].as_bool() {
+                *into = b;
+            }
+        };
+        flag("developer_mode", &mut self.developer_mode);
+        flag("render_embeds", &mut self.render_embeds);
+        flag("render_reactions", &mut self.render_reactions);
+        flag("show_current_game", &mut self.show_current_game);
+        flag("default_guilds_restricted", &mut self.default_guilds_restricted);
+        if let Some(level) = v["explicit_content_filter"].as_u64() {
+            self.explicit_content_filter = level.min(2) as u8;
+        }
+        if v["friend_source_flags"].is_object() {
+            let sources = &v["friend_source_flags"];
+            self.friends_all = sources["all"].as_bool().unwrap_or(false);
+            self.friends_mutual_friends = self.friends_all || sources["mutual_friends"].as_bool().unwrap_or(false);
+            self.friends_mutual_guilds = self.friends_all || sources["mutual_guilds"].as_bool().unwrap_or(false);
+        }
+    }
+
+    pub fn friend_sources(&self) -> Value {
+        json!({ "all": self.friends_all, "mutual_friends": self.friends_mutual_friends, "mutual_guilds": self.friends_mutual_guilds })
+    }
+}
+
 pub enum Event {
     Ready(Box<Ready>),
+    // Account settings changed here or in another client: only the changed fields.
+    UserSettings(Value),
     // Who is watching a Go Live stream, by its key.
     StreamViewers { key: String, viewers: Vec<String> },
     // When each voice channel's current session began (Unix seconds); `all` replaces the server's list.
@@ -875,6 +963,20 @@ impl Client {
         self.gateway(json!({ "op": 3, "d": { "status": wire, "since": 0, "activities": [], "afk": false } }));
         let req = self.request(reqwest::Method::PATCH, "/users/@me/settings").json(&json!({ "status": wire }));
         let _ = self.run(req).await;
+    }
+
+    /// Saves account settings: `patch` holds only the fields that changed.
+    // Not verified: the legacy endpoint still accepting each field Settings sends (it accepts `status`).
+    pub async fn set_account_settings(&self, patch: Value) -> Result<(), String> {
+        let req = self.request(reqwest::Method::PATCH, "/users/@me/settings").json(&patch);
+        self.run(req).await.map(|_| ())
+    }
+
+    /// Changes your account (PATCH /users/@me): display name, username (with `password`), avatar, banner.
+    /// Images go as data URIs. Returns the updated user.
+    pub async fn modify_me(&self, patch: Value) -> Result<Value, String> {
+        let req = self.request(reqwest::Method::PATCH, "/users/@me").json(&patch);
+        self.run(req).await
     }
 
     /// Saves the rail's order and folders. Loose servers are folders without an id.
@@ -1135,6 +1237,7 @@ fn dispatch(kind: &str, d: &Value) -> Option<Event> {
     let s = |v: &Value| v.as_str().unwrap_or_default().to_owned();
     match kind {
         "READY" => Some(Event::Ready(Box::new(parse_ready(d)))),
+        "USER_SETTINGS_UPDATE" => Some(Event::UserSettings(d.clone())),
         "GUILD_CREATE" => parse_guild(d).map(Event::GuildCreate),
         "CHANNEL_CREATE" | "CHANNEL_UPDATE" | "THREAD_CREATE" | "THREAD_UPDATE" => {
             let guild_id = d["guild_id"].as_str()?.to_owned();
@@ -1236,6 +1339,12 @@ fn parse_ready(d: &Value) -> Ready {
             })
             .collect(),
         developer_mode: d["user_settings"]["developer_mode"].as_bool().unwrap_or(false),
+        my_account: MyAccount::parse(&d["user"]),
+        account_settings: {
+            let mut settings = AccountSettings::default();
+            settings.apply(&d["user_settings"]);
+            settings
+        },
         guild_settings: d["user_guild_settings"]["entries"].as_array().or(d["user_guild_settings"].as_array()).into_iter().flatten().map(parse_guild_settings).collect(),
         ignored: d["relationships"].as_array().into_iter().flatten().filter(|r| r["user_ignored"].as_bool() == Some(true)).filter_map(|r| r["id"].as_str().map(str::to_owned)).collect(),
         relationships: d["relationships"]
