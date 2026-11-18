@@ -18,11 +18,10 @@ use crate::{
     discord::{Channel, ChannelKind, ChannelProps, Event, Overwrite, parse_channel, perm},
     icons::Glyph,
     palette::{self, Level},
+    settings::registry::{self, Control, Scope, Setting},
     overwrites::{overwrite_ops, permission_groups, private, set_private, set_tri, synced, tri},
     ui::{self, Notice, Squircle, Tone},
 };
-
-const PAGE_WIDTH: f32 = 680.;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Page {
@@ -49,6 +48,45 @@ impl Page {
             Page::Invites => Glyph::Link,
             Page::Webhooks => Glyph::AppWindow,
         }
+    }
+}
+
+impl Scope for Page {
+    fn label(self) -> &'static str {
+        Page::label(self)
+    }
+}
+
+const fn cs(id: &'static str, page: Page, group: &'static str, title: &'static str, caption: Option<&'static str>, keywords: &'static [&'static str], row: &'static str) -> Setting<Page> {
+    Setting { id, page, group, title, caption, keywords, control: Control::Custom, row: Some(row) }
+}
+
+// Every channel setting for search; `applies` drops the ones a channel type doesn't have.
+pub static CHANNEL_SETTINGS: &[Setting<Page>] = &[
+    cs("channel-name", Page::Overview, "Name and topic", "Channel name", None, &["rename", "name", "title"], "cs-name"),
+    cs("channel-topic", Page::Overview, "Name and topic", "Topic", Some("Shows in the channel header"), &["description", "guidelines", "header", "about"], "cs-topic"),
+    cs("bitrate", Page::Overview, "Sound and video", "Bitrate", Some("Higher sounds better and costs slow connections more"), &["audio quality", "kbps", "sound quality"], "cs-bitrate"),
+    cs("user-limit", Page::Overview, "Sound and video", "User limit", Some("Members with Move members can still join"), &["max users", "capacity", "cap", "how many"], "cs-limit"),
+    cs("video-quality", Page::Overview, "Sound and video", "Video quality", Some("720p sends full quality to everyone watching"), &["camera", "720p", "resolution"], "cs-quality"),
+    cs("region", Page::Overview, "Sound and video", "Region", Some("Where the voice server runs"), &["server location", "rtc", "latency", "ping"], "cs-region"),
+    cs("slowmode", Page::Overview, "Chat", "Slowmode", Some("Each member sends one message and starts one thread per interval"), &["rate limit", "cooldown", "spam", "slow"], "cs-slowmode"),
+    cs("age-restricted", Page::Overview, "Chat", "Age-restricted", Some("People confirm they're over 18 before they see it"), &["nsfw", "18+", "adult", "content visibility"], "cs-nsfw"),
+    cs("hide-threads", Page::Overview, "Chat", "Hide threads after", Some("New threads close after this long without activity"), &["archive", "inactivity", "auto archive", "threads"], "cs-archive"),
+    cs("private-channel", Page::Permissions, "Permissions", "Private channel", Some("Only the roles and members you add can see it"), &["lock", "hide", "visible", "who can see", "access"], "cs-private"),
+    cs("overrides", Page::Permissions, "Roles and members", "Role and member permissions", Some("Deny, inherit or allow each permission"), &["overwrite", "override", "roles", "advanced", "allow", "deny", "sync", "category"], "cs-target-list"),
+    cs("invites", Page::Invites, "Invites", "Invites", Some("Revoke links to this channel"), &["invite link", "revoke", "join link"], "cs-invites"),
+    cs("webhooks", Page::Webhooks, "Webhooks", "Webhooks", Some("Copy a webhook's URL or delete it"), &["integrations", "bots", "webhook url", "apps"], "cs-webhooks"),
+];
+
+// Whether a channel has this setting: voice channels trade topic and thread hiding for sound settings;
+// categories keep only their name.
+fn applies(id: &str, channel: &Channel) -> bool {
+    let voice = matches!(channel.raw_type, 2 | 13);
+    match id {
+        _ if channel.kind == ChannelKind::Category => matches!(id, "channel-name" | "private-channel" | "overrides" | "invites" | "webhooks"),
+        "channel-topic" | "hide-threads" => !voice,
+        "bitrate" | "user-limit" | "video-quality" | "region" => voice,
+        _ => true,
     }
 }
 
@@ -236,6 +274,7 @@ pub struct ChannelSettings {
     webhooks: Load<Vec<Webhook>>,
     regions: Vec<(String, String)>,
     scroll: ScrollHandle,
+    search: Entity<InputState>,
 }
 
 // Demo scenes: a page, and made-up invites, webhooks and regions in place of Discord's.
@@ -262,6 +301,11 @@ impl ChannelSettings {
 
 #[cfg(debug_assertions)]
 impl Rustcord {
+    pub(crate) fn demo_channel_search(&mut self, query: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(view) = &self.channel_settings else { return };
+        view.search.update(cx, |s, cx| s.set_value(query.to_owned(), window, cx));
+    }
+
     // An unsaved edit, so the save bar shows.
     pub(crate) fn demo_channel_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(view) = &mut self.channel_settings else { return };
@@ -296,6 +340,8 @@ impl Rustcord {
         topic.update(cx, |s, cx| s.set_value(channel.topic.clone().unwrap_or_default(), window, cx));
         cx.subscribe(&name, |_, _, _: &InputEvent, cx| cx.notify()).detach();
         cx.subscribe(&topic, |_, _, _: &InputEvent, cx| cx.notify()).detach();
+        let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search"));
+        cx.subscribe(&search, |_, _, _: &InputEvent, cx| cx.notify()).detach();
         let target = channel.overwrites.first().map(|o| o.id.clone());
         self.channel_settings = Some(ChannelSettings {
             guild_id: guild_id.clone(),
@@ -313,6 +359,7 @@ impl Rustcord {
             webhooks: Load::Loading,
             regions: Vec::new(),
             scroll: ScrollHandle::new(),
+            search,
         });
         self.menu = None;
         self.load_channel_lists(&channel, cx);
@@ -448,8 +495,8 @@ impl Rustcord {
             Page::Webhooks => self.webhooks_page(cx),
         };
         let body = ui::settings_page("channel-settings-scroll", &scroll)
-            .child(ui::settings_title(page.label(), cx).flex_none())
-            .children(sections.into_iter().map(|s| div().w_full().max_w(px(PAGE_WIDTH)).flex_none().child(s)));
+            .child(ui::settings_column(ui::settings_title(page.label(), cx)))
+            .children(sections.into_iter().map(ui::settings_column));
         let main = div()
             .relative()
             .flex_1()
@@ -515,12 +562,65 @@ impl Rustcord {
         });
         let ask = if view.asking_delete { Some(self.delete_ask(channel, cx).into_any_element()) } else { None };
         let rule = div().h(px(1.)).mx(px(10.)).my(px(8.)).flex_none().bg(palette::line(cx));
+        let search = div().flex_none().pb(px(12.)).child(ui::search_field("channel-settings-search", &view.search, cx));
+        let query = view.search.read(cx).value().to_string();
+        let items = if query.trim().is_empty() { items } else { self.channel_setting_results(channel, guild_id, &query, cx) };
         ui::settings_sidebar("channel-settings-nav", cx)
             .child(head)
+            .child(search)
             .children(items)
             .child(rule)
             .children(delete)
             .children(ask)
+    }
+
+    // Search results in place of the nav: only settings this channel has and this user may open.
+    fn channel_setting_results(&self, channel: &Channel, guild_id: &str, query: &str, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let open = self.channel_setting_pages(guild_id, channel);
+        let hits: Vec<&'static Setting<Page>> = registry::search(CHANNEL_SETTINGS, query).into_iter().filter(|s| open.contains(&s.page) && applies(s.id, channel)).collect();
+        if hits.is_empty() {
+            return vec![div().px(px(10.)).py(px(8.)).text_color(palette::muted(cx)).child("No settings match").into_any_element()];
+        }
+        hits.into_iter()
+            .map(|setting| {
+                let place = format!("{} \u{203a} {}", setting.page.label(), setting.group);
+                ui::menu_row(SharedString::from(format!("cs-result-{}", setting.id)), cx)
+                    .h_auto()
+                    .py(px(6.))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .flex()
+                            .flex_col()
+                            .child(div().truncate().text_color(palette::strong(cx)).child(setting.title))
+                            .child(div().truncate().text_size(px(12.)).text_color(palette::muted(cx)).child(place)),
+                    )
+                    .on_click(cx.listener(move |this, _, window, cx| this.jump_to_channel_setting(setting, window, cx)))
+                    .into_any_element()
+            })
+            .collect()
+    }
+
+    // Opens the setting's page and lights its row for a moment, as user settings' search does.
+    fn jump_to_channel_setting(&mut self, setting: &'static Setting<Page>, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(view) = &mut self.channel_settings else { return };
+        (view.page, view.select, view.asking_delete) = (setting.page, None, false);
+        view.scroll.set_offset(gpui_kit::point(px(0.), px(0.)));
+        view.search.update(cx, |state, cx| state.set_value("", window, cx));
+        let row = setting.row_id();
+        cx.set_global(ui::SettingsHighlight(Some(SharedString::from(row))));
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(std::time::Duration::from_millis(1600)).await;
+            let _ = this.update(cx, |_, cx| {
+                if cx.try_global::<ui::SettingsHighlight>().and_then(|h| h.0.as_deref()) == Some(row) {
+                    cx.set_global(ui::SettingsHighlight(None));
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
+        cx.notify();
     }
 
     // Delete asks in place, as Log out does in settings: what goes, then Keep or Delete.
@@ -877,7 +977,7 @@ impl Rustcord {
         let save = ui::button("cs-save", Tone::Primary, cx).loading(saving.then_some("Saving")).child("Save changes").on_click(cx.listener(move |this, _, _, cx| this.save_channel_settings(closing, cx)));
         let bar = div()
             .w_full()
-            .max_w(px(PAGE_WIDTH))
+            .max_w(px(ui::SETTINGS_WIDTH))
             .py(px(10.))
             .pl(px(16.))
             .pr(px(10.))
@@ -955,6 +1055,26 @@ mod tests {
         draft.props.video_full = true;
         let body = Value::Object(patch_body(&before, &draft));
         assert_eq!(body, json!({ "name": "highlights", "topic": null, "rate_limit_per_user": 30, "video_quality_mode": 2 }));
+    }
+
+    #[test]
+    fn search_finds_channel_settings_by_synonym() {
+        let first = |q: &str| registry::search(CHANNEL_SETTINGS, q).first().map(|s| s.id);
+        assert_eq!(first("nsfw"), Some("age-restricted"));
+        assert_eq!(first("cooldown"), Some("slowmode"));
+        assert_eq!(first("kbps"), Some("bitrate"));
+        let mut ids: Vec<&str> = CHANNEL_SETTINGS.iter().map(|s| s.id).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), CHANNEL_SETTINGS.len());
+    }
+
+    #[test]
+    fn voice_and_text_settings_stay_apart() {
+        let text = channel(Vec::new());
+        let voice = Channel { raw_type: 2, kind: ChannelKind::Voice, ..channel(Vec::new()) };
+        assert!(applies("channel-topic", &text) && !applies("bitrate", &text));
+        assert!(applies("bitrate", &voice) && !applies("channel-topic", &voice));
     }
 
     #[test]

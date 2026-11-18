@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | pins | header-search | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | updating (the launch splash alone).
+// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | pins | header-search | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -180,7 +180,7 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             chord.open_server_menu("1".into(), gpui_kit::point(gpui_kit::px(60.), gpui_kit::px(130.)), false, cx);
             chord.open_submenus(vec![14, 0]);
         }
-        "channel-settings" | "channel-settings-perms" | "channel-settings-voice" | "channel-settings-voice-perms" | "channel-settings-invites" | "channel-settings-dirty" => demo_channel_settings(chord, scene, window, cx),
+        "channel-settings" | "channel-settings-search" | "channel-settings-perms" | "channel-settings-voice" | "channel-settings-voice-perms" | "channel-settings-invites" | "channel-settings-dirty" => demo_channel_settings(chord, scene, window, cx),
         "channel-menu" => {
             let general = chord.guild().and_then(|g| g.channels.iter().find(|c| c.id == "general").cloned());
             if let Some(channel) = general {
@@ -641,6 +641,9 @@ fn demo_channel_settings(chord: &mut Rustcord, scene: &str, window: &mut Window,
     };
     if let Some(view) = chord.channel_settings.as_mut() {
         view.demo(page);
+    }
+    if scene == "channel-settings-search" {
+        chord.demo_channel_search("slow", window, cx);
     }
     if scene == "channel-settings-dirty" {
         chord.demo_channel_edit(window, cx);
