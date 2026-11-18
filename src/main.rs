@@ -617,6 +617,8 @@ pub struct Rustcord {
     inbox: Option<Option<Result<Vec<Message>, SharedString>>>,
     // The inbox popover, rising from the rail's Inbox tile.
     inbox_open: bool,
+    // Where the pins popover or a reaction's emoji picker was opened from, so it rises from its trigger.
+    popover_at: gpui_kit::Point<gpui_kit::Pixels>,
     // The full Inbox page in the content column ("See all").
     inbox_page: bool,
     // The GIF picker: None closed, Some(None) loading, Some(Some(..)) results.
@@ -819,6 +821,7 @@ impl Rustcord {
             friends_tab: home::FriendsTab::Online,
             inbox: None,
             inbox_open: false,
+            popover_at: gpui_kit::Point::default(),
             inbox_page: false,
             gif_picker: None,
             gif_search,
