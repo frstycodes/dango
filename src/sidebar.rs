@@ -519,21 +519,23 @@ impl Rustcord {
             .bg(palette::surface(palette::Level::Sidebar, cx))
             .text_color(palette::muted(cx))
             .text_size(px(14.))
-            .child(self.resize_handle(Edge::Channels, cx))
-            // The header row: 8px in, like the list below, so the name lines up with the channel rows.
-            .child(
-                div()
-                    .h(px(crate::layout::HEADER_HEIGHT))
-                    .flex_none()
-                    .px_2()
-                    .flex()
-                    .items_center()
-                    .window_control_area(gpui_kit::WindowControlArea::Drag)
-                    .child(header),
-            )
-            .child(div().id("channels").flex_1().min_h_0().overflow_y_scroll().p_2().flex().flex_col().gap(px(ROW_GAP)).children(rows))
+            // The list runs up under the header, which blurs and fades it (ui::scroll_edge), as the feed does.
+            .child(div().id("channels").flex_1().min_h_0().overflow_y_scroll().pt(px(crate::layout::HEADER_HEIGHT + 8.)).px_2().pb_2().flex().flex_col().gap(px(ROW_GAP)).children(rows))
             .child(banner)
             .child(div().flex_none().h(self.user_panel_clearance()))
+            // The header row: 8px in, like the list below, so the name lines up with the channel rows.
+            .child(
+                ui::scroll_edge(palette::surface(palette::Level::Sidebar, cx), 0.).child(
+                    div()
+                        .h(px(crate::layout::HEADER_HEIGHT))
+                        .px_2()
+                        .flex()
+                        .items_center()
+                        .window_control_area(gpui_kit::WindowControlArea::Drag)
+                        .child(header),
+                ),
+            )
+            .child(self.resize_handle(Edge::Channels, cx))
     }
 
 
