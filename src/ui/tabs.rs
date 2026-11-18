@@ -11,7 +11,7 @@ use gpui_kit::{
 };
 
 use super::{RADIUS_MD, RADIUS_SM, Squircle, control::{TabKind, part, tab_option}, count_badge, seg_lift};
-use crate::{motion, palette};
+use crate::{icons::Glyph, motion, palette};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Style {
@@ -20,19 +20,43 @@ enum Style {
     Segmented,
 }
 
-// Underline tabs split a page into views. `items` are labels with an optional count.
-pub fn tabs(id: impl Into<ElementId>, items: &[(SharedString, Option<u32>)], selected: usize, on_select: impl Fn(usize, &mut Window, &mut App) + 'static, window: &mut Window, cx: &mut App) -> Div {
+// One option in a strip: its label, with an optional lead glyph and trailing count.
+#[derive(Clone)]
+pub struct Tab {
+    label: SharedString,
+    glyph: Option<Glyph>,
+    count: Option<u32>,
+}
+
+impl Tab {
+    pub fn new(label: impl Into<SharedString>) -> Self {
+        Self { label: label.into(), glyph: None, count: None }
+    }
+
+    pub fn glyph(mut self, glyph: Glyph) -> Self {
+        self.glyph = Some(glyph);
+        self
+    }
+
+    pub fn count(mut self, count: Option<u32>) -> Self {
+        self.count = count;
+        self
+    }
+}
+
+// Underline tabs split a page into views.
+pub fn tabs(id: impl Into<ElementId>, items: &[Tab], selected: usize, on_select: impl Fn(usize, &mut Window, &mut App) + 'static, window: &mut Window, cx: &mut App) -> Div {
     strip(id.into(), Style::Underline, items, selected, Rc::new(on_select), window, cx)
 }
 
 // Pill tabs filter a list inside one view.
-pub fn pill_tabs(id: impl Into<ElementId>, items: &[(SharedString, Option<u32>)], selected: usize, on_select: impl Fn(usize, &mut Window, &mut App) + 'static, window: &mut Window, cx: &mut App) -> Div {
+pub fn pill_tabs(id: impl Into<ElementId>, items: &[Tab], selected: usize, on_select: impl Fn(usize, &mut Window, &mut App) + 'static, window: &mut Window, cx: &mut App) -> Div {
     strip(id.into(), Style::Pills, items, selected, Rc::new(on_select), window, cx)
 }
 
 // A recessed track with one raised thumb that springs between options sized to their labels.
 pub fn segmented_live(id: impl Into<ElementId>, labels: &[&'static str], selected: usize, on_select: impl Fn(usize, &mut Window, &mut App) + 'static, window: &mut Window, cx: &mut App) -> Div {
-    let items: Vec<(SharedString, Option<u32>)> = labels.iter().map(|l| (SharedString::from(*l), None)).collect();
+    let items: Vec<Tab> = labels.iter().map(|l| Tab::new(*l)).collect();
     // A row wrapper takes whatever width the parent stretches it to, so the track itself hugs its options.
     div().flex().child(strip(id.into(), Style::Segmented, &items, selected, Rc::new(on_select), window, cx))
 }
@@ -43,7 +67,7 @@ type OnSelect = Rc<dyn Fn(usize, &mut Window, &mut App)>;
 #[derive(Default)]
 struct Measured(Vec<Bounds<Pixels>>);
 
-fn strip(id: ElementId, style: Style, items: &[(SharedString, Option<u32>)], selected: usize, on_select: OnSelect, window: &mut Window, cx: &mut App) -> Div {
+fn strip(id: ElementId, style: Style, items: &[Tab], selected: usize, on_select: OnSelect, window: &mut Window, cx: &mut App) -> Div {
     let measured = window.use_keyed_state(part(&id, "measured"), cx, |_, _| Measured::default());
     let indicator = slide(&id, style, &measured, selected, window, cx);
     let kind = match style {
@@ -51,11 +75,11 @@ fn strip(id: ElementId, style: Style, items: &[(SharedString, Option<u32>)], sel
         Style::Pills => TabKind::Pill,
         Style::Segmented => TabKind::Segment,
     };
-    let options = items.iter().enumerate().map(|(i, (label, count))| {
+    let options = items.iter().enumerate().map(|(i, tab)| {
         let on_select = on_select.clone();
-        tab_option(part_n(&id, i), kind, i == selected, cx)
-            .child(label.clone())
-            .when_some(*count, |o, n| o.child(count_badge(n)))
+        tab_option(part_n(&id, i), kind, i == selected, tab.glyph, cx)
+            .child(tab.label.clone())
+            .when_some(tab.count, |o, n| o.child(count_badge(n)))
             .on_click(move |_, window, cx| on_select(i, window, cx))
     });
     let frame = match style {
