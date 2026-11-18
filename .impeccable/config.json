@@ -1295,6 +1295,33 @@
         ],
         "createdAt": "2026-11-14T19:59:14.832Z",
         "reason": "Claude: avatar initials are painted on hue gradients at runtime by site.js; the static scan sees the page background"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/channel-settings.html"
+        ],
+        "createdAt": "2026-11-18T13:27:01.547Z",
+        "reason": "agent: flags the shared .input and .stepper primitives from css/primitives.css (40px tall, content centred), used unchanged across the design system"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "design/channel-settings.html"
+        ],
+        "createdAt": "2026-11-18T13:27:01.568Z",
+        "reason": "agent: mock windows use the design system's .set-h h4 / .set-group h5 convention from settings.html and server-settings.html; levels are styled by element in css/settings.css"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/channel-settings.html"
+        ],
+        "createdAt": "2026-11-18T13:27:01.587Z",
+        "reason": "agent: .skeleton sweep is the shared loading shimmer from css/primitives.css, a sweep-then-rest the project's taste rules ask for"
       }
     ]
   }
