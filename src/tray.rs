@@ -11,7 +11,7 @@ use tray_icon::{
 };
 use windows::Win32::{
     Foundation::HWND,
-    UI::WindowsAndMessaging::{IsIconic, SW_HIDE, SW_RESTORE, SW_SHOW, SetForegroundWindow, ShowWindow},
+    UI::WindowsAndMessaging::{IsIconic, SW_HIDE, SW_MINIMIZE, SW_RESTORE, SW_SHOW, SetForegroundWindow, ShowWindow},
 };
 
 const ICON_PX: u32 = 32;
@@ -26,6 +26,18 @@ thread_local! {
 pub fn install(window: &mut Window, cx: &mut App) {
     let Some(hwnd) = hwnd(window) else { return };
     crate::presence::watch(hwnd);
+    // Registered before the tray is built: with no close handler gpui lets Windows destroy the window,
+    // and closing the last window quits. The close button, Alt+F4 and the taskbar's Close all ask
+    // here; Dango hides to the tray, or minimizes when there is no tray icon to bring it back from.
+    window.on_window_should_close(cx, move |_, _| {
+        let to = if TRAY.with(|t| t.borrow().is_some()) { SW_HIDE } else { SW_MINIMIZE };
+        // SAFETY: `hwnd` is this window's handle, valid while the window exists (it isn't closed here).
+        unsafe {
+            let _ = ShowWindow(hwnd, to);
+        }
+        false
+    });
+
     let open = MenuItem::new("Open Dango", true, None);
     let quit = MenuItem::new("Quit Dango", true, None);
     let menu = Menu::new();
@@ -41,15 +53,6 @@ pub fn install(window: &mut Window, cx: &mut App) {
         Err(e) => return eprintln!("tray: {e}"),
     };
     TRAY.with(|t| *t.borrow_mut() = Some(tray));
-
-    // The close button, Alt+F4 and the taskbar's Close all ask first: hide instead of quitting.
-    window.on_window_should_close(cx, move |_, _| {
-        // SAFETY: `hwnd` is this window's handle, valid while the window exists (it isn't closed here).
-        unsafe {
-            let _ = ShowWindow(hwnd, SW_HIDE);
-        }
-        false
-    });
 
     let (open_id, quit_id) = (open.id().clone(), quit.id().clone());
     cx.spawn(async move |cx| {
