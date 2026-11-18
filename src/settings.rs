@@ -3,7 +3,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, App, BoxShadow, Context, Div, ElementId, FontWeight, Hsla, MouseButton, Pixels, Radians, ScrollHandle, SharedString, Stateful, Window, canvas,
+    Animation, AnimationExt, AnyElement, App, BoxShadow, Context, Div, ElementId, FontWeight, Hsla, MouseButton, Pixels, Radians, ScrollHandle, SharedString, Stateful, Task, Window, canvas,
     component::{Icon, input::Input},
     div, img, point, prelude::*, px, relative, rgb,
 };
@@ -390,6 +390,34 @@ impl Render for SliderDrag {
     }
 }
 
+// A running mic test and the deafen state to give back when it ends.
+pub(crate) struct MicTestRun {
+    _test: voice::MicTest,
+    _task: Task<()>,
+    held: HeldDeafen,
+}
+
+// Deafen held on for the mic test, remembering what to restore. A toggle during the test replaces
+// it: the user's latest choice wins over the state from before.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct HeldDeafen(bool);
+
+impl HeldDeafen {
+    fn hold(deafened: &mut bool) -> Self {
+        let before = *deafened;
+        *deafened = true;
+        Self(before)
+    }
+
+    fn chosen(&mut self, deafened: bool) {
+        self.0 = deafened;
+    }
+
+    fn release(self, deafened: &mut bool) {
+        *deafened = self.0;
+    }
+}
+
 pub struct SettingsView {
     page: Page,
     section: usize,
@@ -461,7 +489,7 @@ impl Rustcord {
         self.settings = None;
         // The mic test plays the mic back through a speaker stream of its own, outside any call's
         // echo cancellation: left running, it feeds the far end their own voice whenever we talk.
-        self.mic_test = None;
+        self.stop_mic_test();
         cx.notify();
     }
 
@@ -563,6 +591,7 @@ impl Rustcord {
         if !muted {
             self.deafened = false;
         }
+        self.keep_mic_test_choice();
         sounds::play(if muted { Cue::Mute } else { Cue::Unmute });
         self.sync_voice_flags();
         cx.notify();
@@ -570,15 +599,17 @@ impl Rustcord {
 
     pub(crate) fn toggle_deafen(&mut self, cx: &mut Context<Self>) {
         self.deafened = !self.deafened;
+        self.keep_mic_test_choice();
         sounds::play(if self.deafened { Cue::Deafen } else { Cue::Undeafen });
         self.sync_voice_flags();
         cx.notify();
     }
 
-    // Discord's Mic Test: our processed mic, looped back to the speaker, metered.
+    // Discord's Mic Test: our processed mic, looped back to the speaker, metered. Deafened while it
+    // runs, so a call's voices don't play over it.
     fn toggle_mic_test(&mut self, cx: &mut Context<Self>) {
-        if self.mic_test.take().is_some() {
-            self.mic_level = crate::SILENCE_DB;
+        if self.mic_test.is_some() {
+            self.stop_mic_test();
             return cx.notify();
         }
         match voice::mic_test(None, &self.prefs.voice_settings()) {
@@ -594,15 +625,37 @@ impl Rustcord {
                         })
                         .is_err()
                         {
-                            break;
+                            return;
                         }
                     }
+                    // The test ended by itself (its device failed): give deafen back.
+                    let _ = this.update(cx, |this, cx| {
+                        this.stop_mic_test();
+                        cx.notify();
+                    });
                 });
-                self.mic_test = Some((test, task));
+                let held = HeldDeafen::hold(&mut self.deafened);
+                self.sync_voice_flags();
+                self.mic_test = Some(MicTestRun { _test: test, _task: task, held });
             }
             Err(error) => self.voice_error = Some(error.into()),
         }
         cx.notify();
+    }
+
+    // Ends the mic test, if one runs, and restores deafen as the user last chose it.
+    pub(crate) fn stop_mic_test(&mut self) {
+        let Some(run) = self.mic_test.take() else { return };
+        run.held.release(&mut self.deafened);
+        self.mic_level = crate::SILENCE_DB;
+        self.sync_voice_flags();
+    }
+
+    // A mute or deafen toggle during the mic test is what its end gives back.
+    fn keep_mic_test_choice(&mut self) {
+        if let Some(run) = &mut self.mic_test {
+            run.held.chosen(self.deafened);
+        }
     }
 
     // While a keybind is recording the key hook records it (on_keys_held); keystrokes here only
@@ -2230,6 +2283,25 @@ fn advanced_summary(custom: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mic_test_gives_deafen_back_as_last_chosen() {
+        for before in [false, true] {
+            let mut deafened = before;
+            let held = HeldDeafen::hold(&mut deafened);
+            assert!(deafened, "deafened while the test runs");
+            held.release(&mut deafened);
+            assert_eq!(deafened, before, "restored after the test");
+        }
+
+        let mut deafened = true;
+        let mut held = HeldDeafen::hold(&mut deafened);
+        deafened = false;
+        held.chosen(deafened);
+        deafened = true;
+        held.release(&mut deafened);
+        assert!(!deafened, "undeafening during the test sticks");
+    }
 
     #[test]
     fn prefs_round_trip_and_profiles() {

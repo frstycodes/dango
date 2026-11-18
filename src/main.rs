@@ -542,7 +542,7 @@ pub struct Rustcord {
     keybind_errors: Vec<String>,
     // Our mic level in dBFS, from the call or the mic test.
     mic_level: f32,
-    mic_test: Option<(voice::MicTest, Task<()>)>,
+    mic_test: Option<settings::MicTestRun>,
     // Each slider's last painted bounds, so a click or drag maps to a value.
     slider_bounds: Rc<RefCell<HashMap<SharedString, gpui_kit::Bounds<gpui_kit::Pixels>>>>,
     // The open voice channel's call view replaces the chat.
@@ -2177,8 +2177,9 @@ impl Rustcord {
         }
         self.call_switched = switched;
         self.voice_error = None;
-        // Its playback is outside the call's echo cancellation (see `close_settings`).
-        self.mic_test = None;
+        // Its playback is outside the call's echo cancellation (see `close_settings`). Before the
+        // join, so the call starts with the deafen state the test held.
+        self.stop_mic_test();
         let (session, mut events) = voice::join(me.id, guild_id.clone(), channel.id.clone(), client.voice.clone(), self.prefs.voice_settings());
         for (user_id, volume) in &self.prefs.user_volumes {
             session.set_user_volume(user_id, *volume);
