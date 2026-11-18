@@ -331,9 +331,17 @@ impl Rustcord {
                             .flex()
                             .items_center()
                             .gap_1()
+                            // Over nameplate art a scrim rises from the card's right edge under the controls, so
+                            // they keep their contrast without a box around them.
+                            .when(has_plate, |row| {
+                                row.child(div().absolute().top_0().bottom_0().right_0().w(gpui_kit::relative(0.6)).bg(linear_gradient(
+                                    90.,
+                                    linear_color_stop(rail.opacity(0.), 0.),
+                                    linear_color_stop(rail.opacity(0.85), 0.55),
+                                )))
+                            })
                             .child(who)
-                            // Over nameplate art the controls sit on frosted glass, so they keep their contrast.
-                            .child(div().flex().items_center().gap_1().when(has_plate, |d| d.squircle(ui::RADIUS_SM).bg(rail.opacity(0.72)).backdrop_blur(px(12.))).child(mic).child(mic_options).child(headphones).child(output_options).child(settings)),
+                            .child(div().relative().flex().items_center().gap_1().child(mic).child(mic_options).child(headphones).child(output_options).child(settings)),
                     ),
             )
             .into_any_element()
