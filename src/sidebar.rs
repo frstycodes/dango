@@ -1208,9 +1208,10 @@ fn dm_find(cx: &App) -> Stateful<Div> {
         .id("dm-find")
         .occlude()
         .w_full()
-        .h(px(28.))
-        .px(px(8.))
-        .squircle(ui::RADIUS_XS)
+        // The Friends row's height, the row below it.
+        .h(px(40.))
+        .px(px(10.))
+        .squircle(ui::RADIUS_SM)
         .flex()
         .items_center()
         .gap_2()
@@ -1220,7 +1221,7 @@ fn dm_find(cx: &App) -> Stateful<Div> {
         .text_color(palette::muted(cx))
         .text_size(px(14.))
         .hover(move |s| s.text_color(strong))
-        .child(Icon::new(Glyph::Search).size(px(14.)))
+        .child(Icon::new(Glyph::Search).size(px(16.)))
         .child(ui::truncating("dm-find-label", "Find or start a conversation").flex_1())
 }
 
