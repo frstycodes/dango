@@ -947,7 +947,8 @@ impl Rustcord {
             Event::Ready(ready) => {
                 let ready = *ready;
                 self.channel_info_requested.clear();
-                if self.me.is_none() {
+                // Demo scenes set their own place; the last channel a real session saved would override it.
+                if self.me.is_none() && std::env::var_os("CHORD_DEMO").is_none() {
                     self.restore = home::load_last_channel(&ready.me.id);
                 }
                 self.my_status = ready.status;
