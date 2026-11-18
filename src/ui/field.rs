@@ -4,7 +4,7 @@
 use std::f32::consts::PI;
 
 use gpui_kit::{
-    AnyElement, App, BoxShadow, Div, ElementId, FocusHandle, FontWeight, Hsla, InteractiveElement, IntoElement, ParentElement, RenderOnce, SharedString, Styled, Window,
+    AnyElement, App, BoxShadow, Div, ElementId, FocusHandle, FontWeight, Hsla, InteractiveElement, IntoElement, ParentElement, RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window,
     base::{Transition, transition},
     component::{ActiveTheme, Icon},
     div, point, prelude::FluentBuilder, px, radians,
@@ -209,4 +209,27 @@ pub fn drop_zone(over: bool, glyph: Glyph, title: impl Into<SharedString>, cx: &
         .text_center()
         .child(div().text_color(if over { palette::accent_ink(cx) } else { palette::faint(cx) }).child(Icon::new(glyph).size(px(28.))))
         .child(div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(title.into()))
+}
+
+// A select's open list, rising from under its trigger (`top` is the trigger's height); the chosen option
+// carries a check. Deferred, so it paints above whatever sits below the trigger.
+pub fn select_options(id: impl Into<SharedString>, options: &[(String, String)], chosen: &str, top: f32, on_choose: impl Fn(String, &mut Window, &mut App) + Clone + 'static, cx: &App) -> AnyElement {
+    let id: SharedString = id.into();
+    let (strong, accent_ink) = (palette::strong(cx), palette::accent_ink(cx));
+    let rows: Vec<AnyElement> = options
+        .iter()
+        .map(|(value, name)| {
+            let (value, selected, on_choose) = (value.clone(), value == chosen, on_choose.clone());
+            super::menu_row(SharedString::from(format!("{id}-{value}")), cx)
+                .when(selected, |d| d.text_color(strong))
+                .child(div().flex_1().min_w_0().truncate().child(name.clone()))
+                .child(div().text_color(accent_ink).when(!selected, |d| d.invisible()).child(Icon::new(Glyph::Checkmark).size(px(16.))))
+                .on_click(move |_, window, cx| on_choose(value.clone(), window, cx))
+                .into_any_element()
+        })
+        .collect();
+    let menu = super::surface(cx).id(id.clone()).squircle(RADIUS_LG).max_h(px(280.)).overflow_y_scroll().gap(px(1.)).occlude().children(rows);
+    // Rises from the trigger: 0.95 scale about its top centre, with the fade.
+    let list = div().absolute().top(px(top + 4.)).left_0().right_0().min_w(px(200.)).child(menu);
+    gpui_kit::deferred(super::rise(list.transform_origin(gpui_kit::point(gpui_kit::relative(0.5), gpui_kit::relative(0.))), SharedString::from(format!("{id}-in")), std::time::Duration::ZERO)).with_priority(2).into_any_element()
 }
