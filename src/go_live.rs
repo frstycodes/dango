@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use gpui_kit::{
     Animation, AnimationExt, AnyElement, AppContext, Context, Div, FontWeight, Hsla, MouseButton, RenderImage, SharedString, Window,
-    component::{ActiveTheme, Icon},
-    div, img, prelude::*, px, relative, rgb,
+    component::Icon,
+    div, img, prelude::*, px,
 };
 use serde::{Deserialize, Serialize};
 
@@ -292,48 +292,19 @@ impl Rustcord {
             .gap(px(2.))
             .child(div().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(format!("Go live in {channel}")))
             .child(div().text_color(palette::muted(cx)).child("Choose a screen, a window or a capture device."));
-        let dialog = div()
-            .id("share-picker")
-            .w(px(DIALOG_WIDTH))
-            .max_h(relative(0.92))
-            .p(px(24.))
-            .squircle(ui::RADIUS_XL)
-            .bg(palette::surface(palette::Level::Raised, cx))
-            .shadow(ui::shadow_pop(cx))
-            .flex()
-            .flex_col()
-            .gap(px(16.))
-            .text_size(px(14.))
-            .text_color(palette::text(cx))
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        let body = ui::dialog_body()
             .child(head)
             .child(self.share_tabs(picker, window, cx))
             .child(self.share_sources(picker, cx))
             .child(self.share_quality(window, cx))
             .child(self.share_audio(window, cx))
-            .child(self.share_footer(cx))
-            .with_animation("share-open", Animation::new(ui::DUR_PANEL), |dialog, t| {
-                let t = crate::motion::ease_out().sample(t);
-                dialog.opacity(t).scale(0.95 + 0.05 * t)
-            });
-        let scrim = if cx.theme().is_dark() { Hsla::from(rgb(0x030102)).opacity(0.7) } else { Hsla::from(rgb(0x1D1217)).opacity(0.4) };
-        Some(
-            div()
-                .id("share-backdrop")
-                .absolute()
-                .inset_0()
-                .occlude()
-                .flex()
-                .items_center()
-                .justify_center()
-                .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
-                    this.close_share_picker(cx);
-                    cx.notify();
-                }))
-                .child(dialog)
-                .with_animation("share-dim", Animation::new(ui::DUR_POP), move |backdrop, t| backdrop.bg(scrim.opacity(scrim.a * t)))
-                .into_any_element(),
-        )
+            .child(self.share_footer(cx));
+        let backdrop = div().id("share-backdrop").absolute().inset_0().occlude().on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+            this.close_share_picker(cx);
+            cx.notify();
+        }));
+        let dialog = ui::dialog("share-picker", DIALOG_WIDTH, body, window, cx);
+        Some(ui::modal(backdrop, dialog, cx))
     }
 
     fn share_tabs(&self, picker: &SharePicker, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {

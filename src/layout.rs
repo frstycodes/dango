@@ -90,7 +90,7 @@ impl Rustcord {
             && let Some(call) = self.render_call_with_chat(window, cx)
         {
             let (overlays, call_overlays) = (self.render_overlays(window, cx), self.render_call_overlays(window, cx));
-            let (menu, dialog) = (self.render_menu(window, cx), self.render_dialog(cx));
+            let (menu, dialog) = (self.render_menu(window, cx), self.render_dialog(window, cx));
             crate::gif::set_covered(!overlays.is_empty() || !call_overlays.is_empty() || menu.is_some() || dialog.is_some());
             return root
                 .child(call)
@@ -119,7 +119,7 @@ impl Rustcord {
             });
         // Anything drawn over the chat pauses its GIFs (the GIF layer paints above the whole app).
         let (overlays, call_overlays) = (self.render_overlays(window, cx), self.render_call_overlays(window, cx));
-        let (menu, dialog) = (self.render_menu(window, cx), self.render_dialog(cx));
+        let (menu, dialog) = (self.render_menu(window, cx), self.render_dialog(window, cx));
         let (viewer, settings) = (self.viewer_overlay(window, cx), self.render_settings(window, cx));
         crate::gif::set_covered(!overlays.is_empty() || !call_overlays.is_empty() || menu.is_some() || dialog.is_some() || viewer.is_some() || settings.is_some());
         // Away from the call, a watched stream floats as a picture-in-picture over everything but popups.
