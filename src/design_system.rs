@@ -821,7 +821,7 @@ fn icons(cx: &App) -> impl IntoElement {
         Glyph::Game,
         Glyph::Crown,
     ];
-    section("Icons", "Phosphor, regular for rows and chrome, bold for buttons, fill for state (on, live, playing). Rounded joins match the bars.", cx)
+    section("Icons", "Reicon's filled weight, like Discord; line-only glyphs (#, +, arrows) stay lines. The full set is design/icons.html.", cx)
         .child(board(cx).child(row().gap(px(16.)).text_color(palette::text(cx)).children(set.map(|g| Icon::new(g).size(px(22.))))))
 }
 
