@@ -248,6 +248,14 @@ a.fname:hover { text-decoration: underline; }
 .filecard .acts { display: flex; gap: 2px; }
 .filecard .wide { grid-column: 1 / -1; }
 .filecard .progress { height: 4px; }
+/* Text file: the file itself, read in place; one hairline over the footer */
+.textfile { margin-top: 8px; width: min(100%, 640px); border-radius: var(--radius-lg); background: var(--bg-sidebar); border: 1px solid var(--line); overflow: hidden; }
+.textfile pre { margin: 0; max-height: 200px; overflow: auto; padding: 12px 14px; font: 14px/1.5 var(--font-mono); color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.textfile.open pre { max-height: 560px; }
+.textfile .tf-foot { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-top: 1px solid var(--line); }
+.textfile .tf-foot .fname { min-width: 0; color: var(--text-strong); font-weight: var(--weight-semibold); font-size: var(--text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.textfile .tf-foot .fsize { flex: 1; color: var(--text-faint); font-size: var(--text-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.textfile .tf-foot .iconbtn.done { color: var(--positive-ink); }
 .player { display: flex; align-items: center; gap: 10px; }
 .player .range { flex: 1; min-width: 0; }
 .player .ptime { color: var(--text-muted); font-size: var(--text-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
