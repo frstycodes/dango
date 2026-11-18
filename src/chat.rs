@@ -132,7 +132,9 @@ impl Rustcord {
                 }))
         });
         let search = self.guild_id.is_some().then(|| self.channel_search(window, cx));
+        // Occludes, like the composer: the feed scrolls under the header and must not take its hover or clicks.
         let bar = div()
+            .occlude()
             .h(px(HEADER_HEIGHT))
             .pl(px(8.))
             .pr(px(8.))
@@ -478,7 +480,8 @@ impl Rustcord {
             .capture_key_down(cx.listener(Self::on_composer_key))
             .child(measure)
             .children(self.jump_to_present(cx))
-            .child(div().relative().child(card).children(typing))
+            // Occludes: the composer floats over the feed, which must not take the hover or the click under it.
+            .child(div().relative().occlude().child(card).children(typing))
             .children(note)
             // 8px off the window's foot, level with the user card in the left column.
             .child(div().h(px(8.)))
