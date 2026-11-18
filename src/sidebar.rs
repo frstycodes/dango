@@ -39,6 +39,8 @@ const ROW_GAP: f32 = 2.;
 #[derive(Clone)]
 pub(crate) enum Face {
     Home,
+    // A DM on the rail: the person's avatar, round like every person.
+    Person(String),
     Icon(String),
     Letters(String),
     Folder { tint: Hsla, minis: Vec<Mini> },
@@ -89,6 +91,7 @@ impl Rustcord {
             open: 0.,
         };
         let home = self.rail_item(home, window, cx);
+        let dm_tiles: Vec<AnyElement> = self.rail_dms().into_iter().map(|dm| self.dm_tile(dm, window, cx)).collect();
         let mut items: Vec<AnyElement> = Vec::new();
         for entry in self.rail_entries() {
             match entry {
@@ -109,9 +112,44 @@ impl Rustcord {
             .overflow_y_scroll()
             .text_size(px(14.))
             .child(home)
+            .children(dm_tiles)
             .children(items)
             .child(rail_action("rail-discover", Nav::Compass, "Discover servers", cx).on_click(|_, _, cx| cx.open_url("https://discord.com/servers")))
             .child(div().flex_none().h(self.user_panel_clearance()))
+    }
+
+    // DMs that want you, under Home as Discord stacks them: unread ones, newest first, and the one
+    // you're in a call with.
+    fn rail_dms(&self) -> Vec<Channel> {
+        let in_call = |id: &str| self.call.as_ref().is_some_and(|c| c.guild_id.is_none() && c.channel.id == id);
+        self.dms.iter().filter(|d| self.unread(&d.id) || in_call(&d.id)).cloned().collect()
+    }
+
+    fn dm_tile(&mut self, dm: Channel, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let avatar = dm.recipient.as_ref().map(|u| u.avatar.clone()).unwrap_or_else(|| crate::discord::avatar_url(&dm.id, None));
+        let tile = RailTile {
+            key: format!("dm-{}", dm.id),
+            name: dm.recipient.as_ref().map_or_else(|| dm.name.clone(), |u| u.name.clone()).into(),
+            selected: self.guild_id.is_none() && self.channel.as_ref().is_some_and(|c| c.id == dm.id),
+            unread: false,
+            // Every DM message counts as a mention, so this is its unread count.
+            mentions: self.mention_count(&dm.id),
+            muted: false,
+            in_voice: self.call.as_ref().is_some_and(|c| c.guild_id.is_none() && c.channel.id == dm.id),
+            face: Face::Person(avatar),
+            guild_id: None,
+            badge_scale: 1.,
+            open: 0.,
+        };
+        let item = self.rail_item(tile, window, cx);
+        div()
+            .id(SharedString::from(format!("rail-dm-hit-{}", dm.id)))
+            .child(item)
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.open_guild(None, window, cx);
+                this.open_channel(dm.clone(), window, cx);
+            }))
+            .into_any_element()
     }
 
     // Who's in the server's voice channels and who's live there, by avatar, for its hover card.
@@ -251,7 +289,7 @@ impl Rustcord {
             .when_some(guild_id.clone(), |item, guild_id| item.on_click(cx.listener(move |this, _, window, cx| this.open_guild(Some(guild_id.clone()), window, cx))))
             .when(key == "dms", |item| item.on_click(cx.listener(|this, _, window, cx| this.open_guild(None, window, cx))));
         let item = match key.as_str() {
-            "dms" => item,
+            k if k == "dms" || k.starts_with("dm-") => item,
             _ => self.rail_draggable(item, RailDrag { key: key.clone() }, look, cx),
         };
         let Some(guild_id) = guild_id else { return item.into_any_element() };
@@ -1235,6 +1273,7 @@ pub(crate) fn render_face(face: Face, size: f32, radius: f32, selected: bool, op
     let tile = || div().size(px(size)).flex_none().squircle(radius).flex().items_center().justify_center();
     match face {
         Face::Icon(url) => img(url).size(px(size)).flex_none().squircle(radius).into_any_element(),
+        Face::Person(url) => img(url).size(px(size)).flex_none().rounded_full().into_any_element(),
         Face::Letters(label) => letters_tile(&label, size, radius, cx).into_any_element(),
         Face::Home => tile()
             .bg(if selected { palette::accent() } else { palette::surface(palette::Level::Sidebar, cx) })
