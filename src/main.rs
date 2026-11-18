@@ -1334,7 +1334,7 @@ impl Rustcord {
         }
     }
 
-    fn open_channel(&mut self, channel: Channel, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn open_channel(&mut self, channel: Channel, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(current) = self.channel.clone().filter(|c| c.id != channel.id) {
             self.back.push((self.guild_id.clone(), current));
             self.forward.clear();
@@ -2000,7 +2000,7 @@ impl Rustcord {
         self.mention_wire.iter().fold(text.to_owned(), |text, (shown, wire)| text.replace(wire.as_str(), shown))
     }
 
-    fn known_users(&self) -> Vec<User> {
+    pub(crate) fn known_users(&self) -> Vec<User> {
         let mut users: Vec<User> = Vec::new();
         if let Some(list) = self.guild_id.as_ref().and_then(|g| self.member_lists.get(g)) {
             users.extend(list.iter().filter_map(|i| match i {
