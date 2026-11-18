@@ -34,7 +34,7 @@ const GLYPHS: [(&str, &[u8]); 146] = [
     ("icons/open.svg", include_bytes!("../assets/icons/reicon/arrow-up-right-square.svg")),
     ("icons/chevron-left.svg", include_bytes!("../assets/icons/reicon/chevron-left.svg")),
     ("icons/chevron-right.svg", include_bytes!("../assets/icons/reicon/chevron-right.svg")),
-    ("icons/checkmark.svg", include_bytes!("../assets/icons/reicon/check3.svg")),
+    ("icons/checkmark.svg", include_bytes!("../assets/icons/reicon/check.svg")),
     ("icons/call-end.svg", include_bytes!("../assets/icons/reicon/phone-hangup.svg")),
     ("icons/share-screen.svg", include_bytes!("../assets/icons/reicon/screencast.svg")),
     ("icons/emoji.svg", include_bytes!("../assets/icons/reicon/emoji-happy.svg")),
