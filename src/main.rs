@@ -2177,6 +2177,8 @@ impl Rustcord {
         }
         self.call_switched = switched;
         self.voice_error = None;
+        // Its playback is outside the call's echo cancellation (see `close_settings`).
+        self.mic_test = None;
         let (session, mut events) = voice::join(me.id, guild_id.clone(), channel.id.clone(), client.voice.clone(), self.prefs.voice_settings());
         for (user_id, volume) in &self.prefs.user_volumes {
             session.set_user_volume(user_id, *volume);

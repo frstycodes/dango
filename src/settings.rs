@@ -459,6 +459,9 @@ impl Rustcord {
 
     pub(crate) fn close_settings(&mut self, cx: &mut Context<Self>) {
         self.settings = None;
+        // The mic test plays the mic back through a speaker stream of its own, outside any call's
+        // echo cancellation: left running, it feeds the far end their own voice whenever we talk.
+        self.mic_test = None;
         cx.notify();
     }
 
