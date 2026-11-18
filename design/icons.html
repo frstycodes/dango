@@ -153,7 +153,8 @@ const LOCK = `<path d="${sq(14, 16.25, 9, 6.75, 2)}"/><path d="M16.25 16.25v-1.5
 const AGE = `<path d="M19.5 13.5v4.25"/><circle cx="19.5" cy="21.25" r="1.4" fill="currentColor" stroke="none"/>`;
 const MONITOR = `<path d="${sq(2.5, 3.5, 19, 13.5, 3.25)}"/><path d="M8.5 21h7M12 17v4"/>`;
 const SHARE = `<path class="share-fill" d="${sq(2.5, 3.5, 19, 13.5, 3.25)}"/>${MONITOR}<g class="share-arrow"><path d="M12 13.5v-6M9.25 10 12 7.25 14.75 10"/></g>`;
-const BAR = (x, top, dim) => `<path d="M${x} 19.5V${top}"${dim ? ' opacity="0.3"' : ""}/>`;
+// Signal like iOS: four solid bars rising left to right, squircle-ended; missing strength stays as a dim bar.
+const SIGNAL = (lit, none) => [5, 8.5, 12, 15.5].map((h, i) => `<path d="${sq(2 + i * 5.25, 20 - h, 3.5, h, 1.1)}" fill="currentColor" stroke="none"${i < lit ? "" : ' opacity="0.3"'}/>`).join("") + (none ? `<path d="M3 3.5l4.5 4.5m0-4.5L3 8"/>` : "");
 
 const CUSTOM = {
   muted: { name: "Muted", svg: slashed(ICON("microphone2"), true), on: true },
@@ -167,10 +168,10 @@ const CUSTOM = {
   "dash-ring": { name: "Placeholder", svg: `<circle cx="12" cy="12" r="8.5" stroke-dasharray="3.2 3.5"/>` },
   "win-max": { name: "Maximize", svg: `<path d="${sq(5, 5, 14, 14, 3)}"/>` },
   "win-restore": { name: "Restore", svg: "" },
-  "signal-3": { name: "Connection good", svg: BAR(6, 16) + BAR(12, 11.5) + BAR(18, 5.5) },
-  "signal-2": { name: "Connection fair", svg: BAR(6, 16) + BAR(12, 11.5) + BAR(18, 5.5, true) },
-  "signal-1": { name: "Connection poor", svg: BAR(6, 16) + BAR(12, 11.5, true) + BAR(18, 5.5, true) },
-  "signal-x": { name: "No connection", svg: BAR(6, 16, true) + BAR(12, 11.5, true) + `<path d="M15.5 4.5l5 5m0-5-5 5"/>` },
+  "signal-3": { name: "Connection good", svg: SIGNAL(4) },
+  "signal-2": { name: "Connection fair", svg: SIGNAL(2) },
+  "signal-1": { name: "Connection poor", svg: SIGNAL(1) },
+  "signal-x": { name: "No connection", svg: SIGNAL(0, true) },
   bot: { name: "Bot", svg: `<path d="${sq(4, 8, 16, 12, 4)}"/><path d="M12 8V5.5M2 13v2.5M22 13v2.5"/><circle cx="12" cy="4.25" r="1.25" fill="currentColor" stroke="none"/><circle cx="9" cy="13.75" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="13.75" r="1.4" fill="currentColor" stroke="none"/>` },
 };
 // Restore: the back window, cut where the front one sits.
