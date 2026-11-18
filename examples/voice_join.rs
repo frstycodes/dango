@@ -162,6 +162,7 @@ fn main() -> Result<(), String> {
                         }
                     }
                     Some(voice::VoiceEvent::StreamEnded { user_id, reason }) => println!("stream from {user_id} ended: {reason}"),
+                    Some(voice::VoiceEvent::Moved(channel)) => return println!("moved to {channel}"),
                     Some(voice::VoiceEvent::Disconnected(reason)) => return println!("disconnected: {reason}"),
                     None => return,
                 },

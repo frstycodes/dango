@@ -2118,6 +2118,20 @@ impl Rustcord {
     }
 
     fn join_voice(&mut self, channel: Channel, cx: &mut Context<Self>) {
+        self.join_voice_in(self.guild_id.clone(), channel, cx);
+    }
+
+    // The call's server, not the one on screen: a move can come while another server is open.
+    fn follow_voice_move(&mut self, channel_id: &str, cx: &mut Context<Self>) {
+        let guild_id = self.call.as_ref().and_then(|c| c.guild_id.clone());
+        let channel = self.guilds.iter().find(|g| Some(&g.id) == guild_id.as_ref()).and_then(|g| g.channels.iter().find(|c| c.id == channel_id)).cloned();
+        match channel {
+            Some(channel) => self.join_voice_in(guild_id, channel, cx),
+            None => self.leave_voice(cx),
+        }
+    }
+
+    fn join_voice_in(&mut self, guild_id: Option<String>, channel: Channel, cx: &mut Context<Self>) {
         let (Some(client), Some(me)) = (self.client.clone(), self.me.clone()) else { return };
         if self.call.as_ref().is_some_and(|c| c.channel.id == channel.id) {
             return;
@@ -2127,7 +2141,7 @@ impl Rustcord {
         }
         self.leave_voice(cx);
         self.voice_error = None;
-        let (session, mut events) = voice::join(me.id, self.guild_id.clone(), channel.id.clone(), client.voice.clone(), self.prefs.voice_settings());
+        let (session, mut events) = voice::join(me.id, guild_id.clone(), channel.id.clone(), client.voice.clone(), self.prefs.voice_settings());
         for (user_id, volume) in &self.prefs.user_volumes {
             session.set_user_volume(user_id, *volume);
         }
@@ -2158,7 +2172,7 @@ impl Rustcord {
             }
         })
         .detach();
-        self.call = Some(Call { session, guild_id: self.guild_id.clone(), channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: Vec::new(), focus: None, ended: None, sharing: None, share_label: None, share_source: None, live_since: None, self_view: None, joined: Instant::now(), _events: task });
+        self.call = Some(Call { session, guild_id, channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: Vec::new(), focus: None, ended: None, sharing: None, share_label: None, share_source: None, live_since: None, self_view: None, joined: Instant::now(), _events: task });
         cx.notify();
     }
 
@@ -2286,6 +2300,7 @@ impl Rustcord {
                     }
                 }
             }
+            voice::VoiceEvent::Moved(channel_id) => return self.follow_voice_move(&channel_id, cx),
             voice::VoiceEvent::Disconnected(reason) => {
                 if let Some(call) = self.call.take() {
                     release_frames(call, cx);
