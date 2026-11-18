@@ -51,6 +51,7 @@ mod settings;
 mod shell;
 mod user_menu;
 mod video;
+mod viewer;
 mod hotkeys;
 mod key_hook;
 mod sounds;
@@ -74,7 +75,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use discord::{Channel, ChannelKind, Client, Emoji, Event, Folder, Gif, Guild, ListItem, ListOp, Media, Message, Presence, Profile, ReadState, Relationship, SendState, User};
+use discord::{Channel, ChannelKind, Client, Emoji, Event, Folder, Gif, Guild, ListItem, ListOp, Message, Presence, Profile, ReadState, Relationship, SendState, User};
 use futures::StreamExt;
 use gpui_kit::{
     AppContext, Bounds, Context, Entity, FocusHandle, Hsla, RenderImage, ListAlignment, ListOffset, ListState, SharedString, Task, TitlebarOptions, Window, WindowBounds,
@@ -474,12 +475,6 @@ enum EmojiTarget {
     Reaction(Box<Message>),
 }
 
-// The gallery: every image and video in the open channel, paged with the arrow keys.
-struct Viewer {
-    items: Vec<Media>,
-    index: usize,
-}
-
 #[derive(Clone, Copy, PartialEq)]
 enum Edge {
     Channels,
@@ -676,7 +671,7 @@ pub struct Rustcord {
     // The call connecting now replaced one in the same server (our pick or a moderator's move):
     // it ended that one without a disconnect, and connecting sounds as a move.
     call_switched: bool,
-    viewer: Option<Viewer>,
+    viewer: Option<viewer::Viewer>,
     profile_card: Option<ProfileCard>,
     status_menu: bool,
     // The channel or DM row under the pointer, which shows its hover-only controls.
@@ -2524,22 +2519,6 @@ impl Rustcord {
     fn sync_voice_flags(&self) {
         let Some(call) = &self.call else { return };
         call.session.set_flags(self.muted || self.deafened, self.deafened);
-    }
-
-    fn open_viewer(&mut self, url: &str, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(feed) = self.channel.as_ref().and_then(|c| self.feeds.get(&c.id)) else { return };
-        let items: Vec<Media> = feed.messages.iter().flat_map(|m| m.media.iter().cloned()).collect();
-        let Some(index) = items.iter().position(|m| m.url == url) else { return };
-        self.viewer = Some(Viewer { items, index });
-        window.focus(&self.focus, cx);
-        cx.notify();
-    }
-
-    fn step_viewer(&mut self, delta: isize, cx: &mut Context<Self>) {
-        let Some(viewer) = &mut self.viewer else { return };
-        let last = viewer.items.len() as isize - 1;
-        viewer.index = (viewer.index as isize + delta).clamp(0, last) as usize;
-        cx.notify();
     }
 
     // `key` names what was copied (the code itself, a file's URL), so its button shows Copied for a moment.

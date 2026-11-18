@@ -1106,17 +1106,17 @@ impl gpui_kit::http_client::HttpClient for Images {
         req: gpui_kit::http_client::Request<gpui_kit::http_client::AsyncBody>,
     ) -> futures::future::BoxFuture<'static, gpui_kit::http_client::Result<gpui_kit::http_client::Response<gpui_kit::http_client::AsyncBody>>> {
         let url = req.uri().to_string();
-        if let Some(bytes) = downloads::get(&url) {
+        if let Some(bytes) = downloads::get(&url).or_else(|| demo_media(&url)) {
             return Box::pin(async move { Ok(gpui_kit::http_client::Response::builder().status(200).body(bytes.to_vec().into())?) });
         }
         let get = self.0.get(&url);
         Box::pin(async move {
-            let (status, bytes) = runtime()
-                .spawn(async move {
-                    let res = get.send().await?;
-                    Ok::<_, reqwest::Error>((res.status().as_u16(), res.bytes().await?))
-                })
-                .await??;
+            // gpui drops this future when the image cache lets go of a load; the download stops with it.
+            let mut fetch = AbortOnDrop(runtime().spawn(async move {
+                let res = get.send().await?;
+                Ok::<_, reqwest::Error>((res.status().as_u16(), res.bytes().await?))
+            }));
+            let (status, bytes) = (&mut fetch.0).await??;
             if cfg!(debug_assertions) && std::env::var_os("RUSTCORD_IMAGE_DEBUG").is_some() && status >= 400 {
                 eprintln!("image {status} {url}");
             }
@@ -1126,6 +1126,24 @@ impl gpui_kit::http_client::HttpClient for Images {
             Ok(gpui_kit::http_client::Response::builder().status(status).body(bytes.to_vec().into())?)
         })
     }
+}
+
+struct AbortOnDrop<T>(tokio::task::JoinHandle<T>);
+
+impl<T> Drop for AbortOnDrop<T> {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+// Made-up media a CHORD_DEMO scene serves in place of the network (debug builds only).
+pub static DEMO_MEDIA: OnceLock<fn(&str) -> Option<bytes::Bytes>> = OnceLock::new();
+
+pub fn demo_media(url: &str) -> Option<bytes::Bytes> {
+    if !cfg!(debug_assertions) {
+        return None;
+    }
+    DEMO_MEDIA.get()?(url)
 }
 
 pub async fn send(req: reqwest::RequestBuilder) -> Result<Value, String> {
@@ -1698,18 +1716,51 @@ pub fn parse_user(user: &Value) -> User {
 /// images-ext-*.discordapp.net (embeds) is assumed to take the same parameters.
 pub fn sized_image(url: &str, width: f32, height: f32, original: (f32, f32)) -> String {
     let scale = (2. * width / original.0.max(1.)).min(2. * height / original.1.max(1.)).min(1.);
-    let (w, h) = ((original.0 * scale).round().max(1.) as u32, (original.1 * scale).round().max(1.) as u32);
-    let proxied = if let Some(rest) = url.strip_prefix("https://cdn.discordapp.com/attachments/") {
-        format!("https://media.discordapp.net/attachments/{rest}")
-    } else if url.starts_with("https://media.discordapp.net/") || (url.starts_with("https://images-ext-") && url.contains(".discordapp.net/")) {
-        url.to_owned()
-    } else {
-        return url.to_owned();
-    };
+    let Some(proxied) = proxied(url) else { return url.to_owned() };
     if scale >= 1. {
         return proxied;
     }
-    format!("{proxied}{}width={w}&height={h}", if proxied.contains('?') { "&" } else { "?" })
+    with_query(proxied, &scaled(original, scale))
+}
+
+/// A thumbnail that covers a `side` x `side` square of device pixels: the poster for a video or GIF,
+/// scaled so its shorter edge is `side`. Pictures on media.discordapp.net also come back as WebP.
+/// Not verified: `format=webp` is what Discord's own client asks the proxy for, not a documented parameter.
+pub fn thumb_url(media: &Media, side: f32) -> String {
+    let source = match &media.kind {
+        MediaKind::Image => &media.url,
+        MediaKind::Video { poster } | MediaKind::Gif { poster } => poster,
+    };
+    let Some(proxied) = proxied(source) else { return source.clone() };
+    let original = (media.width.max(1.), media.height.max(1.));
+    let scale = (side / original.0).max(side / original.1).min(1.);
+    let webp = matches!(media.kind, MediaKind::Image) && proxied.starts_with("https://media.discordapp.net/");
+    let size = if scale < 1. { scaled(original, scale) } else { String::new() };
+    match (size.is_empty(), webp) {
+        (true, false) => proxied,
+        (true, true) => with_query(proxied, "format=webp"),
+        (false, false) => with_query(proxied, &size),
+        (false, true) => with_query(proxied, &format!("{size}&format=webp")),
+    }
+}
+
+// The media-proxy address for `url`, or None when its host doesn't resize.
+fn proxied(url: &str) -> Option<String> {
+    if let Some(rest) = url.strip_prefix("https://cdn.discordapp.com/attachments/") {
+        return Some(format!("https://media.discordapp.net/attachments/{rest}"));
+    }
+    let resizes = url.starts_with("https://media.discordapp.net/") || (url.starts_with("https://images-ext-") && url.contains(".discordapp.net/"));
+    resizes.then(|| url.to_owned())
+}
+
+fn scaled(original: (f32, f32), scale: f32) -> String {
+    let (w, h) = ((original.0 * scale).round().max(1.) as u32, (original.1 * scale).round().max(1.) as u32);
+    format!("width={w}&height={h}")
+}
+
+fn with_query(url: String, query: &str) -> String {
+    let joiner = if url.contains('?') { "&" } else { "?" };
+    format!("{url}{joiner}{query}")
 }
 
 pub fn avatar_url(user_id: &str, hash: Option<&str>) -> String {
@@ -2039,6 +2090,20 @@ mod tests {
         );
         assert_eq!(sized_image("https://cdn.discordapp.com/attachments/1/2/a.png", 100., 100., (150., 150.)), "https://media.discordapp.net/attachments/1/2/a.png", "never upscaled");
         assert_eq!(sized_image("https://example.com/a.png", 10., 10., (999., 999.)), "https://example.com/a.png");
+    }
+
+    #[test]
+    fn thumbnails_cover_a_square_through_the_proxy() {
+        let photo = Media { url: "https://cdn.discordapp.com/attachments/1/2/a.png?ex=a&is=b&hm=c&".into(), width: 4000., height: 3000., kind: MediaKind::Image };
+        assert_eq!(thumb_url(&photo, 112.), "https://media.discordapp.net/attachments/1/2/a.png?ex=a&is=b&hm=c&&width=149&height=112&format=webp", "shorter edge fills the square");
+        let tall = Media { width: 300., height: 1200., ..photo.clone() };
+        assert!(thumb_url(&tall, 112.).ends_with("width=112&height=448&format=webp"));
+        let small = Media { width: 64., height: 64., ..photo.clone() };
+        assert_eq!(thumb_url(&small, 112.), "https://media.discordapp.net/attachments/1/2/a.png?ex=a&is=b&hm=c&&format=webp", "never upscaled");
+        let clip = Media { url: "https://cdn.discordapp.com/attachments/1/2/v.mp4".into(), width: 1920., height: 1080., kind: MediaKind::Video { poster: "https://media.discordapp.net/attachments/1/2/v.mp4?format=jpeg".into() } };
+        assert_eq!(thumb_url(&clip, 96.), "https://media.discordapp.net/attachments/1/2/v.mp4?format=jpeg&width=171&height=96", "video keeps its proxy still, sized");
+        let elsewhere = Media { url: "https://example.com/a.png".into(), ..photo };
+        assert_eq!(thumb_url(&elsewhere, 96.), "https://example.com/a.png");
     }
 
     #[test]
