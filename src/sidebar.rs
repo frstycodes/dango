@@ -108,8 +108,6 @@ impl Rustcord {
             .gap(px(RAIL_GAP))
             .overflow_y_scroll()
             .text_size(px(14.))
-            // The rail's top is the window's title bar: macOS's traffic lights sit here, and it drags the window.
-            .child(div().flex_none().w_full().h(px(crate::layout::HEADER_HEIGHT - 12. - RAIL_GAP)).window_control_area(gpui_kit::WindowControlArea::Drag))
             .child(home)
             .children(items)
             .child(rail_action("rail-discover", Nav::Compass, "Discover servers", cx).on_click(|_, _, cx| cx.open_url("https://discord.com/servers")))
@@ -452,6 +450,9 @@ impl Rustcord {
             .flex()
             .flex_col()
             .bg(palette::surface(palette::Level::Sidebar, cx))
+            // Its top-left corner rounds into the rail and the brand strip, like a sheet tucked under them.
+            .rounded_tl(px(ui::RADIUS_LG))
+            .corner_shape(ui::SQUIRCLE)
             .text_color(palette::muted(cx))
             .text_size(px(14.))
             .child(self.resize_handle(Edge::Channels, cx))
@@ -494,7 +495,7 @@ impl Rustcord {
             .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(|this, _: &gpui_kit::MouseDownEvent, _, cx| {
                 let Some(guild_id) = this.guild_id.clone() else { return };
                 // Drops from the header's bottom edge, inset by the header's padding.
-                let at = gpui_kit::point(px(RAIL_WIDTH + 6.), px(crate::layout::HEADER_HEIGHT));
+                let at = gpui_kit::point(px(RAIL_WIDTH + 6.), px(crate::layout::BRAND_BAR_HEIGHT + crate::layout::HEADER_HEIGHT));
                 this.open_server_menu(guild_id, at, true, cx);
             }))
     }

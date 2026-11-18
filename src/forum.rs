@@ -148,7 +148,6 @@ impl Rustcord {
             .border_b_1()
             .border_color(palette::line(cx))
             .window_control_area(WindowControlArea::Drag)
-            .child(self.header_lead(cx))
             .child(
                 div()
                     .h(px(32.))

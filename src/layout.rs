@@ -3,8 +3,8 @@
 use std::time::Duration;
 
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent,
-    ObjectFit, Render, SharedString, Stateful, Window,
+    Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent, NavigationDirection,
+    ObjectFit, Render, SharedString, Stateful, Window, WindowControlArea,
     component::{ActiveTheme, Icon, tooltip::Tooltip},
     div, img, linear_color_stop, linear_gradient, prelude::*, px,
 };
@@ -22,6 +22,10 @@ use crate::{
 pub const TITLE_HEIGHT: f32 = 36.;
 // Every column's header, which is also where the window drags from.
 pub const HEADER_HEIGHT: f32 = 48.;
+// The brand strip over the rail and channel list, which macOS's traffic lights sit in (centred at y 20).
+pub const BRAND_BAR_HEIGHT: f32 = 40.;
+// Where the brand starts on macOS: past the three 12px lights from x 12, 8 apart, plus a 24px gap.
+const TRAFFIC_LIGHTS: f32 = 92.;
 pub const RAIL_WIDTH: f32 = 68.;
 pub const CHANNELS_WIDTH: f32 = 240.;
 pub const PANEL_WIDTH: f32 = 264.;
@@ -63,6 +67,8 @@ impl Rustcord {
                     cx.notify();
                 }
             }))
+            .on_mouse_down(MouseButton::Navigate(NavigationDirection::Back), cx.listener(|this, _, window, cx| this.navigate(false, window, cx)))
+            .on_mouse_down(MouseButton::Navigate(NavigationDirection::Forward), cx.listener(|this, _, window, cx| this.navigate(true, window, cx)))
             .on_mouse_move(cx.listener(Self::on_drag_move))
             .on_mouse_up(MouseButton::Left, cx.listener(|this, _, _, cx| {
                 if this.drag.take().is_some() {
@@ -152,6 +158,10 @@ impl Rustcord {
         if keystroke.key == "escape" && self.viewer.is_none() && self.dismiss_overlay(cx) {
             return cx.stop_propagation();
         }
+        if let Some(forward) = history_step(keystroke) {
+            self.navigate(forward, window, cx);
+            return cx.stop_propagation();
+        }
         if keystroke.modifiers.alt && (keystroke.key == "up" || keystroke.key == "down") {
             self.step_channel(if keystroke.key == "up" { -1 } else { 1 }, window, cx);
             return cx.stop_propagation();
@@ -221,14 +231,8 @@ impl Rustcord {
             )
     }
 
-    // What the title bar held, now leading and closing whichever header tops the content column:
-    // history arrows first, inbox and help last, clear of Windows' caption buttons.
-    pub(crate) fn header_lead(&self, cx: &mut Context<Self>) -> Div {
-        let back = title_button("back", Glyph::ArrowLeft, !self.back.is_empty(), "Back", cx).on_click(cx.listener(|this, _, window, cx| this.navigate(false, window, cx)));
-        let forward = title_button("forward", Glyph::ArrowRight, !self.forward.is_empty(), "Forward", cx).on_click(cx.listener(|this, _, window, cx| this.navigate(true, window, cx)));
-        div().flex_none().flex().items_center().gap_1().child(back).child(forward)
-    }
-
+    // Inbox and help close whichever header tops the content column, clear of Windows' caption buttons.
+    // History has no buttons: ⌘[ / ⌘] (Alt+←/→ elsewhere) and the mouse's side buttons step it.
     pub(crate) fn header_trail(&self, cx: &mut Context<Self>) -> Div {
         let mentions = self.read_states.values().any(|r| r.mentions > 0);
         let (selected, accent) = (palette::selected(cx), palette::accent());
@@ -343,8 +347,9 @@ impl Rustcord {
             .h_full()
             .flex_none()
             .flex()
-            .child(self.render_rail(window, cx))
-            .child(self.render_channels(window, cx))
+            .flex_col()
+            .child(brand_bar(cx))
+            .child(div().flex_1().min_h_0().flex().child(self.render_rail(window, cx)).child(self.render_channels(window, cx)))
             .children(user_panel)
     }
 
@@ -589,6 +594,40 @@ pub fn status_mark(status: discord::Status, dot: f32, surface: Hsla) -> AnyEleme
 // A title bar control (.titlebar .iconbtn): 28px, quiet until hovered; disabled ones fade to 40%.
 // Each occludes the bar's drag area: on Windows a drag area is the native caption, which takes the
 // click before the app sees it.
+// The strip over the rail and channel list: macOS's traffic lights, then Dango's mark and name (on Windows
+// the mark leads, the caption buttons sitting over the chat header at the far right). It drags the window.
+fn brand_bar(cx: &App) -> Div {
+    let lead = if cfg!(target_os = "macos") { TRAFFIC_LIGHTS } else { 14. };
+    div()
+        .h(px(BRAND_BAR_HEIGHT))
+        .flex_none()
+        .pl(px(lead))
+        .flex()
+        .items_center()
+        .gap(px(7.))
+        .window_control_area(WindowControlArea::Drag)
+        .text_size(px(14.))
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(palette::strong(cx))
+        .child(img(crate::icons::MARK).size(px(18.)))
+        .child("Dango")
+}
+
+// Back or forward through history: ⌘[ / ⌘] on macOS, Alt+←/→ elsewhere, like a browser.
+fn history_step(keystroke: &gpui_kit::Keystroke) -> Option<bool> {
+    let m = &keystroke.modifiers;
+    let (back, forward) = match cfg!(target_os = "macos") {
+        true if m.platform && !m.shift && !m.alt && !m.control => ("[", "]"),
+        false if m.alt && !m.shift && !m.control && !m.platform => ("left", "right"),
+        _ => return None,
+    };
+    match keystroke.key.as_str() {
+        k if k == back => Some(false),
+        k if k == forward => Some(true),
+        _ => None,
+    }
+}
+
 fn title_button(id: &'static str, glyph: Glyph, enabled: bool, label: &'static str, cx: &App) -> Stateful<Div> {
     let (hover, strong) = (palette::hover(cx), palette::strong(cx));
     div()
