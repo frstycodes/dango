@@ -410,13 +410,8 @@ fn mutuals(profile: &Profile, ink: Ink) -> Option<Div> {
 
 // Discord markdown with custom emoji as images, as a message renders it; Discord gives the bio no heading.
 fn bio_view(user_id: &str, bio: &str, ink: Ink) -> Div {
-    let view = TextView::markdown(SharedString::from(format!("bio-{user_id}")), crate::chat::inline_emoji(&hard_breaks(bio))).selectable(true);
+    let view = TextView::markdown(SharedString::from(format!("bio-{user_id}")), crate::chat::inline_emoji(&crate::chat::discord_breaks(bio))).selectable(true);
     div().text_size(px(14.)).text_color(ink.text).max_h(px(160.)).child(view)
-}
-
-// Discord keeps every line break in a bio; markdown joins single ones unless the line ends in two spaces.
-fn hard_breaks(text: &str) -> String {
-    text.replace('\n', "  \n")
 }
 
 fn game_collection(games: &[String], ink: Ink) -> Option<Div> {

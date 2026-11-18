@@ -569,7 +569,9 @@ fn messages() -> Vec<Message> {
         image,
         reply,
         mention,
-        message("105", abyss, &["r2"], "2026-11-14T08:18:00Z", "```rust\nfn main() {\n    println!(\"hi\");\n}\n```"),
+        message("105", abyss.clone(), &["r2"], "2026-11-14T08:18:00Z", "```rust\nfn main() {\n    println!(\"hi\");\n}\n```"),
+        // Discord keeps each line and its indent.
+        message("106", abyss, &["r2"], "2026-11-14T08:20:00Z", "the build so far:\n    Brightline 8-core CPU\n    Coldfront 240 mm cooler\n    32 GB memory\n<@4194304>"),
     ]
 }
 
