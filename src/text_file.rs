@@ -8,7 +8,7 @@ use std::{
 use gpui_kit::{
     AnyElement, App, Context, Div, FontWeight, MouseButton, Overflow, SharedString, Stateful, StyleRefinement, WeakEntity, Window,
     component::text::{TextView, TextViewStyle},
-    div, prelude::*, px, relative,
+    div, linear_color_stop, linear_gradient, prelude::*, px, relative,
 };
 
 use crate::{
@@ -16,15 +16,17 @@ use crate::{
     discord::{File, runtime},
     icons::Glyph,
     palette::{self, Level},
-    ui::{self, RADIUS_LG, Squircle},
+    ui::{self, RADIUS_LG, RADIUS_MD, Squircle},
 };
 
 // What a preview reads of the file; the footer says so when the file is longer.
 const PREVIEW_BYTES: usize = 100 << 10;
 // Copy contents fetches at most this much: past it the clipboard gets the start and a toast says so.
 const COPY_BYTES: usize = 16 << 20;
+// Collapsed clips here under a fade and never scrolls; expanded scrolls inside the taller cap.
 const COLLAPSED: f32 = 200.;
 const EXPANDED: f32 = 560.;
+const FADE: f32 = 88.;
 
 #[derive(Clone)]
 pub enum TextFile {
@@ -145,7 +147,7 @@ impl Rustcord {
         let width = (f32::from(viewport.width) - 160.).clamp(320., 960.);
         let max_h = f32::from(viewport.height) - 208.;
         let copied = self.copied.as_deref() == Some(file.url.as_str());
-        let card = card(Card { id: "text-viewer".into(), file: &file, text: Some((&text, truncated)), max_h, expanded: None, copied, full: true, this: cx.weak_entity() }, cx)
+        let card = card(Card { id: "text-viewer".into(), file: &file, text: Some((&text, truncated)), max_h: Some(max_h), expanded: None, copied, full: true, this: cx.weak_entity() }, cx)
             .w(px(width))
             .shadow(ui::shadow_pop(cx))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation());
@@ -160,7 +162,7 @@ pub fn inline(id: String, file: &File, state: Option<&TextFile>, expanded: bool,
     };
     // Roughly what fits in the collapsed height; anything shorter has nothing to expand.
     let long = text.is_some_and(|(t, _)| t.lines().count() > 7 || t.len() > 600);
-    card(Card { id: id.into(), file, text, max_h: if expanded { EXPANDED } else { COLLAPSED }, expanded: long.then_some(expanded), copied, full: false, this }, cx)
+    card(Card { id: id.into(), file, text, max_h: long.then_some(if expanded { EXPANDED } else { COLLAPSED }), expanded: long.then_some(expanded), copied, full: false, this }, cx)
 }
 
 struct Card<'a> {
@@ -168,7 +170,8 @@ struct Card<'a> {
     file: &'a File,
     // None while loading.
     text: Option<(&'a SharedString, bool)>,
-    max_h: f32,
+    // None: short enough to show whole.
+    max_h: Option<f32>,
     // Some(open) when the card can expand: inline, and long enough to need it.
     expanded: Option<bool>,
     copied: bool,
@@ -180,15 +183,28 @@ struct Card<'a> {
 fn card(card: Card, cx: &App) -> Stateful<Div> {
     let Card { id, file, text, max_h, expanded, copied, full, this } = card;
     let line = palette::line(cx);
+    // Two tones: the frame and footer in the file card's tone, the text in an inset well of its own.
+    let (frame, well) = (palette::surface(Level::Sidebar, cx), palette::surface(Level::Raised, cx));
+    let clipped = expanded == Some(false);
     let body = match text {
         Some((text, _)) => {
-            let mut block = StyleRefinement::default().p(px(12.)).pl(px(14.)).border_0().bg(gpui_kit::transparent_black()).text_size(px(14.)).line_height(relative(1.5)).text_color(palette::text(cx)).max_h(px(max_h));
-            // TextView scrolls the block inside its own height only when asked this way, and keeps the wheel from the chat.
-            block.overflow.y = Some(Overflow::Scroll);
-            TextView::markdown(SharedString::from(format!("{id}-text")), fenced(text)).selectable(true).style(TextViewStyle::default().code_block(block)).into_any_element()
+            let mut block = StyleRefinement::default().p(px(12.)).pl(px(14.)).border_0().bg(gpui_kit::transparent_black()).text_size(px(14.)).line_height(relative(1.5)).text_color(palette::text(cx));
+            if let Some(max_h) = max_h {
+                block = block.max_h(px(max_h));
+                // TextView scrolls the block inside its own height only when asked this way, and keeps the wheel from the chat.
+                block.overflow.y = Some(if clipped { Overflow::Hidden } else { Overflow::Scroll });
+            }
+            div()
+                .relative()
+                .size_full()
+                .child(TextView::markdown(SharedString::from(format!("{id}-text")), fenced(text)).selectable(true).style(TextViewStyle::default().code_block(block)))
+                .when(clipped, |d| d.child(div().absolute().left_0().right_0().bottom_0().h(px(FADE)).squircle(RADIUS_MD).bg(linear_gradient(180., linear_color_stop(well.opacity(0.), 0.), linear_color_stop(well, 1.)))))
+                .into_any_element()
         }
         None => div().h(px(64.)).into_any_element(),
     };
+    // Inset 6px inside the frame's 20px corner, so 14px keeps the corners concentric.
+    let body = div().mx(px(6.)).mt(px(6.)).squircle(RADIUS_MD).overflow_hidden().bg(well).child(body);
     let size = match text.is_some_and(|(_, truncated)| truncated) {
         true => format!("{} · showing the first 100 KB", crate::chat::format_size(file.size)),
         false => crate::chat::format_size(file.size),
@@ -205,7 +221,7 @@ fn card(card: Card, cx: &App) -> Stateful<Div> {
         .flex_col()
         .squircle(RADIUS_LG)
         .overflow_hidden()
-        .bg(palette::surface(if full { Level::Raised } else { Level::Sidebar }, cx))
+        .bg(frame)
         .border_1()
         .border_color(line)
         .child(body)
@@ -216,8 +232,6 @@ fn card(card: Card, cx: &App) -> Stateful<Div> {
                 .gap(px(8.))
                 .px(px(8.))
                 .py(px(6.))
-                .border_t_1()
-                .border_color(line)
                 .children(expanded.map(|open| {
                     let url = file.url.clone();
                     button("expand", if open { Glyph::ChevronUp } else { Glyph::ChevronDown }, if open { "Collapse" } else { "Expand" }).on_click(move |_, _, cx| {

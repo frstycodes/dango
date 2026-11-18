@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | text-files | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | login | scanned | failed | empty | updating (the launch splash alone).
+// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | login | scanned | failed | empty | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -85,7 +85,7 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         "hover" => chord.hovered_message = Some("105".into()),
         // A long message.txt (Discord's file for a message past 2,000 characters), a short code file, and
         // a .log that isn't text, which stays a file card. The fixtures stand in for the CDN fetch.
-        "text-files" | "text-viewer" => demo_text_files(chord, scene == "text-viewer"),
+        "text-files" | "text-expanded" | "text-viewer" => demo_text_files(chord, scene),
         // Four pictures of mixed shapes on one message: the 2x2 gallery.
         "gallery-grid" => {
             if let Some(feed) = chord.feeds.get_mut("general") {
@@ -481,7 +481,7 @@ fn account(user: &User, status: Presence_) -> crate::accounts::Account {
     crate::accounts::Account { id: user.id.clone(), name: user.name.clone(), avatar: user.avatar.clone(), status }
 }
 
-fn demo_text_files(chord: &mut Rustcord, viewer: bool) {
+fn demo_text_files(chord: &mut Rustcord, scene: &str) {
     use crate::{discord::File, text_file::TextFile};
     let notes: String = PATCH_NOTES.repeat(3);
     let hello = "fn main() {\n    let name = std::env::args().nth(1).unwrap_or(\"world\".into());\n    println!(\"hello, {name}\");\n}\n";
@@ -492,8 +492,10 @@ fn demo_text_files(chord: &mut Rustcord, viewer: bool) {
         texts.files.insert(long.url.clone(), TextFile::Ready { text: notes.into(), truncated: false });
         texts.files.insert(short.url.clone(), TextFile::Ready { text: hello.into(), truncated: false });
         texts.files.insert(binary.url.clone(), TextFile::Unreadable);
-        if viewer {
-            texts.viewer = Some(long.clone());
+        match scene {
+            "text-viewer" => texts.viewer = Some(long.clone()),
+            "text-expanded" => drop(texts.expanded.insert(long.url.clone())),
+            _ => {}
         }
     }
     let Some(feed) = chord.feeds.get_mut("general") else { return };
