@@ -32,7 +32,7 @@ use super::{
 
 const DAVE_MARKER: [u8; 2] = [0xfa, 0xfa];
 const SILENCE_FRAMES: u8 = 5;
-const BITRATE: i32 = 64_000;
+pub const BITRATE: i32 = 64_000;
 const EXPECTED_LOSS_PERCENT: i32 = 5;
 const QUIET_AFTER: Duration = Duration::from_millis(250);
 const POLL: Duration = Duration::from_millis(100);

@@ -31,6 +31,7 @@ use sonora::{
 
 use super::{
     audio::{FRAME_LEN, SAMPLE_RATE, SILENCE_DB, level_db},
+    taps::Taps,
 };
 
 // Mono samples in one 10 ms block: one RNNoise frame, one DeepFilterNet hop, one WebRTC block.
@@ -94,6 +95,7 @@ struct State {
     out: [f32; BLOCK],
     scaled: [f32; BLOCK],
     pcm: [i16; BLOCK],
+    taps: Option<Taps>,
 }
 
 impl Processor {
@@ -116,6 +118,7 @@ impl Processor {
             out: [0.0; BLOCK],
             scaled: [0.0; BLOCK],
             pcm: [0; BLOCK],
+            taps: Taps::from_env(),
         };
         Self { state: Mutex::new(state), render_tx, echo: AtomicBool::new(echo), noise: AtomicU8::new(noise as u8), gain: AtomicBool::new(gain) }
     }
@@ -130,6 +133,14 @@ impl Processor {
         if let Ok(mut state) = self.state.lock() {
             state.front.apply_config(front_config(self.echo(), self.noise()));
             state.back.apply_config(back_config(self.gain()));
+        }
+    }
+
+    // Records every stage from here on (see taps.rs), written when the processor drops.
+    #[cfg(test)]
+    pub fn tap(&self, taps: Taps) {
+        if let Ok(mut state) = self.state.lock() {
+            state.taps = Some(taps);
         }
     }
 
@@ -208,9 +219,11 @@ impl State {
 
     // One 10 ms block of `self.mono` through the chain; false when nothing changed the audio.
     fn process(&mut self, echo: bool, noise: NoiseSuppression, gain: bool, block: &mut Block) -> bool {
+        tap(&mut self.taps, "1-mic", &self.mono);
         if (echo || noise == NoiseSuppression::Standard) && self.front.process_capture_f32(&[&self.mono], &mut [&mut self.out]).is_ok() {
             self.mono = self.out;
         }
+        tap(&mut self.taps, "2-front", &self.mono);
         // Speech probability comes from the echo-cancelled signal, before any suppression.
         self.mono.iter().zip(&mut self.scaled).for_each(|(s, dst)| *dst = s * I16_SCALE);
         block.speech = self.neural.rnnoise.process_frame(&mut self.out, &self.scaled);
@@ -220,12 +233,20 @@ impl State {
             }
             self.mono.iter_mut().zip(&self.out).for_each(|(dst, s)| *dst = s.clamp(-1.0, 1.0));
         }
+        tap(&mut self.taps, "3-denoise", &self.mono);
         if gain && self.back.process_capture_f32(&[&self.mono], &mut [&mut self.out]).is_ok() {
             self.mono = self.out;
         }
+        tap(&mut self.taps, "4-agc", &self.mono);
         self.mono.iter().zip(&mut self.pcm).for_each(|(s, dst)| *dst = (s * I16_SCALE).clamp(-I16_SCALE, I16_SCALE - 1.0) as i16);
         block.vad = self.vad.predict_48khz(&self.pcm).unwrap_or(false);
         echo || noise != NoiseSuppression::Off || gain
+    }
+}
+
+fn tap(taps: &mut Option<Taps>, stage: &'static str, block: &[f32; BLOCK]) {
+    if let Some(taps) = taps {
+        taps.record(stage, block);
     }
 }
 
@@ -322,6 +343,17 @@ fn run_worker(ready: &AtomicBool, inbox: &Receiver<[f32; BLOCK]>, outbox: &SyncS
 fn dfn_params() -> RuntimeParams {
     let mut params = RuntimeParams::default_with_ch(1);
     (params.min_db_thresh, params.max_db_erb_thresh, params.max_db_df_thresh) = (-15.0, 35.0, 35.0);
+    // Tuning overrides for the offline chain check (chain_check.rs).
+    if cfg!(test) {
+        let env = |name: &str| std::env::var(name).ok().and_then(|v| v.parse::<f32>().ok());
+        params.atten_lim_db = env("DFN_ATTEN_DB").unwrap_or(params.atten_lim_db);
+        params.min_db_thresh = env("DFN_MIN_DB").unwrap_or(params.min_db_thresh);
+        params.max_db_erb_thresh = env("DFN_MAX_ERB_DB").unwrap_or(params.max_db_erb_thresh);
+        params.max_db_df_thresh = env("DFN_MAX_DF_DB").unwrap_or(params.max_db_df_thresh);
+        if let Some(beta) = env("DFN_POST_FILTER") {
+            (params.post_filter, params.post_filter_beta) = (beta > 0.0, beta);
+        }
+    }
     params
 }
 
@@ -367,7 +399,9 @@ fn back_config(gain: bool) -> Config {
 // sonora defaults to 32 kHz internally: every block went 48 -> 32 -> 48 kHz, losing all above
 // 16 kHz before the neural suppressor (trained on full band) saw it. Discord's APM runs at 48 kHz.
 fn full_band() -> Pipeline {
-    Pipeline { maximum_internal_processing_rate: MaxProcessingRate::Rate48kHz, ..Default::default() }
+    // APM_32K: the old rate, for before/after runs of the offline chain check.
+    let rate = if cfg!(test) && std::env::var_os("APM_32K").is_some() { MaxProcessingRate::Rate32kHz } else { MaxProcessingRate::Rate48kHz };
+    Pipeline { maximum_internal_processing_rate: rate, ..Default::default() }
 }
 
 fn fold(stereo: &[f32; BLOCK * 2], mono: &mut [f32; BLOCK]) {

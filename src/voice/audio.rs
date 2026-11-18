@@ -20,6 +20,7 @@ use cpal::{
 use super::{
     dsp::{BLOCKS_PER_FRAME, Block, Processor},
     jitter::{JitterBuffer, JitterStats},
+    taps::Taps,
 };
 
 pub const SAMPLE_RATE: u32 = 48_000;
@@ -152,11 +153,14 @@ struct Track {
     // Arrival clock origin for the jitter buffer.
     created: Instant,
     frame: Vec<f32>,
+    // `RUSTCORD_VOICE_RECV_TAPS=<dir>`: what this speaker sent, as decoded, written when they leave.
+    // Allocates on the output callback; debug only.
+    taps: Option<Taps>,
 }
 
 impl Default for Track {
     fn default() -> Self {
-        Self { jitter: None, pcm: VecDeque::new(), gain: 1.0, created: Instant::now(), frame: vec![0.0; FRAME_LEN] }
+        Self { jitter: None, pcm: VecDeque::new(), gain: 1.0, created: Instant::now(), frame: vec![0.0; FRAME_LEN], taps: None }
     }
 }
 
@@ -177,6 +181,7 @@ impl Mixer {
         track.gain = gain;
         if track.jitter.is_none() {
             track.jitter = JitterBuffer::new();
+            track.taps = std::env::var_os("RUSTCORD_VOICE_RECV_TAPS").map(|dir| Taps::new(std::path::Path::new(&dir).join(format!("{key:x}"))));
         }
         let arrival = track.created.elapsed();
         if let Some(jitter) = &mut track.jitter {
@@ -218,6 +223,10 @@ impl Track {
         }
         let Some(jitter) = &mut self.jitter else { return };
         jitter.pull(&mut self.frame);
+        if let Some(taps) = &mut self.taps {
+            let left: Vec<f32> = self.frame.iter().step_by(2).copied().collect();
+            taps.record("received", &left);
+        }
         let gain = self.gain;
         self.pcm.extend(self.frame.iter().map(|s| s * gain));
     }
