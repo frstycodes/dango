@@ -492,10 +492,10 @@ impl Rustcord {
             .hover(move |s| s.bg(hover))
             .child(div().flex_1().min_w_0().truncate().child(name))
             .child(Nav::Caret.icon().size(px(16.)).text_color(palette::muted(cx)))
-            .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(|this, _: &gpui_kit::MouseDownEvent, _, cx| {
+            .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(|this, _: &gpui_kit::MouseDownEvent, window, cx| {
                 let Some(guild_id) = this.guild_id.clone() else { return };
                 // Drops from the header's bottom edge, inset by the header's padding.
-                let at = gpui_kit::point(px(RAIL_WIDTH + 6.), px(crate::layout::BRAND_BAR_HEIGHT + crate::layout::HEADER_HEIGHT));
+                let at = gpui_kit::point(px(RAIL_WIDTH + 6.), px(crate::layout::brand_bar_height(window) + crate::layout::HEADER_HEIGHT));
                 this.open_server_menu(guild_id, at, true, cx);
             }))
     }
