@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | activity | activity-all | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | login | scanned | failed | empty | updating (the launch splash alone).
+// CHORD_DEMO=chat | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | login | scanned | failed | empty | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -110,6 +110,17 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             ];
             if scene == "activity-all" {
                 chord.right_panel = crate::RightPanel::Activity;
+            }
+        }
+        // Unread DMs stack under Home on the rail: Wren with one message, a group-less second with 12.
+        "rail-dms" => {
+            let mut ani = chord.dms[0].clone();
+            ani.id = "dm2".into();
+            ani.recipient = Some(user("16777216", "toma reed"));
+            chord.dms.push(ani);
+            for (id, mentions) in [("dm", 1), ("dm2", 12)] {
+                chord.last_message.insert(id.into(), 200);
+                chord.read_states.insert(id.into(), ReadState { last_read: 100, mentions });
             }
         }
         "folder" => {
