@@ -976,6 +976,7 @@ impl Rustcord {
         let avatar = channel.recipient.as_ref().map(|u| u.avatar.clone()).unwrap_or_else(|| crate::discord::avatar_url(&channel.id, None));
         let typing = self.typing.get(&channel.id).is_some_and(|t| t.iter().any(|t| t.until > std::time::Instant::now()));
         let faint = palette::faint(cx);
+        let call_line = self.dm_call_line(&channel.id, cx);
         let line: Option<Div> = match (typing, presence) {
             (true, _) => Some(div().child(ui::bars(SharedString::from(format!("dm-typing-{}", channel.id)), faint, 10.)).child("Typing…")),
             (false, Some(p)) => match (p.activity, p.status) {
@@ -985,6 +986,7 @@ impl Rustcord {
             },
             (false, None) => None,
         };
+        let line = call_line.map(|(glyph, label, ink)| div().child(Icon::new(glyph).size(px(13.)).flex_none().text_color(ink)).child(div().text_color(ink).child(label))).or(line);
         let state = RowState { selected, unread, muted: false, strong: false };
         let (open, close_id) = (channel.clone(), channel.id.clone());
         let group: SharedString = format!("dm-{}", channel.id).into();

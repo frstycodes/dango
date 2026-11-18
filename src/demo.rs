@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | login | scanned | failed | empty | updating (the launch splash alone).
+// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | login | scanned | failed | empty | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -129,6 +129,8 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         "folder" => {
             chord.open_folders.insert("9".into());
         }
+        // Zoë calls: the strip rings in her DM; "call-banner" takes the call while #general is open.
+        "call-incoming" | "call-banner" | "call-joinable" => demo_dm_call(chord, scene, window, cx),
         "stream-card" => {
             let key = "guild:1:lounge:12582912".to_owned();
             let blender = Activity { kind: ActivityKind::Playing, text: "Blender".into(), more: 0 };
@@ -318,6 +320,38 @@ fn demo_thread() -> Channel {
 
 fn first_thread_chip(message: &mut Message) {
     message.thread = Some(demo_thread());
+}
+
+fn demo_dm_call(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Context<Rustcord>) {
+    let zoe = user("8388608", "Zoë");
+    let ago = |mins: i64| (chrono::Utc::now() - chrono::Duration::minutes(mins)).to_rfc3339();
+    let record = |id: &str, author: &User, start: i64, end: Option<i64>, joined: &[&str]| Message {
+        id: id.into(),
+        channel_id: "dm".into(),
+        author: author.clone(),
+        timestamp: ago(start),
+        call: Some(crate::discord::CallRecord { participants: joined.iter().map(|p| p.to_string()).collect(), ended: end.map(ago) }),
+        ..Default::default()
+    };
+    let text = |id: &str, author: &User, at: i64, content: &str| Message { id: id.into(), channel_id: "dm".into(), author: author.clone(), timestamp: ago(at), content: content.into(), ..Default::default() };
+    let me = me_user();
+    let messages = vec![
+        record("301", &me, 180, Some(168), &["4194304", "8388608"]),
+        record("302", &zoe, 90, Some(89), &["8388608"]),
+        text("303", &zoe, 89, "call me when you're back"),
+        text("304", &me, 3, "back now"),
+    ];
+    chord.feeds.insert("dm".into(), Feed { messages: std::sync::Arc::new(messages), loaded: true, ..Default::default() });
+    let state = VoiceState { guild_id: None, channel_id: Some("dm".into()), user_id: zoe.id.clone(), user: Some(zoe), muted: false, deafened: false, server_muted: false, server_deafened: false, streaming: false, camera: false };
+    chord.on_event(Event::VoiceState(state), cx);
+    let ringing = if scene == "call-joinable" { vec![] } else { vec![me.id.clone()] };
+    chord.on_event(Event::Call { channel_id: "dm".into(), ringing }, cx);
+    if scene != "call-banner" {
+        let dm = chord.dms[0].clone();
+        chord.restore = None;
+        chord.guild_id = None;
+        chord.open_channel(dm, window, cx);
+    }
 }
 
 fn user(id: &str, name: &str) -> User {

@@ -8,6 +8,7 @@ mod captcha;
 mod query;
 mod call;
 mod channel_menu;
+mod dm_call;
 mod chat;
 #[cfg(debug_assertions)]
 mod demo;
@@ -562,6 +563,14 @@ pub struct Rustcord {
     ring_on_connect: Option<String>,
     // The DM call we're ringing out on; its ringtone plays until someone joins, we leave, or a minute passes.
     ringing_out: Option<String>,
+    // DM and group calls going on now, by channel, with who each still rings.
+    dm_calls: HashMap<String, Vec<String>>,
+    // Who is in each DM call: voice states with no server.
+    dm_voice: Vec<discord::VoiceState>,
+    // The DM call ringing us; its ringtone plays until we answer or decline, or it stops ringing.
+    ringing_in: Option<String>,
+    // A video call we started: the camera turns on once it connects.
+    camera_on_connect: bool,
     // Voice channels whose member list is collapsed (Discord's "Hide Names").
     hidden_voice_names: HashSet<String>,
     // Shift held: Discord's hover bar shows Delete instead of More.
@@ -796,6 +805,10 @@ impl Rustcord {
             ignored: HashSet::new(),
             ring_on_connect: None,
             ringing_out: None,
+            dm_calls: HashMap::new(),
+            dm_voice: Vec::new(),
+            ringing_in: None,
+            camera_on_connect: false,
             hidden_voice_names: HashSet::new(),
             shift_held: false,
             stream_card_hover: None,
@@ -1171,12 +1184,22 @@ impl Rustcord {
                 if state.channel_id.is_some() && state.channel_id == self.ringing_out && Some(&state.user_id) != me.as_ref() {
                     self.stop_ringing_out();
                 }
-                let Some(guild) = state.guild_id.as_ref().and_then(|id| self.guilds.iter_mut().find(|g| &g.id == id)) else { return };
-                let was_here = guild.voice_states.iter().any(|v| v.user_id == state.user_id && v.channel_id == ours);
-                let is_here = ours.is_some() && state.channel_id == ours;
-                let was_live = guild.voice_states.iter().any(|v| v.user_id == state.user_id && v.channel_id == ours && v.streaming);
-                let is_live = is_here && state.streaming;
                 let mine = Some(&state.user_id) == me.as_ref();
+                // Answered on another device: this one stops ringing too.
+                if mine && state.channel_id.is_some() && state.channel_id == self.ringing_in {
+                    self.stop_ringing_in();
+                }
+                let states = match &state.guild_id {
+                    Some(id) => match self.guilds.iter_mut().find(|g| &g.id == id) {
+                        Some(guild) => &mut guild.voice_states,
+                        None => return,
+                    },
+                    None => &mut self.dm_voice,
+                };
+                let was_here = states.iter().any(|v| v.user_id == state.user_id && v.channel_id == ours);
+                let is_here = ours.is_some() && state.channel_id == ours;
+                let was_live = states.iter().any(|v| v.user_id == state.user_id && v.channel_id == ours && v.streaming);
+                let is_live = is_here && state.streaming;
                 if let Some(cue) = member_cue(mine, was_here, is_here) {
                     sounds::play(cue);
                 } else if !mine && !was_live && is_live {
@@ -1184,7 +1207,10 @@ impl Rustcord {
                 } else if was_live && !is_live && self.call.as_ref().is_some_and(|c| c.watched(&state.user_id).is_some()) {
                     sounds::play(sounds::Cue::StreamEnded);
                 }
-                let live_key = state.channel_id.as_ref().filter(|_| state.streaming).map(|c| format!("guild:{}:{c}:{}", guild.id, state.user_id));
+                let live_key = state.channel_id.as_ref().filter(|_| state.streaming).map(|c| match &state.guild_id {
+                    Some(guild) => format!("guild:{guild}:{c}:{}", state.user_id),
+                    None => format!("call:{c}:{}", state.user_id),
+                });
                 let suffix = format!(":{}", state.user_id);
                 self.stream_live_since.retain(|key, _| !key.ends_with(&suffix) || Some(key) == live_key.as_ref());
                 if let Some(key) = live_key {
@@ -1192,16 +1218,18 @@ impl Rustcord {
                 }
                 // Updated in place while they stay in the channel, so the list keeps join order and the
                 // call stage never reshuffles on a mute or a Go Live.
-                match guild.voice_states.iter_mut().find(|v| v.user_id == state.user_id && state.channel_id.is_some() && v.channel_id == state.channel_id) {
+                match states.iter_mut().find(|v| v.user_id == state.user_id && v.guild_id == state.guild_id && state.channel_id.is_some() && v.channel_id == state.channel_id) {
                     Some(slot) => *slot = state,
                     None => {
-                        guild.voice_states.retain(|v| v.user_id != state.user_id);
+                        states.retain(|v| v.user_id != state.user_id || v.guild_id != state.guild_id);
                         if state.channel_id.is_some() {
-                            guild.voice_states.push(state);
+                            states.push(state);
                         }
                     }
                 }
             }
+            Event::Call { channel_id, ringing } => self.on_dm_call(channel_id, ringing, cx),
+            Event::CallEnded { channel_id } => self.on_dm_call_ended(&channel_id),
             Event::VoiceServer(_) => {}
             Event::VoiceStartTimes { guild_id, times, all } => {
                 if all
@@ -1246,6 +1274,10 @@ impl Rustcord {
     // READY's voice states carry only user ids: fill them from members we know, and ask the
     // gateway once for the rest so every voice row and tile shows the real name and avatar.
     fn resolve_voice_users(&mut self) {
+        let known: Vec<User> = self.known_users().into_iter().chain(self.me.clone()).collect();
+        for state in self.dm_voice.iter_mut().filter(|v| v.user.is_none()) {
+            state.user = known.iter().find(|u| u.id == state.user_id).cloned();
+        }
         let mut missing: Vec<(String, String)> = Vec::new();
         for guild in &mut self.guilds {
             let known = self.members.get(&guild.id);
@@ -2253,6 +2285,7 @@ impl Rustcord {
     // Ends the call without a sound; whether there was one.
     fn end_call(&mut self, cx: &mut Context<Self>) -> bool {
         self.call_fullscreen = false;
+        self.camera_on_connect = false;
         self.stop_ringing_out();
         let Some(call) = self.call.take() else { return false };
         self.call_focus = None;
@@ -2267,20 +2300,18 @@ impl Rustcord {
         let Some(call) = &mut self.call else { return };
         match event {
             voice::VoiceEvent::Connected => {
-                if self.ring_on_connect.as_ref() == Some(&call.channel.id)
-                    && let Some(client) = self.client.clone()
-                {
+                if self.ring_on_connect.as_ref() == Some(&call.channel.id) {
                     let channel = self.ring_on_connect.take().unwrap_or_default();
-                    self.ring_out(channel.clone(), cx);
-                    crate::discord::runtime().spawn(async move {
-                        let _ = client.call(reqwest::Method::POST, format!("/channels/{channel}/call/ring"), Some(serde_json::json!({ "recipients": null }))).await;
-                    });
+                    self.ring_dm(channel, cx);
                 }
                 start_watch = self.watch_on_connect.take();
                 let Some(call) = &mut self.call else { return };
                 call.connected = true;
                 call.stage = voice::Stage::Connected;
                 sounds::play(connected_cue(self.call_switched));
+                if std::mem::take(&mut self.camera_on_connect) {
+                    self.toggle_camera(cx);
+                }
             }
             voice::VoiceEvent::Stage(stage) => call.stage = stage,
             voice::VoiceEvent::Stats(stats) => call.stats = Some(stats),

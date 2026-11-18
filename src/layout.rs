@@ -123,6 +123,7 @@ impl Rustcord {
         let (viewer, settings) = (self.viewer_overlay(window, cx), self.render_settings(window, cx));
         crate::gif::set_covered(!overlays.is_empty() || !call_overlays.is_empty() || menu.is_some() || dialog.is_some() || viewer.is_some() || settings.is_some());
         root.child(body)
+            .children(self.incoming_call_banner(cx))
             .children(overlays)
             .children(call_overlays)
             .children(self.render_toast(cx))
