@@ -51,6 +51,8 @@ pub use video::VideoFrame;
 const SERVER_TIMEOUT: Duration = Duration::from_secs(10);
 const STATS_EVERY: Duration = Duration::from_secs(2);
 const PINGS_KEPT: usize = 20;
+// Stats ticks of outbound loss averaged: 15 × 2 s = 30 s.
+const LOSS_WINDOW: usize = 15;
 const DUCK_TICK: Duration = Duration::from_millis(20);
 // DSCP Expedited Forwarding in the IPv4 TOS byte: the "high packet priority" Quality of Service asks for.
 const QOS_TOS: u32 = 0xb8;
@@ -98,10 +100,12 @@ pub enum Stage {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Stats {
     pub ping_ms: u32,
-    pub avg_ping_ms: u32,
+    // The median of the kept pings: one slow heartbeat can't make the whole call read as poor.
+    pub median_ping_ms: u32,
     pub last_pings: Vec<u32>,
-    pub outbound_loss_pct: f32,
-    pub inbound_loss_pct: f32,
+    // How much of our audio the server says it lost, averaged over the last LOSS_WINDOW of reports;
+    // None until it has reported.
+    pub outbound_loss_pct: Option<f32>,
     pub endpoint: String,
     pub server_ip: String,
     pub encryption: String,
@@ -890,8 +894,33 @@ impl Pings {
 
     fn stats(&self) -> (u32, u32, Vec<u32>) {
         let last = self.0.back().copied().unwrap_or(0);
-        let avg = (self.0.iter().map(|&p| p as u64).sum::<u64>() / self.0.len().max(1) as u64) as u32;
-        (last, avg, self.0.iter().copied().collect())
+        (last, median(self.0.iter().copied()), self.0.iter().copied().collect())
+    }
+}
+
+fn median(values: impl Iterator<Item = u32>) -> u32 {
+    let mut sorted: Vec<u32> = values.collect();
+    sorted.sort_unstable();
+    match sorted.len() {
+        0 => 0,
+        n if n % 2 == 1 => sorted[n / 2],
+        n => (sorted[n / 2 - 1] + sorted[n / 2]) / 2,
+    }
+}
+
+// The server's outbound-loss reports over the last LOSS_WINDOW stats ticks, averaged.
+#[derive(Default)]
+struct LossWindow(VecDeque<f32>);
+
+impl LossWindow {
+    fn push(&mut self, report: Option<f32>) -> Option<f32> {
+        if let Some(loss) = report {
+            self.0.push_back(loss);
+            if self.0.len() > LOSS_WINDOW {
+                self.0.pop_front();
+            }
+        }
+        (!self.0.is_empty()).then(|| self.0.iter().sum::<f32>() / self.0.len() as f32)
     }
 }
 
@@ -925,6 +954,7 @@ async fn serve(
     heartbeat.tick().await;
     let mut stats_tick = tokio::time::interval(STATS_EVERY);
     let mut pings = Pings::default();
+    let mut loss = LossWindow::default();
     let mut stats = Stats { endpoint: host.clone(), ..Stats::default() };
 
     let identify = json!({ "op": 0, "d": {
@@ -948,8 +978,8 @@ async fn serve(
                 continue;
             }
             _ = stats_tick.tick(), if is_voice && media.is_some() => {
-                (stats.ping_ms, stats.avg_ping_ms, stats.last_pings) = pings.stats();
-                (stats.inbound_loss_pct, stats.outbound_loss_pct) = counters.take_loss();
+                (stats.ping_ms, stats.median_ping_ms, stats.last_pings) = pings.stats();
+                stats.outbound_loss_pct = loss.push(counters.outbound_loss());
                 stats.dave = dave.e2ee().load(Ordering::Relaxed);
                 shared.emit(VoiceEvent::Stats(stats.clone()));
                 continue;
@@ -1000,6 +1030,9 @@ async fn serve(
             Some(6) => {
                 if let Some(sent) = d["t"].as_i64() {
                     pings.record(sent);
+                    if debug() {
+                        eprintln!("[{:?}] heartbeat ack after {} ms", target.role, pings.0.back().copied().unwrap_or(0));
+                    }
                 }
             }
             Some(2) => {
@@ -1151,6 +1184,21 @@ fn video_ssrcs(d: &Value) -> impl Iterator<Item = u32> + '_ {
 mod tests {
     use super::*;
 
+    #[test]
+    fn median_ping_and_loss_window() {
+        assert_eq!(median([40, 300, 45, 50].into_iter()), 47, "two middles average; one spike doesn't move it");
+        assert_eq!(median([40, 300, 45].into_iter()), 45);
+        assert_eq!(median(std::iter::empty()), 0);
+        let mut window = LossWindow::default();
+        assert_eq!(window.push(None), None, "unknown until the server reports");
+        assert_eq!(window.push(Some(4.0)), Some(4.0));
+        assert_eq!(window.push(None), Some(4.0), "a tick without a new report keeps the window");
+        for _ in 0..LOSS_WINDOW {
+            window.push(Some(0.0));
+        }
+        assert_eq!(window.push(Some(0.0)), Some(0.0), "old reports fall out after the window");
+    }
+
     fn shared() -> (Shared, mpsc::UnboundedReceiver<VoiceEvent>) {
         let (gateway, _out) = GatewayHandle::new();
         let (events, rx) = mpsc::unbounded();
@@ -1242,7 +1290,7 @@ mod tests {
     }
 
     #[test]
-    fn pings_average_and_cap() {
+    fn pings_median_and_cap() {
         let mut pings = Pings::default();
         let now = chrono::Utc::now().timestamp_millis();
         (0..25).for_each(|_| pings.record(now - 40));

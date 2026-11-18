@@ -52,7 +52,7 @@
 .pf-media small { color: var(--text-muted); font-size: var(--text-xs); }
 .pf-bannerthumb { width: 112px; height: 44px; border-radius: var(--radius-sm); background: var(--pf-banner, linear-gradient(135deg, oklch(0.6 0.14 300), oklch(0.45 0.15 340))); box-shadow: inset 0 0 0 1px var(--line); flex: none; }
 .pf-media .swatches button { width: 28px; height: 28px; box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.1); }
-.pf-media .swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg-raised), 0 0 0 4px var(--accent); }
+.pf-media .swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg-group), 0 0 0 4px var(--accent); }
 .pf-wells { display: flex; gap: var(--space-3); flex-wrap: wrap; }
 .pf-well input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .pf-well:focus-within { outline: 2px solid var(--accent-ink); outline-offset: 2px; }

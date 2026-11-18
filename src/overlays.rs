@@ -6,7 +6,7 @@ use gpui_kit::{
     AnyElement, App, ClipboardItem, Context, Entity, FontWeight, HighlightStyle, KeyDownEvent, MouseButton, ScrollHandle, SharedString, StyledText, Window,
     component::{
         ActiveTheme, Icon,
-        input::{Input, InputEvent},
+        input::InputEvent,
     },
     div, img, point, prelude::*, px, relative,
 };
@@ -392,7 +392,7 @@ impl Rustcord {
             .w(px(PICKER_SIZE.0))
             .h(px(PICKER_SIZE.1 + 60.))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .child(div().p_2().child(div().h(px(34.)).px_2().squircle(RADIUS_MD).bg(theme.background).flex().items_center().child(Input::new(&self.gif_search).appearance(false))))
+            .child(div().p_2().child(ui::search_field("gif-search", &self.gif_search, cx)))
             .child(div().id("gif-scroll").flex_1().min_h_0().overflow_y_scroll().px_2().pb_2().child(body));
         Some(backdrop("gif-backdrop", cx).child(ui::rise(picker.transform_origin(ui::corner(true, true)), "gif-picker", Duration::ZERO)).into_any_element())
     }
@@ -664,20 +664,7 @@ impl Rustcord {
                     )
             }));
         // GAP: the design's skin-tone button sits beside search; Dango has no skin tones yet.
-        let head = div().p(px(10.)).child(
-            div()
-                .h(px(36.))
-                .px(px(12.))
-                .squircle(RADIUS_MD)
-                .bg(palette::surface(palette::Level::Page, cx))
-                .flex()
-                .items_center()
-                .gap(px(8.))
-                .text_size(px(14.))
-                .text_color(palette::faint(cx))
-                .child(Icon::new(Glyph::Search).size(px(16.)))
-                .child(div().flex_1().min_w_0().child(Input::new(&self.emoji_search).appearance(false))),
-        );
+        let head = div().p(px(10.)).child(ui::search_field("emoji-search", &self.emoji_search, cx));
         let picker = div()
             .id("emoji-picker")
             .w(px(PICKER_SIZE.0))
@@ -747,22 +734,7 @@ impl Rustcord {
             list.push(self.switcher_row(i == selected, guild_id, channel, place, &query, cx).into_any_element());
         }
         let is_empty = list.is_empty();
-        let field = div()
-            .h(px(52.))
-            .px(px(14.))
-            .flex_none()
-            .squircle(RADIUS_MD)
-            .bg(palette::surface(palette::Level::Page, cx))
-            .border_1()
-            .border_color(palette::accent())
-            .shadow(vec![gpui_kit::BoxShadow { color: palette::accent_soft(cx), offset: gpui_kit::point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(3.), inset: false }])
-            .flex()
-            .items_center()
-            .gap(px(10.))
-            .text_color(palette::faint(cx))
-            .text_size(px(20.))
-            .child(Icon::new(Glyph::Search).size(px(20.)))
-            .child(div().flex_1().min_w_0().text_color(palette::strong(cx)).child(Input::new(&self.switcher_input).appearance(false)));
+        let field = div().flex_none().child(ui::search_field("switcher-search", &self.switcher_input, cx));
         let hint = |keys: Vec<AnyElement>, label: &'static str| div().flex().items_center().gap_1().children(keys).child(label);
         let key = |glyph: Glyph| crate::ui::kbd("", cx).child(Icon::new(glyph).size(px(12.))).into_any_element();
         let foot = div()

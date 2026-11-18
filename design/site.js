@@ -22,6 +22,7 @@ const PAGES = [
   ["profile.html", "Profile and privacy"],
   ["community.html", "Servers and invites"],
   ["server-settings.html", "Server settings"],
+  ["channel-settings.html", "Channel settings"],
   ["flows.html", "Flows"],
   ["flows-account.html", "Flows: account"],
   ["flows-messaging.html", "Flows: messaging"],

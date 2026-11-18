@@ -7,6 +7,7 @@ mod div;
 mod image_cache;
 mod img;
 mod list;
+mod overscroll;
 mod surface;
 mod svg;
 mod text;
@@ -21,6 +22,9 @@ pub use div::*;
 pub use image_cache::*;
 pub use img::*;
 pub use list::*;
+pub use overscroll::{
+    Overscroll, RETURN_SPRING, bounce_velocity, rubber_band, rubber_band_inverse,
+};
 pub use surface::*;
 pub use svg::*;
 pub use text::*;

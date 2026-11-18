@@ -64,6 +64,11 @@ earshot = "=0.1.0"
 socket2 = "0.6"
 rodio = { version = "0.23.0", default-features = false, features = ["playback", "mp3", "symphonia-aac"] }
 
+[dev-dependencies]
+# Headless windows for tests/gpui_overscroll.rs. gpui-kit's own test-support pulls in a gpui-fast that
+# conflicts with this tree's cocoa pin.
+gpui = { package = "gpui-pre", version = "0.3.9", features = ["test-support"] }
+
 [build-dependencies]
 # Same version gpui-pre already builds with; only used for Windows targets.
 embed-resource = "3"

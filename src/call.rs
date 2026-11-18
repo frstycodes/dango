@@ -139,7 +139,7 @@ enum Link {
 impl Link {
     fn of(stage: Stage, stats: Option<&voice::Stats>) -> Self {
         match stage {
-            Stage::Connected if stats.is_some_and(|s| s.avg_ping_ms > PING_BAD || loss(s) >= LOSS_POOR_PCT) => Link::Poor,
+            Stage::Connected if stats.is_some_and(|s| s.median_ping_ms > PING_BAD || loss(s) >= LOSS_POOR_PCT) => Link::Poor,
             Stage::Connected => Link::Connected,
             Stage::NoRoute | Stage::Disconnected => Link::Lost,
             _ => Link::Connecting,
@@ -166,7 +166,7 @@ impl Link {
 }
 
 fn loss(stats: &voice::Stats) -> f32 {
-    stats.inbound_loss_pct.max(stats.outbound_loss_pct)
+    stats.outbound_loss_pct.unwrap_or(0.)
 }
 
 // A ping's band in the connection graph.
@@ -360,7 +360,7 @@ impl Rustcord {
         };
         let channel = call.channel.clone();
         let second: AnyElement = match (link, call.stats.as_ref(), self.voice_warning()) {
-            (Link::Poor, Some(stats), _) => why_line(format!("{} ms ping, {:.0}% packet loss", stats.avg_ping_ms, loss(stats)), tone).into_any_element(),
+            (Link::Poor, Some(stats), _) => why_line(format!("{} ms ping, {:.0}% packet loss", stats.median_ping_ms, loss(stats)), tone).into_any_element(),
             (Link::Lost, _, _) => why_line("Lost the connection, retrying", tone).into_any_element(),
             (_, _, Some(warning)) => why_line(warning, palette::warning_ink(cx))
                 .id("voice-warning")
@@ -1344,7 +1344,7 @@ impl Rustcord {
         let (strong, muted, faint) = (palette::strong(cx), palette::muted(cx), palette::faint(cx));
         let link = Link::of(call.stage, call.stats.as_ref());
         let verdict = match (link, measured) {
-            (Link::Connected | Link::Poor, true) => quality_word(stats.avg_ping_ms),
+            (Link::Connected | Link::Poor, true) => quality_word(stats.median_ping_ms),
             (Link::Lost, _) => "Reconnecting",
             _ => "Connecting",
         };
@@ -1371,8 +1371,8 @@ impl Rustcord {
             .text_size(px(12.))
             .text_color(muted)
             .child(swatch(ping_color(0, cx), "Under 80 ms"))
-            .child(swatch(ping_color(PING_FAIR, cx), "80–120"))
-            .child(swatch(ping_color(PING_BAD + 1, cx), "Over 120"));
+            .child(swatch(ping_color(PING_FAIR, cx), "80–120 ms"))
+            .child(swatch(ping_color(PING_BAD + 1, cx), "Over 120 ms"));
         let dash = |value: String| if measured { value } else { "—".into() };
         let row = |label: &'static str, value: String| {
             div()
@@ -1419,8 +1419,8 @@ impl Rustcord {
                     .flex()
                     .flex_col()
                     .gap(px(2.))
-                    .child(row("Average ping", dash(format!("{} ms", stats.avg_ping_ms))))
-                    .child(row("Packet loss", dash(format!("{:.1}%", loss(&stats)))))
+                    .child(row("Ping", dash(format!("{} ms", stats.median_ping_ms))))
+                    .child(row("Packet loss", dash(stats.outbound_loss_pct.map_or("—".into(), |loss| format!("{loss:.1}%")))))
                     .child(row("Server", dash(stats.endpoint.clone()))),
             )
             .child(

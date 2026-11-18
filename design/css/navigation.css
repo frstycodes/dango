@@ -160,8 +160,9 @@ button.cat:hover, .cat.is-hover { background: var(--hover); color: var(--text-st
 .vp.more .stackav .av { --size: 20px; font-size: 0; }
 
 /* Direct messages */
-.dm-find { display: flex; align-items: center; gap: var(--space-2); width: 100%; height: 32px; padding: 0 10px; border-radius: var(--radius-sm); background: var(--bg-rail); color: var(--text-muted); font-size: var(--text-sm); font-weight: var(--weight-regular); text-align: left; transition: color var(--dur-hover); }
-.dm-find:hover { color: var(--text-strong); }
+/* A button that opens the switcher, drawn as the one search box (.input.search): same height, fill and icon, label in the placeholder ink. */
+.dm-find { display: flex; align-items: center; gap: var(--space-2); width: 100%; height: 40px; padding: 0 12px; border-radius: var(--radius-md); background: color-mix(in oklch, var(--bg-rail) 60%, transparent); backdrop-filter: blur(12px); color: var(--text-faint); font-size: var(--text-md); font-weight: var(--weight-regular); text-align: left; transition: background var(--dur-hover), color var(--dur-hover); }
+.dm-find:hover { background: color-mix(in oklch, var(--bg-rail) 60%, var(--text-strong) 6%); color: var(--text-strong); }
 .dm-find i { font-size: 16px; }
 .dm-find .kbd { margin-left: auto; }
 .dm { position: relative; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 var(--space-2); border-radius: var(--radius-sm); color: var(--text-muted); transition: background var(--dur-hover), color var(--dur-hover); }
@@ -307,10 +308,11 @@ button.cat:hover, .cat.is-hover { background: var(--hover); color: var(--text-st
 .crumbs > .ph-caret-right { color: var(--text-faint); font-size: 14px; }
 .chanbar .topic { flex: 1; min-width: 0; padding-left: var(--space-3); border-left: 1px solid var(--line-strong); color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chanbar .acts { margin-left: auto; display: flex; align-items: center; gap: 2px; flex: none; }
-.chansearch { display: flex; align-items: center; gap: 6px; width: 200px; height: 32px; margin-left: var(--space-2); padding: 0 10px; border-radius: var(--radius-sm); background: var(--bg-rail); border: 1px solid transparent; color: var(--text-faint); transition: border-color var(--dur-hover); }
-.chansearch:focus-within { border-color: var(--accent); }
+/* The header search is the one search box (.input.search), folded to its icon until focused. */
+.chansearch { display: flex; align-items: center; gap: var(--space-2); width: 200px; height: 40px; margin-left: var(--space-2); padding: 0 12px; border-radius: var(--radius-md); background: color-mix(in oklch, var(--bg-rail) 60%, transparent); backdrop-filter: blur(12px); border: 1px solid transparent; color: var(--text-faint); transition: border-color var(--dur-hover), box-shadow var(--dur-hover); }
+.chansearch:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .chansearch i { font-size: 16px; }
-.chansearch input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--text-strong); font-size: var(--text-sm); }
+.chansearch input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--text-strong); font-size: var(--text-md); }
 .chansearch input::placeholder { color: var(--text-faint); }
 .chanbar .search-btn { display: none; }
 @container (max-width: 760px) { .chanbar .chansearch { display: none; } .chanbar .search-btn { display: inline-grid; } }
