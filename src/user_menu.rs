@@ -79,7 +79,7 @@ impl Rustcord {
         self.open_user_menu(user, guild_id, surface, at, cx);
     }
 
-    fn relation(&self, user_id: &str) -> Option<Relation> {
+    pub(crate) fn relation(&self, user_id: &str) -> Option<Relation> {
         self.relationships.iter().find(|r| r.user.id == user_id).map(|r| r.kind)
     }
 
@@ -187,20 +187,20 @@ impl Rustcord {
                 Some(Relation::Friend) => item("Remove friend", move |this, _, cx| {
                     let id = id.clone();
                     this.confirm(format!("Remove '{who}'"), format!("Are you sure you want to remove {who} from your friends?"), "Remove friend", move |this, _, cx| {
-                        this.relation_optimistic(&id, None, Method::DELETE, None, cx);
+                        this.drop_relation(&id, cx);
                     }, cx);
                 })
                 .icon(Glyph::UserMinus)
                 .entry(),
                 Some(Relation::Incoming) => {
                     let friend = user.clone();
-                    item("Accept friend request", move |this, _, cx| this.relation_optimistic(&id, Some((friend.clone(), Relation::Friend)), Method::PUT, Some(json!({})), cx)).icon(Glyph::GroupPlus).entry()
+                    item("Accept friend request", move |this, _, cx| this.befriend(friend.clone(), cx)).icon(Glyph::GroupPlus).entry()
                 }
                 Some(Relation::Outgoing) => item("Friend request sent", |_, _, _| {}).icon(Glyph::GroupPlus).disabled().entry(),
                 Some(Relation::Blocked) => item("Add friend", |_, _, _| {}).icon(Glyph::GroupPlus).disabled().entry(),
                 None => {
                     let friend = user.clone();
-                    item("Add friend", move |this, _, cx| this.relation_optimistic(&id, Some((friend.clone(), Relation::Outgoing)), Method::PUT, Some(json!({})), cx)).icon(Glyph::GroupPlus).entry()
+                    item("Add friend", move |this, _, cx| this.befriend(friend.clone(), cx)).icon(Glyph::GroupPlus).entry()
                 }
             });
         }
@@ -217,16 +217,10 @@ impl Rustcord {
             });
         }
         if !is_me {
-            let (id, who, blockee) = (target.clone(), name.clone(), user.clone());
+            let (id, blockee) = (target.clone(), user.clone());
             out.push(match blocked {
-                true => item("Unblock", move |this, _, cx| this.relation_optimistic(&id, None, Method::DELETE, None, cx)).icon(Glyph::Prohibit).entry(),
-                false => item("Block", move |this, _, cx| {
-                    let id = id.clone();
-                    let blockee = blockee.clone();
-                    this.confirm(format!("Block {who}?"), "They won't be able to message you, and their messages will be hidden.", "Block", move |this, _, cx| {
-                        this.relation_optimistic(&id, Some((blockee.clone(), Relation::Blocked)), Method::PUT, Some(json!({ "type": 2 })), cx);
-                    }, cx);
-                })
+                true => item("Unblock", move |this, _, cx| this.drop_relation(&id, cx)).icon(Glyph::Prohibit).entry(),
+                false => item("Block", move |this, _, cx| this.ask_block(blockee.clone(), cx))
                 .danger()
                 .icon(Glyph::Prohibit)
                 .entry(),
@@ -384,6 +378,26 @@ impl Rustcord {
         let speaking = self.call.as_ref().is_some_and(|c| c.speaking.contains(&user.id));
         let subtitle = voice.map(|c| if speaking { format!("In {} · speaking", c.name) } else { format!("In {}", c.name) });
         header(HeadLead::Avatar { url: user.avatar.clone(), status }, user.name.clone(), subtitle.map(Into::into))
+    }
+
+    // A friend request, or accepting theirs: Discord takes the same PUT for both.
+    pub(crate) fn befriend(&mut self, user: User, cx: &mut Context<Self>) {
+        let next = if self.relation(&user.id) == Some(Relation::Incoming) { Relation::Friend } else { Relation::Outgoing };
+        let id = user.id.clone();
+        self.relation_optimistic(&id, Some((user, next)), Method::PUT, Some(json!({})), cx);
+    }
+
+    // Unfriends, unblocks, or cancels or ignores a request.
+    pub(crate) fn drop_relation(&mut self, user_id: &str, cx: &mut Context<Self>) {
+        self.relation_optimistic(user_id, None, Method::DELETE, None, cx);
+    }
+
+    pub(crate) fn ask_block(&mut self, user: User, cx: &mut Context<Self>) {
+        let title = format!("Block {}?", user.name);
+        self.confirm(title, "They won't be able to message you, and their messages will be hidden.", "Block", move |this, _, cx| {
+            let id = user.id.clone();
+            this.relation_optimistic(&id, Some((user.clone(), Relation::Blocked)), Method::PUT, Some(json!({ "type": 2 })), cx);
+        }, cx);
     }
 
     // Friends, blocks and requests change at once; Discord's refusal restores the old relationship.

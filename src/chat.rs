@@ -54,6 +54,11 @@ impl Rustcord {
         let strip = self.dm_call_strip(&channel, cx);
         let top = HEADER_HEIGHT + if strip.is_some() { crate::dm_call::STRIP_HEIGHT + 8. } else { 0. };
         let body = match self.feeds.get(&channel.id) {
+            Some(Feed { loaded: true, messages, .. }) if messages.is_empty() && channel.kind == ChannelKind::Dm => match self.dm_start(&channel, false) {
+                // Nothing said yet: the header rests at the foot of the feed, where the first message will land.
+                Some(start) => div().size_full().flex().flex_col().justify_end().pt(px(top)).pb(px(self.composer_height.get() + 32.)).child(crate::dm_start::dm_start_header(&start, cx.weak_entity(), cx)).into_any_element(),
+                None => empty_state("empty", Mood::Happy, "No messages yet", "Be the first to say something.", cx),
+            },
             Some(Feed { loaded: true, messages, .. }) if messages.is_empty() => empty_state("empty", Mood::Happy, "No messages yet", "Be the first to say something.", cx),
             Some(Feed { loaded: true, .. }) => self.render_messages(top, cx).into_any_element(),
             Some(Feed { error: Some(error), .. }) => empty_state("failed", Mood::Idle, "Couldn't load messages", error.clone(), cx),
@@ -364,6 +369,7 @@ impl Rustcord {
             unread_marker: self.unread_marker,
             this: cx.weak_entity(),
             has_more: feed.has_more,
+            dm_start: self.dm_start(channel, feed.has_more),
             quick_reactions: self.prefs.frequent_emojis(3, &["💯", "😆", "💖"]),
             shift: self.shift_held,
             manage_messages: self.guild().is_some_and(|g| self.me.as_ref().is_some_and(|me| g.can(&me.id, crate::discord::perm::MANAGE_MESSAGES))),
@@ -384,12 +390,14 @@ impl Rustcord {
             let row = message_row(message, starts_group, &ctx, cx);
             // One accent line above the first message after your read position.
             let first_unread = ctx.unread_marker.is_some_and(|read| crate::order(&message.id) > read && previous.is_none_or(|p| crate::order(&p.id) <= read));
-            let row = match new_day || first_unread {
+            let start = ctx.dm_start.as_ref().filter(|_| ix == 0).map(|s| crate::dm_start::dm_start_header(s, ctx.this.clone(), cx));
+            let row = match new_day || first_unread || start.is_some() {
                 false => row,
                 true => div()
                     .w_full()
                     .flex()
                     .flex_col()
+                    .children(start)
                     .when(new_day, |d| d.child(day_divider(&message.timestamp, cx)))
                     .when(first_unread, |d| d.child(unread_line()))
                     .child(row)
@@ -779,6 +787,7 @@ struct RowContext {
     unread_marker: Option<u64>,
     this: WeakEntity<Rustcord>,
     has_more: bool,
+    dm_start: Option<crate::dm_start::DmStart>,
     // The toolbar's three quick reactions: most used, padded with 💯 😆 💖.
     quick_reactions: Vec<Emoji>,
     shift: bool,
@@ -1922,7 +1931,7 @@ fn typing_parts(names: &[&str]) -> Vec<(String, bool)> {
 }
 
 // One line of text with some runs in strong semibold, as the design's <b>.
-fn emphasised(parts: &[(String, bool)], strong: Hsla) -> StyledText {
+pub(crate) fn emphasised(parts: &[(String, bool)], strong: Hsla) -> StyledText {
     let mut text = String::new();
     let mut runs = Vec::new();
     for (part, bold) in parts {
