@@ -795,7 +795,7 @@ impl Rustcord {
                     .text_color(if talking { palette::strong(cx) } else { palette::muted(cx) })
                     .hover(move |s| s.bg(hover).text_color(text))
                     // You, in this call from another client (not this app): avatar and name faded, as Discord does.
-                    .child(speaking_avatar(&avatar, talking).when(elsewhere(&state.user_id), |a| a.opacity(0.45)))
+                    .child(speaking_avatar(&avatar, talking, cx).when(elsewhere(&state.user_id), |a| a.opacity(0.45)))
                     .child(div().flex_1().min_w_0().truncate().when(elsewhere(&state.user_id), |n| n.opacity(0.45)).child(name.clone()))
                     .children(end)
                     .on_mouse_down(gpui_kit::MouseButton::Right, {
@@ -1088,14 +1088,14 @@ pub(crate) fn channel_glyph(channel: &Channel) -> Icon {
     }
 }
 
-// A voice occupant's avatar; while they speak, an accent ring sits 1px clear of it, as Discord's does.
-fn speaking_avatar(avatar: &str, talking: bool) -> Div {
+// A voice occupant's avatar; while they speak, a green ring sits 1px clear of it, as Discord's does.
+fn speaking_avatar(avatar: &str, talking: bool, cx: &App) -> Div {
     div()
         .relative()
         .flex_none()
         .size(px(22.))
         .child(ui::avatar(avatar.to_owned(), 22.))
-        .when(talking, |a| a.child(div().absolute().top(px(-3.)).left(px(-3.)).size(px(28.)).rounded_full().border(px(2.)).border_color(palette::accent())))
+        .when(talking, |a| a.child(div().absolute().top(px(-3.)).left(px(-3.)).size(px(28.)).rounded_full().border(px(2.)).border_color(palette::status_in(crate::discord::Status::Online, cx))))
 }
 
 // The one mark a voice occupant gets, most important first: server-muted, live, camera, muted or
