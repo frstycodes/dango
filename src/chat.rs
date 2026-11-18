@@ -313,6 +313,8 @@ impl Rustcord {
             copied: self.copied.clone(),
             revealed: self.revealed.clone(),
             text_files: self.text_files.clone(),
+            link_previews: self.link_previews.clone(),
+            joined: self.guilds.iter().map(|g| g.id.clone()).collect(),
             unread_marker: self.unread_marker,
             this: cx.weak_entity(),
             has_more: feed.has_more,
@@ -731,6 +733,9 @@ struct RowContext {
     copied: Option<String>,
     revealed: Rc<std::cell::RefCell<std::collections::HashSet<String>>>,
     text_files: Rc<std::cell::RefCell<crate::text_file::TextFiles>>,
+    link_previews: crate::link_preview::Previews,
+    // Servers you're in, so an invite to one reads "Joined".
+    joined: std::collections::HashSet<String>,
     unread_marker: Option<u64>,
     this: WeakEntity<Rustcord>,
     has_more: bool,
@@ -783,6 +788,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .children(content(message, ctx, cx))
         .children(media.map(|m| div().when(pending, |d| d.opacity(0.6)).child(m)))
         .children(message.embeds.iter().enumerate().map(|(i, e)| embed_card(e, format!("embed-{}-{i}", message.id), ctx, cx)))
+        .children(link_cards(message, ctx, cx))
         .children(message.thread.as_ref().map(|t| thread_card(t, ctx, cx)))
         .children(files(message, ctx, cx))
         .children(reactions(message, ctx, cx))
@@ -1416,6 +1422,16 @@ fn gallery_corners(tile: Tile, height: f32) -> Corners<Pixels> {
 
 // A link preview: it leads with the site, never a coloured bar, one surface step from the feed. Link
 // previews keep a thumbnail at the right; large images run the card's width.
+// Previews of the Discord links the message carries (link_preview.rs).
+fn link_cards(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Vec<AnyElement> {
+    if message.state != SendState::Sent {
+        return Vec::new();
+    }
+    let quote = |content: &str| plain(&readable_with(content, ctx, false));
+    let cards = crate::link_preview::CardContext { this: ctx.this.clone(), previews: &ctx.link_previews, joined: &ctx.joined, channel_names: &ctx.channel_names, quote: &quote, stamp: format_stamp };
+    crate::link_preview::cards(&message.id, &message.content, &cards, cx)
+}
+
 fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElement {
     let (strong, muted, faint) = (palette::strong(cx), palette::muted(cx), palette::faint(cx));
     let link_ink = palette::accent_ink(cx);
@@ -1774,6 +1790,7 @@ fn readable_with(content: &str, ctx: &RowContext, inline_emoji: bool) -> String 
         rest = &tail[end + 1..];
     }
     out.push_str(rest);
+    let out = crate::link_preview::channel_chips(&out, &ctx.channel_names);
     // ponytail: plain word match, like the tokens above it also matches inside code spans.
     out.replace("@everyone", "[@everyone](rustcord://everyone)").replace("@here", "[@here](rustcord://here)")
 }
