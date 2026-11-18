@@ -20,6 +20,9 @@ const DANGER_HOVER: u32 = 0xA8172F;
 const SUCCESS: u32 = 0x00753E;
 const DND: u32 = 0xF05136;
 const OFFLINE: u32 = 0x83868C;
+// Graphite's cast, for the few neutrals computed from OKLCH rather than listed below.
+const NEUTRAL_HUE: f32 = 260.;
+const NEUTRAL_CHROMA: f32 = 0.004;
 
 // One theme's colours by role.
 struct Tokens {
@@ -113,7 +116,7 @@ const LIGHT: Tokens = Tokens {
     line: 0.1,
     line_strong: 0.18,
     accent_soft: (0xD9531F, 0.1),
-    shade: 0x3B2922,
+    shade: 0x2B2E32,
     shimmer: (0xFFFFFF, 0.6),
     seg_track: (0x2B2E32, 0.1),
     seg_thumb: (0xFFFFFF, 1.),
@@ -226,23 +229,92 @@ pub fn success_tint() -> Hsla {
     hex(0x3BB974).opacity(0.12)
 }
 
-// What drop shadows are made of, at full strength: black on dark, a warm near-black on light.
+// What drop shadows are made of, at full strength: black on dark, Graphite's near-black on light.
 pub fn shade(cx: &App) -> Hsla {
     hex(tokens(cx).shade)
 }
 
-// What dims the app behind a dialog (tokens.css --scrim): a deep plum veil on dark, a lighter one on light.
+// What dims the app behind a dialog (tokens.css --scrim): a deep Graphite veil on dark, a lighter one on light.
 pub fn scrim(cx: &App) -> Hsla {
     if cx.theme().is_dark() {
-        return oklch(0.08, 0.01, 350.).opacity(0.7);
+        return oklch(0.08, NEUTRAL_CHROMA, NEUTRAL_HUE).opacity(0.7);
     }
-    oklch(0.2, 0.02, 350.).opacity(0.4)
+    oklch(0.2, NEUTRAL_CHROMA, NEUTRAL_HUE).opacity(0.4)
 }
 
 // The skeleton's sweep.
 pub fn shimmer(cx: &App) -> Hsla {
     let (c, a) = tokens(cx).shimmer;
     hex(c).opacity(a)
+}
+
+// The call stage is dark in both themes (design/css/voice.css `.call`), so whatever sits on it reads
+// Graphite's dark tokens instead of the current theme's.
+pub mod stage {
+    use super::{DARK, DND, Hsla, LIGHT, hex};
+
+    pub fn bg() -> Hsla {
+        hex(DARK.rail)
+    }
+
+    pub fn overlay() -> Hsla {
+        hex(DARK.overlay)
+    }
+
+    pub fn ended() -> Hsla {
+        hex(DARK.sidebar)
+    }
+
+    pub fn strong() -> Hsla {
+        hex(DARK.strong)
+    }
+
+    pub fn text() -> Hsla {
+        hex(DARK.text)
+    }
+
+    pub fn muted() -> Hsla {
+        hex(DARK.muted)
+    }
+
+    pub fn faint() -> Hsla {
+        hex(DARK.faint)
+    }
+
+    pub fn online() -> Hsla {
+        hex(DARK.online)
+    }
+
+    pub fn idle() -> Hsla {
+        hex(DARK.idle)
+    }
+
+    pub fn dnd() -> Hsla {
+        hex(DND)
+    }
+
+    // Translucent white: hover .05, press .09, selected .08, line .08, strong line .14.
+    pub fn wash(alpha: f32) -> Hsla {
+        hex(DARK.ink_wash).opacity(alpha)
+    }
+
+    // Off states (muted, camera off) are soft coral, apart from the red that leaves.
+    pub fn off(hover: bool) -> Hsla {
+        hex(DND).opacity(if hover { 0.3 } else { 0.2 })
+    }
+
+    pub fn off_ink() -> Hsla {
+        hex(0xFF9079)
+    }
+
+    // On states (camera on) are a light fill with dark ink.
+    pub fn on(hover: bool) -> Hsla {
+        hex(if hover { DARK.text } else { DARK.strong })
+    }
+
+    pub fn on_ink() -> Hsla {
+        hex(LIGHT.strong)
+    }
 }
 
 // An OKLCH colour (hue in degrees), for colours the design computes: avatar gradients, role dots, swatches.
@@ -471,6 +543,30 @@ mod tests {
         for fill in [ACCENT, DANGER, SUCCESS] {
             assert!(contrast(0xFFFFFF, fill) >= 4.5, "white on {fill:06X}");
         }
+    }
+
+    // Graphite is the only neutral: a near-grey with a warm cast (the old ink-and-bone or plum ramps)
+    // anywhere in src/ fails here. The dango's stick colours are the mark's own material, so they stay.
+    #[test]
+    fn no_warm_neutrals_in_src() {
+        const MARK_STICKS: [u32; 3] = [0x8C7A6A, 0xC9A27A, 0xC79A6B];
+        let mut warm = Vec::new();
+        for entry in std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/src")).unwrap() {
+            let path = entry.unwrap().path();
+            let Ok(source) = std::fs::read_to_string(&path) else { continue };
+            for (i, line) in source.lines().enumerate() {
+                for hex in line.split("0x").skip(1).filter_map(|rest| rest.get(..6)) {
+                    let Ok(value) = u32::from_str_radix(hex, 16) else { continue };
+                    let (_, chroma, hue) = to_oklch(value);
+                    let hue = hue.to_degrees().rem_euclid(360.);
+                    let is_warm = (0.005..=0.045).contains(&chroma) && !(110. ..290.).contains(&hue);
+                    if is_warm && !MARK_STICKS.contains(&value) {
+                        warm.push(format!("{}:{}: 0x{hex}", path.display(), i + 1));
+                    }
+                }
+            }
+        }
+        assert!(warm.is_empty(), "warm neutrals left in src/:\n{}", warm.join("\n"));
     }
 
     #[test]

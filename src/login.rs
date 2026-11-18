@@ -21,8 +21,8 @@ use crate::{
 // The code card: 204 square with 14 of white around the modules.
 const QR_SIDE: f32 = 204.;
 const QR_PAD: f32 = 14.;
-// Dark modules on white in both themes, or phones can't read it: oklch(0.22 0.02 350).
-const QR_INK: u32 = 0x22171C;
+// Dark modules on white in both themes, or phones can't read it: oklch(0.22 0.004 260).
+const QR_INK: u32 = 0x191B1C;
 // Finder patterns are 7 modules square.
 const FINDER: usize = 7;
 
@@ -176,14 +176,14 @@ fn blank_card(cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-// Warm ink squircles on white, finder patterns as rounded rings, the dango mark in the cleared centre.
+// Graphite ink squircles on white, finder patterns as rounded rings, the dango mark in the cleared centre.
 fn qr_card(modules: Rc<Modules>, cx: &App) -> AnyElement {
     let inner = QR_SIDE - 2. * QR_PAD;
     let module = inner / modules.width as f32;
     let clear = centre_clear(modules.width);
     let shadow = vec![
         BoxShadow { color: palette::line_strong(cx), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false },
-        BoxShadow { color: gpui_kit::hsla(350. / 360., 0.2, 0.12, 0.18), offset: point(px(0.), px(8.)), blur_radius: px(24.), spread_radius: px(0.), inset: false },
+        BoxShadow { color: palette::shade(cx).opacity(0.18), offset: point(px(0.), px(8.)), blur_radius: px(24.), spread_radius: px(0.), inset: false },
     ];
     let mark = (clear.end - clear.start) as f32 * module * 0.78;
     let code = canvas(
