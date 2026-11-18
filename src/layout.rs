@@ -429,7 +429,7 @@ impl Rustcord {
         cx.notify();
         cx.spawn(async move |this, cx| {
             match cx.background_spawn(async move { crate::updater::install(&staged) }).await {
-                Ok(exe) => crate::updater::relaunch(&exe),
+                Ok(()) => cx.update(|cx| cx.restart()),
                 Err(e) => {
                     eprintln!("[updater] install failed: {e}");
                     this.update(cx, |this, cx| this.show_toast("Couldn't install the update. Dango will try again later.", cx)).ok();

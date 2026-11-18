@@ -162,7 +162,8 @@ fn install_then_open(staged: updater::Staged, signed_in: bool, cx: &mut gpui_kit
     let splash = splash::open(format!("Installing {}…", staged.version), cx);
     cx.spawn(async move |cx| {
         match cx.background_spawn(async move { updater::install(&staged) }).await {
-            Ok(exe) => updater::relaunch(&exe),
+            // Opens the new build once this process is gone, so the two never overlap.
+            Ok(()) => return cx.update(|cx| cx.restart()),
             Err(e) => eprintln!("[updater] install failed: {e}"),
         }
         cx.update(|cx| {

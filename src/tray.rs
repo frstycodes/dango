@@ -53,6 +53,12 @@ pub fn install(window: &mut Window, cx: &mut App) {
         Err(e) => return eprintln!("tray: {e}"),
     };
     TRAY.with(|t| *t.borrow_mut() = Some(tray));
+    // Dropping the icon removes it; left to process exit, a dead icon stays until hovered.
+    cx.on_app_quit(|_| {
+        TRAY.with(|t| t.borrow_mut().take());
+        async {}
+    })
+    .detach();
 
     let (open_id, quit_id) = (open.id().clone(), quit.id().clone());
     cx.spawn(async move |cx| {
