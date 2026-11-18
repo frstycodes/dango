@@ -15,7 +15,6 @@ mod capture;
 mod capture;
 mod dave;
 mod dsp;
-mod echo_suppressor;
 #[cfg(test)]
 mod echo_check;
 #[cfg(test)]

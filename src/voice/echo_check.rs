@@ -330,7 +330,8 @@ mod tests {
             return;
         }
         assert!(none.gate_open_single_talk > 0.5, "the simulated echo is loud enough to open the gate");
-        assert!(aec.single_talk_erle_db > 45.0);
+        // AEC3 alone, as Discord runs it: 36-41 dB across `conditions`.
+        assert!(aec.single_talk_erle_db > 35.0);
         assert!(aec.gate_open_single_talk < 0.15, "echo alone rarely opens the gate");
         assert!(aec.double_talk_erle_db > 18.0);
         assert!(aec.near_kept_db > -4.0, "the near end survives double talk");

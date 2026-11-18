@@ -1,6 +1,5 @@
 // Microphone processing in Discord's order (docs/discord-audio.md): echo cancellation (AEC3) and
-// the Standard suppressor (WebRTC NS) from `sonora`, then our residual echo suppressor (what AEC3
-// leaves while both sides talk, echo_suppressor.rs), then the Krisp-tier suppressor (DeepFilterNet3,
+// the Standard suppressor (WebRTC NS) from `sonora`, then the Krisp-tier suppressor (DeepFilterNet3,
 // RNNoise while it loads or if it can't keep up), then automatic gain (AGC2 with Discord's
 // config). Each 10 ms block is also analysed for voice activity: RNNoise's speech probability
 // (Advanced Voice Activity, Discord's Krisp VAD slot) and WebRTC's GMM VAD (automatic sensitivity
@@ -32,7 +31,6 @@ use sonora::{
 
 use super::{
     audio::{FRAME_LEN, SAMPLE_RATE, SILENCE_DB, level_db},
-    echo_suppressor::EchoSuppressor,
 };
 
 // Mono samples in one 10 ms block: one RNNoise frame, one DeepFilterNet hop, one WebRTC block.
@@ -88,8 +86,6 @@ struct State {
     render_rx: Receiver<[f32; BLOCK]>,
     // AEC3 and, when chosen, the Standard suppressor.
     front: AudioProcessing,
-    // What AEC3 leaves of the echo while the near end talks.
-    residual: Box<EchoSuppressor>,
     // AGC2 alone, so it runs after the neural suppressor.
     back: AudioProcessing,
     neural: Neural,
@@ -113,7 +109,6 @@ impl Processor {
         let state = State {
             render_rx,
             front,
-            residual: Box::new(EchoSuppressor::new()),
             back,
             neural,
             vad: Box::new(VoiceActivityDetector::new(VoiceActivityProfile::VERY_AGGRESSIVE)),
@@ -204,10 +199,7 @@ impl State {
     fn drain_render(&mut self, echo: bool) {
         loop {
             match self.render_rx.try_recv() {
-                Ok(block) if echo => {
-                    let _ = self.front.process_render_f32(&[&block], &mut [&mut self.out]);
-                    self.residual.render(&block);
-                }
+                Ok(block) if echo => _ = self.front.process_render_f32(&[&block], &mut [&mut self.out]),
                 Ok(_) => {}
                 Err(TryRecvError::Empty | TryRecvError::Disconnected) => return,
             }
@@ -216,12 +208,8 @@ impl State {
 
     // One 10 ms block of `self.mono` through the chain; false when nothing changed the audio.
     fn process(&mut self, echo: bool, noise: NoiseSuppression, gain: bool, block: &mut Block) -> bool {
-        let mic = self.mono;
         if (echo || noise == NoiseSuppression::Standard) && self.front.process_capture_f32(&[&self.mono], &mut [&mut self.out]).is_ok() {
             self.mono = self.out;
-        }
-        if echo {
-            self.residual.capture(&mic, &mut self.mono);
         }
         // Speech probability comes from the echo-cancelled signal, before any suppression.
         self.mono.iter().zip(&mut self.scaled).for_each(|(s, dst)| *dst = s * I16_SCALE);
