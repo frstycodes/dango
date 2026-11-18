@@ -33,7 +33,8 @@ pub fn pill_tabs(id: impl Into<ElementId>, items: &[(SharedString, Option<u32>)]
 // A recessed track with one raised thumb that springs between options sized to their labels.
 pub fn segmented_live(id: impl Into<ElementId>, labels: &[&'static str], selected: usize, on_select: impl Fn(usize, &mut Window, &mut App) + 'static, window: &mut Window, cx: &mut App) -> Div {
     let items: Vec<(SharedString, Option<u32>)> = labels.iter().map(|l| (SharedString::from(*l), None)).collect();
-    strip(id.into(), Style::Segmented, &items, selected, Rc::new(on_select), window, cx)
+    // A row wrapper takes whatever width the parent stretches it to, so the track itself hugs its options.
+    div().flex().child(strip(id.into(), Style::Segmented, &items, selected, Rc::new(on_select), window, cx))
 }
 
 type OnSelect = Rc<dyn Fn(usize, &mut Window, &mut App)>;
