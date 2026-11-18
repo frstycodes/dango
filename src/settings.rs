@@ -2042,7 +2042,7 @@ fn inset_ring(color: Hsla, width: f32) -> BoxShadow {
 }
 
 // Keycaps for a recorded binding, with the platform's own key names.
-fn key_caps(keys: &str, cx: &App) -> Div {
+pub(crate) fn key_caps(keys: &str, cx: &App) -> Div {
     div().flex().items_center().gap(px(4.)).children(keys.split('+').map(|key| ui::kbd(key_name(key), cx)))
 }
 
@@ -2055,7 +2055,7 @@ fn combo_caps(combos: &[&str], cx: &App) -> Div {
 }
 
 // ⌘ ⇧ ⌥ ⌃ on macOS, printed names elsewhere; arrows as arrows, letters upper-case.
-fn key_name(key: &str) -> SharedString {
+pub(crate) fn key_name(key: &str) -> SharedString {
     let mac = cfg!(target_os = "macos");
     let name = match key {
         "cmd" if mac => "\u{2318}",
@@ -2074,7 +2074,9 @@ fn key_name(key: &str) -> SharedString {
         "pageup" => "Page Up",
         "pagedown" => "Page Down",
         "escape" => "Esc",
-        "enter" => "Return",
+        "enter" if mac => "Return",
+        "enter" => "Enter",
+        "plus" => "+",
         key => {
             let key = key.strip_prefix("Key").or_else(|| key.strip_prefix("Digit")).filter(|k| k.chars().count() == 1).unwrap_or(key);
             let mut chars = key.chars();
