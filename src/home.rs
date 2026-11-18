@@ -72,6 +72,7 @@ impl Rustcord {
     }
 
     pub(crate) fn open_home(&mut self, cx: &mut Context<Self>) {
+        self.inbox_page = false;
         self.guild_id = None;
         self.channel = None;
         self.call_view = false;
@@ -79,15 +80,28 @@ impl Rustcord {
     }
 
     pub(crate) fn open_inbox(&mut self, cx: &mut Context<Self>) {
+        self.inbox_open = true;
+        self.fetch_mentions(cx);
+    }
+
+    /// The Inbox page: every recent mention, in the content column.
+    pub(crate) fn open_inbox_page(&mut self, cx: &mut Context<Self>) {
+        self.inbox_open = false;
+        self.inbox_page = true;
+        if self.inbox.is_none() {
+            self.fetch_mentions(cx);
+        }
+        cx.notify();
+    }
+
+    fn fetch_mentions(&mut self, cx: &mut Context<Self>) {
         let Some(client) = self.client.clone() else { return };
         self.inbox = Some(None);
         cx.notify();
         cx.spawn(async move |this, cx| {
             let result = client.mentions().await;
             this.update(cx, |this, cx| {
-                if this.inbox.is_some() {
-                    this.inbox = Some(Some(result.map_err(Into::into)));
-                }
+                this.inbox = Some(Some(result.map_err(Into::into)));
                 cx.notify();
             })
             .ok();
@@ -159,6 +173,43 @@ impl Rustcord {
     }
 
     /// The Friends page: a header with the filter tabs, then the people in that tab.
+    // The Inbox page: every recent mention, under the same dissolving header as a channel's.
+    pub(crate) fn render_inbox_page(&self, cx: &mut Context<Self>) -> AnyElement {
+        let page = palette::surface(palette::Level::Page, cx);
+        let header = div()
+            .h(px(crate::layout::HEADER_HEIGHT))
+            .pl_4()
+            .pr_3()
+            .flex()
+            .items_center()
+            .gap_2()
+            .window_control_area(WindowControlArea::Drag)
+            .text_size(px(16.))
+            .font_weight(FontWeight::SEMIBOLD)
+            .text_color(palette::strong(cx))
+            .child(Icon::new(Glyph::Inbox).size(px(20.)).text_color(palette::faint(cx)))
+            .child("Inbox")
+            .child(div().text_color(palette::faint(cx)).font_weight(FontWeight::NORMAL).child("Mentions"))
+            .child(div().ml_auto().child(self.caption_clearance(true)));
+        div()
+            .relative()
+            .flex_1()
+            .min_w_0()
+            .h_full()
+            .flex()
+            .flex_col()
+            .bg(page)
+            .text_color(palette::text(cx))
+            .text_size(px(14.))
+            .child(
+                div().id("inbox-page").flex_1().min_h_0().overflow_y_scroll().pt(px(crate::layout::HEADER_HEIGHT + 16.)).px_4().pb_6().child(
+                    div().w_full().max_w(px(760.)).mx_auto().child(self.mention_list(None, cx)),
+                ),
+            )
+            .child(ui::scroll_edge(page, 0.).child(header))
+            .into_any_element()
+    }
+
     pub(crate) fn render_home(&self, cx: &mut Context<Self>) -> AnyElement {
         let tab = self.friends_tab;
         let status_of = |id: &str| self.presences.get(id).map(|p| p.status).unwrap_or_default();
@@ -205,7 +256,7 @@ impl Rustcord {
                     cx.notify();
                 }))
             })))
-            .child(div().ml_auto().child(self.header_trail(true, cx)));
+            .child(div().ml_auto().child(self.caption_clearance(true)));
         let heading = match tab {
             FriendsTab::Online => "Online",
             FriendsTab::All => "All friends",

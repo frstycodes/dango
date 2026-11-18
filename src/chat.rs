@@ -144,23 +144,38 @@ impl Rustcord {
             .child(crumbs)
             .children(topic)
             .child(div().ml_auto().flex_none().flex().items_center().gap(px(2.)).children(threads).child(pins).children(members).children(search))
-            .child(self.header_trail(self.guild_id.is_none() || matches!(self.right_panel, RightPanel::Hidden), cx));
+            .child(self.caption_clearance(self.guild_id.is_none() || matches!(self.right_panel, RightPanel::Hidden)));
         ui::scroll_edge(palette::surface(Level::Page, cx), 0.).child(bar)
     }
 
-    fn channel_search(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        let focused = self.search_input.read(cx).focus_handle(cx).is_focused(window);
+    // The header's search: a search button that opens into the field, and stays open while it has focus or
+    // a query; the field widens from the button on a quick ease-out.
+    fn channel_search(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let handle = self.search_input.read(cx).focus_handle(cx);
+        let focused = handle.is_focused(window);
+        let open = focused || !self.search_input.read(cx).value().is_empty();
+        if !open {
+            return ui::icon_button("search-open", Glyph::Search, "Search", cx)
+                .occlude()
+                .on_click(cx.listener(move |_, _, window, cx| {
+                    window.focus(&handle, cx);
+                    cx.notify();
+                }))
+                .into_any_element();
+        }
         let field = ui::search_field_fill(cx);
         div()
+            .id("search-field")
             .w(px(200.))
             .h(px(34.))
-            .ml(px(8.))
+            .ml(px(4.))
             .px(px(10.))
             .flex_none()
             .occlude()
             .flex()
             .items_center()
             .gap_2()
+            .overflow_hidden()
             .squircle(RADIUS_SM)
             .bg(field)
             .backdrop_blur(px(12.))
@@ -170,6 +185,8 @@ impl Rustcord {
             .text_color(palette::faint(cx))
             .child(Icon::new(Glyph::Search).size(px(16.)))
             .child(div().flex_1().min_w_0().child(Input::new(&self.search_input).appearance(false).px_0().text_size(px(14.))))
+            .with_animation("search-open", Animation::new(Duration::from_millis(150)).with_easing(gpui_kit::ease_out_quint()), |field, t| field.w(px(34. + 166. * t)))
+            .into_any_element()
     }
 
     // The bar over the feed while unread messages wait: jump to the first, or mark the channel read.
