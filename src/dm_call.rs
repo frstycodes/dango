@@ -177,8 +177,7 @@ impl Rustcord {
             faces.push(face);
         }
         if faces.is_empty() {
-            let url = channel.recipient.as_ref().map(|u| u.avatar.clone()).unwrap_or_else(|| crate::discord::avatar_url(&channel.id, None));
-            faces.push(ui::avatar(url, FACE).into_any_element());
+            faces.push(ui::dm_face(&channel.face(), FACE, page));
         }
         ui::stacked(faces, FACE, page).into_any_element()
     }
@@ -291,8 +290,8 @@ impl Rustcord {
         let dm = self.dms.iter().find(|d| d.id == channel_id)?;
         let caller = self.dm_caller(&channel_id);
         let face = match self.dm_others(&channel_id).first() {
-            Some(v) => v.user.as_ref().map_or_else(|| self.user_avatar(&v.user_id), |u| u.avatar.clone()),
-            None => dm.recipient.as_ref().map(|u| u.avatar.clone()).unwrap_or_else(|| crate::discord::avatar_url(&dm.id, None)),
+            Some(v) => ui::avatar(v.user.as_ref().map_or_else(|| self.user_avatar(&v.user_id), |u| u.avatar.clone()), 40.).into_any_element(),
+            None => ui::dm_face(&dm.face(), 40., palette::surface(Level::Overlay, cx)),
         };
         let place = if dm.recipient.is_some() { "Incoming call".to_owned() } else { format!("Calling {}", dm.name) };
         let decline_id = channel_id.clone();
@@ -312,7 +311,7 @@ impl Rustcord {
                     .size(px(40.))
                     .flex_none()
                     .rounded_full()
-                    .child(ui::avatar(face, 40.))
+                    .child(face)
                     .with_animation("incoming-pulse", Animation::new(Duration::from_millis(1400)).repeat(), |d, t| d.opacity(0.6 + 0.4 * (t * std::f32::consts::TAU).cos().abs())),
             )
             .child(

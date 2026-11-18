@@ -41,8 +41,8 @@ const ROW_GAP: f32 = 2.;
 #[derive(Clone)]
 pub(crate) enum Face {
     Home,
-    // A DM on the rail: the person's avatar, round like every person.
-    Person(String),
+    // A DM on the rail: the person's avatar, round like every person, or a group's.
+    Person(crate::discord::DmFace),
     Icon(String),
     Letters(String),
     Folder { tint: Hsla, minis: Vec<Mini> },
@@ -156,7 +156,6 @@ impl Rustcord {
     }
 
     fn dm_tile(&mut self, dm: Channel, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let avatar = dm.recipient.as_ref().map(|u| u.avatar.clone()).unwrap_or_else(|| crate::discord::avatar_url(&dm.id, None));
         let tile = RailTile {
             key: format!("dm-{}", dm.id),
             name: dm.recipient.as_ref().map_or_else(|| dm.name.clone(), |u| u.name.clone()).into(),
@@ -166,7 +165,7 @@ impl Rustcord {
             mentions: self.mention_count(&dm.id),
             muted: false,
             in_voice: self.call.as_ref().is_some_and(|c| c.guild_id.is_none() && c.channel.id == dm.id),
-            face: Face::Person(avatar),
+            face: Face::Person(dm.face()),
             guild_id: None,
             badge_scale: 1.,
             open: 0.,
@@ -973,7 +972,11 @@ impl Rustcord {
         let presence = channel.recipient.as_ref().map(|u| self.presences.get(&u.id).cloned().unwrap_or_default());
         let status = presence.as_ref().map(|p| p.status);
         let offline = status == Some(Status_::Offline);
-        let avatar = channel.recipient.as_ref().map(|u| u.avatar.clone()).unwrap_or_else(|| crate::discord::avatar_url(&channel.id, None));
+        let ring = palette::surface(palette::Level::Sidebar, cx);
+        let face = match &channel.recipient {
+            Some(user) => avatar_with_status(&user.avatar, 32., status, ring),
+            None => ui::dm_face(&channel.face(), 32., ring),
+        };
         let typing = self.typing.get(&channel.id).is_some_and(|t| t.iter().any(|t| t.until > std::time::Instant::now()));
         let faint = palette::faint(cx);
         let call_line = self.dm_call_line(&channel.id, cx);
@@ -984,7 +987,8 @@ impl Rustcord {
                 (None, Status_::Offline) => None,
                 (None, s) => Some(div().child(s.label())),
             },
-            (false, None) => None,
+            // A group always counts us and at least one other, so never "1 member".
+            (false, None) => (!channel.recipients.is_empty()).then(|| div().child(format!("{} members", channel.recipients.len() + 1))),
         };
         let line = call_line.map(|(glyph, label, ink)| div().child(Icon::new(glyph).size(px(13.)).flex_none().text_color(ink)).child(div().text_color(ink).child(label))).or(line);
         let state = RowState { selected, unread, muted: false, strong: false };
@@ -1003,7 +1007,7 @@ impl Rustcord {
             .h(px(44.))
             .gap(px(10.))
             .font_weight(FontWeight::NORMAL)
-            .child(div().when(offline, |a| a.opacity(0.5)).child(avatar_with_status(&avatar, 32., status, palette::surface(palette::Level::Sidebar, cx))))
+            .child(div().when(offline, |a| a.opacity(0.5)).child(face))
             .child(
                 div()
                     .flex_1()
@@ -1305,7 +1309,7 @@ pub(crate) fn render_face(face: Face, size: f32, radius: f32, selected: bool, op
     let tile = || div().size(px(size)).flex_none().squircle(radius).flex().items_center().justify_center();
     match face {
         Face::Icon(url) => img(url).size(px(size)).flex_none().squircle(radius).into_any_element(),
-        Face::Person(url) => img(url).size(px(size)).flex_none().rounded_full().into_any_element(),
+        Face::Person(face) => ui::dm_face(&face, size, palette::surface(palette::Level::Sidebar, cx)),
         Face::Letters(label) => letters_tile(&label, size, radius, cx).into_any_element(),
         Face::Home => tile()
             .bg(if selected { palette::accent() } else { palette::surface(palette::Level::Raised, cx) })

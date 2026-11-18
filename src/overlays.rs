@@ -814,6 +814,7 @@ impl Rustcord {
                 let status = self.presences.get(&user.id).map(|p| p.status);
                 avatar_with_status(&user.avatar, 20., status, palette::surface(palette::Level::Overlay, cx))
             }
+            (None, ChannelKind::Dm) => ui::dm_face(&channel.face(), 20., palette::surface(palette::Level::Overlay, cx)),
             (None, kind) => {
                 let glyph = match kind {
                     ChannelKind::Dm => Glyph::User,
