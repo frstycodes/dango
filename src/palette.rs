@@ -148,7 +148,7 @@ pub fn apply(cx: &mut App) {
     // `update`, not `global_mut`: gpui-component's own widgets paint from `theme.tokens`, which only
     // `update` reconciles with the colours set here.
     Theme::update(cx, |theme| {
-        // The picked interface font (Gabarito, bundled, by default) and Roboto Mono, both OFL in assets/fonts.
+        // The picked interface font (Figtree, bundled, by default) and Roboto Mono, both OFL in assets/fonts.
         theme.font_family = crate::settings::Prefs::load().ui_font.into();
         theme.mono_font_family = "Roboto Mono".into();
         let text = hex(t.text);

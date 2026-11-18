@@ -86,15 +86,15 @@ pub enum NoiseMode {
     Standard,
 }
 
-// The interface fonts Appearance offers: (family as the OS names it, label). Gabarito and Figtree are bundled
-// (static weights cut from Figtree's variable font, so gpui can pick each); the rest are macOS's own.
-pub const UI_FONTS: [(&str, &str); 5] = [("Gabarito", "Gabarito"), ("Figtree", "Figtree"), (".SystemUIFont", "System (SF Pro)"), ("Helvetica Neue", "Helvetica Neue"), ("Avenir Next", "Avenir Next")];
+// The interface fonts Appearance offers: (family as the OS names it, label), the first the default. Figtree and
+// Gabarito are bundled (Figtree's weights cut from its variable font, so gpui can pick each); the rest are macOS's.
+pub const UI_FONTS: [(&str, &str); 5] = [("Figtree", "Figtree"), ("Gabarito", "Gabarito"), (".SystemUIFont", "System (SF Pro)"), ("Helvetica Neue", "Helvetica Neue"), ("Avenir Next", "Avenir Next")];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Prefs {
     pub theme: ThemePref,
-    // The interface's font family: Gabarito (bundled) unless picked in Appearance.
+    // The interface's font family: Figtree (bundled) unless picked in Appearance.
     pub ui_font: String,
     pub app_icon: crate::app_icon::AppIcon,
     pub input_device: Option<String>,
