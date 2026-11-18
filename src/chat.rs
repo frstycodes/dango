@@ -120,7 +120,10 @@ impl Rustcord {
         let pins = ui::icon_button("pins-button", Glyph::Pin, "Pinned Messages", cx)
             .occlude()
             .when(self.pins.is_some(), |b| b.bg(selected).text_color(strong))
-            .on_click(cx.listener(|this, _, _, cx| this.open_pins(cx)));
+            .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(|this, e: &gpui_kit::MouseDownEvent, _, cx| {
+                this.popover_at = e.position;
+                this.open_pins(cx);
+            }));
         let members_on = matches!(self.right_panel, RightPanel::Members);
         let members = self.guild_id.is_some().then(|| {
             ui::icon_button("members-toggle", Glyph::Users, if members_on { "Hide Member List" } else { "Show Member List" }, cx)
@@ -150,28 +153,31 @@ impl Rustcord {
         ui::scroll_edge(palette::surface(Level::Page, cx), 0.).child(bar)
     }
 
-    // The header's search: a search button that opens into the field, and stays open while it has focus or
-    // a query; the field widens from the button on a quick ease-out.
+    // The header's search: one element that is a search button when closed and opens into the field, open
+    // while it has focus or a query. Its width and fill run both ways on a quick ease-out, but only on a change:
+    // present at mount, it simply is what it is.
     fn channel_search(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        const CLOSED: f32 = 34.;
+        const OPEN: f32 = 200.;
         let handle = self.search_input.read(cx).focus_handle(cx);
         let focused = handle.is_focused(window);
         let open = focused || !self.search_input.read(cx).value().is_empty();
-        if !open {
-            return ui::icon_button("search-open", Glyph::Search, "Search", cx)
-                .occlude()
-                .on_click(cx.listener(move |_, _, window, cx| {
-                    window.focus(&handle, cx);
-                    cx.notify();
-                }))
-                .into_any_element();
+        // (open when last drawn, how many times it has changed): the count keys the animation, so one change
+        // plays once and later frames keep its end state.
+        let state = window.use_keyed_state("search-open-state", cx, |_, _| (open, 0usize));
+        let (was_open, changes) = *state.read(cx);
+        if was_open != open {
+            state.update(cx, |s, _| *s = (open, changes + 1));
         }
+        let changes = state.read(cx).1;
         let field = ui::search_field_fill(cx);
-        div()
+        let (hover, strong) = (palette::hover(cx), palette::strong(cx));
+        let el = div()
             .id("search-field")
-            .w(px(200.))
+            .w(px(if open { OPEN } else { CLOSED }))
             .h(px(34.))
             .ml(px(4.))
-            .px(px(10.))
+            .px(px(9.))
             .flex_none()
             .occlude()
             .flex()
@@ -179,16 +185,29 @@ impl Rustcord {
             .gap_2()
             .overflow_hidden()
             .squircle(RADIUS_SM)
-            .bg(field)
-            .backdrop_blur(px(12.))
+            .when(open, |d| d.bg(field).backdrop_blur(px(12.)))
+            .when(!open, |d| d.cursor_pointer().hover(move |s| s.bg(hover).text_color(strong)))
             .border_1()
             .border_color(if focused { palette::accent() } else { gpui_kit::transparent_black() })
             .text_size(px(14.))
             .text_color(palette::faint(cx))
-            .child(Icon::new(Glyph::Search).size(px(16.)))
+            .child(Icon::new(Glyph::Search).size(px(16.)).flex_none())
             .child(div().flex_1().min_w_0().child(Input::new(&self.search_input).appearance(false).px_0().text_size(px(14.))))
-            .with_animation("search-open", Animation::new(Duration::from_millis(150)).with_easing(gpui_kit::ease_out_quint()), |field, t| field.w(px(34. + 166. * t)))
-            .into_any_element()
+            .when(!open, |d| {
+                d.on_click(cx.listener(move |_, _, window, cx| {
+                    window.focus(&handle, cx);
+                    cx.notify();
+                }))
+            });
+        if changes == 0 {
+            return el.into_any_element();
+        }
+        let (from, to) = if open { (CLOSED, OPEN) } else { (OPEN, CLOSED) };
+        el.with_animation(SharedString::from(format!("search-{changes}")), Animation::new(Duration::from_millis(150)).with_easing(gpui_kit::ease_out_quint()), move |el, t| {
+            let fill = if open { t } else { 1. - t };
+            el.w(px(from + (to - from) * t)).bg(field.opacity(field.a * fill))
+        })
+        .into_any_element()
     }
 
     // The bar over the feed while unread messages wait: jump to the first, or mark the channel read.

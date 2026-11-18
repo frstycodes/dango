@@ -1366,8 +1366,9 @@ impl Rustcord {
                     .child(div().flex_1().min_w_0().child(secured)),
             )
             .child(div().text_size(px(12.)).text_color(faint).child("Updated every 2 seconds"))
-            .with_animation("connection-in", Animation::new(ui::DUR_POP), |d, t| d.opacity(t));
-        Some(call_backdrop("connection-backdrop", cx).child(card).into_any_element())
+;
+        // It opens above the user area, so it rises from its bottom-left corner.
+        Some(call_backdrop("connection-backdrop", cx).child(ui::rise(card.transform_origin(ui::corner(false, true)), "connection-card", Duration::ZERO)).into_any_element())
     }
 
     // .devmenu, opened above its chevron: the devices to pick from, volume (with the live level for
@@ -1459,8 +1460,9 @@ impl Rustcord {
             .text_size(px(14.))
             .text_color(ink.text)
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .children(body)
-            .with_animation("device-menu-in", Animation::new(ui::DUR_POP), |d, t| d.opacity(t));
+            .children(body);
+        // It opens above its chevron, so it rises from its bottom edge's centre.
+        let card = ui::rise(card.transform_origin(gpui_kit::point(gpui_kit::relative(0.5), gpui_kit::relative(1.))), "device-menu", Duration::ZERO);
         Some(call_backdrop("device-backdrop", cx).child(card).into_any_element())
     }
 
