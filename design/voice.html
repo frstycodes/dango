@@ -50,7 +50,7 @@
     </div>
     <div class="tiles">
       <div class="tile speaking" style="--hue: 20"><span class="av" data-av="Mira"></span><span class="name"><span class="bars"><i></i><i></i><i></i></span><span class="who">Mira</span></span></div>
-      <div class="tile stream has-media"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="viewers"><i class="ph-bold ph-eye"></i>3</span><span class="name"><span class="who">Theo · Hades II</span></span></div>
+      <div class="tile stream has-media"><span class="viewers"><i class="ph-bold ph-eye"></i>3</span><span class="name"><i class="ph-fill ph-monitor scr"></i><span class="who">Theo · Hades II</span></span></div>
       <div class="tile video has-media" style="--hue: 200"><span class="name"><span class="who">Jun</span></span></div>
       <div class="tile" style="--hue: 300"><span class="av" data-av="You"></span><span class="name"><i class="ph-fill ph-microphone-slash"></i><span class="who">You</span></span></div>
     </div>
@@ -186,7 +186,7 @@
       <div class="stack" style="gap: 6px"><div class="tile" style="--hue: 250"><span class="av" data-av="Rosa"></span><span class="name"><i class="ph-fill ph-ear-slash"></i><span class="who">Rosa</span></span></div><span class="note">Deafened</span></div>
       <div class="stack" style="gap: 6px"><div class="tile video has-media speaking" style="--hue: 200"><span class="name"><span class="bars"><i></i><i></i><i></i></span><span class="who">Jun</span></span></div><span class="note">Video on, speaking</span></div>
       <div class="stack" style="gap: 6px"><div class="tile" style="--hue: 60"><span class="av" data-av="Wavebot"></span><span class="name"><i class="ph-fill ph-video-camera-slash plain"></i><span class="who">Wavebot</span></span></div><span class="note">Camera off</span></div>
-      <div class="stack" style="gap: 6px"><div class="tile stream has-media"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="viewers" aria-label="12 viewers"><i class="ph-bold ph-eye"></i>12</span><span class="name"><span class="who">Theo · Hades II</span></span></div><span class="note">Screen share</span></div>
+      <div class="stack" style="gap: 6px"><div class="tile stream has-media"><span class="viewers" aria-label="12 viewers"><i class="ph-bold ph-eye"></i>12</span><span class="name"><i class="ph-fill ph-monitor scr"></i><span class="who">Theo · Hades II</span></span></div><span class="note">Screen share</span></div>
       <div class="stack" style="gap: 6px"><div class="tile ended"><div class="center"><b>Stream ended</b><span>Theo stopped sharing Hades II</span><button class="btn btn--sm"><i class="ph-bold ph-arrow-clockwise"></i>Watch again</button></div></div><span class="note">Stream ended</span></div>
       <div class="stack" style="gap: 6px"><div class="tile connecting" style="--hue: 330"><span class="av" data-av="Ana"></span><span class="name"><span class="bars"><i></i><i></i><i></i></span><span class="who">Connecting…</span></span></div><span class="note">Connecting</span></div>
     </div>
@@ -233,21 +233,29 @@
 
 <section id="layouts">
   <h2>Call layouts</h2>
-  <p class="lede">The grid grows with the room, and a focused stream pushes everyone else into a filmstrip. Past nine people the last tile becomes a count you can open.</p>
+  <p class="lede">Streams come first, in a fixed order: the ones you watch or focus, then other streams, then cameras, then avatars, by join order within each, so nothing moves when someone speaks or joins. Every card names whose it is; LIVE marks only your own stream. Past nine people the last tile becomes a count you can open.</p>
 
-  <h3>Focused stream with filmstrip</h3>
-  <div class="call" style="max-width: 820px">
-    <div class="focus">
-      <div class="tile stream has-media"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="viewers" aria-label="3 viewers"><i class="ph-bold ph-eye"></i>3</span><span class="name"><span class="who">Theo · Hades II</span></span></div>
-      <div class="filmstrip">
-        <div class="tile speaking" style="--hue: 20"><span class="av" data-av="Mira"></span><span class="name"><span class="bars"><i></i><i></i><i></i></span><span class="who">Mira</span></span></div>
-        <div class="tile video has-media" style="--hue: 200"><span class="name"><span class="who">Jun</span></span></div>
-        <div class="tile" style="--hue: 120"><span class="av" data-av="Ana"></span><span class="name"><i class="ph-fill ph-microphone-slash"></i><span class="who">Ana</span></span></div>
-        <div class="tile" style="--hue: 250"><span class="av" data-av="Rosa"></span><span class="name"><i class="ph-fill ph-ear-slash"></i><span class="who">Rosa</span></span></div>
-        <div class="tile" style="--hue: 300"><span class="av" data-av="You"></span><span class="name"><span class="who">You</span></span></div>
-      </div>
+  <h3>Streams first</h3>
+  <div class="call" style="max-width: 820px"><div class="tiles g2">
+    <div class="tile stream has-media"><span class="viewers" aria-label="3 viewers"><i class="ph-bold ph-eye"></i>3</span><span class="name"><i class="ph-fill ph-monitor scr"></i><span class="who">Theo · Hades II</span></span></div>
+    <div class="tile stream alt has-media"><div class="watchwrap"><button class="btn btn--sm watch"><i class="ph-fill ph-play"></i>Watch stream</button></div><span class="name"><i class="ph-fill ph-monitor scr"></i><span class="who">Mira</span></span></div>
+    <div class="tile stream has-media"><span class="mine-live"><span class="q">720p 30 FPS</span><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span></span><span class="name"><i class="ph-fill ph-monitor scr"></i><span class="who">You</span></span></div>
+    <div class="tile video has-media" style="--hue: 200"><span class="name"><span class="who">Jun</span></span></div>
+    <div class="tile speaking" style="--hue: 20"><span class="av" data-av="Mira"></span><span class="name"><span class="who">Mira</span></span></div>
+    <div class="tile" style="--hue: 120"><span class="av" data-av="Ana"></span><span class="name"><i class="ph-fill ph-microphone-slash"></i><span class="who">Ana</span></span></div>
+  </div></div>
+  <p class="note" style="margin-top: 8px">Watched, not yet opened (Watch shown at rest over the dimmed preview), your own with its quality and LIVE, then a camera and avatars.</p>
+
+  <h3>Focused stream, edge to edge</h3>
+  <div class="call focused" style="max-width: 820px">
+    <div class="callhead"><i class="ph ph-speaker-high"></i><span class="title">Lounge • Theo's screen</span><span class="timer">1:24:07</span><span class="spacer"></span><button class="iconbtn" aria-label="Chat"><i class="ph ph-chat-circle"></i></button></div>
+    <div class="stagemedia">
+      <div class="tile stream has-media"><span class="name" style="bottom: 84px"><i class="ph-fill ph-monitor scr"></i><span class="who">Theo · Hades II</span></span></div>
+      <button class="stripbtn" aria-label="Show everyone"><i class="ph-bold ph-caret-up"></i><i class="ph-fill ph-users"></i></button>
+      <div class="chrome foot"><div class="controls" style="position: relative"><div class="csplit"><button class="cbtn" aria-label="Mute"><i class="ph-fill ph-microphone"></i></button><button class="cbtn chev" aria-label="Microphone options"><i class="ph-bold ph-caret-up"></i></button></div><button class="cbtn" aria-label="Share your screen"><i class="ph-fill ph-screencast"></i></button><button class="cbtn leave" aria-label="Leave call"><i class="ph-fill ph-phone-x"></i></button><span class="end"><button class="iconbtn" aria-label="Full screen"><i class="ph ph-corners-out"></i></button></span></div></div>
     </div>
   </div>
+  <p class="note" style="margin-top: 8px">The stream spans the stage, letterboxed only on the axis that doesn't fit. Full screen sits at the bar's right end, as Discord's; in full screen the header floats over the stream too, all chrome fades after 3 still seconds, and Esc leaves.</p>
 
   <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); margin-top: 16px">
     <div>
@@ -280,11 +288,11 @@
       <h3 style="margin-top: 0">Stream preview, on a live user in the sidebar</h3>
       <div class="board"><div class="row" style="gap: 16px; align-items: flex-start">
         <div class="preview">
-          <div class="thumb"><div class="tile stream has-media"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span></div><button class="btn btn--sm watch"><i class="ph-fill ph-play"></i>Watch stream</button></div>
+          <div class="thumb"><div class="tile stream has-media"></div><button class="btn btn--sm watch"><i class="ph-fill ph-play"></i>Watch stream</button></div>
           <div class="cap"><span class="av" data-av="Theo"></span><div><b>Hades II</b><span>Theo · 3 watching</span></div></div>
         </div>
         <div class="preview hover">
-          <div class="thumb"><div class="tile stream has-media"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span></div><button class="btn btn--sm watch"><i class="ph-fill ph-play"></i>Watch stream</button></div>
+          <div class="thumb"><div class="tile stream has-media"></div><button class="btn btn--sm watch"><i class="ph-fill ph-play"></i>Watch stream</button></div>
           <div class="cap"><span class="av" data-av="Theo"></span><div><b>Hades II</b><span>Theo · 3 watching</span></div></div>
         </div>
         <div class="preview">
@@ -299,7 +307,7 @@
   <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr))">
     <div class="stack">
       <div class="call overlay">
-        <div class="tile stream has-media"><span class="name" style="bottom: 76px"><span class="who">Theo · Hades II</span></span></div>
+        <div class="tile stream has-media"><span class="name" style="bottom: 76px"><i class="ph-fill ph-monitor scr"></i><span class="who">Theo · Hades II</span></span></div>
         <div class="chrome head"><div class="callhead"><i class="ph ph-speaker-high"></i><span class="title">Lounge</span><span class="timer">1:24:07</span><span class="spacer"></span><button class="iconbtn" aria-label="Full screen"><i class="ph ph-corners-out"></i></button></div></div>
         <div class="chrome foot"><div class="controls" style="gap: 8px"><div class="csplit off"><button class="cbtn" aria-label="Unmute"><i class="ph-fill ph-microphone-slash"></i></button><button class="cbtn chev" aria-label="Microphone options"><i class="ph-bold ph-caret-up"></i></button></div><button class="cbtn" aria-label="Share your screen"><i class="ph-fill ph-screencast"></i></button><button class="cbtn leave" aria-label="Leave call"><i class="ph-fill ph-phone-x"></i></button></div></div>
       </div>
@@ -307,7 +315,7 @@
     </div>
     <div class="stack">
       <div class="call overlay idle">
-        <div class="tile stream has-media"><span class="name" style="bottom: 76px; opacity: 0"><span class="who">Theo · Hades II</span></span></div>
+        <div class="tile stream has-media"><span class="name" style="bottom: 76px; opacity: 0"><i class="ph-fill ph-monitor scr"></i><span class="who">Theo · Hades II</span></span></div>
         <div class="chrome head"><div class="callhead"><i class="ph ph-speaker-high"></i><span class="title">Lounge</span><span class="timer">1:24:07</span><span class="spacer"></span><button class="iconbtn" aria-label="Full screen"><i class="ph ph-corners-out"></i></button></div></div>
         <div class="chrome foot"><div class="controls" style="gap: 8px"><div class="csplit off"><button class="cbtn" aria-label="Unmute"><i class="ph-fill ph-microphone-slash"></i></button><button class="cbtn chev" aria-label="Microphone options"><i class="ph-bold ph-caret-up"></i></button></div><button class="cbtn" aria-label="Share your screen"><i class="ph-fill ph-screencast"></i></button><button class="cbtn leave" aria-label="Leave call"><i class="ph-fill ph-phone-x"></i></button></div></div>
       </div>
@@ -321,7 +329,7 @@
   <p class="lede">Your camera floats in a corner over whatever is on stage. Drag it anywhere and it springs to the nearest corner; close it and a small control stays in that corner to bring it back.</p>
   <h3>Try it: drag, use the arrow keys, close and reopen</h3>
   <div class="call" style="max-width: 640px"><div class="pip-stage" data-pip-demo>
-    <div class="tile stream alt has-media"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="name"><span class="who">Mira · Balatro</span></span></div>
+    <div class="tile stream alt has-media"><span class="name"><i class="ph-fill ph-monitor scr"></i><span class="who">Mira · Balatro</span></span></div>
     <span class="pip-snap" data-corner="tl"></span><span class="pip-snap" data-corner="tr"></span><span class="pip-snap" data-corner="bl"></span><span class="pip-snap" data-corner="br"></span>
     <div class="tile video has-media pip" data-corner="br" style="--hue: 300" tabindex="0" role="group" aria-label="Self-view. Drag, or use the arrow keys, to move it to another corner" title="Drag to any corner"><i class="ph-bold ph-dots-six grip" aria-hidden="true"></i><button class="close" aria-label="Hide self-view" title="Hide self-view. Others still see your camera"><i class="ph-bold ph-x"></i></button><span class="name"><span class="who">You</span></span></div>
     <button class="pip-restore" data-corner="br" hidden title="Others still see your camera"><i class="ph-bold ph-user-square"></i>Show self-view</button>
@@ -331,7 +339,7 @@
     <div>
       <h3 style="margin-top: 0">While dragging</h3>
       <div class="call"><div class="pip-stage is-dragging">
-        <div class="tile stream alt has-media"><span class="name"><span class="who">Mira · Balatro</span></span></div>
+        <div class="tile stream alt has-media"><span class="name"><i class="ph-fill ph-monitor scr"></i><span class="who">Mira · Balatro</span></span></div>
         <span class="pip-snap is-near" data-corner="tl"></span><span class="pip-snap" data-corner="tr"></span><span class="pip-snap" data-corner="bl"></span><span class="pip-snap" data-corner="br"></span>
         <div class="tile video has-media pip is-dragging" style="--hue: 300; right: auto; bottom: auto; left: 22%; top: 20%" aria-label="Self-view, being moved"><i class="ph-bold ph-dots-six grip" aria-hidden="true"></i><span class="name"><span class="who">You</span></span></div>
       </div></div>
@@ -340,7 +348,7 @@
     <div>
       <h3 style="margin-top: 0">Closed</h3>
       <div class="call"><div class="pip-stage">
-        <div class="tile stream alt has-media"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="name"><span class="who">Mira · Balatro</span></span></div>
+        <div class="tile stream alt has-media"><span class="name"><i class="ph-fill ph-monitor scr"></i><span class="who">Mira · Balatro</span></span></div>
         <button class="pip-restore" data-corner="br" title="Others still see your camera"><i class="ph-bold ph-user-square"></i>Show self-view</button>
       </div></div>
       <p class="note" style="margin-top: 8px">The way back sits where the way out was, at any width, without hovering. Show self-view in More options does the same. Turning the camera off removes both: your grid tile already shows you're there.</p>
@@ -376,7 +384,7 @@
       <h3 style="margin-top: 0">What the call keeps</h3>
       <div class="call">
         <div class="tiles g2">
-          <div class="tile stream has-media is-popped"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="viewers" aria-label="3 viewers"><i class="ph-bold ph-eye"></i>3</span><div class="center"><b><i class="ph ph-picture-in-picture" aria-hidden="true"></i>In a pop-out</b><button class="btn btn--sm"><i class="ph-bold ph-arrow-square-in"></i>Return to call</button></div><span class="name"><span class="who">Theo · Hades II</span></span></div>
+          <div class="tile stream has-media is-popped"><span class="viewers" aria-label="3 viewers"><i class="ph-bold ph-eye"></i>3</span><div class="center"><b><i class="ph ph-picture-in-picture" aria-hidden="true"></i>In a pop-out</b><button class="btn btn--sm"><i class="ph-bold ph-arrow-square-in"></i>Return to call</button></div><span class="name"><i class="ph-fill ph-monitor scr"></i><span class="who">Theo · Hades II</span></span></div>
           <div class="tile speaking" style="--hue: 20"><span class="av" data-av="Mira"></span><span class="name"><span class="bars"><i></i><i></i><i></i></span><span class="who">Mira</span></span></div>
           <div class="tile" style="--hue: 300"><span class="av" data-av="You"></span><span class="name"><i class="ph-fill ph-microphone-slash"></i><span class="who">You</span></span></div>
           <div class="tile" style="--hue: 120"><span class="av" data-av="Ana"></span><span class="name"><span class="who">Ana</span></span></div>
@@ -527,7 +535,7 @@
   <h2>Your stream menu</h2>
   <p class="lede">Opens from your own stream tile. Everything about the stream lives here, each row with one line on what it changes; stopping is last and red.</p>
   <div class="onstage"><div class="row" style="align-items: flex-start; gap: 16px">
-    <div class="tile stream has-media" style="width: min(100%, 360px)"><span class="live"><span class="bars"><i></i><i></i><i></i></span>LIVE</span><span class="viewers" aria-label="3 viewers"><i class="ph-bold ph-eye"></i>3</span><span class="name"><span class="who">You · Hades II</span></span></div>
+    <div class="tile stream has-media" style="width: min(100%, 360px)"><span class="viewers" aria-label="3 viewers"><i class="ph-bold ph-eye"></i>3</span><span class="name"><i class="ph-fill ph-monitor scr"></i><span class="who">You · Hades II</span></span></div>
     <div class="menu streammenu" role="menu" aria-label="Your stream">
       <button class="mi"><i class="ph ph-sliders-horizontal"></i><div><span>Stream quality</span><small>1080p, 60 fps</small></div><i class="ph ph-caret-right chev"></i></button>
       <button class="mi"><i class="ph ph-swap"></i><div><span>Change source</span><small>Sharing the Hades II window</small></div></button>

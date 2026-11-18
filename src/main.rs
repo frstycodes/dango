@@ -828,7 +828,8 @@ impl Rustcord {
             stream_viewers: HashMap::new(),
             stream_live_since: HashMap::new(),
             call_pointer_at: Instant::now(),
-            call_strip_hidden: false,
+            // Discord's focused view hides everyone else behind the pill on the stream's bottom edge.
+            call_strip_hidden: true,
             preview_generation: 0,
             splash,
             main_window: window.window_handle(),
@@ -1216,9 +1217,16 @@ impl Rustcord {
                 if let Some(key) = live_key {
                     self.stream_live_since.entry(key).or_insert_with(Instant::now);
                 }
-                states.retain(|v| v.user_id != state.user_id || v.guild_id != state.guild_id);
-                if state.channel_id.is_some() {
-                    states.push(state);
+                // Updated in place while they stay in the channel, so the list keeps join order and the
+                // call stage never reshuffles on a mute or a Go Live.
+                match states.iter_mut().find(|v| v.user_id == state.user_id && v.guild_id == state.guild_id && state.channel_id.is_some() && v.channel_id == state.channel_id) {
+                    Some(slot) => *slot = state,
+                    None => {
+                        states.retain(|v| v.user_id != state.user_id || v.guild_id != state.guild_id);
+                        if state.channel_id.is_some() {
+                            states.push(state);
+                        }
+                    }
                 }
             }
             Event::Call { channel_id, ringing } => self.on_dm_call(channel_id, ringing, cx),

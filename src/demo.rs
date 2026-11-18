@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | updating (the launch splash alone).
+// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -181,6 +181,35 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             let screen = |id, name: &str| crate::voice::ShareableScreen { id, name: name.into(), width: 1512, height: 982 };
             chord.empty_share_picker(cx);
             chord.list_shareables(Ok(windows), Ok(vec![screen(1, "Screen 1"), screen(2, "Screen 2")]), cx);
+        }
+        // Three streams (one watched at 4:3, so focus letterboxes it; one unopened; our own) and two
+        // cameras: the grid's order, chips and Watch, focus and full screen.
+        "call-streams" | "call-streams-focus" | "call-streams-strip" | "call-streams-full" => {
+            demo_call(chord);
+            if let Some(guild) = chord.guilds.iter_mut().find(|g| g.id == "1") {
+                for state in guild.voice_states.iter_mut() {
+                    match state.user_id.as_str() {
+                        "16777216" | "4194304" => state.streaming = true,
+                        "20971520" | "8388608" => state.camera = true,
+                        _ => {}
+                    }
+                }
+            }
+            if let Some(call) = chord.call.as_mut() {
+                call.watching.push(crate::Watching { streamer_id: "12582912".into(), frame: Some(demo_frame(1440, 1080, 40)), arrivals: Default::default(), _watch: None });
+                call.self_view = Some((demo_frame(1280, 720, 200), std::time::Instant::now()));
+                call.cameras.insert("20971520".into(), demo_frame(640, 480, 120));
+                call.cameras.insert("8388608".into(), demo_frame(640, 360, 230));
+            }
+            if scene != "call-streams" {
+                chord.call_focus = Some("stream:12582912".into());
+                // Holds the chrome up for the first half minute, as if the pointer had just moved.
+                chord.call_pointer_at = std::time::Instant::now() + std::time::Duration::from_secs(30);
+            }
+            chord.call_strip_hidden = scene != "call-streams-strip";
+            if scene == "call-streams-full" {
+                chord.set_call_fullscreen(true, window, cx);
+            }
         }
         "call" | "call-info" | "call-devices" | "call-watch" | "call-focus" | "pip" => {
             demo_call(chord);
@@ -595,3 +624,15 @@ Bug fixes
 - Reconnecting mid-round puts you back on your team instead of spectating.
 
 ";
+
+// A made-up picture: a diagonal wash with a few lighter "windows", so tiles read as real video. BGRA
+// bytes, as gpui's render images expect.
+fn demo_frame(width: u32, height: u32, tint: u8) -> std::sync::Arc<gpui_kit::RenderImage> {
+    let panel = |x: u32, y: u32| (x * 8 / width + y * 6 / height).is_multiple_of(5);
+    let buffer = image::RgbaImage::from_fn(width, height, |x, y| {
+        let t = ((x + y) * 160 / (width + height)) as u8;
+        let lift = if panel(x, y) { 70 } else { 0 };
+        image::Rgba([tint.wrapping_add(t / 2).saturating_add(lift), (40 + t / 3).saturating_add(lift), (90 + t / 2).saturating_add(lift), 255])
+    });
+    std::sync::Arc::new(gpui_kit::RenderImage::new([image::Frame::new(buffer)]))
+}
