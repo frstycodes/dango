@@ -22,9 +22,7 @@ pub use div::*;
 pub use image_cache::*;
 pub use img::*;
 pub use list::*;
-pub use overscroll::{
-    Overscroll, RETURN_SPRING, bounce_velocity, rubber_band, rubber_band_inverse,
-};
+pub use overscroll::{Overscroll, rebound_offset, rubber_band, rubber_band_inverse};
 pub use surface::*;
 pub use svg::*;
 pub use text::*;

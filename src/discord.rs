@@ -1001,6 +1001,22 @@ impl Client {
         self.run(req).await
     }
 
+    /// The message a link points at, through the history endpoint (`around`, one message), as Discord's
+    /// client does. None: it's gone, or the channel isn't one you can read (403, or no history access, which
+    /// returns an empty list).
+    pub async fn linked_message(&self, channel_id: &str, message_id: &str) -> Result<Option<Message>, String> {
+        let req = self.request(reqwest::Method::GET, &format!("/channels/{channel_id}/messages?around={message_id}&limit=1"));
+        let body = runtime().spawn(send_or_gone(req)).await.map_err(|e| e.to_string())??;
+        Ok(body.and_then(|b| b.as_array()?.iter().filter_map(parse_message).find(|m| m.id == message_id)))
+    }
+
+    /// An invite's server card. None: the code is unknown or expired (404).
+    pub async fn invite(&self, code: &str) -> Result<Option<Invite>, String> {
+        let req = self.request(reqwest::Method::GET, &format!("/invites/{code}?with_counts=true"));
+        let body = runtime().spawn(send_or_gone(req)).await.map_err(|e| e.to_string())??;
+        Ok(body.as_ref().and_then(parse_invite))
+    }
+
     /// Marks several channels read at once (a server's "Mark As Read").
     pub async fn ack_bulk(&self, reads: Vec<(String, u64)>) {
         let read_states: Vec<Value> = reads.into_iter().map(|(channel, message)| json!({ "channel_id": channel, "message_id": message.to_string(), "read_state_type": 0 })).collect();
@@ -1137,6 +1153,42 @@ fn api_error(body: &Value) -> Option<String> {
     Some(match first_field(&body["errors"], "") {
         Some(detail) => format!("{message}: {detail}"),
         None => message.to_owned(),
+    })
+}
+
+// `send` for lookups where 403 and 404 are answers ("not there for you"), not failures to retry.
+async fn send_or_gone(req: reqwest::RequestBuilder) -> Result<Option<Value>, String> {
+    let res = req.send().await.map_err(|e| e.to_string())?;
+    let status = res.status();
+    if matches!(status.as_u16(), 403 | 404) {
+        return Ok(None);
+    }
+    if !status.is_success() {
+        return Err(status.to_string());
+    }
+    res.json().await.map(Some).map_err(|e| e.to_string())
+}
+
+// A server invite's card: `GET /invites/{code}?with_counts=true`.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Invite {
+    pub guild_id: String,
+    pub name: String,
+    pub icon: Option<String>,
+    pub online: Option<u64>,
+    pub members: Option<u64>,
+}
+
+// Group DM invites carry no guild; they get the invalid card, as there is no server to show.
+pub fn parse_invite(v: &Value) -> Option<Invite> {
+    let guild = &v["guild"];
+    let id = guild["id"].as_str()?;
+    Some(Invite {
+        guild_id: id.to_owned(),
+        name: guild["name"].as_str().unwrap_or_default().to_owned(),
+        icon: guild["icon"].as_str().map(|hash| format!("{CDN}/icons/{id}/{hash}.png?size=96")),
+        online: v["approximate_presence_count"].as_u64(),
+        members: v["approximate_member_count"].as_u64(),
     })
 }
 
@@ -2134,5 +2186,13 @@ mod tests {
         .unwrap();
         let ListOp::Sync { items, .. } = op else { panic!("sync") };
         assert!(matches!(&items[1], ListItem::Member(m) if m.roles == ["r"] && m.user.name == "Nick" && m.user.avatar.contains("/guilds/g/users/1/avatars/h.png")));
+    }
+
+    #[test]
+    fn invites_read_their_server_and_counts() {
+        let body = json!({ "code": "dango", "guild": { "id": "9", "name": "Dumpling Hall", "icon": "ff" }, "approximate_member_count": 8311, "approximate_presence_count": 1204 });
+        let invite = parse_invite(&body).unwrap();
+        assert_eq!(invite, Invite { guild_id: "9".into(), name: "Dumpling Hall".into(), icon: Some("https://cdn.discordapp.com/icons/9/ff.png?size=96".into()), online: Some(1204), members: Some(8311) });
+        assert_eq!(parse_invite(&json!({ "code": "gdm", "channel": { "id": "5", "type": 3 } })), None, "a group DM invite has no server card");
     }
 }
