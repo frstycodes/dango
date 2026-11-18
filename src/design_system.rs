@@ -474,7 +474,7 @@ impl DesignSystem {
 
     fn tabs(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let this = cx.entity().downgrade();
-        let items = |names: &[(&'static str, Option<u32>)]| names.iter().map(|(n, c)| (SharedString::from(*n), *c)).collect::<Vec<_>>();
+        let items = |names: &[(&'static str, Option<u32>)]| names.iter().map(|(n, c)| ui::Tab::new(*n).count(*c)).collect::<Vec<_>>();
         let tabs = ui::tabs("tabs", &items(&[("Overview", None), ("Roles", None), ("Emoji", None), ("Members", Some(4)), ("Audit log", None)]), self.tab, {
             let this = this.clone();
             move |i, _, cx| {
