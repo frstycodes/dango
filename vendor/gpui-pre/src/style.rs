@@ -426,6 +426,9 @@ pub struct BackdropFilter {
     pub blur_radius: Pixels,
     /// Applied after the blur, like CSS `saturate()`: 0 is grayscale and 1 leaves colors unchanged.
     pub saturation: f32,
+    /// How far in from each edge (top, right, bottom, left) the filter fades in from nothing,
+    /// like a CSS `mask-image` gradient over the backdrop filter. Zero is a hard edge.
+    pub fade: [Pixels; 4],
 }
 
 impl BackdropFilter {
@@ -440,6 +443,7 @@ impl Default for BackdropFilter {
         Self {
             blur_radius: Pixels::ZERO,
             saturation: 1.,
+            fade: [Pixels::ZERO; 4],
         }
     }
 }
@@ -774,7 +778,9 @@ impl Style {
             .to_pixels(rem_size)
             .clamp_radii_for_quad_size(bounds.size);
 
-        window.paint_backdrop_filter(bounds, corner_radii, self.backdrop_filter);
+        window.with_corner_shape(self.corner_shape, |window| {
+            window.paint_backdrop_filter(bounds, corner_radii, self.backdrop_filter)
+        });
         window.with_corner_shape(self.corner_shape, |window| {
             window.paint_drop_shadows(bounds, corner_radii, &self.box_shadow);
         });

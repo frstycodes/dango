@@ -94,6 +94,13 @@ pub struct DeviceMenu {
     cameras: Vec<voice::Device>,
 }
 
+impl DeviceMenu {
+    /// Whether this is `kind`'s popover opened from the user area, not from the call stage's controls.
+    pub fn opened_from_user_area(&self, kind: DeviceKind) -> bool {
+        !self.on_stage && self.kind == kind
+    }
+}
+
 // Where the connection stands, as the voice panel words and colours it.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Link {
@@ -573,7 +580,7 @@ impl Rustcord {
 
     fn call_chat_drawer(&mut self, channel: &discord::Channel, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme().clone();
-        let messages = self.render_messages(cx).into_any_element();
+        let messages = self.render_messages(0., cx).into_any_element();
         let composer = self.render_composer(window, cx).into_any_element();
         div()
             .w(px(CHAT_WIDTH))
@@ -629,7 +636,7 @@ impl Rustcord {
         let chat = if self.call_chat && self.channel.as_ref().is_some_and(|c| c.id == call.channel.id) { CHAT_WIDTH } else { 0. };
         let stage_size = match self.call_fullscreen {
             true => (f32::from(viewport.width) - chat, f32::from(viewport.height)),
-            false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - chat, f32::from(viewport.height) - crate::layout::TITLE_HEIGHT - 1.),
+            false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - chat, f32::from(viewport.height) - 1.),
         };
         let (_, _, width, height) = tile_area(stage_size);
         let watching = !call.watching.is_empty();
@@ -1359,8 +1366,9 @@ impl Rustcord {
                     .child(div().flex_1().min_w_0().child(secured)),
             )
             .child(div().text_size(px(12.)).text_color(faint).child("Updated every 2 seconds"))
-            .with_animation("connection-in", Animation::new(ui::DUR_POP), |d, t| d.opacity(t));
-        Some(call_backdrop("connection-backdrop", cx).child(card).into_any_element())
+;
+        // It opens above the user area, so it rises from its bottom-left corner.
+        Some(call_backdrop("connection-backdrop", cx).child(ui::rise(card.transform_origin(ui::corner(false, true)), "connection-card", Duration::ZERO)).into_any_element())
     }
 
     // .devmenu, opened above its chevron: the devices to pick from, volume (with the live level for
@@ -1452,8 +1460,9 @@ impl Rustcord {
             .text_size(px(14.))
             .text_color(ink.text)
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .children(body)
-            .with_animation("device-menu-in", Animation::new(ui::DUR_POP), |d, t| d.opacity(t));
+            .children(body);
+        // It opens above its chevron, so it rises from its bottom edge's centre.
+        let card = ui::rise(card.transform_origin(gpui_kit::point(gpui_kit::relative(0.5), gpui_kit::relative(1.))), "device-menu", Duration::ZERO);
         Some(call_backdrop("device-backdrop", cx).child(card).into_any_element())
     }
 

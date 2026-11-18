@@ -227,6 +227,12 @@ const CUSTOM = {
   grip: { name: "Drag handle", svg: [9, 15].flatMap(x => [6, 12, 18].map(y => `<circle cx="${x}" cy="${y}" r="1.5" fill="currentColor" stroke="none"/>`)).join("") },
   "dot-ring": { name: "Radio off", svg: `<circle cx="12" cy="12" r="8.5"/>` },
   "inbox-tray": { name: "Inbox", svg: REICON.inbox + `<g fill="currentColor" stroke="none">${REICON_FILLED.inbox.match(/<path[^>]*\/>/)[0]}</g>` },
+  "text-locked": { name: "Text channel, private", svg: badged("hashtag2", LOCK) },
+  "voice-locked": { name: "Voice channel, private", svg: badged("volume-high", LOCK) },
+  "announcement-locked": { name: "Announcement channel, private", svg: badged("bullhorn", LOCK) },
+  "stage-locked": { name: "Stage channel, private", svg: badged("podcast", LOCK) },
+  "forum-locked": { name: "Forum channel, private", svg: badged("messages2", LOCK) },
+  "media-locked": { name: "Media channel, private", svg: badged("gallery", LOCK) },
   "more-v": { name: "More (vertical)", svg: `<g transform="rotate(90 12 12)">${ICON("more-h")}</g>` },
   "dash-ring": { name: "Placeholder", svg: `<circle cx="12" cy="12" r="8.5" stroke-dasharray="3.2 3.5"/>` },
   "win-max": { name: "Maximize", svg: `<path d="${sq(5, 5, 14, 14, 3)}"/>` },
@@ -306,7 +312,7 @@ $("#channel-grid").innerHTML = CHANNELS.flatMap(([name, base, age]) => [
   ...(age ? [card({ inner: badged(base, AGE), title: `${name} channel, age-restricted`, meta: `<span>${base} + mark</span>`, tag: "custom" })] : []),
 ]).join("");
 
-$("#custom-grid").innerHTML = Object.entries(CUSTOM).filter(([k]) => !["muted", "deafened", "camera-off"].includes(k))
+$("#custom-grid").innerHTML = Object.entries(CUSTOM).filter(([k]) => !["muted", "deafened", "camera-off"].includes(k) && !k.endsWith("-locked"))
   .map(([k, c]) => card({ inner: c.svg, title: c.name, meta: `<span>${k}</span>`, tag: "custom", rows: ICON_MAP.filter(r => r.to === `CUSTOM:${k}`) })).join("");
 
 // Toggles: each button flips data-on on its glyphs; the preview tiles stay in step.

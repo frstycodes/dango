@@ -95,6 +95,79 @@ pub fn split(main: Control, options: Control) -> Div {
 }
 
 // The LIVE badge: chili, with the mini wave at its own 2px weight.
+/// A header floating over content that scrolls under it, like iOS's scroll edge effect: the content
+/// dissolves towards the window's top, with no band or hairline. gpui can't give an element an alpha mask,
+/// but the content sits on the solid `surface`, so fading it out is fading it into that exact tone; the
+/// curve runs from fully gone at the top edge, through ~90% at the bar's text, to clear just below the bar.
+/// The blur under it eases off on the same curve. `fade_right` keeps it off a column at the right.
+pub fn scroll_edge(surface: Hsla, fade_right: f32) -> Div {
+    const TAIL: f32 = 24.;
+    let height = crate::layout::HEADER_HEIGHT + TAIL;
+    // Two linear ramps stacked make an ease-out: steep at the top, long and soft below the bar.
+    let ramp = |h: f32| {
+        div().absolute().top_0().left_0().right(px(fade_right)).h(px(h)).bg(linear_gradient(
+            180.,
+            linear_color_stop(surface, 0.),
+            linear_color_stop(surface.opacity(0.), 1.),
+        ))
+    };
+    div()
+        .absolute()
+        .top_0()
+        .left_0()
+        .right_0()
+        .h(px(height))
+        .child(div().absolute().inset_0().right(px(fade_right)).backdrop_blur(px(16.)).backdrop_fade(px(0.), px(0.), px(height * 0.8), px(0.)))
+        .child(ramp(height))
+        .child(ramp(crate::layout::HEADER_HEIGHT * 0.75))
+}
+
+thread_local! {
+    // Labels whose text overflowed their box when last painted, by key; they show the full text on hover.
+    static CLIPPED: std::cell::RefCell<std::collections::HashSet<SharedString>> = Default::default();
+}
+
+/// A one-line label that truncates with an ellipsis and, when it does, shows its full text in a tooltip.
+/// It measures its text against its own width as it paints, so the tooltip appears from the next frame on
+/// and only for labels that are actually cut. `key` must be unique among labels on screen.
+pub fn truncating(key: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<Div> {
+    let (key, text): (SharedString, SharedString) = (key.into(), text.into());
+    let clipped = CLIPPED.with(|c| c.borrow().contains(&key));
+    let (measure_key, measure_text) = (key.clone(), text.clone());
+    let measure = gpui_kit::canvas(|_, _, _| {}, move |bounds, _, window, _| {
+        let style = window.text_style();
+        let size = style.font_size.to_pixels(window.rem_size());
+        let width = window.text_system().layout_line(&measure_text, size, &[style.to_run(measure_text.len())], None).width;
+        let over = width > bounds.size.width + px(0.5);
+        CLIPPED.with(|c| {
+            let mut c = c.borrow_mut();
+            if over {
+                c.insert(measure_key.clone());
+            } else {
+                c.remove(&measure_key);
+            }
+        });
+    })
+    .absolute()
+    .top_0()
+    .left_0()
+    .size_full();
+    div()
+        .id(ElementId::Name(key))
+        .relative()
+        .min_w_0()
+        .truncate()
+        .child(text.clone())
+        .child(measure)
+        .when(clipped, |d| gpui_kit::StatefulInteractiveElement::tooltip(d, move |window, cx| gpui_kit::component::tooltip::Tooltip::new(text.clone()).build(window, cx)))
+}
+
+/// A search field's fill: the rail tone at 60% over a light blur, so what scrolls under a header stays
+/// faintly visible through it rather than hitting an opaque block.
+pub fn search_field_fill(cx: &App) -> Hsla {
+    palette::surface(palette::Level::Rail, cx).opacity(0.6)
+}
+
 pub fn live_badge() -> Div {
     let white = gpui_kit::white();
     let wave = div().h(px(9.)).flex().items_center().gap(px(1.5)).children([0.55_f32, 1., 0.7].map(|base| div().w(px(2.)).h(px(9. * base)).rounded_full().bg(white)));

@@ -9,7 +9,7 @@ pub const MARK_WHITE: &str = "brand/dango-mark-white.svg";
 // Reicon (MIT, github.com/dqev/reicon) in its filled weight, like Discord's chrome, plus Dango's own glyphs
 // (muted, deafened, camera off, GIF...), all written to assets/icons/reicon/ by tools/reicon.py, which also
 // keeps these paths in step with its map (design/icons.html). Order matches `Glyph`.
-const GLYPHS: [(&str, &[u8]); 140] = [
+const GLYPHS: [(&str, &[u8]); 144] = [
     ("icons/hashtag.svg", include_bytes!("../assets/icons/reicon/hashtag2.svg")),
     ("icons/hashtag-lock.svg", include_bytes!("../assets/icons/reicon/lock2.svg")),
     ("icons/volume-high.svg", include_bytes!("../assets/icons/reicon/volume-high.svg")),
@@ -28,8 +28,6 @@ const GLYPHS: [(&str, &[u8]); 140] = [
     ("icons/plus.svg", include_bytes!("../assets/icons/reicon/add.svg")),
     ("icons/chevron-down.svg", include_bytes!("../assets/icons/reicon/chevron-down.svg")),
     ("icons/search.svg", include_bytes!("../assets/icons/reicon/search.svg")),
-    ("icons/arrow-left.svg", include_bytes!("../assets/icons/reicon/arrow-left.svg")),
-    ("icons/arrow-right.svg", include_bytes!("../assets/icons/reicon/arrow-right.svg")),
     ("icons/folder.svg", include_bytes!("../assets/icons/reicon/folder.svg")),
     ("icons/copy.svg", include_bytes!("../assets/icons/reicon/copy.svg")),
     ("icons/play.svg", include_bytes!("../assets/icons/reicon/play.svg")),
@@ -150,6 +148,12 @@ const GLYPHS: [(&str, &[u8]); 140] = [
     ("icons/share-screen-fill.svg", include_bytes!("../assets/icons/reicon/screencast.svg")),
     ("icons/activities-fill.svg", include_bytes!("../assets/icons/reicon/rocket.svg")),
     ("icons/arrow-right-bold.svg", include_bytes!("../assets/icons/reicon/arrow-right.svg")),
+    ("icons/text-locked.svg", include_bytes!("../assets/icons/reicon/text-locked.svg")),
+    ("icons/voice-locked.svg", include_bytes!("../assets/icons/reicon/voice-locked.svg")),
+    ("icons/announcement-locked.svg", include_bytes!("../assets/icons/reicon/announcement-locked.svg")),
+    ("icons/stage-locked.svg", include_bytes!("../assets/icons/reicon/stage-locked.svg")),
+    ("icons/forum-locked.svg", include_bytes!("../assets/icons/reicon/forum-locked.svg")),
+    ("icons/media-locked.svg", include_bytes!("../assets/icons/reicon/media-locked.svg")),
 ];
 
 const BRAND: [(&str, &[u8]); 4] = [
@@ -180,8 +184,6 @@ pub enum Glyph {
     Plus,
     ChevronDown,
     Search,
-    ArrowLeft,
-    ArrowRight,
     Folder,
     Copy,
     Play,
@@ -302,6 +304,12 @@ pub enum Glyph {
     ShareScreenFill,
     ActivitiesFill,
     ArrowRightBold,
+    TextLocked,
+    VoiceLocked,
+    AnnouncementLocked,
+    StageLocked,
+    ForumLocked,
+    MediaLocked,
 }
 
 impl IconNamed for Glyph {

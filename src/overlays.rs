@@ -15,7 +15,7 @@ use crate::{
     Channel, ChannelKind, Rustcord, EmojiTarget, SearchState,
     discord::{Emoji, Message, Status, User},
     icons::Glyph,
-    layout::{TITLE_HEIGHT, avatar_with_status},
+    layout::avatar_with_status,
     menu, palette,
     ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XL, RADIUS_XS, Squircle},
 };
@@ -136,6 +136,7 @@ impl Rustcord {
 
     pub(crate) fn open_emoji_picker(&mut self, target: EmojiTarget, window: &mut Window, cx: &mut Context<Self>) {
         self.emoji_picker = Some(target);
+        self.popover_at = window.mouse_position();
         self.emoji_search.update(cx, |state, cx| {
             state.set_value("", window, cx);
             state.focus(window, cx);
@@ -232,7 +233,7 @@ impl Rustcord {
             | self.switcher.take().is_some()
             | self.close_share_picker(cx)
             | self.pins.take().is_some()
-            | self.inbox.take().is_some()
+            | std::mem::take(&mut self.inbox_open)
             | self.gif_picker.take().is_some()
             | self.dismiss_call_menus()
             | self.close_menu();
@@ -256,30 +257,72 @@ impl Rustcord {
         out
     }
 
-    // The title bar's Inbox: your recent mentions across servers, each jumping to its message.
+    // The Inbox: your recent mentions across servers, each jumping to its message. It rises from the rail's
+    // Inbox tile, showing the latest few, with the way to the full page at its foot.
     fn inbox_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let inbox = self.inbox.as_ref()?;
+        if !self.inbox_open {
+            return None;
+        }
+        const PREVIEW: usize = 6;
         let theme = cx.theme().clone();
-        let body: AnyElement = match inbox {
-            None => div().p_4().text_color(theme.muted_foreground).child("Loading mentions…").into_any_element(),
-            Some(Err(error)) => div().p_4().text_color(theme.danger).child(error.clone()).into_any_element(),
-            Some(Ok(list)) if list.is_empty() => div().p_6().text_color(theme.muted_foreground).child("You're all caught up!").into_any_element(),
-            Some(Ok(list)) => div()
+        let more = matches!(&self.inbox, Some(Some(Ok(list))) if list.len() > PREVIEW);
+        let see_all = div()
+            .id("inbox-see-all")
+            .mx_3()
+            .mb_3()
+            .h(px(34.))
+            .squircle(RADIUS_XS)
+            .flex()
+            .items_center()
+            .justify_center()
+            .cursor_pointer()
+            .text_size(px(14.))
+            .font_weight(FontWeight::MEDIUM)
+            .text_color(palette::strong(cx))
+            .bg(palette::selected(cx))
+            .hover(|s| s.bg(palette::hover(cx)))
+            .child(if more { "See all mentions" } else { "Open Inbox" })
+            .on_click(cx.listener(|this, _, _, cx| this.open_inbox_page(cx)));
+        Some(
+            backdrop("inbox-backdrop", cx)
+                .child(
+                    crate::ui::surface(cx)
+                        .id("inbox")
+                        .absolute()
+                        .left(px(crate::layout::RAIL_WIDTH + 4.))
+                        .bottom(px(f32::from(self.user_panel_clearance()) + 4.))
+                        .w(px(420.))
+                        .max_h(px(560.))
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .child(div().px_4().py_3().flex().items_center().gap_2().child(Icon::new(Glyph::Inbox).size(px(20.))).child(div().font_weight(FontWeight::SEMIBOLD).child("Inbox")).child(div().text_color(theme.muted_foreground).child("Mentions")))
+                        .child(div().id("inbox-list").flex_1().min_h_0().overflow_y_scroll().px_3().pb_3().child(self.mention_list(Some(PREVIEW), cx)))
+                        .child(see_all),
+                )
+                .into_any_element(),
+        )
+    }
+
+    /// Your recent mentions as cards (at most `limit`), each jumping to its message on click.
+    pub(crate) fn mention_list(&self, limit: Option<usize>, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme().clone();
+        match &self.inbox {
+            None | Some(None) => div().p_4().text_color(theme.muted_foreground).child("Loading mentions…").into_any_element(),
+            Some(Some(Err(error))) => div().p_4().text_color(theme.danger).child(error.clone()).into_any_element(),
+            Some(Some(Ok(list))) if list.is_empty() => div().p_6().text_color(theme.muted_foreground).child("You're all caught up!").into_any_element(),
+            Some(Some(Ok(list))) => div()
                 .flex()
                 .flex_col()
                 .gap_2()
-                .children(list.iter().map(|m| {
+                .children(list.iter().take(limit.unwrap_or(usize::MAX)).map(|m| {
                     let place = m.guild_id.as_ref().and_then(|g| self.guilds.iter().find(|x| &x.id == g)).and_then(|g| g.channels.iter().find(|c| c.id == m.channel_id).map(|c| format!("#{} · {}", c.name, g.name))).unwrap_or_default();
                     let (guild_id, channel_id, message_id) = (m.guild_id.clone(), m.channel_id.clone(), m.id.clone());
                     div()
                         .id(SharedString::from(format!("inbox-{}", m.id)))
                         .p_3()
                         .squircle(RADIUS_XS)
-                        .bg(theme.background)
-                        .border_1()
-                        .border_color(theme.border)
+                        .bg(palette::surface(palette::Level::Raised, cx))
                         .cursor_pointer()
-                        .hover(|s| s.border_color(theme.input))
+                        .hover(|s| s.bg(palette::hover(cx)))
                         .flex()
                         .flex_col()
                         .gap_1()
@@ -287,7 +330,7 @@ impl Rustcord {
                         .child(div().flex().items_center().gap_2().child(crate::ui::avatar(m.author.avatar.clone(), 24.)).child(div().font_weight(FontWeight::NORMAL).child(m.author.name.clone())))
                         .child(div().text_size(px(14.)).line_clamp(3).child(m.content.clone()))
                         .on_click(cx.listener(move |this, _, window, cx| {
-                            this.inbox = None;
+                            this.inbox_open = false;
                             let channel = guild_id.as_ref().and_then(|g| this.guilds.iter().find(|x| &x.id == g)).and_then(|g| g.channels.iter().find(|c| c.id == channel_id)).cloned();
                             if let Some(channel) = channel {
                                 this.guild_id = guild_id.clone();
@@ -297,26 +340,23 @@ impl Rustcord {
                         }))
                 }))
                 .into_any_element(),
-        };
-        Some(
-            backdrop("inbox-backdrop", cx)
-                .child(
-                    crate::ui::surface(cx)
-                        .id("inbox")
-                        .absolute()
-                        .top(px(TITLE_HEIGHT + 4.))
-                        .right(px(12.))
-                        .w(px(480.))
-                        .max_h(px(600.))
-                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .child(div().px_4().py_3().flex().items_center().gap_2().border_b_1().border_color(theme.border).child(Icon::new(Glyph::Inbox).size(px(20.))).child(div().font_weight(FontWeight::MEDIUM).child("Inbox")).child(div().text_color(theme.muted_foreground).child("· Mentions")))
-                        .child(div().id("inbox-list").flex_1().min_h_0().overflow_y_scroll().p_3().child(body)),
-                )
-                .into_any_element(),
-        )
+        }
     }
 
-    // Discord's GIF picker: search on top, trending when empty, two columns of moving previews.
+    /// Where a composer popover's right edge sits from the window's: the composer's own right edge, which
+    /// stops short of the members column while it shows.
+    fn composer_popover_right(&self) -> f32 {
+        let panel = self.guild_id.is_some() && !matches!(self.right_panel, crate::RightPanel::Hidden);
+        16. + if panel { self.panel_width } else { 0. }
+    }
+
+    /// A composer popover's foot: 8px above the composer, which sits 8px off the window's.
+    fn composer_popover_bottom(&self) -> f32 {
+        self.composer_height.get() + 16.
+    }
+
+    // Discord's GIF picker: search on top, trending when empty, two columns of moving previews. It rises
+    // from the composer's GIF button, at the composer's right edge.
     fn gif_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let results = self.gif_picker.as_ref()?;
         let theme = cx.theme().clone();
@@ -344,24 +384,17 @@ impl Rustcord {
                 }))
                 .into_any_element(),
         };
-        let viewport_top = TITLE_HEIGHT + 8.;
-        Some(
-            backdrop("gif-backdrop", cx)
-                .child(
-                    crate::ui::surface(cx)
-                        .id("gif-picker")
-                        .absolute()
-                        .right(px(32.))
-                        .bottom(px(96.))
-                        .top(px(viewport_top.max(120.)))
-                        .w(px(PICKER_SIZE.0))
-                        .max_h(px(PICKER_SIZE.1 + 80.))
-                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .child(div().p_2().child(div().h(px(34.)).px_2().squircle(RADIUS_MD).bg(theme.background).flex().items_center().child(Input::new(&self.gif_search).appearance(false))))
-                        .child(div().id("gif-scroll").flex_1().min_h_0().overflow_y_scroll().px_2().pb_2().child(body)),
-                )
-                .into_any_element(),
-        )
+        let picker = crate::ui::surface(cx)
+            .id("gif-picker")
+            .absolute()
+            .right(px(self.composer_popover_right()))
+            .bottom(px(self.composer_popover_bottom()))
+            .w(px(PICKER_SIZE.0))
+            .h(px(PICKER_SIZE.1 + 60.))
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .child(div().p_2().child(div().h(px(34.)).px_2().squircle(RADIUS_MD).bg(theme.background).flex().items_center().child(Input::new(&self.gif_search).appearance(false))))
+            .child(div().id("gif-scroll").flex_1().min_h_0().overflow_y_scroll().px_2().pb_2().child(body));
+        Some(backdrop("gif-backdrop", cx).child(ui::rise(picker.transform_origin(ui::corner(true, true)), "gif-picker", Duration::ZERO)).into_any_element())
     }
 
     // The pins popover under the header's pin button: newest first, each with a Jump link.
@@ -412,22 +445,16 @@ impl Rustcord {
                 }))
                 .into_any_element(),
         };
-        Some(
-            backdrop("pins-backdrop", cx)
-                .child(
-                    crate::ui::surface(cx)
-                        .id("pins")
-                        .absolute()
-                        .top(px(TITLE_HEIGHT + 52.))
-                        .right(px(self.panel_width + 16.))
-                        .w(px(420.))
-                        .max_h(px(560.))
-                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .child(div().px_4().py_3().flex().items_center().gap_2().border_b_1().border_color(theme.border).child(Icon::new(Glyph::Pin).size(px(20.))).child(div().font_weight(FontWeight::MEDIUM).child("Pinned Messages")))
-                        .child(div().id("pins-list").flex_1().min_h_0().overflow_y_scroll().p_3().child(body)),
-                )
-                .into_any_element(),
-        )
+        let card = crate::ui::surface(cx)
+            .id("pins")
+            .w(px(420.))
+            .max_h(px(560.))
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .child(div().px_4().py_3().flex().items_center().gap_2().child(Icon::new(Glyph::Pin).size(px(20.))).child(div().font_weight(FontWeight::SEMIBOLD).child("Pinned Messages")))
+            .child(div().id("pins-list").flex_1().min_h_0().overflow_y_scroll().px_3().pb_3().child(body));
+        // Under the header's pin button: its top-right corner just right of the click, kept in the window.
+        let at = point(self.popover_at.x + px(16.), px(crate::layout::HEADER_HEIGHT - 2.));
+        Some(backdrop("pins-backdrop", cx).child(anchored_at(at, gpui_kit::Anchor::TopRight, ui::rise(card.transform_origin(ui::corner(true, false)), "pins", Duration::ZERO))).into_any_element())
     }
 
     // Your presence, as a menu of radio rows each led by its mark, then your accounts (auth.html's status menu).
@@ -456,6 +483,15 @@ impl Rustcord {
             .when(self.can_add_account(), |card| {
                 let add = menu::item("Add an account", |_, _, _| {}).icon(Glyph::Plus);
                 card.child(menu::separator(cx)).child(menu::menu_item_row("add-account".into(), &add, false, true, cx).on_click(cx.listener(|this, _, window, cx| this.add_account(window, cx))))
+            })
+            .child(menu::separator(cx))
+            .child({
+                let help = menu::item("Help", |_, _, _| {}).icon(Glyph::Help);
+                menu::menu_item_row("status-help".into(), &help, false, true, cx).on_click(cx.listener(|this, _, _, cx| {
+                    this.status_menu = false;
+                    cx.open_url("https://support.discord.com");
+                    cx.notify();
+                }))
             });
         Some(backdrop("status-backdrop", cx).child(ui::rise(card.transform_origin(ui::corner(false, true)), "status-menu", Duration::ZERO)).into_any_element())
     }
@@ -497,8 +533,7 @@ impl Rustcord {
     fn emoji_overlay(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         self.emoji_picker.as_ref()?;
         let sections = self.emoji_sections(cx);
-        let viewport = window.viewport_size();
-        let scroll = window.use_keyed_state("emoji-scroll-handle", cx, |_, _| ScrollHandle::new()).read(cx).clone();
+                let scroll = window.use_keyed_state("emoji-scroll-handle", cx, |_, _| ScrollHandle::new()).read(cx).clone();
         let hovered = window.use_keyed_state("emoji-hovered", cx, |_, _| None::<(Emoji, SharedString)>);
         let preview = hovered.read(cx).clone().or_else(|| sections.first().and_then(|s| Some((s.items.first()?.clone(), s.source.clone()))));
         let in_view = scroll.top_item();
@@ -645,9 +680,6 @@ impl Rustcord {
         );
         let picker = div()
             .id("emoji-picker")
-            .absolute()
-            .right(px(32.))
-            .top(px((f32::from(viewport.height) - PICKER_SIZE.1 - 90.).max(TITLE_HEIGHT + 8.)))
             .w(px(PICKER_SIZE.0))
             .h(px(PICKER_SIZE.1))
             .squircle(RADIUS_LG)
@@ -659,7 +691,13 @@ impl Rustcord {
             .child(head)
             .child(div().flex_1().min_h_0().flex().child(rail).child(grid))
             .child(foot);
-        Some(backdrop("emoji-backdrop", cx).child(ui::rise(picker.transform_origin(ui::corner(true, true)), "emoji-picker", Duration::ZERO)).into_any_element())
+        // From the composer's emoji button it sits just above the composer, at its right edge; for a reaction
+        // it opens above and left of the click, kept in the window.
+        let placed: AnyElement = match self.emoji_picker {
+            Some(EmojiTarget::Composer) => ui::rise(picker.absolute().right(px(self.composer_popover_right())).bottom(px(self.composer_popover_bottom())).transform_origin(ui::corner(true, true)), "emoji-picker", Duration::ZERO).into_any_element(),
+            _ => anchored_at(self.popover_at, gpui_kit::Anchor::BottomRight, ui::rise(picker.transform_origin(ui::corner(true, true)), "emoji-picker", Duration::ZERO)),
+        };
+        Some(backdrop("emoji-backdrop", cx).child(placed).into_any_element())
     }
 
     // What the picker lists for the current search: recent (only before you search), the server's own, then Unicode by group.
@@ -847,6 +885,11 @@ impl SectionLead {
 
 // What someone's up to, as the popout's status line says it.
 // A full-window catcher: clicking outside the floating surface closes it.
+/// A popover placed with one corner at `at` (in window coordinates), shifted to stay 8px inside the window.
+pub(crate) fn anchored_at(at: gpui_kit::Point<gpui_kit::Pixels>, corner: gpui_kit::Anchor, popover: impl IntoElement) -> AnyElement {
+    gpui_kit::anchored().position(at).anchor(corner).snap_to_window_with_margin(px(8.)).child(popover).into_any_element()
+}
+
 pub(crate) fn backdrop(id: &'static str, cx: &mut Context<Rustcord>) -> gpui_kit::Stateful<gpui_kit::Div> {
     div().id(id).absolute().inset_0().occlude().on_mouse_down(
         MouseButton::Left,

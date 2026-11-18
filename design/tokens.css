@@ -11,7 +11,7 @@
   --on-accent: #fff;
 
   /* Type */
-  --font-ui: "Gabarito", system-ui, sans-serif;
+  --font-ui: "Figtree", system-ui, sans-serif;
   --font-mono: "Fragment Mono", ui-monospace, monospace;
   --text-xs: 12px;   /* timestamps, section labels, badges */
   --text-sm: 14px;   /* rows, menus, buttons */
