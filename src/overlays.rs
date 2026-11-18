@@ -17,7 +17,7 @@ use crate::{
     icons::Glyph,
     layout::avatar_with_status,
     menu, palette,
-    ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XL, RADIUS_XS, Squircle},
+    ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XS, Squircle},
 };
 
 const PICKER_SIZE: (f32, f32) = (420., 440.);
@@ -249,7 +249,7 @@ impl Rustcord {
         out.extend(self.text_viewer_overlay(window, cx));
         out.extend(self.status_overlay(cx));
         out.extend(self.emoji_overlay(window, cx));
-        out.extend(self.switcher_overlay(cx));
+        out.extend(self.switcher_overlay(window, cx));
         out.extend(self.share_overlay(window, cx));
         out.extend(self.pins_overlay(cx));
         out.extend(self.inbox_overlay(cx));
@@ -732,7 +732,7 @@ impl Rustcord {
 
     // The quick switcher (navigation.css `.switcher`): a focused field, results grouped by kind with
     // the match in bold, arrows to pick, Enter to go.
-    fn switcher_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+    fn switcher_overlay(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let selected = self.switcher?;
         let query = self.switcher_input.read(cx).value().to_string();
         let results = self.switcher_results(cx);
@@ -785,25 +785,19 @@ impl Rustcord {
         } else {
             div().id("switcher-list").flex().flex_col().gap(px(2.)).max_h(px(380.)).overflow_y_scroll().children(list).into_any_element()
         };
-        let card = div()
-            .id("switcher")
-            .w(px(SWITCHER_WIDTH))
+        let body = div()
             .p(px(10.))
-            .squircle(RADIUS_XL)
-            .bg(palette::surface(palette::Level::Overlay, cx))
-            .shadow(ui::shadow_pop(cx))
             .flex()
             .flex_col()
             .gap_2()
             .capture_key_down(cx.listener(Self::on_switcher_key))
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(field)
             .child(body)
             .child(foot);
         Some(
             backdrop("switcher-backdrop", cx)
                 .bg(palette::scrim(cx))
-                .child(div().absolute().top(px(120.)).left_0().right_0().flex().justify_center().child(ui::rise(card.transform_origin(point(relative(0.5), relative(0.5))), "switcher", Duration::ZERO)))
+                .child(div().absolute().top(px(120.)).left_0().right_0().flex().justify_center().child(ui::dialog("switcher", SWITCHER_WIDTH, body, window, cx)))
                 .into_any_element(),
         )
     }

@@ -17,7 +17,7 @@ use crate::{
     icons::Glyph,
     motion, palette,
     settings::Fill,
-    ui::{self, RADIUS_LG, RADIUS_SM, RADIUS_XL, RADIUS_XS, SURFACE_INSET, Squircle},
+    ui::{self, RADIUS_LG, RADIUS_SM, RADIUS_XS, SURFACE_INSET, Squircle},
 };
 
 pub type Act = Rc<dyn Fn(&mut Rustcord, &mut Window, &mut Context<Rustcord>)>;
@@ -603,7 +603,7 @@ impl Rustcord {
             .on_click(cx.listener(move |this, _, window, cx| this.run_menu_item(&run_path, window, cx)))
     }
 
-    pub(crate) fn render_dialog(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+    pub(crate) fn render_dialog(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let dialog = self.dialog.as_ref()?;
         let submit = cx.listener(|this, _, window, cx| {
             let Some(dialog) = this.dialog.take() else { return };
@@ -612,17 +612,7 @@ impl Rustcord {
             cx.notify();
         });
         let tone = if dialog.danger { ui::Tone::Danger } else { ui::Tone::Primary };
-        let card = div()
-            .id("dialog")
-            .w(px(420.))
-            .p(px(24.))
-            .squircle(RADIUS_XL)
-            .bg(palette::surface(palette::Level::Raised, cx))
-            .shadow(ui::shadow_pop(cx))
-            .flex()
-            .flex_col()
-            .gap(px(16.))
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        let body = ui::dialog_body()
             .child(
                 div()
                     .flex()
@@ -648,25 +638,11 @@ impl Rustcord {
                     })))
                     .child(ui::button("dialog-confirm", tone, cx).child(dialog.confirm.clone()).on_click(submit)),
             );
-        // Pops from the centre: scale 0.95 with its fade (CSS `pop`, 260ms ease-out).
-        let card = card.with_animation("dialog-pop", Animation::new(ui::DUR_PANEL).with_easing(|t| motion::ease_out().sample(t)), |card, t| card.opacity(t).scale(0.95 + 0.05 * t));
-        Some(
-            div()
-                .id("dialog-backdrop")
-                .absolute()
-                .inset_0()
-                .occlude()
-                .bg(palette::scrim(cx))
-                .flex()
-                .items_center()
-                .justify_center()
-                .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
-                    this.dialog = None;
-                    cx.notify();
-                }))
-                .child(card)
-                .into_any_element(),
-        )
+        let backdrop = div().id("dialog-backdrop").absolute().inset_0().occlude().on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+            this.dialog = None;
+            cx.notify();
+        }));
+        Some(ui::modal(backdrop, ui::dialog("dialog", 420., body, window, cx), cx))
     }
 }
 
