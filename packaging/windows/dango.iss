@@ -1,4 +1,4 @@
-; Built by .github/workflows/release.yml: iscc /DVersion=<x.y.z> /DExe=<path to rustcord.exe>
+; Built by .github/workflows/release.yml: iscc /DVersion=<x.y.z> /DExe=<path to dango.exe>
 #ifndef Version
   #define Version "0.0.0"
 #endif

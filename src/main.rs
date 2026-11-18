@@ -1206,17 +1206,7 @@ impl Rustcord {
                 if let Some(key) = live_key {
                     self.stream_live_since.entry(key).or_insert_with(Instant::now);
                 }
-                // Updated in place while they stay in the channel, so the list keeps join order and the
-                // call stage never reshuffles on a mute or a Go Live.
-                match states.iter_mut().find(|v| v.user_id == state.user_id && v.guild_id == state.guild_id && state.channel_id.is_some() && v.channel_id == state.channel_id) {
-                    Some(slot) => *slot = state,
-                    None => {
-                        states.retain(|v| v.user_id != state.user_id || v.guild_id != state.guild_id);
-                        if state.channel_id.is_some() {
-                            states.push(state);
-                        }
-                    }
-                }
+                upsert_voice_state(states, state);
             }
             Event::Call { channel_id, ringing } => self.on_dm_call(channel_id, ringing, cx),
             Event::CallEnded { channel_id } => self.on_dm_call_ended(&channel_id),
@@ -2639,8 +2629,40 @@ fn nonce() -> String {
     ((millis.saturating_sub(1_420_070_400_000) << 22) | u64::from(std::process::id() % 4096)).to_string()
 }
 
+// One entry per person in a server's (or the DMs') voice list, since Discord has each user in one
+// channel at a time. Updated in place while they stay in the channel, so the list keeps join order and
+// the call stage never reshuffles on a mute or a Go Live.
+fn upsert_voice_state(states: &mut Vec<discord::VoiceState>, state: discord::VoiceState) {
+    if let Some(slot) = states.iter_mut().find(|v| v.user_id == state.user_id && state.channel_id.is_some() && v.channel_id == state.channel_id) {
+        *slot = state;
+        return;
+    }
+    states.retain(|v| v.user_id != state.user_id);
+    if state.channel_id.is_some() {
+        states.push(state);
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    fn voice(user: &str, channel: Option<&str>, guild: Option<&str>) -> discord::VoiceState {
+        discord::VoiceState { user_id: user.into(), channel_id: channel.map(Into::into), guild_id: guild.map(Into::into), ..Default::default() }
+    }
+
+    #[test]
+    fn a_person_is_listed_once_in_voice() {
+        // Guild payloads list voice states without a guild id; live updates carry one.
+        let mut states = vec![voice("me", Some("a"), None), voice("pal", Some("a"), None)];
+        upsert_voice_state(&mut states, voice("me", Some("a"), Some("g")));
+        assert_eq!(states.iter().filter(|v| v.user_id == "me").count(), 1);
+        assert_eq!(states[0].user_id, "me", "an update in the same channel keeps its place");
+        upsert_voice_state(&mut states, voice("me", Some("b"), Some("g")));
+        assert_eq!(states.iter().filter(|v| v.user_id == "me").count(), 1);
+        assert_eq!(states.last().unwrap().channel_id.as_deref(), Some("b"), "a move rejoins at the end");
+        upsert_voice_state(&mut states, voice("me", None, Some("g")));
+        assert!(states.iter().all(|v| v.user_id != "me"), "leaving drops them");
+    }
+
     use super::*;
 
     fn member(id: &str) -> ListItem {

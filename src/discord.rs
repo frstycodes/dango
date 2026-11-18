@@ -309,7 +309,7 @@ impl Guild {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct VoiceState {
     pub guild_id: Option<String>,
     pub channel_id: Option<String>,
@@ -1258,7 +1258,8 @@ fn parse_guild(g: &Value) -> Option<Guild> {
                 })
             })
             .collect(),
-        voice_states: g["voice_states"].as_array().into_iter().flatten().map(parse_voice_state).collect(),
+        // Guild payloads leave out each voice state's guild_id.
+        voice_states: g["voice_states"].as_array().into_iter().flatten().map(|v| VoiceState { guild_id: Some(id.to_owned()), ..parse_voice_state(v) }).collect(),
         emojis: g["emojis"].as_array().into_iter().flatten().map(parse_emoji).collect(),
         owner_id: props["owner_id"].as_str().or(g["owner_id"].as_str()).map(str::to_owned),
         default_notifications: props["default_message_notifications"].as_u64().or(g["default_message_notifications"].as_u64()).unwrap_or(0) as u8,

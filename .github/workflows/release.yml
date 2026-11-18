@@ -81,7 +81,9 @@ jobs:
         run: |
           app=Dango.app
           mkdir -p $app/Contents/MacOS $app/Contents/Resources
-          cp target/${{ matrix.target }}/release/rustcord $app/Contents/MacOS/rustcord
+          cp target/${{ matrix.target }}/release/dango $app/Contents/MacOS/dango
+          # Bridge for v0.4.0 and older: their updater relaunches Contents/MacOS/rustcord after swapping the bundle.
+          ln -s dango $app/Contents/MacOS/rustcord
           cp assets/macos/AppIcon.icns $app/Contents/Resources/AppIcon.icns
           cat > $app/Contents/Info.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
@@ -90,7 +92,7 @@ jobs:
             <key>CFBundleName</key><string>Dango</string>
             <key>CFBundleDisplayName</key><string>Dango</string>
             <key>CFBundleIdentifier</key><string>com.frstycodes.dango</string>
-            <key>CFBundleExecutable</key><string>rustcord</string>
+            <key>CFBundleExecutable</key><string>dango</string>
             <key>CFBundleIconFile</key><string>AppIcon</string>
             <key>CFBundlePackageType</key><string>APPL</string>
             <key>CFBundleShortVersionString</key><string>$VERSION</string>
@@ -117,7 +119,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Copy-Item target/${{ matrix.target }}/release/rustcord.exe Dango.exe
+          Copy-Item target/${{ matrix.target }}/release/dango.exe Dango.exe
           Copy-Item Dango.exe ${{ matrix.legacy }}
           Compress-Archive -Path Dango.exe -DestinationPath ${{ matrix.asset }}
 
