@@ -11,7 +11,7 @@ use gpui_kit::{
     component::{
         ActiveTheme, Icon, Sizable, Size,
         input::{Input, Textarea},
-        text::TextView,
+        text::{InlineElement, InlineRenderContext, MarkdownExtensions, MarkdownNode, MarkdownParseContext, MarkdownPlugin, TextView, markdown_ast},
         tooltip::Tooltip,
     },
     div, img, list, point, prelude::*, px,
@@ -295,6 +295,9 @@ impl Rustcord {
             mentions_me: messages.iter().filter(|m| self.mentions_me(m)).map(|m| m.id.clone()).collect(),
             channel_names: self.guild().map(|g| g.channels.iter().map(|c| (c.id.clone(), c.name.clone())).collect()).unwrap_or_default(),
             role_names: self.guild().map(|g| g.roles.iter().map(|r| (r.id.clone(), r.name.clone())).collect()).unwrap_or_default(),
+            mention_fill: palette::accent_soft(cx),
+            mention_hover: palette::accent().opacity(0.26),
+            mention_ink: palette::accent_ink(cx),
             flash: self.flash.clone(),
             editing: self.editing.as_ref().map(|m| m.id.clone()),
             hovered: self.hovered_message.clone(),
@@ -455,9 +458,22 @@ impl Rustcord {
             .child(div().h(px(16.)))
     }
 
+    // A mention badge's click: a person's profile beside it, or the channel it names.
+    fn open_mention(&mut self, url: &str, at: gpui_kit::Point<Pixels>, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(id) = url.strip_prefix("rustcord://user/") {
+            let Some(user) = self.known_users().into_iter().find(|u| u.id == id) else { return };
+            return self.open_profile(user, at, cx);
+        }
+        let Some(id) = url.strip_prefix("rustcord://channel/") else { return };
+        let channel = self.guild().and_then(|g| g.channels.iter().find(|c| c.id == id).cloned());
+        if let Some(channel) = channel {
+            self.open_channel(channel, window, cx);
+        }
+    }
+
     // A small capsule 12px above the composer, out of the flow, so it never opens a gap.
     fn jump_to_present(&self, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
-        if !self.scrolled_up {
+        if !self.scrolled_up || self.list.item_count() == 0 {
             return None;
         }
         let overlay = palette::surface(Level::Overlay, cx);
@@ -689,6 +705,9 @@ struct RowContext {
     mentions_me: std::collections::HashSet<String>,
     channel_names: HashMap<String, String>,
     role_names: HashMap<String, String>,
+    mention_fill: Hsla,
+    mention_hover: Hsla,
+    mention_ink: Hsla,
     flash: Option<String>,
     editing: Option<String>,
     hovered: Option<String>,
@@ -705,6 +724,11 @@ struct RowContext {
     threads: bool,
 }
 
+// More than a few rows below the viewport: the feed is scrolled away from its newest message.
+pub(crate) fn away_from_present(visible_end: usize, count: usize) -> bool {
+    visible_end + 4 < count
+}
+
 // An avatar column and a content column; a continuation shows its time in the gutter on hover, and the
 // toolbar floats at the row's top right.
 fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: &mut App) -> AnyElement {
@@ -716,8 +740,11 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
     let held = ctx.flash.as_ref() == Some(&message.id) || ctx.editing.as_ref() == Some(&message.id);
     // From state, not `group_hover`, which gpui resolves only while painting (see `track_row_hover`).
     let hovered = ctx.hovered.as_deref() == Some(message.id.as_str());
-    let (hover, soft) = (palette::hover(cx), palette::accent_soft(cx));
-    let mention_hover = Hsla { a: soft.a * 0.94 + 0.06, ..soft };
+    let hover = palette::hover(cx);
+    // Lighter than the accent's soft fill: the rim carries the signal.
+    let soft = palette::accent_soft(cx);
+    let soft = Hsla { a: soft.a * 0.6, ..soft };
+    let mention_hover = Hsla { a: soft.a + 0.04, ..soft };
     let ink = match message.state {
         SendState::Sent => palette::text(cx),
         SendState::Sending => palette::faint(cx),
@@ -743,13 +770,15 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .group(group.clone())
         .relative()
         .w_full()
-        .px(px(16.))
+        // A mention runs to the feed's edges, so its rim meets the sidebar; its content keeps its place.
+        .px(px(if mention { 24. } else { 16. }))
         .py(px(2.))
         .squircle(RADIUS_SM)
         .flex()
         .flex_col()
         .line_height(gpui_kit::relative(1.45))
-        .when(mention, |r| r.bg(soft).hover(move |s| s.bg(mention_hover)))
+        // Mentioning you: the tint and a 2px accent bar down the left edge, square like Discord's.
+        .when(mention, |r| r.rounded(px(0.)).bg(soft).hover(move |s| s.bg(mention_hover)).child(div().absolute().left_0().top_0().bottom_0().w(px(2.)).bg(palette::accent())))
         .when(!mention, |r| r.when(held, |r| r.bg(hover)).hover(move |s| s.bg(hover)))
         .on_hover(track_message_hover(message, ctx));
     // Last, so it paints over the message's own content where it overlaps it.
@@ -768,7 +797,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
                 SendState::Sending => g.child(Icon::new(Glyph::Clock).size(px(14.)).mt(px(4.))),
                 _ => g.when(hovered, |g| g.child(gutter_clock(&message.timestamp))),
             });
-        return inset(with_message_menu(row.child(div().flex().gap(px(16.)).child(gutter).child(body)).children(toolbar), message, ctx));
+        return inset(with_message_menu(row.child(div().flex().gap(px(16.)).child(gutter).child(body)).children(toolbar), message, ctx), mention);
     }
     let row = row
         .mt(px(12.))
@@ -788,12 +817,12 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
                 .child(div().flex_1().min_w_0().flex().flex_col().child(message_head(message, ctx, cx)).child(body)),
         )
         .children(toolbar);
-    inset(with_message_menu(row, message, ctx))
+    inset(with_message_menu(row, message, ctx), mention)
 }
 
-// Rows sit 8px in from the feed's edges, so their hover fill reads as a rounded card.
-fn inset(row: AnyElement) -> AnyElement {
-    div().w_full().px(px(8.)).child(row).into_any_element()
+// Rows sit 8px in from the feed's edges, so their hover fill reads as a rounded card; a mention is flush.
+fn inset(row: AnyElement, flush: bool) -> AnyElement {
+    div().w_full().when(!flush, |d| d.px(px(8.))).child(row).into_any_element()
 }
 
 // Name in its top role's colour, tags, the time, and a pin when pinned.
@@ -985,11 +1014,64 @@ fn content(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyEleme
     )
 }
 
+// Mentions, role and channel links draw as badges (messages.css `.at`): accent ink on the soft fill.
+struct MentionBadges {
+    this: WeakEntity<Rustcord>,
+    fill: Hsla,
+    hover: Hsla,
+    ink: Hsla,
+}
+
+#[derive(Clone)]
+struct Mention {
+    url: String,
+    label: String,
+}
+
+impl MarkdownPlugin for MentionBadges {
+    fn name(&self) -> &str {
+        "mention"
+    }
+
+    fn parse(&self, node: &markdown_ast::Node, _: &MarkdownParseContext<'_>) -> Option<MarkdownNode> {
+        let markdown_ast::Node::Link(link) = node else { return None };
+        if !link.url.starts_with("rustcord://") {
+            return None;
+        }
+        let label = node.to_string();
+        Some(MarkdownNode::new("mention", Mention { url: link.url.clone(), label: label.clone() }).text(label))
+    }
+
+    fn render_inline(&self, node: &MarkdownNode, _: &InlineRenderContext, _: &mut Window, _: &mut App) -> Option<InlineElement> {
+        let mention = node.data::<Mention>()?.clone();
+        let (this, hover) = (self.this.clone(), self.hover);
+        let badge = div()
+            .id(SharedString::from(format!("at-{}", mention.url)))
+            .px(px(3.))
+            .rounded(px(4.))
+            .bg(self.fill)
+            .text_color(self.ink)
+            .font_weight(FontWeight::MEDIUM)
+            .whitespace_nowrap()
+            .cursor_pointer()
+            .hover(move |s| s.bg(hover))
+            .child(mention.label)
+            .on_click(move |event, window, cx| {
+                let url = mention.url.clone();
+                this.update(cx, |this, cx| this.open_mention(&url, event.position(), window, cx)).ok();
+            });
+        Some(InlineElement::new(badge))
+    }
+}
+
 // Discord markdown with mentions, channel links and code copy buttons; messages and embeds share it.
 fn markdown(id: SharedString, text: String, ctx: &RowContext) -> TextView {
     let this = ctx.this.clone();
     let (copy_target, copied) = (ctx.this.clone(), ctx.copied.clone());
+    let badges = MentionBadges { this: ctx.this.clone(), fill: ctx.mention_fill, hover: ctx.mention_hover, ink: ctx.mention_ink };
     TextView::markdown(id, text)
+        // Constant: the plugin only changes how mentions draw, never what parses.
+        .markdown_extensions(MarkdownExtensions::default().parser_revision(1).plugin(badges))
         // messages.css `.codeblock { margin-top: 6px }`: a block opening a message clears the name row.
         .style(gpui_kit::component::text::TextViewStyle::default().code_block(gpui_kit::StyleRefinement::default().mt(px(6.))))
         .selectable(true)
@@ -1467,7 +1549,8 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, cx: &App) -> Any
     let mut bar = div()
         .absolute()
         .top(px(-18.))
-        .right(px(12.))
+        // A flush mention row is 8px wider each side; the bar stays where it sits on other rows.
+        .right(px(if ctx.mentions_me.contains(&message.id) { 20. } else { 12. }))
         .p(px(2.))
         .flex()
         .items_center()
@@ -1568,7 +1651,7 @@ fn readable_with(content: &str, ctx: &RowContext, inline_emoji: bool) -> String 
         };
         let token = &tail[1..end];
         let replacement = if let Some(id) = token.strip_prefix("@&") {
-            ctx.role_names.get(id).map(|n| format!("**@{n}**"))
+            ctx.role_names.get(id).map(|n| format!("[@{n}](rustcord://role/{id})"))
         } else if let Some(id) = token.strip_prefix("@!").or_else(|| token.strip_prefix('@')) {
             Some(format!("[@{}](rustcord://user/{id})", ctx.names.get(id).map_or("unknown-user", String::as_str)))
         } else if let Some(id) = token.strip_prefix('#') {
@@ -1590,7 +1673,8 @@ fn readable_with(content: &str, ctx: &RowContext, inline_emoji: bool) -> String 
         rest = &tail[end + 1..];
     }
     out.push_str(rest);
-    out
+    // ponytail: plain word match, like the tokens above it also matches inside code spans.
+    out.replace("@everyone", "[@everyone](rustcord://everyone)").replace("@here", "[@here](rustcord://here)")
 }
 
 // One line of plain text for the reply quote: markdown markers and link targets dropped.
@@ -1875,6 +1959,13 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn away_from_present_needs_rows_below() {
+        assert!(!away_from_present(0, 0));
+        assert!(!away_from_present(10, 12));
+        assert!(away_from_present(10, 20));
+    }
 
     #[test]
     fn bare_media_links_are_hidden() {
