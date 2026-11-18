@@ -165,7 +165,7 @@ impl Rustcord {
                     .child(div().min_w_0().truncate().child(forum.name.clone())),
             )
             .children(forum.topic.clone().map(|t| div().flex_1().min_w_0().pl(px(12.)).border_l_1().border_color(palette::line_strong(cx)).truncate().text_size(px(14.)).text_color(faint).child(t)))
-            .child(div().ml_auto().child(self.header_trail(cx)));
+            .child(div().ml_auto().child(self.header_trail(true, cx)));
         let forum_id = forum.id.clone();
         let new_post = ui::button("forum-new-post", ui::Tone::Primary, cx)
             .child(Icon::new(Glyph::Plus).size(px(16.)))

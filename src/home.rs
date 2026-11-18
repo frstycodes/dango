@@ -205,7 +205,7 @@ impl Rustcord {
                     cx.notify();
                 }))
             })))
-            .child(div().ml_auto().child(self.header_trail(cx)));
+            .child(div().ml_auto().child(self.header_trail(true, cx)));
         let heading = match tab {
             FriendsTab::Online => "Online",
             FriendsTab::All => "All friends",
