@@ -174,3 +174,7 @@
 .au-full .row { justify-content: center; margin-top: var(--space-4); gap: var(--space-4); }
 
 /* Toast titles that list names wrap anywhere rather than overflow */
+.au-update { display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 6px 0 12px; border-bottom: 1px solid var(--line); font-size: var(--text-sm); }
+.au-update > i { color: var(--accent-ink); font-size: 16px; }
+.au-update > b { flex: 1; min-width: 0; color: var(--text-strong); font-weight: var(--weight-medium); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.au-update .btn { height: 30px; }

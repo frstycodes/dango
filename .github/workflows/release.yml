@@ -1,6 +1,6 @@
 # Push a `v*` tag matching Cargo.toml's version to build and publish a release: installers (.dmg,
-# setup .exe) for people, plus the zipped .app and bare .exe the updater swaps in. Asset names must
-# match `asset_name` in src/updater.rs; each asset gets a `<name>.sha256` the updater verifies.
+# setup .exe) for people, plus the zipped .app and zipped Dango.exe the updater swaps in. Asset names
+# must match `asset_name` in src/updater.rs; each asset gets a `<name>.sha256` the updater verifies.
 # Pushes to main run the same builds and packaging without publishing, which keeps every target
 # building and fills the shared cache.
 name: Build and release
@@ -41,10 +41,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # `asset` is what the updater downloads; `installer` is what people install from.
+          # `asset` is what the updater downloads; `installer` is what people install from; `legacy` is the
+          # bare .exe that v0.4.0 and older still update from (72 MB; deflate shrinks it to roughly the installer's size).
           - { os: macos-latest, target: aarch64-apple-darwin, asset: dango-macos-aarch64.zip, installer: dango-macos-aarch64.dmg }
           - { os: macos-latest, target: x86_64-apple-darwin, asset: dango-macos-x86_64.zip, installer: dango-macos-x86_64.dmg }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: dango-windows-x86_64.exe, installer: dango-windows-x86_64-setup.exe }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: dango-windows-x86_64.zip, installer: dango-windows-x86_64-setup.exe, legacy: dango-windows-x86_64.exe }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -116,7 +117,11 @@ jobs:
 
       - name: Package exe
         if: runner.os == 'Windows'
-        run: cp target/${{ matrix.target }}/release/dango.exe ${{ matrix.asset }}
+        shell: pwsh
+        run: |
+          Copy-Item target/${{ matrix.target }}/release/dango.exe Dango.exe
+          Copy-Item Dango.exe ${{ matrix.legacy }}
+          Compress-Archive -Path Dango.exe -DestinationPath ${{ matrix.asset }}
 
       - name: Build setup
         if: runner.os == 'Windows'
@@ -124,7 +129,7 @@ jobs:
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
-          & $iscc "/DVersion=$env:VERSION" "/DExe=$PWD\${{ matrix.asset }}" "/O$PWD" packaging\windows\dango.iss
+          & $iscc "/DVersion=$env:VERSION" "/DExe=$PWD\Dango.exe" "/O$PWD" packaging\windows\dango.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload
@@ -132,7 +137,7 @@ jobs:
         run: |
           # Git Bash on Windows has sha256sum; macOS has shasum. Both print "<hex> <name>".
           if command -v sha256sum >/dev/null; then sum="sha256sum"; else sum="shasum -a 256"; fi
-          for file in ${{ matrix.asset }} ${{ matrix.installer }}; do
+          for file in ${{ matrix.asset }} ${{ matrix.installer }} ${{ matrix.legacy }}; do
             $sum "$file" > "$file.sha256"
             gh release upload "$TAG" "$file" "$file.sha256" --clobber
           done
