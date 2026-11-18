@@ -32,6 +32,7 @@ mod menu;
 mod message_menu;
 mod motion;
 mod palette;
+mod pip;
 mod presence;
 mod profile;
 mod notify;
@@ -677,6 +678,7 @@ pub struct Rustcord {
     scrolled_up: bool,
     // The floating composer's height, measured as it paints; the feed keeps that much room at its foot.
     composer_height: Rc<std::cell::Cell<f32>>,
+    pip: pip::Pip,
     copied: Option<String>,
     focus: FocusHandle,
     channels_width: f32,
@@ -869,6 +871,7 @@ impl Rustcord {
             call_area: Rc::new(std::cell::Cell::new((0., 0.))),
             profiles: query::Query::new("profiles", Duration::from_secs(5 * 60)),
             composer_height: Rc::new(std::cell::Cell::new(86.)),
+            pip: Default::default(),
             emoji_picker: None,
             emoji_search,
             switcher: None,

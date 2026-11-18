@@ -122,7 +122,11 @@ impl Rustcord {
         let (menu, dialog) = (self.render_menu(window, cx), self.render_dialog(cx));
         let (viewer, settings) = (self.viewer_overlay(window, cx), self.render_settings(window, cx));
         crate::gif::set_covered(!overlays.is_empty() || !call_overlays.is_empty() || menu.is_some() || dialog.is_some() || viewer.is_some() || settings.is_some());
-        root.child(body)
+        // Away from the call, a watched stream floats as a picture-in-picture over everything but popups.
+        let pip = (!self.call_view).then(|| self.stream_pip(cx)).flatten();
+        self.pip_drop_zone(root, cx)
+            .child(body)
+            .children(pip)
             .children(self.incoming_call_banner(cx))
             .children(overlays)
             .children(call_overlays)
