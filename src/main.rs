@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod accounts;
+mod attachments;
 mod app_keys;
 mod feed_keys;
 mod auth;
@@ -30,6 +31,7 @@ mod gif;
 mod go_live;
 mod h264;
 mod home;
+mod os_image;
 mod overlays;
 mod overwrites;
 mod playback;
@@ -547,7 +549,11 @@ pub struct Rustcord {
     // Discord's "@ ON / OFF" on the reply bar: whether the reply pings its author.
     reply_ping: bool,
     // Files picked, pasted or dropped, waiting to go out with the next message.
-    pending_files: Vec<PathBuf>,
+    pending_files: Vec<attachments::PendingFile>,
+    // Each pending file's tile picture by path; None once the OS had none to give.
+    file_previews: HashMap<PathBuf, Option<Arc<RenderImage>>>,
+    // Uploads in flight or failed, by the nonce of the message carrying them, kept for Resend.
+    uploads: HashMap<String, UploadJob>,
     talk_key_down: bool,
     prefs: settings::Prefs,
     settings: Option<settings::SettingsView>,
@@ -828,6 +834,8 @@ impl Rustcord {
             replying: None,
             reply_ping: true,
             pending_files: Vec::new(),
+            file_previews: HashMap::new(),
+            uploads: HashMap::new(),
             talk_key_down: false,
             prefs: settings::Prefs::load(),
             settings: None,
@@ -1464,10 +1472,7 @@ impl Rustcord {
 
     fn show_channel(&mut self, channel: Channel, window: &mut Window, cx: &mut Context<Self>) {
         self.call_view = false;
-        let placeholder = match channel.kind {
-            ChannelKind::Dm => format!("Message @{}", channel.name),
-            _ => format!("Message #{}", channel.name),
-        };
+        let placeholder = format!("Message {}", channel_mention(&channel));
         self.composer.update(cx, |state, cx| state.set_placeholder(placeholder, window, cx));
         self.last_channel.insert(self.guild_id.clone(), channel.id.clone());
         home::save_last_channel(self.my_id(), self.guild_id.as_deref(), &channel.id);
@@ -1687,7 +1692,7 @@ impl Rustcord {
         match event {
             InputEvent::Change => {
                 let text = state.read(cx).value();
-                self.has_draft = !text.trim().is_empty();
+                self.has_draft = !text.trim().is_empty() || !self.pending_files.is_empty();
                 self.autocomplete = self.suggest(&text);
                 self.send_typing();
                 cx.notify();
@@ -1768,10 +1773,18 @@ impl Rustcord {
         let pending = self.feeds.get_mut(channel_id).and_then(|f| Arc::make_mut(&mut f.messages).iter_mut().find(|m| m.nonce.as_deref() == Some(nonce) && m.state != SendState::Sent));
         let Some(pending) = pending else { return };
         match result {
-            Ok(sent) => *pending = sent,
+            Ok(sent) => {
+                *pending = sent;
+                for file in self.uploads.remove(nonce).into_iter().flat_map(|job| job.files) {
+                    self.file_previews.remove(&file.path);
+                }
+            }
             Err(error) => {
                 pending.state = SendState::Failed;
-                self.send_error = Some(format!("Couldn't send: {error}").into());
+                match self.uploads.get_mut(nonce) {
+                    Some(job) => job.error = Some(error),
+                    None => self.send_error = Some(format!("Couldn't send: {error}").into()),
+                }
             }
         }
         cx.notify();
@@ -1784,6 +1797,9 @@ impl Rustcord {
             m.state = SendState::Sending;
         }
         self.send_error = None;
+        if self.uploads.contains_key(&nonce) {
+            return self.start_upload(nonce, cx);
+        }
         cx.spawn(async move |this, cx| {
             let result = client.send_message(&message.channel_id, &message.content, &nonce, message.reply_to.as_deref(), true).await;
             this.update(cx, |this, cx| this.settle(&message.channel_id, &nonce, result, cx)).ok();
@@ -1862,80 +1878,139 @@ impl Rustcord {
     }
 
     /// The + button: pick files to attach; they wait in the composer until sent, as in Discord.
-    fn upload(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+    fn upload(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let paths = cx.prompt_for_paths(gpui_kit::PathPromptOptions { files: true, directories: false, multiple: true, prompt: None });
-        cx.spawn(async move |this, cx| {
+        cx.spawn_in(window, async move |this, cx| {
             let Ok(Ok(Some(paths))) = paths.await else { return };
-            this.update(cx, |this, cx| this.add_files(paths, cx)).ok();
+            this.update_in(cx, |this, window, cx| this.add_files(paths, window, cx)).ok();
         })
         .detach();
     }
 
-    fn add_files(&mut self, paths: Vec<PathBuf>, cx: &mut Context<Self>) {
-        // Discord caps a message at 10 attachments.
-        for path in paths.into_iter().filter(|p| p.is_file()) {
-            if self.pending_files.len() < 10 && !self.pending_files.contains(&path) {
-                self.pending_files.push(path);
-            }
-        }
-        self.has_draft = true;
+    /// Picked, dropped or pasted files join the composer within Discord's caps, which say what they left out.
+    fn add_files(&mut self, paths: Vec<PathBuf>, window: &mut Window, cx: &mut Context<Self>) {
+        let files = paths.into_iter().filter_map(attachments::PendingFile::new).collect();
+        let limit = discord::upload_limit(self.my_account.premium_type, self.guild().map_or(0, |g| g.premium_tier));
+        self.send_error = attachments::admit(&mut self.pending_files, files, limit).map(Into::into);
+        self.has_draft |= !self.pending_files.is_empty();
+        self.load_previews(cx);
+        self.composer.update(cx, |state, cx| state.focus(window, cx));
         cx.notify();
     }
 
-    /// Cmd/Ctrl+V with an image on the clipboard attaches it (saved to a temp file first).
-    fn paste_image(&mut self, cx: &mut Context<Self>) -> bool {
-        let Some(item) = cx.read_from_clipboard() else { return false };
-        let Some(image) = item.entries().iter().find_map(|e| match e {
-            gpui_kit::ClipboardEntry::Image(image) => Some(image.clone()),
-            _ => None,
-        }) else {
-            return false;
-        };
-        let ext = match image.format {
-            gpui_kit::ImageFormat::Jpeg => "jpg",
-            gpui_kit::ImageFormat::Gif => "gif",
-            gpui_kit::ImageFormat::Webp => "webp",
-            _ => "png",
-        };
-        let path = std::env::temp_dir().join(format!("rustcord-paste-{}.{ext}", nonce()));
-        if std::fs::write(&path, &image.bytes).is_err() {
-            return false;
+    // Tile pictures, drawn by the OS off the UI thread: images and videos as thumbnails where it can,
+    // everything else (and any it can't) as the icon its file manager shows.
+    fn load_previews(&mut self, cx: &mut Context<Self>) {
+        const SIDE: u32 = 96;
+        for file in &self.pending_files {
+            if self.file_previews.contains_key(&file.path) {
+                continue;
+            }
+            self.file_previews.insert(file.path.clone(), None);
+            let (path, kind) = (file.path.clone(), file.kind());
+            let picture = cx.background_spawn(async move {
+                let thumb = (kind != attachments::FileKind::Other).then(|| os_image::thumbnail(&path, SIDE)).flatten();
+                thumb.or_else(|| os_image::file_icon(&path, SIDE))
+            });
+            let path = file.path.clone();
+            cx.spawn(async move |this, cx| {
+                let picture = picture.await;
+                this.update(cx, |this, cx| {
+                    this.file_previews.insert(path, picture);
+                    cx.notify();
+                })
+                .ok();
+            })
+            .detach();
         }
-        self.add_files(vec![path], cx);
+    }
+
+    /// Cmd/Ctrl+V: files copied in Finder or Explorer, or a picture (a screenshot), attach; text is left
+    /// to the composer's own paste. True when it attached something.
+    fn paste_files(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let Some(item) = cx.read_from_clipboard() else { return false };
+        let paths = match attachments::classify(&item) {
+            attachments::Pasted::Text => return false,
+            attachments::Pasted::Files(paths) => paths,
+            attachments::Pasted::Image(image) => match attachments::save_pasted_image(&image) {
+                Ok(path) => vec![path],
+                Err(error) => {
+                    self.send_error = Some(format!("Couldn't paste that image: {error}").into());
+                    cx.notify();
+                    return true;
+                }
+            },
+        };
+        self.add_files(paths, window, cx);
         true
     }
 
     fn send_files(&mut self, content: String, cx: &mut Context<Self>) {
-        let (Some(client), Some(channel), Some(me)) = (self.client.clone(), self.channel.clone(), self.me.clone()) else { return };
-        let files = std::mem::take(&mut self.pending_files);
+        let (Some(channel), Some(me)) = (self.channel.clone(), self.me.clone()) else { return };
+        // Previews stay until the upload settles: the feed's upload cards show them too.
+        let files: Vec<discord::Upload> = std::mem::take(&mut self.pending_files).iter().map(attachments::PendingFile::upload).collect();
         let nonce = nonce();
-        let label = match files.len() {
-            1 => format!("Uploading {}…", files[0].file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()),
-            n => format!("Uploading {n} files…"),
-        };
+        let reply = self.replying.take();
         let pending = Message {
             id: format!("pending-{nonce}"),
             channel_id: channel.id.clone(),
+            guild_id: self.guild_id.clone(),
             author: me,
-            content: if content.is_empty() { label } else { content.clone() },
+            content: content.clone(),
             timestamp: chrono::Utc::now().to_rfc3339(),
+            reply_to: reply.as_ref().map(|r| r.id.clone()),
+            reply: reply.clone().map(Box::new),
             nonce: Some(nonce.clone()),
             state: SendState::Sending,
             ..Default::default()
         };
+        let job = UploadJob { channel_id: channel.id.clone(), files, content, reply_to: reply.map(|r| r.id), ping: self.reply_ping, error: None };
+        self.uploads.insert(nonce.clone(), job);
         self.push_local(pending, cx);
+        self.start_upload(nonce, cx);
+    }
+
+    // Runs (or re-runs, for Resend) the upload under `nonce`, repainting its progress as bytes go out.
+    fn start_upload(&mut self, nonce: String, cx: &mut Context<Self>) {
+        let (Some(client), Some(job)) = (self.client.clone(), self.uploads.get_mut(&nonce)) else { return };
+        job.error = None;
+        let job = job.clone();
+        let ticking = nonce.clone();
         cx.spawn(async move |this, cx| {
-            let result = client.upload(&channel.id, files, &content, &nonce).await;
-            this.update(cx, |this, cx| this.settle(&channel.id, &nonce, result, cx)).ok();
+            loop {
+                cx.background_executor().timer(Duration::from_millis(100)).await;
+                let sending = this.update(cx, |this, cx| {
+                    cx.notify();
+                    this.uploads.get(&ticking).is_some_and(|job| job.error.is_none())
+                });
+                if !sending.unwrap_or(false) {
+                    break;
+                }
+            }
         })
         .detach();
+        cx.spawn(async move |this, cx| {
+            let result = client.upload(&job.channel_id, &job.files, &job.content, &nonce, job.reply_to.as_deref(), job.ping).await;
+            this.update(cx, |this, cx| this.settle(&job.channel_id, &nonce, result, cx)).ok();
+        })
+        .detach();
+        cx.notify();
     }
 
     fn remove_file(&mut self, index: usize, cx: &mut Context<Self>) {
         if index < self.pending_files.len() {
-            self.pending_files.remove(index);
+            let file = self.pending_files.remove(index);
+            self.file_previews.remove(&file.path);
         }
+        self.send_error = None;
         self.has_draft = !self.pending_files.is_empty() || !self.composer.read(cx).value().trim().is_empty();
+        cx.notify();
+    }
+
+    fn toggle_spoiler(&mut self, index: usize, cx: &mut Context<Self>) {
+        if let Some(file) = self.pending_files.get_mut(index) {
+            file.spoiler = !file.spoiler;
+        }
         cx.notify();
     }
 
@@ -2637,6 +2712,26 @@ fn apply_list_op(list: &mut Vec<ListItem>, op: ListOp) {
 // Pending ids sort after every real snowflake.
 fn order(id: &str) -> u64 {
     id.parse().unwrap_or(u64::MAX)
+}
+
+// A channel as the composer and drop zone name it: @someone in a DM, #channel elsewhere.
+fn channel_mention(channel: &Channel) -> String {
+    match channel.kind {
+        ChannelKind::Dm => format!("@{}", channel.name),
+        _ => format!("#{}", channel.name),
+    }
+}
+
+// A message's files on their way, kept until Discord takes it so Resend can run it again.
+#[derive(Clone)]
+struct UploadJob {
+    channel_id: String,
+    files: Vec<discord::Upload>,
+    content: String,
+    reply_to: Option<String>,
+    ping: bool,
+    // Discord's refusal, verbatim, once it fails.
+    error: Option<String>,
 }
 
 fn nonce() -> String {

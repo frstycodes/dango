@@ -73,7 +73,6 @@ impl Rustcord {
             .flex_col()
             .key_context("Chat")
             .on_action(cx.listener(Self::focus_search))
-            .on_drop(cx.listener(|this, paths: &gpui_kit::ExternalPaths, _, cx| this.add_files(paths.paths().to_vec(), cx)))
             // The composer floats over the feed, which scrolls on under its glass.
             .child(div().relative().flex_1().min_h_0().child(body).children(unread_bar).child(self.render_composer(window, cx)));
         // The feed runs up under the header, which blurs and fades it (scroll_edge); the members column beside
@@ -81,7 +80,8 @@ impl Rustcord {
         let panel = self.render_panel(window, cx);
         // After the header: its scroll-edge fade runs past its bar and would veil the strip.
         let strip = strip.map(|s| div().absolute().top(px(HEADER_HEIGHT)).left_0().right_0().px(px(16.)).child(s));
-        main.child(div().flex_1().min_h_0().flex().child(chat.child(header).children(strip)).children(panel))
+        let drop_zone = self.drop_zone(&channel, cx);
+        main.child(div().flex_1().min_h_0().flex().child(chat.child(header).children(strip).child(drop_zone)).children(panel))
     }
 
     // Where you are as breadcrumbs, the topic, then the channel's tools (design: navigation.html's chanbar).
@@ -377,6 +377,8 @@ impl Rustcord {
     pub(crate) fn row_context(&self, messages: &[Message], channel: Option<&Channel>, has_more: bool, column: f32, cx: &mut Context<Self>) -> Rc<RowContext> {
         Rc::new(RowContext {
             me: self.me.clone(),
+            uploads: self.uploads.clone(),
+            previews: self.file_previews.clone(),
             embeds: self.account_settings.render_embeds,
             reactions: self.account_settings.render_reactions,
             // Later entries win: the server's member cache last, so nicknames beat the account names
@@ -486,6 +488,12 @@ impl Rustcord {
             .flex()
             .flex_col()
             .capture_key_down(cx.listener(Self::on_composer_key))
+            // Before the text field's own Paste, which drops anything that isn't text.
+            .capture_action(cx.listener(|this, _: &gpui_kit::component::input::Paste, window, cx| {
+                if this.paste_files(window, cx) {
+                    cx.stop_propagation();
+                }
+            }))
             .child(measure)
             .children(self.jump_to_present(cx))
             // Occludes: the composer floats over the feed, which must not take the hover or the click under it.
@@ -601,57 +609,81 @@ impl Rustcord {
             }))
     }
 
-    // Files waiting to send: borderless wells inside the composer, never cards in a card.
+    // Files waiting to send: borderless wells inside the composer, never cards in a card. Each shows
+    // the OS's own picture of it (a thumbnail, else its type's icon), its name and size, a spoiler toggle
+    // and a remove button.
     fn attachment_tray(&self, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
         if self.pending_files.is_empty() {
             return None;
         }
-        let (selected, raised, strong, faint, muted) = (palette::selected(cx), palette::surface(Level::Raised, cx), palette::strong(cx), palette::faint(cx), palette::muted(cx));
-        let mut chips = Vec::with_capacity(self.pending_files.len());
-        for (i, path) in self.pending_files.iter().enumerate() {
-            let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-            let size = std::fs::metadata(path).map(|m| format_size(m.len())).unwrap_or_default();
-            let is_image = matches!(path.extension().and_then(|e| e.to_str()).map(str::to_lowercase).as_deref(), Some("png" | "jpg" | "jpeg" | "gif" | "webp"));
-            let preview = match is_image {
-                true => ui::media(path.clone(), ui::all(RADIUS_XS)).size(px(40.)).flex_none().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
-                false => div().size(px(40.)).flex_none().squircle(RADIUS_XS).bg(raised).text_color(muted).flex().items_center().justify_center().child(Icon::new(Glyph::File).size(px(24.))).into_any_element(),
+        let (selected, strong, faint) = (palette::selected(cx), palette::strong(cx), palette::faint(cx));
+        let chips = self.pending_files.iter().enumerate().map(|(i, file)| {
+            let preview = file_picture(self.file_previews.get(&file.path).cloned().flatten(), file.kind(), 48., file.spoiler, cx);
+            let (spoiler_glyph, spoiler_tip) = match file.spoiler {
+                true => (Glyph::EyeSlash, "Remove Spoiler"),
+                false => (Glyph::Eye, "Mark as Spoiler"),
             };
-            chips.push(
-                div()
-                    .w(px(216.))
-                    .flex_none()
-                    .py(px(6.))
-                    .pl(px(6.))
-                    .pr(px(4.))
-                    .flex()
-                    .items_center()
-                    .gap(px(10.))
-                    .squircle(RADIUS_MD)
-                    .bg(selected)
-                    .child(preview)
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .flex()
-                            .flex_col()
-                            .gap(px(2.))
-                            .child(div().truncate().text_size(px(14.)).font_weight(FontWeight::MEDIUM).text_color(strong).child(name))
-                            .child(div().truncate().text_size(px(12.)).text_color(faint).child(size)),
-                    )
-                    .child(ui::icon_button(SharedString::from(format!("remove-file-{i}")), Glyph::X, "Remove Attachment", cx).small().on_click(cx.listener(move |this, _, _, cx| this.remove_file(i, cx)))),
-            );
-        }
+            div()
+                .w(px(240.))
+                .flex_none()
+                .py(px(6.))
+                .pl(px(6.))
+                .pr(px(4.))
+                .flex()
+                .items_center()
+                .gap(px(10.))
+                .squircle(RADIUS_MD)
+                .bg(selected)
+                .child(preview)
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .flex()
+                        .flex_col()
+                        .gap(px(2.))
+                        .child(div().truncate().text_size(px(14.)).font_weight(FontWeight::MEDIUM).text_color(strong).child(file.name.clone()))
+                        .child(div().truncate().text_size(px(12.)).text_color(faint).child(format_size(file.size))),
+                )
+                .child(ui::icon_button(SharedString::from(format!("spoiler-file-{i}")), spoiler_glyph, spoiler_tip, cx).small().on_click(cx.listener(move |this, _, _, cx| this.toggle_spoiler(i, cx))))
+                .child(ui::icon_button(SharedString::from(format!("remove-file-{i}")), Glyph::X, "Remove Attachment", cx).small().on_click(cx.listener(move |this, _, _, cx| this.remove_file(i, cx))))
+        });
         Some(div().id("composer-tray").flex().gap(px(8.)).p(px(10.)).overflow_x_scroll().border_b_1().border_color(palette::line(cx)).children(chips))
+    }
+
+    // While files are dragged over the chat: the whole pane says where they'll go, and takes the drop
+    // anywhere, the composer included. Invisible otherwise; its hitbox blocks nothing beneath.
+    fn drop_zone(&self, channel: &Channel, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let limit = format_size(crate::discord::upload_limit(self.my_account.premium_type, self.guild().map_or(0, |g| g.premium_tier)));
+        let accent = palette::accent_ink(cx);
+        let card = div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .items_center()
+            .justify_center()
+            .gap(px(8.))
+            .squircle(RADIUS_LG)
+            .bg(palette::surface(Level::Raised, cx).opacity(0.92))
+            .border_2()
+            .border_color(accent)
+            .child(div().text_color(accent).child(Icon::new(Glyph::Upload).size(px(40.))))
+            .child(div().text_size(px(20.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(format!("Drop to upload to {}", crate::channel_mention(channel))))
+            .child(div().text_size(px(14.)).text_color(palette::muted(cx)).child(format!("Up to {} files, {limit} each", crate::discord::MAX_FILES)));
+        div()
+            .id("drop-zone")
+            .absolute()
+            .inset_0()
+            .p(px(12.))
+            .opacity(if cfg!(debug_assertions) && std::env::var("CHORD_DEMO").as_deref() == Ok("attachments-drop") { 1. } else { 0. })
+            .drag_over::<gpui_kit::ExternalPaths>(|style, _, _, _| style.opacity(1.))
+            .on_drop(cx.listener(|this, paths: &gpui_kit::ExternalPaths, window, cx| this.add_files(paths.paths().to_vec(), window, cx)))
+            .child(card)
     }
 
     // Arrows and Tab drive the suggestion list; Esc cancels a reply or edit; Up in an empty box edits your last message.
     fn on_composer_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         let key = event.keystroke.key.as_str();
-        let modifiers = event.keystroke.modifiers;
-        if key == "v" && (modifiers.platform || modifiers.control) && self.paste_image(cx) {
-            return cx.stop_propagation();
-        }
         if self.autocomplete.is_some() {
             match key {
                 "up" => self.move_suggestion(-1, cx),
@@ -737,6 +769,9 @@ impl RowContext {
 
 pub(crate) struct RowContext {
     me: Option<User>,
+    // Files going out with pending messages, by nonce, and their tile pictures.
+    uploads: HashMap<String, crate::UploadJob>,
+    previews: HashMap<std::path::PathBuf, Option<std::sync::Arc<gpui_kit::RenderImage>>>,
     // Settings › Chat: Discord's render_embeds and render_reactions.
     embeds: bool,
     reactions: bool,
@@ -818,6 +853,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .children(link_cards(message, ctx, cx))
         .children(message.thread.as_ref().map(|t| thread_card(t, ctx, cx)))
         .children(files(message, ctx, cx))
+        .children(upload_cards(message, ctx, cx))
         .children(reactions(message, ctx, cx).filter(|_| ctx.reactions))
         .when(message.state == SendState::Failed, |b| b.child(send_failure(message, ctx, cx)));
     let row = div()
@@ -1326,7 +1362,10 @@ fn send_failure(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> AnyElement
         .font_weight(FontWeight::NORMAL)
         .text_color(palette::danger_ink(cx))
         .child(Icon::new(Glyph::WarningCircle).size(px(16.)))
-        .child("Not sent.")
+        .child(match message.nonce.as_ref().and_then(|n| ctx.uploads.get(n)?.error.as_ref()) {
+            Some(error) => format!("Not sent: {error}"),
+            None => "Not sent.".into(),
+        })
         .child(action(format!("retry-{}", message.id), "Resend message").on_click(move |_, _, cx| { cx.stop_propagation();
             retry_this.update(cx, |this, cx| this.retry(retry.clone(), cx)).ok();
         }))
@@ -1648,6 +1687,69 @@ fn files(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Vec<AnyElemen
             crate::text_file::inline(format!("text-{}-{}", message.id, file.name), file, state, text_files.expanded.contains(&file.url), copied, ctx.this.clone(), cx).into_any_element()
         })
         .collect()
+}
+
+// The files of a message still uploading: each with its picture, and its bytes out of its size as a
+// bar, so a big file visibly moves.
+fn upload_cards(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Vec<AnyElement> {
+    let Some(job) = message.nonce.as_ref().and_then(|n| ctx.uploads.get(n)) else { return Vec::new() };
+    let (strong, faint) = (palette::strong(cx), palette::faint(cx));
+    job.files
+        .iter()
+        .map(|file| {
+            let sent = file.sent.load(std::sync::atomic::Ordering::Relaxed).min(file.size);
+            let fraction = if file.size == 0 { 1. } else { sent as f32 / file.size as f32 };
+            let kind = crate::attachments::FileKind::of(&file.path);
+            let picture = file_picture(ctx.previews.get(&file.path).cloned().flatten(), kind, 40., false, cx);
+            let status = match job.error.is_some() {
+                true => format_size(file.size),
+                false => format!("{} of {}", format_size(sent), format_size(file.size)),
+            };
+            div()
+                .mt(px(8.))
+                .w_full()
+                .max_w(px(COLUMN))
+                .p(px(12.))
+                .flex()
+                .items_center()
+                .gap(px(12.))
+                .squircle(RADIUS_LG)
+                .bg(palette::surface(Level::Sidebar, cx))
+                .border_1()
+                .border_color(palette::line(cx))
+                .child(picture)
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .flex()
+                        .flex_col()
+                        .gap(px(6.))
+                        .child(div().flex().items_baseline().gap(px(8.)).child(div().flex_1().min_w_0().truncate().text_size(px(14.)).font_weight(FontWeight::MEDIUM).text_color(strong).child(file.name.clone())).child(div().flex_none().text_size(px(12.)).text_color(faint).child(status)))
+                        .when(job.error.is_none(), |d| d.child(ui::progress(fraction, cx))),
+                )
+                .into_any_element()
+        })
+        .collect()
+}
+
+// A file's tile picture: the OS's thumbnail or type icon once drawn, a quiet well until then. A
+// spoiler is veiled, as Discord blurs it.
+fn file_picture(picture: Option<std::sync::Arc<gpui_kit::RenderImage>>, kind: crate::attachments::FileKind, side: f32, spoiler: bool, cx: &App) -> AnyElement {
+    let well = div().relative().size(px(side)).flex_none().squircle(RADIUS_XS).overflow_hidden();
+    let well = match picture {
+        // Thumbnails fill the tile; icons keep their own transparent margins.
+        Some(image) => well.child(ui::media(image, ui::all(RADIUS_XS)).size_full().object_fit(gpui_kit::ObjectFit::Cover)),
+        None => well.bg(palette::surface(Level::Raised, cx)).text_color(palette::muted(cx)).flex().items_center().justify_center().child(Icon::new(match kind {
+            crate::attachments::FileKind::Video => Glyph::Video,
+            crate::attachments::FileKind::Image => Glyph::Image,
+            crate::attachments::FileKind::Other => Glyph::File,
+        }).size(px(side * 0.5))),
+    };
+    well.when(spoiler, |w| {
+        w.child(div().absolute().inset_0().bg(palette::surface(Level::Sidebar, cx).opacity(0.85)).backdrop_blur(px(8.)).flex().items_center().justify_center().text_color(palette::strong(cx)).child(Icon::new(Glyph::EyeSlash).size(px(side * 0.4))))
+    })
+    .into_any_element()
 }
 
 fn file_card(message: &Message, file: &crate::discord::File, cx: &App) -> AnyElement {

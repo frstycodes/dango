@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | updating (the launch splash alone).
+// CHORD_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -153,6 +153,10 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         // A long message.txt (Discord's file for a message past 2,000 characters), a short code file, and
         // a .log that isn't text, which stays a file card. The fixtures stand in for the CDN fetch.
         "text-files" | "text-expanded" | "text-viewer" => demo_text_files(chord, scene),
+        // Made-up files of each kind waiting in the composer (a picture, a spoilered one, a video, a PDF,
+        // an archive, a long name), one upload part way and one Discord refused. `-drop` holds the drop
+        // zone up as if files were dragged over.
+        "attachments" | "attachments-drop" => demo_attachments(chord, window, cx),
         // Discord's own links: a message card, a channel chip, invites to a joined server, another server
         // and an expired code, a message you can't see (no card), and two still loading.
         "link-previews" => demo_link_previews(chord),
@@ -534,7 +538,7 @@ fn ready(me: User) -> Ready {
     Ready {
         developer_mode: true,
         account_settings: crate::discord::AccountSettings { developer_mode: true, ..Default::default() },
-        my_account: crate::discord::MyAccount { username: "kiwi.dev".into(), global_name: Some("kiwi".into()), banner: None, premium: false },
+        my_account: crate::discord::MyAccount { username: "kiwi.dev".into(), global_name: Some("kiwi".into()), banner: None, premium: false, premium_type: 0 },
         guild_settings: Vec::new(),
         ignored: Vec::new(),
         me,
@@ -770,6 +774,68 @@ fn me_user() -> User {
 
 fn account(user: &User, status: Presence_) -> crate::accounts::Account {
     crate::accounts::Account { id: user.id.clone(), name: user.name.clone(), avatar: user.avatar.clone(), status }
+}
+
+fn demo_attachments(chord: &mut Rustcord, window: &mut Window, cx: &mut Context<Rustcord>) {
+    use std::sync::{Arc, atomic::AtomicU64};
+
+    use crate::{SendState, UploadJob, discord::Upload};
+    let dir = std::env::temp_dir().join("dango-demo-attachments");
+    let _ = std::fs::create_dir_all(&dir);
+    let picture = |name: &str, tint: u8| {
+        let path = dir.join(name);
+        let image = image::RgbaImage::from_fn(1600, 1000, |x, y| image::Rgba([tint.wrapping_add((x / 8) as u8), (60 + y / 6) as u8, (140 + (x + y) / 30) as u8, 255]));
+        let _ = image.save(&path);
+        path
+    };
+    let filler = |name: &str, size: usize| {
+        let path = dir.join(name);
+        let _ = std::fs::write(&path, vec![b'x'; size]);
+        path
+    };
+    let paths = vec![
+        picture("dusk-over-the-harbour.png", 200),
+        picture("plot-twist.png", 40),
+        filler("first-flight.mp4", 3_400_000),
+        filler("lantern-festival-flyer.pdf", 820_000),
+        filler("save-files.zip", 6_100_000),
+        filler("a-very-long-file-name-that-keeps-going-well-past-the-tile-edge-v12-final.txt", 2_048),
+    ];
+    chord.add_files(paths.clone(), window, cx);
+    if let Some(spoiler) = chord.pending_files.get_mut(1) {
+        spoiler.spoiler = true;
+    }
+    let job = |files: &[(&std::path::PathBuf, f64)], error: Option<&str>| UploadJob {
+        channel_id: "general".into(),
+        files: files
+            .iter()
+            .map(|(path, done)| {
+                let size = std::fs::metadata(path).map_or(0, |m| m.len());
+                let name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+                Upload { path: (*path).clone(), name, size, sent: Arc::new(AtomicU64::new((size as f64 * done) as u64)) }
+            })
+            .collect(),
+        content: String::new(),
+        reply_to: None,
+        ping: true,
+        error: error.map(str::to_owned),
+    };
+    chord.uploads.insert("demo-up-1".into(), job(&[(&paths[0], 1.0), (&paths[4], 0.42)], None));
+    chord.uploads.insert("demo-up-2".into(), job(&[(&paths[3], 0.0)], Some("Upload failed: 413 Payload Too Large")));
+    let post = |id: &str, content: &str, state: SendState| Message {
+        id: format!("pending-{id}"),
+        channel_id: "general".into(),
+        guild_id: Some("1".into()),
+        author: me_user(),
+        content: content.into(),
+        timestamp: "2026-11-14T08:24:00Z".into(),
+        nonce: Some(id.into()),
+        state,
+        ..Default::default()
+    };
+    // Through push_local, so the open feed's list grows with them.
+    chord.push_local(post("demo-up-1", "the harbour shots from saturday", SendState::Sending), cx);
+    chord.push_local(post("demo-up-2", "", SendState::Failed), cx);
 }
 
 fn demo_text_files(chord: &mut Rustcord, scene: &str) {
