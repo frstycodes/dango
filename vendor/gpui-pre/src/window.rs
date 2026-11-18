@@ -2079,8 +2079,13 @@ impl Window {
             Box::new(move || {
                 handle
                     .update(&mut cx, |_, window, _cx| {
+                        // Dango patch: only what the pointer hovers, so a control that blocks the
+                        // mouse but lets scrolling through (`block_mouse_except_scroll`) keeps its
+                        // clicks from a drag area under it, as an occluding one does.
+                        let hit = &window.mouse_hit_test;
+                        let hovered = &hit.ids[..hit.hover_hitbox_count];
                         for (area, hitbox) in &window.rendered_frame.window_control_hitboxes {
-                            if window.mouse_hit_test.ids.contains(&hitbox.id) {
+                            if hovered.contains(&hitbox.id) {
                                 return Some(*area);
                             }
                         }
