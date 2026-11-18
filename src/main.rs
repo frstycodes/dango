@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod accounts;
+mod app_keys;
 mod auth;
 mod cache;
 mod captcha;
@@ -98,6 +99,7 @@ fn main() {
     memory::start_reporting();
     gpui_kit::application().with_assets(Assets).run(move |cx| {
         gpui_kit::init(cx);
+        app_keys::init(cx);
         cx.text_system()
             .add_fonts(
                 [
