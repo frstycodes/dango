@@ -49,6 +49,10 @@
 .fc-cap dt { color: var(--text-faint); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
 .fc-cap dd { margin: 0; color: var(--text); font-size: var(--text-sm); text-wrap: pretty; }
 .fc-cap dd code { font-size: 0.92em; }
+.fc-play { height: 24px; padding: 0 8px 0 6px; gap: 4px; margin: 1px 0; border-radius: var(--radius-xs); font-size: var(--text-xs); vertical-align: baseline; }
+.fc-play i { font-size: 13px; }
+.fc-play i + i, .fc-play[aria-pressed="true"] i:first-child { display: none; }
+.fc-play[aria-pressed="true"] i + i { display: inline; }
 @media (max-width: 760px) { .fc-cap { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); } }
 
 /* The window: rail, sidebar, pane at real size. The wrapper scrolls sideways on narrow screens. */
@@ -410,7 +414,9 @@ function show(i, v = 0, focusStep = false) {
   for (const b of $s.querySelectorAll("button")) +b.dataset.step === i ? b.setAttribute("aria-current", "step") : b.removeAttribute("aria-current");
   $v.innerHTML = s.v.length > 1 ? `<span class="note">Case</span><div class="seg" role="group" aria-label="Case">${s.v.map(([name], k) => `<button aria-pressed="${k === variant}" data-v="${k}">${name}</button>`).join("")}</div>` : "";
   $w.innerHTML = s.v[variant][1]();
-  $c.innerHTML = `<div><h3>${i + 1}. ${s.title}</h3><p>${s.body}</p></div><dl><div><dt>Discord</dt><dd>${s.discord}</dd></div><div><dt>Sound</dt><dd>${s.sound}</dd></div></dl>`;
+  stopSound();
+  const sound = s.sound.replace(/<code>(\w+)\.mp3<\/code>/g, (_, n) => `<button class="btn btn--sm fc-play" data-snd="${n}" aria-pressed="false" title="Play ${n}.mp3"><i class="ph-fill ph-play"></i><i class="ph-fill ph-stop"></i>${n}.mp3</button>`);
+  $c.innerHTML = `<div><h3>${i + 1}. ${s.title}</h3><p>${s.body}</p></div><dl><div><dt>Discord</dt><dd>${s.discord}</dd></div><div><dt>Sound</dt><dd>${sound}</dd></div></dl>`;
   paintAvatars($w);
   requestAnimationFrame(() => $v.querySelector(".seg") && placeThumb($v.querySelector(".seg")));
   document.getElementById("fc-prev").disabled = i === 0;
@@ -428,6 +434,27 @@ $s.addEventListener("keydown", e => {
 $v.addEventListener("click", e => { const b = e.target.closest("[data-v]"); if (b) show(step, +b.dataset.v); });
 document.getElementById("fc-prev").addEventListener("click", () => show(step - 1));
 document.getElementById("fc-next").addEventListener("click", () => show(step + 1));
+// The step's sounds, played from the app's own files. Ring tones loop for the 30 seconds a call rings, like the app.
+const LOOPS = { call_calling: 30000, call_ringing: 30000 };
+let audio, stopTimer;
+function stopSound() {
+  audio?.pause(); audio = null; clearTimeout(stopTimer);
+  for (const b of $c.querySelectorAll(".fc-play")) b.setAttribute("aria-pressed", "false");
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest(".fc-play");
+  if (!b) return;
+  // Registered after site.js's document listener, so aria-pressed is already flipped here.
+  const start = b.getAttribute("aria-pressed") === "true";
+  stopSound();
+  if (!start) return;
+  b.setAttribute("aria-pressed", "true");
+  audio = new Audio(`../assets/sounds/${b.dataset.snd}.mp3`);
+  audio.loop = b.dataset.snd in LOOPS;
+  audio.addEventListener("ended", stopSound);
+  audio.play().catch(stopSound);
+  if (audio.loop) stopTimer = setTimeout(stopSound, LOOPS[b.dataset.snd]);
+});
 // Links inside the mock go nowhere.
 $w.addEventListener("click", e => { if (e.target.closest("a[href='#']")) e.preventDefault(); });
 show(step, variant);
