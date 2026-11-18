@@ -10,7 +10,7 @@ use gpui_kit::{
     WindowControlArea,
     component::{
         ActiveTheme, Icon, Sizable, Size,
-        input::Textarea,
+        input::{Input, Textarea},
         text::{InlineElement, InlineRenderContext, MarkdownExtensions, MarkdownNode, MarkdownParseContext, MarkdownPlugin, TextView, markdown_ast},
         tooltip::Tooltip,
     },
@@ -71,6 +71,8 @@ impl Rustcord {
             .h_full()
             .flex()
             .flex_col()
+            .key_context("Chat")
+            .on_action(cx.listener(Self::focus_search))
             .on_drop(cx.listener(|this, paths: &gpui_kit::ExternalPaths, _, cx| this.add_files(paths.paths().to_vec(), cx)))
             // The composer floats over the feed, which scrolls on under its glass.
             .child(div().relative().flex_1().min_h_0().child(body).children(unread_bar).child(self.render_composer(window, cx)));
@@ -151,7 +153,7 @@ impl Rustcord {
                     cx.notify();
                 }))
         });
-        let search = self.guild_id.is_some().then(|| self.channel_search(window, cx));
+        let search = Some(self.channel_search(window, cx));
         // Occludes, like the composer: the feed scrolls under the header and must not take its hover or clicks.
         let bar = div()
             .occlude()
@@ -166,7 +168,7 @@ impl Rustcord {
             .child(crumbs)
             .children(topic)
             .child(div().ml_auto().flex_none().flex().items_center().gap(px(2.)).children(calls.into_iter().flatten()).children(threads).child(pins).children(members).children(search))
-            .child(self.caption_clearance(self.guild_id.is_none() || matches!(self.right_panel, RightPanel::Hidden)));
+            .child(self.caption_clearance(!self.panel_shown()));
         ui::scroll_edge(palette::surface(Level::Page, cx), 0.).child(bar)
     }
 
@@ -174,9 +176,9 @@ impl Rustcord {
     // while it has focus or a query. Its width and fill run both ways on a quick ease-out, but only on a change:
     // present at mount, it simply is what it is.
     fn channel_search(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        // Closed it's the search box's icon alone: 12px padding either side of the 16px glyph.
+        // Closed it's the search box's icon alone: 12px padding either side of the 16px glyph; open, room for filter chips.
         const CLOSED: f32 = 40.;
-        const OPEN: f32 = 200.;
+        const OPEN: f32 = 260.;
         let handle = self.search_input.read(cx).focus_handle(cx);
         let focused = handle.is_focused(window);
         let open = focused || !self.search_input.read(cx).value().is_empty();
@@ -189,6 +191,7 @@ impl Rustcord {
         }
         let changes = state.read(cx).1;
         let hover = palette::hover(cx);
+        let avatars = self.search_avatars();
         let el = div()
             .id("search-field")
             .w(px(if open { OPEN } else { CLOSED }))
@@ -196,19 +199,37 @@ impl Rustcord {
             .flex_none()
             .occlude()
             .squircle(RADIUS_MD)
-            .child(ui::search_field("channel-search", &self.search_input, cx).quiet(!open))
+            .child(ui::search_frame("channel-search", Input::new(&self.search_input).token(move |token, _, cx| crate::search_menu::render_token(token, &avatars, cx)), &handle).quiet(!open))
+            .capture_key_down(cx.listener(Self::on_search_key))
             .when(!open, |d| {
                 d.cursor_pointer().hover(move |s| s.bg(hover)).on_click(cx.listener(move |_, _, window, cx| {
                     window.focus(&handle, cx);
                     cx.notify();
                 }))
             });
-        if changes == 0 {
-            return el.into_any_element();
-        }
-        let (from, to) = if open { (CLOSED, OPEN) } else { (OPEN, CLOSED) };
-        el.with_animation(SharedString::from(format!("search-{changes}")), Animation::new(Duration::from_millis(150)).with_easing(gpui_kit::ease_out_quint()), move |el, t| el.w(px(from + (to - from) * t)))
-        .into_any_element()
+        let el = if changes == 0 {
+            el.into_any_element()
+        } else {
+            let (from, to) = if open { (CLOSED, OPEN) } else { (OPEN, CLOSED) };
+            el.with_animation(SharedString::from(format!("search-{changes}")), Animation::new(Duration::from_millis(150)).with_easing(gpui_kit::ease_out_quint()), move |el, t| el.w(px(from + (to - from) * t)))
+                .into_any_element()
+        };
+        // The popover hangs from the field's right edge and rises from that corner.
+        let popover = focused.then(|| self.search_popover(cx)).flatten().map(|card| {
+            let card = div().absolute().top(px(46.)).right_0().child(card);
+            gpui_kit::deferred(ui::rise(card.transform_origin(ui::corner(true, false)), "search-popover-in", Duration::ZERO)).with_priority(2)
+        });
+        div()
+            .relative()
+            .flex_none()
+            .on_mouse_down_out(cx.listener(move |_, _, window, cx| {
+                if focused {
+                    window.blur(cx);
+                }
+            }))
+            .child(el)
+            .children(popover)
+            .into_any_element()
     }
 
     // The bar over the feed while unread messages wait: jump to the first, or mark the channel read.
@@ -273,41 +294,7 @@ impl Rustcord {
         let Some(feed) = self.feeds.get(&channel.id) else { return div().into_any_element() };
         // A pointer copy: the feed is copy-on-write, so this frame shares it rather than cloning every message.
         let messages = feed.messages.clone();
-        let ctx = Rc::new(RowContext {
-            me: self.me.clone(),
-            embeds: self.account_settings.render_embeds,
-            reactions: self.account_settings.render_reactions,
-            // Later entries win: the server's member cache last, so nicknames beat the account names
-            // that history loaded over REST carries (it has no member objects).
-            names: messages
-                .iter()
-                .flat_map(|m| std::iter::once(&m.author).chain(&m.mentions))
-                .chain(self.me.iter())
-                .chain(self.guild_id.as_ref().and_then(|g| self.members.get(g)).into_iter().flat_map(|m| m.values()))
-                .map(|u| (u.id.clone(), u.name.clone()))
-                .collect(),
-            colors: messages.iter().filter_map(|m| Some((m.author.id.clone(), self.role_color(m.guild_id.as_ref().or(self.guild_id.as_ref()), &m.author.id, m.roles.as_ref(), cx.theme().is_dark())?))).collect(),
-            mentions_me: messages.iter().filter(|m| self.mentions_me(m)).map(|m| m.id.clone()).collect(),
-            channel_names: self.guild().map(|g| g.channels.iter().map(|c| (c.id.clone(), c.name.clone())).collect()).unwrap_or_default(),
-            role_names: self.guild().map(|g| g.roles.iter().map(|r| (r.id.clone(), r.name.clone())).collect()).unwrap_or_default(),
-            mention_fill: palette::accent_soft(cx),
-            mention_hover: palette::accent().opacity(0.26),
-            mention_ink: palette::accent_ink(cx),
-            flash: self.flash.clone(),
-            editing: self.editing.as_ref().map(|m| m.id.clone()),
-            hovered: self.hovered_message.clone(),
-            copied: self.copied.clone(),
-            revealed: self.revealed.clone(),
-            text_files: self.text_files.clone(),
-            unread_marker: self.unread_marker,
-            this: cx.weak_entity(),
-            has_more: feed.has_more,
-            dm_start: self.dm_start(channel, feed.has_more),
-            quick_reactions: self.prefs.frequent_emojis(3, &["💯", "😆", "💖"]),
-            shift: self.shift_held,
-            manage_messages: self.guild().is_some_and(|g| self.me.as_ref().is_some_and(|me| g.can(&me.id, crate::discord::perm::MANAGE_MESSAGES))),
-            threads: self.guild_id.is_some() && channel.kind == ChannelKind::Text,
-        });
+        let ctx = self.row_context(&messages, Some(channel), feed.has_more, COLUMN, cx);
         let arrivals = self.arrivals.clone();
         let messages = list(self.list.clone(), move |ix, window, cx| {
             if ix == 0 && ctx.has_more {
@@ -363,6 +350,9 @@ impl Rustcord {
         // element without offsets sits where it would flow, after the list.
         let composer = self.composer_height.clone();
         div()
+            .id("feed")
+            .track_focus(&self.feed_focus)
+            .on_key_down(cx.listener(Self::on_feed_key))
             .relative()
             .size_full()
             .child(messages)
@@ -382,6 +372,50 @@ impl Rustcord {
 
     // One surface at the bottom of the chat: bars it gains (reply, attachments) stack inside it above
     // the text, one hairline apart, and popovers rise from its top edge.
+    // What every message row reads besides the message: names, colours, who's mentioned, hover and edit
+    // state. `column` caps media width: the feed's column, or a narrower panel's.
+    pub(crate) fn row_context(&self, messages: &[Message], channel: Option<&Channel>, has_more: bool, column: f32, cx: &mut Context<Self>) -> Rc<RowContext> {
+        Rc::new(RowContext {
+            me: self.me.clone(),
+            embeds: self.account_settings.render_embeds,
+            reactions: self.account_settings.render_reactions,
+            // Later entries win: the server's member cache last, so nicknames beat the account names
+            // that history loaded over REST carries (it has no member objects).
+            names: messages
+                .iter()
+                .flat_map(|m| std::iter::once(&m.author).chain(&m.mentions))
+                .chain(self.me.iter())
+                .chain(self.guild_id.as_ref().and_then(|g| self.members.get(g)).into_iter().flat_map(|m| m.values()))
+                .map(|u| (u.id.clone(), u.name.clone()))
+                .collect(),
+            colors: messages.iter().filter_map(|m| Some((m.author.id.clone(), self.role_color(m.guild_id.as_ref().or(self.guild_id.as_ref()), &m.author.id, m.roles.as_ref(), cx.theme().is_dark())?))).collect(),
+            mentions_me: messages.iter().filter(|m| self.mentions_me(m)).map(|m| m.id.clone()).collect(),
+            channel_names: self.guild().map(|g| g.channels.iter().map(|c| (c.id.clone(), c.name.clone())).collect()).unwrap_or_default(),
+            role_names: self.guild().map(|g| g.roles.iter().map(|r| (r.id.clone(), r.name.clone())).collect()).unwrap_or_default(),
+            mention_fill: palette::accent_soft(cx),
+            mention_hover: palette::accent().opacity(0.26),
+            mention_ink: palette::accent_ink(cx),
+            flash: self.flash.clone(),
+            editing: self.editing.as_ref().map(|m| m.id.clone()),
+            hovered: self.hovered_message.clone(),
+            focused: self.focused_message.clone(),
+            copied: self.copied.clone(),
+            revealed: self.revealed.clone(),
+            text_files: self.text_files.clone(),
+            link_previews: self.link_previews.clone(),
+            joined: self.guilds.iter().map(|g| g.id.clone()).collect(),
+            unread_marker: self.unread_marker,
+            this: cx.weak_entity(),
+            has_more,
+            dm_start: channel.and_then(|c| self.dm_start(c, has_more)),
+            column,
+            quick_reactions: self.prefs.frequent_emojis(3, &["💯", "😆", "💖"]),
+            shift: self.shift_held,
+            manage_messages: self.guild().is_some_and(|g| self.me.as_ref().is_some_and(|me| g.can(&me.id, crate::discord::perm::MANAGE_MESSAGES))),
+            threads: self.guild_id.is_some() && channel.is_some_and(|c| c.kind == ChannelKind::Text),
+        })
+    }
+
     pub(crate) fn render_composer(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let focused = self.composer.read(cx).focus_handle(cx).is_focused(window);
         let (strong, muted) = (palette::strong(cx), palette::muted(cx));
@@ -701,7 +735,7 @@ impl RowContext {
     }
 }
 
-struct RowContext {
+pub(crate) struct RowContext {
     me: Option<User>,
     // Settings › Chat: Discord's render_embeds and render_reactions.
     embeds: bool,
@@ -717,9 +751,13 @@ struct RowContext {
     flash: Option<String>,
     editing: Option<String>,
     hovered: Option<String>,
+    focused: Option<String>,
     copied: Option<String>,
     revealed: Rc<std::cell::RefCell<std::collections::HashSet<String>>>,
     text_files: Rc<std::cell::RefCell<crate::text_file::TextFiles>>,
+    link_previews: crate::link_preview::Previews,
+    // Servers you're in, so an invite to one reads "Joined".
+    joined: std::collections::HashSet<String>,
     unread_marker: Option<u64>,
     this: WeakEntity<Rustcord>,
     has_more: bool,
@@ -730,6 +768,8 @@ struct RowContext {
     manage_messages: bool,
     // Messages here can start threads.
     threads: bool,
+    // The widest media may run.
+    column: f32,
 }
 
 // More than a few rows below the viewport: the feed is scrolled away from its newest message.
@@ -751,7 +791,10 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
     let held = ctx.flash.as_ref() == Some(&message.id) || ctx.editing.as_ref() == Some(&message.id);
     // From state, not `group_hover`, which gpui resolves only while painting (see `track_row_hover`).
     let hovered = ctx.hovered.as_deref() == Some(message.id.as_str());
+    let focused = ctx.focused.as_deref() == Some(message.id.as_str());
     let hover = palette::hover(cx);
+    // Keyboard focus: the selected fill, a step past hover, kept under the pointer.
+    let rest = focused.then(|| palette::selected(cx));
     // Lighter than the accent's soft fill: the rim carries the signal.
     let soft = palette::accent_soft(cx);
     let soft = Hsla { a: soft.a * 0.6, ..soft };
@@ -772,6 +815,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .children(content(message, ctx, cx))
         .children(media.map(|m| div().when(pending, |d| d.opacity(0.6)).child(m)))
         .children(message.embeds.iter().filter(|_| ctx.embeds).enumerate().map(|(i, e)| embed_card(e, format!("embed-{}-{i}", message.id), ctx, cx)))
+        .children(link_cards(message, ctx, cx))
         .children(message.thread.as_ref().map(|t| thread_card(t, ctx, cx)))
         .children(files(message, ctx, cx))
         .children(reactions(message, ctx, cx).filter(|_| ctx.reactions))
@@ -789,8 +833,8 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .flex_col()
         .line_height(gpui_kit::relative(1.45))
         // Mentioning you: the tint and a 2px accent bar down the left edge, square like Discord's.
-        .when(mention, |r| r.rounded(px(0.)).bg(soft).hover(move |s| s.bg(mention_hover)).child(div().absolute().left_0().top_0().bottom_0().w(px(2.)).bg(palette::accent())))
-        .when(!mention, |r| r.when(held, |r| r.bg(hover)).hover(move |s| s.bg(hover)))
+        .when(mention, |r| r.rounded(px(0.)).bg(rest.unwrap_or(soft)).hover(move |s| s.bg(rest.unwrap_or(mention_hover))).child(div().absolute().left_0().top_0().bottom_0().w(px(2.)).bg(palette::accent())))
+        .when(!mention, |r| r.when(held || focused, |r| r.bg(rest.unwrap_or(hover))).hover(move |s| s.bg(rest.unwrap_or(hover))))
         .on_hover(track_message_hover(message, ctx));
     // Last, so it paints over the message's own content where it overlaps it.
     let toolbar = hovered.then(|| actions(message, mine, ctx, cx));
@@ -829,6 +873,63 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         )
         .children(toolbar);
     inset(with_message_menu(row, message, ctx), mention)
+}
+
+// A search result: the message as the feed draws it (head, text, media, embeds, files), without the
+// toolbar, reactions or reply chrome, on a card that jumps to it.
+pub(crate) fn search_hit(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Div {
+    let media = hit_media(message, ctx, cx);
+    let body = div()
+        .flex_1()
+        .min_w_0()
+        .flex()
+        .flex_col()
+        .text_size(px(15.))
+        .line_height(gpui_kit::relative(1.45))
+        .text_color(palette::text(cx))
+        .child(message_head(message, ctx, cx))
+        .children(content(message, ctx, cx))
+        .children(media.map(|m| div().flex_none().child(m)))
+        .children(message.embeds.iter().enumerate().map(|(i, e)| embed_card(e, format!("hit-embed-{}-{i}", message.id), ctx, cx)))
+        .children(files(message, ctx, cx));
+    div()
+        .flex()
+        .gap(px(12.))
+        .child(ui::avatar(message.author.avatar.clone(), 36.).flex_none().mt(px(2.)))
+        .child(body)
+}
+
+// Result pictures: each in its own frame at its own shape, smaller than the feed's, side by side when
+// there are several. Only a picture past `MEDIA_RATIO` (a long screenshot, a panorama) is cropped.
+const HIT_MEDIA_ONE: (f32, f32) = (280., 220.);
+const HIT_MEDIA_MANY: (f32, f32) = (150., 120.);
+const MEDIA_RATIO: (f32, f32) = (1. / 2.5, 2.5);
+
+fn hit_media(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Option<AnyElement> {
+    if message.media.is_empty() {
+        return None;
+    }
+    let (max_w, max_h) = if message.media.len() == 1 { HIT_MEDIA_ONE } else { HIT_MEDIA_MANY };
+    let max = (max_w.min(ctx.column), max_h);
+    let tiles: Vec<AnyElement> = (0..message.media.len())
+        .map(|i| {
+            let item = &message.media[i];
+            let (w, h) = fit_frame((item.width, item.height), max);
+            div().flex_none().w(px(w)).h(px(h)).child(media_tile(message, i, (w, h), ui::all(RADIUS_MD), ctx, cx)).into_any_element()
+        })
+        .collect();
+    Some(div().mt(px(8.)).flex().flex_wrap().gap(px(4.)).children(tiles).into_any_element())
+}
+
+// The frame for a picture of `size` within `max`: its own shape, never larger than it is, with the shape
+// held between 1:2.5 and 2.5:1. An unknown size gets a square.
+fn fit_frame((width, height): (f32, f32), (max_w, max_h): (f32, f32)) -> (f32, f32) {
+    if width <= 0. || height <= 0. {
+        return (max_h, max_h);
+    }
+    let ratio = (width / height).clamp(MEDIA_RATIO.0, MEDIA_RATIO.1);
+    let w = max_w.min(max_h * ratio).min(width);
+    (w, w / ratio)
 }
 
 // Rows sit 8px in from the feed's edges, so their hover fill reads as a rounded card; a mention is flush.
@@ -870,7 +971,7 @@ fn profile_trigger(id: String, user: &User, ctx: &Rc<RowContext>) -> Stateful<Di
     div()
         .id(SharedString::from(id))
         .cursor_pointer()
-        .on_click(move |event, _, cx| {
+        .on_click(move |event, _, cx| { cx.stop_propagation();
             let at = event.position();
             this.update(cx, |this, cx| this.open_profile(user.clone(), at, cx)).ok();
         })
@@ -882,7 +983,6 @@ fn profile_trigger(id: String, user: &User, ctx: &Rc<RowContext>) -> Stateful<Di
         })
 }
 
-// Right-click opens the same list as the toolbar's More.
 fn track_message_hover(message: &Message, ctx: &Rc<RowContext>) -> impl Fn(&bool, &mut Window, &mut App) + 'static {
     let (this, id) = (ctx.this.clone(), message.id.clone());
     move |hovered, _, cx| {
@@ -897,13 +997,28 @@ fn track_message_hover(message: &Message, ctx: &Rc<RowContext>) -> impl Fn(&bool
     }
 }
 
+// Right-click opens the message menu; a plain click on the row's own space focuses it. Controls inside
+// stop their clicks, and a drag (selecting text) or a double click isn't a plain click.
 fn with_message_menu(row: Stateful<Div>, message: &Message, ctx: &Rc<RowContext>) -> AnyElement {
     let (this, message) = (ctx.this.clone(), message.clone());
+    let (focus_this, id) = (this.clone(), message.id.clone());
     row.on_mouse_down(gpui_kit::MouseButton::Right, move |event, _, cx| {
         let at = event.position;
         this.update(cx, |this, cx| this.open_message_menu(message.clone(), at, cx)).ok();
     })
+    .on_click(move |event, window, cx| {
+        if !plain_click(event) {
+            return;
+        }
+        focus_this.update(cx, |this, cx| this.focus_message(id.clone(), window, cx)).ok();
+    })
     .into_any_element()
+}
+
+fn plain_click(event: &gpui_kit::ClickEvent) -> bool {
+    let gpui_kit::ClickEvent::Mouse(click) = event else { return false };
+    let moved = click.up.position - click.down.position;
+    click.up.click_count == 1 && f32::from(moved.x).abs() < 4. && f32::from(moved.y).abs() < 4.
 }
 
 // The reference above a reply, in the content column; clicking it jumps to the original and flashes it.
@@ -947,7 +1062,7 @@ fn reply_preview(reply: &Message, target: Option<String>, ctx: &Rc<RowContext>, 
         .child(ui::avatar(reply.author.avatar.clone(), 16.))
         .child(div().flex_none().font_weight(FontWeight::MEDIUM).text_color(muted).child(ctx.name_of(&reply.author)))
         .child(snippet)
-        .on_click(move |_, _, cx| {
+        .on_click(move |_, _, cx| { cx.stop_propagation();
             let Some(id) = target.clone() else { return };
             this.update(cx, |this, cx| this.jump_to(id, cx)).ok();
         })
@@ -994,7 +1109,7 @@ fn call_line(message: &Message, call: &crate::discord::CallRecord, ctx: &Rc<RowC
     let ink = if missed { palette::danger_ink(cx) } else { palette::positive_ink(cx) };
     let (this, channel_id) = (ctx.this.clone(), message.channel_id.clone());
     let action = action.map(|label| {
-        ui::button(SharedString::from(format!("call-line-{}", message.id)), ui::Tone::Link, cx).child(label).on_click(move |_, window, cx| {
+        ui::button(SharedString::from(format!("call-line-{}", message.id)), ui::Tone::Link, cx).child(label).on_click(move |_, window, cx| { cx.stop_propagation();
             this.update(cx, |this, cx| this.answer_dm_call(&channel_id, window, cx)).ok();
         })
     });
@@ -1040,7 +1155,7 @@ fn content(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyEleme
             .flex()
             .flex_col()
             .when(has_spoiler && !revealed, |c| {
-                c.cursor_pointer().on_click(move |_, _, cx| {
+                c.cursor_pointer().on_click(move |_, _, cx| { cx.stop_propagation();
                     reveal.borrow_mut().insert(id.clone());
                     refresh.update(cx, |_, cx| cx.notify()).ok();
                 })
@@ -1102,7 +1217,7 @@ impl MarkdownPlugin for MentionBadges {
             .cursor_pointer()
             .hover(move |s| s.bg(hover))
             .child(mention.label)
-            .on_click(move |event, window, cx| {
+            .on_click(move |event, window, cx| { cx.stop_propagation();
                 let url = mention.url.clone();
                 this.update(cx, |this, cx| this.open_mention(&url, event.position(), window, cx)).ok();
             });
@@ -1212,10 +1327,10 @@ fn send_failure(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> AnyElement
         .text_color(palette::danger_ink(cx))
         .child(Icon::new(Glyph::WarningCircle).size(px(16.)))
         .child("Not sent.")
-        .child(action(format!("retry-{}", message.id), "Resend message").on_click(move |_, _, cx| {
+        .child(action(format!("retry-{}", message.id), "Resend message").on_click(move |_, _, cx| { cx.stop_propagation();
             retry_this.update(cx, |this, cx| this.retry(retry.clone(), cx)).ok();
         }))
-        .child(action(format!("discard-{}", message.id), "Delete message").on_click(move |_, _, cx| {
+        .child(action(format!("discard-{}", message.id), "Delete message").on_click(move |_, _, cx| { cx.stop_propagation();
             delete_this.update(cx, |this, cx| this.delete(delete.clone(), cx)).ok();
         }))
         .into_any_element()
@@ -1257,7 +1372,7 @@ fn thread_card(thread: &Channel, ctx: &Rc<RowContext>, cx: &App) -> AnyElement {
                 .child(format!("{count} {}", if count == 1 { "message" } else { "messages" }))
                 .child(Icon::new(Glyph::ChevronRight).size(px(14.))),
         )
-        .on_click(move |_, window, cx| {
+        .on_click(move |_, window, cx| { cx.stop_propagation();
             this.update(cx, |this, cx| this.open_channel(open.clone(), window, cx)).ok();
         })
         .into_any_element()
@@ -1274,15 +1389,19 @@ pub(crate) fn animated_image(source: impl Into<gpui_kit::ImageSource>) -> Statef
 fn media_grid(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Option<AnyElement> {
     let first = message.media.first()?;
     if message.media.len() == 1 {
-        let scale = (MAX_IMAGE.0 / first.width).min(MAX_IMAGE.1 / first.height).min(1.);
+        let scale = (MAX_IMAGE.0.min(ctx.column) / first.width).min(MAX_IMAGE.1 / first.height).min(1.);
         let (w, h) = (first.width * scale, first.height * scale);
-        return Some(div().mt(px(8.)).w(px(w)).h(px(h)).child(media_tile(message, 0, (w, h), ui::all(RADIUS_LG), ctx, cx)).into_any_element());
+        return Some(div().mt(px(8.)).flex_none().w(px(w)).h(px(h)).child(media_tile(message, 0, (w, h), ui::all(RADIUS_LG), ctx, cx)).into_any_element());
     }
+    // Laid out for the feed's column, then scaled down to fit a narrower one.
+    let k = (ctx.column / COLUMN).min(1.);
     let (height, tiles) = gallery_layout(message.media.len());
+    let (height, width) = (height * k, COLUMN * k);
+    let tiles: Vec<Tile> = tiles.into_iter().map(|t| Tile { x: t.x * k, y: t.y * k, w: t.w * k, h: t.h * k }).collect();
     let rest = message.media.len() - tiles.len();
-    let mut grid = div().mt(px(8.)).relative().flex_none().w(px(COLUMN)).h(px(height));
+    let mut grid = div().mt(px(8.)).relative().flex_none().w(px(width)).h(px(height));
     for (i, tile) in tiles.iter().enumerate() {
-        let corners = gallery_corners(*tile, height);
+        let corners = gallery_corners(*tile, width, height);
         let counts_rest = rest > 0 && i + 1 == tiles.len();
         grid = grid.child(
             div()
@@ -1334,11 +1453,13 @@ fn media_tile(message: &Message, i: usize, (w, h): (f32, f32), corners: Corners<
     ui::edge(div(), corners)
         .id(SharedString::from(format!("media-{}-{i}", message.id)))
         .size_full()
+        // A cover-fit picture whose real shape differs from the one Discord reported spills past the tile.
+        .overflow_hidden()
         .bg(palette::selected(cx))
         .cursor_pointer()
         .hover(|s| s.opacity(0.92))
         .child(picture)
-        .on_click(move |_, window, cx| {
+        .on_click(move |_, window, cx| { cx.stop_propagation();
             this.update(cx, |this, cx| this.open_viewer(&url, window, cx)).ok();
         })
         .into_any_element()
@@ -1396,15 +1517,26 @@ fn gallery_layout(count: usize) -> (f32, Vec<Tile>) {
 }
 
 // The gallery's outer corners take the card radius; inner ones a hairline 2px.
-fn gallery_corners(tile: Tile, height: f32) -> Corners<Pixels> {
+fn gallery_corners(tile: Tile, width: f32, height: f32) -> Corners<Pixels> {
     let at = |a: f32, b: f32| (a - b).abs() < 0.5;
-    let (left, top, right, bottom) = (at(tile.x, 0.), at(tile.y, 0.), at(tile.x + tile.w, COLUMN), at(tile.y + tile.h, height));
+    let (left, top, right, bottom) = (at(tile.x, 0.), at(tile.y, 0.), at(tile.x + tile.w, width), at(tile.y + tile.h, height));
     let radius = |outer: bool| px(if outer { RADIUS_LG } else { 2. });
     Corners { top_left: radius(top && left), top_right: radius(top && right), bottom_left: radius(bottom && left), bottom_right: radius(bottom && right) }
 }
 
 // A link preview: it leads with the site, never a coloured bar, one surface step from the feed. Link
 // previews keep a thumbnail at the right; large images run the card's width.
+// Previews of the Discord links the message carries (link_preview.rs).
+fn link_cards(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Vec<AnyElement> {
+    // Discord's one setting covers both: "Show embeds and preview website links".
+    if message.state != SendState::Sent || !ctx.embeds {
+        return Vec::new();
+    }
+    let quote = |content: &str| plain(&readable_with(content, ctx, false));
+    let cards = crate::link_preview::CardContext { this: ctx.this.clone(), previews: &ctx.link_previews, joined: &ctx.joined, channel_names: &ctx.channel_names, quote: &quote, stamp: format_stamp };
+    crate::link_preview::cards(&message.id, &message.content, &cards, cx)
+}
+
 fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElement {
     let (strong, muted, faint) = (palette::strong(cx), palette::muted(cx), palette::faint(cx));
     let link_ink = palette::accent_ink(cx);
@@ -1427,7 +1559,7 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
             .text_color(strong)
             .children(embed.author_icon.clone().map(|icon| ui::avatar(icon, 20.)))
             .child(div().when(url.is_some(), |d| d.cursor_pointer().hover(|s| s.underline())).child(name))
-            .when_some(url, |d, url| d.on_click(move |_, _, cx| cx.open_url(&url)))
+            .when_some(url, |d, url| d.on_click(move |_, _, cx| { cx.stop_propagation(); cx.open_url(&url) }))
     });
     let link = embed.url.clone();
     let title = embed.title.clone().map(|title| {
@@ -1436,7 +1568,7 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
             .text_size(px(14.))
             .font_weight(FontWeight::MEDIUM)
             .text_color(if link.is_some() { link_ink } else { strong })
-            .when_some(link.clone(), |t, url| t.cursor_pointer().hover(|s| s.underline()).on_click(move |_, _, cx| cx.open_url(&url)))
+            .when_some(link.clone(), |t, url| t.cursor_pointer().hover(|s| s.underline()).on_click(move |_, _, cx| { cx.stop_propagation(); cx.open_url(&url) }))
             .child(title)
     });
     let fields = (!embed.fields.is_empty()).then(|| {
@@ -1551,11 +1683,11 @@ fn file_card(message: &Message, file: &crate::discord::File, cx: &App) -> AnyEle
                         .text_color(strong)
                         .hover(|s| s.underline())
                         .child(file.name.clone())
-                        .on_click(move |_, _, cx| cx.open_url(&open)),
+                        .on_click(move |_, _, cx| { cx.stop_propagation(); cx.open_url(&open) }),
                 )
                 .child(div().text_size(px(12.)).text_color(faint).child(format_size(file.size))),
         )
-        .child(ui::icon_button(SharedString::from(format!("download-{}-{}", message.id, file.name)), Glyph::Download, "Download", cx).on_click(move |_, _, cx| cx.open_url(&download)))
+        .child(ui::icon_button(SharedString::from(format!("download-{}-{}", message.id, file.name)), Glyph::Download, "Download", cx).on_click(move |_, _, cx| { cx.stop_propagation(); cx.open_url(&download) }))
         .into_any_element()
 }
 
@@ -1578,7 +1710,7 @@ fn copy_button(code: String, copied: bool, this: WeakEntity<Rustcord>, cx: &App)
         .when(!copied, |b| b.hover(move |s| s.bg(hover).text_color(strong)))
         .child(Icon::new(if copied { Glyph::Checkmark } else { Glyph::Copy }).size(px(16.)))
         .tooltip(move |window, cx| Tooltip::new(if copied { "Copied" } else { "Copy" }).build(window, cx))
-        .on_click(move |_, _, cx| {
+        .on_click(move |_, _, cx| { cx.stop_propagation();
             this.update(cx, |this, cx| this.copy_code(code.clone(), code.clone(), cx)).ok();
         })
         .into_any_element()
@@ -1598,7 +1730,7 @@ fn reactions(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyEle
                 None => div().text_size(px(16.)).line_height(px(16.)).child(r.emoji.name.clone()).into_any_element(),
             })
             .child(r.count.to_string())
-            .on_click(move |_, _, cx| {
+            .on_click(move |_, _, cx| { cx.stop_propagation();
                 this.update(cx, |this, cx| this.toggle_reaction(&msg, emoji.clone(), cx)).ok();
             })
     });
@@ -1607,7 +1739,7 @@ fn reactions(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyEle
         .px(px(7.))
         .child(Icon::new(Glyph::EmojiAdd).size(px(18.)))
         .tooltip(|window, cx| Tooltip::new("Add Reaction").build(window, cx))
-        .on_click(move |_, window, cx| {
+        .on_click(move |_, window, cx| { cx.stop_propagation();
             this.update(cx, |this, cx| this.open_emoji_picker(EmojiTarget::Reaction(Box::new(msg.clone())), window, cx)).ok();
         });
     Some(div().mt(px(6.)).flex().flex_wrap().gap(px(6.)).children(pills).child(add).into_any_element())
@@ -1654,7 +1786,7 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, cx: &App) -> Any
         }
         if mine && sent {
             let (this, msg) = (ctx.this.clone(), message.clone());
-            bar = bar.child(ui::icon_button(SharedString::from(format!("edit-{}", message.id)), Glyph::Pen, "Edit", cx).on_click(move |_, window, cx| {
+            bar = bar.child(ui::icon_button(SharedString::from(format!("edit-{}", message.id)), Glyph::Pen, "Edit", cx).on_click(move |_, window, cx| { cx.stop_propagation();
                 this.update(cx, |this, cx| this.start_edit(msg.clone(), window, cx)).ok();
             }));
         }
@@ -1664,7 +1796,7 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, cx: &App) -> Any
             ui::icon_button(SharedString::from(format!("delete-{}", message.id)), Glyph::Trash, "Delete", cx)
                 .text_color(danger_ink)
                 .hover(move |s| s.bg(danger).text_color(gpui_kit::white()))
-                .on_click(move |_, _, cx| {
+                .on_click(move |_, _, cx| { cx.stop_propagation();
                     this.update(cx, |this, cx| this.delete(msg.clone(), cx)).ok();
                 }),
         );
@@ -1689,7 +1821,7 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, cx: &App) -> Any
                     .hover(move |s| s.bg(hover))
                     .child(face)
                     .tooltip(|window, cx| Tooltip::new("Click to react").build(window, cx))
-                    .on_click(move |_, _, cx| {
+                    .on_click(move |_, _, cx| { cx.stop_propagation();
                         this.update(cx, |this, cx| this.toggle_reaction(&msg, emoji.clone(), cx)).ok();
                     }),
             );
@@ -1698,22 +1830,22 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, cx: &App) -> Any
     }
     if sent {
         let (this, msg) = (ctx.this.clone(), message.clone());
-        bar = bar.child(ui::icon_button(SharedString::from(format!("react-{}", message.id)), Glyph::Emoji, "Add Reaction", cx).on_click(move |_, window, cx| {
+        bar = bar.child(ui::icon_button(SharedString::from(format!("react-{}", message.id)), Glyph::Emoji, "Add Reaction", cx).on_click(move |_, window, cx| { cx.stop_propagation();
             this.update(cx, |this, cx| this.open_emoji_picker(EmojiTarget::Reaction(Box::new(msg.clone())), window, cx)).ok();
         }));
         let (this, msg) = (ctx.this.clone(), message.clone());
-        bar = bar.child(ui::icon_button(SharedString::from(format!("reply-{}", message.id)), Glyph::Reply, "Reply", cx).on_click(move |_, window, cx| {
+        bar = bar.child(ui::icon_button(SharedString::from(format!("reply-{}", message.id)), Glyph::Reply, "Reply", cx).on_click(move |_, window, cx| { cx.stop_propagation();
             this.update(cx, |this, cx| this.start_reply(msg.clone(), window, cx)).ok();
         }));
         if ctx.threads && message.thread.is_none() {
             let (this, msg) = (ctx.this.clone(), message.clone());
-            bar = bar.child(ui::icon_button(SharedString::from(format!("thread-{}", message.id)), Glyph::ThreadNew, "Create Thread", cx).on_click(move |_, window, cx| {
+            bar = bar.child(ui::icon_button(SharedString::from(format!("thread-{}", message.id)), Glyph::ThreadNew, "Create Thread", cx).on_click(move |_, window, cx| { cx.stop_propagation();
                 this.update(cx, |this, cx| this.create_thread(msg.clone(), window, cx)).ok();
             }));
         }
     }
     let (this, msg) = (ctx.this.clone(), message.clone());
-    bar = bar.child(ui::icon_button(SharedString::from(format!("more-{}", message.id)), Glyph::MoreVertical, "More", cx).on_click(move |event, _, cx| {
+    bar = bar.child(ui::icon_button(SharedString::from(format!("more-{}", message.id)), Glyph::MoreVertical, "More", cx).on_click(move |event, _, cx| { cx.stop_propagation();
         let at = event.position();
         this.update(cx, |this, cx| this.open_message_menu(msg.clone(), at, cx)).ok();
     }));
@@ -1763,6 +1895,7 @@ fn readable_with(content: &str, ctx: &RowContext, inline_emoji: bool) -> String 
         rest = &tail[end + 1..];
     }
     out.push_str(rest);
+    let out = crate::link_preview::channel_chips(&out, &ctx.channel_names);
     // ponytail: plain word match, like the tokens above it also matches inside code spans.
     out.replace("@everyone", "[@everyone](rustcord://everyone)").replace("@here", "[@here](rustcord://here)")
 }
@@ -2142,7 +2275,7 @@ mod tests {
             // Tiles and their gaps cover the column: nothing overlaps, nothing is left empty but the gaps.
             let area: f32 = tiles.iter().map(|t| t.w * t.h).sum();
             assert!(area < COLUMN * height && area > (COLUMN - 2. * GALLERY_GAP) * (height - GALLERY_GAP) * 0.95, "{count}: area {area}");
-            let round = tiles.iter().map(|t| gallery_corners(*t, height)).flat_map(|c| [c.top_left, c.top_right, c.bottom_left, c.bottom_right]).filter(|r| *r == px(RADIUS_LG)).count();
+            let round = tiles.iter().map(|t| gallery_corners(*t, COLUMN, height)).flat_map(|c| [c.top_left, c.top_right, c.bottom_left, c.bottom_right]).filter(|r| *r == px(RADIUS_LG)).count();
             assert_eq!(round, 4, "{count} items");
         }
     }
@@ -2165,5 +2298,19 @@ mod tests {
         let old = format_stamp(&(now - chrono::TimeDelta::days(30)).to_rfc3339());
         assert!(old.contains(", 20") && old.contains(" at "), "{old}");
         assert!(!gutter_clock(&now.to_rfc3339()).contains('M'));
+    }
+
+    #[test]
+    fn result_pictures_keep_their_shape() {
+        use super::fit_frame;
+        let max = (280., 220.);
+        // A 3:2 photo fits the width; a square fits the height; neither is cropped.
+        assert_eq!(fit_frame((1200., 800.), max), (280., 280. / 1.5));
+        assert_eq!(fit_frame((800., 800.), max), (220., 220.));
+        // Small pictures aren't blown up.
+        assert_eq!(fit_frame((100., 50.), max), (100., 50.));
+        // A long screenshot is held at 1:2.5 and cropped; an unknown size is a square.
+        assert_eq!(fit_frame((400., 4000.), max), (88., 220.));
+        assert_eq!(fit_frame((0., 0.), max), (220., 220.));
     }
 }

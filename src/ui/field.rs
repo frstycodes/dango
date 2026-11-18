@@ -64,7 +64,12 @@ pub fn text_field(id: impl Into<ElementId>, input: impl IntoElement, focus: &Foc
 // scrolling under a header stays faintly visible), the magnifier first, the accent edge and ring on focus.
 pub fn search_field(id: impl Into<ElementId>, state: &Entity<InputState>, cx: &App) -> TextField {
     let focus = state.read(cx).focus_handle(cx);
-    TextField { search: true, ..text_field(id, Input::new(state).appearance(false).px_0(), &focus) }.leading(Icon::new(Glyph::Search).size(px(16.)))
+    search_frame(id, Input::new(state), &focus)
+}
+
+// The same search box around an `Input` the caller has configured, e.g. with inline tokens.
+pub fn search_frame(id: impl Into<ElementId>, input: Input, focus: &FocusHandle) -> TextField {
+    TextField { search: true, ..text_field(id, input.appearance(false).px_0(), focus) }.leading(Icon::new(Glyph::Search).size(px(16.)))
 }
 
 // The search box's fill: the rail tone at 60%.

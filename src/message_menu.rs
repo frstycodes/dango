@@ -30,14 +30,12 @@ impl Rustcord {
             let (retry, delete) = (message.clone(), message.clone());
             return vec![
                 item("Resend message", move |this, _, cx| this.retry(retry.clone(), cx)).icon(Glyph::Retry).entry(),
-                item("Delete message", move |this, _, cx| this.delete(delete.clone(), cx)).danger().icon(Glyph::Trash).entry(),
+                self.action_item(MessageAction::Delete, &delete).entry(),
             ];
         }
         if message.state != SendState::Sent {
             return Vec::new();
         }
-        let mine = self.me.as_ref().is_some_and(|me| me.id == message.author.id);
-        let in_dm = message.guild_id.is_none();
         let manage = self.can_manage_messages(message);
         let mut out = Vec::new();
 
@@ -57,55 +55,13 @@ impl Rustcord {
         out.push(Entry::Separator);
 
         // G4: primary.
-        if mine {
-            let m = message.clone();
-            out.push(item("Edit message", move |this, window, cx| this.start_edit(m.clone(), window, cx)).icon(Glyph::Pen).entry());
-        }
-        let m = message.clone();
-        out.push(item("Reply", move |this, window, cx| this.start_reply(m.clone(), window, cx)).icon(Glyph::Reply).entry());
-        let in_text = self.guilds.iter().flat_map(|g| g.channels.iter()).any(|c| c.id == message.channel_id && c.kind == crate::discord::ChannelKind::Text);
-        let can_thread = message.guild_id.as_ref().and_then(|g| self.guilds.iter().find(|x| &x.id == g)).zip(self.me.as_ref()).is_some_and(|(g, me)| g.can(&me.id, perm::CREATE_PUBLIC_THREADS));
-        if in_text && can_thread && message.thread.is_none() {
-            let m = message.clone();
-            out.push(item("Create thread", move |this, window, cx| this.create_thread(m.clone(), window, cx)).icon(Glyph::Thread).entry());
-        }
+        let facts = self.message_facts(message);
+        let action = |a: MessageAction| a.allowed(message, &facts).then(|| self.action_item(a, message).entry());
+        out.extend([MessageAction::Edit, MessageAction::Reply, MessageAction::Thread].into_iter().filter_map(action));
         out.push(Entry::Separator);
 
         // G5: secondary.
-        if !message.content.is_empty() {
-            let text = message.content.clone();
-            out.push(item("Copy text", move |this, _, cx| this.copy_text(text.clone(), cx)).icon(Glyph::Copy).entry());
-        }
-        if in_dm || manage {
-            let m = message.clone();
-            let (label, glyph, method) = if message.pinned { ("Unpin message", Glyph::PinSlash, Method::DELETE) } else { ("Pin message", Glyph::Pin, Method::PUT) };
-            out.push(
-                item(label, move |this, _, cx| {
-                    let path = format!("/channels/{}/messages/pins/{}", m.channel_id, m.id);
-                    let (c1, i1, c2, i2, pinned) = (m.channel_id.clone(), m.id.clone(), m.channel_id.clone(), m.id.clone(), method == Method::PUT);
-                    this.rest_optimistic(
-                        method.clone(),
-                        path,
-                        None,
-                        move |this| {
-                            if let Some(m) = this.message_mut(&c1, &i1) {
-                                m.pinned = pinned;
-                            }
-                        },
-                        move |this| {
-                            if let Some(m) = this.message_mut(&c2, &i2) {
-                                m.pinned = !pinned;
-                            }
-                        },
-                        cx,
-                    );
-                })
-                .icon(glyph)
-                .entry(),
-            );
-        }
-        let m = message.clone();
-        out.push(item("Mark unread", move |this, _, cx| this.mark_unread(&m, cx)).icon(Glyph::Envelope).entry());
+        out.extend([MessageAction::CopyText, MessageAction::Pin, MessageAction::MarkUnread].into_iter().filter_map(action));
         let m = message.clone();
         out.push(item("Copy message link", move |this, _, cx| {
             let link = this.message_link(&m);
@@ -146,26 +102,154 @@ impl Rustcord {
                 .entry(),
             );
         }
-        if mine || manage {
-            let m = message.clone();
-            out.push(
-                item("Delete message", move |this, _, cx| {
-                    let m = m.clone();
-                    this.confirm_delete("Delete message", "Are you sure you want to delete this message?", "Delete", move |this, _, cx| this.delete(m.clone(), cx), cx);
-                })
-                .icon(Glyph::Trash)
-                .danger()
-                .entry(),
-            );
-        }
+        out.extend(action(MessageAction::Delete));
         out.push(Entry::Separator);
 
         // G9: developer.
-        if self.developer_mode {
-            let id = message.id.clone();
-            out.push(item("Copy message ID", move |this, _, cx| this.copy_text(id.clone(), cx)).icon(Glyph::Id).entry());
-        }
+        out.extend(action(MessageAction::CopyId));
         out
+    }
+}
+
+// What can be done to one message, from its menu or, while it has keyboard focus, by key. The menu and
+// the keys both read `allowed`, so a key never does what the menu wouldn't offer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MessageAction {
+    Edit,
+    Reply,
+    Thread,
+    React,
+    CopyText,
+    Pin,
+    MarkUnread,
+    Delete,
+    CopyId,
+}
+
+// Who you are to a message and what its channel lets you do.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Facts {
+    pub mine: bool,
+    pub manage: bool,
+    pub in_dm: bool,
+    pub threads: bool,
+    pub developer: bool,
+}
+
+impl MessageAction {
+    pub const ALL: [Self; 9] = [Self::Edit, Self::Reply, Self::Thread, Self::React, Self::CopyText, Self::Pin, Self::MarkUnread, Self::Delete, Self::CopyId];
+
+    pub fn allowed(self, message: &Message, facts: &Facts) -> bool {
+        match message.state {
+            SendState::Sending => return false,
+            SendState::Failed => return self == Self::Delete,
+            SendState::Sent => {}
+        }
+        match self {
+            Self::Edit => facts.mine,
+            Self::Reply | Self::React | Self::MarkUnread => true,
+            Self::Thread => facts.threads && message.thread.is_none(),
+            Self::CopyText => !message.content.is_empty(),
+            Self::Pin => facts.in_dm || facts.manage,
+            Self::Delete => facts.mine || facts.manage,
+            Self::CopyId => facts.developer,
+        }
+    }
+
+    // Keys in Dango's saved-keybind form, with `secondary` for ⌘ on macOS and Ctrl elsewhere; the first
+    // is the one the menu shows. Discord's own (support article 1500000056121): e, r, +, Backspace, p,
+    // ⌘/Ctrl+C, Alt+Enter. The rest aren't in it: d (Dango's own delete, and d again confirms it), a, t, c,
+    // Delete, ⇧ to skip the delete confirm, ⇧⌘C.
+    pub const fn keys(self) -> &'static [&'static str] {
+        match self {
+            Self::Edit => &["e"],
+            Self::Reply => &["r"],
+            Self::Thread => &["t"],
+            Self::React => &["plus", "a"],
+            Self::CopyText => &["secondary+c", "c"],
+            Self::Pin => &["p"],
+            Self::MarkUnread => &["alt+enter"],
+            Self::Delete => &["d", "backspace", "delete", "shift+d", "shift+backspace", "shift+delete"],
+            Self::CopyId => &["shift+secondary+c"],
+        }
+    }
+
+    pub fn for_combo(combo: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|a| a.keys().contains(&combo))
+    }
+}
+
+impl Rustcord {
+    pub(crate) fn message_facts(&self, message: &Message) -> Facts {
+        let in_text = self.guilds.iter().flat_map(|g| g.channels.iter()).any(|c| c.id == message.channel_id && c.kind == crate::discord::ChannelKind::Text);
+        let can_thread = message.guild_id.as_ref().and_then(|g| self.guilds.iter().find(|x| &x.id == g)).zip(self.me.as_ref()).is_some_and(|(g, me)| g.can(&me.id, perm::CREATE_PUBLIC_THREADS));
+        Facts {
+            mine: self.me.as_ref().is_some_and(|me| me.id == message.author.id),
+            manage: self.can_manage_messages(message),
+            in_dm: message.guild_id.is_none(),
+            threads: in_text && can_thread,
+            developer: self.developer_mode,
+        }
+    }
+
+    fn action_item(&self, action: MessageAction, message: &Message) -> crate::menu::Item {
+        let (label, glyph) = match action {
+            MessageAction::Edit => ("Edit message", Glyph::Pen),
+            MessageAction::Reply => ("Reply", Glyph::Reply),
+            MessageAction::Thread => ("Create thread", Glyph::Thread),
+            MessageAction::React => ("Add reaction", Glyph::Emoji),
+            MessageAction::CopyText => ("Copy text", Glyph::Copy),
+            MessageAction::Pin if message.pinned => ("Unpin message", Glyph::PinSlash),
+            MessageAction::Pin => ("Pin message", Glyph::Pin),
+            MessageAction::MarkUnread => ("Mark unread", Glyph::Envelope),
+            MessageAction::Delete => ("Delete message", Glyph::Trash),
+            MessageAction::CopyId => ("Copy message ID", Glyph::Id),
+        };
+        let m = message.clone();
+        let row = item(label, move |this, window, cx| this.run_message_action(action, &m, false, window, cx)).icon(glyph).shortcut(action.keys()[0]);
+        if action == MessageAction::Delete { row.danger() } else { row }
+    }
+
+    // `quick` skips Delete's confirmation, as Shift does in Discord.
+    pub(crate) fn run_message_action(&mut self, action: MessageAction, message: &Message, quick: bool, window: &mut gpui_kit::Window, cx: &mut Context<Self>) {
+        let m = message.clone();
+        match action {
+            MessageAction::Edit => self.start_edit(m, window, cx),
+            MessageAction::Reply => self.start_reply(m, window, cx),
+            MessageAction::Thread => self.create_thread(m, window, cx),
+            MessageAction::React => self.open_emoji_picker(EmojiTarget::Reaction(Box::new(m)), window, cx),
+            MessageAction::CopyText => self.copy_text(m.content, cx),
+            MessageAction::Pin => self.toggle_pin(&m, cx),
+            MessageAction::MarkUnread => self.mark_unread(&m, cx),
+            MessageAction::Delete if quick || m.state == SendState::Failed => self.delete(m, cx),
+            MessageAction::Delete => {
+                self.confirm_delete("Delete message", "Are you sure you want to delete this message?", "Delete", move |this, _, cx| this.delete(m.clone(), cx), cx);
+                self.set_dialog_key(MessageAction::Delete.keys()[0]);
+            }
+            MessageAction::CopyId => self.copy_text(m.id, cx),
+        }
+    }
+
+    fn toggle_pin(&mut self, m: &Message, cx: &mut Context<Self>) {
+        let method = if m.pinned { Method::DELETE } else { Method::PUT };
+        let path = format!("/channels/{}/messages/pins/{}", m.channel_id, m.id);
+        let (c1, i1, c2, i2, pinned) = (m.channel_id.clone(), m.id.clone(), m.channel_id.clone(), m.id.clone(), method == Method::PUT);
+        self.rest_optimistic(
+            method,
+            path,
+            None,
+            move |this| {
+                if let Some(m) = this.message_mut(&c1, &i1) {
+                    m.pinned = pinned;
+                }
+            },
+            move |this| {
+                if let Some(m) = this.message_mut(&c2, &i2) {
+                    m.pinned = !pinned;
+                }
+            },
+            cx,
+        );
     }
 }
 

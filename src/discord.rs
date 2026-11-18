@@ -1001,15 +1001,39 @@ impl Client {
         self.run(req).await
     }
 
+    /// The message a link points at, through the history endpoint (`around`, one message), as Discord's
+    /// client does. None: it's gone, or the channel isn't one you can read (403, or no history access, which
+    /// returns an empty list).
+    pub async fn linked_message(&self, channel_id: &str, message_id: &str) -> Result<Option<Message>, String> {
+        let req = self.request(reqwest::Method::GET, &format!("/channels/{channel_id}/messages?around={message_id}&limit=1"));
+        let body = runtime().spawn(send_or_gone(req)).await.map_err(|e| e.to_string())??;
+        Ok(body.and_then(|b| b.as_array()?.iter().filter_map(parse_message).find(|m| m.id == message_id)))
+    }
+
+    /// An invite's server card. None: the code is unknown or expired (404).
+    pub async fn invite(&self, code: &str) -> Result<Option<Invite>, String> {
+        let req = self.request(reqwest::Method::GET, &format!("/invites/{code}?with_counts=true"));
+        let body = runtime().spawn(send_or_gone(req)).await.map_err(|e| e.to_string())??;
+        Ok(body.as_ref().and_then(parse_invite))
+    }
+
     /// Marks several channels read at once (a server's "Mark As Read").
+    // A form upload with one file, as sticker creation takes it.
+    pub async fn call_form(&self, path: String, fields: Vec<(&'static str, String)>, file_name: String, bytes: Vec<u8>) -> Result<Value, String> {
+        let form = fields.into_iter().fold(reqwest::multipart::Form::new(), |form, (key, value)| form.text(key, value));
+        let form = form.part("file", reqwest::multipart::Part::bytes(bytes).file_name(file_name));
+        self.run(self.request(reqwest::Method::POST, &path).multipart(form)).await
+    }
+
     pub async fn ack_bulk(&self, reads: Vec<(String, u64)>) {
         let read_states: Vec<Value> = reads.into_iter().map(|(channel, message)| json!({ "channel_id": channel, "message_id": message.to_string(), "read_state_type": 0 })).collect();
         let req = self.request(reqwest::Method::POST, "/read-states/ack-bulk").json(&json!({ "read_states": read_states }));
         let _ = self.run(req).await;
     }
 
-    /// `scope` is `guilds/{id}` or, for a DM, `channels/{id}`. `params` are Discord's search filters.
-    pub async fn search(&self, scope: &str, content: &str, params: &[(String, String)]) -> Result<Vec<Message>, String> {
+    /// `scope` is `guilds/{id}` or, for a DM, `channels/{id}`. `params` are Discord's search filters, the
+    /// page and the sort (docs.discord.food, Search Guild Messages): 25 hits a page, `offset` in hits.
+    pub async fn search(&self, scope: &str, content: &str, params: &[(String, String)]) -> Result<SearchPage, String> {
         let mut url = reqwest::Url::parse(&format!("{API}/{scope}/messages/search")).map_err(|e| e.to_string())?;
         {
             let mut pairs = url.query_pairs_mut();
@@ -1021,9 +1045,21 @@ impl Client {
             }
         }
         let body = self.run(self.http.get(url).header("Authorization", &self.token)).await?;
-        // Each hit is a small array of messages around the match; the match is the first.
-        Ok(body["messages"].as_array().into_iter().flatten().filter_map(|hit| hit.get(0).and_then(parse_message)).collect())
+        // Each hit is a small array of messages around the match; the match is the one marked `hit`.
+        let messages = body["messages"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|around| around.as_array().and_then(|a| a.iter().find(|m| m["hit"].as_bool() == Some(true)).or_else(|| a.first())).and_then(parse_message))
+            .collect();
+        Ok(SearchPage { messages, total: body["total_results"].as_u64().unwrap_or(0) as u32 })
     }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct SearchPage {
+    pub messages: Vec<Message>,
+    pub total: u32,
 }
 
 // Native GPUI ships no HTTP client (only its web build has one), so `img(url)` loads nothing
@@ -1077,17 +1113,17 @@ impl gpui_kit::http_client::HttpClient for Images {
         req: gpui_kit::http_client::Request<gpui_kit::http_client::AsyncBody>,
     ) -> futures::future::BoxFuture<'static, gpui_kit::http_client::Result<gpui_kit::http_client::Response<gpui_kit::http_client::AsyncBody>>> {
         let url = req.uri().to_string();
-        if let Some(bytes) = downloads::get(&url) {
+        if let Some(bytes) = downloads::get(&url).or_else(|| demo_media(&url)) {
             return Box::pin(async move { Ok(gpui_kit::http_client::Response::builder().status(200).body(bytes.to_vec().into())?) });
         }
         let get = self.0.get(&url);
         Box::pin(async move {
-            let (status, bytes) = runtime()
-                .spawn(async move {
-                    let res = get.send().await?;
-                    Ok::<_, reqwest::Error>((res.status().as_u16(), res.bytes().await?))
-                })
-                .await??;
+            // gpui drops this future when the image cache lets go of a load; the download stops with it.
+            let mut fetch = AbortOnDrop(runtime().spawn(async move {
+                let res = get.send().await?;
+                Ok::<_, reqwest::Error>((res.status().as_u16(), res.bytes().await?))
+            }));
+            let (status, bytes) = (&mut fetch.0).await??;
             if cfg!(debug_assertions) && std::env::var_os("RUSTCORD_IMAGE_DEBUG").is_some() && status >= 400 {
                 eprintln!("image {status} {url}");
             }
@@ -1097,6 +1133,24 @@ impl gpui_kit::http_client::HttpClient for Images {
             Ok(gpui_kit::http_client::Response::builder().status(status).body(bytes.to_vec().into())?)
         })
     }
+}
+
+struct AbortOnDrop<T>(tokio::task::JoinHandle<T>);
+
+impl<T> Drop for AbortOnDrop<T> {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+// Made-up media a CHORD_DEMO scene serves in place of the network (debug builds only).
+pub static DEMO_MEDIA: OnceLock<fn(&str) -> Option<bytes::Bytes>> = OnceLock::new();
+
+pub fn demo_media(url: &str) -> Option<bytes::Bytes> {
+    if !cfg!(debug_assertions) {
+        return None;
+    }
+    DEMO_MEDIA.get()?(url)
 }
 
 pub async fn send(req: reqwest::RequestBuilder) -> Result<Value, String> {
@@ -1124,6 +1178,42 @@ fn api_error(body: &Value) -> Option<String> {
     Some(match first_field(&body["errors"], "") {
         Some(detail) => format!("{message}: {detail}"),
         None => message.to_owned(),
+    })
+}
+
+// `send` for lookups where 403 and 404 are answers ("not there for you"), not failures to retry.
+async fn send_or_gone(req: reqwest::RequestBuilder) -> Result<Option<Value>, String> {
+    let res = req.send().await.map_err(|e| e.to_string())?;
+    let status = res.status();
+    if matches!(status.as_u16(), 403 | 404) {
+        return Ok(None);
+    }
+    if !status.is_success() {
+        return Err(status.to_string());
+    }
+    res.json().await.map(Some).map_err(|e| e.to_string())
+}
+
+// A server invite's card: `GET /invites/{code}?with_counts=true`.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Invite {
+    pub guild_id: String,
+    pub name: String,
+    pub icon: Option<String>,
+    pub online: Option<u64>,
+    pub members: Option<u64>,
+}
+
+// Group DM invites carry no guild; they get the invalid card, as there is no server to show.
+pub fn parse_invite(v: &Value) -> Option<Invite> {
+    let guild = &v["guild"];
+    let id = guild["id"].as_str()?;
+    Some(Invite {
+        guild_id: id.to_owned(),
+        name: guild["name"].as_str().unwrap_or_default().to_owned(),
+        icon: guild["icon"].as_str().map(|hash| format!("{CDN}/icons/{id}/{hash}.png?size=96")),
+        online: v["approximate_presence_count"].as_u64(),
+        members: v["approximate_member_count"].as_u64(),
     })
 }
 
@@ -1633,18 +1723,51 @@ pub fn parse_user(user: &Value) -> User {
 /// images-ext-*.discordapp.net (embeds) is assumed to take the same parameters.
 pub fn sized_image(url: &str, width: f32, height: f32, original: (f32, f32)) -> String {
     let scale = (2. * width / original.0.max(1.)).min(2. * height / original.1.max(1.)).min(1.);
-    let (w, h) = ((original.0 * scale).round().max(1.) as u32, (original.1 * scale).round().max(1.) as u32);
-    let proxied = if let Some(rest) = url.strip_prefix("https://cdn.discordapp.com/attachments/") {
-        format!("https://media.discordapp.net/attachments/{rest}")
-    } else if url.starts_with("https://media.discordapp.net/") || (url.starts_with("https://images-ext-") && url.contains(".discordapp.net/")) {
-        url.to_owned()
-    } else {
-        return url.to_owned();
-    };
+    let Some(proxied) = proxied(url) else { return url.to_owned() };
     if scale >= 1. {
         return proxied;
     }
-    format!("{proxied}{}width={w}&height={h}", if proxied.contains('?') { "&" } else { "?" })
+    with_query(proxied, &scaled(original, scale))
+}
+
+/// A thumbnail that covers a `side` x `side` square of device pixels: the poster for a video or GIF,
+/// scaled so its shorter edge is `side`. Pictures on media.discordapp.net also come back as WebP.
+/// Not verified: `format=webp` is what Discord's own client asks the proxy for, not a documented parameter.
+pub fn thumb_url(media: &Media, side: f32) -> String {
+    let source = match &media.kind {
+        MediaKind::Image => &media.url,
+        MediaKind::Video { poster } | MediaKind::Gif { poster } => poster,
+    };
+    let Some(proxied) = proxied(source) else { return source.clone() };
+    let original = (media.width.max(1.), media.height.max(1.));
+    let scale = (side / original.0).max(side / original.1).min(1.);
+    let webp = matches!(media.kind, MediaKind::Image) && proxied.starts_with("https://media.discordapp.net/");
+    let size = if scale < 1. { scaled(original, scale) } else { String::new() };
+    match (size.is_empty(), webp) {
+        (true, false) => proxied,
+        (true, true) => with_query(proxied, "format=webp"),
+        (false, false) => with_query(proxied, &size),
+        (false, true) => with_query(proxied, &format!("{size}&format=webp")),
+    }
+}
+
+// The media-proxy address for `url`, or None when its host doesn't resize.
+fn proxied(url: &str) -> Option<String> {
+    if let Some(rest) = url.strip_prefix("https://cdn.discordapp.com/attachments/") {
+        return Some(format!("https://media.discordapp.net/attachments/{rest}"));
+    }
+    let resizes = url.starts_with("https://media.discordapp.net/") || (url.starts_with("https://images-ext-") && url.contains(".discordapp.net/"));
+    resizes.then(|| url.to_owned())
+}
+
+fn scaled(original: (f32, f32), scale: f32) -> String {
+    let (w, h) = ((original.0 * scale).round().max(1.) as u32, (original.1 * scale).round().max(1.) as u32);
+    format!("width={w}&height={h}")
+}
+
+fn with_query(url: String, query: &str) -> String {
+    let joiner = if url.contains('?') { "&" } else { "?" };
+    format!("{url}{joiner}{query}")
 }
 
 pub fn avatar_url(user_id: &str, hash: Option<&str>) -> String {
@@ -1977,6 +2100,20 @@ mod tests {
     }
 
     #[test]
+    fn thumbnails_cover_a_square_through_the_proxy() {
+        let photo = Media { url: "https://cdn.discordapp.com/attachments/1/2/a.png?ex=a&is=b&hm=c&".into(), width: 4000., height: 3000., kind: MediaKind::Image };
+        assert_eq!(thumb_url(&photo, 112.), "https://media.discordapp.net/attachments/1/2/a.png?ex=a&is=b&hm=c&&width=149&height=112&format=webp", "shorter edge fills the square");
+        let tall = Media { width: 300., height: 1200., ..photo.clone() };
+        assert!(thumb_url(&tall, 112.).ends_with("width=112&height=448&format=webp"));
+        let small = Media { width: 64., height: 64., ..photo.clone() };
+        assert_eq!(thumb_url(&small, 112.), "https://media.discordapp.net/attachments/1/2/a.png?ex=a&is=b&hm=c&&format=webp", "never upscaled");
+        let clip = Media { url: "https://cdn.discordapp.com/attachments/1/2/v.mp4".into(), width: 1920., height: 1080., kind: MediaKind::Video { poster: "https://media.discordapp.net/attachments/1/2/v.mp4?format=jpeg".into() } };
+        assert_eq!(thumb_url(&clip, 96.), "https://media.discordapp.net/attachments/1/2/v.mp4?format=jpeg&width=171&height=96", "video keeps its proxy still, sized");
+        let elsewhere = Media { url: "https://example.com/a.png".into(), ..photo };
+        assert_eq!(thumb_url(&elsewhere, 96.), "https://example.com/a.png");
+    }
+
+    #[test]
     fn locks_channels_hidden_from_everyone() {
         let hidden = json!({ "id": "c", "type": 0, "permission_overwrites": [{ "id": "g", "type": 0, "deny": "1024", "allow": "0" }] });
         let open = json!({ "id": "c", "type": 0, "permission_overwrites": [{ "id": "g", "type": 0, "deny": "2048", "allow": "0" }] });
@@ -2121,5 +2258,13 @@ mod tests {
         .unwrap();
         let ListOp::Sync { items, .. } = op else { panic!("sync") };
         assert!(matches!(&items[1], ListItem::Member(m) if m.roles == ["r"] && m.user.name == "Nick" && m.user.avatar.contains("/guilds/g/users/1/avatars/h.png")));
+    }
+
+    #[test]
+    fn invites_read_their_server_and_counts() {
+        let body = json!({ "code": "dango", "guild": { "id": "9", "name": "Dumpling Hall", "icon": "ff" }, "approximate_member_count": 8311, "approximate_presence_count": 1204 });
+        let invite = parse_invite(&body).unwrap();
+        assert_eq!(invite, Invite { guild_id: "9".into(), name: "Dumpling Hall".into(), icon: Some("https://cdn.discordapp.com/icons/9/ff.png?size=96".into()), online: Some(1204), members: Some(8311) });
+        assert_eq!(parse_invite(&json!({ "code": "gdm", "channel": { "id": "5", "type": 3 } })), None, "a group DM invite has no server card");
     }
 }

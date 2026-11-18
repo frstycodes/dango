@@ -46,7 +46,9 @@
     <div class="set is-pushed" id="ss-win">
       <nav class="set-nav" aria-label="Server settings">
         <div class="set-me"><span class="av ss-srvav" data-av="Night Shift"></span><div><b>Night Shift</b><span>Server settings</span></div></div>
-        <button class="set-navi" aria-current="page" data-page="overview"><i class="ph ph-info"></i><span>Overview</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" aria-current="page" data-page="overview"><i class="ph ph-info"></i><span>Server profile</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="engagement"><i class="ph ph-chats-circle"></i><span>Engagement</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="boost"><i class="ph ph-rocket-launch"></i><span>Boost perks</span><i class="ph ph-caret-right chev"></i></button>
         <button class="set-navi" data-page="roles"><i class="ph ph-identification-badge"></i><span>Roles</span><i class="ph ph-caret-right chev"></i></button>
         <button class="set-navi" data-page="emoji"><i class="ph ph-smiley"></i><span>Emoji</span><i class="ph ph-caret-right chev"></i></button>
         <button class="set-navi" data-page="stickers"><i class="ph ph-sticker"></i><span>Stickers</span><i class="ph ph-caret-right chev"></i></button>
@@ -67,13 +69,14 @@
         <button class="set-navi" data-page="members"><i class="ph ph-users"></i><span>Members</span><i class="ph ph-caret-right chev"></i></button>
         <button class="set-navi" data-page="invites"><i class="ph ph-link"></i><span>Invites</span><i class="ph ph-caret-right chev"></i></button>
         <hr>
+        <button class="set-navi" data-page="template"><i class="ph ph-copy"></i><span>Server template</span><i class="ph ph-caret-right chev"></i></button>
         <button class="set-navi danger" data-open="dlg-delete-server"><i class="ph ph-trash"></i><span>Delete server</span></button>
       </nav>
       <div class="set-main">
         <div class="set-bar"><button class="set-back" data-ss-back><i class="ph-bold ph-caret-left"></i>Server settings</button><button class="iconbtn" aria-label="Close server settings" data-ss-close><i class="ph-bold ph-x"></i></button></div>
         <div class="set-close"><button aria-label="Close server settings" data-ss-close><i class="ph-bold ph-x"></i></button>Esc</div>
         <div class="set-page ss-page" data-page="overview">
-          <h4 class="set-h">Overview</h4>
+          <h4 class="set-h">Server profile</h4>
           <div class="set-group">
             <h5>Icon and banner</h5>
             <div class="set-card">
@@ -93,31 +96,6 @@
               <div class="field"><label for="ss-name">Server name</label><div class="input"><input id="ss-name" value="Night Shift" data-field="Server name" autocomplete="off" maxlength="100"></div></div>
             </div>
             <p class="set-cap">Edit it to see the save bar. Clear it and save to see the error.</p>
-          </div>
-          <div class="set-group">
-            <h5>Inactive voice</h5>
-            <div class="set-card">
-              <div class="set-row"><div class="t"><b>Inactive channel</b><span>Where idle members are moved, muted</span></div><button class="dropdown" aria-haspopup="listbox"><i class="ph ph-speaker-simple-slash"></i><span>AFK</span><i class="ph ph-caret-down"></i></button></div>
-              <div class="set-row"><div class="t"><b>Move after</b><span>Counted from their last sound</span></div><button class="dropdown" aria-haspopup="listbox"><span>5 minutes</span><i class="ph ph-caret-down"></i></button></div>
-            </div>
-          </div>
-          <div class="set-group">
-            <h5>System messages</h5>
-            <div class="set-card">
-              <div class="set-row"><div class="t"><b>Post them in</b></div><button class="dropdown" aria-haspopup="listbox"><i class="ph ph-hash"></i><span>welcome</span><i class="ph ph-caret-down"></i></button></div>
-              <button class="set-row choice" data-toggle="switch" data-field="Welcome messages"><div class="t"><b>Welcome people when they join</b><span>A random greeting with their name</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
-              <button class="set-row choice" data-toggle="switch" data-field="Sticker replies"><div class="t"><b>Suggest a sticker reply to welcomes</b><span>Members see a wave button under the greeting</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
-              <button class="set-row choice" data-toggle="switch" data-field="Boost messages"><div class="t"><b>Thank people who boost</b></div><span class="switch" role="switch" aria-checked="true"></span></button>
-              <button class="set-row choice" data-toggle="switch" data-field="Setup tips"><div class="t"><b>Send setup tips</b><span>Only you and admins see them</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
-            </div>
-          </div>
-          <div class="set-group">
-            <h5>Default notifications</h5>
-            <div class="set-card" role="radiogroup" aria-label="Default notifications">
-              <button class="set-row choice" data-toggle="radio" data-field="Default notifications"><span class="radio" role="radio" aria-checked="false"></span><div class="t"><b>All messages</b><span>Every new message counts as unread</span></div></button>
-              <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="true"></span><div class="t"><b>Only @mentions</b><span>Recommended once a server has more than a few dozen people</span></div></button>
-            </div>
-            <p class="set-cap">New members start here; anyone can change it for themselves.</p>
           </div>
         </div>
         <div class="ss-savebar" id="ss-savebar" role="status" hidden></div>
@@ -923,6 +901,101 @@
           <div class="set-row"><span class="icontile"><i class="ph ph-film-strip"></i></span><div class="t"><b>Post your first clip</b><span>In #clips</span></div><button class="iconbtn" aria-label="Edit Post your first clip"><i class="ph ph-pencil-simple"></i></button></div>
         </div>
         <p class="set-cap">3 of 5 to-dos. Each is ticked off when the member does it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="engagement">
+  <h2>Engagement, boost perks and template</h2>
+  <p class="lede">Discord's settings split the old Overview: the profile keeps name, icon and banner; Engagement holds system messages, notifications, the inactive channel and the widget; boost-locked extras sit on Boost perks, each naming the level that unlocks it.</p>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="engagement">
+      <h4 class="set-h">Engagement</h4>
+          <div class="set-group">
+            <h5>Inactive voice</h5>
+            <div class="set-card">
+              <div class="set-row"><div class="t"><b>Inactive channel</b><span>Where idle members are moved, muted</span></div><button class="dropdown" aria-haspopup="listbox"><i class="ph ph-speaker-simple-slash"></i><span>AFK</span><i class="ph ph-caret-down"></i></button></div>
+              <div class="set-row"><div class="t"><b>Move after</b><span>Counted from their last sound</span></div><button class="dropdown" aria-haspopup="listbox"><span>5 minutes</span><i class="ph ph-caret-down"></i></button></div>
+            </div>
+          </div>
+          <div class="set-group">
+            <h5>System messages</h5>
+            <div class="set-card">
+              <div class="set-row"><div class="t"><b>Post them in</b></div><button class="dropdown" aria-haspopup="listbox"><i class="ph ph-hash"></i><span>welcome</span><i class="ph ph-caret-down"></i></button></div>
+              <button class="set-row choice" data-toggle="switch" data-field="Welcome messages"><div class="t"><b>Welcome people when they join</b><span>A random greeting with their name</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+              <button class="set-row choice" data-toggle="switch" data-field="Sticker replies"><div class="t"><b>Suggest a sticker reply to welcomes</b><span>Members see a wave button under the greeting</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+              <button class="set-row choice" data-toggle="switch" data-field="Boost messages"><div class="t"><b>Thank people who boost</b></div><span class="switch" role="switch" aria-checked="true"></span></button>
+              <button class="set-row choice" data-toggle="switch" data-field="Setup tips"><div class="t"><b>Send setup tips</b><span>Only you and admins see them</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+            </div>
+          </div>
+          <div class="set-group">
+            <h5>Default notifications</h5>
+            <div class="set-card" role="radiogroup" aria-label="Default notifications">
+              <button class="set-row choice" data-toggle="radio" data-field="Default notifications"><span class="radio" role="radio" aria-checked="false"></span><div class="t"><b>All messages</b><span>Every new message counts as unread</span></div></button>
+              <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="true"></span><div class="t"><b>Only @mentions</b><span>Recommended once a server has more than a few dozen people</span></div></button>
+            </div>
+            <p class="set-cap">New members start here; anyone can change it for themselves.</p>
+          </div>
+          <div class="set-group">
+            <h5>Server widget</h5>
+            <div class="set-card">
+              <button class="set-row choice" data-toggle="switch" data-field="Widget"><div class="t"><b>Show a widget on your website</b><span>Online members, voice channels and an invite</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+              <div class="set-row"><div class="t"><b>Invite channel</b><span>Where people who join from the widget land</span></div><button class="dropdown" aria-haspopup="listbox"><i class="ph ph-hash"></i><span>welcome</span><i class="ph ph-caret-down"></i></button></div>
+            </div>
+          </div>
+    </div>
+  </div>
+
+  <h3>Boost perks</h3>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="boost">
+      <h4 class="set-h">Boost perks</h4>
+      <div class="set-group">
+        <h5>Progress</h5>
+        <div class="set-card">
+          <div class="set-row"><div class="t"><b>Boost level</b><span>4 boosts, 3 more to level 2</span></div><span class="muted">Level 1</span></div>
+          <button class="set-row choice" data-toggle="switch" data-field="Progress bar"><div class="t"><b>Show the boost progress bar</b><span>Above your channels, so members see how close the next level is</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5>Invite background</h5>
+        <div class="set-card"><div class="set-row stack"><div class="drop"><i class="ph ph-image"></i><b>Drop an image or browse</b><span>16:9, shown behind your invite page</span></div></div></div>
+      </div>
+      <div class="set-group">
+        <h5>Custom invite link</h5>
+        <div class="set-card">
+          <div class="set-row"><div class="t"><b>discord.gg/<span class="muted">nightshift</span></b><span>Anyone with the link can join. Unlocks at level 3.</span></div><button class="btn btn--sm" disabled>Set link</button></div>
+        </div>
+        <p class="set-cap">Locked rows say which level opens them; nothing hides.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Server template</h3>
+  <div class="board set-sheet">
+    <div class="set-page ss-page" data-page="template">
+      <h4 class="set-h">Server template</h4>
+      <div class="set-group">
+        <h5>What it copies</h5>
+        <div class="set-card">
+          <div class="set-row"><i class="ph-fill ph-check-circle" style="color: var(--success)"></i><div class="t"><b>Channels, topics, roles, permissions and default settings</b></div></div>
+          <div class="set-row"><i class="ph-fill ph-x-circle" style="color: var(--text-muted)"></i><div class="t"><b>Not messages, members, bots, the icon or boosts</b></div></div>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5>Template</h5>
+        <div class="set-card" style="padding: var(--space-4); display: grid; gap: var(--space-3)">
+          <div class="field"><label for="ss-tpl">Title</label><div class="input"><input id="ss-tpl" placeholder="Who is this server for? A school club, an art crew" autocomplete="off" maxlength="100"></div></div>
+          <div class="field"><label for="ss-tpl-d">Description</label><div class="input"><input id="ss-tpl-d" autocomplete="off" maxlength="120"></div></div>
+          <div class="row"><button class="btn btn--primary">Generate template</button></div>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5>Once made</h5>
+        <div class="set-card">
+          <div class="set-row"><div class="t"><b>discord.new/<span class="muted">aB3xY9</span></b><span>Last synced 3 days ago. Changes since then aren't in it.</span></div><button class="btn btn--sm">Sync</button><button class="btn btn--sm btn--ghost">Copy link</button><button class="btn btn--sm set-dangerbtn">Delete</button></div>
+        </div>
       </div>
     </div>
   </div>

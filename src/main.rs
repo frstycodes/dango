@@ -3,6 +3,7 @@
 
 mod accounts;
 mod app_keys;
+mod feed_keys;
 mod auth;
 mod cache;
 mod captcha;
@@ -20,6 +21,7 @@ mod drag;
 mod icons;
 mod images;
 mod layout;
+mod link_preview;
 mod login;
 mod mascot;
 mod material;
@@ -44,10 +46,14 @@ mod panel;
 mod rail_drag;
 mod sidebar;
 mod search;
+mod search_menu;
+mod search_results;
+mod server_settings;
 mod settings;
 mod shell;
 mod user_menu;
 mod video;
+mod viewer;
 mod hotkeys;
 mod key_hook;
 mod sounds;
@@ -71,7 +77,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use discord::{Channel, ChannelKind, Client, Emoji, Event, Folder, Gif, Guild, ListItem, ListOp, Media, Message, Presence, Profile, ReadState, Relationship, SendState, User};
+use discord::{Channel, ChannelKind, Client, Emoji, Event, Folder, Gif, Guild, ListItem, ListOp, Message, Presence, Profile, ReadState, Relationship, SendState, User};
 use futures::StreamExt;
 use gpui_kit::{
     AppContext, Bounds, Context, Entity, FocusHandle, Hsla, RenderImage, ListAlignment, ListOffset, ListState, SharedString, Task, TitlebarOptions, Window, WindowBounds,
@@ -342,7 +348,7 @@ enum RightPanel {
     Members,
     // Every Activity card, from the section's chevron.
     Activity,
-    Search { query: SharedString, results: Option<Result<Vec<Message>, SharedString>> },
+    Search(Box<search_results::Results>),
     Hidden,
 }
 
@@ -471,12 +477,6 @@ enum EmojiTarget {
     Reaction(Box<Message>),
 }
 
-// The gallery: every image and video in the open channel, paged with the arrow keys.
-struct Viewer {
-    items: Vec<Media>,
-    index: usize,
-}
-
 #[derive(Clone, Copy, PartialEq)]
 enum Edge {
     Channels,
@@ -537,6 +537,10 @@ pub struct Rustcord {
     right_panel: RightPanel,
     composer: Entity<ComposerState>,
     search_input: Entity<SearchState>,
+    // The search popover: the keyboard's row, whether More filters is open, the calendar's day.
+    search_pick: Option<usize>,
+    search_more: bool,
+    search_day: chrono::NaiveDate,
     has_draft: bool,
     send_error: Option<SharedString>,
     replying: Option<Message>,
@@ -548,6 +552,7 @@ pub struct Rustcord {
     prefs: settings::Prefs,
     settings: Option<settings::SettingsView>,
     channel_settings: Option<channel_settings::ChannelSettings>,
+    server_settings: Option<server_settings::view::ServerSettings>,
     settings_search: Entity<SearchState>,
     hotkeys: Option<hotkeys::Hotkeys>,
     // Keybinds the system refused because another app holds them.
@@ -669,19 +674,24 @@ pub struct Rustcord {
     // The call connecting now replaced one in the same server (our pick or a moderator's move):
     // it ended that one without a disconnect, and connecting sounds as a move.
     call_switched: bool,
-    viewer: Option<Viewer>,
+    viewer: Option<viewer::Viewer>,
     profile_card: Option<ProfileCard>,
     status_menu: bool,
     // The channel or DM row under the pointer, which shows its hover-only controls.
     hovered_row: Option<String>,
     // The message under the pointer, which shows its toolbar and, on a continuation, its time.
     hovered_message: Option<String>,
+    // The message with keyboard focus in the feed (feed_keys.rs); kept only while `feed_focus` holds focus.
+    focused_message: Option<String>,
+    feed_focus: FocusHandle,
     // The call card shown big (`call::tile_key`), or None for the even grid.
     call_focus: Option<String>,
     // The call stage's measured card area, which the grid is fitted to.
     call_area: Rc<std::cell::Cell<(f32, f32)>>,
     // Profiles by user and server, shown at once from the last fetch while a fresh one loads.
     profiles: query::Query<discord::Profile>,
+    // Previews of Discord's own links (messages, invites), shared with the rows that draw them.
+    link_previews: link_preview::Previews,
     emoji_picker: Option<EmojiTarget>,
     emoji_search: Entity<SearchState>,
     switcher: Option<usize>,
@@ -724,6 +734,11 @@ impl Rustcord {
         #[allow(unused_mut)]
         let mut chord = Self::build(window, splash, cx);
         chord.watch_for_updates(cx);
+        cx.on_focus_out(&chord.feed_focus, window, |this, _, _, cx| {
+            this.focused_message = None;
+            cx.notify();
+        })
+        .detach();
         #[cfg(debug_assertions)]
         if let Ok(scene) = std::env::var("CHORD_DEMO") {
             demo::load(&mut chord, &scene, window, cx);
@@ -757,6 +772,7 @@ impl Rustcord {
         // Typing filters the picker and switcher; the views read the inputs' text on render.
         let emoji_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Find the perfect emoji"));
         cx.subscribe_in(&emoji_search, window, Self::on_emoji_search).detach();
+        let feed_focus = cx.focus_handle();
         let switcher_input = cx.new(|cx| SearchState::new(window, cx).placeholder("Where would you like to go?"));
         let gif_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search Tenor"));
         cx.subscribe_in(&gif_search, window, Self::on_gif_search).detach();
@@ -804,6 +820,9 @@ impl Rustcord {
             right_panel: RightPanel::Members,
             composer,
             search_input,
+            search_pick: None,
+            search_more: false,
+            search_day: search_menu::today(),
             has_draft: false,
             send_error: None,
             replying: None,
@@ -813,6 +832,7 @@ impl Rustcord {
             prefs: settings::Prefs::load(),
             settings: None,
             channel_settings: None,
+            server_settings: None,
             settings_search,
             hotkeys: None,
             keybind_errors: Vec::new(),
@@ -893,9 +913,12 @@ impl Rustcord {
             update_ready: None,
             hovered_row: None,
             hovered_message: None,
+            focused_message: None,
+            feed_focus,
             call_focus: None,
             call_area: Rc::new(std::cell::Cell::new((0., 0.))),
             profiles: query::Query::new("profiles", Duration::from_secs(5 * 60)),
+            link_previews: link_preview::previews(),
             composer_height: Rc::new(std::cell::Cell::new(86.)),
             pip: Default::default(),
             emoji_picker: None,
@@ -1413,6 +1436,14 @@ impl Rustcord {
 
     pub(crate) fn open_channel(&mut self, channel: Channel, window: &mut Window, cx: &mut Context<Self>) {
         self.inbox_page = false;
+        // Results belong to the server or DM they searched: another place closes them.
+        let scope = match &self.guild_id {
+            Some(guild) => format!("guilds/{guild}"),
+            None => format!("channels/{}", channel.id),
+        };
+        if matches!(&self.right_panel, RightPanel::Search(results) if !results.searched(&scope)) {
+            self.right_panel = RightPanel::Members;
+        }
         if let Some(current) = self.channel.clone().filter(|c| c.id != channel.id) {
             self.back.push((self.guild_id.clone(), current));
             self.forward.clear();
@@ -1675,51 +1706,6 @@ impl Rustcord {
         self.last_typing_sent = Some(Instant::now());
         let id = channel.id.clone();
         discord::runtime().spawn(async move { client.typing(&id).await });
-    }
-
-    fn on_search_input(&mut self, state: &Entity<SearchState>, event: &InputEvent, _: &mut Window, cx: &mut Context<Self>) {
-        let InputEvent::PressEnter { .. } = event else { return };
-        let query = state.read(cx).value().trim().to_owned();
-        let Some(client) = self.client.clone() else { return };
-        // A server searches all its channels; a DM searches itself.
-        let scope = match (&self.guild_id, &self.channel) {
-            (Some(guild), _) => format!("guilds/{guild}"),
-            (None, Some(dm)) => format!("channels/{}", dm.id),
-            (None, None) => return,
-        };
-        if query.is_empty() {
-            return;
-        }
-        let users = self.known_users();
-        let members = self.guild_id.as_ref().and_then(|g| self.members.get(g)).cloned().unwrap_or_default();
-        let channels = self.guild().map(|g| g.channels.clone()).unwrap_or_default();
-        let parsed = search::parse(
-            &query,
-            |name| {
-                let name = name.to_lowercase();
-                members.values().chain(users.iter()).find(|u| u.name.to_lowercase() == name || u.id == name).map(|u| u.id.clone())
-            },
-            |name| {
-                let name = name.to_lowercase();
-                channels.iter().find(|c| c.name.to_lowercase() == name || c.id == name).map(|c| c.id.clone())
-            },
-        );
-        if !parsed.unresolved.is_empty() {
-            self.show_toast(format!("Couldn't find {}", parsed.unresolved.join(", ")), cx);
-        }
-        self.right_panel = RightPanel::Search { query: query.clone().into(), results: None };
-        cx.notify();
-        cx.spawn(async move |this, cx| {
-            let result = client.search(&scope, &parsed.content, &parsed.params).await;
-            this.update(cx, |this, cx| {
-                if let RightPanel::Search { results, .. } = &mut this.right_panel {
-                    *results = Some(result.map_err(Into::into));
-                }
-                cx.notify();
-            })
-            .ok();
-        })
-        .detach();
     }
 
     /// Enter in the composer: saves the edit in progress, otherwise sends (optimistically).
@@ -2548,22 +2534,6 @@ impl Rustcord {
     fn sync_voice_flags(&self) {
         let Some(call) = &self.call else { return };
         call.session.set_flags(self.muted || self.deafened, self.deafened);
-    }
-
-    fn open_viewer(&mut self, url: &str, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(feed) = self.channel.as_ref().and_then(|c| self.feeds.get(&c.id)) else { return };
-        let items: Vec<Media> = feed.messages.iter().flat_map(|m| m.media.iter().cloned()).collect();
-        let Some(index) = items.iter().position(|m| m.url == url) else { return };
-        self.viewer = Some(Viewer { items, index });
-        window.focus(&self.focus, cx);
-        cx.notify();
-    }
-
-    fn step_viewer(&mut self, delta: isize, cx: &mut Context<Self>) {
-        let Some(viewer) = &mut self.viewer else { return };
-        let last = viewer.items.len() as isize - 1;
-        viewer.index = (viewer.index as isize + delta).clamp(0, last) as usize;
-        cx.notify();
     }
 
     // `key` names what was copied (the code itself, a file's URL), so its button shows Copied for a moment.

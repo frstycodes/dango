@@ -287,6 +287,25 @@ dialog.viewer-dlg[open] .viewer img { animation: pop var(--dur-panel) var(--ease
 .sopt > div { flex: 1; min-width: 0; }
 .sopt b { font-weight: var(--weight-semibold); color: var(--text-strong); }
 .sopt small { color: var(--text-faint); font-size: var(--text-xs); }
+.sopt.two > div { color: var(--text-strong); }
+.sopt.two small { display: block; color: var(--text-muted); }
+.sopt.two small b { color: var(--text-strong); font-weight: var(--weight-semibold); }
+.sopt .chev { margin-left: auto; color: var(--text-faint); font-size: 14px; }
+.sopt .av { --size: 24px; font-size: 10px; flex: none; }
+.sbody hr { border: 0; height: 1px; background: var(--line); margin: 4px 8px; }
+.sgroup .iconbtn { width: 24px; height: 24px; margin-left: auto; }
+.sgroup span + .iconbtn { margin-left: 0; }
+.toks { display: flex; align-items: center; gap: 4px; overflow: hidden; white-space: nowrap; mask-image: linear-gradient(90deg, #000 85%, transparent); }
+.tok { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px; border-radius: var(--radius-xs); background: var(--selected); color: var(--text-strong); font-size: var(--text-sm); }
+.tok b { color: var(--text-muted); font-weight: var(--weight-semibold); }
+.tok .av { --size: 16px; font-size: 8px; }
+.cal { display: grid; grid-template-columns: repeat(7, 36px); gap: 2px; padding: 4px 6px 6px; justify-content: center; }
+.cal span { text-align: center; color: var(--text-faint); font-size: var(--text-xs); font-weight: var(--weight-semibold); padding: 4px 0; }
+.cal button { height: 32px; border-radius: var(--radius-sm); color: var(--text); font-variant-numeric: tabular-nums; }
+.cal button:hover { background: var(--hover); }
+.cal button.today { color: var(--accent-ink); font-weight: var(--weight-semibold); }
+.cal button[aria-selected="true"] { background: var(--selected); }
+.cal button:disabled { color: var(--text-faint); opacity: 0.5; }
 .sopt .x { opacity: 0; width: 24px; height: 24px; }
 .sopt .x i { font-size: 14px; }
 .sopt:hover .x, .sopt:focus-within .x { opacity: 1; }

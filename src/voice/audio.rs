@@ -9,7 +9,7 @@ use std::{
         mpsc,
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use cpal::{
@@ -17,13 +17,16 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 
-use super::dsp::{BLOCKS_PER_FRAME, Block, Processor};
+use super::{
+    dsp::{BLOCKS_PER_FRAME, Block, Processor},
+    jitter::{JitterBuffer, JitterStats},
+};
 
 pub const SAMPLE_RATE: u32 = 48_000;
 pub const FRAME_SAMPLES: usize = 960;
 // Interleaved stereo samples in one 20 ms frame.
 pub const FRAME_LEN: usize = FRAME_SAMPLES * 2;
-// Per-user backlog cap: anything beyond ~200 ms is dropped from the front so latency can't grow.
+// Backlog cap for PCM pushed directly (the mic test): beyond ~200 ms is dropped from the front.
 const MAX_QUEUE: usize = FRAME_LEN * 10;
 // How often the audio thread checks for a device change.
 const DEVICE_POLL: Duration = Duration::from_millis(200);
@@ -135,38 +138,88 @@ pub fn level_db(frame: &[f32]) -> f32 {
     (20.0 * rms.log10()).max(SILENCE_DB)
 }
 
-// Mixes every remote speaker into the output device. One queue per source key (an SSRC tagged
-// with its connection).
+// Mixes every remote speaker into the output device. One track per source key (an SSRC tagged
+// with its connection): network audio waits in the track's jitter buffer and is decoded as the
+// device asks for it; directly pushed PCM (the mic test) is queued as is.
 #[derive(Default)]
-pub struct Mixer(Mutex<HashMap<u64, VecDeque<f32>>>);
+pub struct Mixer(Mutex<HashMap<u64, Track>>);
+
+struct Track {
+    jitter: Option<JitterBuffer>,
+    pcm: VecDeque<f32>,
+    // The listener's volume for this speaker, applied to network audio as it plays.
+    gain: f32,
+    // Arrival clock origin for the jitter buffer.
+    created: Instant,
+    frame: Vec<f32>,
+}
+
+impl Default for Track {
+    fn default() -> Self {
+        Self { jitter: None, pcm: VecDeque::new(), gain: 1.0, created: Instant::now(), frame: vec![0.0; FRAME_LEN] }
+    }
+}
 
 impl Mixer {
     // `gain` is the listener's volume for this speaker (0 = locally muted).
     pub fn push(&self, key: u64, stereo: &[f32], gain: f32) {
-        let Ok(mut queues) = self.0.lock() else { return };
-        let queue = queues.entry(key).or_default();
+        let Ok(mut tracks) = self.0.lock() else { return };
+        let queue = &mut tracks.entry(key).or_default().pcm;
         queue.extend(stereo.iter().map(|s| s * gain));
         let excess = queue.len().saturating_sub(MAX_QUEUE);
         queue.drain(..excess);
     }
 
+    // An Opus packet off the network, played once the speaker's jitter buffer reaches it.
+    pub fn receive(&self, key: u64, sequence: u16, timestamp: u32, opus: Vec<u8>, gain: f32) {
+        let Ok(mut tracks) = self.0.lock() else { return };
+        let track = tracks.entry(key).or_default();
+        track.gain = gain;
+        if track.jitter.is_none() {
+            track.jitter = JitterBuffer::new();
+        }
+        let arrival = track.created.elapsed();
+        if let Some(jitter) = &mut track.jitter {
+            jitter.insert(sequence, timestamp, opus, arrival);
+        }
+    }
+
+    pub fn playout_stats(&self) -> Vec<(u64, JitterStats)> {
+        let Ok(tracks) = self.0.lock() else { return Vec::new() };
+        tracks.iter().filter_map(|(&key, t)| Some((key, t.jitter.as_ref()?.stats()))).collect()
+    }
+
     pub fn remove(&self, key: u64) {
-        if let Ok(mut queues) = self.0.lock() {
-            queues.remove(&key);
+        if let Ok(mut tracks) = self.0.lock() {
+            tracks.remove(&key);
         }
     }
 
     // Interleaved 48 kHz stereo.
     fn fill(&self, out: &mut [f32]) {
         out.fill(0.0);
-        let Ok(mut queues) = self.0.lock() else { return };
+        let Ok(mut tracks) = self.0.lock() else { return };
         for frame in out.as_chunks_mut::<2>().0 {
-            for queue in queues.values_mut() {
-                frame[0] += queue.pop_front().unwrap_or(0.0);
-                frame[1] += queue.pop_front().unwrap_or(0.0);
+            for track in tracks.values_mut() {
+                track.refill();
+                frame[0] += track.pcm.pop_front().unwrap_or(0.0);
+                frame[1] += track.pcm.pop_front().unwrap_or(0.0);
             }
             frame.iter_mut().for_each(|s| *s = s.clamp(-1.0, 1.0));
         }
+    }
+}
+
+impl Track {
+    // Decodes the next 20 ms from the jitter buffer once the queued audio runs out.
+    fn refill(&mut self) {
+        if !self.pcm.is_empty() {
+            return;
+        }
+        let Some(jitter) = &mut self.jitter else { return };
+        jitter.pull(&mut self.frame);
+        let gain = self.gain;
+        self.pcm.extend(self.frame.iter().map(|s| s * gain));
     }
 }
 
@@ -415,7 +468,7 @@ mod tests {
         assert_eq!(out, [0.75, -0.75, 0.9, 0.9], "user 2 at half volume, user 3 locally muted");
 
         mixer.push(4, &vec![1.0; MAX_QUEUE + 100], 1.0);
-        assert_eq!(mixer.0.lock().unwrap()[&4].len(), MAX_QUEUE);
+        assert_eq!(mixer.0.lock().unwrap()[&4].pcm.len(), MAX_QUEUE);
         mixer.remove(4);
         assert!(!mixer.0.lock().unwrap().contains_key(&4));
     }
