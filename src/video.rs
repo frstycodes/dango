@@ -490,6 +490,7 @@ impl Render for VideoPlayer {
                 }
             }))
             .on_click(cx.listener(|this, _, window, cx| {
+                cx.stop_propagation();
                 window.focus(&this.focus, cx);
                 this.toggle(cx);
             }))

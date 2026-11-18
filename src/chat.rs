@@ -71,6 +71,8 @@ impl Rustcord {
             .h_full()
             .flex()
             .flex_col()
+            .key_context("Chat")
+            .on_action(cx.listener(Self::focus_search))
             .on_drop(cx.listener(|this, paths: &gpui_kit::ExternalPaths, _, cx| this.add_files(paths.paths().to_vec(), cx)))
             // The composer floats over the feed, which scrolls on under its glass.
             .child(div().relative().flex_1().min_h_0().child(body).children(unread_bar).child(self.render_composer(window, cx)));
@@ -151,7 +153,7 @@ impl Rustcord {
                     cx.notify();
                 }))
         });
-        let search = self.guild_id.is_some().then(|| self.channel_search(window, cx));
+        let search = self.has_search().then(|| self.channel_search(window, cx));
         // Occludes, like the composer: the feed scrolls under the header and must not take its hover or clicks.
         let bar = div()
             .occlude()
@@ -296,6 +298,7 @@ impl Rustcord {
             flash: self.flash.clone(),
             editing: self.editing.as_ref().map(|m| m.id.clone()),
             hovered: self.hovered_message.clone(),
+            focused: self.focused_message.clone(),
             copied: self.copied.clone(),
             revealed: self.revealed.clone(),
             text_files: self.text_files.clone(),
@@ -363,6 +366,9 @@ impl Rustcord {
         // element without offsets sits where it would flow, after the list.
         let composer = self.composer_height.clone();
         div()
+            .id("feed")
+            .track_focus(&self.feed_focus)
+            .on_key_down(cx.listener(Self::on_feed_key))
             .relative()
             .size_full()
             .child(messages)
@@ -717,6 +723,7 @@ struct RowContext {
     flash: Option<String>,
     editing: Option<String>,
     hovered: Option<String>,
+    focused: Option<String>,
     copied: Option<String>,
     revealed: Rc<std::cell::RefCell<std::collections::HashSet<String>>>,
     text_files: Rc<std::cell::RefCell<crate::text_file::TextFiles>>,
@@ -751,7 +758,10 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
     let held = ctx.flash.as_ref() == Some(&message.id) || ctx.editing.as_ref() == Some(&message.id);
     // From state, not `group_hover`, which gpui resolves only while painting (see `track_row_hover`).
     let hovered = ctx.hovered.as_deref() == Some(message.id.as_str());
+    let focused = ctx.focused.as_deref() == Some(message.id.as_str());
     let hover = palette::hover(cx);
+    // Keyboard focus: the selected fill, a step past hover, kept under the pointer.
+    let rest = focused.then(|| palette::selected(cx));
     // Lighter than the accent's soft fill: the rim carries the signal.
     let soft = palette::accent_soft(cx);
     let soft = Hsla { a: soft.a * 0.6, ..soft };
@@ -789,8 +799,8 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .flex_col()
         .line_height(gpui_kit::relative(1.45))
         // Mentioning you: the tint and a 2px accent bar down the left edge, square like Discord's.
-        .when(mention, |r| r.rounded(px(0.)).bg(soft).hover(move |s| s.bg(mention_hover)).child(div().absolute().left_0().top_0().bottom_0().w(px(2.)).bg(palette::accent())))
-        .when(!mention, |r| r.when(held, |r| r.bg(hover)).hover(move |s| s.bg(hover)))
+        .when(mention, |r| r.rounded(px(0.)).bg(rest.unwrap_or(soft)).hover(move |s| s.bg(rest.unwrap_or(mention_hover))).child(div().absolute().left_0().top_0().bottom_0().w(px(2.)).bg(palette::accent())))
+        .when(!mention, |r| r.when(held || focused, |r| r.bg(rest.unwrap_or(hover))).hover(move |s| s.bg(rest.unwrap_or(hover))))
         .on_hover(track_message_hover(message, ctx));
     // Last, so it paints over the message's own content where it overlaps it.
     let toolbar = hovered.then(|| actions(message, mine, ctx, cx));
@@ -870,7 +880,7 @@ fn profile_trigger(id: String, user: &User, ctx: &Rc<RowContext>) -> Stateful<Di
     div()
         .id(SharedString::from(id))
         .cursor_pointer()
-        .on_click(move |event, _, cx| {
+        .on_click(move |event, _, cx| { cx.stop_propagation();
             let at = event.position();
             this.update(cx, |this, cx| this.open_profile(user.clone(), at, cx)).ok();
         })
@@ -882,7 +892,6 @@ fn profile_trigger(id: String, user: &User, ctx: &Rc<RowContext>) -> Stateful<Di
         })
 }
 
-// Right-click opens the same list as the toolbar's More.
 fn track_message_hover(message: &Message, ctx: &Rc<RowContext>) -> impl Fn(&bool, &mut Window, &mut App) + 'static {
     let (this, id) = (ctx.this.clone(), message.id.clone());
     move |hovered, _, cx| {
@@ -897,13 +906,28 @@ fn track_message_hover(message: &Message, ctx: &Rc<RowContext>) -> impl Fn(&bool
     }
 }
 
+// Right-click opens the message menu; a plain click on the row's own space focuses it. Controls inside
+// stop their clicks, and a drag (selecting text) or a double click isn't a plain click.
 fn with_message_menu(row: Stateful<Div>, message: &Message, ctx: &Rc<RowContext>) -> AnyElement {
     let (this, message) = (ctx.this.clone(), message.clone());
+    let (focus_this, id) = (this.clone(), message.id.clone());
     row.on_mouse_down(gpui_kit::MouseButton::Right, move |event, _, cx| {
         let at = event.position;
         this.update(cx, |this, cx| this.open_message_menu(message.clone(), at, cx)).ok();
     })
+    .on_click(move |event, window, cx| {
+        if !plain_click(event) {
+            return;
+        }
+        focus_this.update(cx, |this, cx| this.focus_message(id.clone(), window, cx)).ok();
+    })
     .into_any_element()
+}
+
+fn plain_click(event: &gpui_kit::ClickEvent) -> bool {
+    let gpui_kit::ClickEvent::Mouse(click) = event else { return false };
+    let moved = click.up.position - click.down.position;
+    click.up.click_count == 1 && f32::from(moved.x).abs() < 4. && f32::from(moved.y).abs() < 4.
 }
 
 // The reference above a reply, in the content column; clicking it jumps to the original and flashes it.
@@ -947,7 +971,7 @@ fn reply_preview(reply: &Message, target: Option<String>, ctx: &Rc<RowContext>, 
         .child(ui::avatar(reply.author.avatar.clone(), 16.))
         .child(div().flex_none().font_weight(FontWeight::MEDIUM).text_color(muted).child(ctx.name_of(&reply.author)))
         .child(snippet)
-        .on_click(move |_, _, cx| {
+        .on_click(move |_, _, cx| { cx.stop_propagation();
             let Some(id) = target.clone() else { return };
             this.update(cx, |this, cx| this.jump_to(id, cx)).ok();
         })
@@ -994,7 +1018,7 @@ fn call_line(message: &Message, call: &crate::discord::CallRecord, ctx: &Rc<RowC
     let ink = if missed { palette::danger_ink(cx) } else { palette::positive_ink(cx) };
     let (this, channel_id) = (ctx.this.clone(), message.channel_id.clone());
     let action = action.map(|label| {
-        ui::button(SharedString::from(format!("call-line-{}", message.id)), ui::Tone::Link, cx).child(label).on_click(move |_, window, cx| {
+        ui::button(SharedString::from(format!("call-line-{}", message.id)), ui::Tone::Link, cx).child(label).on_click(move |_, window, cx| { cx.stop_propagation();
             this.update(cx, |this, cx| this.answer_dm_call(&channel_id, window, cx)).ok();
         })
     });
@@ -1040,7 +1064,7 @@ fn content(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyEleme
             .flex()
             .flex_col()
             .when(has_spoiler && !revealed, |c| {
-                c.cursor_pointer().on_click(move |_, _, cx| {
+                c.cursor_pointer().on_click(move |_, _, cx| { cx.stop_propagation();
                     reveal.borrow_mut().insert(id.clone());
                     refresh.update(cx, |_, cx| cx.notify()).ok();
                 })
@@ -1102,7 +1126,7 @@ impl MarkdownPlugin for MentionBadges {
             .cursor_pointer()
             .hover(move |s| s.bg(hover))
             .child(mention.label)
-            .on_click(move |event, window, cx| {
+            .on_click(move |event, window, cx| { cx.stop_propagation();
                 let url = mention.url.clone();
                 this.update(cx, |this, cx| this.open_mention(&url, event.position(), window, cx)).ok();
             });
@@ -1212,10 +1236,10 @@ fn send_failure(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> AnyElement
         .text_color(palette::danger_ink(cx))
         .child(Icon::new(Glyph::WarningCircle).size(px(16.)))
         .child("Not sent.")
-        .child(action(format!("retry-{}", message.id), "Resend message").on_click(move |_, _, cx| {
+        .child(action(format!("retry-{}", message.id), "Resend message").on_click(move |_, _, cx| { cx.stop_propagation();
             retry_this.update(cx, |this, cx| this.retry(retry.clone(), cx)).ok();
         }))
-        .child(action(format!("discard-{}", message.id), "Delete message").on_click(move |_, _, cx| {
+        .child(action(format!("discard-{}", message.id), "Delete message").on_click(move |_, _, cx| { cx.stop_propagation();
             delete_this.update(cx, |this, cx| this.delete(delete.clone(), cx)).ok();
         }))
         .into_any_element()
@@ -1257,7 +1281,7 @@ fn thread_card(thread: &Channel, ctx: &Rc<RowContext>, cx: &App) -> AnyElement {
                 .child(format!("{count} {}", if count == 1 { "message" } else { "messages" }))
                 .child(Icon::new(Glyph::ChevronRight).size(px(14.))),
         )
-        .on_click(move |_, window, cx| {
+        .on_click(move |_, window, cx| { cx.stop_propagation();
             this.update(cx, |this, cx| this.open_channel(open.clone(), window, cx)).ok();
         })
         .into_any_element()
@@ -1338,7 +1362,7 @@ fn media_tile(message: &Message, i: usize, (w, h): (f32, f32), corners: Corners<
         .cursor_pointer()
         .hover(|s| s.opacity(0.92))
         .child(picture)
-        .on_click(move |_, window, cx| {
+        .on_click(move |_, window, cx| { cx.stop_propagation();
             this.update(cx, |this, cx| this.open_viewer(&url, window, cx)).ok();
         })
         .into_any_element()
@@ -1427,7 +1451,7 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
             .text_color(strong)
             .children(embed.author_icon.clone().map(|icon| ui::avatar(icon, 20.)))
             .child(div().when(url.is_some(), |d| d.cursor_pointer().hover(|s| s.underline())).child(name))
-            .when_some(url, |d, url| d.on_click(move |_, _, cx| cx.open_url(&url)))
+            .when_some(url, |d, url| d.on_click(move |_, _, cx| { cx.stop_propagation(); cx.open_url(&url) }))
     });
     let link = embed.url.clone();
     let title = embed.title.clone().map(|title| {
@@ -1436,7 +1460,7 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
             .text_size(px(14.))
             .font_weight(FontWeight::MEDIUM)
             .text_color(if link.is_some() { link_ink } else { strong })
-            .when_some(link.clone(), |t, url| t.cursor_pointer().hover(|s| s.underline()).on_click(move |_, _, cx| cx.open_url(&url)))
+            .when_some(link.clone(), |t, url| t.cursor_pointer().hover(|s| s.underline()).on_click(move |_, _, cx| { cx.stop_propagation(); cx.open_url(&url) }))
             .child(title)
     });
     let fields = (!embed.fields.is_empty()).then(|| {
@@ -1551,11 +1575,11 @@ fn file_card(message: &Message, file: &crate::discord::File, cx: &App) -> AnyEle
                         .text_color(strong)
                         .hover(|s| s.underline())
                         .child(file.name.clone())
-                        .on_click(move |_, _, cx| cx.open_url(&open)),
+                        .on_click(move |_, _, cx| { cx.stop_propagation(); cx.open_url(&open) }),
                 )
                 .child(div().text_size(px(12.)).text_color(faint).child(format_size(file.size))),
         )
-        .child(ui::icon_button(SharedString::from(format!("download-{}-{}", message.id, file.name)), Glyph::Download, "Download", cx).on_click(move |_, _, cx| cx.open_url(&download)))
+        .child(ui::icon_button(SharedString::from(format!("download-{}-{}", message.id, file.name)), Glyph::Download, "Download", cx).on_click(move |_, _, cx| { cx.stop_propagation(); cx.open_url(&download) }))
         .into_any_element()
 }
 
@@ -1578,7 +1602,7 @@ fn copy_button(code: String, copied: bool, this: WeakEntity<Rustcord>, cx: &App)
         .when(!copied, |b| b.hover(move |s| s.bg(hover).text_color(strong)))
         .child(Icon::new(if copied { Glyph::Checkmark } else { Glyph::Copy }).size(px(16.)))
         .tooltip(move |window, cx| Tooltip::new(if copied { "Copied" } else { "Copy" }).build(window, cx))
-        .on_click(move |_, _, cx| {
+        .on_click(move |_, _, cx| { cx.stop_propagation();
             this.update(cx, |this, cx| this.copy_code(code.clone(), code.clone(), cx)).ok();
         })
         .into_any_element()
@@ -1598,7 +1622,7 @@ fn reactions(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyEle
                 None => div().text_size(px(16.)).line_height(px(16.)).child(r.emoji.name.clone()).into_any_element(),
             })
             .child(r.count.to_string())
-            .on_click(move |_, _, cx| {
+            .on_click(move |_, _, cx| { cx.stop_propagation();
                 this.update(cx, |this, cx| this.toggle_reaction(&msg, emoji.clone(), cx)).ok();
             })
     });
@@ -1607,7 +1631,7 @@ fn reactions(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyEle
         .px(px(7.))
         .child(Icon::new(Glyph::EmojiAdd).size(px(18.)))
         .tooltip(|window, cx| Tooltip::new("Add Reaction").build(window, cx))
-        .on_click(move |_, window, cx| {
+        .on_click(move |_, window, cx| { cx.stop_propagation();
             this.update(cx, |this, cx| this.open_emoji_picker(EmojiTarget::Reaction(Box::new(msg.clone())), window, cx)).ok();
         });
     Some(div().mt(px(6.)).flex().flex_wrap().gap(px(6.)).children(pills).child(add).into_any_element())
@@ -1654,7 +1678,7 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, cx: &App) -> Any
         }
         if mine && sent {
             let (this, msg) = (ctx.this.clone(), message.clone());
-            bar = bar.child(ui::icon_button(SharedString::from(format!("edit-{}", message.id)), Glyph::Pen, "Edit", cx).on_click(move |_, window, cx| {
+            bar = bar.child(ui::icon_button(SharedString::from(format!("edit-{}", message.id)), Glyph::Pen, "Edit", cx).on_click(move |_, window, cx| { cx.stop_propagation();
                 this.update(cx, |this, cx| this.start_edit(msg.clone(), window, cx)).ok();
             }));
         }
@@ -1664,7 +1688,7 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, cx: &App) -> Any
             ui::icon_button(SharedString::from(format!("delete-{}", message.id)), Glyph::Trash, "Delete", cx)
                 .text_color(danger_ink)
                 .hover(move |s| s.bg(danger).text_color(gpui_kit::white()))
-                .on_click(move |_, _, cx| {
+                .on_click(move |_, _, cx| { cx.stop_propagation();
                     this.update(cx, |this, cx| this.delete(msg.clone(), cx)).ok();
                 }),
         );
@@ -1689,7 +1713,7 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, cx: &App) -> Any
                     .hover(move |s| s.bg(hover))
                     .child(face)
                     .tooltip(|window, cx| Tooltip::new("Click to react").build(window, cx))
-                    .on_click(move |_, _, cx| {
+                    .on_click(move |_, _, cx| { cx.stop_propagation();
                         this.update(cx, |this, cx| this.toggle_reaction(&msg, emoji.clone(), cx)).ok();
                     }),
             );
@@ -1698,22 +1722,22 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, cx: &App) -> Any
     }
     if sent {
         let (this, msg) = (ctx.this.clone(), message.clone());
-        bar = bar.child(ui::icon_button(SharedString::from(format!("react-{}", message.id)), Glyph::Emoji, "Add Reaction", cx).on_click(move |_, window, cx| {
+        bar = bar.child(ui::icon_button(SharedString::from(format!("react-{}", message.id)), Glyph::Emoji, "Add Reaction", cx).on_click(move |_, window, cx| { cx.stop_propagation();
             this.update(cx, |this, cx| this.open_emoji_picker(EmojiTarget::Reaction(Box::new(msg.clone())), window, cx)).ok();
         }));
         let (this, msg) = (ctx.this.clone(), message.clone());
-        bar = bar.child(ui::icon_button(SharedString::from(format!("reply-{}", message.id)), Glyph::Reply, "Reply", cx).on_click(move |_, window, cx| {
+        bar = bar.child(ui::icon_button(SharedString::from(format!("reply-{}", message.id)), Glyph::Reply, "Reply", cx).on_click(move |_, window, cx| { cx.stop_propagation();
             this.update(cx, |this, cx| this.start_reply(msg.clone(), window, cx)).ok();
         }));
         if ctx.threads && message.thread.is_none() {
             let (this, msg) = (ctx.this.clone(), message.clone());
-            bar = bar.child(ui::icon_button(SharedString::from(format!("thread-{}", message.id)), Glyph::ThreadNew, "Create Thread", cx).on_click(move |_, window, cx| {
+            bar = bar.child(ui::icon_button(SharedString::from(format!("thread-{}", message.id)), Glyph::ThreadNew, "Create Thread", cx).on_click(move |_, window, cx| { cx.stop_propagation();
                 this.update(cx, |this, cx| this.create_thread(msg.clone(), window, cx)).ok();
             }));
         }
     }
     let (this, msg) = (ctx.this.clone(), message.clone());
-    bar = bar.child(ui::icon_button(SharedString::from(format!("more-{}", message.id)), Glyph::MoreVertical, "More", cx).on_click(move |event, _, cx| {
+    bar = bar.child(ui::icon_button(SharedString::from(format!("more-{}", message.id)), Glyph::MoreVertical, "More", cx).on_click(move |event, _, cx| { cx.stop_propagation();
         let at = event.position();
         this.update(cx, |this, cx| this.open_message_menu(msg.clone(), at, cx)).ok();
     }));

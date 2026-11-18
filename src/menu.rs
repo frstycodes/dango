@@ -26,6 +26,8 @@ type OnConfirm = Rc<dyn Fn(&mut Rustcord, String, &mut Window, &mut Context<Rust
 type SetValue = Rc<dyn Fn(&mut Rustcord, f32, &mut Context<Rustcord>)>;
 
 pub(crate) const WIDTH: f32 = 248.;
+// Room for key caps beside the longest label ("Copy message ID" with ⇧⌘C).
+const WIDTH_WITH_KEYS: f32 = 280.;
 const SUB_WIDTH: f32 = 208.;
 // A submenu holding checkbox rows widens so their labels fit beside the box.
 const SUB_WIDE: f32 = 236.;
@@ -95,14 +97,16 @@ pub struct Item {
     sub: Vec<Entry>,
     act: Option<Act>,
     disabled: bool,
+    // A key combo in saved-keybind form, drawn as key caps at the row's end.
+    shortcut: Option<&'static str>,
 }
 
 pub fn item(label: impl Into<SharedString>, act: impl Fn(&mut Rustcord, &mut Window, &mut Context<Rustcord>) + 'static) -> Item {
-    Item { label: label.into(), hint: None, tone: Tone::Plain, mark: None, lead: None, sub: Vec::new(), act: Some(Rc::new(act)), disabled: false }
+    Item { label: label.into(), hint: None, tone: Tone::Plain, mark: None, lead: None, sub: Vec::new(), act: Some(Rc::new(act)), disabled: false, shortcut: None }
 }
 
 pub fn submenu(label: impl Into<SharedString>, entries: Vec<Entry>) -> Item {
-    Item { label: label.into(), hint: None, tone: Tone::Plain, mark: None, lead: None, sub: entries, act: None, disabled: false }
+    Item { label: label.into(), hint: None, tone: Tone::Plain, mark: None, lead: None, sub: entries, act: None, disabled: false, shortcut: None }
 }
 
 pub fn slider(label: impl Into<SharedString>, key: impl Into<SharedString>, value: f32, on_set: impl Fn(&mut Rustcord, f32, &mut Context<Rustcord>) + 'static) -> Entry {
@@ -114,6 +118,11 @@ pub fn header(lead: HeadLead, title: impl Into<SharedString>, subtitle: Option<S
 }
 
 impl Item {
+    pub fn shortcut(mut self, combo: &'static str) -> Self {
+        self.shortcut = Some(combo);
+        self
+    }
+
     pub fn hint(mut self, hint: impl Into<SharedString>) -> Self {
         self.hint = Some(hint.into());
         self
@@ -196,6 +205,10 @@ impl Entry {
             Entry::Slider { .. } => SLIDER_ROW,
             Entry::Emojis { .. } => EMOJI_ROW,
         }
+    }
+
+    fn has_shortcut(&self) -> bool {
+        matches!(self, Entry::Item(Item { shortcut: Some(_), .. }))
     }
 
     fn has_lead(&self) -> bool {
@@ -291,6 +304,8 @@ pub struct Dialog {
     // Leads the title with the warning mark: for what can't be undone.
     warn: bool,
     input: bool,
+    // A key that confirms it from anywhere, drawn on the confirm button (D for a message's delete).
+    key: Option<&'static str>,
     on_confirm: OnConfirm,
 }
 
@@ -388,7 +403,7 @@ impl Rustcord {
             state.set_value(value.to_owned(), window, cx);
             state.focus(window, cx);
         });
-        self.dialog = Some(Dialog { title: title.into(), body: body.into(), confirm: confirm.into(), danger: false, warn: false, input: true, on_confirm: Rc::new(on_confirm) });
+        self.dialog = Some(Dialog { title: title.into(), body: body.into(), confirm: confirm.into(), danger: false, warn: false, input: true, key: None, on_confirm: Rc::new(on_confirm) });
         cx.notify();
     }
 
@@ -409,6 +424,7 @@ impl Rustcord {
             danger: true,
             warn: false,
             input: false,
+            key: None,
             on_confirm: Rc::new(move |this, _, window, cx| on_confirm(this, window, cx)),
         });
         cx.notify();
@@ -497,17 +513,18 @@ impl Rustcord {
         let (vw, vh) = (f32::from(viewport.width), f32::from(viewport.height));
         // Opens toward the side with room, rising from the corner at the pointer (overlays.html's live menu).
         let (at_x, at_y, height) = (f32::from(menu.at.x), f32::from(menu.at.y), card_height(&entries));
-        let (flip_x, flip_y) = (at_x + WIDTH > vw - 8., at_y + height > vh - 8.);
-        let x = if flip_x { (at_x - WIDTH).max(8.) } else { at_x };
+        let width = if entries.iter().any(Entry::has_shortcut) { WIDTH_WITH_KEYS } else { WIDTH };
+        let (flip_x, flip_y) = (at_x + width > vw - 8., at_y + height > vh - 8.);
+        let x = if flip_x { (at_x - width).max(8.) } else { at_x };
         let y = if flip_y { (at_y - height).max(8.) } else { at_y };
         // Keyed by where it opened, so a fresh right-click replays the rise.
         let open_key = format!("{at_x:.0}-{at_y:.0}");
-        let mut bounds = vec![Bounds::new(point(px(x), px(y)), size(px(WIDTH), px(height.min(vh - 16.))))];
-        let top = self.menu_card(&entries, &[], menu.sub.first().copied(), menu.cursor.filter(|_| menu.sub.is_empty()), WIDTH, cx).left(px(x)).top(px(y)).max_h(px(vh - 16.)).overflow_y_scroll();
+        let mut bounds = vec![Bounds::new(point(px(x), px(y)), size(px(width), px(height.min(vh - 16.))))];
+        let top = self.menu_card(&entries, &[], menu.sub.first().copied(), menu.cursor.filter(|_| menu.sub.is_empty()), width, cx).left(px(x)).top(px(y)).max_h(px(vh - 16.)).overflow_y_scroll();
         let mut cards = vec![ui::rise(top.transform_origin(ui::corner(flip_x, flip_y)), SharedString::from(format!("menu-rise-{open_key}")), Duration::ZERO).into_any_element()];
         // One flyout per open level beside its parent row, its first row level with that row; it
         // flips to the left at the window's edge.
-        let (mut level, mut card_x, mut card_y, mut card_w) = (&entries, x, y, WIDTH);
+        let (mut level, mut card_x, mut card_y, mut card_w) = (&entries, x, y, width);
         for (depth, &i) in menu.sub.iter().enumerate() {
             let Some(Entry::Item(item)) = level.get(i) else { break };
             if item.sub.is_empty() {
@@ -603,14 +620,26 @@ impl Rustcord {
             .on_click(cx.listener(move |this, _, window, cx| this.run_menu_item(&run_path, window, cx)))
     }
 
+    pub(crate) fn confirm_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(dialog) = self.dialog.take() else { return };
+        let value = self.dialog_input.read(cx).value().to_string();
+        (dialog.on_confirm)(self, value, window, cx);
+        cx.notify();
+    }
+
+    pub(crate) fn set_dialog_key(&mut self, key: &'static str) {
+        if let Some(dialog) = &mut self.dialog {
+            dialog.key = Some(key);
+        }
+    }
+
+    pub(crate) fn dialog_key(&self) -> Option<&'static str> {
+        self.dialog.as_ref().and_then(|d| d.key)
+    }
+
     pub(crate) fn render_dialog(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let dialog = self.dialog.as_ref()?;
-        let submit = cx.listener(|this, _, window, cx| {
-            let Some(dialog) = this.dialog.take() else { return };
-            let value = this.dialog_input.read(cx).value().to_string();
-            (dialog.on_confirm)(this, value, window, cx);
-            cx.notify();
-        });
+        let submit = cx.listener(|this, _, window, cx| this.confirm_dialog(window, cx));
         let tone = if dialog.danger { ui::Tone::Danger } else { ui::Tone::Primary };
         let body = ui::dialog_body()
             .child(
@@ -636,7 +665,7 @@ impl Rustcord {
                         this.dialog = None;
                         cx.notify();
                     })))
-                    .child(ui::button("dialog-confirm", tone, cx).child(dialog.confirm.clone()).on_click(submit)),
+                    .child(ui::button("dialog-confirm", tone, cx).child(dialog.confirm.clone()).when_some(dialog.key, |b, key| b.children(key.split('+').map(|k| ui::kbd_translucent(crate::settings::key_name(k), gpui_kit::white())))).on_click(submit)),
             );
         let backdrop = div().id("dialog-backdrop").absolute().inset_0().occlude().on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
             this.dialog = None;
@@ -689,6 +718,7 @@ pub(crate) fn menu_item_row(id: SharedString, item: &Item, sub_open: bool, lead_
                         .child(text)
                 })),
         )
+        .when_some(item.shortcut, |d, combo| d.child(crate::settings::key_caps(&crate::feed_keys::platform_combo(combo), cx)))
         .when_some(item.mark, |d, mark| match mark {
             Mark::Check(on) => d.child(ui::check(if on { ui::Check::On } else { ui::Check::Off }, cx).size(px(18.))),
             Mark::Radio(_) => d,

@@ -150,6 +150,10 @@ impl Rustcord {
         if self.record_keystroke(keystroke, cx) {
             return cx.stop_propagation();
         }
+        if self.dialog_key().is_some_and(|key| crate::feed_keys::combo(keystroke) == key) {
+            self.confirm_dialog(window, cx);
+            return cx.stop_propagation();
+        }
         if keystroke.key == "escape" && self.call_fullscreen {
             return self.set_call_fullscreen(false, window, cx);
         }
