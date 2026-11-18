@@ -79,6 +79,7 @@
   --bg-sidebar: oklch(0.180 var(--n-c) var(--n-h));
   --bg-page: oklch(0.210 var(--n-c) var(--n-h));
   --bg-raised: oklch(0.250 calc(var(--n-c) * 1.2) var(--n-h));
+  --bg-group: var(--bg-raised);
   --bg-overlay: oklch(0.275 calc(var(--n-c) * 1.2) var(--n-h));
   --hover: oklch(1 0 0 / 0.05);
   --press: oklch(1 0 0 / 0.09);
@@ -110,6 +111,7 @@
   --bg-sidebar: oklch(0.948 var(--n-c) var(--n-h));
   --bg-page: oklch(0.982 calc(var(--n-c) * 0.6) var(--n-h));
   --bg-raised: oklch(0.995 calc(var(--n-c) * 0.3) var(--n-h));
+  --bg-group: oklch(0.960 calc(var(--n-c) * 0.8) var(--n-h));
   --bg-overlay: oklch(0.998 calc(var(--n-c) * 0.2) var(--n-h));
   --hover: oklch(0.3 0.008 var(--n-h) / 0.06);
   --press: oklch(0.3 0.008 var(--n-h) / 0.1);
@@ -144,6 +146,7 @@
     --bg-sidebar: oklch(0.948 var(--n-c) var(--n-h));
     --bg-page: oklch(0.982 calc(var(--n-c) * 0.6) var(--n-h));
     --bg-raised: oklch(0.995 calc(var(--n-c) * 0.3) var(--n-h));
+    --bg-group: oklch(0.960 calc(var(--n-c) * 0.8) var(--n-h));
     --bg-overlay: oklch(0.998 calc(var(--n-c) * 0.2) var(--n-h));
     --hover: oklch(0.3 0.008 var(--n-h) / 0.06);
     --press: oklch(0.3 0.008 var(--n-h) / 0.1);

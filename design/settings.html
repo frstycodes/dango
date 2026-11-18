@@ -121,7 +121,7 @@
   </div>
 </section>
 
-<section id="account" data-page="account" data-label="Account" data-icon="user-circle">
+<section id="account" data-page="account" data-label="My account" data-icon="user-circle">
   <h2>Account</h2>
   <p class="lede">Who you are and how you sign in. Account info edits in place; account-ending actions sit at the bottom in a surface edged in the danger tone.</p>
   <div class="board set-sheet">
@@ -325,6 +325,82 @@
   <p class="note">Profiles: Custom shows input sensitivity, noise suppression, echo cancellation, automatic gain control and advanced voice activity. Voice isolation hides those five. Studio also hides input mode, since it's always an open mic.</p>
 </section>
 
+<section id="content-social" data-page="content-social" data-label="Content and social" data-icon="shield">
+  <h2>Content and social</h2>
+  <p class="lede">Who can reach you: synced to your Discord account, so every client follows it.</p>
+  <div class="board set-sheet">
+    <div class="set-page" data-src>
+      <h4 class="set-h">Content and social</h4>
+      <div class="set-group">
+        <h5>Direct messages</h5>
+        <div class="set-card">
+          <button class="set-row choice" data-toggle="switch" data-s="dm privacy"><div class="t"><b>Allow DMs from server members</b><span>Applies to servers you join from now on</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5>Message filtering</h5>
+        <div class="set-card">
+          <button class="set-row choice" role="radio" aria-checked="false"><span class="radio"></span><div class="t"><b>Filter all direct messages</b><span>Every DM is scanned for explicit images</span></div></button><button class="set-row choice" role="radio" aria-checked="true"><span class="radio"></span><div class="t"><b>Filter DMs from non-friends</b><span>Messages from friends aren't scanned</span></div></button><button class="set-row choice" role="radio" aria-checked="false"><span class="radio"></span><div class="t"><b>Don't filter direct messages</b></div></button>
+        </div><p class="set-cap">Discord blurs explicit images in DMs it scans.</p>
+      </div>
+      <div class="set-group">
+        <h5>Who can send you a friend request</h5>
+        <div class="set-card">
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Everyone</b></div><span class="switch" role="switch" aria-checked="true"></span></button><button class="set-row choice" data-toggle="switch"><div class="t"><b>Friends of friends</b></div><span class="switch" role="switch" aria-checked="true"></span></button><button class="set-row choice" data-toggle="switch"><div class="t"><b>Server members</b></div><span class="switch" role="switch" aria-checked="true"></span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="chat" data-page="chat" data-label="Chat" data-icon="chat-circle">
+  <h2>Chat</h2>
+  <p class="lede">How messages display. Embeds and reactions sync to your account; the clock is Dango's own.</p>
+  <div class="board set-sheet">
+    <div class="set-page" data-src>
+      <h4 class="set-h">Chat</h4>
+      <div class="set-group">
+        <h5>Display</h5>
+        <div class="set-card">
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Show embeds and link previews</b></div><span class="switch" role="switch" aria-checked="true"></span></button><button class="set-row choice" data-toggle="switch"><div class="t"><b>Show emoji reactions</b></div><span class="switch" role="switch" aria-checked="true"></span></button><button class="set-row choice" data-toggle="switch" data-s="time clock"><div class="t"><b>Use a 24-hour clock</b><span>For message times</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="advanced" data-page="advanced" data-label="Advanced" data-icon="gear">
+  <h2>Advanced</h2>
+  <p class="lede">Developer mode syncs to your account.</p>
+  <div class="board set-sheet">
+    <div class="set-page" data-src>
+      <h4 class="set-h">Advanced</h4>
+      <div class="set-group">
+        <h5>Developer</h5>
+        <div class="set-card">
+          <button class="set-row choice" data-toggle="switch" data-s="copy id"><div class="t"><b>Developer mode</b><span>Adds Copy ID to the menus of servers, channels, people and messages</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="activity-privacy" data-page="activity-privacy" data-label="Activity privacy" data-icon="game-controller">
+  <h2>Activity privacy</h2>
+  <p class="lede">Activity settings: what others see you doing.</p>
+  <div class="board set-sheet">
+    <div class="set-page" data-src>
+      <h4 class="set-h">Activity privacy</h4>
+      <div class="set-group">
+        <h5>Activity status</h5>
+        <div class="set-card">
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Share your activity status</b><span>What you're playing or listening to, as Discord's apps detect it</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="keybinds" data-page="keybinds" data-label="Keybinds" data-icon="keyboard">
   <h2>Keybinds</h2>
   <p class="lede">Each keybind is an action and a shortcut. Any combo works, including plain keys like = with Backspace. Recording listens until you let go; a combo another keybind has warns and offers to move it, one another app owns says so.</p>
@@ -460,9 +536,9 @@
 <template id="set-shell">
   <div class="set">
     <nav class="set-nav" aria-label="Settings">
-      <div class="set-me"><span class="av" data-av="Juno"><span class="status online"></span></span><div><b>Juno</b><span>Online</span></div></div>
-      <div class="input"><i class="ph ph-magnifying-glass"></i><input type="search" aria-label="Search settings" placeholder="Search settings" data-q><button class="iconbtn iconbtn--sm" aria-label="Clear search" data-clear hidden><i class="ph-bold ph-x"></i></button></div>
+      <div class="input search"><i class="ph ph-magnifying-glass"></i><input type="search" aria-label="Search settings" placeholder="Search settings" data-q><button class="iconbtn iconbtn--sm" aria-label="Clear search" data-clear hidden><i class="ph-bold ph-x"></i></button></div>
       <div class="set-hits"></div>
+      <button class="set-me" data-go="account"><span class="av" data-av="Juno"><span class="status online"></span></span><div><b>Juno</b><span>My account</span></div></button>
       <div class="set-navlist"></div>
       <hr>
       <div class="set-ask">
@@ -856,7 +932,7 @@ for (const v of $$("[data-results]")) renderResults(v, v.dataset.results);
 function navHtml() {
   const item = id => `<button class="set-navi" data-go="${id}"><i class="ph ph-${meta(id).icon}"></i><span>${meta(id).label}</span><span class="set-n"></span><i class="ph ph-caret-right chev"></i></button>` +
     (meta(id).anchors ? `<div class="set-subs">${meta(id).anchors.split(",").map(a => { const [k, n] = a.split(":"); return `<button class="set-subi" data-jump="${k}">${n}</button>`; }).join("")}</div>` : "");
-  return item("account") + item("notifications") + `<h5>Experience</h5>` + item("voice-video") + item("keybinds") + item("appearance");
+  return `<h5>User settings</h5>` + item("content-social") + `<h5>App settings</h5>` + item("appearance") + item("voice-video") + item("chat") + item("notifications") + item("keybinds") + item("advanced") + `<h5>Activity settings</h5>` + item("activity-privacy");
 }
 function showPage(win, id, push = true) {
   const view = $(".set-view", win), main = $(".set-main", win);
