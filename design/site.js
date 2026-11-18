@@ -24,6 +24,7 @@ const PAGES = [
   ["flows-account.html", "Flows: account"],
   ["flows-messaging.html", "Flows: messaging"],
   ["flows-voice.html", "Flows: voice and calls"],
+  ["flows-call.html", "Flows: DM calls"],
   ["flows-community.html", "Flows: people and servers"],
 ];
 const FONTS = [["Gabarito", "Gabarito"], ["Onest", "Onest"], ["Figtree", "Figtree"], ["Rubik", "Rubik"], ["gg sans", "gg sans (current)"]];
