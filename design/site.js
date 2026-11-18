@@ -8,7 +8,7 @@ const PAGES = [
   ["better.html", "Better than Discord"],
   ["foundations.html", "Foundations"],
   ["icons.html", "Icons"],
-  ["window-chrome.html", "Window chrome"],
+  ["window-chrome.html", "Window frame"],
   ["primitives.html", "Primitives"],
   ["navigation.html", "Navigation"],
   ["messages.html", "Messages"],
