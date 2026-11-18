@@ -2127,7 +2127,14 @@ impl Rustcord {
         let channel = self.guilds.iter().find(|g| Some(&g.id) == guild_id.as_ref()).and_then(|g| g.channels.iter().find(|c| c.id == channel_id)).cloned();
         match channel {
             Some(channel) => self.join_voice_in(guild_id, channel, cx),
-            None => self.leave_voice(cx),
+            // We can't show that channel, so we don't stay in it: Discord still has us there.
+            None => {
+                if let Some(client) = &self.client {
+                    client.voice.leave_voice(guild_id.as_deref(), self.muted, self.deafened);
+                }
+                self.leave_voice(cx);
+                self.voice_error = Some("Moved to a voice channel Dango can't show".into());
+            }
         }
     }
 

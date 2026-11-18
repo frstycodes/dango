@@ -306,6 +306,16 @@ impl GatewayHandle {
     fn send(&self, op: u8, d: Value) {
         let _ = self.outbound.unbounded_send(json!({ "op": op, "d": d }).to_string());
     }
+
+    // Our voice state; `channel_id` None leaves voice.
+    fn send_voice_state(&self, guild_id: Option<&str>, channel_id: Option<&str>, muted: bool, deafened: bool, video: bool) {
+        self.send(4, json!({ "guild_id": guild_id, "channel_id": channel_id, "self_mute": muted, "self_deaf": deafened, "self_video": video }));
+    }
+
+    // Leaves voice when no session can: one that was moved ends without leaving, for the next to carry on.
+    pub fn leave_voice(&self, guild_id: Option<&str>, muted: bool, deafened: bool) {
+        self.send_voice_state(guild_id, None, muted, deafened, false);
+    }
 }
 
 pub struct VoiceSession {
@@ -388,15 +398,12 @@ impl Shared {
 
     fn send_voice_state(&self, in_channel: bool) {
         let camera_on = self.camera.lock().is_ok_and(|c| c.is_some());
-        self.gateway.send(
-            4,
-            json!({
-                "guild_id": self.guild_id,
-                "channel_id": in_channel.then_some(&self.channel_id),
-                "self_mute": self.muted.load(Ordering::Relaxed),
-                "self_deaf": self.deafened.load(Ordering::Relaxed),
-                "self_video": in_channel && camera_on,
-            }),
+        self.gateway.send_voice_state(
+            self.guild_id.as_deref(),
+            in_channel.then_some(self.channel_id.as_str()),
+            self.muted.load(Ordering::Relaxed),
+            self.deafened.load(Ordering::Relaxed),
+            in_channel && camera_on,
         );
     }
 
@@ -1185,6 +1192,14 @@ mod tests {
         let Ok(VoiceEvent::VideoState { user_id, streaming: true, camera: false }) = rx.try_recv() else { panic!() };
         assert_eq!(user_id, "u");
         assert!(voice_dispatch(&shared, "VOICE_STATE_UPDATE", &json!({ "user_id": "me", "channel_id": null })).is_some());
+    }
+
+    #[test]
+    fn leave_outside_a_session_clears_our_channel() {
+        let (gateway, mut out) = GatewayHandle::new();
+        gateway.leave_voice(Some("g"), true, false);
+        let sent: Value = serde_json::from_str(&out.try_recv().unwrap()).unwrap();
+        assert_eq!(sent, json!({ "op": 4, "d": { "guild_id": "g", "channel_id": null, "self_mute": true, "self_deaf": false, "self_video": false } }));
     }
 
     #[test]
