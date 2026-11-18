@@ -7,6 +7,7 @@
 //!
 //! If all of your elements are the same height, see [`crate::UniformList`] for a simpler API
 
+use super::overscroll::{Overscroll, rubber_bands};
 use crate::{
     AnyElement, App, AvailableSpace, Bounds, ContentMask, DispatchPhase, Edges, Element, EntityId,
     FocusHandle, GlobalElementId, Hitbox, HitboxBehavior, InspectorElementId, IntoElement,
@@ -15,7 +16,7 @@ use crate::{
 };
 use collections::VecDeque;
 use refineable::Refineable as _;
-use std::{cell::RefCell, ops::Range, rc::Rc};
+use std::{cell::RefCell, ops::Range, rc::Rc, time::Instant};
 use sum_tree::{Bias, Dimensions, SumTree};
 
 type RenderItemFn = dyn FnMut(usize, &mut Window, &mut App) -> AnyElement + 'static;
@@ -73,6 +74,7 @@ struct StateInner {
     measuring_behavior: ListMeasuringBehavior,
     pending_scroll: Option<PendingScroll>,
     follow_state: FollowState,
+    overscroll: Overscroll,
 }
 
 /// Deferred scroll adjustment applied after the scroll-top item has been remeasured.
@@ -325,6 +327,7 @@ impl ListState {
             measuring_behavior: ListMeasuringBehavior::default(),
             pending_scroll: None,
             follow_state: FollowState::default(),
+            overscroll: Overscroll::default(),
         })));
         this.splice(0..0, item_count);
         this
@@ -1277,10 +1280,20 @@ impl StateInner {
             // Avoid honoring autoscroll requests from elements other than our children.
             window.take_autoscroll();
 
+            let scroll_max = (self.items.summary().height + padding.top + padding.bottom
+                - bounds.size.height)
+                .max(px(0.));
+            self.overscroll
+                .set_extent(point(px(0.), scroll_max), bounds.size);
+            if self.overscroll.tick(Instant::now()) {
+                window.request_animation_frame();
+            }
+
             // Only paint the visible items, if there is actually any space for them (taking padding into account)
             if bounds.size.height > padding.top + padding.bottom {
                 let mut item_origin = bounds.origin + Point::new(px(0.), padding.top);
                 item_origin.y -= layout_response.scroll_top.offset_in_item;
+                item_origin.y += self.overscroll.offset().y;
                 for item in &mut layout_response.item_layouts {
                     window.with_content_mask(Some(ContentMask { bounds }), |window| {
                         item.element.prepaint_at(item_origin, window, cx);
@@ -1596,12 +1609,27 @@ impl Element for List {
         let list_state = self.state.clone();
         let height = bounds.size.height;
         let scroll_top = prepaint.layout.scroll_top;
+        let scroll_top_px = self.state.0.borrow().scroll_top(&scroll_top);
         let hitbox_id = prepaint.hitbox.id;
         let mut accumulated_scroll_delta = ScrollDelta::default();
+        let mut accumulated_stretch_delta = Point::<Pixels>::default();
         window.on_mouse_event(move |event: &ScrollWheelEvent, phase, window, cx| {
             if phase == DispatchPhase::Bubble && hitbox_id.should_handle_scroll(window) {
-                accumulated_scroll_delta = accumulated_scroll_delta.coalesce(event.delta);
-                let pixel_delta = accumulated_scroll_delta.pixel_delta(px(20.));
+                let pixel_delta = if rubber_bands(event, cx) {
+                    let delta = event.delta.pixel_delta(px(20.));
+                    let position = point(px(0.), accumulated_stretch_delta.y - scroll_top_px);
+                    let applied = list_state.0.borrow_mut().overscroll.scroll(
+                        position,
+                        point(px(0.), delta.y),
+                        event.touch_phase,
+                        Instant::now(),
+                    );
+                    accumulated_stretch_delta = accumulated_stretch_delta + applied;
+                    accumulated_stretch_delta
+                } else {
+                    accumulated_scroll_delta = accumulated_scroll_delta.coalesce(event.delta);
+                    accumulated_scroll_delta.pixel_delta(px(20.))
+                };
                 list_state.0.borrow_mut().scroll(
                     &scroll_top,
                     height,
