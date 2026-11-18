@@ -312,6 +312,33 @@
   </div>
   <p class="note" style="margin-top:8px">File icons: in the app this is the icon the OS gives the file type (NSWorkspace / shell icon); Phosphor stands in here. Voice messages draw their waveform as wave bars; the played part takes the accent ink, the time counts down while playing.</p>
 
+  <h3>Text files</h3>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="time">Today at 10:32 PM</span></div>
+      <div class="textfile"><pre>Patch notes, season 7
+
+Ranked
+- Placement matches drop from 10 to 5; your old rank seeds the first one.
+- Leaving a match early now costs twice the rank it used to, and the second leave in a day locks queue for 30 minutes.
+- Duo queue opens at every rank. Trios stay closed above Diamond.
+
+Maps
+- Harbor: the long sightline from B main to the crane is blocked by new containers.
+- Foundry returns to the pool with the smaller mid it had in season 5.
+
+Bug fixes
+- The scoreboard no longer swaps teams' colours after half time.
+- Crouch-peeking a ledge no longer shows your head through the wall.</pre>
+        <div class="tf-foot"><button class="iconbtn iconbtn--sm" aria-label="Expand" aria-expanded="false"><i class="ph-bold ph-caret-down"></i></button><a class="fname" href="#">message.txt</a><span class="fsize">4.2 KB</span><button class="iconbtn iconbtn--sm" aria-label="Copy contents"><i class="ph ph-copy"></i></button><button class="iconbtn iconbtn--sm" aria-label="Open full size"><i class="ph ph-arrows-out"></i></button><button class="iconbtn iconbtn--sm" aria-label="Download message.txt"><i class="ph ph-download-simple"></i></button></div></div>
+      <div class="textfile open"><pre>fn main() {
+    let name = std::env::args().nth(1).unwrap_or("world".into());
+    println!("hello, {name}");
+}</pre>
+        <div class="tf-foot"><button class="iconbtn iconbtn--sm" aria-label="Collapse" aria-expanded="true"><i class="ph-bold ph-caret-up"></i></button><a class="fname" href="#">hello.rs</a><span class="fsize">96 B</span><button class="iconbtn iconbtn--sm done" aria-label="Copied"><i class="ph ph-check"></i></button><button class="iconbtn iconbtn--sm" aria-label="Open full size"><i class="ph ph-arrows-out"></i></button><button class="iconbtn iconbtn--sm" aria-label="Download hello.rs"><i class="ph ph-download-simple"></i></button></div></div>
+    </div></div>
+  </div>
+  <p class="note" style="margin-top:8px">Text, Markdown, logs, code and Discord's message.txt read in place instead of as a file card. The text loads when the card scrolls into view, only its first 100 KB; a file that isn't UTF-8 text stays a file card. Collapsed it scrolls inside 200px, expanded inside 560px; Open full size shows the whole file over the window. Copy contents copies the whole file, fetching the rest first when the preview was cut short. Roboto Mono for the file only; no syntax colour until the app ships a highlighter.</p>
+
   <h3>Uploads</h3>
   <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
     <div class="msg first"><span class="av" data-av="You"></span><div><div class="head"><span class="name">You</span><span class="time">Today at 10:34 PM</span></div>
