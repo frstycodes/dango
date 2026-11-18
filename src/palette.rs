@@ -31,6 +31,7 @@ struct Tokens {
     sidebar: u32,
     page: u32,
     raised: u32,
+    group: u32,
     overlay: u32,
     strong: u32,
     text: u32,
@@ -65,6 +66,7 @@ const DARK: Tokens = Tokens {
     sidebar: 0x111213,
     page: 0x17181A,
     raised: 0x202224,
+    group: 0x202224,
     overlay: 0x26282A,
     strong: 0xF3F5F8,
     text: 0xD4D8DD,
@@ -96,6 +98,8 @@ const LIGHT: Tokens = Tokens {
     sidebar: 0xECEEF0,
     page: 0xF8F9FB,
     raised: 0xFDFDFE,
+    // Darker than the page, not lighter: a borderless group one step lighter than F8F9FB can't be seen.
+    group: 0xF0F1F3,
     overlay: 0xFEFEFF,
     strong: 0x14161A,
     text: 0x2B2E32,
@@ -342,6 +346,8 @@ pub enum Level {
     Sidebar,
     Page,
     Raised,
+    // A settings group: borderless rows one step from the page (lighter in dark, darker in light).
+    Group,
     Overlay,
 }
 
@@ -352,6 +358,7 @@ pub fn surface(level: Level, cx: &App) -> Hsla {
         Level::Sidebar => t.sidebar,
         Level::Page => t.page,
         Level::Raised => t.raised,
+        Level::Group => t.group,
         Level::Overlay => t.overlay,
     })
 }

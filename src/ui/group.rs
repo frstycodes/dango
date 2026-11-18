@@ -1,8 +1,9 @@
-// Grouped settings (design/css/settings.css `.set-group`, `.set-card`, `.set-row`): a heading over a card
-// of rows, each a title and description with its control at the end, hairlines between them.
+// Grouped settings (design/css/settings.css `.set-group`, `.set-card`, `.set-row`), iOS inset-grouped style: a
+// heading over a borderless card of rows, each a title and description with its control at the end, inset
+// hairlines between them.
 use gpui_kit::{App, ClickEvent, Div, ElementId, ScrollHandle, FontWeight, InteractiveElement, IntoElement, ParentElement, SharedString, Stateful, StatefulInteractiveElement, Styled, Window, component::Icon, div, prelude::FluentBuilder, px};
 
-use super::{Control, RADIUS_LG, RADIUS_MD, Squircle, menu_row, pressable};
+use super::{Control, RADIUS_XL, Squircle, menu_row, pressable};
 use crate::{icons::Glyph, palette};
 
 // A heading over a card; the caller adds the card and any caption under it.
@@ -15,9 +16,11 @@ pub fn settings_caption(text: impl Into<SharedString>, cx: &App) -> Div {
     div().px(px(4.)).text_size(px(12.)).line_height(px(17.)).text_color(palette::muted(cx)).child(text.into())
 }
 
-// Rows on the raised surface, inset 4px so their fills clear its edge.
+const CARD_INSET: f32 = 4.;
+
+// Rows on the raised surface, one step from the page with no border, inset so their fills clear its edge.
 pub fn settings_card(cx: &App) -> Div {
-    div().min_w_0().p(px(4.)).squircle(RADIUS_LG).bg(palette::surface(palette::Level::Raised, cx)).border_1().border_color(palette::line(cx)).flex().flex_col()
+    div().min_w_0().p(px(CARD_INSET)).squircle(RADIUS_XL).bg(palette::surface(palette::Level::Group, cx)).flex().flex_col()
 }
 
 // A row in a settings card: title and description first, the control last. `line` draws the inset hairline
@@ -32,7 +35,7 @@ pub fn settings_row(id: impl Into<SharedString>, line: bool, cx: &App) -> Statef
         .min_h(px(56.))
         .py(px(10.))
         .px(px(12.))
-        .squircle(RADIUS_MD)
+        .squircle(RADIUS_XL - CARD_INSET)
         .flex()
         .items_center()
         .gap(px(16.))
@@ -143,6 +146,14 @@ pub fn settings_sidebar(id: impl Into<ElementId>, cx: &App) -> Stateful<Div> {
 }
 
 // The scrolling column of a settings page: title, then its groups.
+// Children go in `settings_column`s, so the content centres beside the nav.
 pub fn settings_page(id: impl Into<ElementId>, scroll: &ScrollHandle) -> Stateful<Div> {
-    div().id(id.into()).size_full().overflow_y_scroll().track_scroll(scroll).pt(px(32.)).px(px(40.)).pb(px(96.)).flex().flex_col().gap(px(32.))
+    div().id(id.into()).size_full().overflow_y_scroll().track_scroll(scroll).pt(px(32.)).px(px(40.)).pb(px(96.)).flex().flex_col().items_center().gap(px(32.))
+}
+
+pub const SETTINGS_WIDTH: f32 = 680.;
+
+// The centred content column a settings page's title and every group sit in.
+pub fn settings_column(child: impl IntoElement) -> Div {
+    div().w_full().max_w(px(SETTINGS_WIDTH)).flex_none().child(child)
 }

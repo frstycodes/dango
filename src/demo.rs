@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | updating (the launch splash alone).
+// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -68,6 +68,7 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             }
         }
         "appearance" => chord.open_settings(crate::settings::Page::Appearance, window, cx),
+        "notifications" => chord.open_settings(crate::settings::Page::Notifications, window, cx),
         "unread" => chord.unread_marker = Some(103),
         // A bare `@` in the composer: every member, in the suggestion popup.
         // Typed once the window is up: the composer's events aren't wired while the app is being built.

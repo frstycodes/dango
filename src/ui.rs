@@ -40,7 +40,7 @@ pub use control::{Control, Pressable, button, chip, hover_fade, icon_button, men
 pub use dialog::{dialog, dialog_body, modal};
 pub use feedback::{meter, meter_with, progress_indeterminate, progress_live, ring, skeleton, skeleton_circle, slider_live, slider_track};
 pub use field::{code_cell, drop_zone, field, field_error, field_frame, field_hint, select, select_options, stepper, text_area, text_field};
-pub use group::{settings_caption, settings_card, settings_choice, settings_close, settings_group, settings_nav_item, settings_page, settings_row, settings_sidebar, settings_text, settings_title, settings_window};
+pub use group::{settings_caption, settings_card, settings_choice, settings_close, settings_column, settings_group, settings_nav_item, settings_page, settings_row, settings_sidebar, settings_text, settings_title, settings_window};
 pub use tabs::{Tab, pill_tabs, segmented_live, tabs};
 pub use tri::{Tri, tri_state};
 pub use tunnel::{TUNNEL_GRACE, Tunnel};
@@ -325,13 +325,13 @@ fn switch_track(id: &ElementId, on: bool, pressed: bool, window: &mut Window, cx
     let swell = transition(control::part(id, "swell"), if pressed { 1. } else { 0. }, spring(), window, cx);
     let fill = transition(control::part(id, "fill"), if on { 1. } else { 0. }, Transition::new(DUR_POP).easing(motion::ease_out()), window, cx);
     let glass = hover_fade(control::part(id, "glass"), pressed, window, cx);
-    let knob = stretch(div().absolute().top(px(2.)).left(px(2.)).w(px(28.)).h(px(24.)).translate_x(px(20. * travel)), 1. + 0.18 * swell, 1. + 0.25 * swell)
+    let knob = stretch(div().absolute().top(px(2.)).left(px(2.)).w(px(22.)).h(px(20.)).translate_x(px(14. * travel)), 1. + 0.18 * swell, 1. + 0.25 * swell)
         .rounded_full()
         .bg(mix(gpui_kit::white(), gpui_kit::white().opacity(0.42), glass))
         .shadow(knob_glass(glass))
         // The backdrop blur keeps to the knob's unscaled box: gpui's blur doesn't follow transforms.
         .when(glass > 0., |k| k.backdrop_blur(px(2. * glass)).backdrop_saturate(1. + 0.8 * glass));
-    div().w(px(52.)).h(px(28.)).flex_none().relative().rounded_full().bg(mix(palette::track(cx), palette::accent(), fill.clamp(0., 1.))).child(knob)
+    div().w(px(40.)).h(px(24.)).flex_none().relative().rounded_full().bg(mix(palette::track(cx), palette::accent(), fill.clamp(0., 1.))).child(knob)
 }
 
 // The knob's shadows, from resting (`t` 0) to pressed glass (`t` 1): a lit inner rim and a deeper drop.
