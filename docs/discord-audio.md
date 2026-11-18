@@ -12,11 +12,12 @@ content, tokens or account data.
 - **Desktop app**: `/Applications/Discord.app/Contents/Resources/app.asar` contains only the
   bootstrap/updater; none of the strings `discord_voice`, `discord_krisp` or `krisp` occur in it.
   The voice engine (`discord_voice`) and Krisp (`discord_krisp`) live under
-  `~/Library/Application Support/discord/…/modules`, which macOS refused to open (EPERM) to both
-  the shell and REA. **Nothing below is read from the native engine.** Where behaviour lives only
-  there, it's marked *Not verified*.
-- Krisp's binaries and models were not loaded, copied or called. Rustcord uses DeepFilterNet3 in
-  their place.
+  `~/Library/Application Support/discord/…/modules`, which macOS keeps from other apps. A copy
+  made from Finder (`app-0.0.422`, 2026-11-19) was read: `discord_voice.node` (arm64 slice, C++
+  symbols intact) through `nm`, `objdump` and REA (Hopper). Only the native engine's code was read;
+  Krisp's `.kef` models were not loaded, copied or called, and neither was `discord_krisp.node`.
+  Rustcord uses DeepFilterNet3 in Krisp's place.
+- Where behaviour lives only in code that wasn't read, it's marked *Not verified*.
 
 ## Settings: names, defaults, options
 
@@ -108,11 +109,25 @@ Advanced Voice Activity show only under Custom. Push-to-talk is hidden under Stu
   max_output_noise_level_dbfs: -50, fixed_gain_db: 0`. AGC off sends `{enabled:false,
   useAGC2:false}`. These are WebRTC AGC2 adaptive-digital fields.
 - **Krisp placement**: the engine gets both `noiseCancellation` and
-  `noiseCancellationDuringProcessing` set to the same value. Krisp runs inside the native APM
-  pipeline. *Not verified*: its exact position. On web the chain is visible: `getUserMedia`
-  with the browser's `echoCancellation / noiseSuppression / autoGainControl`, then the Krisp
-  AudioWorklet, then the VAD analyser (`AudioInput`, `@1107947`). So Krisp runs after echo
-  cancellation.
+  `noiseCancellationDuringProcessing` set to the same value. In `discord_voice.node`,
+  `discord::media::CapturedAudioProcessor::Process` (`0x8b854c`) runs Krisp
+  (`NoiseCanceller::Process`, int16) on the raw frame *before* APM only when the during-processing
+  flag is off; with it on, Krisp runs as `NoiseCanceller::ProcessFloat(webrtc::AudioBuffer&)`
+  inside APM. APM's `ProcessCaptureStreamLocked` (`0x699ee0`) calls, in order: high-pass filter,
+  band split, AEC3, NS, AGC1, band merge, the custom-processing hook at `this+0x758`,
+  `GainController2::Process`, then `webrtc::PostFilter::Process`. So the chain is HPF → AEC3 →
+  (NS) → Krisp → AGC2 → post filter. The hook's position is read from the disassembly; that it
+  holds Krisp is inferred from the flag and `ProcessFloat`'s `AudioBuffer` argument.
+- **APM rate and post filter**: `PostFilter::CreateIfNeeded` (`0x6ace98`) builds a filter only at
+  48 kHz: four biquads (`kPostFilterCoefficients48kHz`, `0xc9f97c`) forming a low-pass at
+  19.2 kHz (-3 dB), -20 dB by 19.5 kHz, flat below 18 kHz. So Discord's APM processes at 48 kHz.
+  It isn't in upstream WebRTC as far as known; Rustcord doesn't copy it.
+- **Krisp on web**: the worklet is registered from a runtime blob as `"processor"`, with models
+  `model_8`, `model_16`, `model_32` from `cdn.discordapp.com/assets/krisp_browser_models/` and
+  `modelName: "model32"` in a 48 kHz context. In a voice call on Chrome 157 with a fake mic, the
+  sent track was the raw `getUserMedia` track (browser echo cancellation and AGC on, browser NS
+  off) and the worklet's output stayed silent. *Not verified*: whether web Krisp was simply
+  inactive in that setup.
 - **Krisp models** (`eo`, `@11353727`): `krisp-nc-o-nb-v2.kef` (8 kHz), `krisp-nc-o-lite-v1.kef`
   (16 kHz), `krisp-nc-o-med-v7-fp16.kef` (up to 96 kHz). Suppression level from
   `getSuppressionLevel() ?? 100`. Not used by Rustcord.
@@ -145,9 +160,9 @@ input device." (`bgn75v`, `MA+OZh`).
 
 | Discord | Rustcord |
 |---|---|
-| Krisp noise cancellation | DeepFilterNet3 (bundled model, tract, 48 kHz, 10 ms hops) on its own worker thread. RNNoise covers while it loads and replaces it for the call if it averages over 8 ms per 10 ms block (Discord's overuse rule) |
+| Krisp noise cancellation | DeepFilterNet3 (bundled model, tract, 48 kHz, 10 ms hops) on its own worker thread, both stages always on (thresholds -15/35/35 dB; libDF's defaults hard-mute blocks it rates below -10 dB). RNNoise covers while it loads and replaces it for the call if it averages over 8 ms per 10 ms block (Discord's overuse rule) |
 | Standard noise suppression | WebRTC NS (`sonora`), Moderate. *Not verified*: Discord's level |
-| Echo cancellation | WebRTC AEC3 (`sonora`). The played audio reaches it through a bounded queue, not a lock on the output callback |
+| Echo cancellation | WebRTC AEC3 (`sonora`) at 48 kHz like Discord's APM (sonora defaults to 32 kHz, which drops everything above 16 kHz). No suppressor after it, as in Discord. The played audio reaches it through a bounded queue, not a lock on the output callback |
 | AGC | WebRTC AGC2 with Discord's exact `eQ` values, run after the neural suppressor |
 | Krisp VAD (Advanced Voice Activity) | RNNoise's speech probability, at Discord's 0.5 / 0.8-with-AGC activation |
 | `vadAutoThreshold: VERY_AGGRESSIVE` | WebRTC GMM VAD (`earshot` 0.1 port), very aggressive profile |
