@@ -49,7 +49,7 @@
 .msg .gutter i { font-size: 14px; vertical-align: -2px; }
 .msg .body { color: var(--text); font-size: var(--text-md); line-height: var(--leading-body); overflow-wrap: anywhere; }
 .msg .body + .body { margin-top: 2px; }
-.msg.mention { background: var(--accent-soft); }
+.msg.mention { background: color-mix(in oklch, var(--accent-soft) 60%, transparent); box-shadow: inset 2px 0 var(--accent); border-radius: 0; }
 .msg.mention.is-hover { background: color-mix(in oklch, var(--accent-soft), var(--accent) 6%); }
 @media (hover: hover) { .msg.mention:hover { background: color-mix(in oklch, var(--accent-soft), var(--accent) 6%); } }
 .edited { margin-left: 4px; color: var(--text-faint); font-size: var(--text-xs); white-space: nowrap; }
