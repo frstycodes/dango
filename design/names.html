@@ -11,30 +11,30 @@
 @font-face { font-family: "Gabarito"; src: url("../assets/fonts/Gabarito-Bold.ttf"); font-weight: 700; }
 
 :root {
-  --page: #f7f2ea;
-  --surface: #fffcf7;
-  --ink: #1b1317;
-  --muted: #5f5559;
-  --hairline: oklch(0.3 0.03 30 / 0.12);
-  --fill: oklch(0.3 0.03 30 / 0.06);
+  --page: #f8f9fb;
+  --surface: #fdfdfe;
+  --ink: #14161a;
+  --muted: #55585e;
+  --hairline: oklch(0.3 0.008 260 / 0.12);
+  --fill: oklch(0.3 0.008 260 / 0.06);
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --page: #120d10;
-    --surface: #1c1619;
-    --ink: #f7f4f5;
-    --muted: #b1a8ac;
+    --page: #111213;
+    --surface: #17181a;
+    --ink: #f3f5f8;
+    --muted: #a0a5ac;
     --hairline: oklch(1 0 0 / 0.1);
     --fill: oklch(1 0 0 / 0.06);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --page: #120d10;
-  --surface: #1c1619;
-  --ink: #f7f4f5;
-  --muted: #b1a8ac;
+  --page: #111213;
+  --surface: #17181a;
+  --ink: #f3f5f8;
+  --muted: #a0a5ac;
   --hairline: oklch(1 0 0 / 0.1);
   --fill: oklch(1 0 0 / 0.06);
   color-scheme: dark;
@@ -111,11 +111,11 @@ p { margin: 4px 0 0; color: var(--muted); font-size: 14px; text-wrap: pretty; }
 
 .splashes { display: flex; gap: 16px; flex-wrap: wrap; }
 .splash { width: 220px; height: 248px; border-radius: 20px; corner-shape: superellipse(1.4); display: grid; place-content: center; justify-items: center; gap: 10px; padding: 16px; }
-.splash.bone { background: #f7f2ea; color: #1b1317; border: 1px solid rgb(73 53 47 / 0.16); }
-.splash.midnight { background: #0a0608; color: #f7f4f5; border: 1px solid rgb(255 255 255 / 0.16); }
+.splash.light { background: #f8f9fb; color: #14161a; border: 1px solid rgb(43 46 50 / 0.16); }
+.splash.dark { background: #0a0b0d; color: #f3f5f8; border: 1px solid rgb(255 255 255 / 0.16); }
 .splash b { font-size: 20px; line-height: 1; margin-top: 4px; }
 .splash small { font-size: 12px; font-weight: 500; opacity: 0.7; }
-.splash .bar { width: 120px; height: 6px; border-radius: 3px; background: oklch(0.6 0.01 350 / 0.45); overflow: hidden; }
+.splash .bar { width: 120px; height: 6px; border-radius: 3px; background: oklch(0.6 0.01 260 / 0.45); overflow: hidden; }
 .splash .bar i { display: block; height: 100%; width: 42%; background: var(--accent); border-radius: 3px; }
 
 .chat { display: grid; gap: 10px; }
@@ -307,12 +307,12 @@ function render() {
   document.getElementById("sizes").innerHTML = [128, 56, 32, 16].map(px =>
     `<figure>${icon(state.name, a, "bone", px)}<figcaption>${px}</figcaption></figure>`).join("") +
     [32, 16].map(px => `<figure>${icon(state.name, a, "graphite", px)}<figcaption>${px} dark</figcaption></figure>`).join("");
-  const surface = isDark() ? "#1c1619" : "#fffcf7";
+  const surface = isDark() ? "#17181a" : "#fdfdfe";
   document.getElementById("wordmark").innerHTML = bareMark(state.name, a, 40, a.c, surface, isDark() ? "#8C7A6A" : "#C9A27A") + name.name;
   document.getElementById("rail").innerHTML = `<span class="home">${bareMark(state.name, a, 30, "#fff", a.c, a.deep)}</span><span class="server"></span><span class="server"></span>`;
   document.querySelector(".button").style.color = a.fg;
-  document.getElementById("splashes").innerHTML = [["bone", "#f7f2ea", "#C9A27A"], ["midnight", "#0a0608", "#8C7A6A"]].map(([k, bg, stick]) =>
-    `<div class="splash ${k}">${bareMark(state.name, a, 56, k === "bone" ? a.c : a.light, bg, stick)}<b>${name.name}</b><small>Updating to 0.2.0…</small><span class="bar"><i></i></span></div>`).join("");
+  document.getElementById("splashes").innerHTML = [["light", "#f8f9fb", "#C9A27A"], ["dark", "#0a0b0d", "#8C7A6A"]].map(([k, bg, stick]) =>
+    `<div class="splash ${k}">${bareMark(state.name, a, 56, k === "light" ? a.c : a.light, bg, stick)}<b>${name.name}</b><small>Updating to 0.2.0…</small><span class="bar"><i></i></span></div>`).join("");
 }
 
 document.addEventListener("click", e => {

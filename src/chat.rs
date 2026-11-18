@@ -1334,9 +1334,9 @@ fn media_tag(text: &'static str) -> Div {
     div().absolute().h(px(20.)).px(px(6.)).flex().items_center().gap(px(4.)).squircle(RADIUS_XS).bg(on_media(0.72)).text_color(gpui_kit::white()).text_size(px(11.)).font_weight(FontWeight::SEMIBOLD).child(text)
 }
 
-// The design's media scrim, oklch(0.14 0.01 350), at `alpha`.
+// The design's media scrim, oklch(0.14 0.004 260), at `alpha`.
 fn on_media(alpha: f32) -> Hsla {
-    Hsla::from(gpui_kit::rgb(0x120E10)).opacity(alpha)
+    Hsla::from(gpui_kit::rgb(0x08090B)).opacity(alpha)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

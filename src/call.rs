@@ -18,7 +18,7 @@ use crate::{
     icons::Glyph,
     layout::RAIL_WIDTH,
     menu::{Entry, item, submenu},
-    palette,
+    palette::{self, stage},
     settings::Page,
     ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XS, Squircle},
     voice::{self, Stage},
@@ -1621,79 +1621,6 @@ fn call_backdrop(id: &'static str, cx: &mut Context<Rustcord>) -> Stateful<Div> 
             cx.notify();
         }),
     )
-}
-
-// The call stage is dark in both themes (design/css/voice.css `.call`), so whatever sits on it reads
-// these instead of the theme's tokens. Converted from the CSS's OKLCH.
-mod stage {
-    use gpui_kit::{Hsla, rgb};
-
-    fn hex(value: u32) -> Hsla {
-        rgb(value).into()
-    }
-
-    pub fn bg() -> Hsla {
-        hex(0x0A0608)
-    }
-
-    pub fn overlay() -> Hsla {
-        hex(0x2C2528)
-    }
-
-    pub fn ended() -> Hsla {
-        hex(0x171214)
-    }
-
-    pub fn strong() -> Hsla {
-        hex(0xF7F4F5)
-    }
-
-    pub fn text() -> Hsla {
-        hex(0xDCD5D8)
-    }
-
-    pub fn muted() -> Hsla {
-        hex(0xABA2A5)
-    }
-
-    pub fn faint() -> Hsla {
-        hex(0x958C90)
-    }
-
-    pub fn online() -> Hsla {
-        hex(0x3EC87D)
-    }
-
-    pub fn idle() -> Hsla {
-        hex(0xF2B036)
-    }
-
-    pub fn dnd() -> Hsla {
-        hex(0xF05136)
-    }
-
-    // Translucent white: hover .05, press .09, selected .08, line .08, strong line .14.
-    pub fn wash(alpha: f32) -> Hsla {
-        gpui_kit::white().opacity(alpha)
-    }
-
-    // Off states (muted, camera off) are soft coral, apart from the red that leaves.
-    pub fn off(hover: bool) -> Hsla {
-        hex(0xF05136).opacity(if hover { 0.3 } else { 0.2 })
-    }
-
-    pub fn off_ink() -> Hsla {
-        hex(0xFF9079)
-    }
-
-    // On states (camera on) are a light fill with dark ink.
-    pub fn on(hover: bool) -> Hsla {
-        hex(if hover { 0xDBD6D8 } else { 0xF1EDEF })
-    }
-
-    pub fn on_ink() -> Hsla {
-        hex(0x1A1417)
-    }
 }
 
 // The few tokens a menu reads, from the stage or from the theme.

@@ -1046,7 +1046,7 @@ impl Rustcord {
                     window.refresh();
                 }))
         }));
-        // GAP: the design's Neutrals, Message density and Chat font size groups have no setting in the
+        // GAP: the design's Message density and Chat font size groups have no setting in the
         // app yet; they appear here once Prefs carries them.
         vec![
             Section::new(ui::settings_group("Theme", cx).child(picks).child(ui::settings_caption("Midnight is the darkest theme, the one Dango is built on.", cx))),

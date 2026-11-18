@@ -263,7 +263,7 @@ button.cat:hover, .cat.is-hover { background: var(--hover); color: var(--text-st
 
 /* Role colour: a member's top role tints their name, in the member list and on messages.
    Any colour a server picks is clamped in lightness per theme and capped in chroma, so it clears 4.5:1 on
-   every sidebar, page, popover and selected fill (worst case: pure yellow or green on bone, 4.5:1; pure blue on ink, 5.6:1).
+   every sidebar, page, popover and selected fill (worst case: pure yellow or green in light, 4.5:1; pure blue in dark, 5.6:1).
    No role, no --role: the declaration is invalid and the name keeps its own ink. */
 .role-ink, .msg .name.role-ink { --role-l: clamp(0.72, l, 0.92); color: oklch(from var(--role) var(--role-l) min(c, 0.16) h); }
 :root[data-theme="light"] :is(.role-ink, .msg .name.role-ink) { --role-l: clamp(0.30, l, 0.45); }

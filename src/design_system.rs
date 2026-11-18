@@ -658,7 +658,7 @@ fn colour(cx: &App) -> impl IntoElement {
             .child(edge_top(div().h(px(64.)).p(px(8.)).bg(color).flex().items_end().justify_end().when(white_text, |d| d.child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(gpui_kit::white()).child(ratio(gpui_kit::white(), color))))))
             .child(div().px(px(10.)).py(px(8.)).text_size(px(12.)).child(div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(token)).child(div().text_color(palette::faint(cx)).child(name)))
     };
-    section("Colour", "Restrained: warm neutrals plus one chili. Depth in the dark theme comes from lighter surfaces, never shadows. Contrast figures are measured live against the page.", cx)
+    section("Colour", "Restrained: Graphite neutrals plus one chili. Depth in the dark theme comes from lighter surfaces, never shadows. Contrast figures are measured live against the page.", cx)
         .child(h3("Surfaces, deepest to highest", cx))
         .child(
             div()
