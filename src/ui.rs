@@ -94,12 +94,21 @@ pub fn split(main: Control, options: Control) -> Div {
 
 // The LIVE badge: chili, with the mini wave at its own 2px weight.
 /// A header floating over content that scrolls under it, like iOS's scroll edge effect: the content
-/// blurs and fades into the surface towards the window's top, one gradient running through the bar
-/// itself, with no hairline. `fade_right` keeps it off a column at the right (the side panel) whose
-/// content doesn't scroll under the header.
+/// dissolves towards the window's top, with no band or hairline. gpui can't give an element an alpha mask,
+/// but the content sits on the solid `surface`, so fading it out is fading it into that exact tone; the
+/// curve runs from fully gone at the top edge, through ~90% at the bar's text, to clear just below the bar.
+/// The blur under it eases off on the same curve. `fade_right` keeps it off a column at the right.
 pub fn scroll_edge(surface: Hsla, fade_right: f32) -> Div {
-    const TAIL: f32 = 16.;
+    const TAIL: f32 = 24.;
     let height = crate::layout::HEADER_HEIGHT + TAIL;
+    // Two linear ramps stacked make an ease-out: steep at the top, long and soft below the bar.
+    let ramp = |h: f32| {
+        div().absolute().top_0().left_0().right(px(fade_right)).h(px(h)).bg(linear_gradient(
+            180.,
+            linear_color_stop(surface, 0.),
+            linear_color_stop(surface.opacity(0.), 1.),
+        ))
+    };
     div()
         .absolute()
         .top_0()
@@ -107,18 +116,8 @@ pub fn scroll_edge(surface: Hsla, fade_right: f32) -> Div {
         .right_0()
         .h(px(height))
         .child(div().absolute().inset_0().right(px(fade_right)).backdrop_blur(px(16.)).backdrop_fade(px(0.), px(0.), px(height * 0.8), px(0.)))
-        .child(div().absolute().inset_0().right(px(fade_right)).bg(linear_gradient(
-            180.,
-            linear_color_stop(surface.opacity(0.9), 0.),
-            linear_color_stop(surface.opacity(0.), 1.),
-        )))
-        // A second, shorter tint over the bar itself: the header's text keeps ~2/3 cover behind it while
-        // the fade still runs through the bar (one two-stop gradient can't do both).
-        .child(div().absolute().top_0().left_0().right(px(fade_right)).h(px(crate::layout::HEADER_HEIGHT)).bg(linear_gradient(
-            180.,
-            linear_color_stop(surface.opacity(0.5), 0.),
-            linear_color_stop(surface.opacity(0.), 1.),
-        )))
+        .child(ramp(height))
+        .child(ramp(crate::layout::HEADER_HEIGHT * 0.75))
 }
 
 thread_local! {
