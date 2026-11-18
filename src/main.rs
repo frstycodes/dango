@@ -42,6 +42,7 @@ mod panel;
 mod rail_drag;
 mod sidebar;
 mod search;
+mod search_menu;
 mod settings;
 mod shell;
 mod user_menu;
@@ -535,6 +536,10 @@ pub struct Rustcord {
     right_panel: RightPanel,
     composer: Entity<ComposerState>,
     search_input: Entity<SearchState>,
+    // The search popover: the keyboard's row, whether More filters is open, the calendar's day.
+    search_pick: Option<usize>,
+    search_more: bool,
+    search_day: chrono::NaiveDate,
     has_draft: bool,
     send_error: Option<SharedString>,
     replying: Option<Message>,
@@ -792,6 +797,9 @@ impl Rustcord {
             right_panel: RightPanel::Members,
             composer,
             search_input,
+            search_pick: None,
+            search_more: false,
+            search_day: search_menu::today(),
             has_draft: false,
             send_error: None,
             replying: None,
@@ -1653,51 +1661,6 @@ impl Rustcord {
         self.last_typing_sent = Some(Instant::now());
         let id = channel.id.clone();
         discord::runtime().spawn(async move { client.typing(&id).await });
-    }
-
-    fn on_search_input(&mut self, state: &Entity<SearchState>, event: &InputEvent, _: &mut Window, cx: &mut Context<Self>) {
-        let InputEvent::PressEnter { .. } = event else { return };
-        let query = state.read(cx).value().trim().to_owned();
-        let Some(client) = self.client.clone() else { return };
-        // A server searches all its channels; a DM searches itself.
-        let scope = match (&self.guild_id, &self.channel) {
-            (Some(guild), _) => format!("guilds/{guild}"),
-            (None, Some(dm)) => format!("channels/{}", dm.id),
-            (None, None) => return,
-        };
-        if query.is_empty() {
-            return;
-        }
-        let users = self.known_users();
-        let members = self.guild_id.as_ref().and_then(|g| self.members.get(g)).cloned().unwrap_or_default();
-        let channels = self.guild().map(|g| g.channels.clone()).unwrap_or_default();
-        let parsed = search::parse(
-            &query,
-            |name| {
-                let name = name.to_lowercase();
-                members.values().chain(users.iter()).find(|u| u.name.to_lowercase() == name || u.id == name).map(|u| u.id.clone())
-            },
-            |name| {
-                let name = name.to_lowercase();
-                channels.iter().find(|c| c.name.to_lowercase() == name || c.id == name).map(|c| c.id.clone())
-            },
-        );
-        if !parsed.unresolved.is_empty() {
-            self.show_toast(format!("Couldn't find {}", parsed.unresolved.join(", ")), cx);
-        }
-        self.right_panel = RightPanel::Search { query: query.clone().into(), results: None };
-        cx.notify();
-        cx.spawn(async move |this, cx| {
-            let result = client.search(&scope, &parsed.content, &parsed.params).await;
-            this.update(cx, |this, cx| {
-                if let RightPanel::Search { results, .. } = &mut this.right_panel {
-                    *results = Some(result.map_err(Into::into));
-                }
-                cx.notify();
-            })
-            .ok();
-        })
-        .detach();
     }
 
     /// Enter in the composer: saves the edit in progress, otherwise sends (optimistically).

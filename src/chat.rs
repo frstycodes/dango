@@ -175,7 +175,7 @@ impl Rustcord {
     // present at mount, it simply is what it is.
     fn channel_search(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         const CLOSED: f32 = 34.;
-        const OPEN: f32 = 200.;
+        const OPEN: f32 = 260.;
         let handle = self.search_input.read(cx).focus_handle(cx);
         let focused = handle.is_focused(window);
         let open = focused || !self.search_input.read(cx).value().is_empty();
@@ -189,6 +189,7 @@ impl Rustcord {
         let changes = state.read(cx).1;
         let field = ui::search_field_fill(cx);
         let (hover, strong) = (palette::hover(cx), palette::strong(cx));
+        let avatars = self.search_avatars();
         let el = div()
             .id("search-field")
             .w(px(if open { OPEN } else { CLOSED }))
@@ -209,22 +210,40 @@ impl Rustcord {
             .text_size(px(14.))
             .text_color(palette::faint(cx))
             .child(Icon::new(Glyph::Search).size(px(16.)).flex_none())
-            .child(div().flex_1().min_w_0().child(Input::new(&self.search_input).appearance(false).px_0().text_size(px(14.))))
+            .child(div().flex_1().min_w_0().child(Input::new(&self.search_input).appearance(false).px_0().text_size(px(14.)).token(move |token, _, cx| crate::search_menu::render_token(token, &avatars, cx))))
+            .capture_key_down(cx.listener(Self::on_search_key))
             .when(!open, |d| {
                 d.on_click(cx.listener(move |_, _, window, cx| {
                     window.focus(&handle, cx);
                     cx.notify();
                 }))
             });
-        if changes == 0 {
-            return el.into_any_element();
-        }
-        let (from, to) = if open { (CLOSED, OPEN) } else { (OPEN, CLOSED) };
-        el.with_animation(SharedString::from(format!("search-{changes}")), Animation::new(Duration::from_millis(150)).with_easing(gpui_kit::ease_out_quint()), move |el, t| {
-            let fill = if open { t } else { 1. - t };
-            el.w(px(from + (to - from) * t)).bg(field.opacity(field.a * fill))
-        })
-        .into_any_element()
+        let el = if changes == 0 {
+            el.into_any_element()
+        } else {
+            let (from, to) = if open { (CLOSED, OPEN) } else { (OPEN, CLOSED) };
+            el.with_animation(SharedString::from(format!("search-{changes}")), Animation::new(Duration::from_millis(150)).with_easing(gpui_kit::ease_out_quint()), move |el, t| {
+                let fill = if open { t } else { 1. - t };
+                el.w(px(from + (to - from) * t)).bg(field.opacity(field.a * fill))
+            })
+            .into_any_element()
+        };
+        // The popover hangs from the field's right edge and rises from that corner.
+        let popover = focused.then(|| self.search_popover(cx)).flatten().map(|card| {
+            let card = div().absolute().top(px(40.)).right_0().child(card);
+            gpui_kit::deferred(ui::rise(card.transform_origin(ui::corner(true, false)), "search-popover-in", Duration::ZERO)).with_priority(2)
+        });
+        div()
+            .relative()
+            .flex_none()
+            .on_mouse_down_out(cx.listener(move |_, _, window, cx| {
+                if focused {
+                    window.blur(cx);
+                }
+            }))
+            .child(el)
+            .children(popover)
+            .into_any_element()
     }
 
     // The bar over the feed while unread messages wait: jump to the first, or mark the channel read.

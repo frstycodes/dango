@@ -146,6 +146,8 @@ pub struct Prefs {
     // Signed-in accounts (no tokens: those live in the keyring) and the one to start with.
     pub accounts: Vec<crate::accounts::Account>,
     pub account: Option<String>,
+    // Recent message searches per account id, newest first.
+    pub search_history: HashMap<String, Vec<crate::search::Saved>>,
 }
 
 const KEYBINDS_VERSION: u32 = 1;
@@ -191,6 +193,7 @@ impl Default for Prefs {
             keybinds_version: KEYBINDS_VERSION,
             accounts: Vec::new(),
             account: None,
+            search_history: HashMap::new(),
         }
     }
 }

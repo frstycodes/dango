@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updating (the launch splash alone).
+// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | search | search-from | search-date | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -83,6 +83,7 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             })
             .detach(),
         "hover" => chord.hovered_message = Some("105".into()),
+        "search" | "search-from" | "search-date" => demo_search(chord, scene, window, cx),
         // A long message.txt (Discord's file for a message past 2,000 characters), a short code file, and
         // a .log that isn't text, which stays a file card. The fixtures stand in for the CDN fetch.
         "text-files" | "text-expanded" | "text-viewer" => demo_text_files(chord, scene),
@@ -573,6 +574,37 @@ fn messages() -> Vec<Message> {
         // Discord keeps each line and its indent.
         message("106", abyss, &["r2"], "2026-11-14T08:20:00Z", "the build so far:\n    Brightline 8-core CPU\n    Coldfront 240 mm cooler\n    32 GB memory\n<@4194304>"),
     ]
+}
+
+// The header search focused: its filters and made-up history, or a filter's values being picked. The field
+// is filled once the window is up, as the mention scene does.
+fn demo_search(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Context<Rustcord>) {
+    use crate::search::{Saved, SavedToken};
+    let token = |start: usize, end: usize, label: &str| SavedToken { start, end, label: label.into() };
+    let history = vec![
+        Saved { text: "from:8388608 in:media has:video".into(), tokens: vec![token(0, 12, "Wren"), token(13, 21, "📷-media"), token(22, 31, "video")] },
+        Saved { text: "boss fight from:12582912 tho".into(), tokens: vec![token(11, 24, "moss lantern")] },
+        Saved { text: "patch notes before:2026-11-01".into(), tokens: vec![token(12, 29, "Nov 1, 2026")] },
+        Saved { text: "the absolutely final tournament bracket v12 FINAL really final".into(), tokens: Vec::new() },
+    ];
+    chord.prefs.search_history.insert(me_user().id, history);
+    let content = match scene {
+        "search-from" => Saved { text: "in:general from:".into(), tokens: vec![token(0, 10, "👋-general")] }.to_content(),
+        "search-date" => "dodge before:".into(),
+        _ => "".into(),
+    };
+    cx.spawn_in(window, async move |this, cx| {
+        cx.background_executor().timer(std::time::Duration::from_millis(500)).await;
+        this.update_in(cx, |this, window, cx| {
+            this.search_input.update(cx, |state, cx| {
+                state.set_value(content, window, cx);
+                state.focus(window, cx);
+            });
+            cx.notify();
+        })
+        .ok();
+    })
+    .detach();
 }
 
 fn me_user() -> User {
