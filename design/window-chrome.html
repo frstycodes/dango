@@ -33,6 +33,8 @@
 /* The left header row is split by column: the rail's slot holds the traffic lights (macOS, windowed) or
    the Home tile, and the server name sits over the channel list, starting where the channel rows start. */
 .rail-head { grid-column: 1; grid-row: 1; display: grid; place-items: center; }
+/* In the header row the Home tile is a header control: 34px, inset 7px like the server name and the tools. */
+.rail-head .tile { width: 34px; height: 34px; border-radius: var(--radius-sm); }
 .list-head { grid-column: 2; grid-row: 1; display: flex; align-items: center; padding: 0 8px; min-width: 0; }
 .lights { display: flex; gap: 8px; flex: none; margin-left: 4px; }
 .lights i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; }
@@ -81,9 +83,9 @@
 .chanbar .title .ri { color: var(--text-faint); }
 .chanbar .topic { flex: 1; min-width: 0; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 12px; border-left: 1px solid var(--line-strong); }
 .chanbar .tools { display: flex; align-items: center; gap: 4px; color: var(--text-muted); flex: none; }
-.chanbar .tools > i { width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--radius-sm); }
+.chanbar .tools > i { width: 34px; height: 34px; display: grid; place-items: center; border-radius: var(--radius-sm); }
 .chanbar .tools > i.on { background: var(--selected); color: var(--text-strong); }
-.search { width: 168px; height: 30px; border-radius: var(--radius-sm); background: var(--bg-sidebar); display: flex; align-items: center; justify-content: space-between; padding: 0 8px 0 10px; color: var(--text-faint); font-size: 13px; margin: 0 4px; }
+.search { width: 168px; height: 34px; border-radius: var(--radius-sm); background: var(--bg-sidebar); display: flex; align-items: center; justify-content: space-between; padding: 0 8px 0 10px; color: var(--text-faint); font-size: 13px; margin: 0 4px; }
 @container (max-width: 1000px) { .search { display: none; } }
 @container (max-width: 1180px) { .chanbar .topic { display: none; } }
 .composer { position: absolute; left: 16px; right: 16px; bottom: 16px; height: 48px; border-radius: var(--radius-lg); background: color-mix(in oklch, var(--bg-raised) 80%, transparent); backdrop-filter: blur(20px); box-shadow: 0 0 0 0.5px var(--line-strong), 0 8px 24px oklch(0 0 0 / 0.18); display: flex; align-items: center; gap: 10px; padding: 0 12px; color: var(--text-faint); }
