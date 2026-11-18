@@ -1495,7 +1495,7 @@ impl Rustcord {
             .relative()
             .h(px(40.))
             .min_w_0()
-            .pl(px(12.))
+            .pl(px(11.))
             .pr(px(4.))
             .squircle(ui::RADIUS_MD)
             .bg(palette::surface(Level::Page, cx))
@@ -1505,7 +1505,7 @@ impl Rustcord {
             .items_center()
             .gap(px(8.))
             .children(recording.then(|| pulse_ring(SharedString::from(format!("record-ring-{index}")), cx)))
-            .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().font_weight(FontWeight::NORMAL).text_color(palette::strong(cx)).child(value))
+            .child(div().flex_1().min_w_0().p(px(1.)).overflow_hidden().whitespace_nowrap().font_weight(FontWeight::NORMAL).text_color(palette::strong(cx)).child(value))
             .child(ui::button(SharedString::from(format!("record-{index}")), Tone::Secondary, cx).small().child(label).on_click(cx.listener(move |this, _, window, cx| {
                 if let Some(s) = &mut this.settings {
                     s.recording = if s.recording == Some(index) { None } else { Some(index) };
