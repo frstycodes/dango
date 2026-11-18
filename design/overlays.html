@@ -513,21 +513,50 @@
 
 <section id="search">
   <h2>Search</h2>
-  <p class="lede">Search drops from the header field: filters become chips you can remove, results group by channel with the match highlighted. Empty results say what to change.</p>
+  <p class="lede">Search drops from the header field. Focused and empty, it offers the filters (each with its syntax) and your history; typing a filter key opens its values: people with avatars, channels, the kinds of attachment, a calendar for dates. A pick becomes a chip in the field, Backspace on an empty field removes the last chip, Esc closes. Results land in the side panel.</p>
   <div class="board" style="display:flex; gap: var(--space-6); flex-wrap: wrap; align-items: flex-start">
     <div class="pop search">
       <div class="sfield"><i class="ph ph-magnifying-glass"></i><input aria-label="Search Night Shift" placeholder="Search Night Shift"><kbd class="kbd">⌘F</kbd></div>
-      <div class="sbody">
+      <div class="sbody" role="listbox" aria-label="Search filters">
         <div class="sgroup">Filters</div>
-        <button class="sopt"><i class="ph ph-user"></i><div><b>from:</b> <small>a person</small></div></button>
-        <button class="sopt"><i class="ph ph-hash"></i><div><b>in:</b> <small>a channel</small></div></button>
-        <button class="sopt" aria-selected="true"><i class="ph ph-paperclip"></i><div><b>has:</b> <small>link, embed, file, video, image or sound</small></div><kbd class="kbd">Tab</kbd></button>
-        <button class="sopt"><i class="ph ph-at"></i><div><b>mentions:</b> <small>a person</small></div></button>
-        <button class="sopt"><i class="ph ph-calendar-blank"></i><div><b>before:</b> <small>a date</small></div></button>
-        <div class="sgroup">Recent</div>
-        <div class="sopt" role="button" tabindex="0"><i class="ph ph-clock-counter-clockwise"></i><div>montage export settings</div><button class="iconbtn x" aria-label="Remove from recent"><i class="ph ph-x"></i></button></div>
-        <div class="sopt" role="button" tabindex="0"><i class="ph ph-clock-counter-clockwise"></i><div><span class="filter" style="height: 22px"><b>from:</b>Theo</span> boss fight</div><button class="iconbtn x" aria-label="Remove from recent"><i class="ph ph-x"></i></button></div>
+        <button class="sopt two" role="option" aria-selected="true"><i class="ph-fill ph-user"></i><div>From a specific user<small><b>from:</b> user</small></div></button>
+        <button class="sopt two" role="option"><i class="ph ph-hash"></i><div>Sent in a specific channel<small><b>in:</b> channel</small></div></button>
+        <button class="sopt two" role="option"><i class="ph ph-paperclip"></i><div>Includes a specific type of data<small><b>has:</b> link, embed or file</small></div></button>
+        <button class="sopt two" role="option"><i class="ph ph-at"></i><div>Mentions a specific user<small><b>mentions:</b> user</small></div></button>
+        <button class="sopt two" role="option" aria-expanded="false"><i class="ph ph-sliders-horizontal"></i><div>More filters<small>dates, author type, and more</small></div><i class="ph ph-caret-down chev"></i></button>
+        <hr>
+        <div class="sgroup">History<button class="iconbtn" aria-label="Clear search history" data-tip="Clear history"><i class="ph-fill ph-trash"></i></button></div>
+        <button class="sopt" role="option"><i class="ph ph-magnifying-glass"></i><div class="toks"><span class="tok"><b>from:</b><span class="av" data-av="Rosa"></span>Rosa</span><span class="tok"><b>in:</b>#clips</span><span class="tok"><b>has:</b>video</span></div></button>
+        <button class="sopt" role="option"><i class="ph ph-magnifying-glass"></i><div class="toks">boss fight <span class="tok"><b>from:</b><span class="av" data-av="Theo"></span>Theo</span></div></button>
+        <button class="sopt" role="option"><i class="ph ph-magnifying-glass"></i><div class="toks">montage export settings</div></button>
       </div>
+    </div>
+
+    <div class="pop search">
+      <div class="sfield"><i class="ph ph-magnifying-glass"></i><span class="filter"><b>in:</b>#clips<button aria-label="Remove in: #clips"><i class="ph-bold ph-x"></i></button></span><input aria-label="Search" value="from:ro"></div>
+      <div class="sbody" role="listbox" aria-label="From">
+        <div class="sgroup">From</div>
+        <button class="sopt" role="option" aria-selected="true"><span class="av" data-av="Rosa"></span><div><b>Rosa</b> <small>rosa.m</small></div></button>
+        <button class="sopt" role="option"><span class="av" data-av="Rory"></span><div><b>Rory Calloway-Pemberton</b> <small>rorycp</small></div></button>
+        <button class="sopt" role="option"><span class="av" data-av="Bro"></span><div><b>Brook</b> <small>brookie</small></div></button>
+      </div>
+      <div class="sfoot"><span><kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd>to move</span><span><kbd class="kbd">Return</kbd>to pick</span><span><kbd class="kbd">⌫</kbd>removes a filter</span></div>
+    </div>
+
+    <div class="pop search">
+      <div class="sfield"><i class="ph ph-magnifying-glass"></i><input aria-label="Search" value="before:"></div>
+      <div class="sbody" aria-label="Before">
+        <div class="sgroup">Before<span>Nov 2026</span><button class="iconbtn" aria-label="Previous month"><i class="ph ph-caret-left"></i></button><button class="iconbtn" aria-label="Next month"><i class="ph ph-caret-right"></i></button></div>
+        <div class="cal" role="grid">
+          <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
+          <i></i><i></i><i></i><i></i><i></i><button>1</button><button>2</button>
+          <button>3</button><button>4</button><button>5</button><button>6</button><button>7</button><button>8</button><button>9</button>
+          <button>10</button><button>11</button><button>12</button><button>13</button><button>14</button><button>15</button><button>16</button>
+          <button>17</button><button class="today" aria-selected="true">18</button><button disabled>19</button><button disabled>20</button><button disabled>21</button><button disabled>22</button><button disabled>23</button>
+          <button disabled>24</button><button disabled>25</button><button disabled>26</button><button disabled>27</button><button disabled>28</button><button disabled>29</button><button disabled>30</button>
+        </div>
+      </div>
+      <div class="sfoot"><span><kbd class="kbd">←</kbd><kbd class="kbd">→</kbd>day</span><span><kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd>week</span><span><kbd class="kbd">Return</kbd>to pick</span></div>
     </div>
 
     <div class="pop search">
