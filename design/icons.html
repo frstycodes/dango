@@ -50,31 +50,19 @@ svg.ri { display: block; flex: none; fill: none; stroke: currentColor; stroke-wi
 .tg[aria-pressed="true"].live { background: var(--accent-soft); color: var(--accent-ink); }
 
 /* A slash drawing on and off is one glyph changing state; the cut beside it draws in step. It lands
-   just after the press wobble below, so the glyph reacts first and then gets crossed out. */
+   just after the glyph's own reaction, so it reacts first and then gets crossed out. */
 .slash, .slash-cut { stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 140ms var(--ease-out); }
 .slash-cut { stroke: #000; stroke-width: 6; }
 [data-on="true"] .slash, [data-on="true"] .slash-cut { stroke-dashoffset: 0; transition: stroke-dashoffset 220ms var(--ease-spring) 70ms; }
 
-/* Every press gives the glyph a squishy wobble of its own, restarted per press, settling in ~280ms:
-   the mic ducks and tilts, the headphones clamp like hands over ears, the camera blinks like a
-   shutter, the screen hops. */
-.body { transform-box: fill-box; transform-origin: 50% 70%; }
-[data-kind="mute"].wobble .body { animation: duck 280ms var(--ease-out); }
-[data-kind="deafen"].wobble .body { animation: clamp 280ms var(--ease-out); transform-origin: 50% 50%; }
-[data-kind="camera"].wobble .body { animation: blink 260ms var(--ease-out); transform-origin: 50% 50%; }
-[data-kind="share"].wobble .body { animation: hop 300ms var(--ease-out); transform-origin: 50% 100%; }
-@keyframes duck { 35% { transform: scale(0.84) rotate(-12deg); } 70% { transform: scale(1.08) rotate(5deg); } }
-@keyframes clamp { 35% { transform: scale(0.78, 0.94); } 70% { transform: scale(1.08, 0.98); } }
-@keyframes blink { 30% { transform: scale(1.06, 0.62); } 65% { transform: scale(0.97, 1.06); } }
-@keyframes hop { 30% { transform: scale(1.08, 0.86); } 60% { transform: translateY(-2.5px) scale(0.96, 1.05); } }
-
-/* Screen share: the screen fills (its arrow cut out of the fill) and two waves pop out of its corner,
-   one after the other; stopping tucks them back in. */
-.share-fill { opacity: 0; transition: opacity 120ms var(--ease-out); }
-[data-on="true"] .share-fill { opacity: 1; transition-delay: 40ms; }
-.share-wave { transform-box: view-box; transform-origin: 18px 7px; transform: scale(0); opacity: 0; transition: transform 140ms var(--ease-out), opacity 100ms var(--ease-out); }
-[data-on="true"] .share-wave { transform: none; opacity: 1; transition: transform 300ms var(--ease-spring) 80ms, opacity 100ms 80ms; }
-[data-on="true"] .share-wave + .share-wave { transition-delay: 140ms; }
+/* Parts the per-icon motions move (see MOTIONS): each scales and turns about its own centre. */
+.body, .fx, .share-arrow { transform-box: fill-box; transform-origin: 50% 50%; }
+.fx { opacity: 0; }
+/* Screen share: sharing fills the screen solid, its arrow cut out of the fill. */
+.share-fill { opacity: 0; transition: opacity 140ms var(--ease-out); }
+[data-on="true"] .share-fill { opacity: 1; }
+.share-arrow-ink { transition: opacity 140ms var(--ease-out); }
+[data-on="true"] .share-arrow-ink { opacity: 0; }
 
 /* Two different glyphs trading places: scale 0.25 + 4px blur + fade. */
 .swap { display: grid; }
@@ -84,8 +72,7 @@ svg.ri { display: block; flex: none; fill: none; stroke: currentColor; stroke-wi
 
 @media (prefers-reduced-motion: reduce) {
   .slash, .slash-cut, [data-on="true"] .slash, [data-on="true"] .slash-cut { transition: none; }
-  .wobble .body { animation: none !important; }
-  .share-wave, [data-on="true"] .share-wave { transform: none; transition: opacity 150ms; }
+
   .swap > svg { transition: opacity 150ms; }
   .swap > svg, .swap > svg[data-out] { transform: none; filter: none; transition: opacity 150ms; }
 }
@@ -110,7 +97,7 @@ svg.ri { display: block; flex: none; fill: none; stroke: currentColor; stroke-wi
 </section>
 <section id="toggles">
   <h2>Animated toggles</h2>
-  <p class="lede">Each press makes the glyph react in its own way. The mic ducks and tilts, the headphones clamp like hands over ears, the camera blinks like a shutter, and the screen hops. Then the slash springs across. Share screen fills its screen and pops two waves out of the corner. Everything settles in about 300ms. With reduced motion, states switch without movement. Press a button to toggle it.</p>
+  <p class="lede">Each toggle acts out what just happened, and the two directions differ. Muting turns the mic away with a hush; unmuting makes it hop and speak. Deafening presses the cups over the ears; undeafening springs them open as sound pours in. Turning the camera off snaps a shutter shut; turning it on fires a flash. Starting a share launches the arrow out of the screen as the screen lights up. The slash lands just after, and everything settles in about 300ms. With reduced motion, states switch without movement. Press a button to try each one.</p>
   <div class="tg-grid" id="toggle-grid"></div>
   <h3>Swapping glyphs</h3>
   <p class="lede">When a glyph turns into a different one, the old one shrinks away with a twist and a blur, and the new one pops in on the spring with a little spin. With reduced motion, only the fade remains.</p>
@@ -165,16 +152,68 @@ $("#weight").addEventListener("click", e => {
   renderAll();
 });
 
+// One curated motion per toggle, played on each press and told apart by direction. Each settles
+// inside ~300ms; the slash or fill (CSS, on data-on) lands just after.
+// With more than two keyframes the easing goes on each segment, the timeline staying linear: one curve
+// over the whole there-and-back crams it into the first fifth of the duration.
+const play = (el, selector, frames, ms, easing = "cubic-bezier(0.33, 1, 0.68, 1)", delay = 0) => {
+  const steps = frames.length > 2 ? frames.map((f, i) => (i < frames.length - 1 ? { easing, ...f } : f)) : frames;
+  for (const part of $$(selector, el)) part.animate(steps, { duration: ms, easing: frames.length > 2 ? "linear" : easing, delay });
+};
+const SPRING = getComputedStyle(document.documentElement).getPropertyValue("--ease-spring").trim();
+const MOTIONS = {
+  // Muting turns the mic away with a hush; unmuting hops it up and lets two sound arcs out.
+  mute(el, on) {
+    if (on) return play(el, ".body", [{ transform: "none" }, { transform: "rotate(-16deg) scale(0.88)", offset: 0.4 }, { transform: "none" }], 300);
+    play(el, ".body", [{ transform: "none" }, { transform: "translateY(-2.5px) scale(1.06)", offset: 0.4 }, { transform: "none" }], 300);
+    play(el, ".fx", [{ opacity: 0, transform: "scale(0.6)" }, { opacity: 1, transform: "scale(1.1)", offset: 0.45 }, { opacity: 0, transform: "scale(1.25)" }], 360, "ease-out", 60);
+  },
+  // Deafening presses the cups in over the ears; undeafening springs them open and sound pours in.
+  deafen(el, on) {
+    if (on) return play(el, ".body", [{ transform: "none" }, { transform: "scale(0.8, 0.96)", offset: 0.35 }, { transform: "scale(0.86, 0.98)", offset: 0.6 }, { transform: "none" }], 320);
+    play(el, ".body", [{ transform: "scale(0.9, 1)" }, { transform: "scale(1.1, 1)", offset: 0.45 }, { transform: "none" }], 300);
+    play(el, ".fx", [{ opacity: 0, transform: "scale(1.4)" }, { opacity: 1, transform: "scale(1)", offset: 0.5 }, { opacity: 0, transform: "scale(0.85)" }], 360, "ease-out");
+  },
+  // The camera's slash shows while it is off: turning it off snaps a shutter shut, turning it on fires a flash.
+  camera(el, on) {
+    if (!on) return play(el, ".body", [{ transform: "none" }, { transform: "scale(1.04, 0.55)", offset: 0.35 }, { transform: "none" }], 260);
+    play(el, ".body", [{ transform: "scale(0.94)" }, { transform: "scale(1.06)", offset: 0.4 }, { transform: "none" }], 280);
+    play(el, ".flash", [{ opacity: 0.9, transform: "scale(0.4)" }, { opacity: 0, transform: "scale(2.6)" }], 340, "cubic-bezier(0.23, 1, 0.32, 1)");
+  },
+  // Starting a share launches the arrow out through the top while the screen lights up, and a fresh one
+  // rises back in; stopping drops the arrow back into the empty screen with a little bounce.
+  share(el, on) {
+    if (on) {
+      play(el, ".share-arrow", [
+        { transform: "none", opacity: 1 },
+        { transform: "translateY(-11px)", opacity: 0, offset: 0.38 },
+        { transform: "translateY(5px)", opacity: 0, offset: 0.39 },
+        { transform: "none", opacity: 1 },
+      ], 420, "cubic-bezier(0.33, 1, 0.68, 1)");
+      return play(el, ".body", [{ transform: "none" }, { transform: "scale(1.06, 0.94)", offset: 0.3 }, { transform: "none" }], 300);
+    }
+    play(el, ".share-arrow", [{ transform: "translateY(-3px)" }, { transform: "none" }], 260, SPRING);
+  },
+};
+
 function renderAll() {
 for (const b of $$("#weight button")) b.setAttribute("aria-pressed", String((b.dataset.v === "filled") === FILLED));
 const LOCK = `<path d="${sq(14, 16.25, 9, 6.75, 2)}"/><path d="M16.25 16.25v-1.5a2.25 2.25 0 0 1 4.5 0v1.5"/>`;
 const AGE = `<path d="M19.5 13.5v4.25"/><circle cx="19.5" cy="21.25" r="1.4" fill="currentColor" stroke="none"/>`;
-const SCREEN = sq(2.5, 6, 16, 11.5, 3);
+// Sound arcs either side of a glyph: the voice coming back on unmute, hearing coming back on undeafen.
+const arcs = (l, r, y, h) => `<path class="fx" d="M${l} ${y}q-1.6 ${h / 2} 0 ${h}"/><path class="fx" d="M${r} ${y}q1.6 ${h / 2} 0 ${h}"/>`;
+const MIC = () => slashed(ICON("microphone2")) + arcs(4.5, 19.5, 5.5, 5);
+const PHONES = () => slashed(ICON("headphone")) + arcs(0.25, 23.75, 10, 6);
+// The camera's flash: a ring that bursts from the lens when it turns on.
+const CAMERA = () => slashed(ICON("video")) + `<circle class="fx flash" cx="8.5" cy="12" r="4" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+// Screen share: a monitor with an arrow. Starting a share launches the arrow out through the top of the
+// screen while the screen fills, and a fresh arrow rises back in, cut out of the fill.
+const SCREEN = sq(2.5, 3.5, 19, 13.5, 3.25);
 const SHARE = () => {
-  const id = `m${uid++}`, arrow = "M10.5 14.5v-5M8 11.5l2.5-2.5 2.5 2.5";
-  return `<mask id="${id}" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/><path d="${arrow}" stroke="#000" stroke-width="2.25"/></mask>
-    <g class="body"><path class="share-fill" mask="url(#${id})" d="${SCREEN}" fill="currentColor"/><path d="${SCREEN}"/><path d="M7.5 21h6M10.5 17.5V21"/><path d="${arrow}"/></g>
-    <path class="share-wave" d="M18 3.5a3.5 3.5 0 0 1 3.5 3.5"/><path class="share-wave" d="M18 0.5a6.5 6.5 0 0 1 6.5 6.5"/>`;
+  const id = `m${uid++}`, arrow = "M12 13.5V7.5M9.25 10.25 12 7.5l2.75 2.75";
+  return `<mask id="${id}" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/><path class="share-arrow" d="${arrow}" stroke="#000" stroke-width="2.5"/></mask>
+    <g class="body"><path class="share-fill" mask="url(#${id})" d="${SCREEN}" fill="currentColor" stroke="none"/><path d="${SCREEN}"/><path d="M8.5 21h7M12 17v4"/></g>
+    <g class="share-arrow-ink"><path class="share-arrow" d="${arrow}"/></g>`;
 };
 const SIGNAL = (lit, none) => [5, 8.5, 12, 15.5].map((h, i) => `<path d="${sq(2 + i * 5.25, 20 - h, 3.5, h, 1.1)}" fill="currentColor" stroke="none"${i < lit ? "" : ' opacity="0.3"'}/>`).join("") + (none ? `<path d="M3 3.5l4.5 4.5m0-4.5L3 8"/>` : "");
 
@@ -270,15 +309,15 @@ $("#custom-grid").innerHTML = Object.entries(CUSTOM).filter(([k]) => !["muted", 
 
 // Toggles: each button flips data-on on its glyphs; the preview tiles stay in step.
 const TOGGLES = [
-  ["Mute", "Unmute", () => slashed(ICON("microphone2")), "danger", false, "mute"],
-  ["Deafen", "Undeafen", () => slashed(ICON("headphone")), "danger", false, "deafen"],
-  ["Turn on camera", "Turn off camera", () => slashed(ICON("video")), "live", true, "camera"],
+  ["Mute", "Unmute", MIC, "danger", false, "mute"],
+  ["Deafen", "Undeafen", PHONES, "danger", false, "deafen"],
+  ["Turn on camera", "Turn off camera", CAMERA, "live", true, "camera"],
   ["Share screen", "Stop sharing", SHARE, "live", false, "share"],
 ];
 $("#toggle-grid").innerHTML = TOGGLES.map(([offLabel, onLabel, make, tone, startOn, kind], i) => `<article class="ic" data-toggle="${i}" data-kind="${kind}" data-on="${!!startOn}">
   ${LIGHT_DARK(make())}
   <div class="tg-row"><button class="tg ${tone}" aria-pressed="${!!startOn}" aria-label="${startOn ? onLabel : offLabel}">${svg(make(), 20)}</button><span class="ic-name">${offLabel}</span></div>
-  <div class="ic-meta"><span>${{ mute: "Ducks and tilts, then the slash springs on", deafen: "Clamps like hands over ears", camera: "Blinks like a shutter", share: "Hops, fills, and pops two waves" }[kind]}</span></div>
+  <div class="ic-meta"><span>${{ mute: "Mute: turns away, hushed. Unmute: hops and speaks", deafen: "Deafen: cups press in. Undeafen: spring open, sound pours in", camera: "Off: shutter snaps shut. On: a flash bursts from the lens", share: "Start: the arrow launches out and the screen lights up" }[kind]}</span></div>
 </article>`).join("");
 // The camera's slash shows while the camera is off, so its slash follows the inverse of pressed.
 for (const el of $$("[data-toggle]")) {
@@ -288,9 +327,7 @@ for (const el of $$("[data-toggle]")) {
   let on = false; set(on);
   $("button", el).addEventListener("click", () => {
     set(on = !on);
-    el.classList.remove("wobble");
-    void el.offsetWidth;
-    el.classList.add("wobble");
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) MOTIONS[TOGGLES[i][5]](el, on);
   });
 }
 
