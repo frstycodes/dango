@@ -51,9 +51,11 @@ impl Rustcord {
             return main.child(empty_state("idle", Mood::Idle, "No channel open", "Pick a server on the left, then a channel to start reading.", cx));
         };
         let header = self.channel_header(&channel, window, cx);
+        let strip = self.dm_call_strip(&channel, cx);
+        let top = HEADER_HEIGHT + if strip.is_some() { crate::dm_call::STRIP_HEIGHT + 8. } else { 0. };
         let body = match self.feeds.get(&channel.id) {
             Some(Feed { loaded: true, messages, .. }) if messages.is_empty() => empty_state("empty", Mood::Happy, "No messages yet", "Be the first to say something.", cx),
-            Some(Feed { loaded: true, .. }) => self.render_messages(HEADER_HEIGHT, cx).into_any_element(),
+            Some(Feed { loaded: true, .. }) => self.render_messages(top, cx).into_any_element(),
             Some(Feed { error: Some(error), .. }) => empty_state("failed", Mood::Idle, "Couldn't load messages", error.clone(), cx),
             _ => skeleton(cx),
         };
@@ -71,7 +73,9 @@ impl Rustcord {
         // The feed runs up under the header, which blurs and fades it (scroll_edge); the members column beside
         // it runs to the window's top with a header of its own on the same line.
         let panel = self.render_panel(window, cx);
-        main.child(div().flex_1().min_h_0().flex().child(chat.child(header)).children(panel))
+        // After the header: its scroll-edge fade runs past its bar and would veil the strip.
+        let strip = strip.map(|s| div().absolute().top(px(HEADER_HEIGHT)).left_0().right_0().px(px(16.)).child(s));
+        main.child(div().flex_1().min_h_0().flex().child(chat.child(header).children(strip)).children(panel))
     }
 
     // Where you are as breadcrumbs, the topic, then the channel's tools (design: navigation.html's chanbar).
@@ -124,6 +128,15 @@ impl Rustcord {
                 this.popover_at = e.position;
                 this.open_pins(cx);
             }));
+        // Discord's two call buttons; hidden once we're in this DM's call (the strip holds it).
+        let can_call = channel.kind == ChannelKind::Dm && self.call.as_ref().is_none_or(|c| c.channel.id != channel.id);
+        let calls = can_call.then(|| {
+            let (voice, video) = (channel.clone(), channel.clone());
+            [
+                ui::icon_button("dm-voice-call", Glyph::Phone, "Start Voice Call", cx).occlude().on_click(cx.listener(move |this, _, _, cx| this.start_dm_call(voice.clone(), false, cx))),
+                ui::icon_button("dm-video-call", Glyph::Video, "Start Video Call", cx).occlude().on_click(cx.listener(move |this, _, _, cx| this.start_dm_call(video.clone(), true, cx))),
+            ]
+        });
         let members_on = matches!(self.right_panel, RightPanel::Members);
         let members = self.guild_id.is_some().then(|| {
             ui::icon_button("members-toggle", Glyph::Users, if members_on { "Hide Member List" } else { "Show Member List" }, cx)
@@ -148,7 +161,7 @@ impl Rustcord {
             .window_control_area(WindowControlArea::Drag)
             .child(crumbs)
             .children(topic)
-            .child(div().ml_auto().flex_none().flex().items_center().gap(px(2.)).children(threads).child(pins).children(members).children(search))
+            .child(div().ml_auto().flex_none().flex().items_center().gap(px(2.)).children(calls.into_iter().flatten()).children(threads).child(pins).children(members).children(search))
             .child(self.caption_clearance(self.guild_id.is_none() || matches!(self.right_panel, RightPanel::Hidden)));
         ui::scroll_edge(palette::surface(Level::Page, cx), 0.).child(bar)
     }
@@ -367,7 +380,7 @@ impl Rustcord {
             let message = &messages[ix];
             let previous = ix.checked_sub(1).map(|i| &messages[i]);
             let new_day = day(&message.timestamp) != previous.and_then(|p| day(&p.timestamp));
-            let starts_group = new_day || message.reply.is_some() || previous.is_none_or(|p| !continues(p, message));
+            let starts_group = new_day || message.reply.is_some() || previous.is_none_or(|p| p.call.is_some() || !continues(p, message));
             let row = message_row(message, starts_group, &ctx, cx);
             // One accent line above the first message after your read position.
             let first_unread = ctx.unread_marker.is_some_and(|read| crate::order(&message.id) > read && previous.is_none_or(|p| crate::order(&p.id) <= read));
@@ -782,6 +795,9 @@ pub(crate) fn away_from_present(visible_end: usize, count: usize) -> bool {
 // An avatar column and a content column; a continuation shows its time in the gutter on hover, and the
 // toolbar floats at the row's top right.
 fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: &mut App) -> AnyElement {
+    if let Some(call) = &message.call {
+        return call_line(message, call, ctx, cx);
+    }
     let media = media_grid(message, ctx, cx);
     let group = SharedString::from(format!("msg-{}", message.id));
     let mine = ctx.me.as_ref().is_some_and(|me| me.id == message.author.id);
@@ -1016,6 +1032,41 @@ fn only_media_link(message: &Message) -> bool {
     let text = message.content.trim();
     let is_link = (text.starts_with("https://") || text.starts_with("http://")) && !text.contains(char::is_whitespace);
     is_link && !message.media.is_empty() && message.embeds.is_empty()
+}
+
+// A DM call's record: one line in the history. A call you missed is the only red one, and it offers Call back.
+fn call_line(message: &Message, call: &crate::discord::CallRecord, ctx: &Rc<RowContext>, cx: &mut App) -> AnyElement {
+    let me = ctx.me.as_ref().map(|m| m.id.as_str()).unwrap_or_default();
+    let author = ctx.name_of(&message.author);
+    let missed = call.ended.is_some() && message.author.id != me && !call.participants.iter().any(|p| p == me);
+    let lasted = call.ended.as_deref().and_then(|end| Some((local(end)? - local(&message.timestamp)?).num_seconds())).map(crate::dm_call::lasted);
+    let (text, action) = match (missed, lasted) {
+        (true, Some(lasted)) => (format!("You missed a call from {author} that lasted {lasted}."), Some("Call back")),
+        (true, None) => (format!("You missed a call from {author}."), Some("Call back")),
+        (false, Some(lasted)) => (format!("{author} started a call that lasted {lasted}."), None),
+        (false, None) => (format!("{author} started a call."), Some("Join")),
+    };
+    let ink = if missed { palette::danger_ink(cx) } else { palette::positive_ink(cx) };
+    let (this, channel_id) = (ctx.this.clone(), message.channel_id.clone());
+    let action = action.map(|label| {
+        ui::button(SharedString::from(format!("call-line-{}", message.id)), ui::Tone::Link, cx).child(label).on_click(move |_, window, cx| {
+            this.update(cx, |this, cx| this.answer_dm_call(&channel_id, window, cx)).ok();
+        })
+    });
+    div()
+        .id(SharedString::from(format!("msg-{}", message.id)))
+        .w_full()
+        .px(px(16.))
+        .py(px(4.))
+        .flex()
+        .items_center()
+        .gap(px(16.))
+        .text_size(px(14.))
+        .child(div().w(px(AVATAR)).flex_none().flex().justify_center().child(Icon::new(Glyph::Phone).size(px(18.)).text_color(ink)))
+        .child(div().min_w_0().text_color(palette::muted(cx)).child(text))
+        .child(div().flex_none().text_size(px(12.)).text_color(palette::faint(cx)).child(clock(&message.timestamp)))
+        .children(action)
+        .into_any_element()
 }
 
 fn content(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyElement> {

@@ -507,6 +507,17 @@ pub struct Message {
     pub pinned: bool,
     // The thread started from this message, for Discord's thread chip.
     pub thread: Option<Channel>,
+    // A DM call's record (message type 3): drawn as one line, not a message.
+    #[serde(default)]
+    pub call: Option<CallRecord>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CallRecord {
+    // Everyone who joined; the caller is the message's author.
+    pub participants: Vec<String>,
+    // None while the call is still going.
+    pub ended: Option<String>,
 }
 
 // What a profile popout shows beyond the user object. From GET /users/{id}/profile (user-account API, Not verified).
@@ -636,6 +647,9 @@ pub enum Event {
     MembersChunk { guild_id: String, members: Vec<(User, Vec<String>)> },
     Ack { channel_id: String, message_id: u64 },
     VoiceState(VoiceState),
+    // A DM or group call started or changed; `ringing` is who it rings now.
+    Call { channel_id: String, ringing: Vec<String> },
+    CallEnded { channel_id: String },
     // Raw voice server info (endpoint, token) for the voice engine.
     VoiceServer(Value),
     Disconnected(String),
@@ -1140,6 +1154,8 @@ fn dispatch(kind: &str, d: &Value) -> Option<Event> {
         "VOICE_CHANNEL_START_TIME_UPDATE" => Some(Event::VoiceStartTimes { guild_id: s(&d["guild_id"]), times: vec![(s(&d["id"]), d["voice_start_time"].as_u64())], all: false }),
         "STREAM_UPDATE" => Some(Event::StreamViewers { key: s(&d["stream_key"]), viewers: strings(&d["viewer_ids"]) }),
         "VOICE_SERVER_UPDATE" => Some(Event::VoiceServer(d.clone())),
+        "CALL_CREATE" | "CALL_UPDATE" => Some(Event::Call { channel_id: s(&d["channel_id"]), ringing: strings(&d["ringing"]) }),
+        "CALL_DELETE" => Some(Event::CallEnded { channel_id: s(&d["channel_id"]) }),
         _ => None,
     }
 }
@@ -1385,6 +1401,7 @@ pub fn parse_message(m: &Value) -> Option<Message> {
         state: SendState::Sent,
         pinned: m["pinned"].as_bool().unwrap_or(false),
         thread: m["thread"].is_object().then(|| parse_channel(&m["thread"], m["guild_id"].as_str().unwrap_or_default())).flatten(),
+        call: (m["type"] == 3).then(|| CallRecord { participants: strings(&m["call"]["participants"]), ended: m["call"]["ended_timestamp"].as_str().map(str::to_owned) }),
     })
 }
 
