@@ -513,7 +513,7 @@ impl Rustcord {
         let label = div()
             .id(SharedString::from(format!("section-{}", category.id)))
             .child(Nav::Caret.icon().size(px(11.)).rotate(Radians(degrees.to_radians())))
-            .child(div().truncate().child(category.name.clone()))
+            .child(ui::truncating(format!("category-name-{}", category.id), category.name.clone()))
             .on_click(cx.listener(move |this, _, _, cx| {
                 if !this.folded.remove(&id) {
                     this.folded.insert(id.clone());
@@ -586,7 +586,7 @@ impl Rustcord {
                     (false, true) => palette::muted(cx),
                     (false, false) => faint,
                 }))
-                .child(div().flex_1().min_w_0().truncate().child(channel.name.clone()))
+                .child(ui::truncating(format!("channel-name-{}", channel.id), channel.name.clone()).flex_1())
                 .children(elapsed)
                 .children(meta.filter(|_| !selected && !hovered).map(|icon| div().flex_none().flex().text_color(faint).child(icon.size(px(15.)))))
                 .when(selected || hovered, |r| r.child(self.row_actions(channel, guild, cx)))
@@ -874,7 +874,7 @@ impl Rustcord {
                     .pl(px(34.))
                     .child(branch)
                     .children(trunk)
-                    .child(div().flex_1().min_w_0().truncate().child(thread.name.clone()))
+                    .child(ui::truncating(format!("thread-name-{}", thread.id), thread.name.clone()).flex_1())
                     .on_click(cx.listener(move |this, _, window, cx| this.open_channel(target.clone(), window, cx)))
                     .on_mouse_down(gpui_kit::MouseButton::Right, cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_thread_menu(menu_thread.clone(), guild_id.clone(), e.position, cx)));
                 ChannelRow { keep: selected || unread, element: row.into_any_element() }
@@ -1124,7 +1124,7 @@ fn dm_find(cx: &App) -> Stateful<Div> {
         .text_size(px(14.))
         .hover(move |s| s.text_color(strong))
         .child(Icon::new(Glyph::Search).size(px(16.)))
-        .child(div().relative().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().child("Find or start a conversation").child(ui::fade_end(field)))
+        .child(ui::truncating("dm-find-label", "Find or start a conversation").flex_1())
 }
 
 pub(crate) fn channel_sections(guild: &Guild, me: &str) -> Vec<(Option<Channel>, Vec<Channel>)> {
@@ -1532,7 +1532,7 @@ pub(crate) fn server_name_button(name: SharedString, cx: &mut Context<Rustcord>)
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(palette::strong(cx))
         .hover(move |s| s.bg(hover))
-        .child(div().flex_1().min_w_0().truncate().child(name))
+        .child(ui::truncating("server-name", name).flex_1())
         .child(Nav::Caret.icon().size(px(16.)).text_color(palette::muted(cx)))
         .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(|this, _: &gpui_kit::MouseDownEvent, _, cx| {
             let Some(guild_id) = this.guild_id.clone() else { return };

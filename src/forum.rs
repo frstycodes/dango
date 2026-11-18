@@ -162,7 +162,7 @@ impl Rustcord {
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_color(strong)
                     .child(Icon::new(Glyph::Forum).size(px(20.)).text_color(faint))
-                    .child(div().min_w_0().truncate().child(forum.name.clone())),
+                    .child(crate::ui::truncating("header-forum-name", forum.name.clone())),
             )
             .children(forum.topic.clone().map(|t| div().flex_1().min_w_0().pl(px(12.)).border_l_1().border_color(palette::line_strong(cx)).truncate().text_size(px(14.)).text_color(faint).child(t)))
             .child(div().ml_auto().child(self.header_trail(true, cx)));

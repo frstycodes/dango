@@ -1348,8 +1348,6 @@ impl Rustcord {
             _ => format!("Message #{}", channel.name),
         };
         self.composer.update(cx, |state, cx| state.set_placeholder(placeholder, window, cx));
-        let search = format!("Search {}", self.guild().map(|g| g.name.as_str()).unwrap_or("messages"));
-        self.search_input.update(cx, |state, cx| state.set_placeholder(search, window, cx));
         self.last_channel.insert(self.guild_id.clone(), channel.id.clone());
         home::save_last_channel(self.my_id(), self.guild_id.as_deref(), &channel.id);
         let id = channel.id.clone();

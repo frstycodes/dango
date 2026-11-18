@@ -132,7 +132,7 @@ impl Rustcord {
                             .flex()
                             .items_center()
                             .gap(px(6.))
-                            .child(div().min_w_0().truncate().font_weight(FontWeight::NORMAL).text_color(name_ink).child(member.user.name.clone()))
+                            .child(ui::truncating(format!("member-name-{}", member.user.id), member.user.name.clone()).font_weight(FontWeight::NORMAL).text_color(name_ink))
                             .when(owner, |r| r.child(Icon::new(Glyph::Crown).size(px(14.)).flex_none().text_color(crown)))
                             .when(member.user.bot, |r| r.child(ui::tag("App", cx))),
                     )
@@ -233,5 +233,5 @@ fn activity_line(activity: &crate::discord::Activity, cx: &App) -> Div {
         .text_size(px(12.))
         .text_color(palette::faint(cx))
         .children(activity_glyph(activity.kind).map(|icon| icon.size(px(13.)).flex_none().when(live, |i| i.text_color(palette::accent_ink(cx)))))
-        .child(div().truncate().child(text))
+        .child(ui::truncating(format!("activity-{text}"), text))
 }

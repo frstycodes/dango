@@ -25,8 +25,9 @@ pub const HEADER_HEIGHT: f32 = 48.;
 pub const RAIL_WIDTH: f32 = 68.;
 pub const CHANNELS_WIDTH: f32 = 240.;
 pub const PANEL_WIDTH: f32 = 264.;
-// The user area: its 40px row (a 32px avatar in a 4px-padded button), inset 6px all round.
-pub const PANEL_HEIGHT: f32 = 52.;
+// The user area: its 42px row (name 18 + status 16 beside a 32px avatar, in a 4px-padded button), inset 6px
+// all round.
+pub const PANEL_HEIGHT: f32 = 54.;
 const CHANNELS_RANGE: (f32, f32) = (200., 440.);
 const PANEL_RANGE: (f32, f32) = (200., 380.);
 
@@ -253,7 +254,7 @@ impl Rustcord {
         let status_line: AnyElement = match (server_muted, sharing) {
             (true, _) => div().truncate().text_color(danger).child("Server muted by a moderator").into_any_element(),
             (false, true) => div().flex().items_center().gap_1().child(Icon::new(Glyph::Screen).size(px(13.)).text_color(palette::positive_ink(cx))).child(div().truncate().child("Sharing their screen")).into_any_element(),
-            (false, false) => div().truncate().child(self.custom_status.clone().unwrap_or_else(|| self.my_status.label().into())).into_any_element(),
+            (false, false) => ui::truncating("me-status", self.custom_status.clone().unwrap_or_else(|| self.my_status.label().into())).into_any_element(),
         };
         let mic = me_button("mic", if muted { Nav::MicOff } else { Nav::Mic }, muted, if server_muted { "A moderator muted you here. Only they can unmute you." } else if muted { "Unmute" } else { "Mute" }, cx)
             .when(!server_muted, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_mute(cx))))
@@ -299,8 +300,8 @@ impl Rustcord {
                     .min_w_0()
                     .flex()
                     .flex_col()
-                    .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(me.name.clone()))
-                    .child(div().text_size(px(12.)).text_color(faint).child(status_line)),
+                    .child(ui::truncating("me-name", me.name.clone()).line_height(px(18.)).font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)))
+                    .child(div().line_height(px(16.)).text_size(px(12.)).text_color(faint).child(status_line)),
             );
         let voice = self.voice_panel(cx);
         div()

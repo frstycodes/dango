@@ -80,7 +80,7 @@ impl Rustcord {
         let parent = self.thread_parent(channel).map(|parent| {
             crumb("thread-parent", cx)
                 .child(Icon::new(Glyph::Hashtag).size(px(14.)))
-                .child(div().min_w_0().truncate().child(parent.name.clone()))
+                .child(ui::truncating("header-thread-parent", parent.name.clone()))
                 .on_click(cx.listener(move |this, _, window, cx| this.open_channel(parent.clone(), window, cx)))
         });
         let glyph = match channel.kind {
@@ -99,7 +99,7 @@ impl Rustcord {
             .font_weight(FontWeight::SEMIBOLD)
             .text_color(strong)
             .child(Icon::new(glyph).size(px(20.)).text_color(faint))
-            .child(div().min_w_0().truncate().child(channel.name.clone()));
+            .child(ui::truncating("header-channel-name", channel.name.clone()));
         // Thread names are often whole sentences: the crumbs cap at 60% and truncate rather than push the tools off.
         let crumbs = div()
             .flex_none()
@@ -110,7 +110,7 @@ impl Rustcord {
             .gap(px(2.))
             .when_some(parent, |c, parent| c.child(parent).child(Icon::new(Glyph::ChevronRight).size(px(14.)).text_color(faint)))
             .child(here);
-        let topic = channel.topic.clone().map(|topic| div().flex_1().min_w_0().pl(px(12.)).border_l_1().border_color(palette::line_strong(cx)).truncate().text_size(px(14.)).text_color(palette::muted(cx)).child(topic));
+        let topic = channel.topic.clone().map(|topic| div().flex_1().min_w_0().pl(px(12.)).border_l_1().border_color(palette::line_strong(cx)).text_size(px(14.)).text_color(palette::muted(cx)).child(ui::truncating("header-topic", topic)));
         let threads = (channel.kind == ChannelKind::Text && self.guild_id.is_some()).then(|| {
             let id = channel.id.clone();
             ui::icon_button("threads-button", Glyph::Thread, "Threads", cx)
@@ -169,7 +169,7 @@ impl Rustcord {
             .text_size(px(14.))
             .text_color(palette::faint(cx))
             .child(Icon::new(Glyph::Search).size(px(16.)))
-            .child(div().relative().flex_1().min_w_0().overflow_hidden().child(Input::new(&self.search_input).appearance(false).px_0().text_size(px(14.))).child(ui::fade_end(field)))
+            .child(div().flex_1().min_w_0().child(Input::new(&self.search_input).appearance(false).px_0().text_size(px(14.))))
     }
 
     // The bar over the feed while unread messages wait: jump to the first, or mark the channel read.
@@ -390,9 +390,8 @@ impl Rustcord {
         let focused = self.composer.read(cx).focus_handle(cx).is_focused(window);
         let (strong, muted) = (palette::strong(cx), palette::muted(cx));
         let row = div()
-            // 51 + the card's 0.5px hairline each side: 52, the user card's height, so the two line up.
-            .min_h(px(51.))
-            .py(px(8.5))
+            .min_h(px(48.))
+            .py(px(7.))
             .px(px(6.))
             .flex()
             .items_end()

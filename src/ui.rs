@@ -121,19 +121,44 @@ pub fn scroll_edge(surface: Hsla, fade_right: f32) -> Div {
         )))
 }
 
-/// Fades a single line of text out at its container's right edge, instead of cutting it or adding an
-/// ellipsis: the container is `relative` and clips, and `bg` is the surface the text sits on.
-pub fn fade_end(bg: Hsla) -> Div {
-    // On a translucent field the tint alone can't hide the text, so a blur rising from the left takes it too.
+thread_local! {
+    // Labels whose text overflowed their box when last painted, by key; they show the full text on hover.
+    static CLIPPED: std::cell::RefCell<std::collections::HashSet<SharedString>> = Default::default();
+}
+
+/// A one-line label that truncates with an ellipsis and, when it does, shows its full text in a tooltip.
+/// It measures its text against its own width as it paints, so the tooltip appears from the next frame on
+/// and only for labels that are actually cut. `key` must be unique among labels on screen.
+pub fn truncating(key: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<Div> {
+    let (key, text): (SharedString, SharedString) = (key.into(), text.into());
+    let clipped = CLIPPED.with(|c| c.borrow().contains(&key));
+    let (measure_key, measure_text) = (key.clone(), text.clone());
+    let measure = gpui_kit::canvas(|_, _, _| {}, move |bounds, _, window, _| {
+        let style = window.text_style();
+        let size = style.font_size.to_pixels(window.rem_size());
+        let width = window.text_system().layout_line(&measure_text, size, &[style.to_run(measure_text.len())], None).width;
+        let over = width > bounds.size.width + px(0.5);
+        CLIPPED.with(|c| {
+            let mut c = c.borrow_mut();
+            if over {
+                c.insert(measure_key.clone());
+            } else {
+                c.remove(&measure_key);
+            }
+        });
+    })
+    .absolute()
+    .top_0()
+    .left_0()
+    .size_full();
     div()
-        .absolute()
-        .top_0()
-        .bottom_0()
-        .right_0()
-        .w(px(24.))
-        .backdrop_blur(px(4.))
-        .backdrop_fade(px(0.), px(0.), px(0.), px(24.))
-        .bg(linear_gradient(90., linear_color_stop(bg.opacity(0.), 0.), linear_color_stop(bg, 1.)))
+        .id(ElementId::Name(key))
+        .relative()
+        .min_w_0()
+        .truncate()
+        .child(text.clone())
+        .child(measure)
+        .when(clipped, |d| gpui_kit::StatefulInteractiveElement::tooltip(d, move |window, cx| gpui_kit::component::tooltip::Tooltip::new(text.clone()).build(window, cx)))
 }
 
 /// A search field's fill: the rail tone at 60% over a light blur, so what scrolls under a header stays
