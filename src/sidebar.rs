@@ -438,9 +438,11 @@ impl Rustcord {
                     .child(div().truncate().child(format!("Reconnecting… {}", reconnecting.clone().unwrap_or_default()))),
             )
         });
+        let name_in_strip = crate::layout::brand_bar_height(window) > 0.;
         let header = match self.guild() {
-            Some(guild) => self.server_header(guild.name.clone().into(), cx).into_any_element(),
-            None => dm_find(cx).on_click(cx.listener(|this, _, window, cx| this.open_switcher(window, cx))).into_any_element(),
+            Some(_) if name_in_strip => None,
+            Some(guild) => Some(server_name_button(guild.name.clone().into(), false, cx).into_any_element()),
+            None => Some(dm_find(cx).on_click(cx.listener(|this, _, window, cx| this.open_switcher(window, cx))).into_any_element()),
         };
         div()
             .relative()
@@ -450,13 +452,10 @@ impl Rustcord {
             .flex()
             .flex_col()
             .bg(palette::surface(palette::Level::Sidebar, cx))
-            // Under the brand strip its top-left corner rounds into the rail and strip, like a sheet tucked
-            // under them; with no strip (Windows, full screen) it runs square to the window's top.
-            .when(crate::layout::brand_bar_height(window) > 0., |d| d.rounded_tl(px(ui::RADIUS_LG)).corner_shape(ui::SQUIRCLE))
             .text_color(palette::muted(cx))
             .text_size(px(14.))
             .child(self.resize_handle(Edge::Channels, cx))
-            .child(
+            .children(header.map(|header| {
                 div()
                     .h(px(crate::layout::HEADER_HEIGHT))
                     .flex_none()
@@ -464,41 +463,13 @@ impl Rustcord {
                     .items_center()
                     .map(|h| if self.guild_id.is_some() { h.p(px(6.)) } else { h.px_2() })
                     .window_control_area(gpui_kit::WindowControlArea::Drag)
-                    .child(header),
-            )
+                    .child(header)
+            }))
             .child(div().id("channels").flex_1().min_h_0().overflow_y_scroll().p_2().flex().flex_col().gap(px(ROW_GAP)).children(rows))
             .child(banner)
             .child(div().flex_none().h(self.user_panel_clearance()))
     }
 
-    // The server name as the header's one button; it drops the server menu.
-    fn server_header(&self, name: SharedString, cx: &mut Context<Self>) -> impl IntoElement {
-        let hover = palette::hover(cx);
-        div()
-            .id("server-header")
-            .occlude()
-            .flex_1()
-            .min_w_0()
-            .h_full()
-            .px_2()
-            .squircle(ui::RADIUS_SM)
-            .flex()
-            .items_center()
-            .gap_2()
-            .cursor_pointer()
-            .text_size(px(16.))
-            .font_weight(FontWeight::SEMIBOLD)
-            .text_color(palette::strong(cx))
-            .hover(move |s| s.bg(hover))
-            .child(div().flex_1().min_w_0().truncate().child(name))
-            .child(Nav::Caret.icon().size(px(16.)).text_color(palette::muted(cx)))
-            .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(|this, _: &gpui_kit::MouseDownEvent, window, cx| {
-                let Some(guild_id) = this.guild_id.clone() else { return };
-                // Drops from the header's bottom edge, inset by the header's padding.
-                let at = gpui_kit::point(px(RAIL_WIDTH + 6.), px(crate::layout::brand_bar_height(window) + crate::layout::HEADER_HEIGHT));
-                this.open_server_menu(guild_id, at, true, cx);
-            }))
-    }
 
     // A category folds from its label: height and fade together on the fold curve, the chevron turns.
     // Folded, its unread and selected channels stay in view.
@@ -1219,7 +1190,7 @@ pub(crate) fn render_face(face: Face, size: f32, radius: f32, selected: bool, op
         Face::Icon(url) => img(url).size(px(size)).flex_none().squircle(radius).into_any_element(),
         Face::Letters(label) => letters_tile(&label, size, radius, cx).into_any_element(),
         Face::Home => tile()
-            .bg(if selected { palette::accent() } else { palette::surface(palette::Level::Sidebar, cx) })
+            .bg(if selected { palette::accent() } else { palette::surface(palette::Level::Raised, cx) })
             .child(img(if selected { crate::icons::MARK_WHITE } else { crate::icons::MARK }).size(px(size / 2.)))
             .into_any_element(),
         Face::Folder { tint, minis } => tile()
@@ -1232,7 +1203,7 @@ pub(crate) fn render_face(face: Face, size: f32, radius: f32, selected: bool, op
 }
 
 fn minis_grid(minis: Vec<Mini>, cx: &App) -> Div {
-    let sidebar = palette::surface(palette::Level::Sidebar, cx);
+    let sidebar = palette::surface(palette::Level::Raised, cx);
     let cells = (0..4).map(|i| match minis.get(i) {
         Some(Mini { icon: Some(url), .. }) => img(url.clone()).size(px(MINI)).squircle(ui::RADIUS_XS).into_any_element(),
         Some(Mini { letters, .. }) => letters_tile(letters, MINI, ui::RADIUS_XS, cx).into_any_element(),
@@ -1248,7 +1219,7 @@ fn letters_tile(label: &str, size: f32, radius: f32, cx: &App) -> Div {
         .size(px(size))
         .flex_none()
         .squircle(radius)
-        .bg(palette::surface(palette::Level::Sidebar, cx))
+        .bg(palette::surface(palette::Level::Raised, cx))
         .text_color(palette::strong(cx))
         // Minis keep a readable letter rather than scaling the tile's 14px down to nothing.
         .text_size(px((14. * size / TILE).max(8.)))
@@ -1309,7 +1280,7 @@ fn rail_action(id: &'static str, glyph: Nav, tooltip: &'static str, cx: &App) ->
         .items_center()
         .justify_center()
         .cursor_pointer()
-        .bg(palette::surface(palette::Level::Sidebar, cx))
+        .bg(palette::surface(palette::Level::Raised, cx))
         .text_color(palette::muted(cx))
         .hover(move |s| s.bg(raised).text_color(strong))
         .child(glyph.icon().size(px(20.)))
@@ -1508,4 +1479,38 @@ mod tests {
         assert_eq!(stream_meta(Some("Blender"), None).as_deref(), Some("Blender"));
         assert_eq!(stream_meta(None, None), None);
     }
+}
+
+// The open server's name as one button that drops the server menu: the channel list's header (16px), or,
+// `compact`, the macOS strip beside the traffic lights (14px).
+pub(crate) fn server_name_button(name: SharedString, compact: bool, cx: &mut Context<Rustcord>) -> Stateful<Div> {
+    let hover = palette::hover(cx);
+    let size = if compact { 14. } else { 16. };
+    div()
+        .id("server-header")
+        .occlude()
+        .min_w_0()
+        .when(compact, |b| b.h(px(28.)))
+        .when(!compact, |b| b.flex_1().h_full())
+        .px_2()
+        .squircle(ui::RADIUS_SM)
+        .flex()
+        .items_center()
+        .gap(px(if compact { 4. } else { 8. }))
+        .cursor_pointer()
+        .text_size(px(size))
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(palette::strong(cx))
+        .hover(move |s| s.bg(hover))
+        .child(div().when(!compact, |d| d.flex_1()).min_w_0().truncate().child(name))
+        .child(Nav::Caret.icon().size(px(size)).text_color(palette::muted(cx)))
+        .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(move |this, _: &gpui_kit::MouseDownEvent, window, cx| {
+            let Some(guild_id) = this.guild_id.clone() else { return };
+            // Drops from the button's bottom edge: in the strip under the name, else under the list's header.
+            let at = match compact {
+                true => gpui_kit::point(px(crate::layout::TRAFFIC_LIGHTS), px(crate::layout::BRAND_BAR_HEIGHT - 4.)),
+                false => gpui_kit::point(px(RAIL_WIDTH + 6.), px(crate::layout::brand_bar_height(window) + crate::layout::HEADER_HEIGHT)),
+            };
+            this.open_server_menu(guild_id, at, true, cx);
+        }))
 }
