@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | text-files | text-viewer | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | login | scanned | failed | empty | updating (the launch splash alone).
+// CHORD_DEMO=chat | text-files | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | login | scanned | failed | empty | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -101,6 +101,30 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         "home" => {
             chord.restore = None;
             chord.open_home(cx);
+        }
+        "activity" | "activity-all" => {
+            let ago = |hours: i64| chrono::Utc::now().timestamp_millis() - hours * 3_600_000;
+            let entry = |author: &str, kind, title: &str, image: Option<&str>, live, at, streak_days| crate::discord::FeedEntry { author_id: author.into(), kind, title: title.into(), image: image.map(Into::into), live, at, streak_days };
+            chord.activity_feed = vec![
+                entry("12582912", ActivityKind::Playing, "EA SPORTS FC 26", None, false, ago(26), Some(6)),
+                entry("16777216", ActivityKind::Listening, "Too Sweet", Some("demo/banner.png"), true, ago(0), None),
+                entry("8388608", ActivityKind::Playing, "The Legend of Heroes: Trails through Daybreak II", None, false, ago(30), None),
+                entry("4194304", ActivityKind::Watching, "Frieren: Beyond Journey's End", Some("demo/banner.png"), false, ago(3), None),
+            ];
+            if scene == "activity-all" {
+                chord.right_panel = crate::RightPanel::Activity;
+            }
+        }
+        // Unread DMs stack under Home on the rail: Wren with one message, a group-less second with 12.
+        "rail-dms" => {
+            let mut ani = chord.dms[0].clone();
+            ani.id = "dm2".into();
+            ani.recipient = Some(user("16777216", "toma reed"));
+            chord.dms.push(ani);
+            for (id, mentions) in [("dm", 1), ("dm2", 12)] {
+                chord.last_message.insert(id.into(), 200);
+                chord.read_states.insert(id.into(), ReadState { last_read: 100, mentions });
+            }
         }
         "folder" => {
             chord.open_folders.insert("9".into());

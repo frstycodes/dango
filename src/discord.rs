@@ -108,6 +108,20 @@ pub struct RichPresence {
     pub joinable: bool,
 }
 
+// One card of the member list's Activity section: what someone played, watched or heard lately.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FeedEntry {
+    pub author_id: String,
+    pub kind: ActivityKind,
+    pub title: String,
+    // Album art or a show's poster; games carry none here (GAP: their art needs an application lookup).
+    pub image: Option<String>,
+    pub live: bool,
+    // Unix milliseconds: when it ended, else when it started, else when the entry was made.
+    pub at: i64,
+    pub streak_days: Option<u64>,
+}
+
 // What Discord's member list shows under a name: an icon by kind, the text, and "+N" for more.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Activity {
@@ -747,6 +761,13 @@ impl Client {
                 })
             })
             .collect())
+    }
+
+    /// The member list's Activity feed: everyone this account knows, not one server's; the panel keeps
+    /// the entries whose author is in the open server.
+    pub async fn activity_feed(&self) -> Result<Vec<FeedEntry>, String> {
+        let body = self.run(self.request(reqwest::Method::GET, "/content-inventory/users/@me")).await?;
+        Ok(parse_activity_feed(&body))
     }
 
     /// Newest pin first.
@@ -1618,6 +1639,40 @@ fn permission(v: &Value) -> u64 {
     v.as_str().and_then(|s| s.parse().ok()).or(v.as_u64()).unwrap_or(0)
 }
 
+// `GET /content-inventory/users/@me` answers `{ entries: [{ content }] }`; each content is a Content
+// Inventory Entry as discord-userdoccers documents it (resources/components). Not verified against a
+// live response: Dango never signs in for development.
+pub fn parse_activity_feed(body: &Value) -> Vec<FeedEntry> {
+    body["entries"].as_array().into_iter().flatten().filter_map(|e| parse_feed_entry(&e["content"])).collect()
+}
+
+fn parse_feed_entry(c: &Value) -> Option<FeedEntry> {
+    let extra = &c["extra"];
+    let text = |v: &Value| v.as_str().map(str::trim).filter(|t| !t.is_empty()).map(str::to_owned);
+    let url = |v: &Value| text(v).filter(|u| u.starts_with("https://"));
+    let media = if extra["entries"][0]["media"].is_object() { &extra["entries"][0]["media"] } else { extra };
+    let (kind, title, image) = match c["content_type"].as_u64()? {
+        1 | 3 => (ActivityKind::Playing, text(&extra["game_name"])?, None),
+        2 => (ActivityKind::Watching, text(&extra["media_title"])?, url(&extra["media_assets_large_image"])),
+        4 | 5 => (ActivityKind::Listening, text(&media["title"])?, url(&media["image_url"])),
+        8 => (ActivityKind::Playing, text(&extra["activity_name"])?, None),
+        _ => return None,
+    };
+    let traits = c["traits"].as_array().cloned().unwrap_or_default();
+    let trait_of = |kind: u64| traits.iter().find(|t| t["type"].as_u64() == Some(kind)).cloned();
+    let time = |v: &Value| v.as_str().and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok()).map(|t| t.timestamp_millis());
+    let made = (snowflake(&c["id"]) >> 22) as i64 + 1_420_070_400_000;
+    Some(FeedEntry {
+        author_id: text(&c["author_id"])?,
+        kind,
+        title,
+        image,
+        live: trait_of(3).is_some_and(|t| t["is_live"].as_bool() == Some(true)),
+        at: time(&c["ended_at"]).or_else(|| time(&c["started_at"])).unwrap_or(made),
+        streak_days: trait_of(8).and_then(|t| t["streak_count_days"].as_u64()).filter(|&d| d > 1),
+    })
+}
+
 pub fn snowflake(v: &Value) -> u64 {
     v.as_str().and_then(|s| s.parse().ok()).unwrap_or(0)
 }
@@ -1625,6 +1680,23 @@ pub fn snowflake(v: &Value) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_the_activity_feed() {
+        let body = json!({ "entries": [
+            { "content": { "id": "1300000000000000000", "author_id": "7", "content_type": 1, "ended_at": "2026-11-17T10:00:00+00:00",
+                "extra": { "type": "played_game_extra", "game_name": "EA SPORTS FC 26" }, "traits": [{ "type": 8, "streak_count_days": 6 }] } },
+            { "content": { "id": "1300000000000000001", "author_id": "8", "content_type": 5,
+                "extra": { "entries": [{ "media": { "title": "Bad Apple!!", "image_url": "https://i.scdn.co/image/x" } }] }, "traits": [{ "type": 3, "is_live": true }] } },
+            { "content": { "id": "1", "author_id": "9", "content_type": 9, "extra": {} } }
+        ]});
+        let feed = parse_activity_feed(&body);
+        assert_eq!(feed.len(), 2);
+        assert_eq!((feed[0].title.as_str(), feed[0].streak_days, feed[0].kind), ("EA SPORTS FC 26", Some(6), ActivityKind::Playing));
+        assert_eq!(feed[0].at, 1_794_909_600_000);
+        assert_eq!((feed[1].kind, feed[1].live, feed[1].image.as_deref()), (ActivityKind::Listening, true, Some("https://i.scdn.co/image/x")));
+        assert_eq!(feed[1].at, (1_300_000_000_000_000_001i64 >> 22) + 1_420_070_400_000);
+    }
 
     #[test]
     fn parses_both_ready_shapes() {

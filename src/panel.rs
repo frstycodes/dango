@@ -1,29 +1,36 @@
 // The side panel (design/css/panels.css .panel): one right-hand frame for the member list and search
 // results, with a fixed head and a scrolling body.
+use std::collections::HashMap;
+
 use gpui_kit::{
-    AnyElement, App, Context, Div, FontWeight, SharedString, Window,
+    AnyElement, App, Context, Div, FontWeight, Radians, SharedString, Window,
     component::{ActiveTheme, Icon},
-    div, prelude::*, px,
+    div, img, prelude::*, px,
 };
+use gpui_motion_kit::core::{Motion, Target};
 
 use crate::{
-    Rustcord, Edge, RightPanel,
-    discord::{ListItem, Member, Message, Status},
+    Part, Rustcord, Edge, RightPanel,
+    discord::{ActivityKind, FeedEntry, ListItem, Member, Message, Status},
     icons::Glyph,
     layout::{decorated_avatar, nameplate},
-    palette,
-    sidebar::activity_glyph,
+    motion, palette,
+    sidebar::{Nav, activity_glyph, category_head, hover_ease},
     ui::{self, Squircle},
 };
 
+// The section shows this many cards; its chevron opens the rest.
+const ACTIVITY_SHOWN: usize = 3;
+
 impl Rustcord {
-    pub fn render_panel(&mut self, _: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
+    pub fn render_panel(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         self.guild_id.as_ref()?;
         // The member list needs no head: the header's toggle opens and closes it. Search results keep
         // theirs, which names the query and leads back to the members.
         let (head, body): (Option<Div>, AnyElement) = match &self.right_panel {
             RightPanel::Hidden => return None,
-            RightPanel::Members => (None, self.member_list(cx)),
+            RightPanel::Members => (None, self.member_list(window, cx)),
+            RightPanel::Activity => (Some(self.panel_head("Activity".into(), cx)), self.activity_cards(usize::MAX, cx)),
             RightPanel::Search { query, results } => (Some(self.panel_head(format!("Results for “{query}”").into(), cx)), self.search_results(results.clone(), cx)),
         };
         Some(
@@ -65,10 +72,11 @@ impl Rustcord {
     }
 
     // Who is here, grouped by top role, then online and offline (navigation.css .members).
-    fn member_list(&self, cx: &mut Context<Self>) -> AnyElement {
+    fn member_list(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let activity = self.activity_section(window, cx);
         let Some(guild) = self.guild() else { return div().into_any_element() };
         let Some(list) = self.member_lists.get(&guild.id).filter(|l| !l.is_empty()) else { return members_loading(cx).into_any_element() };
-        let mut first = true;
+        let mut first = activity.is_none();
         let rows = list.iter().filter_map(|item| match item {
             ListItem::Group { id, count } => {
                 let count = self.member_groups.get(&guild.id).and_then(|g| g.get(id)).copied().unwrap_or(*count);
@@ -83,7 +91,139 @@ impl Rustcord {
             }
             ListItem::Member(member) => Some(self.member_row(member, cx)),
         });
-        div().flex().flex_col().gap(px(2.)).children(rows.collect::<Vec<_>>()).into_any_element()
+        div().flex().flex_col().gap(px(2.)).children(activity).children(rows.collect::<Vec<_>>()).into_any_element()
+    }
+
+    pub(crate) fn load_activity_feed(&mut self, cx: &mut Context<Self>) {
+        let Some(client) = self.client.clone() else { return };
+        cx.spawn(async move |this, cx| {
+            // No feed (an error, or none for this account) leaves the section out.
+            let Ok(feed) = client.activity_feed().await else { return };
+            this.update(cx, |this, cx| {
+                this.activity_feed = feed;
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    // The feed's entries by members of the open server, each with that member, in Discord's order.
+    fn guild_activity(&self) -> Vec<(&FeedEntry, &Member)> {
+        let Some(list) = self.guild_id.as_ref().and_then(|g| self.member_lists.get(g)) else { return Vec::new() };
+        let members: HashMap<&str, &Member> = list
+            .iter()
+            .filter_map(|item| match item {
+                ListItem::Member(m) => Some((m.user.id.as_str(), m)),
+                ListItem::Group { .. } => None,
+            })
+            .collect();
+        self.activity_feed.iter().filter_map(|e| Some((e, *members.get(e.author_id.as_str())?))).collect()
+    }
+
+    // "Activity · N" over the member groups: folds from its label like a channel category, and its
+    // chevron opens every card in the panel.
+    fn activity_section(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Option<Div> {
+        let count = self.guild_activity().len();
+        if count == 0 {
+            return None;
+        }
+        let key = format!("activity:{}", self.guild_id.clone().unwrap_or_default());
+        let folded = self.folded.contains(&key);
+        let [fold, chevron] = self.motions.frame(
+            [
+                (Part::Fold(key.clone()), Motion::new(Target::default().opacity(if folded { 0. } else { 1. })).transition(motion::fold())),
+                // The chevron's angle in degrees rides the x channel; it is read back, never applied as an offset.
+                (Part::Chevron(key.clone()), Motion::new(Target::default().x(if folded { -90. } else { 0. })).transition(hover_ease())),
+            ],
+            window,
+            cx,
+        );
+        let label = div()
+            .id("activity-section")
+            .child(Nav::Caret.icon().size(px(11.)).rotate(Radians(chevron.target().x_px().to_radians())))
+            .child(format!("Activity · {count}"))
+            .on_click(cx.listener(move |this, _, _, cx| {
+                if !this.folded.remove(&key) {
+                    this.folded.insert(key.clone());
+                }
+                cx.notify();
+            }));
+        let all = ui::icon_button("activity-all", Glyph::ChevronRight, "Show all activity", cx).on_click(cx.listener(|this, _, _, cx| {
+            this.right_panel = RightPanel::Activity;
+            cx.notify();
+        }));
+        let alpha = fold.target().alpha();
+        let cards = (!folded || alpha > 0.05).then(|| div().opacity(alpha).child(self.activity_cards(ACTIVITY_SHOWN, cx)));
+        Some(div().flex().flex_col().gap(px(2.)).child(category_head("activity-head".into(), label, false, cx).child(all)).children(cards))
+    }
+
+    fn activity_cards(&self, limit: usize, cx: &mut Context<Self>) -> AnyElement {
+        let now = chrono::Utc::now().timestamp_millis();
+        let cards: Vec<AnyElement> = self.guild_activity().into_iter().take(limit).enumerate().map(|(i, (entry, member))| self.feed_card(i, entry, member, now, cx)).collect();
+        div().flex().flex_col().gap(px(8.)).children(cards).into_any_element()
+    }
+
+    // One card: who (avatar, name in their role's colour), what, and when, with its art on the right.
+    fn feed_card(&self, i: usize, entry: &FeedEntry, member: &Member, now: i64, cx: &mut Context<Self>) -> AnyElement {
+        let dark = cx.theme().is_dark();
+        let (strong, muted, hover) = (palette::strong(cx), palette::muted(cx), palette::hover(cx));
+        let name_ink = self.role_color(self.guild_id.as_ref(), &member.user.id, Some(&member.roles), dark).unwrap_or(strong);
+        let when = if entry.live { "Now".to_owned() } else { ago(now - entry.at) };
+        let meta = div()
+            .flex()
+            .items_center()
+            .gap(px(4.))
+            .min_w_0()
+            .text_size(px(12.))
+            .font_weight(FontWeight::NORMAL)
+            .text_color(muted)
+            .children(activity_glyph(entry.kind).map(|icon| icon.size(px(14.)).flex_none().when(entry.live, |i| i.text_color(palette::status_in(Status::Online, cx)))))
+            .child(div().flex_none().child(when))
+            .when_some(entry.streak_days, |m, days| m.child(div().w(px(6.)).flex_none()).child(Icon::default().data(BOLT).size(px(14.)).flex_none()).child(div().truncate().child(format!("{days}× streak"))));
+        let art = match &entry.image {
+            Some(url) => img(url.clone()).size(px(56.)).flex_none().object_fit(gpui_kit::ObjectFit::Cover).squircle(ui::RADIUS_MD).into_any_element(),
+            None => div()
+                .size(px(56.))
+                .flex_none()
+                .squircle(ui::RADIUS_MD)
+                .bg(palette::selected(cx))
+                .flex()
+                .items_center()
+                .justify_center()
+                .text_color(muted)
+                .children(activity_glyph(entry.kind).or_else(|| activity_glyph(ActivityKind::Playing)).map(|icon| icon.size(px(24.))))
+                .into_any_element(),
+        };
+        div()
+            .id(SharedString::from(format!("activity-{i}")))
+            .flex()
+            .items_center()
+            .gap(px(12.))
+            .p(px(10.))
+            .squircle(ui::RADIUS_LG)
+            .bg(palette::surface(palette::Level::Page, cx))
+            .border_1()
+            .border_color(palette::line(cx))
+            .cursor_pointer()
+            .hover(move |s| s.bg(hover))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .gap(px(2.))
+                    .child(div().flex().items_center().gap(px(6.)).min_w_0().child(ui::avatar(member.user.avatar.clone(), 16.).flex_none()).child(div().truncate().text_color(name_ink).child(member.user.name.clone())))
+                    .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(strong).child(entry.title.clone()))
+                    .child(meta),
+            )
+            .child(art)
+            .on_click({
+                let user = member.user.clone();
+                cx.listener(move |this, event: &gpui_kit::ClickEvent, _, cx| this.open_profile(user.clone(), event.position() - gpui_kit::point(px(320.), px(0.)), cx))
+            })
+            .into_any_element()
     }
 
     // A member (.mem): avatar with status, the name in their top role's colour, one line of activity.
@@ -230,4 +370,33 @@ fn activity_line(activity: &crate::discord::Activity, cx: &App) -> Div {
         .text_color(palette::faint(cx))
         .children(activity_glyph(activity.kind).map(|icon| icon.size(px(13.)).flex_none().when(live, |i| i.text_color(palette::accent_ink(cx)))))
         .child(div().truncate().child(text))
+}
+
+const BOLT: &[u8] = include_bytes!("../assets/icons/reicon/bolt.svg");
+
+// How long ago, in the feed's steps: minutes, hours, days, then weeks.
+fn ago(ms: i64) -> String {
+    let minutes = (ms / 60_000).max(0);
+    match minutes {
+        0 => "Just now".to_owned(),
+        1..60 => format!("{minutes}m ago"),
+        60..1440 => format!("{}h ago", minutes / 60),
+        1440..10080 => format!("{}d ago", minutes / 1440),
+        _ => format!("{}w ago", minutes / 10080),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ago;
+
+    #[test]
+    fn ago_steps_up_by_unit() {
+        assert_eq!(ago(-5), "Just now");
+        assert_eq!(ago(59_000), "Just now");
+        assert_eq!(ago(5 * 60_000), "5m ago");
+        assert_eq!(ago(3 * 3_600_000), "3h ago");
+        assert_eq!(ago(26 * 3_600_000), "1d ago");
+        assert_eq!(ago(15 * 86_400_000), "2w ago");
+    }
 }
