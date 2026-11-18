@@ -78,6 +78,28 @@ pub fn tile(key: String, url: &str, poster: &str, cx: &mut App) -> AnyElement {
     player.into_any_element()
 }
 
+// Drives the player kept under `key` from outside it (the media viewer's keys).
+pub fn toggle(key: &str, cx: &mut App) {
+    with_player(key, cx, VideoPlayer::toggle);
+}
+
+pub fn pause(key: &str, cx: &mut App) {
+    with_player(key, cx, VideoPlayer::pause);
+}
+
+pub fn skip(key: &str, forward: bool, cx: &mut App) {
+    with_player(key, cx, move |p, cx| p.skip(forward, cx));
+}
+
+pub fn toggle_mute(key: &str, cx: &mut App) {
+    with_player(key, cx, |p, cx| p.set_level(Level { muted: !p.level.muted, ..p.level }, cx));
+}
+
+fn with_player(key: &str, cx: &mut App, f: impl FnOnce(&mut VideoPlayer, &mut Context<VideoPlayer>)) {
+    let Some(player) = cx.try_global::<Videos>().and_then(|v| v.players.get(key)).cloned() else { return };
+    player.update(cx, f);
+}
+
 // A video is playing somewhere, so the app shouldn't drop to background mode.
 pub fn is_playing(cx: &App) -> bool {
     cx.try_global::<Videos>().and_then(|v| v.playing.as_ref()?.upgrade()).is_some_and(|p| p.read(cx).is_playing())
@@ -406,6 +428,10 @@ impl VideoPlayer {
 
 // Downloads the clip and opens it for playback, off the UI thread.
 async fn open(url: String) -> Result<Playback, String> {
+    if let Some(bytes) = crate::discord::demo_media(&url) {
+        let bytes: Arc<[u8]> = bytes.to_vec().into();
+        return tokio::task::spawn_blocking(move || Playback::open(bytes)).await.map_err(|e| e.to_string())?;
+    }
     let response = reqwest::get(&url).await.map_err(|e| e.to_string())?;
     if !response.status().is_success() {
         return Err(format!("HTTP {}", response.status()));

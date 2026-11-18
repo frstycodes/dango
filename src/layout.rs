@@ -1,7 +1,5 @@
 // Dango's frame (design/navigation.html): the rail, channel list, chat and side panel run to the window's
 // top, each column's own header doubling as the title bar; the user area sits at the foot of the channel list.
-use std::time::Duration;
-
 use gpui_kit::{
     Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent, NavigationDirection,
     ObjectFit, Render, SharedString, Stateful, Window,
@@ -11,7 +9,7 @@ use gpui_kit::{
 
 use crate::{
     Rustcord, Drag, Edge, Status,
-    discord::{self, MediaKind},
+    discord,
     icons::Glyph,
     login, palette,
     sidebar::Nav,
@@ -189,19 +187,9 @@ impl Rustcord {
             }
             return;
         }
-        if self.viewer.is_none() {
-            return;
+        if self.on_viewer_key(&event.keystroke, cx) {
+            cx.stop_propagation();
         }
-        match event.keystroke.key.as_str() {
-            "left" => self.step_viewer(-1, cx),
-            "right" => self.step_viewer(1, cx),
-            "escape" => {
-                self.viewer = None;
-                cx.notify();
-            }
-            _ => return,
-        }
-        cx.stop_propagation();
     }
 
     fn on_drag_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
@@ -443,136 +431,6 @@ impl Rustcord {
             }
         })
         .detach();
-    }
-
-    // A gallery over the whole window: every image and video in the channel, with arrows and ←/→ to page.
-    fn viewer_overlay(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let viewer = self.viewer.as_ref()?;
-        let item = viewer.items.get(viewer.index)?.clone();
-        let (index, count) = (viewer.index, viewer.items.len());
-        let viewport = window.viewport_size();
-        let (max_w, max_h) = (f32::from(viewport.width) - 200., f32::from(viewport.height) - 160.);
-        let scale = (max_w / item.width).min(max_h / item.height).min(2.);
-        let (w, h) = (item.width * scale, item.height * scale);
-        let url = item.url.clone();
-        let stage = match &item.kind {
-            MediaKind::Image => crate::chat::animated_image(item.url.clone()).w(px(w)).h(px(h)).squircle(ui::RADIUS_MD).into_any_element(),
-            MediaKind::Gif { poster } => div().w(px(w)).h(px(h)).squircle(ui::RADIUS_MD).overflow_hidden().child(crate::gif::top_tile(format!("viewer-{}", item.url), &item.url, poster, gpui_kit::size(px(w), px(h)), ui::all(ui::RADIUS_MD), cx)).into_any_element(),
-            // ponytail: video plays in the system player; an in-app AVPlayer view is the upgrade.
-            MediaKind::Video { poster } => {
-                let open = item.url.clone();
-                div()
-                    .id("viewer-video")
-                    .relative()
-                    .w(px(w))
-                    .h(px(h))
-                    .cursor_pointer()
-                    .child(img(poster.clone()).size_full().squircle(ui::RADIUS_MD))
-                    .child(
-                        div().absolute().inset_0().flex().items_center().justify_center().child(
-                            div()
-                                .size(px(72.))
-                                .rounded_full()
-                                .bg(gpui_kit::black().opacity(0.6))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .text_color(gpui_kit::white())
-                                .child(Icon::new(Glyph::Play).size(px(36.))),
-                        ),
-                    )
-                    .on_click(move |_, _, cx| cx.open_url(&open))
-                    .into_any_element()
-            }
-        };
-        let stage = div()
-            .id("viewer-stage")
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .child(stage)
-            .with_animation(SharedString::from(format!("viewer-{index}")), Animation::new(Duration::from_millis(140)), |el, t| el.opacity(t));
-        let nav = |id: &'static str, glyph: Glyph, enabled: bool, delta: isize| {
-            div()
-                .id(id)
-                .size(px(48.))
-                .rounded_full()
-                .flex()
-                .items_center()
-                .justify_center()
-                .bg(gpui_kit::white().opacity(if enabled { 0.12 } else { 0.04 }))
-                .text_color(gpui_kit::white().opacity(if enabled { 1. } else { 0.3 }))
-                .when(enabled, |b| b.cursor_pointer().hover(|s| s.bg(gpui_kit::white().opacity(0.2))))
-                .child(Icon::new(glyph).size(px(26.)))
-                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                .on_click(cx.listener(move |this, _, _, cx| this.step_viewer(delta, cx)))
-        };
-        let top = div()
-            .absolute()
-            .top(px(TITLE_HEIGHT + 8.))
-            .right(px(16.))
-            .flex()
-            .gap_2()
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .child(
-                div()
-                    .id("viewer-open")
-                    .h(px(32.))
-                    .px_3()
-                    .squircle(ui::RADIUS_SM)
-                    .flex()
-                    .items_center()
-                    .gap_1p5()
-                    .cursor_pointer()
-                    .text_color(gpui_kit::white())
-                    .bg(gpui_kit::white().opacity(0.12))
-                    .hover(|s| s.bg(gpui_kit::white().opacity(0.2)))
-                    .child(Icon::new(Glyph::Open).size(px(16.)))
-                    .child("Open in Browser")
-                    .on_click(move |_, _, cx| cx.open_url(&url)),
-            )
-            .child(
-                div()
-                    .id("viewer-close")
-                    .size(px(32.))
-                    .squircle(ui::RADIUS_SM)
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .cursor_pointer()
-                    .text_color(gpui_kit::white())
-                    .bg(gpui_kit::white().opacity(0.12))
-                    .hover(|s| s.bg(gpui_kit::white().opacity(0.2)))
-                    .child(Icon::new(Glyph::X).size(px(18.)))
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.viewer = None;
-                        cx.notify();
-                    })),
-            );
-        Some(
-            div()
-                .id("viewer")
-                .absolute()
-                .occlude()
-                .inset_0()
-                .bg(gpui_kit::black().opacity(0.88))
-                .flex()
-                .items_center()
-                .justify_between()
-                .px_6()
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _, _, cx| {
-                        this.viewer = None;
-                        cx.notify();
-                    }),
-                )
-                .child(nav("viewer-prev", Glyph::ChevronLeft, index > 0, -1))
-                .child(stage)
-                .child(nav("viewer-next", Glyph::ChevronRight, index + 1 < count, 1))
-                .child(top)
-                .child(div().absolute().bottom(px(20.)).left_0().right_0().flex().justify_center().text_color(gpui_kit::white().opacity(0.8)).child(format!("{} / {count}", index + 1)))
-                .with_animation("viewer-open", Animation::new(Duration::from_millis(160)), |el, t| el.opacity(t))
-                .into_any_element(),
-        )
     }
 }
 

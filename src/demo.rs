@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | pins | header-search | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | updating (the launch splash alone).
+// CHORD_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | gallery | viewer | viewer-video | pins | header-search | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -39,6 +39,27 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
     chord.on_event(Event::Typing { channel_id: "general".into(), user_id: "8388608".into(), name: Some("Wren".into()) }, cx);
     match scene {
         "gallery" => chord.open_viewer(&avatar_url("3", None), window, cx),
+        // Twenty made-up pictures and clips on one message, the viewer open at the tenth.
+        "viewer" | "viewer-video" => {
+            let _ = crate::discord::DEMO_MEDIA.set(demo_media);
+            if let Some(feed) = chord.feeds.get_mut("general") {
+                let mut messages = feed.messages.as_ref().clone();
+                if let Some(message) = messages.iter_mut().find(|m| m.id == "102") {
+                    message.media = (0..DEMO_SIZES.len()).map(demo_item).collect();
+                }
+                feed.messages = std::sync::Arc::new(messages);
+            }
+            let open = demo_item(if scene == "viewer" { 9 } else { 19 }).url;
+            chord.open_viewer(&open, window, cx);
+            // The last item is a clip: Space plays it, through the viewer's own keys.
+            if scene == "viewer-video" {
+                cx.spawn_in(window, async move |this, cx| {
+                    cx.background_executor().timer(std::time::Duration::from_millis(800)).await;
+                    this.update(cx, |this, cx| this.on_viewer_key(&gpui_kit::Keystroke::parse("space").expect("valid key"), cx)).ok();
+                })
+                .detach();
+            }
+        }
         "pins" => chord.pins = Some(Some(Ok(chord.feeds.get("general").map(|f| f.messages.iter().rev().take(3).cloned().collect()).unwrap_or_default()))),
         // Typed once the window is up, as `mention` does: the field isn't live while the app is being built.
         "header-search" => cx
@@ -129,6 +150,9 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         // A long message.txt (Discord's file for a message past 2,000 characters), a short code file, and
         // a .log that isn't text, which stays a file card. The fixtures stand in for the CDN fetch.
         "text-files" | "text-expanded" | "text-viewer" => demo_text_files(chord, scene),
+        // Discord's own links: a message card, a channel chip, invites to a joined server, another server
+        // and an expired code, a message you can't see (no card), and two still loading.
+        "link-previews" => demo_link_previews(chord),
         // Four pictures of mixed shapes on one message: the 2x2 gallery.
         "gallery-grid" => {
             if let Some(feed) = chord.feeds.get_mut("general") {
@@ -696,6 +720,49 @@ fn demo_text_files(chord: &mut Rustcord, scene: &str) {
     feed.messages = std::sync::Arc::new(messages);
 }
 
+fn demo_link_previews(chord: &mut Rustcord) {
+    use crate::{discord::Invite, link_preview::Preview};
+    let mut announcements = channel("1100", "📌-announcements", ChannelKind::Text, Some("c0"));
+    announcements.position = 0;
+    if let Some(guild) = chord.guilds.iter_mut().find(|g| g.id == "1") {
+        guild.channels.push(announcements);
+    }
+    let quoted = Message {
+        id: "1101".into(),
+        channel_id: "1100".into(),
+        guild_id: Some("1".into()),
+        author: user("8388608", "Wren"),
+        timestamp: (chrono::Utc::now() - chrono::Duration::hours(3)).to_rfc3339(),
+        content: "Season 7 notes are up: placements drop to **5 matches**, duo queue opens at every rank, and Foundry is back with the smaller mid. Ping <@4194304> if your rank looks off after the reset, we're collecting reports in one thread so nothing gets lost.".into(),
+        media: vec![Media { url: "brand/icons/sticker.png".into(), width: 512., height: 512., kind: MediaKind::Image }],
+        ..Default::default()
+    };
+    {
+        let mut previews = chord.link_previews.borrow_mut();
+        previews.seed("m-1100-1101", Preview::Message(Box::new(quoted)));
+        previews.seed("m-1100-1199", Preview::Unavailable);
+        previews.seed("i-night-owls", Preview::Invite(Invite { guild_id: "1".into(), name: "Night Owls".into(), icon: None, online: Some(42), members: Some(318) }));
+        let tea = Invite { guild_id: "77".into(), name: "Late Night Tea House, a server with a name long enough to truncate".into(), icon: None, online: Some(1_204), members: Some(8_311) };
+        previews.seed("i-tea-house", Preview::Invite(tea));
+        previews.seed("i-expired-code", Preview::Unavailable);
+    }
+    let Some(feed) = chord.feeds.get_mut("general") else { return };
+    let mut messages = feed.messages.as_ref().clone();
+    let before = messages.len();
+    let ago = |mins: i64| (chrono::Utc::now() - chrono::Duration::minutes(mins)).to_rfc3339();
+    let post = |id: &str, author: User, mins: i64, content: &str| Message { id: id.into(), channel_id: "general".into(), guild_id: Some("1".into()), author, timestamp: ago(mins), content: content.into(), ..Default::default() };
+    messages.extend([
+        post("121", user("16777216", "toma reed"), 12, "still fetching https://discord.gg/still-loading https://ptb.discord.com/channels/1/1100/1150"),
+        post("122", user("16777216", "toma reed"), 11, "this one's dead https://discord.gg/expired-code and I can't open https://canary.discord.com/channels/1/1100/1199"),
+        post("123", user("8388608", "Wren"), 9, "come hang after ranked https://discord.gg/tea-house and bring people here too https://discord.gg/night-owls"),
+        post("124", user("12582912", "moss lantern"), 6, "older notes are pinned in https://discord.com/channels/1/1100 if you missed them"),
+        post("125", me_user(), 2, "did everyone see this? https://discord.com/channels/1/1100/1101"),
+    ]);
+    feed.messages = std::sync::Arc::new(messages);
+    // Appended like arriving messages, so the feed stays pinned to the newest.
+    chord.list.splice(before..before, feed.messages.len() - before);
+}
+
 const PATCH_NOTES: &str = "Patch notes, season 7
 
 Ranked
@@ -726,4 +793,67 @@ fn demo_frame(width: u32, height: u32, tint: u8) -> std::sync::Arc<gpui_kit::Ren
         image::Rgba([tint.wrapping_add(t / 2).saturating_add(lift), (40 + t / 3).saturating_add(lift), (90 + t / 2).saturating_add(lift), 255])
     });
     std::sync::Arc::new(gpui_kit::RenderImage::new([image::Frame::new(buffer)]))
+}
+
+// The viewer scene's items: (width, height, is a clip), every fourth a clip.
+const DEMO_SIZES: [(f32, f32); 20] = [
+    (1600., 1067.), (1080., 1350.), (2048., 1152.), (1280., 720.), (1200., 1200.), (900., 1600.), (2400., 1600.), (1280., 720.), (1500., 1000.), (1920., 1080.),
+    (1080., 1080.), (1280., 720.), (1600., 900.), (800., 1200.), (2000., 1333.), (1280., 720.), (1350., 1080.), (1024., 768.), (1440., 1800.), (1280., 720.),
+];
+
+fn demo_item(n: usize) -> Media {
+    let (width, height) = DEMO_SIZES[n];
+    if n % 4 == 3 {
+        let url = format!("https://cdn.discordapp.com/attachments/demo/{n}/clip-{n}.mp4");
+        return Media { kind: MediaKind::Video { poster: format!("https://media.discordapp.net/attachments/demo/{n}/clip-{n}.mp4?format=jpeg") }, url, width, height };
+    }
+    Media { url: format!("https://cdn.discordapp.com/attachments/demo/{n}/photo-{n}.png"), width, height, kind: MediaKind::Image }
+}
+
+// Serves the viewer scene's media without the network: a clip from testdata, and for pictures and
+// posters a made-up gradient at whatever size the URL asks the proxy for.
+fn demo_media(url: &str) -> Option<bytes::Bytes> {
+    let rest = url.split("/attachments/demo/").nth(1)?;
+    let (path, query) = rest.split_once('?').unwrap_or((rest, ""));
+    if path.ends_with(".mp4") && !query.contains("format=") {
+        return std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/video-aac.mp4")).ok().map(Into::into);
+    }
+    let n: usize = path.split('/').next()?.parse().ok()?;
+    let (w, h) = DEMO_SIZES.get(n).copied()?;
+    let param = |key: &str| query.split('&').find_map(|kv| kv.strip_prefix(key)?.strip_prefix('=')?.parse::<u32>().ok());
+    let (w, h) = (param("width").unwrap_or(w as u32), param("height").unwrap_or(h as u32));
+    let bytes = demo_picture(n, w, h);
+    eprintln!("[demo media] {}x{} {} bytes {url}", w, h, bytes.len());
+    Some(bytes.into())
+}
+
+// A soft two-hue gradient with a sun, distinct per item.
+fn demo_picture(n: usize, w: u32, h: u32) -> Vec<u8> {
+    let hue = (n as f32 * 47.) % 360.;
+    let (a, b) = (hsl(hue, 0.55, 0.62), hsl((hue + 40.) % 360., 0.5, 0.32));
+    let (cx, cy, r) = (w as f32 * (0.25 + 0.05 * (n % 10) as f32), h as f32 * 0.4, w.min(h) as f32 * 0.16);
+    let picture = image::RgbImage::from_fn(w, h, |x, y| {
+        let t = (x as f32 / w as f32 * 0.4 + y as f32 / h as f32 * 0.6).min(1.);
+        let sun = ((x as f32 - cx).powi(2) + (y as f32 - cy).powi(2)).sqrt() < r;
+        let mix = |i: usize| if sun { 245 } else { (a[i] as f32 * (1. - t) + b[i] as f32 * t) as u8 };
+        image::Rgb([mix(0), mix(1), mix(2)])
+    });
+    let mut out = std::io::Cursor::new(Vec::new());
+    picture.write_to(&mut out, image::ImageFormat::Png).ok();
+    out.into_inner()
+}
+
+fn hsl(h: f32, s: f32, l: f32) -> [u8; 3] {
+    let c = (1. - (2. * l - 1.).abs()) * s;
+    let x = c * (1. - ((h / 60.) % 2. - 1.).abs());
+    let (r, g, b) = match (h / 60.) as u32 {
+        0 => (c, x, 0.),
+        1 => (x, c, 0.),
+        2 => (0., c, x),
+        3 => (0., x, c),
+        4 => (x, 0., c),
+        _ => (c, 0., x),
+    };
+    let m = l - c / 2.;
+    [((r + m) * 255.) as u8, ((g + m) * 255.) as u8, ((b + m) * 255.) as u8]
 }

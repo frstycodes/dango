@@ -21,6 +21,7 @@ mod drag;
 mod icons;
 mod images;
 mod layout;
+mod link_preview;
 mod login;
 mod mascot;
 mod material;
@@ -49,6 +50,7 @@ mod settings;
 mod shell;
 mod user_menu;
 mod video;
+mod viewer;
 mod hotkeys;
 mod key_hook;
 mod sounds;
@@ -72,7 +74,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use discord::{Channel, ChannelKind, Client, Emoji, Event, Folder, Gif, Guild, ListItem, ListOp, Media, Message, Presence, Profile, ReadState, Relationship, SendState, User};
+use discord::{Channel, ChannelKind, Client, Emoji, Event, Folder, Gif, Guild, ListItem, ListOp, Message, Presence, Profile, ReadState, Relationship, SendState, User};
 use futures::StreamExt;
 use gpui_kit::{
     AppContext, Bounds, Context, Entity, FocusHandle, Hsla, RenderImage, ListAlignment, ListOffset, ListState, SharedString, Task, TitlebarOptions, Window, WindowBounds,
@@ -472,12 +474,6 @@ enum EmojiTarget {
     Reaction(Box<Message>),
 }
 
-// The gallery: every image and video in the open channel, paged with the arrow keys.
-struct Viewer {
-    items: Vec<Media>,
-    index: usize,
-}
-
 #[derive(Clone, Copy, PartialEq)]
 enum Edge {
     Channels,
@@ -670,7 +666,7 @@ pub struct Rustcord {
     // The call connecting now replaced one in the same server (our pick or a moderator's move):
     // it ended that one without a disconnect, and connecting sounds as a move.
     call_switched: bool,
-    viewer: Option<Viewer>,
+    viewer: Option<viewer::Viewer>,
     profile_card: Option<ProfileCard>,
     status_menu: bool,
     // The channel or DM row under the pointer, which shows its hover-only controls.
@@ -686,6 +682,8 @@ pub struct Rustcord {
     call_area: Rc<std::cell::Cell<(f32, f32)>>,
     // Profiles by user and server, shown at once from the last fetch while a fresh one loads.
     profiles: query::Query<discord::Profile>,
+    // Previews of Discord's own links (messages, invites), shared with the rows that draw them.
+    link_previews: link_preview::Previews,
     emoji_picker: Option<EmojiTarget>,
     emoji_search: Entity<SearchState>,
     switcher: Option<usize>,
@@ -908,6 +906,7 @@ impl Rustcord {
             call_focus: None,
             call_area: Rc::new(std::cell::Cell::new((0., 0.))),
             profiles: query::Query::new("profiles", Duration::from_secs(5 * 60)),
+            link_previews: link_preview::previews(),
             composer_height: Rc::new(std::cell::Cell::new(86.)),
             pip: Default::default(),
             emoji_picker: None,
@@ -2560,22 +2559,6 @@ impl Rustcord {
     fn sync_voice_flags(&self) {
         let Some(call) = &self.call else { return };
         call.session.set_flags(self.muted || self.deafened, self.deafened);
-    }
-
-    fn open_viewer(&mut self, url: &str, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(feed) = self.channel.as_ref().and_then(|c| self.feeds.get(&c.id)) else { return };
-        let items: Vec<Media> = feed.messages.iter().flat_map(|m| m.media.iter().cloned()).collect();
-        let Some(index) = items.iter().position(|m| m.url == url) else { return };
-        self.viewer = Some(Viewer { items, index });
-        window.focus(&self.focus, cx);
-        cx.notify();
-    }
-
-    fn step_viewer(&mut self, delta: isize, cx: &mut Context<Self>) {
-        let Some(viewer) = &mut self.viewer else { return };
-        let last = viewer.items.len() as isize - 1;
-        viewer.index = (viewer.index as isize + delta).clamp(0, last) as usize;
-        cx.notify();
     }
 
     // `key` names what was copied (the code itself, a file's URL), so its button shows Copied for a moment.

@@ -3421,7 +3421,7 @@ impl Interactivity {
                             Instant::now(),
                         );
                         overscroll_changed =
-                            overscroll.offset() != old_overscroll || overscroll.is_springing();
+                            overscroll.offset() != old_overscroll || overscroll.is_rebounding();
                     }
                     *scroll_offset = *scroll_offset + delta;
                     if overscroll_changed || *scroll_offset != old_scroll_offset {
