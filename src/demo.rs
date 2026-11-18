@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
+// CHORD_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -86,7 +86,18 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         "emoji" => chord.open_emoji_picker(crate::EmojiTarget::Composer, window, cx),
         "switcher" => chord.open_switcher(window, cx),
         "status" => chord.status_menu = true,
-        "update-ready" => chord.update_ready = Some(crate::updater::Staged::demo("0.5.0")),
+        "update-ready" => chord.updates.status = crate::updater::Status::Ready(crate::updater::Staged::demo("0.8.0")),
+        // The Updates page in each state the updater reports.
+        "updates" | "updates-downloading" | "updates-ready" => {
+            use crate::updater::{Staged, Status};
+            chord.updates.status = match scene {
+                "updates" => Status::UpToDate,
+                "updates-downloading" => Status::Downloading { version: "0.8.0".into(), done: 13 << 20, total: Some(31 << 20) },
+                _ => Status::Ready(Staged::demo("0.8.0")),
+            };
+            chord.updates.checked_at = Some(std::time::SystemTime::now() - std::time::Duration::from_secs(12 * 60));
+            chord.open_settings(crate::settings::Page::Updates, window, cx);
+        }
         "accounts" => {
             chord.prefs.accounts = vec![account(&me_user(), Presence_::Online), account(&user("8388608", "Bartholomew Featherstonehaugh-Wright"), Presence_::Dnd), account(&user("16777216", "juno.alt"), Presence_::Idle)];
             chord.status_menu = true;

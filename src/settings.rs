@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 mod profile;
 pub(crate) mod registry;
+mod updates;
 mod view;
 
 use crate::{
@@ -34,6 +35,7 @@ pub enum Page {
     Notifications,
     Keybinds,
     Advanced,
+    Updates,
     ActivityPrivacy,
 }
 
@@ -48,6 +50,7 @@ impl Page {
             Page::Notifications => "Notifications",
             Page::Keybinds => "Keybinds",
             Page::Advanced => "Advanced",
+            Page::Updates => "Updates",
             Page::ActivityPrivacy => "Activity privacy",
         }
     }
@@ -62,6 +65,7 @@ impl Page {
             Page::Notifications => Glyph::Bell,
             Page::Keybinds => Glyph::Keyboard,
             Page::Advanced => Glyph::Settings,
+            Page::Updates => Glyph::Download,
             Page::ActivityPrivacy => Glyph::Game,
         }
     }
@@ -78,7 +82,7 @@ impl Page {
 // Discord's three headings. My account sits on its own as the identity row at the top of the nav.
 const NAV: [(&str, &[Page]); 3] = [
     ("User settings", &[Page::ContentSocial]),
-    ("App settings", &[Page::Appearance, Page::VoiceVideo, Page::Chat, Page::Notifications, Page::Keybinds, Page::Advanced]),
+    ("App settings", &[Page::Appearance, Page::VoiceVideo, Page::Chat, Page::Notifications, Page::Keybinds, Page::Advanced, Page::Updates]),
     ("Activity settings", &[Page::ActivityPrivacy]),
 ];
 
@@ -168,6 +172,8 @@ pub struct Prefs {
     pub desktop_notifications: bool,
     pub dock_badge: bool,
     pub clock_24h: bool,
+    // Off: the updater still checks and says so, but downloads only when asked.
+    pub auto_download_updates: bool,
     // Recent message searches per account id, newest first.
     pub search_history: HashMap<String, Vec<crate::search::Saved>>,
 }
@@ -218,6 +224,7 @@ impl Default for Prefs {
             desktop_notifications: true,
             dock_badge: true,
             clock_24h: false,
+            auto_download_updates: true,
             search_history: HashMap::new(),
         }
     }
@@ -732,6 +739,7 @@ impl Rustcord {
             Page::VoiceVideo => self.voice_page(window, cx),
             Page::Keybinds => self.keybinds_page(cx),
             Page::Appearance => self.appearance_page(window, cx),
+            Page::Updates => self.updates_page(cx),
             Page::ContentSocial | Page::Chat | Page::Advanced | Page::ActivityPrivacy => Vec::new(),
         };
         sections.extend(self.registry_sections(page, window, cx));

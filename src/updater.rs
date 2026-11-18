@@ -6,10 +6,17 @@
 // the record of which version it is, and a `.part` only becomes a `.zip` after its checksum matched.
 use std::{
     path::{Path, PathBuf},
-    time::Duration,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, SystemTime},
 };
 
-use futures::channel::mpsc::UnboundedReceiver;
+use futures::{
+    StreamExt,
+    channel::mpsc::{UnboundedReceiver, UnboundedSender},
+};
 use rand::Rng;
 use reqwest::{StatusCode, header::RANGE};
 use serde::Deserialize;
@@ -17,7 +24,8 @@ use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 
 const LATEST: &str = "https://api.github.com/repos/frstycodes/dango/releases/latest";
-const CURRENT: &str = env!("CARGO_PKG_VERSION");
+pub const CURRENT: &str = env!("CARGO_PKG_VERSION");
+const RELEASES: &str = "https://github.com/frstycodes/dango/releases/tag";
 const CHECK_TIMEOUT: Duration = Duration::from_secs(10);
 // A download that sends nothing for this long is given up (and resumed on the next check); a slow but
 // moving one is not.
@@ -85,31 +93,167 @@ pub fn pending() -> Option<Staged> {
     tidy(&dir()?, CURRENT)
 }
 
-// Checks soon after launch, then about hourly, staging any newer release; each staged version is sent
-// on. One loop, so a check never starts while a download is in flight.
-pub fn watch() -> UnboundedReceiver<Staged> {
+// Where the updater is, for the user card's row and the Updates page.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub enum Status {
+    // No check has finished since launch.
+    #[default]
+    Idle,
+    Checking,
+    UpToDate,
+    // Found, waiting for the user to ask: automatic downloads are off.
+    Available(String),
+    Downloading { version: String, done: u64, total: Option<u64> },
+    Ready(Staged),
+    CheckFailed,
+    DownloadFailed(String),
+}
+
+impl Status {
+    // The version a check found, for its release notes.
+    pub fn version(&self) -> Option<&str> {
+        match self {
+            Status::Available(v) | Status::Downloading { version: v, .. } | Status::DownloadFailed(v) => Some(v),
+            Status::Ready(staged) => Some(&staged.version),
+            _ => None,
+        }
+    }
+}
+
+// The view's side of the updater: its status, when a check last finished, and the loop to ask.
+#[derive(Default)]
+pub struct Updates {
+    pub status: Status,
+    pub checked_at: Option<SystemTime>,
+    // None where updates are off (debug and demo builds without `DANGO_UPDATE_FEED`).
+    pub updater: Option<Updater>,
+}
+
+impl Updates {
+    pub fn staged(&self) -> Option<&Staged> {
+        match &self.status {
+            Status::Ready(staged) => Some(staged),
+            _ => None,
+        }
+    }
+
+    // A check has finished once the status leaves Checking; download progress isn't one.
+    pub fn apply(&mut self, status: Status, now: SystemTime) {
+        if self.status == Status::Checking && status != Status::Checking {
+            self.checked_at = Some(now);
+        }
+        self.status = status;
+    }
+}
+
+pub fn release_notes(version: &str) -> String {
+    format!("{RELEASES}/v{version}")
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Command {
+    Check,
+    Download,
+}
+
+// Asks the background loop for a check or a download, and carries the automatic-download preference.
+pub struct Updater {
+    commands: UnboundedSender<Command>,
+    auto: Arc<AtomicBool>,
+}
+
+impl Updater {
+    pub fn send(&self, command: Command) {
+        self.commands.unbounded_send(command).ok();
+    }
+
+    pub fn set_auto(&self, on: bool) {
+        self.auto.store(on, Ordering::Relaxed);
+    }
+}
+
+// What a wake-up does: a timer tick or Check looks for a release, and downloads it only when automatic
+// downloads are on; Download fetches what the last check found without asking GitHub again.
+#[derive(Debug, PartialEq)]
+struct Plan {
+    check: bool,
+    download: bool,
+}
+
+fn plan(asked: Option<Command>, auto: bool, known: bool) -> Plan {
+    let wants = asked == Some(Command::Download);
+    Plan { check: !(wants && known), download: wants || auto }
+}
+
+// Checks soon after launch, about hourly after, and whenever asked; each status change is sent on.
+// One loop, so a check never starts while a download is in flight (a command waits for it).
+pub fn watch(auto: bool) -> (Updater, UnboundedReceiver<Status>) {
     let (tx, rx) = futures::channel::mpsc::unbounded();
+    let (commands, mut asked) = futures::channel::mpsc::unbounded();
+    let auto = Arc::new(AtomicBool::new(auto));
+    let updater = Updater { commands, auto: auto.clone() };
     crate::discord::runtime().spawn(async move {
         let Some(dir) = dir() else { return };
         let client = http();
+        let send = |status| tx.unbounded_send(status).is_ok();
         let mut wait = FIRST_CHECK;
+        let mut known: Option<Update> = None;
         loop {
-            tokio::time::sleep(jittered(wait)).await;
+            let command = tokio::select! {
+                () = tokio::time::sleep(jittered(wait)) => None,
+                command = asked.next() => match command {
+                    Some(command) => Some(command),
+                    None => return,
+                },
+            };
             wait = INTERVAL;
-            let Some(update) = check(&client).await else { continue };
-            let staged = match stage(&dir, &update, &client, CURRENT).await {
-                Ok(staged) => staged,
-                Err(e) => {
-                    eprintln!("[updater] staging {} failed: {e}", update.version);
-                    continue;
+            let plan = plan(command, auto.load(Ordering::Relaxed), known.is_some());
+            let update = match known.take() {
+                Some(update) if !plan.check => update,
+                _ => {
+                    if !send(Status::Checking) {
+                        return;
+                    }
+                    match check(&client).await {
+                        Ok(Some(update)) => update,
+                        Ok(None) => {
+                            send(Status::UpToDate);
+                            continue;
+                        }
+                        Err(e) => {
+                            eprintln!("[updater] check failed: {e}");
+                            send(Status::CheckFailed);
+                            continue;
+                        }
+                    }
                 }
             };
-            if tx.unbounded_send(staged).is_err() {
-                return;
+            if let Some(staged) = tidy(&dir, CURRENT).filter(|s| s.version == update.version) {
+                send(Status::Ready(staged));
+                continue;
+            }
+            if !plan.download {
+                send(Status::Available(update.version.clone()));
+                known = Some(update);
+                continue;
+            }
+            let version = update.version.clone();
+            let progress = |done, total| {
+                send(Status::Downloading { version: version.clone(), done, total });
+            };
+            match stage(&dir, &update, &client, CURRENT, progress).await {
+                Ok(staged) => {
+                    send(Status::Ready(staged));
+                }
+                Err(e) => {
+                    eprintln!("[updater] staging {} failed: {e}", update.version);
+                    send(Status::DownloadFailed(update.version.clone()));
+                    known = Some(update);
+                }
             }
         }
     });
-    rx
+    (updater, rx)
 }
 
 // ±1/6 of the wait, so clients that launched together don't all ask GitHub at once.
@@ -118,18 +262,20 @@ fn jittered(wait: Duration) -> Duration {
     rand::thread_rng().gen_range(wait - spread..=wait + spread)
 }
 
-async fn check(client: &reqwest::Client) -> Option<Update> {
+// A newer release for this platform, None when there's none, Err when GitHub couldn't be asked.
+async fn check(client: &reqwest::Client) -> Result<Option<Update>, String> {
     let request = client.get(feed()).header("Accept", "application/vnd.github+json").timeout(CHECK_TIMEOUT);
-    let release: Release = request.send().await.ok()?.error_for_status().ok()?.json().await.ok()?;
+    let release: Release = request.send().await.and_then(|r| r.error_for_status()).map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
     if !newer(&release.tag_name, CURRENT) {
-        return None;
+        return Ok(None);
     }
-    pick(&release, std::env::consts::OS, std::env::consts::ARCH)
+    Ok(pick(&release, std::env::consts::OS, std::env::consts::ARCH))
 }
 
 // Downloads `update` into `dir`, carrying on from a `.part` an earlier attempt left, and keeps it only
 // once its checksum matches. A mismatch drops the `.part`, so the next check starts over.
-async fn stage(dir: &Path, update: &Update, client: &reqwest::Client, current: &str) -> Result<Staged, String> {
+// `progress` hears (bytes so far, whole size when the server says), once per percent.
+async fn stage(dir: &Path, update: &Update, client: &reqwest::Client, current: &str, mut progress: impl FnMut(u64, Option<u64>)) -> Result<Staged, String> {
     tokio::fs::create_dir_all(dir).await.map_err(|e| e.to_string())?;
     if let Some(staged) = tidy(dir, current).filter(|s| s.version == update.version) {
         return Ok(staged);
@@ -149,9 +295,18 @@ async fn stage(dir: &Path, update: &Update, client: &reqwest::Client, current: &
         response = response.error_for_status().map_err(|e| e.to_string())?;
         // A server that ignores the range sends everything again (200), so start the file over.
         let resume = response.status() == StatusCode::PARTIAL_CONTENT;
+        let mut done = if resume { have } else { 0 };
+        let total = response.content_length().map(|len| done + len);
         let mut file = tokio::fs::OpenOptions::new().create(true).write(true).append(resume).truncate(!resume).open(&part).await.map_err(|e| e.to_string())?;
+        let mut shown = None;
         while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
             file.write_all(&chunk).await.map_err(|e| e.to_string())?;
+            done += chunk.len() as u64;
+            let step = progress_step(done, total);
+            if shown != Some(step) {
+                shown = Some(step);
+                progress(done, total);
+            }
         }
         file.flush().await.map_err(|e| e.to_string())?;
     }
@@ -163,6 +318,14 @@ async fn stage(dir: &Path, update: &Update, client: &reqwest::Client, current: &
     }
     tokio::fs::rename(&part, &path).await.map_err(|e| e.to_string())?;
     tidy(dir, current).ok_or_else(|| "staged update vanished".into())
+}
+
+// Progress is reported per whole percent, or per MiB when the size is unknown.
+fn progress_step(done: u64, total: Option<u64>) -> u64 {
+    match total {
+        Some(total) if total > 0 => done * 100 / total,
+        _ => done >> 20,
+    }
 }
 
 fn staged_name(version: &str) -> String {
@@ -385,6 +548,57 @@ mod tests {
     }
 
     #[test]
+    fn auto_download_off_checks_but_waits_to_be_asked() {
+        assert_eq!(plan(None, true, false), Plan { check: true, download: true }, "the hourly check downloads by default");
+        assert_eq!(plan(None, false, false), Plan { check: true, download: false });
+        assert_eq!(plan(Some(Command::Check), false, true), Plan { check: true, download: false }, "Check never downloads with auto off");
+        assert_eq!(plan(Some(Command::Check), true, false), Plan { check: true, download: true });
+        assert_eq!(plan(Some(Command::Download), false, true), Plan { check: false, download: true }, "Download fetches what the last check found");
+        assert_eq!(plan(Some(Command::Download), false, false), Plan { check: true, download: true }, "nothing found yet: check first");
+    }
+
+    #[test]
+    fn last_checked_moves_only_when_a_check_finishes() {
+        let (t1, t2) = (SystemTime::UNIX_EPOCH + Duration::from_secs(1), SystemTime::UNIX_EPOCH + Duration::from_secs(2));
+        let mut updates = Updates::default();
+        updates.apply(Status::Checking, t1);
+        assert_eq!(updates.checked_at, None, "starting a check isn't finishing one");
+        updates.apply(Status::Downloading { version: "0.8.0".into(), done: 1, total: Some(2) }, t1);
+        assert_eq!(updates.checked_at, Some(t1));
+        updates.apply(Status::Downloading { version: "0.8.0".into(), done: 2, total: Some(2) }, t2);
+        assert_eq!(updates.checked_at, Some(t1), "progress isn't a check");
+        updates.apply(Status::Ready(Staged::demo("0.8.0")), t2);
+        assert_eq!((updates.checked_at, updates.staged().map(|s| s.version.as_str())), (Some(t1), Some("0.8.0")));
+        updates.apply(Status::Checking, t2);
+        updates.apply(Status::CheckFailed, t2);
+        assert_eq!(updates.checked_at, Some(t2), "a failed check still counts as checked");
+        assert!(updates.staged().is_none());
+    }
+
+    #[test]
+    fn auto_download_defaults_on_for_new_and_old_prefs_files() {
+        assert!(crate::settings::Prefs::default().auto_download_updates);
+        let old: crate::settings::Prefs = serde_json::from_str("{}").unwrap();
+        assert!(old.auto_download_updates, "a file from before the setting downloads as before");
+    }
+
+    #[test]
+    fn progress_reports_per_percent_or_per_mib() {
+        assert_eq!(progress_step(0, Some(200)), 0);
+        assert_eq!(progress_step(3, Some(200)), 1);
+        assert_eq!(progress_step(200, Some(200)), 100);
+        assert_eq!(progress_step(5, Some(0)), 0);
+        assert_eq!(progress_step(3 << 20, None), 3);
+    }
+
+    #[test]
+    fn release_notes_link_the_tag() {
+        assert_eq!(release_notes("0.8.0"), "https://github.com/frstycodes/dango/releases/tag/v0.8.0");
+        assert_eq!(Status::Downloading { version: "0.8.0".into(), done: 0, total: None }.version(), Some("0.8.0"));
+        assert_eq!(Status::UpToDate.version(), None);
+    }
+
+    #[test]
     fn compares_versions_numerically() {
         assert!(newer("v0.2.0", "0.1.0"));
         assert!(newer("v0.10.0", "0.9.9"));
@@ -509,17 +723,21 @@ mod tests {
         let update = Update { version: "0.4.0".into(), url: format!("{base}/zip"), checksum_url: format!("{base}/sum") };
         let client = reqwest::Client::new();
 
-        assert!(stage(&dir, &update, &client, "0.3.0").await.is_err(), "the cut-off download fails");
+        assert!(stage(&dir, &update, &client, "0.3.0", |_, _| {}).await.is_err(), "the cut-off download fails");
         // Not quite all 70,000: hyper drops what it buffered when the connection ends early.
         let kept = std::fs::metadata(dir.join("0.4.0.zip.part")).unwrap().len();
         assert!((1..=70_000).contains(&kept), "what arrived is kept: {kept}");
         assert!(tidy(&dir, "0.3.0").is_none(), "a .part is not an update");
 
-        let staged = stage(&dir, &update, &client, "0.3.0").await.unwrap();
+        let mut seen = Vec::new();
+        let staged = stage(&dir, &update, &client, "0.3.0", |done, total| seen.push((done, total))).await.unwrap();
         assert_eq!(staged.version, "0.4.0");
+        let whole = body.len() as u64;
+        assert_eq!(seen.last(), Some(&(whole, Some(whole))), "a resumed download counts from the .part");
+        assert!(seen.first().is_some_and(|&(done, _)| done > kept), "starts past what was kept: {seen:?}");
         assert_eq!(std::fs::read(&staged.path).unwrap(), body, "resumed where the .part ended");
         assert!(!dir.join("0.4.0.zip.part").exists());
-        assert_eq!(stage(&dir, &update, &client, "0.3.0").await.unwrap(), staged, "already staged: nothing to fetch");
+        assert_eq!(stage(&dir, &update, &client, "0.3.0", |_, _| {}).await.unwrap(), staged, "already staged: nothing to fetch");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -528,7 +746,7 @@ mod tests {
         let dir = temp_dir("corrupt");
         let base = serve(b"not the build".to_vec(), format!("{}  x\n", "0".repeat(64)), 13).await;
         let update = Update { version: "0.4.0".into(), url: format!("{base}/zip"), checksum_url: format!("{base}/sum") };
-        let error = stage(&dir, &update, &reqwest::Client::new(), "0.3.0").await.unwrap_err();
+        let error = stage(&dir, &update, &reqwest::Client::new(), "0.3.0", |_, _| {}).await.unwrap_err();
         assert!(error.contains("checksum mismatch"), "{error}");
         assert!(std::fs::read_dir(&dir).unwrap().next().is_none(), "nothing left behind");
         std::fs::remove_dir_all(&dir).unwrap();

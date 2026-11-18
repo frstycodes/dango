@@ -359,7 +359,7 @@ fn activity_line(activity: &crate::discord::Activity, cx: &App) -> Div {
 const BOLT: &[u8] = include_bytes!("../assets/icons/reicon/bolt.svg");
 
 // How long ago, in the feed's steps: minutes, hours, days, then weeks.
-fn ago(ms: i64) -> String {
+pub(crate) fn ago(ms: i64) -> String {
     let minutes = (ms / 60_000).max(0);
     match minutes {
         0 => "Just now".to_owned(),

@@ -617,8 +617,8 @@ pub struct Rustcord {
     dialog_input: Entity<SearchState>,
     // A short notice at the bottom, e.g. why a moderation action failed.
     toast: Option<SharedString>,
-    // An update the background updater downloaded and verified; installs on Restart or the next launch.
-    update_ready: Option<updater::Staged>,
+    // The background updater: its status (a staged update installs on Restart or the next launch).
+    updates: updater::Updates,
     // The Go Live picker: None closed, Some(None) loading, Some(Some(..)) listed.
     share_picker: Option<go_live::SharePicker>,
     // The source picked in the Go Live window, waiting for "Go Live".
@@ -922,7 +922,7 @@ impl Rustcord {
             viewer: None,
             profile_card: None,
             status_menu: false,
-            update_ready: None,
+            updates: updater::Updates::default(),
             hovered_row: None,
             hovered_message: None,
             focused_message: None,
