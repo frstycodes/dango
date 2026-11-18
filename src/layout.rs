@@ -250,6 +250,10 @@ impl Rustcord {
         let sharing = self.call.as_ref().is_some_and(|c| c.sharing.is_some());
         let server_muted = self.call.as_ref().and_then(|c| self.guilds.iter().find(|g| Some(&g.id) == c.guild_id.as_ref())).and_then(|g| g.voice_states.iter().find(|v| v.user_id == me.id)).is_some_and(|v| v.server_muted);
         let (muted, deafened) = (self.muted || self.deafened || server_muted, self.deafened);
+        let has_plate = me.nameplate.is_some();
+        // Over nameplate art, as Discord does, a muted or deafened control sits on a plate of black at 22%
+        // so its red reads; controls that are on stay bare, and there is no box around the row.
+        let plate = |on: bool| (has_plate && on).then(|| gpui_kit::black().opacity(0.22));
         let (faint, danger) = (palette::faint(cx), palette::danger_ink(cx));
         let status_line: AnyElement = match (server_muted, sharing) {
             (true, _) => div().truncate().text_color(danger).child("Server muted by a moderator").into_any_element(),
@@ -258,24 +262,27 @@ impl Rustcord {
         };
         let mic = me_button("mic", if muted { Nav::MicOff } else { Nav::Mic }, muted, if server_muted { "A moderator muted you here. Only they can unmute you." } else if muted { "Unmute" } else { "Mute" }, cx)
             .when(!server_muted, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_mute(cx))))
-            .on_mouse_down(MouseButton::Right, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(crate::call::DeviceKind::Input, e.position, cx)));
+            .on_mouse_down(MouseButton::Right, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(crate::call::DeviceKind::Input, e.position, cx)))
+            .when_some(plate(muted), |b, fill| b.bg(fill));
         let headphones = me_button("deafen", if deafened { Nav::HeadphonesOff } else { Nav::Headphones }, deafened, if deafened { "Undeafen" } else { "Deafen" }, cx)
             .on_click(cx.listener(|this, _, _, cx| this.toggle_deafen(cx)))
-            .on_mouse_down(MouseButton::Right, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(crate::call::DeviceKind::Output, e.position, cx)));
+            .on_mouse_down(MouseButton::Right, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(crate::call::DeviceKind::Output, e.position, cx)))
+            .when_some(plate(deafened), |b, fill| b.bg(fill));
         // A chevron beside each opens that device's popover (devices, volume, and noise suppression for the
         // mic), as Discord's does; right-clicking the button itself opens the same one.
         let menu_open = |kind: crate::call::DeviceKind| self.device_menu.as_ref().is_some_and(|m| m.opened_from_user_area(kind));
         let mic_options = me_chevron("mic-options", "Input options", menu_open(crate::call::DeviceKind::Input), cx)
-            .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(crate::call::DeviceKind::Input, e.position, cx)));
+            .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(crate::call::DeviceKind::Input, e.position, cx)))
+            .when_some(plate(muted), |b, fill| b.bg(fill));
         let output_options = me_chevron("output-options", "Output options", menu_open(crate::call::DeviceKind::Output), cx)
-            .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(crate::call::DeviceKind::Output, e.position, cx)));
+            .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(crate::call::DeviceKind::Output, e.position, cx)))
+            .when_some(plate(deafened), |b, fill| b.bg(fill));
         let settings = me_button("settings", Nav::Settings, false, "User settings", cx).on_click(cx.listener(|this, _, window, cx| this.open_settings(crate::settings::Page::Account, window, cx)));
         // The card's bottom corners, and its top ones too when no voice panel sits above; outside them, the sidebar.
         let in_call = self.voice_panel_height() > 0.;
         let corners = [0., if in_call { 0. } else { ui::RADIUS_MD }, ui::RADIUS_MD, 0.];
         let behind = palette::surface(palette::Level::Sidebar, cx);
         let nameplate = me.nameplate.as_ref().map(|plate| nameplate(plate, rail, behind, corners, false, cx.theme().is_dark()));
-        let has_plate = nameplate.is_some();
         let hover = palette::hover(cx);
         let who = div()
             .id("me")
@@ -331,17 +338,8 @@ impl Rustcord {
                             .flex()
                             .items_center()
                             .gap_1()
-                            // Over nameplate art a scrim rises from the card's right edge under the controls, so
-                            // they keep their contrast without a box around them.
-                            .when(has_plate, |row| {
-                                row.child(div().absolute().top_0().bottom_0().right_0().w(gpui_kit::relative(0.6)).bg(linear_gradient(
-                                    90.,
-                                    linear_color_stop(rail.opacity(0.), 0.),
-                                    linear_color_stop(rail.opacity(0.85), 0.55),
-                                )))
-                            })
                             .child(who)
-                            .child(div().relative().flex().items_center().gap_1().child(mic).child(mic_options).child(headphones).child(output_options).child(settings)),
+                            .child(div().relative().flex().items_center().gap_2().child(split_control(mic, mic_options)).child(split_control(headphones, output_options)).child(settings)),
                     ),
             )
             .into_any_element()
@@ -644,6 +642,16 @@ fn title_button(id: &'static str, glyph: Glyph, enabled: bool, label: &'static s
 
 // A user area control (.me .iconbtn): 30px; `on` (muted, deafened) turns it coral. The glyph pops in on
 // every flip, keyed by state.
+// A control and its chevron as one split pill: round on the outside, square where they meet, 1px apart.
+fn split_control(button: Stateful<Div>, chevron: Stateful<Div>) -> Div {
+    div()
+        .flex()
+        .items_center()
+        .gap(px(1.))
+        .child(button.rounded_tr(px(0.)).rounded_br(px(0.)))
+        .child(chevron.rounded_tl(px(0.)).rounded_bl(px(0.)))
+}
+
 // The narrow chevron beside a user-area control that opens its device popover; it reads as part of the
 // control, so it is quieter and half as wide.
 fn me_chevron(id: &'static str, label: &'static str, open: bool, cx: &App) -> Stateful<Div> {
