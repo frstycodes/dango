@@ -740,8 +740,11 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
     let held = ctx.flash.as_ref() == Some(&message.id) || ctx.editing.as_ref() == Some(&message.id);
     // From state, not `group_hover`, which gpui resolves only while painting (see `track_row_hover`).
     let hovered = ctx.hovered.as_deref() == Some(message.id.as_str());
-    let (hover, soft) = (palette::hover(cx), palette::accent_soft(cx));
-    let mention_hover = Hsla { a: soft.a * 0.94 + 0.06, ..soft };
+    let hover = palette::hover(cx);
+    // Lighter than the accent's soft fill: the rim carries the signal.
+    let soft = palette::accent_soft(cx);
+    let soft = Hsla { a: soft.a * 0.6, ..soft };
+    let mention_hover = Hsla { a: soft.a + 0.04, ..soft };
     let ink = match message.state {
         SendState::Sent => palette::text(cx),
         SendState::Sending => palette::faint(cx),
@@ -767,7 +770,8 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .group(group.clone())
         .relative()
         .w_full()
-        .px(px(16.))
+        // A mention runs to the feed's edges, so its rim meets the sidebar; its content keeps its place.
+        .px(px(if mention { 24. } else { 16. }))
         .py(px(2.))
         .squircle(RADIUS_SM)
         .flex()
@@ -793,7 +797,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
                 SendState::Sending => g.child(Icon::new(Glyph::Clock).size(px(14.)).mt(px(4.))),
                 _ => g.when(hovered, |g| g.child(gutter_clock(&message.timestamp))),
             });
-        return inset(with_message_menu(row.child(div().flex().gap(px(16.)).child(gutter).child(body)).children(toolbar), message, ctx));
+        return inset(with_message_menu(row.child(div().flex().gap(px(16.)).child(gutter).child(body)).children(toolbar), message, ctx), mention);
     }
     let row = row
         .mt(px(12.))
@@ -813,12 +817,12 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
                 .child(div().flex_1().min_w_0().flex().flex_col().child(message_head(message, ctx, cx)).child(body)),
         )
         .children(toolbar);
-    inset(with_message_menu(row, message, ctx))
+    inset(with_message_menu(row, message, ctx), mention)
 }
 
-// Rows sit 8px in from the feed's edges, so their hover fill reads as a rounded card.
-fn inset(row: AnyElement) -> AnyElement {
-    div().w_full().px(px(8.)).child(row).into_any_element()
+// Rows sit 8px in from the feed's edges, so their hover fill reads as a rounded card; a mention is flush.
+fn inset(row: AnyElement, flush: bool) -> AnyElement {
+    div().w_full().when(!flush, |d| d.px(px(8.))).child(row).into_any_element()
 }
 
 // Name in its top role's colour, tags, the time, and a pin when pinned.
@@ -1545,7 +1549,8 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, cx: &App) -> Any
     let mut bar = div()
         .absolute()
         .top(px(-18.))
-        .right(px(12.))
+        // A flush mention row is 8px wider each side; the bar stays where it sits on other rows.
+        .right(px(if ctx.mentions_me.contains(&message.id) { 20. } else { 12. }))
         .p(px(2.))
         .flex()
         .items_center()
