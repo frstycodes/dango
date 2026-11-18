@@ -86,9 +86,9 @@ pub enum NoiseMode {
     Standard,
 }
 
-// The interface fonts Appearance offers: (family as the OS names it, label). Gabarito is bundled; the rest are
-// macOS's own, so picking one shows whether a heavy look comes from the font or from how it renders.
-pub const UI_FONTS: [(&str, &str); 4] = [("Gabarito", "Gabarito"), (".SystemUIFont", "System (SF Pro)"), ("Helvetica Neue", "Helvetica Neue"), ("Avenir Next", "Avenir Next")];
+// The interface fonts Appearance offers: (family as the OS names it, label). Gabarito and Figtree are bundled
+// (static weights cut from Figtree's variable font, so gpui can pick each); the rest are macOS's own.
+pub const UI_FONTS: [(&str, &str); 5] = [("Gabarito", "Gabarito"), ("Figtree", "Figtree"), (".SystemUIFont", "System (SF Pro)"), ("Helvetica Neue", "Helvetica Neue"), ("Avenir Next", "Avenir Next")];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
