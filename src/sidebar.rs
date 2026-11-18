@@ -450,9 +450,9 @@ impl Rustcord {
             .flex()
             .flex_col()
             .bg(palette::surface(palette::Level::Sidebar, cx))
-            // Its top-left corner rounds into the rail and the brand strip, like a sheet tucked under them.
-            .rounded_tl(px(ui::RADIUS_LG))
-            .corner_shape(ui::SQUIRCLE)
+            // Under the brand strip its top-left corner rounds into the rail and strip, like a sheet tucked
+            // under them; with no strip (Windows, full screen) it runs square to the window's top.
+            .when(crate::layout::brand_bar_height(window) > 0., |d| d.rounded_tl(px(ui::RADIUS_LG)).corner_shape(ui::SQUIRCLE))
             .text_color(palette::muted(cx))
             .text_size(px(14.))
             .child(self.resize_handle(Edge::Channels, cx))
