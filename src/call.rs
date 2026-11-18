@@ -355,7 +355,15 @@ impl Rustcord {
                 .child(place)
                 .on_click(cx.listener(move |this, _, window, cx| {
                     cx.stop_propagation();
-                    this.show_call(channel.clone(), window, cx);
+                    // A DM call lives in its DM's strip: go back to the chat, not a stage.
+                    match channel.kind {
+                        discord::ChannelKind::Dm => {
+                            this.guild_id = None;
+                            this.call_view = false;
+                            this.open_channel(channel.clone(), window, cx);
+                        }
+                        _ => this.show_call(channel.clone(), window, cx),
+                    }
                 }))
                 .into_any_element(),
         };
@@ -530,11 +538,12 @@ impl Rustcord {
 
     fn participants(&self) -> Vec<VoiceState> {
         let Some(call) = &self.call else { return Vec::new() };
-        let states: Vec<VoiceState> = self
-            .guilds
+        let all = match &call.guild_id {
+            Some(guild_id) => self.guilds.iter().find(|g| &g.id == guild_id).map(|g| g.voice_states.as_slice()).unwrap_or_default(),
+            None => self.dm_voice.as_slice(),
+        };
+        let states: Vec<VoiceState> = all
             .iter()
-            .filter(|g| Some(&g.id) == call.guild_id.as_ref())
-            .flat_map(|g| g.voice_states.iter())
             .filter(|v| v.channel_id.as_ref() == Some(&call.channel.id))
             .cloned()
             .collect();
@@ -546,7 +555,7 @@ impl Rustcord {
         states
     }
 
-    fn speaking(&self, user_id: &str) -> bool {
+    pub(crate) fn speaking(&self, user_id: &str) -> bool {
         let Some(call) = &self.call else { return false };
         match self.me.as_ref().is_some_and(|m| m.id == user_id) {
             true => call.level.1 && !self.muted && !self.deafened,
