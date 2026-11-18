@@ -87,10 +87,10 @@ impl Rustcord {
                 .child(ui::truncating("header-thread-parent", parent.name.clone()))
                 .on_click(cx.listener(move |this, _, window, cx| this.open_channel(parent.clone(), window, cx)))
         });
-        let glyph = match channel.kind {
-            ChannelKind::Dm => Glyph::User,
-            ChannelKind::Thread => Glyph::Thread,
-            _ => Glyph::Hashtag,
+        let lead = match channel.kind {
+            ChannelKind::Dm => ui::dm_face(&channel.face(), 24., palette::surface(Level::Page, cx)),
+            ChannelKind::Thread => Icon::new(Glyph::Thread).size(px(20.)).text_color(faint).into_any_element(),
+            _ => Icon::new(Glyph::Hashtag).size(px(20.)).text_color(faint).into_any_element(),
         };
         let here = div()
             .h(px(32.))
@@ -102,7 +102,7 @@ impl Rustcord {
             .text_size(px(16.))
             .font_weight(FontWeight::SEMIBOLD)
             .text_color(strong)
-            .child(Icon::new(glyph).size(px(20.)).text_color(faint))
+            .child(lead)
             .child(ui::truncating("header-channel-name", channel.name.clone()));
         // Thread names are often whole sentences: the crumbs cap at 60% and truncate rather than push the tools off.
         let crumbs = div()

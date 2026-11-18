@@ -2053,7 +2053,7 @@ impl Rustcord {
         if let Some(feed) = self.channel.as_ref().and_then(|c| self.feeds.get(&c.id)) {
             users.extend(feed.messages.iter().rev().map(|m| m.author.clone()));
         }
-        users.extend(self.dms.iter().filter_map(|d| d.recipient.clone()));
+        users.extend(self.dms.iter().flat_map(|d| d.recipients.iter().cloned().chain(d.recipient.clone())));
         users
     }
 

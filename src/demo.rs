@@ -340,6 +340,8 @@ fn channel(id: &str, name: &str, kind: ChannelKind, parent: Option<&str>) -> Cha
         last_message_id: None,
         private: false,
         recipient: None,
+        recipients: Vec::new(),
+        icon: None,
         thread: None,
         raw_type: 0,
         overwrites: Vec::new(),
