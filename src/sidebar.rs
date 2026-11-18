@@ -671,7 +671,13 @@ impl Rustcord {
         let join = channel.clone();
         let row = self
             .voice_drop_zone(row, channel.id.clone().into(), channel, cx)
-            .on_click(cx.listener(move |this, _, window, cx| this.show_call(join.clone(), window, cx)))
+            .on_click(cx.listener(move |this, _, window, cx| {
+                let in_call = this.call.as_ref().map(|c| c.channel.id.as_str());
+                match voice_row_click(in_call, &join.id) {
+                    VoiceRowClick::Join => this.join_voice(join.clone(), cx),
+                    VoiceRowClick::OpenStage => this.show_call(join.clone(), window, cx),
+                }
+            }))
             .on_mouse_down(gpui_kit::MouseButton::Right, {
                 let (channel, guild_id) = (channel.clone(), guild.id.clone());
                 cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_channel_menu(channel.clone(), guild_id.clone(), e.position, cx))
@@ -1568,9 +1574,30 @@ fn live_for(live: Duration) -> String {
     }
 }
 
+// Unlike Discord, joining leaves the view where it is; the stage opens from a second click.
+#[derive(Debug, PartialEq)]
+enum VoiceRowClick {
+    Join,
+    OpenStage,
+}
+
+fn voice_row_click(in_call: Option<&str>, clicked: &str) -> VoiceRowClick {
+    match in_call == Some(clicked) {
+        true => VoiceRowClick::OpenStage,
+        false => VoiceRowClick::Join,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn voice_row_joins_first_then_opens_the_stage() {
+        assert_eq!(voice_row_click(None, "lounge"), VoiceRowClick::Join);
+        assert_eq!(voice_row_click(Some("gaming"), "lounge"), VoiceRowClick::Join);
+        assert_eq!(voice_row_click(Some("lounge"), "lounge"), VoiceRowClick::OpenStage);
+    }
 
     #[test]
     fn viewer_line_names_two_then_counts() {
