@@ -1070,7 +1070,10 @@ impl WindowsWindowInner {
             let handled = !func(input).propagate;
             self.state.callbacks.input.set(Some(func));
 
-            if handled {
+            // Dango patch: a press on a drag area always reaches `DefWindowProc`, which starts the
+            // move or (on a double click) maximizes. An ancestor that stops every mouse-down, like a
+            // full-window overlay, would otherwise cancel the drag; controls opt out by occluding.
+            if handled && wparam.0 as u32 != HTCAPTION {
                 return Some(0);
             }
         } else {

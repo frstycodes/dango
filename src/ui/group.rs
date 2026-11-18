@@ -139,8 +139,8 @@ pub fn settings_window(id: impl Into<ElementId>, nav: impl IntoElement, main: im
         .child(main)
 }
 
-// A settings window's nav column. On macOS the traffic lights sit over its top, as in System Settings,
-// and that strip drags the window.
+// A settings window's nav column. Its top strip is the header line: the traffic lights sit over it on
+// macOS, as in System Settings, and it drags the window everywhere.
 pub fn settings_sidebar(id: impl Into<ElementId>, cx: &App) -> Stateful<Div> {
     div()
         .id(id.into())
@@ -149,13 +149,13 @@ pub fn settings_sidebar(id: impl Into<ElementId>, cx: &App) -> Stateful<Div> {
         .h_full()
         .overflow_y_scroll()
         .bg(palette::surface(palette::Level::Sidebar, cx))
-        .pt(px(if cfg!(target_os = "macos") { 0. } else { 16. }))
+
         .px(px(8.))
         .pb(px(12.))
         .flex()
         .flex_col()
         .gap(px(1.))
-        .when(cfg!(target_os = "macos"), |d| d.child(div().h(px(crate::layout::TITLE_HEIGHT + 12.)).flex_none().window_control_area(gpui_kit::WindowControlArea::Drag)))
+        .child(div().h(px(crate::layout::HEADER_HEIGHT)).flex_none().window_control_area(gpui_kit::WindowControlArea::Drag))
 }
 
 // The scrolling column of a settings page: title, then its groups.
