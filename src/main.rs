@@ -631,6 +631,9 @@ pub struct Rustcord {
     deafened: bool,
     call: Option<Call>,
     voice_error: Option<SharedString>,
+    // The call connecting now replaced one in the same server (our pick or a moderator's move):
+    // it ended that one without a disconnect, and connecting sounds as a move.
+    call_switched: bool,
     viewer: Option<Viewer>,
     profile_card: Option<ProfileCard>,
     status_menu: bool,
@@ -828,6 +831,7 @@ impl Rustcord {
             deafened: false,
             call: None,
             voice_error: None,
+            call_switched: false,
             viewer: None,
             profile_card: None,
             status_menu: false,
@@ -1156,21 +1160,10 @@ impl Rustcord {
                 let is_here = ours.is_some() && state.channel_id == ours;
                 let was_live = guild.voice_states.iter().any(|v| v.user_id == state.user_id && v.channel_id == ours && v.streaming);
                 let is_live = is_here && state.streaming;
-                // Arriving from, or leaving for, another channel is a move (a drag by a moderator, or a hop).
-                let was_elsewhere = guild.voice_states.iter().any(|v| v.user_id == state.user_id && v.channel_id.is_some() && v.channel_id != ours);
-                let moved = (is_here && was_elsewhere) || (was_here && state.channel_id.is_some());
                 let mine = Some(&state.user_id) == me.as_ref();
-                if !mine && was_here != is_here {
-                    sounds::play(match (moved, is_here) {
-                        (true, _) => sounds::Cue::UserMoved,
-                        (false, true) => sounds::Cue::UserJoin,
-                        (false, false) => sounds::Cue::UserLeave,
-                    });
-                } else if mine && ours.is_some() && state.channel_id.is_some() && state.channel_id != ours {
-                    // Someone moved us; a channel we pick ourselves is already `ours` by the time this lands.
-                    // GAP: nothing updates `call.channel` on a server-side move, so the call view keeps the old channel.
-                    sounds::play(sounds::Cue::UserMoved);
-                } else if Some(&state.user_id) != me.as_ref() && !was_live && is_live {
+                if let Some(cue) = member_cue(mine, was_here, is_here) {
+                    sounds::play(cue);
+                } else if !mine && !was_live && is_live {
                     sounds::play(sounds::Cue::StreamStarted);
                 } else if was_live && !is_live && self.call.as_ref().is_some_and(|c| c.watched(&state.user_id).is_some()) {
                     sounds::play(sounds::Cue::StreamEnded);
@@ -2160,10 +2153,15 @@ impl Rustcord {
         if self.call.as_ref().is_some_and(|c| c.channel.id == channel.id) {
             return;
         }
+        let switched = guild_id.is_some() && self.call.as_ref().is_some_and(|c| c.guild_id == guild_id);
         if let Some(call) = &self.call {
             call.session.supersede();
         }
-        self.leave_voice(cx);
+        match switched {
+            true => _ = self.end_call(cx),
+            false => self.leave_voice(cx),
+        }
+        self.call_switched = switched;
         self.voice_error = None;
         let (session, mut events) = voice::join(me.id, guild_id.clone(), channel.id.clone(), client.voice.clone(), self.prefs.voice_settings());
         for (user_id, volume) in &self.prefs.user_volumes {
@@ -2222,13 +2220,20 @@ impl Rustcord {
     }
 
     fn leave_voice(&mut self, cx: &mut Context<Self>) {
+        if self.end_call(cx) {
+            sounds::play(sounds::Cue::Disconnect);
+        }
+    }
+
+    // Ends the call without a sound; whether there was one.
+    fn end_call(&mut self, cx: &mut Context<Self>) -> bool {
         self.call_fullscreen = false;
         self.stop_ringing_out();
-        let Some(call) = self.call.take() else { return };
+        let Some(call) = self.call.take() else { return false };
         self.call_focus = None;
-        sounds::play(sounds::Cue::Disconnect);
         release_frames(call, cx);
         cx.notify();
+        true
     }
 
     fn on_voice(&mut self, event: voice::VoiceEvent, cx: &mut Context<Self>) {
@@ -2250,7 +2255,7 @@ impl Rustcord {
                 let Some(call) = &mut self.call else { return };
                 call.connected = true;
                 call.stage = voice::Stage::Connected;
-                sounds::play(sounds::Cue::UserJoin);
+                sounds::play(connected_cue(self.call_switched));
             }
             voice::VoiceEvent::Stage(stage) => call.stage = stage,
             voice::VoiceEvent::Stats(stats) => call.stats = Some(stats),
@@ -2636,6 +2641,22 @@ mod tests {
     }
 }
 
+// The cue for someone's voice state changing, seen from our call. Others arriving or going sound as
+// a join or a leave, from or to another channel too. Our own come from the call: a join when it
+// connects, or a move when it switched channels in the same server (see `connected_cue`).
+fn member_cue(mine: bool, was_here: bool, is_here: bool) -> Option<sounds::Cue> {
+    match (mine, was_here, is_here) {
+        (true, ..) => None,
+        (false, false, true) => Some(sounds::Cue::UserJoin),
+        (false, true, false) => Some(sounds::Cue::UserLeave),
+        _ => None,
+    }
+}
+
+fn connected_cue(switched: bool) -> sounds::Cue {
+    if switched { sounds::Cue::UserMoved } else { sounds::Cue::UserJoin }
+}
+
 // Discord's cue when the viewer count of the stream we're in changes (it stays quiet past 25).
 fn viewer_cue(before: usize, after: usize) -> Option<sounds::Cue> {
     match () {
@@ -2656,6 +2677,17 @@ mod viewer_tests {
         assert_eq!(viewer_cue(2, 1), Some(sounds::Cue::StreamUserLeft));
         assert_eq!(viewer_cue(1, 1), None);
         assert_eq!(viewer_cue(30, 31), None);
+    }
+
+    // A channel hop is one move for us, and a join or leave for whoever we're in the call with.
+    #[test]
+    fn voice_state_cues() {
+        assert_eq!(member_cue(false, false, true), Some(sounds::Cue::UserJoin), "someone hops in from another channel");
+        assert_eq!(member_cue(false, true, false), Some(sounds::Cue::UserLeave), "someone hops out to another channel");
+        assert_eq!(member_cue(false, true, true), None);
+        assert_eq!(member_cue(true, true, false), None, "our own hop sounds once, from the call");
+        assert_eq!(connected_cue(true), sounds::Cue::UserMoved);
+        assert_eq!(connected_cue(false), sounds::Cue::UserJoin);
     }
 }
 
