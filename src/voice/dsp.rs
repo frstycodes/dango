@@ -298,7 +298,7 @@ impl Neural {
 
 // Owns the model; ends when the processor drops its side of the channels.
 fn run_worker(ready: &AtomicBool, inbox: &Receiver<[f32; BLOCK]>, outbox: &SyncSender<Option<[f32; BLOCK]>>) {
-    let mut model = match DfTract::new(DfParams::default(), &RuntimeParams::default_with_ch(1)) {
+    let mut model = match DfTract::new(DfParams::default(), &dfn_params()) {
         Ok(model) => model,
         Err(e) => return eprintln!("voice: DeepFilterNet failed to load, using RNNoise: {e:?}"),
     };
@@ -313,6 +313,16 @@ fn run_worker(ready: &AtomicBool, inbox: &Receiver<[f32; BLOCK]>, outbox: &SyncS
             return;
         }
     }
+}
+
+// libDF switches stages per 10 ms hop on its own SNR estimate: below `min_db_thresh` it outputs a
+// zero mask, above the max thresholds it skips one or both stages. Those hard switches muted quiet
+// syllables and warbled at the boundaries. -15/35/35 keeps both stages on (-20/40/40 measured the
+// same): PESQ +0.35..0.55 and STOI +0.03..0.04 on every chain_check mix.
+fn dfn_params() -> RuntimeParams {
+    let mut params = RuntimeParams::default_with_ch(1);
+    (params.min_db_thresh, params.max_db_erb_thresh, params.max_db_df_thresh) = (-15.0, 35.0, 35.0);
+    params
 }
 
 // Average suppressor time per 10 ms block over a window, as Discord's CPU-overuse check does.
