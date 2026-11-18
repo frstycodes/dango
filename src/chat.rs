@@ -308,39 +308,7 @@ impl Rustcord {
         let Some(feed) = self.feeds.get(&channel.id) else { return div().into_any_element() };
         // A pointer copy: the feed is copy-on-write, so this frame shares it rather than cloning every message.
         let messages = feed.messages.clone();
-        let ctx = Rc::new(RowContext {
-            me: self.me.clone(),
-            // Later entries win: the server's member cache last, so nicknames beat the account names
-            // that history loaded over REST carries (it has no member objects).
-            names: messages
-                .iter()
-                .flat_map(|m| std::iter::once(&m.author).chain(&m.mentions))
-                .chain(self.me.iter())
-                .chain(self.guild_id.as_ref().and_then(|g| self.members.get(g)).into_iter().flat_map(|m| m.values()))
-                .map(|u| (u.id.clone(), u.name.clone()))
-                .collect(),
-            colors: messages.iter().filter_map(|m| Some((m.author.id.clone(), self.role_color(m.guild_id.as_ref().or(self.guild_id.as_ref()), &m.author.id, m.roles.as_ref(), cx.theme().is_dark())?))).collect(),
-            mentions_me: messages.iter().filter(|m| self.mentions_me(m)).map(|m| m.id.clone()).collect(),
-            channel_names: self.guild().map(|g| g.channels.iter().map(|c| (c.id.clone(), c.name.clone())).collect()).unwrap_or_default(),
-            role_names: self.guild().map(|g| g.roles.iter().map(|r| (r.id.clone(), r.name.clone())).collect()).unwrap_or_default(),
-            mention_fill: palette::accent_soft(cx),
-            mention_hover: palette::accent().opacity(0.26),
-            mention_ink: palette::accent_ink(cx),
-            flash: self.flash.clone(),
-            editing: self.editing.as_ref().map(|m| m.id.clone()),
-            hovered: self.hovered_message.clone(),
-            copied: self.copied.clone(),
-            revealed: self.revealed.clone(),
-            text_files: self.text_files.clone(),
-            unread_marker: self.unread_marker,
-            this: cx.weak_entity(),
-            has_more: feed.has_more,
-            dm_start: self.dm_start(channel, feed.has_more),
-            quick_reactions: self.prefs.frequent_emojis(3, &["💯", "😆", "💖"]),
-            shift: self.shift_held,
-            manage_messages: self.guild().is_some_and(|g| self.me.as_ref().is_some_and(|me| g.can(&me.id, crate::discord::perm::MANAGE_MESSAGES))),
-            threads: self.guild_id.is_some() && channel.kind == ChannelKind::Text,
-        });
+        let ctx = self.row_context(&messages, Some(channel), feed.has_more, COLUMN, cx);
         let arrivals = self.arrivals.clone();
         let messages = list(self.list.clone(), move |ix, window, cx| {
             if ix == 0 && ctx.has_more {
@@ -415,6 +383,45 @@ impl Rustcord {
 
     // One surface at the bottom of the chat: bars it gains (reply, attachments) stack inside it above
     // the text, one hairline apart, and popovers rise from its top edge.
+    // What every message row reads besides the message: names, colours, who's mentioned, hover and edit
+    // state. `column` caps media width: the feed's column, or a narrower panel's.
+    pub(crate) fn row_context(&self, messages: &[Message], channel: Option<&Channel>, has_more: bool, column: f32, cx: &mut Context<Self>) -> Rc<RowContext> {
+        Rc::new(RowContext {
+            me: self.me.clone(),
+            // Later entries win: the server's member cache last, so nicknames beat the account names
+            // that history loaded over REST carries (it has no member objects).
+            names: messages
+                .iter()
+                .flat_map(|m| std::iter::once(&m.author).chain(&m.mentions))
+                .chain(self.me.iter())
+                .chain(self.guild_id.as_ref().and_then(|g| self.members.get(g)).into_iter().flat_map(|m| m.values()))
+                .map(|u| (u.id.clone(), u.name.clone()))
+                .collect(),
+            colors: messages.iter().filter_map(|m| Some((m.author.id.clone(), self.role_color(m.guild_id.as_ref().or(self.guild_id.as_ref()), &m.author.id, m.roles.as_ref(), cx.theme().is_dark())?))).collect(),
+            mentions_me: messages.iter().filter(|m| self.mentions_me(m)).map(|m| m.id.clone()).collect(),
+            channel_names: self.guild().map(|g| g.channels.iter().map(|c| (c.id.clone(), c.name.clone())).collect()).unwrap_or_default(),
+            role_names: self.guild().map(|g| g.roles.iter().map(|r| (r.id.clone(), r.name.clone())).collect()).unwrap_or_default(),
+            mention_fill: palette::accent_soft(cx),
+            mention_hover: palette::accent().opacity(0.26),
+            mention_ink: palette::accent_ink(cx),
+            flash: self.flash.clone(),
+            editing: self.editing.as_ref().map(|m| m.id.clone()),
+            hovered: self.hovered_message.clone(),
+            copied: self.copied.clone(),
+            revealed: self.revealed.clone(),
+            text_files: self.text_files.clone(),
+            unread_marker: self.unread_marker,
+            this: cx.weak_entity(),
+            has_more,
+            dm_start: channel.and_then(|c| self.dm_start(c, has_more)),
+            column,
+            quick_reactions: self.prefs.frequent_emojis(3, &["💯", "😆", "💖"]),
+            shift: self.shift_held,
+            manage_messages: self.guild().is_some_and(|g| self.me.as_ref().is_some_and(|me| g.can(&me.id, crate::discord::perm::MANAGE_MESSAGES))),
+            threads: self.guild_id.is_some() && channel.is_some_and(|c| c.kind == ChannelKind::Text),
+        })
+    }
+
     pub(crate) fn render_composer(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let focused = self.composer.read(cx).focus_handle(cx).is_focused(window);
         let (strong, muted) = (palette::strong(cx), palette::muted(cx));
@@ -734,7 +741,7 @@ impl RowContext {
     }
 }
 
-struct RowContext {
+pub(crate) struct RowContext {
     me: Option<User>,
     names: HashMap<String, String>,
     colors: HashMap<String, Hsla>,
@@ -760,6 +767,8 @@ struct RowContext {
     manage_messages: bool,
     // Messages here can start threads.
     threads: bool,
+    // The widest media may run.
+    column: f32,
 }
 
 // More than a few rows below the viewport: the feed is scrolled away from its newest message.
@@ -859,6 +868,30 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         )
         .children(toolbar);
     inset(with_message_menu(row, message, ctx), mention)
+}
+
+// A search result: the message as the feed draws it (head, text, media, embeds, files), without the
+// toolbar, reactions or reply chrome, on a card that jumps to it.
+pub(crate) fn search_hit(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Div {
+    let media = media_grid(message, ctx, cx);
+    let body = div()
+        .flex_1()
+        .min_w_0()
+        .flex()
+        .flex_col()
+        .text_size(px(15.))
+        .line_height(gpui_kit::relative(1.45))
+        .text_color(palette::text(cx))
+        .child(message_head(message, ctx, cx))
+        .children(content(message, ctx, cx))
+        .children(media.map(|m| div().flex_none().child(m)))
+        .children(message.embeds.iter().enumerate().map(|(i, e)| embed_card(e, format!("hit-embed-{}-{i}", message.id), ctx, cx)))
+        .children(files(message, ctx, cx));
+    div()
+        .flex()
+        .gap(px(12.))
+        .child(ui::avatar(message.author.avatar.clone(), 36.).flex_none().mt(px(2.)))
+        .child(body)
 }
 
 // Rows sit 8px in from the feed's edges, so their hover fill reads as a rounded card; a mention is flush.
@@ -1304,15 +1337,19 @@ pub(crate) fn animated_image(source: impl Into<gpui_kit::ImageSource>) -> Statef
 fn media_grid(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Option<AnyElement> {
     let first = message.media.first()?;
     if message.media.len() == 1 {
-        let scale = (MAX_IMAGE.0 / first.width).min(MAX_IMAGE.1 / first.height).min(1.);
+        let scale = (MAX_IMAGE.0.min(ctx.column) / first.width).min(MAX_IMAGE.1 / first.height).min(1.);
         let (w, h) = (first.width * scale, first.height * scale);
-        return Some(div().mt(px(8.)).w(px(w)).h(px(h)).child(media_tile(message, 0, (w, h), ui::all(RADIUS_LG), ctx, cx)).into_any_element());
+        return Some(div().mt(px(8.)).flex_none().w(px(w)).h(px(h)).child(media_tile(message, 0, (w, h), ui::all(RADIUS_LG), ctx, cx)).into_any_element());
     }
+    // Laid out for the feed's column, then scaled down to fit a narrower one.
+    let k = (ctx.column / COLUMN).min(1.);
     let (height, tiles) = gallery_layout(message.media.len());
+    let (height, width) = (height * k, COLUMN * k);
+    let tiles: Vec<Tile> = tiles.into_iter().map(|t| Tile { x: t.x * k, y: t.y * k, w: t.w * k, h: t.h * k }).collect();
     let rest = message.media.len() - tiles.len();
-    let mut grid = div().mt(px(8.)).relative().flex_none().w(px(COLUMN)).h(px(height));
+    let mut grid = div().mt(px(8.)).relative().flex_none().w(px(width)).h(px(height));
     for (i, tile) in tiles.iter().enumerate() {
-        let corners = gallery_corners(*tile, height);
+        let corners = gallery_corners(*tile, width, height);
         let counts_rest = rest > 0 && i + 1 == tiles.len();
         grid = grid.child(
             div()
@@ -1364,6 +1401,8 @@ fn media_tile(message: &Message, i: usize, (w, h): (f32, f32), corners: Corners<
     ui::edge(div(), corners)
         .id(SharedString::from(format!("media-{}-{i}", message.id)))
         .size_full()
+        // A cover-fit picture whose real shape differs from the one Discord reported spills past the tile.
+        .overflow_hidden()
         .bg(palette::selected(cx))
         .cursor_pointer()
         .hover(|s| s.opacity(0.92))
@@ -1426,9 +1465,9 @@ fn gallery_layout(count: usize) -> (f32, Vec<Tile>) {
 }
 
 // The gallery's outer corners take the card radius; inner ones a hairline 2px.
-fn gallery_corners(tile: Tile, height: f32) -> Corners<Pixels> {
+fn gallery_corners(tile: Tile, width: f32, height: f32) -> Corners<Pixels> {
     let at = |a: f32, b: f32| (a - b).abs() < 0.5;
-    let (left, top, right, bottom) = (at(tile.x, 0.), at(tile.y, 0.), at(tile.x + tile.w, COLUMN), at(tile.y + tile.h, height));
+    let (left, top, right, bottom) = (at(tile.x, 0.), at(tile.y, 0.), at(tile.x + tile.w, width), at(tile.y + tile.h, height));
     let radius = |outer: bool| px(if outer { RADIUS_LG } else { 2. });
     Corners { top_left: radius(top && left), top_right: radius(top && right), bottom_left: radius(bottom && left), bottom_right: radius(bottom && right) }
 }
@@ -2155,7 +2194,7 @@ mod tests {
             // Tiles and their gaps cover the column: nothing overlaps, nothing is left empty but the gaps.
             let area: f32 = tiles.iter().map(|t| t.w * t.h).sum();
             assert!(area < COLUMN * height && area > (COLUMN - 2. * GALLERY_GAP) * (height - GALLERY_GAP) * 0.95, "{count}: area {area}");
-            let round = tiles.iter().map(|t| gallery_corners(*t, height)).flat_map(|c| [c.top_left, c.top_right, c.bottom_left, c.bottom_right]).filter(|r| *r == px(RADIUS_LG)).count();
+            let round = tiles.iter().map(|t| gallery_corners(*t, COLUMN, height)).flat_map(|c| [c.top_left, c.top_right, c.bottom_left, c.bottom_right]).filter(|r| *r == px(RADIUS_LG)).count();
             assert_eq!(round, 4, "{count} items");
         }
     }
