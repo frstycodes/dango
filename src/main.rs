@@ -9,6 +9,7 @@ mod captcha;
 mod query;
 mod call;
 mod channel_menu;
+mod channel_settings;
 mod dm_call;
 mod dm_start;
 mod chat;
@@ -545,6 +546,7 @@ pub struct Rustcord {
     talk_key_down: bool,
     prefs: settings::Prefs,
     settings: Option<settings::SettingsView>,
+    channel_settings: Option<channel_settings::ChannelSettings>,
     settings_search: Entity<SearchState>,
     hotkeys: Option<hotkeys::Hotkeys>,
     // Keybinds the system refused because another app holds them.
@@ -800,6 +802,7 @@ impl Rustcord {
             talk_key_down: false,
             prefs: settings::Prefs::load(),
             settings: None,
+            channel_settings: None,
             settings_search,
             hotkeys: None,
             keybind_errors: Vec::new(),

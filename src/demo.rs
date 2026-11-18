@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updating (the launch splash alone).
+// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-perms | channel-settings-voice | channel-settings-invites | channel-settings-dirty | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -152,6 +152,7 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             chord.open_server_menu("1".into(), gpui_kit::point(gpui_kit::px(60.), gpui_kit::px(130.)), false, cx);
             chord.open_submenus(vec![14, 0]);
         }
+        "channel-settings" | "channel-settings-perms" | "channel-settings-voice" | "channel-settings-invites" | "channel-settings-dirty" => demo_channel_settings(chord, scene, window, cx),
         "channel-menu" => {
             let general = chord.guild().and_then(|g| g.channels.iter().find(|c| c.id == "general").cloned());
             if let Some(channel) = general {
@@ -409,6 +410,7 @@ fn channel(id: &str, name: &str, kind: ChannelKind, parent: Option<&str>) -> Cha
         thread: None,
         raw_type: 0,
         overwrites: Vec::new(),
+        props: Default::default(),
     }
 }
 
@@ -437,6 +439,7 @@ fn ready(me: User) -> Ready {
         owner_id: Some("4194304".into()),
         my_roles: Vec::new(),
         emojis: Vec::new(),
+        premium_tier: 1,
     };
     let lounge_states = vec![
         VoiceState { guild_id: Some("1".into()), channel_id: Some("lounge".into()), user_id: "12582912".into(), user: Some(user("12582912", "moss lantern")), muted: false, deafened: false, server_muted: false, server_deafened: false, streaming: true, camera: false },
@@ -573,6 +576,46 @@ fn messages() -> Vec<Message> {
         // Discord keeps each line and its indent.
         message("106", abyss, &["r2"], "2026-11-14T08:20:00Z", "the build so far:\n    Brightline 8-core CPU\n    Coldfront 240 mm cooler\n    32 GB memory\n<@4194304>"),
     ]
+}
+
+// Made-up overwrites and settings on #general and the hangout voice channel, then the window on one page.
+fn demo_channel_settings(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Context<Rustcord>) {
+    use crate::{channel_settings::Page, discord::Overwrite};
+    const ATTACH: u64 = 1 << 15;
+    const MENTION_EVERYONE: u64 = 1 << 17;
+    let ow = |id: &str, allow: u64, deny: u64, member: bool| Overwrite { id: id.into(), allow, deny, member };
+    let Some(guild) = chord.guilds.iter_mut().find(|g| g.id == "1") else { return };
+    for c in guild.channels.iter_mut() {
+        match c.id.as_str() {
+            "c0" => c.overwrites = vec![ow("1", 0, ATTACH, false)],
+            "general" => {
+                c.topic = Some("Say hi, share what you're building. Spoilers go in ||bars||.".into());
+                c.props.slowmode = 30;
+                c.props.archive_after = 4320;
+                c.overwrites = vec![ow("1", 0, ATTACH, false), ow("r2", ATTACH, MENTION_EVERYONE, false), ow("8388608", 1 << 13, 0, true)];
+            }
+            "lounge" => {
+                c.raw_type = 2;
+                c.props.bitrate = 64_000;
+                c.props.user_limit = 12;
+            }
+            _ => {}
+        }
+    }
+    let id = if scene == "channel-settings-voice" { "lounge" } else { "general" };
+    let Some(channel) = chord.guild().and_then(|g| g.channels.iter().find(|c| c.id == id).cloned()) else { return };
+    chord.open_channel_settings(channel, "1".into(), window, cx);
+    let page = match scene {
+        "channel-settings-perms" => Page::Permissions,
+        "channel-settings-invites" => Page::Invites,
+        _ => Page::Overview,
+    };
+    if let Some(view) = chord.channel_settings.as_mut() {
+        view.demo(page);
+    }
+    if scene == "channel-settings-dirty" {
+        chord.demo_channel_edit(window, cx);
+    }
 }
 
 fn me_user() -> User {

@@ -9,7 +9,7 @@ const GATEWAY: &str = "wss://gateway.discord.gg/?v=10&encoding=json";
 pub const API: &str = "https://discord.com/api/v10";
 const CDN: &str = "https://cdn.discordapp.com";
 const AUTH_FAILED: u16 = 4004;
-const VIEW_CHANNEL: u64 = 1 << 10;
+pub(crate) const VIEW_CHANNEL: u64 = 1 << 10;
 
 // The user-account gateway and several fields below (nameplates, guild tags, member list ops,
 // read states) are undocumented; shapes are from memory of the official client. Not verified live.
@@ -168,6 +168,8 @@ pub struct Guild {
     pub threads: Vec<Channel>,
     // Our own roles here, for working out what moderation we may do.
     pub my_roles: Vec<String>,
+    // Server boost level 0-3: sets the highest voice bitrate.
+    pub premium_tier: u8,
 }
 
 // Your notification settings for one server, or for DMs under the key "@me" (Discord's
@@ -248,6 +250,7 @@ pub mod perm {
     pub const MANAGE_MESSAGES: u64 = 1 << 13;
     pub const MANAGE_NICKNAMES: u64 = 1 << 27;
     pub const MANAGE_ROLES: u64 = 1 << 28;
+    pub const MANAGE_WEBHOOKS: u64 = 1 << 29;
     pub const MANAGE_THREADS: u64 = 1 << 34;
     pub const CREATE_PUBLIC_THREADS: u64 = 1 << 35;
     pub const MODERATE_MEMBERS: u64 = 1 << 40;
@@ -351,6 +354,9 @@ pub struct Channel {
     // Per-role and per-member permission changes on top of the server's; `id` is a role or user id.
     #[serde(default)]
     pub overwrites: Vec<Overwrite>,
+    // Boxed: rarely read, and it keeps every Channel-carrying event small.
+    #[serde(default)]
+    pub props: Box<ChannelProps>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -358,6 +364,26 @@ pub struct Overwrite {
     pub id: String,
     pub allow: u64,
     pub deny: u64,
+    // Discord's overwrite type 1: `id` is a member, not a role.
+    #[serde(default)]
+    pub member: bool,
+}
+
+// What channel settings edit beyond name and topic (Discord's Modify Channel fields).
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ChannelProps {
+    pub nsfw: bool,
+    // Slowmode, seconds (rate_limit_per_user).
+    pub slowmode: u32,
+    // Voice and stage only.
+    pub bitrate: u32,
+    pub user_limit: u32,
+    // None: Discord picks automatically.
+    pub rtc_region: Option<String>,
+    // video_quality_mode 2: 720p for everyone.
+    pub video_full: bool,
+    // Minutes until an idle thread hides (default_auto_archive_duration); 0 when Discord sent none.
+    pub archive_after: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -980,7 +1006,23 @@ pub async fn send(req: reqwest::RequestBuilder) -> Result<Value, String> {
         return Ok(body);
     }
     eprintln!("http: {status} {url}: {body}");
-    Err(body["message"].as_str().map(str::to_owned).unwrap_or_else(|| status.to_string()))
+    Err(api_error(&body).unwrap_or_else(|| status.to_string()))
+}
+
+// Discord's refusal in its own words. "Invalid Form Body" says nothing alone, so the first field's
+// message follows it: "Invalid Form Body: name: Must be between 1 and 100 in length."
+fn api_error(body: &Value) -> Option<String> {
+    fn first_field(errors: &Value, path: &str) -> Option<String> {
+        if let Some(message) = errors["_errors"][0]["message"].as_str() {
+            return Some(format!("{path}: {message}"));
+        }
+        errors.as_object()?.iter().find_map(|(key, inner)| first_field(inner, &if path.is_empty() { key.clone() } else { format!("{path}.{key}") }))
+    }
+    let message = body["message"].as_str()?;
+    Some(match first_field(&body["errors"], "") {
+        Some(detail) => format!("{message}: {detail}"),
+        None => message.to_owned(),
+    })
 }
 
 // ponytail: full re-identify after every drop; RESUME (session_id + seq) when reconnect churn matters.
@@ -1265,6 +1307,7 @@ fn parse_guild(g: &Value) -> Option<Guild> {
         default_notifications: props["default_message_notifications"].as_u64().or(g["default_message_notifications"].as_u64()).unwrap_or(0) as u8,
         threads: g["threads"].as_array().into_iter().flatten().filter_map(|t| parse_channel(t, id)).collect(),
         my_roles: Vec::new(),
+        premium_tier: props["premium_tier"].as_u64().or(g["premium_tier"].as_u64()).unwrap_or(0) as u8,
     })
 }
 
@@ -1278,7 +1321,7 @@ pub fn parse_thread(c: &Value, guild_id: &str) -> Option<Channel> {
     parse_channel(c, guild_id)
 }
 
-fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
+pub(crate) fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
     let kind = match c["type"].as_u64()? {
         0 | 5 => ChannelKind::Text,
         2 | 13 => ChannelKind::Voice,
@@ -1301,7 +1344,7 @@ fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
         .as_array()
         .into_iter()
         .flatten()
-        .filter_map(|o| Some(Overwrite { id: o["id"].as_str()?.to_owned(), allow: permission(&o["allow"]), deny: permission(&o["deny"]) }))
+        .filter_map(|o| Some(Overwrite { id: o["id"].as_str()?.to_owned(), allow: permission(&o["allow"]), deny: permission(&o["deny"]), member: o["type"].as_u64() == Some(1) }))
         .collect();
     let private = overwrites.iter().any(|o| o.id == guild_id && o.deny & VIEW_CHANNEL != 0);
     Some(Channel {
@@ -1319,6 +1362,15 @@ fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
         thread,
         raw_type: c["type"].as_u64().unwrap_or(0) as u8,
         overwrites,
+        props: Box::new(ChannelProps {
+            nsfw: c["nsfw"].as_bool().unwrap_or(false),
+            slowmode: c["rate_limit_per_user"].as_u64().unwrap_or(0) as u32,
+            bitrate: c["bitrate"].as_u64().unwrap_or(0) as u32,
+            user_limit: c["user_limit"].as_u64().unwrap_or(0) as u32,
+            rtc_region: c["rtc_region"].as_str().map(str::to_owned),
+            video_full: c["video_quality_mode"].as_u64() == Some(2),
+            archive_after: c["default_auto_archive_duration"].as_u64().unwrap_or(0) as u32,
+        }),
     })
 }
 
@@ -1351,6 +1403,7 @@ fn parse_dm(c: &Value, users: &Value) -> Option<Channel> {
         thread: None,
         raw_type: c["type"].as_u64().unwrap_or(1) as u8,
         overwrites: Vec::new(),
+        props: Default::default(),
     })
 }
 
@@ -1823,6 +1876,14 @@ mod tests {
     }
 
     #[test]
+    fn form_errors_name_the_field() {
+        let body = json!({ "code": 50035, "message": "Invalid Form Body", "errors": { "name": { "_errors": [{ "code": "BASE_TYPE_BAD_LENGTH", "message": "Must be between 1 and 100 in length." }] } } });
+        assert_eq!(api_error(&body).as_deref(), Some("Invalid Form Body: name: Must be between 1 and 100 in length."));
+        assert_eq!(api_error(&json!({ "message": "Missing Permissions", "code": 50013 })).as_deref(), Some("Missing Permissions"));
+        assert_eq!(api_error(&Value::Null), None);
+    }
+
+    #[test]
     fn hides_channels_we_cannot_view() {
         let role = |id: &str, permissions: u64| Role { id: id.into(), name: id.into(), color: 0, position: 0, permissions, managed: false };
         let channel = |id: &str, overwrites: Value| parse_channel(&json!({ "id": id, "type": 0, "permission_overwrites": overwrites }), "g").unwrap();
@@ -1842,6 +1903,7 @@ mod tests {
             voice_states: Vec::new(),
             emojis: Vec::new(),
             owner_id: Some("owner".into()),
+            premium_tier: 0,
             threads: Vec::new(),
             my_roles: Vec::new(),
             default_notifications: Default::default(),
