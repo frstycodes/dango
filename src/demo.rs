@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | viewer | viewer-video | pins | header-search | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | updating (the launch splash alone).
+// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | gallery | viewer | viewer-video | pins | header-search | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -135,6 +135,9 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         // A long message.txt (Discord's file for a message past 2,000 characters), a short code file, and
         // a .log that isn't text, which stays a file card. The fixtures stand in for the CDN fetch.
         "text-files" | "text-expanded" | "text-viewer" => demo_text_files(chord, scene),
+        // Discord's own links: a message card, a channel chip, invites to a joined server, another server
+        // and an expired code, a message you can't see (no card), and two still loading.
+        "link-previews" => demo_link_previews(chord),
         // Four pictures of mixed shapes on one message: the 2x2 gallery.
         "gallery-grid" => {
             if let Some(feed) = chord.feeds.get_mut("general") {
@@ -700,6 +703,49 @@ fn demo_text_files(chord: &mut Rustcord, scene: &str) {
     messages.push(post("106", vec![long]));
     messages.push(post("107", vec![short, binary]));
     feed.messages = std::sync::Arc::new(messages);
+}
+
+fn demo_link_previews(chord: &mut Rustcord) {
+    use crate::{discord::Invite, link_preview::Preview};
+    let mut announcements = channel("1100", "📌-announcements", ChannelKind::Text, Some("c0"));
+    announcements.position = 0;
+    if let Some(guild) = chord.guilds.iter_mut().find(|g| g.id == "1") {
+        guild.channels.push(announcements);
+    }
+    let quoted = Message {
+        id: "1101".into(),
+        channel_id: "1100".into(),
+        guild_id: Some("1".into()),
+        author: user("8388608", "Wren"),
+        timestamp: (chrono::Utc::now() - chrono::Duration::hours(3)).to_rfc3339(),
+        content: "Season 7 notes are up: placements drop to **5 matches**, duo queue opens at every rank, and Foundry is back with the smaller mid. Ping <@4194304> if your rank looks off after the reset, we're collecting reports in one thread so nothing gets lost.".into(),
+        media: vec![Media { url: "brand/icons/sticker.png".into(), width: 512., height: 512., kind: MediaKind::Image }],
+        ..Default::default()
+    };
+    {
+        let mut previews = chord.link_previews.borrow_mut();
+        previews.seed("m-1100-1101", Preview::Message(Box::new(quoted)));
+        previews.seed("m-1100-1199", Preview::Unavailable);
+        previews.seed("i-night-owls", Preview::Invite(Invite { guild_id: "1".into(), name: "Night Owls".into(), icon: None, online: Some(42), members: Some(318) }));
+        let tea = Invite { guild_id: "77".into(), name: "Late Night Tea House, a server with a name long enough to truncate".into(), icon: None, online: Some(1_204), members: Some(8_311) };
+        previews.seed("i-tea-house", Preview::Invite(tea));
+        previews.seed("i-expired-code", Preview::Unavailable);
+    }
+    let Some(feed) = chord.feeds.get_mut("general") else { return };
+    let mut messages = feed.messages.as_ref().clone();
+    let before = messages.len();
+    let ago = |mins: i64| (chrono::Utc::now() - chrono::Duration::minutes(mins)).to_rfc3339();
+    let post = |id: &str, author: User, mins: i64, content: &str| Message { id: id.into(), channel_id: "general".into(), guild_id: Some("1".into()), author, timestamp: ago(mins), content: content.into(), ..Default::default() };
+    messages.extend([
+        post("121", user("16777216", "toma reed"), 12, "still fetching https://discord.gg/still-loading https://ptb.discord.com/channels/1/1100/1150"),
+        post("122", user("16777216", "toma reed"), 11, "this one's dead https://discord.gg/expired-code and I can't open https://canary.discord.com/channels/1/1100/1199"),
+        post("123", user("8388608", "Wren"), 9, "come hang after ranked https://discord.gg/tea-house and bring people here too https://discord.gg/night-owls"),
+        post("124", user("12582912", "moss lantern"), 6, "older notes are pinned in https://discord.com/channels/1/1100 if you missed them"),
+        post("125", me_user(), 2, "did everyone see this? https://discord.com/channels/1/1100/1101"),
+    ]);
+    feed.messages = std::sync::Arc::new(messages);
+    // Appended like arriving messages, so the feed stays pinned to the newest.
+    chord.list.splice(before..before, feed.messages.len() - before);
 }
 
 const PATCH_NOTES: &str = "Patch notes, season 7

@@ -1177,27 +1177,56 @@ fn speaking_avatar(avatar: &str, talking: bool, cx: &App) -> Div {
         .when(talking, |a| a.child(div().absolute().top(px(-3.)).left(px(-3.)).size(px(28.)).rounded_full().border(px(2.)).border_color(palette::status_in(crate::discord::Status::Online, cx))))
 }
 
-// The one mark a voice occupant gets, most important first: server-muted, live, camera, muted or
-// deafened. Speaking shows as a ring on the avatar instead.
-fn voice_mark_for(state: &crate::discord::VoiceState, cx: &App) -> Option<AnyElement> {
-    let mark = |icon: Icon, color: Hsla| div().flex_none().flex().text_color(color).child(icon.size(px(15.))).into_any_element();
-    let faint = palette::faint(cx);
-    if state.server_muted || state.server_deafened {
-        return Some(mark(Nav::MicOffFill.icon(), palette::danger_ink(cx)));
+// What a voice occupant's row shows at its end, most important first: server mute or deafen (red),
+// live, camera, then their own mute and deafen. Speaking shows as a ring on the avatar instead.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum VoiceMark {
+    ServerMuted,
+    ServerDeafened,
+    Live,
+    Camera,
+    Muted,
+    Deafened,
+}
+
+// Deafening yourself also mutes you, so a self-deafen shows both marks, as Discord's list does; a
+// server deafen shows only its own.
+fn voice_marks(state: &crate::discord::VoiceState) -> Vec<VoiceMark> {
+    if state.server_deafened {
+        return vec![VoiceMark::ServerDeafened];
+    }
+    if state.server_muted {
+        return vec![VoiceMark::ServerMuted];
     }
     if state.streaming {
-        return Some(ui::live_badge().h(px(18.)).px(px(6.)).text_size(px(11.)).into_any_element());
+        return vec![VoiceMark::Live];
     }
     if state.camera {
-        return Some(mark(Nav::CameraFill.icon(), faint));
+        return vec![VoiceMark::Camera];
     }
-    if state.deafened {
-        return Some(mark(Nav::DeafenedFill.icon(), faint));
+    match (state.muted, state.deafened) {
+        (_, true) => vec![VoiceMark::Muted, VoiceMark::Deafened],
+        (true, false) => vec![VoiceMark::Muted],
+        (false, false) => vec![],
     }
-    if state.muted {
-        return Some(mark(Nav::MicOffFill.icon(), faint));
+}
+
+fn voice_mark_for(state: &crate::discord::VoiceState, cx: &App) -> Option<AnyElement> {
+    let marks = voice_marks(state);
+    if marks.is_empty() {
+        return None;
     }
-    None
+    let (faint, danger) = (palette::faint(cx), palette::danger_ink(cx));
+    let mark = |icon: Icon, color: Hsla| div().flex_none().flex().text_color(color).child(icon.size(px(15.))).into_any_element();
+    let elements = marks.into_iter().map(|m| match m {
+        VoiceMark::ServerMuted => mark(Nav::MicOffFill.icon(), danger),
+        VoiceMark::ServerDeafened => mark(Nav::DeafenedFill.icon(), danger),
+        VoiceMark::Live => ui::live_badge().h(px(18.)).px(px(6.)).text_size(px(11.)).into_any_element(),
+        VoiceMark::Camera => mark(Nav::CameraFill.icon(), faint),
+        VoiceMark::Muted => mark(Nav::MicOffFill.icon(), faint),
+        VoiceMark::Deafened => mark(Nav::DeafenedFill.icon(), faint),
+    });
+    Some(div().flex_none().flex().items_center().gap(px(6.)).children(elements).into_any_element())
 }
 
 // The DM list's header: a field-shaped button that opens the quick switcher.
@@ -1578,6 +1607,18 @@ fn voice_row_click(in_call: Option<&str>, clicked: &str) -> VoiceRowClick {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn self_deafen_shows_mute_and_deafen_server_deafen_shows_one() {
+        let state = |muted, deafened, server_muted, server_deafened| crate::discord::VoiceState { muted, deafened, server_muted, server_deafened, ..Default::default() };
+        assert_eq!(voice_marks(&state(true, true, false, false)), [VoiceMark::Muted, VoiceMark::Deafened]);
+        assert_eq!(voice_marks(&state(false, true, false, false)), [VoiceMark::Muted, VoiceMark::Deafened]);
+        assert_eq!(voice_marks(&state(true, false, false, false)), [VoiceMark::Muted]);
+        // A server deafen arrives as deaf, which also reads as deafened here.
+        assert_eq!(voice_marks(&state(true, true, true, true)), [VoiceMark::ServerDeafened]);
+        assert_eq!(voice_marks(&state(true, false, true, false)), [VoiceMark::ServerMuted]);
+        assert!(voice_marks(&state(false, false, false, false)).is_empty());
+    }
 
     #[test]
     fn voice_row_joins_first_then_opens_the_stage() {
