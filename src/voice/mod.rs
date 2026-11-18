@@ -41,7 +41,7 @@ use std::{
 use futures::{SinkExt, StreamExt, channel::mpsc, channel::oneshot};
 use serde_json::{Value, json};
 use tokio::sync::broadcast;
-use tokio_tungstenite::tungstenite::Message as WsMessage;
+use tokio_tungstenite::tungstenite::{self, Message as WsMessage};
 
 pub use attenuation::{Attenuation, SUPPORTED as ATTENUATION_SUPPORTED};
 pub use audio::{Device, input_devices, output_devices};
@@ -55,6 +55,10 @@ const PINGS_KEPT: usize = 20;
 // Stats ticks of outbound loss averaged: 15 × 2 s = 30 s.
 const LOSS_WINDOW: usize = 15;
 const DUCK_TICK: Duration = Duration::from_millis(20);
+// A dropped voice gateway (a reset, a server restart) is resumed this many times in a row before the
+// call ends, waiting RESUME_BACKOFF longer each time. The UDP media keeps flowing meanwhile.
+const RESUME_TRIES: u32 = 5;
+const RESUME_BACKOFF: Duration = Duration::from_secs(1);
 // DSCP Expedited Forwarding in the IPv4 TOS byte: the "high packet priority" Quality of Service asks for.
 const QOS_TOS: u32 = 0xb8;
 
@@ -941,7 +945,8 @@ async fn serve(
         }
     };
     let host = target.server.endpoint.trim_start_matches("wss://").trim_end_matches('/').to_owned();
-    let (ws, _) = tokio_tungstenite::connect_async(format!("wss://{host}/?v=8")).await.map_err(|e| e.to_string())?;
+    let url = format!("wss://{host}/?v=8");
+    let (ws, _) = tokio_tungstenite::connect_async(&url).await.map_err(|e| e.to_string())?;
     let (mut sink, mut stream) = ws.split();
     let (out, mut out_rx) = mpsc::unbounded::<WsMessage>();
 
@@ -959,6 +964,7 @@ async fn serve(
     let mut pings = Pings::default();
     let mut loss = LossWindow::default();
     let mut stats = Stats { endpoint: host.clone(), ..Stats::default() };
+    let mut resumes = 0;
 
     let identify = json!({ "op": 0, "d": {
         "server_id": target.server_id,
@@ -973,12 +979,11 @@ async fn serve(
     stage(Stage::Authenticating);
 
     loop {
-        let frame = tokio::select! {
+        let polled: Result<Option<WsMessage>, String> = tokio::select! {
             _ = heartbeat.tick() => {
                 let nonce = chrono::Utc::now().timestamp_millis();
                 let beat = json!({ "op": 3, "d": { "t": nonce, "seq_ack": seq_ack } });
-                sink.send(WsMessage::Text(beat.to_string())).await.map_err(|e| e.to_string())?;
-                continue;
+                sink.send(WsMessage::Text(beat.to_string())).await.map(|()| None).map_err(|e| e.to_string())
             }
             _ = stats_tick.tick(), if is_voice && media.is_some() => {
                 (stats.ping_ms, stats.median_ping_ms, stats.last_pings) = pings.stats();
@@ -995,20 +1000,42 @@ async fn serve(
                     }
                 }
                 shared.emit(VoiceEvent::Stats(stats.clone()));
-                continue;
+                Ok(None)
             }
-            Some(msg) = out_rx.next() => {
-                sink.send(msg).await.map_err(|e| e.to_string())?;
-                continue;
-            }
+            Some(msg) = out_rx.next() => sink.send(msg).await.map(|()| None).map_err(|e| e.to_string()),
             Ok((kind, d)) = dispatches.recv() => match on_dispatch(&kind, &d) {
                 Some(reason) => return Err(reason),
-                None => continue,
+                None => Ok(None),
             },
             frame = stream.next() => match frame {
-                None => return Ok(()),
-                Some(frame) => frame.map_err(|e| e.to_string())?,
+                None => Err("Voice gateway closed".to_owned()),
+                Some(Err(e)) => Err(e.to_string()),
+                Some(Ok(WsMessage::Close(close))) if !resumable(close.as_ref()) => return Err(close_reason(close.as_ref())),
+                Some(Ok(WsMessage::Close(close))) => Err(close_reason(close.as_ref())),
+                Some(Ok(frame)) => Ok(Some(frame)),
             },
+        };
+        let frame = match polled {
+            Ok(Some(frame)) => frame,
+            Ok(None) => continue,
+            // Before media is up there is no session worth resuming: the join fails as it always did.
+            Err(lost) if media.is_none() => return Err(lost),
+            Err(lost) => {
+                stage(Stage::Authenticating);
+                let resume = WsMessage::Text(resume_payload(&target, seq_ack).to_string());
+                (sink, stream) = loop {
+                    if resumes >= RESUME_TRIES {
+                        return Err(lost);
+                    }
+                    resumes += 1;
+                    tokio::time::sleep(RESUME_BACKOFF * resumes).await;
+                    let Ok((mut ws, _)) = tokio_tungstenite::connect_async(&url).await else { continue };
+                    if ws.send(resume.clone()).await.is_ok() {
+                        break ws.split();
+                    }
+                };
+                continue;
+            }
         };
 
         let payload = match frame {
@@ -1022,9 +1049,6 @@ async fn serve(
                 continue;
             }
             WsMessage::Text(text) => serde_json::from_str::<Value>(&text).map_err(|e| e.to_string())?,
-            WsMessage::Close(close) => {
-                return Err(close.map(|c| format!("Voice gateway closed: {} {}", u16::from(c.code), c.reason)).unwrap_or_default());
-            }
             _ => continue,
         };
         if let Some(seq) = payload["seq"].as_i64() {
@@ -1039,6 +1063,12 @@ async fn serve(
                 let ms = d["heartbeat_interval"].as_f64().unwrap_or(13_750.0) as u64;
                 heartbeat = tokio::time::interval(Duration::from_millis(ms));
                 heartbeat.tick().await;
+            }
+            Some(9) => {
+                resumes = 0;
+                if media.is_some() {
+                    stage(Stage::Connected);
+                }
             }
             Some(6) => {
                 if let Some(sent) = d["t"].as_i64() {
@@ -1129,6 +1159,27 @@ async fn serve(
             _ => {}
         }
     }
+}
+
+fn resume_payload(target: &Target, seq_ack: i64) -> Value {
+    json!({ "op": 7, "d": {
+        "server_id": target.server_id,
+        "session_id": target.session_id,
+        "token": target.server.token,
+        "seq_ack": seq_ack,
+    }})
+}
+
+// Not verified against a live server; from Discord's voice close-code docs: 4014 (removed from the
+// channel / channel deleted), 4022 (call terminated), 4004 (auth failed) and 4006 (session no
+// longer valid) end the session for good. Everything else, 4015 (voice server crashed) and plain
+// network closes included, is worth a resume.
+fn resumable(close: Option<&tungstenite::protocol::CloseFrame>) -> bool {
+    close.is_none_or(|c| !matches!(u16::from(c.code), 4004 | 4006 | 4014 | 4022))
+}
+
+fn close_reason(close: Option<&tungstenite::protocol::CloseFrame>) -> String {
+    close.map_or_else(|| "Voice gateway closed".to_owned(), |c| format!("Voice gateway closed: {} {}", u16::from(c.code), c.reason))
 }
 
 // RUSTCORD_VOICE_DEBUG=1 logs voice-gateway traffic and unroutable UDP packets to stderr.
@@ -1241,6 +1292,18 @@ mod tests {
             superseded: AtomicBool::new(false),
         };
         (shared, rx)
+    }
+
+    #[test]
+    fn only_final_close_codes_skip_resume() {
+        use tungstenite::protocol::{CloseFrame, frame::coding::CloseCode};
+        let close = |code: u16| CloseFrame { code: CloseCode::from(code), reason: "".into() };
+        assert!(resumable(None), "a reset without a close frame resumes");
+        assert!(resumable(Some(&close(4015))), "voice server crashed");
+        assert!(resumable(Some(&close(1001))));
+        for code in [4004, 4006, 4014, 4022] {
+            assert!(!resumable(Some(&close(code))), "{code} ends the call");
+        }
     }
 
     #[test]
