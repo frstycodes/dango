@@ -438,12 +438,7 @@ impl Rustcord {
                     .child(div().truncate().child(format!("Reconnecting… {}", reconnecting.clone().unwrap_or_default()))),
             )
         });
-        let name_in_strip = crate::layout::brand_bar_height(window) > 0.;
-        let header = match self.guild() {
-            Some(_) if name_in_strip => None,
-            Some(guild) => Some(server_name_button(guild.name.clone().into(), false, cx).into_any_element()),
-            None => Some(dm_find(cx).on_click(cx.listener(|this, _, window, cx| this.open_switcher(window, cx))).into_any_element()),
-        };
+        let header = (crate::layout::brand_bar_height(window) == 0.).then(|| self.channel_list_head(false, cx));
         div()
             .relative()
             .w(px(self.channels_width))
@@ -470,6 +465,15 @@ impl Rustcord {
             .child(div().flex_none().h(self.user_panel_clearance()))
     }
 
+
+    /// What heads the channel list: the open server's name, or Home's search. `compact` sizes it for the
+    /// macOS strip beside the traffic lights, where it moves when that strip shows.
+    pub(crate) fn channel_list_head(&self, compact: bool, cx: &mut Context<Self>) -> AnyElement {
+        match self.guild() {
+            Some(guild) => server_name_button(guild.name.clone().into(), compact, cx).into_any_element(),
+            None => dm_find(compact, cx).on_click(cx.listener(|this, _, window, cx| this.open_switcher(window, cx))).into_any_element(),
+        }
+    }
 
     // A category folds from its label: height and fade together on the fold curve, the chevron turns.
     // Folded, its unread and selected channels stay in view.
@@ -1074,13 +1078,14 @@ fn voice_mark_for(state: &crate::discord::VoiceState, cx: &App) -> Option<AnyEle
 }
 
 // The DM list's header: a field-shaped button that opens the quick switcher.
-fn dm_find(cx: &App) -> Stateful<Div> {
+fn dm_find(compact: bool, cx: &App) -> Stateful<Div> {
     let strong = palette::strong(cx);
     div()
         .id("dm-find")
         .occlude()
-        .w_full()
-        .h(px(32.))
+        .when(compact, |d| d.flex_1().min_w_0())
+        .when(!compact, |d| d.w_full())
+        .h(px(if compact { 28. } else { 32. }))
         .px(px(10.))
         .squircle(ui::RADIUS_SM)
         .flex()
