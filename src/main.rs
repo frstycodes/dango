@@ -188,6 +188,8 @@ fn open_main(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gp
         palette::sync(window, cx);
         #[cfg(target_os = "windows")]
         tray::install(window, cx);
+        #[cfg(target_os = "macos")]
+        keep_running_in_dock(window, cx);
         cx.new(|cx| shell::Shell::new(window, splash, cx))
     })
     .expect("open window");
@@ -275,10 +277,7 @@ fn background_watch(cx: &mut gpui_kit::App) {
 // Frees decoded images (RAM and GPU), lets GIF players notice and drop their frames, then pages the
 // rest out. Downloaded image files stay cached; paging takes them out of RAM too.
 async fn release_memory(cx: &mut gpui_kit::AsyncApp) {
-    cx.update(|cx| {
-        let images = images::cache(cx);
-        images.update(cx, |images, cx| images.clear(cx));
-    });
+    cx.update(release_caches);
     cx.background_executor().timer(Duration::from_millis(100)).await;
     cx.background_executor()
         .spawn(async {
@@ -290,6 +289,31 @@ async fn release_memory(cx: &mut gpui_kit::AsyncApp) {
             }
         })
         .await;
+}
+
+// Decoded images and their GPU textures; GIF players see them go and drop their frames. Whatever is
+// on screen decodes again from the download cache when next drawn.
+fn release_caches(cx: &mut gpui_kit::App) {
+    let images = images::cache(cx);
+    images.update(cx, |images, cx| images.clear(cx));
+}
+
+// macOS: closing the window hides Dango and keeps it signed in; the Dock icon or ⌘Tab brings it
+// back and ⌘Q quits. Minimized, hidden or fully covered, it frees its caches (there is no working set
+// to empty, the system compresses idle pages itself), unless a video is playing.
+#[cfg(target_os = "macos")]
+fn keep_running_in_dock(window: &mut gpui_kit::Window, cx: &mut gpui_kit::App) {
+    window.on_window_should_close(cx, |_, cx| {
+        cx.hide();
+        false
+    });
+    window
+        .observe_window_visibility(|visibility, _, cx| {
+            if !visibility.is_visible() && !video::is_playing(cx) {
+                release_caches(cx);
+            }
+        })
+        .detach();
 }
 
 enum Status {
