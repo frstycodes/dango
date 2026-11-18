@@ -71,6 +71,12 @@ pub fn settings_text(title: impl Into<SharedString>, detail: Option<impl Into<Sh
         .children(detail.map(|d| div().text_size(px(12.)).line_height(px(17.)).text_color(palette::muted(cx)).child(d.into())))
 }
 
+// A settings row with a switch at its end; the whole row toggles (the caller adds `on_click`).
+pub fn settings_switch(id: &'static str, title: &'static str, detail: &'static str, on: bool, line: bool, window: &mut Window, cx: &mut App) -> Stateful<Div> {
+    let row = settings_row(id, line, cx).child(settings_text(title, Some(detail), cx)).child(super::switch_live(SharedString::from(format!("{id}-switch")), on, window, cx));
+    settings_choice(row, cx)
+}
+
 // A whole-row control: the row fills on hover.
 pub fn settings_choice(row: Stateful<Div>, cx: &App) -> Stateful<Div> {
     let hover = palette::hover(cx);

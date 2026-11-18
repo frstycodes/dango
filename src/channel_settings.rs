@@ -724,7 +724,7 @@ impl Rustcord {
         let slowmode = ui::settings_row("cs-slowmode", false, cx)
             .child(ui::settings_text("Slowmode", Some("Each member sends one message and starts one thread per interval"), cx))
             .child(div().w(px(220.)).flex_none().child(self.cs_select(Select::Slowmode, &slow_options, &props.slowmode.to_string(), slow_name, cx)));
-        let nsfw = switch_row("cs-nsfw", "Age-restricted", "People confirm they're over 18 before they see it", props.nsfw, true, window, cx).on_click(cx.listener(|this, _, _, cx| this.edit_draft(cx, |d| d.props.nsfw = !d.props.nsfw)));
+        let nsfw = ui::settings_switch("cs-nsfw", "Age-restricted", "People confirm they're over 18 before they see it", props.nsfw, true, window, cx).on_click(cx.listener(|this, _, _, cx| this.edit_draft(cx, |d| d.props.nsfw = !d.props.nsfw)));
         let archive = (!voice).then(|| {
             let options: Vec<(String, String)> = ARCHIVE.iter().map(|(m, l)| (m.to_string(), (*l).to_owned())).collect();
             let current = if props.archive_after == 0 { 4320 } else { props.archive_after };
@@ -796,7 +796,7 @@ impl Rustcord {
 
         let (everyone, raw_type) = (guild.id.clone(), channel.raw_type);
         let private_on = private(&overwrites, &everyone);
-        let private_row = switch_row("cs-private", "Private channel", "Only the roles and members you add can see it", private_on, false, window, cx).on_click(cx.listener(move |this, _, _, cx| {
+        let private_row = ui::settings_switch("cs-private", "Private channel", "Only the roles and members you add can see it", private_on, false, window, cx).on_click(cx.listener(move |this, _, _, cx| {
             let everyone = everyone.clone();
             this.edit_draft(cx, |d| set_private(&mut d.overwrites, &everyone, raw_type, !private_on));
         }));
@@ -1019,10 +1019,6 @@ fn load_list<T>(result: Result<Value, String>, parse: fn(&Value) -> Option<T>) -
     }
 }
 
-fn switch_row(id: &'static str, title: &'static str, detail: &'static str, on: bool, line: bool, window: &mut Window, cx: &mut App) -> gpui_kit::Stateful<Div> {
-    let row = ui::settings_row(id, line, cx).child(ui::settings_text(title, Some(detail), cx)).child(ui::switch_live(SharedString::from(format!("{id}-switch")), on, window, cx));
-    ui::settings_choice(row, cx)
-}
 
 fn value_text(text: String, cx: &App) -> Div {
     div().flex_none().whitespace_nowrap().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(text)
