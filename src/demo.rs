@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | pins | header-search | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | updating (the launch splash alone).
+// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | pins | header-search | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -81,6 +81,21 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         }
         "appearance" => chord.open_settings(crate::settings::Page::Appearance, window, cx),
         "notifications" => chord.open_settings(crate::settings::Page::Notifications, window, cx),
+        "content-social" => chord.open_settings(crate::settings::Page::ContentSocial, window, cx),
+        "chat-settings" => chord.open_settings(crate::settings::Page::Chat, window, cx),
+        // Typed once the window is up, as `mention` does.
+        "settings-search" => {
+            chord.open_settings(crate::settings::Page::Account, window, cx);
+            cx.spawn_in(window, async move |this, cx| {
+                cx.background_executor().timer(std::time::Duration::from_millis(500)).await;
+                this.update_in(cx, |this, window, cx| {
+                    this.settings_search.update(cx, |s, cx| s.set_value("mic", window, cx));
+                    cx.notify();
+                })
+                .ok();
+            })
+            .detach();
+        }
         "unread" => chord.unread_marker = Some(103),
         // A bare `@` in the composer: every member, in the suggestion popup.
         // Typed once the window is up: the composer's events aren't wired while the app is being built.
@@ -475,6 +490,8 @@ fn ready(me: User) -> Ready {
     dm.recipient = Some(user("8388608", "Wren"));
     Ready {
         developer_mode: true,
+        account_settings: crate::discord::AccountSettings { developer_mode: true, ..Default::default() },
+        my_account: crate::discord::MyAccount { username: "kiwi.dev".into(), global_name: Some("kiwi".into()), banner: None, premium: false },
         guild_settings: Vec::new(),
         ignored: Vec::new(),
         me,
