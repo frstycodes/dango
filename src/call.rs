@@ -48,6 +48,10 @@ const STRIP_GAP: f32 = 8.;
 // The filmstrip's fold button.
 const STRIP_TOGGLE: f32 = 28.;
 const STRIP_LIMIT: usize = 12;
+// Names on strip cards and the focused stream show while the pointer is anywhere on the stage.
+const STAGE_GROUP: &str = "call-stage";
+// The focused view's header band, the app's one header line.
+const FOCUS_HEAD: f32 = 48.;
 const CONTROLS_IDLE: Duration = Duration::from_secs(3);
 const CHAT_WIDTH: f32 = 340.;
 // The connection popover's colour bands (its legend): under 80 ms, 80 to 120, over 120.
@@ -67,6 +71,28 @@ fn tile_area(stage: (f32, f32)) -> (f32, f32, f32, f32) {
 enum Tile {
     User(VoiceState),
     Stream(VoiceState),
+}
+
+// How a tile is drawn: a 16:9 card of this width, or filling the stage edge to edge.
+#[derive(Clone, Copy)]
+enum TileSize {
+    Card(f32),
+    Fill,
+}
+
+// The stage's fixed order: streams you watch or focus, other streams, cameras, then avatars. Within
+// each group people keep the order they joined in (`people` is in join order), so nothing moves when
+// someone speaks or joins.
+fn order_tiles(people: Vec<VoiceState>, opened: impl Fn(&str) -> bool, camera: impl Fn(&VoiceState) -> bool) -> Vec<Tile> {
+    let streams = people.iter().filter(|s| s.streaming).cloned().map(Tile::Stream);
+    let mut tiles: Vec<Tile> = streams.chain(people.iter().cloned().map(Tile::User)).collect();
+    tiles.sort_by_key(|tile| match tile {
+        Tile::Stream(s) if opened(&s.user_id) => 0,
+        Tile::Stream(_) => 1,
+        Tile::User(s) if camera(s) => 2,
+        Tile::User(_) => 3,
+    });
+    tiles
 }
 
 // A card's identity across renders, for focus.
@@ -563,18 +589,15 @@ impl Rustcord {
         }
     }
 
-    // Everyone in a fixed order, by name, so no card moves when someone starts talking; each person's
-    // stream sits right after their own card.
     fn ordered_tiles(&self) -> Vec<Tile> {
-        let mut people = self.participants();
-        people.sort_by_cached_key(|s| (s.user.as_ref().map_or_else(|| self.user_name(&s.user_id), |u| u.name.clone()).to_lowercase(), s.user_id.clone()));
-        people
-            .into_iter()
-            .flat_map(|s| {
-                let stream = s.streaming.then(|| Tile::Stream(s.clone()));
-                std::iter::once(Tile::User(s)).chain(stream)
-            })
-            .collect()
+        let Some(call) = &self.call else { return Vec::new() };
+        let focused = self.focused_stream();
+        let me = self.me.as_ref().map(|m| m.id.as_str());
+        order_tiles(
+            self.participants(),
+            |id| call.watched(id).is_some() || focused.as_deref() == Some(id),
+            |s| s.camera || call.cameras.contains_key(&s.user_id) || (me == Some(s.user_id.as_str()) && call.camera_on),
+        )
     }
 
     // The call view, with the voice channel's chat beside it when open (the stage shrinks; the
@@ -636,11 +659,22 @@ impl Rustcord {
         cx.notify();
     }
 
-    // .call: the stage, dark in both themes. The header, the tiles (or the watched streams over a
-    // filmstrip) and the control bar; over a stream the chrome steps aside while the pointer rests.
+    // .call: the stage, dark in both themes. The header, the tiles and the control bar; a focused
+    // card instead fills the stage edge to edge under the header, the controls floating over it.
     pub(crate) fn render_call(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let call = self.call.as_ref()?;
         let tiles = self.ordered_tiles();
+        // .call.autohide: 260ms out, drifting 6px toward its edge; any move brings it back.
+        // With a stream focused the chrome steps aside, as Discord's does, while the pointer rests or
+        // has left the stage.
+        let rest = self.focused_stream().is_some() && self.call_idle();
+        let shown = gpui_kit::base::transition("call-chrome", if rest { 0. } else { 1. }, gpui_kit::base::Transition::new(ui::DUR_PANEL), window, cx);
+        let watching = !call.watching.is_empty();
+        let ended = call.ended.clone().filter(|_| !watching);
+        let focused = self.call_focus.as_ref().and_then(|key| tiles.iter().find(|t| tile_key(t) == *key)).filter(|_| ended.is_none());
+        if let Some(big) = focused {
+            return Some(self.focus_stage(big, &tiles, shown, cx));
+        }
         let viewport = window.viewport_size();
         let chat = if self.call_chat && self.channel.as_ref().is_some_and(|c| c.id == call.channel.id) { CHAT_WIDTH } else { 0. };
         let stage_size = match self.call_fullscreen {
@@ -648,58 +682,101 @@ impl Rustcord {
             false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - chat, f32::from(viewport.height) - 1.),
         };
         let (_, _, width, height) = tile_area(stage_size);
-        let watching = !call.watching.is_empty();
-        let body: AnyElement = match call.ended.clone().filter(|_| !watching) {
+        let body: AnyElement = match ended {
             Some(streamer) => self.ended_stage(&streamer, width, height, cx),
             None => self.card_stage(&tiles, (width, height), cx),
         };
-        // .call.autohide: 260ms out, drifting 6px toward its edge; any move brings it back.
-        // With a stream focused the chrome steps aside, as Discord's does, while the pointer rests or
-        // has left the stage.
-        let rest = self.focused_stream().is_some() && self.call_idle();
-        let shown = gpui_kit::base::transition("call-chrome", if rest { 0. } else { 1. }, gpui_kit::base::Transition::new(ui::DUR_PANEL), window, cx);
-        let drift = 6. * (1. - shown);
         Some(
-            div()
-                .id("call-view")
-                .relative()
-                .size_full()
+            self.stage_root(cx)
                 .p(px(STAGE_PAD))
                 .flex()
                 .flex_col()
                 .gap(px(STAGE_GAP))
-                .bg(stage::bg())
-                .text_color(stage::text())
-                .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
-                    if !*hovered {
-                        this.call_pointer_at = Instant::now().checked_sub(CONTROLS_IDLE * 2).unwrap_or_else(Instant::now);
-                        cx.notify();
-                    }
-                }))
-                .on_mouse_move(cx.listener(|this, _: &gpui_kit::MouseMoveEvent, _, cx| {
-                    let was_idle = this.call_idle();
-                    this.call_pointer_at = Instant::now();
-                    if was_idle {
-                        cx.notify();
-                    }
-                }))
-                .child(div().relative().top(px(-drift)).opacity(shown).child(self.call_header(cx)))
+                .child(self.call_header(cx))
                 .child(div().flex_1().min_h_0().child(body))
-                .child(div().relative().top(px(drift)).opacity(shown).child(self.call_controls(cx)))
+                .child(self.call_controls(cx))
                 .into_any_element(),
         )
     }
 
-    // Every card at one size, fitted to the space they actually have; or, with one focused, that one as
-    // big as fits over a strip of the rest.
+    // The stage's own surface, tracking the pointer for the chrome's autohide.
+    fn stage_root(&self, cx: &mut Context<Self>) -> Stateful<Div> {
+        div()
+            .id("call-view")
+            .group(STAGE_GROUP)
+            .relative()
+            .size_full()
+            .overflow_hidden()
+            .bg(stage::bg())
+            .text_color(stage::text())
+            .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
+                if !*hovered {
+                    this.call_pointer_at = Instant::now().checked_sub(CONTROLS_IDLE * 2).unwrap_or_else(Instant::now);
+                    cx.notify();
+                }
+            }))
+            .on_mouse_move(cx.listener(|this, _: &gpui_kit::MouseMoveEvent, _, cx| {
+                let was_idle = this.call_idle();
+                this.call_pointer_at = Instant::now();
+                if was_idle {
+                    cx.notify();
+                }
+            }))
+    }
+
+    // .call.focused: the header as a 48px band (over the stream in full screen), the focused card
+    // edge to edge, letterboxed only on the axis that doesn't fit, and the controls floating over its
+    // foot. Everyone else waits behind the pill on its bottom edge, or sits in a strip under it.
+    fn focus_stage(&self, big: &Tile, tiles: &[Tile], shown: f32, cx: &mut Context<Self>) -> AnyElement {
+        let key = tile_key(big);
+        let others: Vec<&Tile> = tiles.iter().filter(|t| tile_key(t) != key).take(STRIP_LIMIT).collect();
+        let strip = !self.call_strip_hidden && !others.is_empty();
+        let overlay_head = self.call_fullscreen;
+        let drift = 6. * (1. - shown);
+        let band = CONTROLS_HEIGHT + STAGE_PAD * 2.;
+        let head = div().h(px(FOCUS_HEAD)).flex_none().px(px(STAGE_PAD)).flex().items_center().child(div().flex_1().min_w_0().child(self.call_header(cx)));
+        let (in_flow, floating) = if overlay_head { (None, Some(head)) } else { (Some(head), None) };
+        let toggle_bottom = if strip { STRIP_GAP } else { band + STRIP_GAP };
+        let media = div()
+            .relative()
+            .flex_1()
+            .min_h_0()
+            .bg(gpui_kit::black())
+            .child(self.tile(big, TileSize::Fill, cx))
+            .when(!others.is_empty(), |d| d.child(div().absolute().left_0().right_0().bottom(px(toggle_bottom)).flex().justify_center().opacity(shown).child(self.strip_toggle(strip, cx))));
+        self.stage_root(cx)
+            .flex()
+            .flex_col()
+            .children(in_flow)
+            .child(media)
+            .when(strip, |d| {
+                // Centred while it fits; wider than the stage, it starts at the left edge and scrolls.
+                let cards: Vec<AnyElement> = others.into_iter().map(|t| self.tile(t, TileSize::Card(STRIP_TILE), cx)).collect();
+                d.child(div().id("filmstrip").flex_none().flex().overflow_x_scroll().pt(px(STRIP_GAP)).px(px(STAGE_PAD)).child(div().mx_auto().flex_none().flex().gap(px(STRIP_GAP)).children(cards)))
+                    .child(div().h(px(band)).flex_none())
+            })
+            .children(floating.map(|head| div().absolute().top(px(-drift)).left_0().right_0().opacity(shown).bg(scrim(180.)).child(head.pb(px(24.)).h(px(FOCUS_HEAD + 24.)))))
+            .child(
+                div()
+                    .absolute()
+                    .left_0()
+                    .right_0()
+                    .bottom(px(-drift))
+                    .pt(px(40.))
+                    .px(px(STAGE_PAD))
+                    .pb(px(STAGE_PAD))
+                    .opacity(shown)
+                    .when(!strip, |d| d.bg(scrim(0.)))
+                    .child(self.call_controls(cx)),
+            )
+            .into_any_element()
+    }
+
+    // The grid, fitted to the space it actually has.
     fn card_stage(&self, tiles: &[Tile], fallback: (f32, f32), cx: &mut Context<Self>) -> AnyElement {
         let measured = self.call_area.get();
         let (width, height) = if measured.0 > 0. { measured } else { fallback };
-        let focused = self.call_focus.as_ref().and_then(|key| tiles.iter().find(|t| tile_key(t) == *key));
-        let body = match focused {
-            Some(big) => self.focus_layout(big, tiles, width, height, cx),
-            None => self.tile_grid(tiles, width, height, cx),
-        };
+        let body = self.tile_grid(tiles, width, height, cx);
         let (area, this) = (self.call_area.clone(), cx.weak_entity());
         let measure = gpui_kit::canvas(
             move |bounds, _, cx| {
@@ -714,30 +791,6 @@ impl Rustcord {
         .absolute()
         .inset_0();
         div().relative().size_full().child(measure).child(body).into_any_element()
-    }
-
-    fn focus_layout(&self, big: &Tile, tiles: &[Tile], width: f32, height: f32, cx: &mut Context<Self>) -> AnyElement {
-        let key = tile_key(big);
-        let others: Vec<&Tile> = tiles.iter().filter(|t| tile_key(t) != key).take(STRIP_LIMIT).collect();
-        let shown = !self.call_strip_hidden && !others.is_empty();
-        let strip_h = if shown { STRIP_TILE * 9. / 16. + STRIP_GAP } else { 0. };
-        let big_w = width.min((height - strip_h).max(120.) * 16. / 9.);
-        // The fold pill sits inside the big card's bottom edge, shown while the card is hovered.
-        let big_card = div()
-            .relative()
-            .group("focus-card")
-            .child(self.tile(big, big_w, cx))
-            .when(!others.is_empty(), |d| {
-                d.child(div().absolute().left_0().right_0().bottom(px(12.)).flex().justify_center().opacity(0.).group_hover("focus-card", |s| s.opacity(1.)).child(self.strip_toggle(shown, cx)))
-            });
-        div()
-            .size_full()
-            .flex()
-            .flex_col()
-            .gap(px(STRIP_GAP))
-            .child(div().flex_1().min_h_0().flex().items_center().justify_center().child(big_card))
-            .when(shown, |d| d.child(div().flex_none().flex().justify_center().gap(px(STRIP_GAP)).children(others.into_iter().map(|t| self.tile(t, STRIP_TILE, cx)))))
-            .into_any_element()
     }
 
     // Clicking a card makes it the big one; clicking it again goes back to the grid. A stream you
@@ -769,7 +822,7 @@ impl Rustcord {
         };
         let cols = (1..=n).max_by(|a, b| size(*a).total_cmp(&size(*b))).unwrap_or(1);
         let tile_w = size(cols).max(124.);
-        let rendered: Vec<AnyElement> = tiles.iter().map(|t| self.tile(t, tile_w, cx)).collect();
+        let rendered: Vec<AnyElement> = tiles.iter().map(|t| self.tile(t, TileSize::Card(tile_w), cx)).collect();
         div().size_full().flex().flex_wrap().items_center().justify_center().content_center().gap(px(gap(cols))).children(rendered).into_any_element()
     }
 
@@ -855,11 +908,9 @@ impl Rustcord {
                 .text_color(stage::muted())
                 .child(div().size(px(6.)).rounded_full().bg(color))
                 .child(format!("{quality}{label}"))
-                .child(ui::live_badge())
                 .tooltip(move |window, cx| Tooltip::new(format!("{label}: {fps:.0} frames per second")).build(window, cx))
         });
         let stop = watching.map(|_| stage_button("stop-watching", if several { "Stop all" } else { "Stop watching" }).on_click(cx.listener(|this, _, _, cx| this.stop_watching(cx))));
-        let fullscreen = self.call_fullscreen;
         let chat_open = self.call_chat;
         div()
             .h(px(HEAD_HEIGHT))
@@ -875,10 +926,6 @@ impl Rustcord {
             .children(stop)
             .child(who)
             .child(div().w(px(1.)).h(px(20.)).mx(px(2.)).flex_none().bg(stage::wash(0.14)))
-            .child(
-                stage_icon_button("call-fullscreen", if fullscreen { Glyph::FullscreenExit } else { Glyph::Fullscreen }, if fullscreen { "Exit full screen" } else { "Full screen" }, false)
-                    .on_click(cx.listener(move |this, _, window, cx| this.set_call_fullscreen(!fullscreen, window, cx))),
-            )
             .child(
                 stage_icon_button("call-chat", Glyph::ChatRound, if chat_open { "Chat: hide the channel's messages" } else { "Chat: show the channel's messages beside the call" }, chat_open)
                     .on_click(cx.listener(|this, _, window, cx| this.toggle_call_chat(window, cx))),
@@ -984,18 +1031,23 @@ impl Rustcord {
                         }
                         cx.notify();
                     }))))
-                    .child(tile_ring(false, false)),
+                    .child(tile_ring(false, false, RADIUS_LG)),
             )
             .with_animation("ended-in", Animation::new(ui::DUR_PANEL), |d, t| d.opacity(t.min(1.)))
             .into_any_element()
     }
 
-    // .tile: a person (camera, or their avatar on their own tint) or someone's Go Live (its preview
-    // under LIVE and the viewer count). Speaking draws the green ring above everything; the label
-    // carries one mark for what's off.
-    fn tile(&self, tile: &Tile, w: f32, cx: &mut Context<Self>) -> AnyElement {
+    // .tile: a person (camera, or their avatar on their own tint) or someone's Go Live. Every card
+    // carries a name chip (a stream's led by the screen glyph); only our own stream says LIVE, with its
+    // quality. A stream not yet opened shows Watch at rest. Speaking draws the green ring above
+    // everything. `TileSize::Fill` is the focused card: the whole stage, no corners or edge line.
+    fn tile(&self, tile: &Tile, size: TileSize, cx: &mut Context<Self>) -> AnyElement {
         let call = self.call.as_ref().expect("in a call");
-        let h = w * 9. / 16.;
+        let (fill, w) = match size {
+            TileSize::Card(w) => (false, w),
+            TileSize::Fill => (true, f32::INFINITY),
+        };
+        let radius = if fill { 0. } else { RADIUS_LG };
         let (Tile::User(state) | Tile::Stream(state)) = tile;
         let user = state.user.clone().unwrap_or_else(|| User {
             id: state.user_id.clone(),
@@ -1019,47 +1071,55 @@ impl Rustcord {
             true => call.self_view.as_ref().map(|(frame, _)| frame.clone()),
             false => call.watched(&state.user_id).and_then(|w| w.frame.clone()),
         };
-        // A strip card under a focused one: no name until hovered, as Discord's.
+        // Focused, the picture keeps its whole frame (bars on the axis that doesn't fit); a card is
+        // cropped to fill.
+        let fit = if fill { gpui_kit::ObjectFit::Contain } else { gpui_kit::ObjectFit::Cover };
+        // A strip card under a focused one: no name at rest, as Discord's.
         let small = w <= STRIP_TILE + 0.5;
         let face: AnyElement = match (is_stream, camera) {
             // A stream that isn't playing, small: Discord's screen glyph on black.
             (true, _) if small && live_frame.is_none() => {
-                div().size_full().squircle(RADIUS_LG).bg(gpui_kit::black()).flex().items_center().justify_center().child(Icon::new(Glyph::Screen).size(px(28.)).text_color(gpui_kit::white())).into_any_element()
+                div().size_full().squircle(radius).bg(gpui_kit::black()).flex().items_center().justify_center().child(Icon::new(Glyph::Screen).size(px(28.)).text_color(gpui_kit::white())).into_any_element()
             }
-            (true, _) => stream_fill(RADIUS_LG)
-                .size_full()
-                .bg(gpui_kit::black())
-                .map(|f| match live_frame.filter(|_| is_stream) {
-                    Some(frame) => f.child(ui::media(ImageSource::Render(frame), ui::all(RADIUS_LG)).absolute().inset_0().size_full().object_fit(gpui_kit::ObjectFit::Contain)),
-                    None => f.children(self.stream_preview(&state.user_id).map(|url| ui::media(url, ui::all(RADIUS_LG)).absolute().inset_0().size_full().object_fit(gpui_kit::ObjectFit::Cover))),
-                })
-                .into_any_element(),
-            (false, Some(frame)) => ui::media(ImageSource::Render(frame.clone()), ui::all(RADIUS_LG)).size_full().object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
+            // Playing, the picture letterboxes on black; the gradient only holds the place before it.
+            (true, _) => match fill || live_frame.is_some() {
+                true => div().relative().size_full().when(!fill, |d| d.squircle(radius)).bg(gpui_kit::black()),
+                false => stream_fill(radius).size_full(),
+            }
+            .map(|f| match live_frame {
+                Some(frame) => f.child(ui::media(ImageSource::Render(frame), ui::all(radius)).absolute().inset_0().size_full().object_fit(gpui_kit::ObjectFit::Contain)),
+                None => f.children(self.stream_preview(&state.user_id).map(|url| ui::media(url, ui::all(radius)).absolute().inset_0().size_full().object_fit(fit))),
+            })
+            .into_any_element(),
+            (false, Some(frame)) => ui::media(ImageSource::Render(frame.clone()), ui::all(radius)).size_full().object_fit(fit).into_any_element(),
             (false, None) => div()
                 .size_full()
-                .squircle(RADIUS_LG)
+                .when(!fill, |d| d.squircle(radius))
                 .bg(self.tile_fill(&state.user_id))
                 .flex()
                 .items_center()
                 .justify_center()
-                .child(ui::avatar(user.avatar.clone(), if w < SMALL_TILE { 40. } else { 64. }).when(local_muted, |a| a.opacity(0.5)))
+                .child(ui::avatar(user.avatar.clone(), if fill { 96. } else if w < SMALL_TILE { 40. } else { 64. }).when(local_muted, |a| a.opacity(0.5)))
                 .into_any_element(),
         };
         let watching = call.watched(&state.user_id).is_some();
-        let watchable = is_stream && !watching && (!me || call.sharing.is_some());
+        let watchable = is_stream && !watching && !me;
         let label = match (is_stream, self.activity_name(&state.user_id)) {
             (true, Some(app)) => format!("{} · {app}", user.name),
             _ => user.name.clone(),
         };
+        let group = SharedString::from(format!("tile-{}-{is_stream}", state.user_id));
         let name = tile_name(
             div()
+                .when(is_stream, |d| d.child(Icon::new(Glyph::Screen).size(px(14.)).text_color(gpui_kit::white())))
                 .when(!is_stream && state.server_muted, |d| d.child(vmark(Glyph::MicOff, None, MarkKind::Server)))
                 .when(!is_stream && !state.server_muted && muted && !deafened, |d| d.child(Icon::new(Glyph::MicOff).size(px(14.)).text_color(stage::off_ink())))
                 .when(!is_stream && deafened, |d| d.child(Icon::new(Glyph::HeadphonesOff).size(px(14.)).text_color(stage::off_ink())))
                 .child(div().min_w_0().truncate().child(label))
                 .when(local_muted, |d| d.child(vmark(Glyph::VolumeOff, Some("Muted for you"), MarkKind::Local))),
         )
-        .when(small || is_stream, |n| n.opacity(0.).group_hover(SharedString::from(format!("tile-{}-{is_stream}", state.user_id)), |s| s.opacity(1.)));
+        .max_w(if fill { relative(0.5) } else { px(w - 16.).into() })
+        .when(small || fill, |n| n.opacity(0.).group_hover(STAGE_GROUP, |s| s.opacity(1.)));
         // With the name hidden on a strip card, a mute or deafen still shows, as a chip in its corner.
         let off_chip = (small && !is_stream && (muted || deafened || state.server_muted)).then(|| {
             div()
@@ -1074,31 +1134,37 @@ impl Rustcord {
                 .bg(gpui_kit::black().opacity(0.6))
                 .child(Icon::new(if deafened { Glyph::HeadphonesOff } else { Glyph::MicOff }).size(px(14.)).text_color(stage::off_ink()))
         });
+        // Our own stream: its quality beside LIVE, as Discord's "720P 30FPS LIVE".
+        let own_live = (is_stream && me && !small).then(|| {
+            let quality = format!("{} FPS", quality_label(self.prefs.stream_resolution, self.prefs.stream_fps));
+            div().absolute().left(px(8.)).top(px(8.)).flex().gap(px(4.)).child(ui::badge(gpui_kit::black().opacity(0.6), gpui_kit::white()).font_features(tabular()).child(quality)).child(ui::live_badge())
+        });
         let streamer = state.user_id.clone();
         let menu_user = state.user_id.clone();
         let card = tile.clone();
-        let focused = self.call_focus.as_deref() == Some(tile_key(tile).as_str());
-        let group = SharedString::from(format!("tile-{}-{is_stream}", state.user_id));
         let viewers = if is_stream { self.viewer_count(&state.user_id) } else { 0 };
         let watch_label = if call.watching.is_empty() { "Watch stream" } else { "Watch too" };
         div()
             .id(group.clone())
             .group(group.clone())
             .relative()
-            .w(px(w))
-            .h(px(h))
-            .flex_none()
-            .squircle(RADIUS_LG)
+            .map(|d| match size {
+                TileSize::Card(w) => d.w(px(w)).h(px(w * 9. / 16.)).flex_none().squircle(radius).overflow_hidden(),
+                TileSize::Fill => d.size_full(),
+            })
             .child(face)
-            // Scrims only while hovered, so pictures aren't dimmed at rest.
-            .when(media, |d| d.child(scrim_top(RADIUS_LG).opacity(0.).group_hover(group.clone(), |s| s.opacity(1.))).child(scrim_bottom(RADIUS_LG).opacity(0.).group_hover(group.clone(), |s| s.opacity(1.))))
-            .when(is_stream, |d| d.child(div().absolute().left(px(8.)).top(px(8.)).child(ui::live_badge())))
+            // Scrims only while hovered, so pictures aren't dimmed at rest; the chips carry their own fill.
+            .when(media && !fill, |d| d.child(scrim_top(radius).opacity(0.).group_hover(group.clone(), |s| s.opacity(1.))).child(scrim_bottom(radius).opacity(0.).group_hover(group.clone(), |s| s.opacity(1.))))
+            .children(own_live)
             .when(viewers > 0, |d| d.child(viewer_chip(viewers)))
+            .when(watchable && !small, |d| {
+                d.child(div().absolute().inset_0().when(!fill, |d| d.squircle(radius)).bg(gpui_kit::black().opacity(0.45)).flex().items_center().justify_center().child(watch_button(watch_label)))
+            })
             .child(name)
             .children(off_chip)
             .cursor_pointer()
             .on_click(cx.listener(move |this, _, _, cx| this.toggle_card(&card, cx)))
-            .when(is_stream && watching && !me, |d| {
+            .when(is_stream && watching && !me && !small && !fill, |d| {
                 let streamer = streamer.clone();
                 let volume_id = streamer.clone();
                 d.child(
@@ -1124,22 +1190,8 @@ impl Rustcord {
                         }))),
                 )
             })
-            .when(watchable && !focused, |d| {
-                d.child(
-                        div()
-                            .absolute()
-                            .inset_0()
-                            .squircle(RADIUS_LG)
-                            .bg(gpui_kit::black().opacity(0.45))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .opacity(0.)
-                            .group_hover(group.clone(), |s| s.opacity(1.))
-                            .child(watch_button(watch_label)),
-                    )
-            })
-            .child(tile_ring(talking, local_muted).when(watchable, |r| r.group_hover(group.clone(), |s| s.border_color(stage::wash(0.2)))))
+            // Every card answers the pointer with a brighter edge; the focused one has no edge at all.
+            .when(!fill || talking, |d| d.child(tile_ring(talking, local_muted, radius).when(!talking, |r| r.group_hover(group.clone(), |s| s.border_color(stage::wash(0.2))))))
             .on_mouse_down(MouseButton::Right, cx.listener(move |this, e: &MouseDownEvent, _, cx| this.voice_user_menu(&menu_user, e.position, cx)))
             .into_any_element()
     }
@@ -1183,7 +1235,16 @@ impl Rustcord {
             .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities and the soundboard aren't in Dango yet", cx))));
         let more = control("call-more", Glyph::More, "More options", Control::Rest, true).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_call_more(e.position, cx)));
         let leave = control("call-hang-up", Glyph::CallEnd, "Leave call", Control::Leave, true).w(px(68.)).on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx)));
+        // Full screen at the bar's right end, as Discord's.
+        let fullscreen = self.call_fullscreen;
+        let fullscreen = stage_icon_button("call-fullscreen", if fullscreen { Glyph::FullscreenExit } else { Glyph::Fullscreen }, if fullscreen { "Exit full screen (Esc)" } else { "Full screen" }, false)
+            .on_click(cx.listener(move |this, _, window, cx| this.set_call_fullscreen(!fullscreen, window, cx)));
+        // A focused stream's volume sits beside it, as Discord's.
+        let volume = self.focused_stream().filter(|id| call.watched(id).is_some()).map(|id| {
+            stage_icon_button("call-stream-volume", Glyph::VolumeHigh, "Stream volume", false).on_mouse_down(MouseButton::Left, cx.listener(move |this, e: &MouseDownEvent, _, cx| this.open_stream_volume(id.clone(), e.position, cx)))
+        });
         div()
+            .relative()
             .h(px(CONTROLS_HEIGHT))
             .flex()
             .justify_center()
@@ -1196,6 +1257,7 @@ impl Rustcord {
             .child(more)
             .child(div().w(px(6.)))
             .child(leave)
+            .child(div().absolute().right_0().top(px((CONTROLS_HEIGHT - 32.) / 2.)).flex().gap(px(4.)).children(volume).child(fullscreen))
     }
 
     // More options: what didn't earn a button of its own.
@@ -1794,22 +1856,40 @@ fn split_control(main: impl Styled + IntoElement, chevron: impl Styled + IntoEle
     div().flex().gap(px(2.)).child(main.rounded_tr(px(4.)).rounded_br(px(4.))).child(chevron.rounded_tl(px(4.)).rounded_bl(px(4.)))
 }
 
-// .tile .name: 12px semibold white along the tile's foot.
-// GAP: gpui has no text-shadow, so the 1px shadow under the label is left to the scrim.
+// .tile .name: a dark chip in the tile's foot, 12px white, so it reads over any picture.
 fn tile_name(content: Div) -> Div {
-    content.absolute().left(px(10.)).right(px(10.)).bottom(px(8.)).flex().items_center().gap(px(6.)).min_w_0().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(gpui_kit::white())
+    content
+        .absolute()
+        .left(px(8.))
+        .bottom(px(8.))
+        .h(px(24.))
+        .px(px(8.))
+        .squircle(RADIUS_XS)
+        .bg(gpui_kit::black().opacity(0.6))
+        .flex()
+        .items_center()
+        .gap(px(6.))
+        .min_w_0()
+        .text_size(px(12.))
+        .font_weight(FontWeight::MEDIUM)
+        .text_color(gpui_kit::white())
 }
 
 // The tile's edge, drawn above its media so a stream can't hide it: a faint 1px line, or while
 // speaking a 2px green ring with a dark inner line (neutral when they're muted for you).
-fn tile_ring(speaking: bool, local_muted: bool) -> Div {
-    let ring = div().absolute().inset_0().squircle(RADIUS_LG);
+fn tile_ring(speaking: bool, local_muted: bool, radius: f32) -> Div {
+    let ring = div().absolute().inset_0().squircle(radius);
     if !speaking {
         return ring.border_1().border_color(stage::wash(0.06));
     }
     // The stage is always dark, so the dark theme's green.
     let color = if local_muted { stage::wash(0.42) } else { palette::status(crate::discord::Status::Online) };
-    ring.border(px(2.)).border_color(color).child(div().absolute().inset_0().squircle(RADIUS_LG - 2.).border(px(2.)).border_color(stage::bg().opacity(0.6)))
+    ring.border(px(2.)).border_color(color).child(div().absolute().inset_0().squircle((radius - 2.).max(0.)).border(px(2.)).border_color(stage::bg().opacity(0.6)))
+}
+
+// .chrome over a focused stream: black fading out from the top (180deg) or bottom (0deg) edge.
+fn scrim(angle: f32) -> gpui_kit::Background {
+    gpui_kit::linear_gradient(angle, gpui_kit::linear_color_stop(gpui_kit::black().opacity(0.6), 0.), gpui_kit::linear_color_stop(gpui_kit::transparent_black(), 1.))
 }
 
 // .tile.has-media::before: a smooth scrim under the labels, never a hard strip.
@@ -2042,5 +2122,27 @@ mod health_tests {
         let stalled: std::collections::VecDeque<Instant> = [at(1500)].into();
         assert_eq!(stream_health(&stalled, now).0, Health::Stalled);
         assert_eq!(stream_health(&Default::default(), now).0, Health::Stalled);
+    }
+}
+
+#[cfg(test)]
+mod order_tests {
+    use super::*;
+
+    fn person(id: &str, streaming: bool, camera: bool) -> VoiceState {
+        VoiceState { guild_id: None, channel_id: Some("c".into()), user_id: id.into(), user: None, muted: false, deafened: false, server_muted: false, server_deafened: false, streaming, camera }
+    }
+
+    #[test]
+    fn streams_first_then_cameras_then_avatars_in_join_order() {
+        // Joined in this order: a (avatar), b (streams), c (camera), d (streams, watched), e (avatar).
+        let people = vec![person("a", false, false), person("b", true, false), person("c", false, true), person("d", true, false), person("e", false, false)];
+        let keys: Vec<String> = order_tiles(people.clone(), |id| id == "d", |s| s.camera).iter().map(tile_key).collect();
+        assert_eq!(keys, ["stream:d", "stream:b", "user:c", "user:a", "user:b", "user:d", "user:e"]);
+        // Someone speaking or a mute changes nothing; a new joiner lands at the end of their group.
+        let mut joined = people;
+        joined.push(person("f", true, false));
+        let keys: Vec<String> = order_tiles(joined, |id| id == "d", |s| s.camera).iter().map(tile_key).collect();
+        assert_eq!(keys, ["stream:d", "stream:b", "stream:f", "user:c", "user:a", "user:b", "user:d", "user:e", "user:f"]);
     }
 }
