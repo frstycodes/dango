@@ -1126,7 +1126,7 @@ fn markdown(id: SharedString, text: String, ctx: &RowContext) -> TextView {
     let this = ctx.this.clone();
     let (copy_target, copied) = (ctx.this.clone(), ctx.copied.clone());
     let badges = MentionBadges { this: ctx.this.clone(), fill: ctx.mention_fill, hover: ctx.mention_hover, ink: ctx.mention_ink };
-    TextView::markdown(id, text)
+    TextView::markdown(id, discord_breaks(&text))
         // Constant: the plugin only changes how mentions draw, never what parses.
         .markdown_extensions(MarkdownExtensions::default().parser_revision(1).plugin(badges))
         // messages.css `.codeblock { margin-top: 6px }`: a block opening a message clears the name row.
@@ -1149,6 +1149,32 @@ fn markdown(id: SharedString, text: String, ctx: &RowContext) -> TextView {
                 cx.open_url(&url);
             }
         })
+}
+
+// Discord keeps every line break and a line's leading spaces; markdown joins single breaks into a
+// space and drops indentation. Each break becomes a hard break and leading spaces non-breaking ones,
+// outside fenced code, which already keeps both.
+pub(crate) fn discord_breaks(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + text.len() / 8);
+    let mut in_fence = false;
+    let mut lines = text.split('\n').peekable();
+    while let Some(line) = lines.next() {
+        let fence = line.trim_start().starts_with("```");
+        if in_fence || fence {
+            out.push_str(line);
+        } else {
+            let indent = line.len() - line.trim_start_matches(' ').len();
+            out.extend(std::iter::repeat_n('\u{a0}', indent));
+            out.push_str(&line[indent..]);
+        }
+        if fence {
+            in_fence = !in_fence;
+        }
+        let Some(next) = lines.peek() else { break };
+        let breaks = !in_fence && !fence && !line.trim().is_empty() && !next.trim().is_empty() && !next.trim_start().starts_with("```");
+        out.push_str(if breaks { "  \n" } else { "\n" });
+    }
+    out
 }
 
 fn split_subtext(content: &str) -> (String, Vec<String>) {
@@ -2081,6 +2107,15 @@ mod tests {
         assert_eq!(hide_spoilers("a ||bc|| d", true), "a bc d");
         assert_eq!(hide_spoilers("a || b", false), "a || b");
         assert_eq!(split_subtext("hi\n-# small"), ("hi".into(), vec!["small".into()]));
+    }
+
+    #[test]
+    fn line_breaks_and_indents_survive_markdown() {
+        let nb = '\u{a0}';
+        assert_eq!(discord_breaks("CPU\n   Cooler\n   Board"), format!("CPU  \n{nb}{nb}{nb}Cooler  \n{nb}{nb}{nb}Board"));
+        assert_eq!(discord_breaks("a\n\nb"), "a\n\nb", "a blank line stays a paragraph break");
+        assert_eq!(discord_breaks("x\n```\n  code\nmore\n```\ny"), "x\n```\n  code\nmore\n```\ny", "fenced code is left alone");
+        assert_eq!(discord_breaks("one line"), "one line");
     }
 
     #[test]
