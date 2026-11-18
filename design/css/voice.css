@@ -127,12 +127,21 @@
 .tiles.g3 .tile .av, .filmstrip .tile .av { --size: 40px; }
 .tile::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2; box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.06); transition: box-shadow var(--dur-hover); }
 .tile.speaking::after { box-shadow: inset 0 0 0 2px var(--online), inset 0 0 0 4px oklch(0.13 0.01 350 / 0.6); }
-.tile .name { position: absolute; left: 10px; bottom: 8px; right: 10px; z-index: 1; display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--text-xs); font-weight: var(--weight-semibold); text-shadow: 0 1px 2px oklch(0 0 0 / 0.6); }
+.tile .name { position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px); z-index: 1; display: flex; align-items: center; gap: 6px; min-width: 0; height: 24px; padding: 0 8px; border-radius: var(--radius-xs); background: oklch(0 0 0 / 0.6); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+/* Whose stream it is, on every stream card: the screen glyph leads the chip */
+.tile .name .scr { font-size: 14px; color: #fff; flex: none; }
+/* Strip and focused names rest hidden and show while the pointer is anywhere on the stage */
+.filmstrip .tile .name, .call.focused .stagemedia > .tile .name { opacity: 0; transition: opacity var(--dur-hover); }
+.call:hover .filmstrip .tile .name, .call.focused:hover .stagemedia > .tile .name { opacity: 1; }
 .tile .name > span:last-child, .tile .name .who { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile .name i { font-size: 14px; color: var(--off-ink, oklch(0.78 0.15 32)); filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.5)); }
 .tile .name i.plain { color: #fff; }
 .tile .name .bars { --c: #fff; height: 10px; flex: none; }
-.tile .live { position: absolute; left: 8px; top: 8px; z-index: 1; }
+/* LIVE marks only your own stream, beside its quality; everyone in the room already knows who's live */
+.tile .mine-live { position: absolute; left: 8px; top: 8px; z-index: 1; display: flex; gap: 4px; }
+.tile .mine-live .q { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: var(--radius-xs); background: oklch(0 0 0 / 0.6); font-size: 11px; font-weight: var(--weight-bold); }
+/* A stream you haven't opened: dimmed, with Watch up front at rest, not only on hover */
+.tile .watchwrap { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; background: oklch(0 0 0 / 0.45); }
 .tile .viewers { position: absolute; right: 8px; top: 8px; z-index: 1; display: flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: var(--radius-xs); background: oklch(0 0 0 / 0.45); font-size: 11px; font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; }
 .tile .viewers i { font-size: 12px; }
 .tile .corner { position: absolute; right: 6px; bottom: 4px; z-index: 1; }
@@ -157,9 +166,22 @@
 .tile.more .stackav .av { --size: 28px; box-shadow: 0 0 0 2px oklch(0.2 0.01 350); }
 button.tile { cursor: pointer; transition: transform var(--dur-press) var(--ease-out); }
 button.tile:active { transform: scale(0.98); }
-button.tile:hover::after { box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.2); }
+button.tile:hover::after, .tile.clickable:hover::after { box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.2); }
 
-/* Layouts: focus with a filmstrip, and self-view picture-in-picture */
+/* Layouts: focus with a filmstrip, and self-view picture-in-picture.
+   Grid order is fixed: streams you watch or focus, other streams, cameras, then avatars; join order within each.
+   Focus: the header stays a 48px band; the focused tile runs edge to edge below it with no inset or corners,
+   letterboxed only on the axis that doesn't fit; the controls float over its foot on a scrim. Everyone else
+   hides behind a pill on the bottom edge; shown, they sit in a strip under the stream. Full screen puts the
+   header over the stream too, so the stream is the whole screen. */
+.call.focused { padding: 0; gap: 0; grid-template-rows: 48px 1fr; aspect-ratio: 16/10; }
+.call.focused > .callhead { padding: 0 var(--space-4); }
+.call.focused .stagemedia { position: relative; min-height: 0; background: #000; }
+.call.focused .stagemedia > .tile { position: absolute; inset: 0; aspect-ratio: auto; border-radius: 0; }
+.call.focused .stagemedia > .tile::after { box-shadow: none; }
+.call.focused .chrome.foot { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; padding: 40px var(--space-4) var(--space-4); background: linear-gradient(transparent, oklch(0 0 0 / 0.6)); }
+.call.focused .stripbtn { position: absolute; left: 50%; translate: -50% 0; bottom: 76px; z-index: 4; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; background: oklch(0 0 0 / 0.6); color: #fff; }
+.controls .end { position: absolute; right: 0; }
 .focus { display: grid; gap: 8px; }
 .focus > .tile { aspect-ratio: 16/8; }
 .filmstrip { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
