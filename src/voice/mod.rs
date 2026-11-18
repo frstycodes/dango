@@ -688,7 +688,10 @@ impl Drop for MicTest {
 
 // Works outside a call. `device` overrides `settings.input_device`.
 pub fn mic_test(device: Option<String>, settings: &VoiceSettings) -> Result<(MicTest, mpsc::UnboundedReceiver<MicLevel>), String> {
-    let settings = VoiceSettings { input_device: device.or_else(|| settings.input_device.clone()), ..settings.clone() };
+    // Echo cancellation off: the only thing playing is our own voice looped back, and as an echo
+    // reference it makes the canceller cut the live voice. With nobody on the far end there is no
+    // echo to remove.
+    let settings = VoiceSettings { input_device: device.or_else(|| settings.input_device.clone()), echo_cancellation: false, ..settings.clone() };
     let input_mode = settings.input_mode;
     let audio = Arc::new(settings.audio());
     let mixer = Arc::new(audio::Mixer::default());
