@@ -19,12 +19,12 @@ use crate::{
 impl Rustcord {
     pub fn render_panel(&mut self, _: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         self.guild_id.as_ref()?;
-        // The member list needs no head: the header's toggle opens and closes it. Search results keep
-        // theirs, which names the query and leads back to the members.
-        let (head, body): (Option<Div>, AnyElement) = match &self.right_panel {
+        // Its header sits on the window's top line beside the channel header's: "Members", or the search's
+        // query with a way back to the members.
+        let (head, body): (Div, AnyElement) = match &self.right_panel {
             RightPanel::Hidden => return None,
-            RightPanel::Members => (None, self.member_list(cx)),
-            RightPanel::Search { query, results } => (Some(self.panel_head(format!("Results for “{query}”").into(), cx)), self.search_results(results.clone(), cx)),
+            RightPanel::Members => (self.panel_head("Members".into(), false, cx), self.member_list(cx)),
+            RightPanel::Search { query, results } => (self.panel_head(format!("Results for “{query}”").into(), true, cx), self.search_results(results.clone(), cx)),
         };
         Some(
             div()
@@ -34,38 +34,38 @@ impl Rustcord {
                 .flex_none()
                 .flex()
                 .flex_col()
-                // A card floating beside the feed, not a column flush to the window: its edges never need a hairline.
-                .squircle(ui::RADIUS_LG)
-                .overflow_hidden()
+                // The sidebar's tone: the step from the feed's tone is the only edge it needs.
                 .bg(palette::surface(palette::Level::Sidebar, cx))
-                .shadow(ui::shadow_pop(cx))
                 .text_color(palette::text(cx))
                 .text_size(px(14.))
                 .child(self.resize_handle(Edge::Panel, cx))
-                .children(head)
+                .child(head)
                 .child(div().id("right-panel").flex_1().min_h_0().overflow_y_scroll().p_2().flex().flex_col().gap(px(2.)).child(body))
                 .into_any_element(),
         )
     }
 
-    fn panel_head(&self, title: SharedString, cx: &mut Context<Self>) -> Div {
-        let back = ui::icon_button("close-panel", Glyph::X, "Back to members", cx).on_click(cx.listener(|this, _, _, cx| {
-            this.right_panel = RightPanel::Members;
-            cx.notify();
-        }));
+    // The column's header row, clear of Windows' caption buttons at the window's top right; `back` adds the
+    // way back to the members.
+    fn panel_head(&self, title: SharedString, back: bool, cx: &mut Context<Self>) -> Div {
+        let back = back.then(|| {
+            ui::icon_button("close-panel", Glyph::X, "Back to members", cx).on_click(cx.listener(|this, _, _, cx| {
+                this.right_panel = RightPanel::Members;
+                cx.notify();
+            }))
+        });
         div()
-            .h(px(48.))
+            .h(px(crate::layout::HEADER_HEIGHT))
             .flex_none()
             .pl_4()
-            .pr_2()
+            .pr(px(8. + crate::window_controls::WIDTH))
             .flex()
             .items_center()
             .gap_2()
-            .border_b_1()
-            .border_color(palette::line(cx))
+            .window_control_area(gpui_kit::WindowControlArea::Drag)
             .text_color(palette::strong(cx))
             .child(div().flex_1().min_w_0().truncate().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).child(title))
-            .child(back)
+            .children(back)
     }
 
     // Who is here, grouped by top role, then online and offline (navigation.css .members).

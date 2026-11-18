@@ -94,6 +94,13 @@ pub struct DeviceMenu {
     cameras: Vec<voice::Device>,
 }
 
+impl DeviceMenu {
+    /// Whether this is `kind`'s popover opened from the user area, not from the call stage's controls.
+    pub fn opened_from_user_area(&self, kind: DeviceKind) -> bool {
+        !self.on_stage && self.kind == kind
+    }
+}
+
 // Where the connection stands, as the voice panel words and colours it.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Link {

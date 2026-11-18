@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use gpui_kit::{
     Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent, NavigationDirection,
-    ObjectFit, Render, SharedString, Stateful, Window, WindowControlArea,
+    ObjectFit, Render, SharedString, Stateful, Window,
     component::{ActiveTheme, Icon, tooltip::Tooltip},
     div, img, linear_color_stop, linear_gradient, prelude::*, px,
 };
@@ -22,16 +22,11 @@ use crate::{
 pub const TITLE_HEIGHT: f32 = 36.;
 // Every column's header, which is also where the window drags from.
 pub const HEADER_HEIGHT: f32 = 48.;
-// The strip over the rail and channel list, which macOS's traffic lights sit in (centred at y 20).
-pub const BRAND_BAR_HEIGHT: f32 = 40.;
-// Where the strip's server name starts on macOS: past the three 12px lights from x 12, 8 apart, plus a gap
-// (the name's button pads its text 8 more).
-pub const TRAFFIC_LIGHTS: f32 = 76.;
 pub const RAIL_WIDTH: f32 = 68.;
 pub const CHANNELS_WIDTH: f32 = 240.;
 pub const PANEL_WIDTH: f32 = 264.;
-// The user area: 8px over and 10px under its 32px row.
-pub const PANEL_HEIGHT: f32 = 50.;
+// The user area: its 40px row (a 32px avatar in a 4px-padded button), inset 6px all round.
+pub const PANEL_HEIGHT: f32 = 52.;
 const CHANNELS_RANGE: (f32, f32) = (200., 440.);
 const PANEL_RANGE: (f32, f32) = (200., 380.);
 
@@ -232,9 +227,10 @@ impl Rustcord {
             )
     }
 
-    // Inbox and help close whichever header tops the content column, clear of Windows' caption buttons.
+    // Inbox and help close whichever header tops the content column; `clear_caption` keeps them clear of
+// Windows' caption buttons when that header runs to the window's right edge.
     // History has no buttons: ⌘[ / ⌘] (Alt+←/→ elsewhere) and the mouse's side buttons step it.
-    pub(crate) fn header_trail(&self, cx: &mut Context<Self>) -> Div {
+    pub(crate) fn header_trail(&self, clear_caption: bool, cx: &mut Context<Self>) -> Div {
         let mentions = self.read_states.values().any(|r| r.mentions > 0);
         let (selected, accent) = (palette::selected(cx), palette::accent());
         let inbox = title_button("inbox", Glyph::Inbox, true, "Inbox", cx)
@@ -242,7 +238,7 @@ impl Rustcord {
             .when(mentions, |b| b.child(div().absolute().top(px(4.)).right(px(4.)).size(px(7.)).rounded_full().bg(accent)))
             .on_click(cx.listener(|this, _, _, cx| this.open_inbox(cx)));
         let help = title_button("help", Glyph::Help, true, "Help", cx).on_click(|_, _, cx| cx.open_url("https://support.discord.com"));
-        div().flex_none().mr(px(crate::window_controls::WIDTH)).flex().items_center().gap_1().child(inbox).child(help)
+        div().flex_none().when(clear_caption, |d| d.mr(px(crate::window_controls::WIDTH))).flex().items_center().gap_1().child(inbox).child(help)
     }
 
     // The user area (.me), at the foot of the channel list: who you are, how you look to others, and
@@ -265,6 +261,13 @@ impl Rustcord {
         let headphones = me_button("deafen", if deafened { Nav::HeadphonesOff } else { Nav::Headphones }, deafened, if deafened { "Undeafen" } else { "Deafen" }, cx)
             .on_click(cx.listener(|this, _, _, cx| this.toggle_deafen(cx)))
             .on_mouse_down(MouseButton::Right, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(crate::call::DeviceKind::Output, e.position, cx)));
+        // A chevron beside each opens that device's popover (devices, volume, and noise suppression for the
+        // mic), as Discord's does; right-clicking the button itself opens the same one.
+        let menu_open = |kind: crate::call::DeviceKind| self.device_menu.as_ref().is_some_and(|m| m.opened_from_user_area(kind));
+        let mic_options = me_chevron("mic-options", "Input options", menu_open(crate::call::DeviceKind::Input), cx)
+            .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(crate::call::DeviceKind::Input, e.position, cx)));
+        let output_options = me_chevron("output-options", "Output options", menu_open(crate::call::DeviceKind::Output), cx)
+            .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(crate::call::DeviceKind::Output, e.position, cx)));
         let settings = me_button("settings", Nav::Settings, false, "User settings", cx).on_click(cx.listener(|this, _, window, cx| this.open_settings(crate::settings::Page::Account, window, cx)));
         // The card's bottom corners, and its top ones too when no voice panel sits above; outside them, the sidebar.
         let in_call = self.voice_panel_height() > 0.;
@@ -278,8 +281,6 @@ impl Rustcord {
             .flex_1()
             .min_w_0()
             .p_1()
-            .my(px(-4.))
-            .ml(px(-4.))
             .squircle(ui::RADIUS_SM)
             .flex()
             .items_center()
@@ -308,8 +309,6 @@ impl Rustcord {
             .right_2()
             .bottom_2()
             .squircle(ui::RADIUS_MD)
-            .border_1()
-            .border_color(palette::line(cx))
             .overflow_hidden()
             .bg(rail)
             .flex()
@@ -326,15 +325,14 @@ impl Rustcord {
                         div()
                             .relative()
                             .size_full()
-                            .pt_2()
-                            .px_2()
-                            .pb(px(10.))
+                            // 6px on every side, so a hover fill never meets the card's edge.
+                            .p(px(6.))
                             .flex()
                             .items_center()
                             .gap_1()
                             .child(who)
                             // Over nameplate art the controls sit on frosted glass, so they keep their contrast.
-                            .child(div().flex().items_center().gap_1().when(has_plate, |d| d.squircle(ui::RADIUS_SM).bg(rail.opacity(0.72)).backdrop_blur(px(12.))).child(mic).child(headphones).child(settings)),
+                            .child(div().flex().items_center().gap_1().when(has_plate, |d| d.squircle(ui::RADIUS_SM).bg(rail.opacity(0.72)).backdrop_blur(px(12.))).child(mic).child(mic_options).child(headphones).child(output_options).child(settings)),
                     ),
             )
             .into_any_element()
@@ -350,7 +348,6 @@ impl Rustcord {
             .flex()
             .flex_col()
             .bg(palette::surface(palette::Level::Sidebar, cx))
-            .when(brand_bar_height(window) > 0., |nav| nav.child(top_strip(self.channel_list_head(true, cx))))
             .child(div().flex_1().min_h_0().flex().child(self.render_rail(window, cx)).child(self.render_channels(window, cx)))
             .children(user_panel)
     }
@@ -593,27 +590,10 @@ pub fn status_mark(status: discord::Status, dot: f32, surface: Hsla) -> AnyEleme
     .into_any_element()
 }
 
-/// The brand strip's height: only macOS shows its traffic lights in the window, and full screen hides them,
-/// so everywhere else the rail and channel list start at the top.
-pub fn brand_bar_height(window: &Window) -> f32 {
-    match cfg!(target_os = "macos") && !window.is_fullscreen() {
-        true => BRAND_BAR_HEIGHT,
-        false => 0.,
-    }
-}
-
-// The strip over the rail and channel list on macOS: the traffic lights, then what heads the channel list
-// (the open server's name, or Home's search). It drags the window.
-fn top_strip(head: AnyElement) -> Div {
-    div()
-        .h(px(BRAND_BAR_HEIGHT))
-        .flex_none()
-        .pl(px(TRAFFIC_LIGHTS))
-        .pr(px(8.))
-        .flex()
-        .items_center()
-        .window_control_area(WindowControlArea::Drag)
-        .child(head)
+/// Whether macOS draws its traffic lights in the window: windowed, not full screen. They take the rail's slot
+/// in the header row; everywhere else that slot holds the Home tile.
+pub fn traffic_lights_shown(window: &Window) -> bool {
+    cfg!(target_os = "macos") && !window.is_fullscreen()
 }
 
 // Back or forward through history: ⌘[ / ⌘] on macOS, Alt+←/→ elsewhere, like a browser.
@@ -655,6 +635,27 @@ fn title_button(id: &'static str, glyph: Glyph, enabled: bool, label: &'static s
 
 // A user area control (.me .iconbtn): 30px; `on` (muted, deafened) turns it coral. The glyph pops in on
 // every flip, keyed by state.
+// The narrow chevron beside a user-area control that opens its device popover; it reads as part of the
+// control, so it is quieter and half as wide.
+fn me_chevron(id: &'static str, label: &'static str, open: bool, cx: &App) -> Stateful<Div> {
+    let (hover, strong, selected) = (palette::hover(cx), palette::strong(cx), palette::selected(cx));
+    div()
+        .id(id)
+        .w(px(16.))
+        .h(px(30.))
+        .flex_none()
+        .squircle(ui::RADIUS_XS)
+        .flex()
+        .items_center()
+        .justify_center()
+        .cursor_pointer()
+        .text_color(if open { strong } else { palette::faint(cx) })
+        .when(open, |b| b.bg(selected))
+        .hover(move |s| s.bg(hover).text_color(strong))
+        .child(Icon::new(Glyph::ChevronDown).size(px(12.)))
+        .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
+}
+
 fn me_button(id: &'static str, glyph: Nav, on: bool, label: &'static str, cx: &App) -> Stateful<Div> {
     let (hover, strong) = (palette::hover(cx), palette::strong(cx));
     let icon = glyph.icon().size(px(20.)).with_animation(SharedString::from(format!("{id}-{on}")), Animation::new(ui::DUR_POP).with_easing(crate::motion::back_out), |icon, t| icon.size(px(20. * (0.7 + 0.3 * t))));

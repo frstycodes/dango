@@ -41,15 +41,12 @@ const CONTENT_INSET: f32 = AVATAR + 16.;
 // A reply preview's line, above the message it answers.
 const REPLY_HEIGHT: f32 = 22.;
 
-// The member panel floats this far in from the window's right and bottom edges.
-const PANEL_INSET: f32 = 8.;
-
 // The floating stream player's width; its height keeps 16:9.
 const PIP_WIDTH: f32 = 320.;
 
 impl Rustcord {
     pub fn render_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let main = div().relative().flex_1().min_w_0().h_full().flex().flex_col().bg(palette::surface(Level::Page, cx)).border_l_1().border_color(palette::line(cx));
+        let main = div().relative().flex_1().min_w_0().h_full().flex().flex_col().bg(palette::surface(Level::Page, cx));
         let Some(channel) = self.channel.clone() else {
             return main.child(empty_state("idle", Mood::Idle, "No channel open", "Pick a server on the left, then a channel to start reading.", cx));
         };
@@ -62,6 +59,7 @@ impl Rustcord {
         };
         let unread_bar = self.unread_bar(&channel.id, cx);
         let chat = div()
+            .relative()
             .flex_1()
             .min_w_0()
             .h_full()
@@ -70,9 +68,10 @@ impl Rustcord {
             .on_drop(cx.listener(|this, paths: &gpui_kit::ExternalPaths, _, cx| this.add_files(paths.paths().to_vec(), cx)))
             // The composer floats over the feed, which scrolls on under its glass.
             .child(div().relative().flex_1().min_h_0().child(body).children(unread_bar).child(self.render_composer(window, cx)).children(self.stream_pip(cx)));
-        // The feed runs up under the header, which blurs and fades it (scroll_edge); the panel starts below.
-        let panel = self.render_panel(window, cx).map(|p| div().h_full().flex_none().pt(px(HEADER_HEIGHT)).pr(px(PANEL_INSET)).pb(px(PANEL_INSET)).child(p));
-        main.child(div().flex_1().min_h_0().flex().child(chat).children(panel)).child(header)
+        // The feed runs up under the header, which blurs and fades it (scroll_edge); the members column beside
+        // it runs to the window's top with a header of its own on the same line.
+        let panel = self.render_panel(window, cx);
+        main.child(div().flex_1().min_h_0().flex().child(chat.child(header)).children(panel))
     }
 
     // Where you are as breadcrumbs, the topic, then the channel's tools (design: navigation.html's chanbar).
@@ -111,7 +110,7 @@ impl Rustcord {
             .gap(px(2.))
             .when_some(parent, |c, parent| c.child(parent).child(Icon::new(Glyph::ChevronRight).size(px(14.)).text_color(faint)))
             .child(here);
-        let topic = channel.topic.clone().map(|topic| div().flex_1().min_w_0().pl(px(12.)).border_l_1().border_color(palette::line_strong(cx)).truncate().text_size(px(14.)).text_color(faint).child(topic));
+        let topic = channel.topic.clone().map(|topic| div().flex_1().min_w_0().pl(px(12.)).border_l_1().border_color(palette::line_strong(cx)).truncate().text_size(px(14.)).text_color(palette::muted(cx)).child(topic));
         let threads = (channel.kind == ChannelKind::Text && self.guild_id.is_some()).then(|| {
             let id = channel.id.clone();
             ui::icon_button("threads-button", Glyph::Thread, "Threads", cx)
@@ -145,31 +144,32 @@ impl Rustcord {
             .child(crumbs)
             .children(topic)
             .child(div().ml_auto().flex_none().flex().items_center().gap(px(2.)).children(threads).child(pins).children(members).children(search))
-            .child(self.header_trail(cx));
-        let panel = if self.guild_id.is_some() && !matches!(self.right_panel, RightPanel::Hidden) { self.panel_width + PANEL_INSET } else { 0. };
-        ui::scroll_edge(palette::surface(Level::Page, cx), panel).child(bar)
+            .child(self.header_trail(self.guild_id.is_none() || matches!(self.right_panel, RightPanel::Hidden), cx));
+        ui::scroll_edge(palette::surface(Level::Page, cx), 0.).child(bar)
     }
 
     fn channel_search(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let focused = self.search_input.read(cx).focus_handle(cx).is_focused(window);
+        let field = ui::search_field_fill(cx);
         div()
             .w(px(200.))
-            .h(px(32.))
+            .h(px(34.))
             .ml(px(8.))
             .px(px(10.))
             .flex_none()
             .occlude()
             .flex()
             .items_center()
-            .gap(px(6.))
+            .gap_2()
             .squircle(RADIUS_SM)
-            .bg(palette::surface(Level::Rail, cx))
+            .bg(field)
+            .backdrop_blur(px(12.))
             .border_1()
             .border_color(if focused { palette::accent() } else { gpui_kit::transparent_black() })
             .text_size(px(14.))
             .text_color(palette::faint(cx))
-            .child(div().flex_1().min_w_0().child(Input::new(&self.search_input).appearance(false).px_0().text_size(px(14.))))
             .child(Icon::new(Glyph::Search).size(px(16.)))
+            .child(div().relative().flex_1().min_w_0().overflow_hidden().child(Input::new(&self.search_input).appearance(false).px_0().text_size(px(14.))).child(ui::fade_end(field)))
     }
 
     // The bar over the feed while unread messages wait: jump to the first, or mark the channel read.
@@ -390,8 +390,9 @@ impl Rustcord {
         let focused = self.composer.read(cx).focus_handle(cx).is_focused(window);
         let (strong, muted) = (palette::strong(cx), palette::muted(cx));
         let row = div()
-            .min_h(px(48.))
-            .py(px(7.))
+            // 51 + the card's 0.5px hairline each side: 52, the user card's height, so the two line up.
+            .min_h(px(51.))
+            .py(px(8.5))
             .px(px(6.))
             .flex()
             .items_end()
@@ -408,11 +409,12 @@ impl Rustcord {
             .flex_col()
             .squircle(RADIUS_LG)
             // Glass: the feed shows through, blurred, as it scrolls under.
-            // GAP: the blur's mask uses round corners, a hair outside the squircle's.
             .bg(palette::surface(Level::Raised, cx).opacity(0.72))
             .backdrop_blur(px(24.))
             .backdrop_saturate(1.6)
-            .shadow(ui::shadow_pop(cx))
+            // The ring-less elevation: the hairline below is the edge, and the pop shadow's own 1px ring
+            // on top of it drew a line three times as heavy as the design's.
+            .shadow(ui::shadow_pop_on(gpui_kit::transparent_black(), cx))
             // A hairline: one device pixel on Retina; a full point read heavy around the glass.
             .border(px(0.5))
             .border_color(if focused { palette::line_strong(cx) } else { palette::line(cx) })
@@ -459,7 +461,8 @@ impl Rustcord {
             .children(self.jump_to_present(cx))
             .child(div().relative().child(card).children(typing))
             .children(note)
-            .child(div().h(px(16.)))
+            // 8px off the window's foot, level with the user card in the left column.
+            .child(div().h(px(8.)))
     }
 
     // A small capsule 12px above the composer, out of the flow, so it never opens a gap.

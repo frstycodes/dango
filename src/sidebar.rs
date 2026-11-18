@@ -23,6 +23,8 @@ use crate::{
 // Rail geometry: 44px tiles 8px apart, centred in the 68px rail, so the state pill sits on its edge.
 pub(crate) const TILE: f32 = 44.;
 const RAIL_GAP: f32 = 8.;
+// How far a header control sits below the window's top: a 34px control centred in the 48px header row.
+const HEADER_INSET: f32 = 7.;
 pub(crate) const TILE_X: f32 = (RAIL_WIDTH - TILE) / 2.;
 const MINI: f32 = 16.;
 const MINI_GAP: f32 = 4.;
@@ -96,19 +98,26 @@ impl Rustcord {
                 RailEntry::Folder(folder, guilds) => items.push(self.folder_item(folder, guilds, window, cx)),
             }
         }
+        // The rail's slot in the header row holds macOS's traffic lights while they show (Home then leads the
+        // rail under the row); otherwise Home sits in it, inset like the header's other controls.
+        let lights = crate::layout::traffic_lights_shown(window);
+        let separator = div().w(px(24.)).h(px(2.)).flex_none().rounded(px(1.)).bg(palette::line_strong(cx));
         div()
             .id("rail")
             .w(px(RAIL_WIDTH))
             .h_full()
             .flex_none()
-            .py(px(12.))
+            .pt(px(if lights { 0. } else { HEADER_INSET }))
+            .pb(px(12.))
             .flex()
             .flex_col()
             .items_center()
             .gap(px(RAIL_GAP))
             .overflow_y_scroll()
             .text_size(px(14.))
+            .when(lights, |rail| rail.child(div().flex_none().w_full().h(px(crate::layout::HEADER_HEIGHT - RAIL_GAP + 4.)).window_control_area(gpui_kit::WindowControlArea::Drag)))
             .child(home)
+            .child(separator)
             .children(items)
             .child(rail_action("rail-discover", Nav::Compass, "Discover servers", cx).on_click(|_, _, cx| cx.open_url("https://discord.com/servers")))
             .child(div().flex_none().h(self.user_panel_clearance()))
@@ -397,6 +406,7 @@ impl Rustcord {
                 }
             }
             (_, None) => {
+                rows.push(dm_find(cx).mb(px(8.)).on_click(cx.listener(|this, _, window, cx| this.open_switcher(window, cx))).into_any_element());
                 rows.push(self.friends_row(cx));
                 let start = cat_add("dm-start", None, "Start a conversation", cx).on_click(cx.listener(|this, _, window, cx| this.open_switcher(window, cx)));
                 rows.push(div().mt(px(16.)).child(category_head("dm-head".into(), div().id("dm-head").child("Direct messages"), true, cx).child(start)).into_any_element());
@@ -438,7 +448,7 @@ impl Rustcord {
                     .child(div().truncate().child(format!("Reconnecting… {}", reconnecting.clone().unwrap_or_default()))),
             )
         });
-        let header = (crate::layout::brand_bar_height(window) == 0.).then(|| self.channel_list_head(false, cx));
+        let header = self.channel_list_head(cx);
         div()
             .relative()
             .w(px(self.channels_width))
@@ -450,28 +460,37 @@ impl Rustcord {
             .text_color(palette::muted(cx))
             .text_size(px(14.))
             .child(self.resize_handle(Edge::Channels, cx))
-            .children(header.map(|header| {
+            // The header row: 8px in, like the list below, so the name lines up with the channel rows.
+            .child(
                 div()
                     .h(px(crate::layout::HEADER_HEIGHT))
                     .flex_none()
+                    .px_2()
                     .flex()
                     .items_center()
-                    .map(|h| if self.guild_id.is_some() { h.p(px(6.)) } else { h.px_2() })
                     .window_control_area(gpui_kit::WindowControlArea::Drag)
-                    .child(header)
-            }))
+                    .child(header),
+            )
             .child(div().id("channels").flex_1().min_h_0().overflow_y_scroll().p_2().flex().flex_col().gap(px(ROW_GAP)).children(rows))
             .child(banner)
             .child(div().flex_none().h(self.user_panel_clearance()))
     }
 
 
-    /// What heads the channel list: the open server's name, or Home's search. `compact` sizes it for the
-    /// macOS strip beside the traffic lights, where it moves when that strip shows.
-    pub(crate) fn channel_list_head(&self, compact: bool, cx: &mut Context<Self>) -> AnyElement {
+    /// What heads the channel list: the open server's name, or "Home" (its search leads the list below).
+    pub(crate) fn channel_list_head(&self, cx: &mut Context<Self>) -> AnyElement {
         match self.guild() {
-            Some(guild) => server_name_button(guild.name.clone().into(), compact, cx).into_any_element(),
-            None => dm_find(compact, cx).on_click(cx.listener(|this, _, window, cx| this.open_switcher(window, cx))).into_any_element(),
+            Some(guild) => server_name_button(guild.name.clone().into(), cx).into_any_element(),
+            None => div()
+                .flex_1()
+                .min_w_0()
+                .px_2()
+                .truncate()
+                .text_size(px(16.))
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(palette::strong(cx))
+                .child("Home")
+                .into_any_element(),
         }
     }
 
@@ -552,11 +571,7 @@ impl Rustcord {
         });
         let group: SharedString = format!("ch-{}", channel.id).into();
         let hovered = self.hovered_row.as_deref() == Some(channel.id.as_str());
-        let meta = match (muted, channel.private) {
-            (true, _) => Some(Nav::BellSlash.icon()),
-            (false, true) => Some(Icon::new(Glyph::HashtagLock)),
-            _ => None,
-        };
+        let meta = muted.then(|| Nav::BellSlash.icon());
         let faint = palette::faint(cx);
         let carried = self.drag_motion.row(&channel.id);
         let welcomes = channel.kind == ChannelKind::Voice && self.welcomes_voice_drop(channel, guild);
@@ -1032,8 +1047,19 @@ fn row_action(id: SharedString, icon: Icon, tooltip: &'static str, cx: &App) -> 
         .tooltip(move |window, cx| Tooltip::new(tooltip).build(window, cx))
 }
 
-// The type glyph a channel leads with (Discord's raw types: 5 announcement, 13 stage, 16 media).
+// The type glyph a channel leads with (Discord's raw types: 5 announcement, 13 stage, 16 media); a private
+// channel's carries a padlock in its corner.
 pub(crate) fn channel_glyph(channel: &Channel) -> Icon {
+    if channel.private {
+        return Icon::new(match (channel.kind, channel.raw_type) {
+            (_, 5) => Glyph::AnnouncementLocked,
+            (_, 13) => Glyph::StageLocked,
+            (_, 16) => Glyph::MediaLocked,
+            (ChannelKind::Voice, _) => Glyph::VoiceLocked,
+            (ChannelKind::Forum, _) => Glyph::ForumLocked,
+            _ => Glyph::TextLocked,
+        });
+    }
     match (channel.kind, channel.raw_type) {
         (_, 5) => Nav::Megaphone.icon(),
         (_, 13) => Nav::Stage.icon(),
@@ -1078,26 +1104,27 @@ fn voice_mark_for(state: &crate::discord::VoiceState, cx: &App) -> Option<AnyEle
 }
 
 // The DM list's header: a field-shaped button that opens the quick switcher.
-fn dm_find(compact: bool, cx: &App) -> Stateful<Div> {
+fn dm_find(cx: &App) -> Stateful<Div> {
     let strong = palette::strong(cx);
+    let field = ui::search_field_fill(cx);
     div()
         .id("dm-find")
         .occlude()
-        .when(compact, |d| d.flex_1().min_w_0())
-        .when(!compact, |d| d.w_full())
-        .h(px(if compact { 28. } else { 32. }))
+        .w_full()
+        .h(px(34.))
         .px(px(10.))
         .squircle(ui::RADIUS_SM)
         .flex()
         .items_center()
         .gap_2()
         .cursor_pointer()
-        .bg(palette::surface(palette::Level::Rail, cx))
+        .bg(field)
+        .backdrop_blur(px(12.))
         .text_color(palette::muted(cx))
         .text_size(px(14.))
         .hover(move |s| s.text_color(strong))
         .child(Icon::new(Glyph::Search).size(px(16.)))
-        .child(div().truncate().child("Find or start a conversation"))
+        .child(div().relative().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().child("Find or start a conversation").child(ui::fade_end(field)))
 }
 
 pub(crate) fn channel_sections(guild: &Guild, me: &str) -> Vec<(Option<Channel>, Vec<Channel>)> {
@@ -1486,36 +1513,31 @@ mod tests {
     }
 }
 
-// The open server's name as one button that drops the server menu: the channel list's header (16px), or,
-// `compact`, the macOS strip beside the traffic lights (14px).
-pub(crate) fn server_name_button(name: SharedString, compact: bool, cx: &mut Context<Rustcord>) -> Stateful<Div> {
+// The open server's name as one button that drops the server menu, heading the channel list.
+pub(crate) fn server_name_button(name: SharedString, cx: &mut Context<Rustcord>) -> Stateful<Div> {
     let hover = palette::hover(cx);
-    let size = if compact { 14. } else { 16. };
     div()
         .id("server-header")
         .occlude()
+        .flex_1()
         .min_w_0()
-        .when(compact, |b| b.h(px(28.)))
-        .when(!compact, |b| b.flex_1().h_full())
+        .h(px(34.))
         .px_2()
         .squircle(ui::RADIUS_SM)
         .flex()
         .items_center()
-        .gap(px(if compact { 4. } else { 8. }))
+        .gap_2()
         .cursor_pointer()
-        .text_size(px(size))
+        .text_size(px(16.))
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(palette::strong(cx))
         .hover(move |s| s.bg(hover))
-        .child(div().when(!compact, |d| d.flex_1()).min_w_0().truncate().child(name))
-        .child(Nav::Caret.icon().size(px(size)).text_color(palette::muted(cx)))
-        .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(move |this, _: &gpui_kit::MouseDownEvent, window, cx| {
+        .child(div().flex_1().min_w_0().truncate().child(name))
+        .child(Nav::Caret.icon().size(px(16.)).text_color(palette::muted(cx)))
+        .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(|this, _: &gpui_kit::MouseDownEvent, _, cx| {
             let Some(guild_id) = this.guild_id.clone() else { return };
-            // Drops from the button's bottom edge: in the strip under the name, else under the list's header.
-            let at = match compact {
-                true => gpui_kit::point(px(crate::layout::TRAFFIC_LIGHTS), px(crate::layout::BRAND_BAR_HEIGHT - 4.)),
-                false => gpui_kit::point(px(RAIL_WIDTH + 6.), px(crate::layout::brand_bar_height(window) + crate::layout::HEADER_HEIGHT)),
-            };
+            // Drops from the button's bottom edge, at its left.
+            let at = gpui_kit::point(px(RAIL_WIDTH + 8.), px(crate::layout::HEADER_HEIGHT - 4.));
             this.open_server_menu(guild_id, at, true, cx);
         }))
 }

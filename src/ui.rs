@@ -112,6 +112,34 @@ pub fn scroll_edge(surface: Hsla, fade_right: f32) -> Div {
             linear_color_stop(surface.opacity(0.9), 0.),
             linear_color_stop(surface.opacity(0.), 1.),
         )))
+        // A second, shorter tint over the bar itself: the header's text keeps ~2/3 cover behind it while
+        // the fade still runs through the bar (one two-stop gradient can't do both).
+        .child(div().absolute().top_0().left_0().right(px(fade_right)).h(px(crate::layout::HEADER_HEIGHT)).bg(linear_gradient(
+            180.,
+            linear_color_stop(surface.opacity(0.5), 0.),
+            linear_color_stop(surface.opacity(0.), 1.),
+        )))
+}
+
+/// Fades a single line of text out at its container's right edge, instead of cutting it or adding an
+/// ellipsis: the container is `relative` and clips, and `bg` is the surface the text sits on.
+pub fn fade_end(bg: Hsla) -> Div {
+    // On a translucent field the tint alone can't hide the text, so a blur rising from the left takes it too.
+    div()
+        .absolute()
+        .top_0()
+        .bottom_0()
+        .right_0()
+        .w(px(24.))
+        .backdrop_blur(px(4.))
+        .backdrop_fade(px(0.), px(0.), px(0.), px(24.))
+        .bg(linear_gradient(90., linear_color_stop(bg.opacity(0.), 0.), linear_color_stop(bg, 1.)))
+}
+
+/// A search field's fill: the rail tone at 60% over a light blur, so what scrolls under a header stays
+/// faintly visible through it rather than hitting an opaque block.
+pub fn search_field_fill(cx: &App) -> Hsla {
+    palette::surface(palette::Level::Rail, cx).opacity(0.6)
 }
 
 pub fn live_badge() -> Div {
