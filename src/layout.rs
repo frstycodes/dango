@@ -378,17 +378,14 @@ impl Rustcord {
     }
 
     // Tops the user area once an update has downloaded: which version, and the restart that installs it.
-    // Left alone, it installs on the next launch. Restart waits out a call rather than dropping it.
+    // Left alone, it installs on the next launch. In a call, Restart asks before leaving it.
     fn update_row(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let staged = self.update_ready.as_ref()?;
-        let in_call = self.call.is_some();
-        let tip = if in_call { "Available once you leave the call. Otherwise Dango updates the next time it opens." } else { "Installs the update and reopens Dango" };
         let restart = ui::button("restart-to-update", ui::Tone::Primary, cx)
             .small()
             .child("Restart")
-            .disabled(in_call)
-            .tooltip(move |window, cx| ui::tip(tip, window, cx))
-            .when(!in_call, |b| b.on_click(cx.listener(|this, _, _, cx| this.restart_to_update(cx))));
+            .tooltip(|window, cx| ui::tip("Installs the update and reopens Dango", window, cx))
+            .on_click(cx.listener(|this, _, _, cx| this.request_restart(this.update_ready.clone(), cx)));
         let row = div()
             .h(px(UPDATE_HEIGHT))
             .flex_none()
@@ -418,22 +415,6 @@ impl Rustcord {
                 });
                 if shown.is_err() {
                     return;
-                }
-            }
-        })
-        .detach();
-    }
-
-    fn restart_to_update(&mut self, cx: &mut Context<Self>) {
-        let Some(staged) = self.update_ready.take() else { return };
-        self.prefs.save();
-        cx.notify();
-        cx.spawn(async move |this, cx| {
-            match cx.background_spawn(async move { crate::updater::install(&staged) }).await {
-                Ok(exe) => crate::updater::relaunch(&exe),
-                Err(e) => {
-                    eprintln!("[updater] install failed: {e}");
-                    this.update(cx, |this, cx| this.show_toast("Couldn't install the update. Dango will try again later.", cx)).ok();
                 }
             }
         })

@@ -9,6 +9,6 @@ pub fn init(cx: &mut App) {
     // `secondary` is ⌘ on macOS and Ctrl elsewhere.
     cx.bind_keys([KeyBinding::new("secondary-q", Quit, None), KeyBinding::new("secondary-r", Restart, None), KeyBinding::new("secondary-f", FocusSearch, Some("Chat"))]);
     cx.on_action(|_: &Quit, cx| cx.quit());
-    // Relaunches this build with the same arguments once this process has exited.
-    cx.on_action(|_: &Restart, cx| cx.restart());
+    // In a call it asks first, then leaves voice (restart.rs).
+    cx.on_action(|_: &Restart, cx| crate::restart::restart_app(cx));
 }

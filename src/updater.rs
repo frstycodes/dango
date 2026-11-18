@@ -213,21 +213,13 @@ fn sha256_file(path: &Path) -> std::io::Result<Vec<u8>> {
     Ok(hasher.finalize().to_vec())
 }
 
-// Swaps the staged build in place of the running one and returns the executable to relaunch. The staged
+// Swaps the staged build in place of the running one; `cx.restart()` then opens it. The staged
 // file goes either way: one that failed to install would only fail again, and the next check refetches.
-pub fn install(staged: &Staged) -> Result<PathBuf, String> {
+pub fn install(staged: &Staged) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let result = platform::put_in_place(&exe, &staged.path);
     std::fs::remove_file(&staged.path).ok();
-    result.map(|()| exe)
-}
-
-// Starts the new build with this run's arguments and ends this one.
-pub fn relaunch(exe: &Path) -> ! {
-    if let Err(e) = std::process::Command::new(exe).args(std::env::args_os().skip(1)).spawn() {
-        eprintln!("[updater] relaunch failed: {e}");
-    }
-    std::process::exit(0)
+    result
 }
 
 // The build a previous update set aside; Windows can't delete it while it's still running.

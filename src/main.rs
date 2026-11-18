@@ -4,6 +4,7 @@
 mod accounts;
 mod attachments;
 mod app_keys;
+mod restart;
 mod feed_keys;
 mod auth;
 mod cache;
@@ -164,7 +165,8 @@ fn install_then_open(staged: updater::Staged, signed_in: bool, cx: &mut gpui_kit
     let splash = splash::open(format!("Installing {}…", staged.version), cx);
     cx.spawn(async move |cx| {
         match cx.background_spawn(async move { updater::install(&staged) }).await {
-            Ok(exe) => updater::relaunch(&exe),
+            // Opens the new build once this process is gone, so the two never overlap.
+            Ok(()) => return cx.update(|cx| cx.restart()),
             Err(e) => eprintln!("[updater] install failed: {e}"),
         }
         cx.update(|cx| {
@@ -739,6 +741,8 @@ impl Rustcord {
         .detach();
         #[allow(unused_mut)]
         let mut chord = Self::build(window, splash, cx);
+        let main = restart::Main(cx.entity().downgrade());
+        cx.set_global(main);
         chord.watch_for_updates(cx);
         cx.on_focus_out(&chord.feed_focus, window, |this, _, _, cx| {
             this.focused_message = None;
