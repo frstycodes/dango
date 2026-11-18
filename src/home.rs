@@ -211,7 +211,7 @@ impl Rustcord {
             .into_any_element()
     }
 
-    pub(crate) fn render_home(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn render_home(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let tab = self.friends_tab;
         let status_of = |id: &str| self.presences.get(id).map(|p| p.status).unwrap_or_default();
         let people: Vec<Relationship> = self
@@ -226,7 +226,17 @@ impl Rustcord {
             .cloned()
             .collect();
         let pending = self.relationships.iter().filter(|r| r.kind == Relation::Incoming).count() as u32;
-        let tabs = [(FriendsTab::Online, "Online"), (FriendsTab::All, "All"), (FriendsTab::Pending, "Pending"), (FriendsTab::Blocked, "Blocked")];
+        const TABS: [FriendsTab; 4] = [FriendsTab::Online, FriendsTab::All, FriendsTab::Pending, FriendsTab::Blocked];
+        let items = [ui::Tab::new("Online"), ui::Tab::new("All"), ui::Tab::new("Pending").count((pending > 0).then_some(pending)), ui::Tab::new("Blocked")];
+        let selected = TABS.iter().position(|t| *t == tab).unwrap_or_default();
+        let this = cx.entity().downgrade();
+        let tabs = ui::pill_tabs("friends-tabs", &items, selected, move |i, _, cx| {
+            this.update(cx, |this, cx| {
+                this.friends_tab = TABS[i];
+                cx.notify();
+            })
+            .ok();
+        }, window, cx);
         let header = div()
             .occlude()
             .h(px(crate::layout::HEADER_HEIGHT))
@@ -251,13 +261,7 @@ impl Rustcord {
                     .child(Icon::new(Glyph::Users).size(px(20.)).text_color(palette::faint(cx)))
                     .child("Friends"),
             )
-            .child(div().flex().min_w_0().overflow_hidden().gap_1().children(tabs.map(|(this_tab, label)| {
-                let count = (this_tab == FriendsTab::Pending && pending > 0).then_some(pending);
-                friends_tab(this_tab, label, tab == this_tab, count, cx).on_click(cx.listener(move |this, _, _, cx| {
-                    this.friends_tab = this_tab;
-                    cx.notify();
-                }))
-            })))
+            .child(div().min_w_0().overflow_hidden().occlude().child(tabs))
             .child(div().ml_auto().child(self.caption_clearance(true)));
         let heading = match tab {
             FriendsTab::Online => "Online",
@@ -366,28 +370,6 @@ impl Rustcord {
             })
             .into_any_element()
     }
-}
-
-// A filter tab (.pills .tab): selected takes the fill, the rest hover to a lighter one.
-fn friends_tab(tab: FriendsTab, label: &'static str, selected: bool, count: Option<u32>, cx: &App) -> Stateful<Div> {
-    let (hover, strong) = (palette::hover(cx), palette::strong(cx));
-    div()
-        .id(("friends-tab", tab as usize))
-        .occlude()
-        .h(px(30.))
-        .px_3()
-        .squircle(ui::RADIUS_SM)
-        .flex()
-        .items_center()
-        .gap(px(6.))
-        .cursor_pointer()
-        .whitespace_nowrap()
-        .font_weight(FontWeight::MEDIUM)
-        .text_color(if selected { strong } else { palette::muted(cx) })
-        .when(selected, |t| t.bg(palette::selected(cx)))
-        .when(!selected, |t| t.hover(move |s| s.bg(hover).text_color(strong)))
-        .child(label)
-        .children(count.map(ui::count_badge))
 }
 
 // A friend row's action (.friend .acts .iconbtn): a raised 36px tile with a hairline; `tone` is the
