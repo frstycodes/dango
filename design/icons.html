@@ -37,6 +37,7 @@ svg.ri { display: block; flex: none; fill: none; stroke: currentColor; stroke-wi
 .stats { display: flex; gap: var(--space-6); flex-wrap: wrap; margin-top: var(--space-4); }
 .stats b { display: block; font-size: var(--text-xl); color: var(--text-strong); font-variant-numeric: tabular-nums; line-height: 1.1; }
 .stats span { color: var(--text-muted); }
+.weight { margin-top: var(--space-4); }
 .jump { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-4); }
 
 /* Toggle demos */
@@ -79,8 +80,9 @@ svg.ri { display: block; flex: none; fill: none; stroke: currentColor; stroke-wi
 <main>
 <section id="icons">
   <h1>Icons</h1>
-  <p class="lede">Reicon replaces Phosphor everywhere. Its outlines are soft and round-jointed, which suits the dumplings better than Phosphor's straight cuts. It ships at 1.5 on a 24 grid, and every glyph here is thickened to 2 so its stroke matches Gabarito's stem at 16px. Each card shows the glyph at 16px and 40px on light and dark, the Phosphor glyph it replaces, and every place that uses it today.</p>
+  <p class="lede">Reicon replaces Phosphor everywhere. Its outlines are soft and round-jointed, which suits the dumplings better than Phosphor's straight cuts. Chrome uses Reicon's filled weight, like Discord. Glyphs that are only lines (#, +, arrows) stay lines, because Reicon's filled form boxes them in a tile. The outline weight ships at 1.5 on a 24 grid and is thickened here to 2, matching Gabarito's stem at 16px. Each card shows the glyph at 16px and 40px on light and dark, the Phosphor glyph it replaces, and every place that uses it today.</p>
   <div class="stats" id="stats"></div>
+  <div class="seg weight" role="group" aria-label="Icon weight" id="weight"><button data-v="filled" aria-pressed="true">Filled</button><button data-v="outline" aria-pressed="false">Outline</button></div>
   <div class="jump" id="jump"></div>
 </section>
 <section id="channels-custom">
@@ -123,7 +125,7 @@ const svg = (inner, size = 24) => `<svg class="ri" width="${size}" height="${siz
 // A base glyph with a badge knocked out of its corner: the badge's own strokes, widened by a gap, cut the base.
 function badged(base, badge) {
   const id = `m${uid++}`;
-  return `<mask id="${id}" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/><g stroke="#000" fill="#000" stroke-width="5">${badge}</g></mask><g mask="url(#${id})">${REICON[base]}</g>${badge}`;
+  return `<mask id="${id}" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/><g stroke="#000" fill="#000" stroke-width="5">${badge}</g></mask><g mask="url(#${id})">${ICON(base)}</g>${badge}`;
 }
 // One glyph whose slash draws on: the base, cut by a widening line, plus the slash itself.
 function slashed(base, on) {
@@ -131,6 +133,22 @@ function slashed(base, on) {
   return `<g${on ? ' data-on="true"' : ""}><mask id="${id}" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/><path class="slash-cut" pathLength="1" d="${d}"/></mask><g mask="url(#${id})">${base}</g><path class="slash" pathLength="1" d="${d}"/></g>`;
 }
 
+// Filled is the default, like Discord's chrome; the switch shows the outline set beside it.
+let FILLED = true;
+try { FILLED = localStorage.getItem("dango-icons-weight") !== "outline"; } catch {}
+// Line-only glyphs whose Reicon filled form wraps them in a tile or circle: Discord draws these as
+// bare lines in either weight, so they keep the outline.
+const LINE_ONLY = new Set(["hashtag2", "add", "arrow-right5", "arrow-up5", "check-read", "more", "sort"]);
+const ICON = name => (FILLED && !LINE_ONLY.has(name) && REICON_FILLED[name]) || REICON[name] || "";
+$("#weight").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  FILLED = b.dataset.v === "filled";
+  try { localStorage.setItem("dango-icons-weight", b.dataset.v); } catch {}
+  renderAll();
+});
+
+function renderAll() {
+for (const b of $$("#weight button")) b.setAttribute("aria-pressed", String((b.dataset.v === "filled") === FILLED));
 const LOCK = `<path d="${sq(14, 16.25, 9, 6.75, 2)}"/><path d="M16.25 16.25v-1.5a2.25 2.25 0 0 1 4.5 0v1.5"/>`;
 const AGE = `<path d="M19.5 13.5v4.25"/><circle cx="19.5" cy="21.25" r="1.4" fill="currentColor" stroke="none"/>`;
 const MONITOR = `<path d="${sq(2.5, 3.5, 19, 13.5, 3.25)}"/><path d="M8.5 21h7M12 17v4"/>`;
@@ -138,9 +156,9 @@ const SHARE = `<path class="share-fill" d="${sq(2.5, 3.5, 19, 13.5, 3.25)}"/>${M
 const BAR = (x, top, dim) => `<path d="M${x} 19.5V${top}"${dim ? ' opacity="0.3"' : ""}/>`;
 
 const CUSTOM = {
-  muted: { name: "Muted", svg: slashed(REICON.microphone2, true), on: true },
-  deafened: { name: "Deafened", svg: slashed(REICON.headphone, true), on: true },
-  "camera-off": { name: "Camera off", svg: slashed(REICON.video, true), on: true },
+  muted: { name: "Muted", svg: slashed(ICON("microphone2"), true), on: true },
+  deafened: { name: "Deafened", svg: slashed(ICON("headphone"), true), on: true },
+  "camera-off": { name: "Camera off", svg: slashed(ICON("video"), true), on: true },
   gif: { name: "GIF", svg: `<path d="${sq(2.5, 5, 19, 14, 3.5)}"/><path d="M10 10.1a2.1 2.1 0 1 0 .4 2.2H8.6M12.75 9.75v4.5M15.5 14.25v-4.5h2.75M15.5 12h2.25" stroke-width="1.75"/>` },
   "reply-spine": { name: "Reply line", svg: `<path d="M5 20v-6.5a6 6 0 0 1 6-6h9"/>` },
   "collapse-all": { name: "Collapse all", svg: `<path d="M8 3.5 12 7.5 16 3.5M8 20.5 12 16.5 16 20.5M4.5 12h15"/>` },
@@ -192,7 +210,7 @@ function card({ inner, title, meta, tag, rows = [] }) {
   </article>`;
 }
 const was = rows => [...new Set(rows.map(r => r.was).filter(Boolean))].map(n => `<i class="ph-bold ph-${n}" title="Phosphor ${n}"></i>`).join("");
-const innerFor = to => to.startsWith("CUSTOM:") ? CUSTOM[to.slice(7)].svg : REICON[to] ?? "";
+const innerFor = to => to.startsWith("CUSTOM:") ? CUSTOM[to.slice(7)].svg : ICON(to) ?? "";
 
 // One card per target glyph within a group, so a glyph that several meanings now share shows as one card.
 const GROUPS = [["Channels", "Channels and navigation"], ["Voice", "Voice, video and calls"], ["Messages", "Messages"], ["People", "People and roles"], ["Chrome", "Controls and chrome"], ["Window", "Window"], ["Status", "Status and feedback"], ["Media", "Media and files"], ["Settings", "Settings and devices"], ["Emoji", "Emoji picker"], ["Brand", "Brand marks"]];
@@ -219,7 +237,7 @@ $("#groups").innerHTML = GROUPS.map(([g, name]) => {
 }).join("");
 
 $("#channel-grid").innerHTML = CHANNELS.flatMap(([name, base, age]) => [
-  card({ inner: REICON[base], title: `${name} channel`, meta: `<span>${base}</span>` }),
+  card({ inner: ICON(base), title: `${name} channel`, meta: `<span>${base}</span>` }),
   card({ inner: badged(base, LOCK), title: `${name} channel, private`, meta: `<span>${base} + lock</span>`, tag: "custom" }),
   ...(age ? [card({ inner: badged(base, AGE), title: `${name} channel, age-restricted`, meta: `<span>${base} + mark</span>`, tag: "custom" })] : []),
 ]).join("");
@@ -229,9 +247,9 @@ $("#custom-grid").innerHTML = Object.entries(CUSTOM).filter(([k]) => !["muted", 
 
 // Toggles: each button flips data-on on its glyphs; the preview tiles stay in step.
 const TOGGLES = [
-  ["Mute", "Unmute", () => slashed(REICON.microphone2), "danger"],
-  ["Deafen", "Undeafen", () => slashed(REICON.headphone), "danger"],
-  ["Turn on camera", "Turn off camera", () => slashed(REICON.video), "live", true],
+  ["Mute", "Unmute", () => slashed(ICON("microphone2")), "danger"],
+  ["Deafen", "Undeafen", () => slashed(ICON("headphone")), "danger"],
+  ["Turn on camera", "Turn off camera", () => slashed(ICON("video")), "live", true],
   ["Share screen", "Stop sharing", () => SHARE, "live"],
 ];
 $("#toggle-grid").innerHTML = TOGGLES.map(([offLabel, onLabel, make, tone, startOn], i) => `<article class="ic" data-toggle="${i}" data-on="${!!startOn}">
@@ -250,7 +268,7 @@ for (const el of $$("[data-toggle]")) {
 
 const SWAPS = [["Play / pause", "play", "pause"], ["Full screen / exit", "fullscreen", "exit-fullscreen"], ["Copy / copied", "copy", "check3"], ["Show / hide", "eye", "eye-slash"]];
 $("#swap-grid").innerHTML = SWAPS.map(([name, a, b]) => `<article class="ic">
-  <div class="tg-row"><button class="tg" data-swap aria-label="${name}"><span class="swap">${svg(REICON[a], 20)}${svg(REICON[b], 20).replace("<svg", "<svg data-out")}</span></button><span class="ic-name">${name}</span></div>
+  <div class="tg-row"><button class="tg" data-swap aria-label="${name}"><span class="swap">${svg(ICON(a), 20)}${svg(ICON(b), 20).replace("<svg", "<svg data-out")}</span></button><span class="ic-name">${name}</span></div>
   <div class="ic-meta"><span>${a} → ${b}</span></div></article>`).join("");
 for (const b of $$("[data-swap]")) b.addEventListener("click", () => { for (const s of $$(".swap > svg", b)) s.toggleAttribute("data-out"); });
 
@@ -260,9 +278,11 @@ $("#gap-grid").innerHTML = [
 ].join("");
 
 const customCount = Object.keys(CUSTOM).length + $$("#channel-grid .ic-tag").length;
-const reiconCount = new Set(ICON_MAP.map(r => r.to).filter(t => REICON[t])).size;
+const reiconCount = new Set(ICON_MAP.map(r => r.to).filter(t => ICON(t))).size;
 $("#stats").innerHTML = [[ICON_MAP.length, "current icons"], [byTarget.size, "glyphs after the move"], [reiconCount, "from Reicon"], [customCount, "custom"], [gaps.length, "brand or gap"]].map(([n, l]) => `<div><b>${n}</b><span>${l}</span></div>`).join("");
 $("#jump").innerHTML = GROUPS.map(([g, name]) => `<a class="btn" href="#g-${g.toLowerCase()}">${name}</a>`).join("");
+}
+renderAll();
 </script>
 </body>
 </html>
