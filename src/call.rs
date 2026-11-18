@@ -16,7 +16,7 @@ use crate::{
     Rustcord,
     discord::{self, User, VoiceState},
     icons::Glyph,
-    layout::RAIL_WIDTH,
+    layout::{HEADER_HEIGHT, RAIL_WIDTH},
     menu::{Entry, item, submenu},
     palette::{self, stage},
     settings::Page,
@@ -33,7 +33,8 @@ const ERROR_HEIGHT: f32 = 59.;
 const PREVIEW_AGE: std::time::Duration = std::time::Duration::from_secs(60);
 // After a failed preview fetch, how long until the next try.
 const PREVIEW_RETRY: std::time::Duration = std::time::Duration::from_secs(20);
-// The stage (.call): 16px padding and gaps around a 32px header and 48px controls.
+// The stage (.call): the 48px header line (FOCUS_HEAD) over a 32px header row, then 16px padding and gaps
+// around the tiles and 48px controls.
 const STAGE_PAD: f32 = 16.;
 const STAGE_GAP: f32 = 16.;
 const HEAD_HEIGHT: f32 = 32.;
@@ -50,7 +51,7 @@ const STRIP_TOGGLE: f32 = 28.;
 const STRIP_LIMIT: usize = 12;
 // Names on strip cards and the focused stream show while the pointer is anywhere on the stage.
 const STAGE_GROUP: &str = "call-stage";
-// The focused view's header band, the app's one header line.
+// The stage's header band, the app's one header line.
 const FOCUS_HEAD: f32 = 48.;
 const CONTROLS_IDLE: Duration = Duration::from_secs(3);
 const CHAT_WIDTH: f32 = 340.;
@@ -63,7 +64,7 @@ const METER_BARS: usize = 28;
 
 // The stage's tile area (left, top, width, height), between its header and controls.
 fn tile_area(stage: (f32, f32)) -> (f32, f32, f32, f32) {
-    let top = STAGE_PAD + HEAD_HEIGHT + STAGE_GAP;
+    let top = FOCUS_HEAD + STAGE_GAP;
     (STAGE_PAD, top, stage.0 - STAGE_PAD * 2., (stage.1 - top - CONTROLS_HEIGHT - STAGE_GAP - STAGE_PAD).max(0.))
 }
 
@@ -604,7 +605,7 @@ impl Rustcord {
     // chat never covers the stream).
     pub(crate) fn render_call_with_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let call_channel = self.call.as_ref()?.channel.clone();
-        let chat_open = self.call_chat && self.channel.as_ref().is_some_and(|c| c.id == call_channel.id);
+        let chat_open = self.call_chat_shown();
         let drawer = chat_open.then(|| self.call_chat_drawer(&call_channel, window, cx));
         let call = self.render_call(window, cx)?;
         Some(div().size_full().flex().child(div().flex_1().min_w_0().h_full().child(call)).children(drawer).into_any_element())
@@ -625,20 +626,23 @@ impl Rustcord {
             .border_color(theme.sidebar_border)
             .child(
                 div()
-                    .h(px(48.))
+                    .h(px(HEADER_HEIGHT))
                     .flex_none()
-                    .px_4()
+                    .pl_4()
+                    .pr(px(8.))
                     .flex()
                     .items_center()
                     .gap_2()
+                    .window_control_area(gpui_kit::WindowControlArea::Drag)
                     .border_b_1()
                     .border_color(theme.sidebar_border)
                     .child(Icon::new(Glyph::VolumeHigh).size(px(20.)).text_color(theme.muted_foreground))
                     .child(div().flex_1().min_w_0().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(channel.name.clone()))
-                    .child(ui::icon_button("call-chat-close", Glyph::X, "Close Chat", cx).on_click(cx.listener(|this, _, _, cx| {
+                    .child(ui::icon_button("call-chat-close", Glyph::X, "Close Chat", cx).occlude().on_click(cx.listener(|this, _, _, cx| {
                         this.call_chat = false;
                         cx.notify();
-                    }))),
+                    })))
+                    .child(self.caption_clearance(true)),
             )
             .child(div().relative().flex_1().min_h_0().child(messages))
             .child(composer)
@@ -676,7 +680,7 @@ impl Rustcord {
             return Some(self.focus_stage(big, &tiles, shown, cx));
         }
         let viewport = window.viewport_size();
-        let chat = if self.call_chat && self.channel.as_ref().is_some_and(|c| c.id == call.channel.id) { CHAT_WIDTH } else { 0. };
+        let chat = if self.call_chat_shown() { CHAT_WIDTH } else { 0. };
         let stage_size = match self.call_fullscreen {
             true => (f32::from(viewport.width) - chat, f32::from(viewport.height)),
             false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - chat, f32::from(viewport.height) - 1.),
@@ -686,15 +690,13 @@ impl Rustcord {
             Some(streamer) => self.ended_stage(&streamer, width, height, cx),
             None => self.card_stage(&tiles, (width, height), cx),
         };
+        let stage = div().flex_1().min_h_0().flex().flex_col().gap(px(STAGE_GAP)).pt(px(STAGE_GAP)).px(px(STAGE_PAD)).pb(px(STAGE_PAD));
         Some(
             self.stage_root(cx)
-                .p(px(STAGE_PAD))
                 .flex()
                 .flex_col()
-                .gap(px(STAGE_GAP))
-                .child(self.call_header(cx))
-                .child(div().flex_1().min_h_0().child(body))
-                .child(self.call_controls(cx))
+                .child(self.stage_head(cx))
+                .child(stage.child(div().flex_1().min_h_0().child(body)).child(self.call_controls(cx)))
                 .into_any_element(),
         )
     }
@@ -734,7 +736,7 @@ impl Rustcord {
         let overlay_head = self.call_fullscreen;
         let drift = 6. * (1. - shown);
         let band = CONTROLS_HEIGHT + STAGE_PAD * 2.;
-        let head = div().h(px(FOCUS_HEAD)).flex_none().px(px(STAGE_PAD)).flex().items_center().child(div().flex_1().min_w_0().child(self.call_header(cx)));
+        let head = self.stage_head(cx);
         let (in_flow, floating) = if overlay_head { (None, Some(head)) } else { (Some(head), None) };
         let toggle_bottom = if strip { STRIP_GAP } else { band + STRIP_GAP };
         let media = div()
@@ -755,7 +757,7 @@ impl Rustcord {
                 d.child(div().id("filmstrip").flex_none().flex().overflow_x_scroll().pt(px(STRIP_GAP)).px(px(STAGE_PAD)).child(div().mx_auto().flex_none().flex().gap(px(STRIP_GAP)).children(cards)))
                     .child(div().h(px(band)).flex_none())
             })
-            .children(floating.map(|head| div().absolute().top(px(-drift)).left_0().right_0().opacity(shown).bg(scrim(180.)).child(head.pb(px(24.)).h(px(FOCUS_HEAD + 24.)))))
+            .children(floating.map(|head| div().absolute().top(px(-drift)).left_0().right_0().h(px(FOCUS_HEAD + 24.)).opacity(shown).bg(scrim(180.)).child(head)))
             .child(
                 div()
                     .absolute()
@@ -840,6 +842,26 @@ impl Rustcord {
         self.call_pointer_at.elapsed() > CONTROLS_IDLE && self.device_menu.is_none() && self.menu.is_none()
     }
 
+    // The header line over the stage: it drags the window, and clears Windows' caption buttons while the
+    // stage runs to the window's right edge.
+    fn stage_head(&self, cx: &mut Context<Self>) -> Div {
+        div()
+            .h(px(FOCUS_HEAD))
+            .flex_none()
+            .pl(px(STAGE_PAD))
+            .pr(px(8.))
+            .flex()
+            .items_center()
+            // Drag area: every control inside it occludes it, or Windows' caption takes its clicks.
+            .window_control_area(gpui_kit::WindowControlArea::Drag)
+            .child(div().flex_1().min_w_0().child(self.call_header(cx)))
+            .child(self.caption_clearance(!self.call_chat_shown()))
+    }
+
+    fn call_chat_shown(&self) -> bool {
+        self.call_chat && self.call.as_ref().is_some_and(|call| self.channel.as_ref().is_some_and(|c| c.id == call.channel.id))
+    }
+
     // .callhead: the room (or whose screen), how long the call has run, who's in it, then the view
     // controls. While watching one stream: its quality, how smoothly it plays and a way to stop.
     fn call_header(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -910,7 +932,7 @@ impl Rustcord {
                 .child(format!("{quality}{label}"))
                 .tooltip(move |window, cx| Tooltip::new(format!("{label}: {fps:.0} frames per second")).build(window, cx))
         });
-        let stop = watching.map(|_| stage_button("stop-watching", if several { "Stop all" } else { "Stop watching" }).on_click(cx.listener(|this, _, _, cx| this.stop_watching(cx))));
+        let stop = watching.map(|_| stage_button("stop-watching", if several { "Stop all" } else { "Stop watching" }).occlude().on_click(cx.listener(|this, _, _, cx| this.stop_watching(cx))));
         let chat_open = self.call_chat;
         div()
             .h(px(HEAD_HEIGHT))
@@ -928,6 +950,7 @@ impl Rustcord {
             .child(div().w(px(1.)).h(px(20.)).mx(px(2.)).flex_none().bg(stage::wash(0.14)))
             .child(
                 stage_icon_button("call-chat", Glyph::ChatRound, if chat_open { "Chat: hide the channel's messages" } else { "Chat: show the channel's messages beside the call" }, chat_open)
+                    .occlude()
                     .on_click(cx.listener(|this, _, window, cx| this.toggle_call_chat(window, cx))),
             )
             .into_any_element()

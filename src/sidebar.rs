@@ -119,7 +119,10 @@ impl Rustcord {
             .overflow_y_scroll()
             .text_size(px(14.))
             .when(lights, |rail| rail.child(div().flex_none().w_full().h(px(crate::layout::HEADER_HEIGHT - RAIL_GAP + 4.)).window_control_area(gpui_kit::WindowControlArea::Drag)))
-            .child(home)
+            // Without the lights, Home holds the slot over a drag strip; Home keeps its clicks from the strip,
+            // and the rail still scrolls under it.
+            .when(!lights, |rail| rail.child(div().absolute().top_0().left_0().w_full().h(px(crate::layout::HEADER_HEIGHT)).window_control_area(gpui_kit::WindowControlArea::Drag)))
+            .child(if lights { home } else { div().block_mouse_except_scroll().child(home).into_any_element() })
             .children(dm_tiles)
             .child(separator)
             .children(items)

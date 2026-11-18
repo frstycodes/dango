@@ -17,7 +17,8 @@ use crate::{
 };
 
 // Room at the window's top for the traffic lights and Windows' caption buttons, which overlays keep clear of.
-pub const TITLE_HEIGHT: f32 = 36.;
+// The caption buttons run the header line's full height.
+pub const TITLE_HEIGHT: f32 = if cfg!(target_os = "windows") { HEADER_HEIGHT } else { 36. };
 // Every column's header, which is also where the window drags from.
 pub const HEADER_HEIGHT: f32 = 48.;
 pub const RAIL_WIDTH: f32 = 68.;
