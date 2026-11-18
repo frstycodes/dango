@@ -2,6 +2,8 @@
 // become the search endpoint's filters; whatever is left is the text to find. A filter picked from the
 // popover sits in the field as an atomic token whose text is that same syntax with an id (`from:42`), so
 // typed and picked filters parse alike.
+use std::ops::Range;
+
 use chrono::{NaiveDate, TimeZone, Utc};
 use gpui_kit::component::input::{InlineToken, InputContent};
 use serde::{Deserialize, Serialize};
@@ -12,6 +14,9 @@ const DISCORD_EPOCH: i64 = 1_420_070_400_000;
 pub const HAS: [&str; 9] = ["link", "embed", "file", "image", "video", "sound", "sticker", "poll", "forward"];
 pub const AUTHOR_TYPES: [&str; 3] = ["user", "bot", "webhook"];
 const HISTORY_CAP: usize = 10;
+// Discord's page of hits, and the deepest offset it serves (docs.discord.food: offset ≤ 9975).
+pub const PAGE_SIZE: usize = 25;
+const MAX_OFFSET: usize = 9975;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Key {
@@ -152,6 +157,162 @@ pub fn keys_matching(text: &str, token_end: usize) -> Vec<Key> {
 
 pub fn last_word_start(text: &str) -> usize {
     text.char_indices().rev().find(|(_, c)| c.is_whitespace()).map_or(0, |(i, c)| i + c.len_utf8())
+}
+
+// Which order results come in: Discord's `sort_by` and `sort_order`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Sort {
+    #[default]
+    Newest,
+    Oldest,
+    Relevant,
+}
+
+impl Sort {
+    pub const ALL: [Sort; 3] = [Sort::Newest, Sort::Oldest, Sort::Relevant];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Sort::Newest => "Newest first",
+            Sort::Oldest => "Oldest first",
+            Sort::Relevant => "Most relevant",
+        }
+    }
+
+    pub fn params(self) -> [(String, String); 2] {
+        let (by, order) = match self {
+            Sort::Newest => ("timestamp", "desc"),
+            Sort::Oldest => ("timestamp", "asc"),
+            Sort::Relevant => ("relevance", "desc"),
+        };
+        [("sort_by".into(), by.into()), ("sort_order".into(), order.into())]
+    }
+}
+
+// How many pages `total` hits make, within what Discord will page to.
+pub fn page_count(total: u32) -> usize {
+    (total as usize).div_ceil(PAGE_SIZE).min(MAX_OFFSET / PAGE_SIZE + 1)
+}
+
+pub fn offset(page: usize) -> usize {
+    (page.saturating_sub(1) * PAGE_SIZE).min(MAX_OFFSET)
+}
+
+// The page buttons for 1-based `current` of `count`: the ends, the current page and its neighbours, `None`
+// where pages are skipped. On page 1 of 36: 1 2 3 … 36.
+pub fn pages(current: usize, count: usize) -> Vec<Option<usize>> {
+    if count <= 7 {
+        return (1..=count).map(Some).collect();
+    }
+    let around = if current <= 3 { 1..=3.max(current + 1) } else if current + 2 >= count { count - 2..=count } else { current - 1..=current + 1 };
+    let mut shown: Vec<usize> = std::iter::once(1).chain(around).chain(std::iter::once(count)).collect();
+    shown.dedup();
+    let mut out = Vec::new();
+    for (i, page) in shown.iter().enumerate() {
+        if i > 0 && page - shown[i - 1] > 1 {
+            out.push(None);
+        }
+        out.push(Some(*page));
+    }
+    out
+}
+
+// A filter value from a fixed set, as (value for the token's text, label): `has:` kinds, true/false,
+// author types, dates.
+pub fn fixed_value(key: Key, value: &str) -> Option<(String, String)> {
+    let value = value.to_ascii_lowercase();
+    match key {
+        Key::Has if HAS.contains(&value.as_str()) => Some((value.clone(), value)),
+        Key::Pinned if value == "true" || value == "false" => Some((value.clone(), value)),
+        Key::AuthorType if AUTHOR_TYPES.contains(&value.as_str()) => Some((value.clone(), value)),
+        Key::Before | Key::After | Key::During => day(&value).map(|d| (day_text(d), day_label(d))),
+        _ => None,
+    }
+}
+
+// Turns filters written out as text (typed, or pasted from elsewhere) into tokens: `from:wren` or
+// `from: wren` once a space follows it, a fixed value (`has:image`) even at the very end. `resolve` maps a
+// person or channel to (id, label). None when nothing new was found.
+pub fn chip(content: &InputContent, resolve: impl Fn(Key, &str) -> Option<(String, String)>) -> Option<InputContent> {
+    let text = content.text().as_ref();
+    let tokens = content.tokens();
+    let words: Vec<Range<usize>> = word_ranges(text).filter(|w| !tokens.iter().any(|t| t.range().contains(&w.start))).collect();
+    let mut found: Vec<(Range<usize>, InlineToken)> = Vec::new();
+    let mut i = 0;
+    while i < words.len() {
+        let word = words[i].clone();
+        i += 1;
+        let Some((key, value)) = text[word.clone()].split_once(':') else { continue };
+        let Some(key) = Key::from_word(key) else { continue };
+        // `from: wren`: the value is the next word.
+        let (end, value) = match (value.is_empty(), words.get(i)) {
+            (false, _) => (word.end, value),
+            (true, Some(next)) => {
+                i += 1;
+                (next.end, &text[next.clone()])
+            }
+            (true, None) => continue,
+        };
+        let value = value.trim_start_matches(['@', '#']);
+        let fixed = fixed_value(key, value);
+        let closed = text[end..].starts_with(char::is_whitespace) || (end == text.len() && fixed.is_some());
+        let Some((id, label)) = closed.then(|| fixed.or_else(|| resolve(key, value))).flatten() else { continue };
+        let token = format!("{}:{id}", key.word());
+        found.push((word.start..end, InlineToken::new(token.clone(), token).with_label(label)));
+    }
+    if found.is_empty() {
+        return None;
+    }
+    let mut items: Vec<(Range<usize>, InlineToken)> = tokens.iter().map(|s| (s.range(), s.token().clone())).chain(found).collect();
+    items.sort_by_key(|(range, _)| range.start);
+    let (mut out, mut spans, mut at) = (String::new(), Vec::new(), 0);
+    for (range, token) in items {
+        out.push_str(&text[at..range.start]);
+        let start = out.len();
+        out.push_str(token.text());
+        spans.push((start..out.len(), token));
+        at = range.end;
+    }
+    out.push_str(&text[at..]);
+    spans.into_iter().try_fold(InputContent::new(out), |content, (range, token)| content.with_token(range, token)).ok()
+}
+
+// The field without the token whose text is `token` (and the space after it).
+pub fn without_token(content: &InputContent, token: &str) -> InputContent {
+    let text = content.text().as_ref();
+    let Some(gone) = content.tokens().iter().find(|t| t.token().text().as_ref() == token).map(|t| t.range()) else { return content.clone() };
+    let end = if text[gone.end..].starts_with(' ') { gone.end + 1 } else { gone.end };
+    let out = format!("{}{}", &text[..gone.start], &text[end..]);
+    let shift = end - gone.start;
+    content.tokens().iter().filter(|t| t.range() != gone).fold(InputContent::new(out), |next, t| {
+        let range = t.range();
+        let range = if range.start >= end { range.start - shift..range.end - shift } else { range };
+        next.clone().with_token(range, t.token().clone()).unwrap_or(next)
+    })
+}
+
+// The field with a token for `token` (labelled `label`) added after its last token, before the free text.
+pub fn with_token(content: &InputContent, token: &str, label: &str) -> InputContent {
+    let text = content.text().as_ref();
+    let at = content.tokens().last().map_or(0, |t| t.range().end);
+    let at = if text[at..].starts_with(' ') { at + 1 } else { at };
+    let gap = if at > 0 && !text[..at].ends_with(' ') { " " } else { "" };
+    let out = format!("{}{gap}{token} {}", &text[..at], &text[at..]);
+    let start = at + gap.len();
+    let shift = gap.len() + token.len() + 1;
+    let next = content.tokens().iter().fold(InputContent::new(out), |next, t| {
+        let range = t.range();
+        let range = if range.start >= at { range.start + shift..range.end + shift } else { range };
+        next.clone().with_token(range, t.token().clone()).unwrap_or(next)
+    });
+    next.clone().with_token(start..start + token.len(), InlineToken::new(token.to_owned(), token.to_owned()).with_label(label.to_owned())).unwrap_or(next)
+}
+
+fn word_ranges(text: &str) -> impl Iterator<Item = Range<usize>> + '_ {
+    text.split_whitespace().map(move |w| {
+        let start = w.as_ptr() as usize - text.as_ptr() as usize;
+        start..start + w.len()
+    })
 }
 
 pub fn day_text(day: NaiveDate) -> String {
@@ -309,5 +470,46 @@ mod tests {
         // A range that no longer fits the text drops the token, not the search.
         let stale = Saved { text: "dodge".into(), tokens: vec![SavedToken { start: 0, end: 40, label: "Rosa".into() }] };
         assert_eq!(stale.to_content().tokens().len(), 0);
+    }
+    #[test]
+    fn written_filters_become_tokens() {
+        let resolve = |key: Key, v: &str| match key {
+            Key::From if v.eq_ignore_ascii_case("wren") => Some(("8".to_owned(), "Wren".to_owned())),
+            _ => None,
+        };
+        let chipped = chip(&InputContent::new("from:_nobody from: Wren has:image"), resolve).expect("chips");
+        assert_eq!(chipped.text().as_ref(), "from:_nobody from:8 has:image");
+        let labels: Vec<&str> = chipped.tokens().iter().map(|t| t.token().label().as_ref()).collect();
+        assert_eq!(labels, ["Wren", "image"]);
+        // A person still being typed at the end waits for a space; a fixed value doesn't.
+        assert!(chip(&InputContent::new("from:wren"), resolve).is_none());
+        assert_eq!(chip(&InputContent::new("before:2026-11-01"), resolve).map(|c| c.tokens()[0].token().label().to_string()), Some("Nov 1, 2026".into()));
+        // Tokens already there stay, shifted past the rewrite.
+        let again = chip(&InputContent::new("from:Wren x"), resolve).expect("chips");
+        let more = chip(&InputContent::new(format!("{} pinned:true", again.text())).with_token(0..6, again.tokens()[0].token().clone()).expect("fits"), resolve).expect("chips");
+        assert_eq!((more.text().as_ref(), more.tokens().len()), ("from:8 x pinned:true", 2));
+    }
+
+    #[test]
+    fn page_buttons_show_ends_and_neighbours() {
+        let shown = |current, count| pages(current, count).into_iter().map(|p| p.map_or("…".to_owned(), |p| p.to_string())).collect::<Vec<_>>().join(" ");
+        assert_eq!(shown(1, 36), "1 2 3 … 36");
+        assert_eq!(shown(5, 36), "1 … 4 5 6 … 36");
+        assert_eq!(shown(36, 36), "1 … 34 35 36");
+        assert_eq!(shown(2, 5), "1 2 3 4 5");
+        assert_eq!(page_count(880), 36);
+        assert_eq!(page_count(1_000_000), 400);
+        assert_eq!(offset(3), 50);
+    }
+    #[test]
+    fn filters_popover_edits_keep_other_tokens() {
+        let start = with_token(&InputContent::new("dodge"), "from:8", "Wren");
+        assert_eq!(start.text().as_ref(), "from:8 dodge");
+        let both = with_token(&start, "has:image", "image");
+        assert_eq!(both.text().as_ref(), "from:8 has:image dodge");
+        assert_eq!(both.tokens().len(), 2);
+        let less = without_token(&both, "from:8");
+        assert_eq!(less.text().as_ref(), "has:image dodge");
+        assert_eq!(less.tokens()[0].range(), 0..9);
     }
 }

@@ -880,8 +880,9 @@ impl Client {
         let _ = self.run(req).await;
     }
 
-    /// `scope` is `guilds/{id}` or, for a DM, `channels/{id}`. `params` are Discord's search filters.
-    pub async fn search(&self, scope: &str, content: &str, params: &[(String, String)]) -> Result<Vec<Message>, String> {
+    /// `scope` is `guilds/{id}` or, for a DM, `channels/{id}`. `params` are Discord's search filters, the
+    /// page and the sort (docs.discord.food, Search Guild Messages): 25 hits a page, `offset` in hits.
+    pub async fn search(&self, scope: &str, content: &str, params: &[(String, String)]) -> Result<SearchPage, String> {
         let mut url = reqwest::Url::parse(&format!("{API}/{scope}/messages/search")).map_err(|e| e.to_string())?;
         {
             let mut pairs = url.query_pairs_mut();
@@ -893,9 +894,21 @@ impl Client {
             }
         }
         let body = self.run(self.http.get(url).header("Authorization", &self.token)).await?;
-        // Each hit is a small array of messages around the match; the match is the first.
-        Ok(body["messages"].as_array().into_iter().flatten().filter_map(|hit| hit.get(0).and_then(parse_message)).collect())
+        // Each hit is a small array of messages around the match; the match is the one marked `hit`.
+        let messages = body["messages"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|around| around.as_array().and_then(|a| a.iter().find(|m| m["hit"].as_bool() == Some(true)).or_else(|| a.first())).and_then(parse_message))
+            .collect();
+        Ok(SearchPage { messages, total: body["total_results"].as_u64().unwrap_or(0) as u32 })
     }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct SearchPage {
+    pub messages: Vec<Message>,
+    pub total: u32,
 }
 
 // Native GPUI ships no HTTP client (only its web build has one), so `img(url)` loads nothing
