@@ -17,7 +17,7 @@ use std::{
 
 use davey::{Codec, DaveSession, MediaType, OPUS_SILENCE_PACKET};
 use futures::channel::mpsc::UnboundedSender;
-use opus::{Application, Channels, Decoder, Encoder};
+use opus::{Application, Channels, Encoder};
 use serde_json::json;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
@@ -31,14 +31,12 @@ use super::{
 };
 
 const DAVE_MARKER: [u8; 2] = [0xfa, 0xfa];
-const MAX_FRAME_SAMPLES: usize = 5760;
 const SILENCE_FRAMES: u8 = 5;
 const BITRATE: i32 = 64_000;
 const QUIET_AFTER: Duration = Duration::from_millis(250);
 const POLL: Duration = Duration::from_millis(100);
 const CAMERA_POLL: Duration = Duration::from_millis(200);
 const KEYFRAME_REQUEST_GAP: Duration = Duration::from_secs(1);
-const MAX_CONCEALED_FRAMES: u16 = 5;
 // A silence frame this often while not talking keeps the UDP path (NAT mapping) open.
 const KEEPALIVE: Duration = Duration::from_secs(5);
 // Mic level events go out every this many 20 ms frames (25 per second).
@@ -421,14 +419,11 @@ fn start_camera(link: &Arc<Link>, id: &str) -> Result<CameraCapture, String> {
     Ok(capture)
 }
 
-// ponytail: plays packets in arrival order (late ones are dropped) and conceals short gaps with
-// Opus PLC; add a reorder buffer if remote audio crackles on links that reorder packets.
+// Audio goes into the speaker's jitter buffer in the mixer, which decodes it as the device plays.
 fn recv_loop(link: &Link, socket: &UdpSocket, stop: &AtomicBool, users: &Mutex<HashMap<u32, String>>) {
-    let mut decoders: HashMap<u32, AudioIn> = HashMap::new();
     let mut videos: HashMap<u32, VideoIn> = HashMap::new();
     let mut heard: HashMap<String, Instant> = HashMap::new();
     let mut buf = [0u8; 2048];
-    let mut pcm = vec![0f32; MAX_FRAME_SAMPLES * 2];
     let speaking_events = link.role == Role::Voice;
 
     while !stop.load(Ordering::Relaxed) {
@@ -439,19 +434,15 @@ fn recv_loop(link: &Link, socket: &UdpSocket, stop: &AtomicBool, users: &Mutex<H
                 match packet.payload_type {
                     rtp::OPUS_PAYLOAD_TYPE => {
                         let Some(opus) = dave_open(link, &user, MediaType::AUDIO, packet.payload) else { continue };
-                        if opus == OPUS_SILENCE_PACKET {
-                            continue;
-                        }
-                        if heard.insert(user.clone(), Instant::now()).is_none() && speaking_events {
+                        // Closing silence frames still go to the buffer: they mark a talkspurt's end.
+                        if opus != OPUS_SILENCE_PACKET && heard.insert(user.clone(), Instant::now()).is_none() && speaking_events {
                             let _ = link.events.unbounded_send(VoiceEvent::Speaking { user_id: user.clone(), speaking: true });
                         }
-                        if let Some(audio) = audio_in(&mut decoders, packet.ssrc) {
-                            let gain = match link.role {
-                                Role::Watch => link.shared.stream_gain(&user),
-                                _ => link.shared.listening_gain(&user),
-                            };
-                            audio.play(link, packet.ssrc, packet.sequence, &opus, &mut pcm, gain);
-                        }
+                        let gain = match link.role {
+                            Role::Watch => link.shared.stream_gain(&user),
+                            _ => link.shared.listening_gain(&user),
+                        };
+                        link.shared.mixer.receive(link.mix_key(packet.ssrc), packet.sequence, packet.timestamp, opus, gain);
                     }
                     rtp::H264_PAYLOAD_TYPE => {
                         let video = match videos.entry(packet.ssrc) {
@@ -703,46 +694,10 @@ fn dave_open(link: &Link, user: &str, media: MediaType, data: Vec<u8>) -> Option
     allowed.then_some(data)
 }
 
-struct AudioIn {
-    decoder: Decoder,
-    last_sequence: Option<u16>,
-}
-
-fn audio_in(decoders: &mut HashMap<u32, AudioIn>, ssrc: u32) -> Option<&mut AudioIn> {
-    match decoders.entry(ssrc) {
-        Entry::Occupied(e) => Some(e.into_mut()),
-        Entry::Vacant(e) => {
-            let decoder = Decoder::new(SAMPLE_RATE, Channels::Stereo).ok()?;
-            Some(e.insert(AudioIn { decoder, last_sequence: None }))
-        }
-    }
-}
-
-impl AudioIn {
-    // `gain` is the listener's volume for this user (0 when muted or deafened).
-    fn play(&mut self, link: &Link, ssrc: u32, sequence: u16, opus: &[u8], pcm: &mut [f32], gain: f32) {
-        let gap = self.last_sequence.map_or(0, |last| sequence.wrapping_sub(last).wrapping_sub(1));
-        if self.last_sequence.is_some() && gap >= u16::MAX / 2 {
-            return; // late: older than what was already played
-        }
-        self.last_sequence = Some(sequence);
-        let (mixer, key) = (&link.shared.mixer, link.mix_key(ssrc));
-        // Short gaps get Opus loss concealment (exactly one frame each); longer ones are silence.
-        if gap <= MAX_CONCEALED_FRAMES {
-            for _ in 0..gap {
-                if let Ok(samples) = self.decoder.decode_float(&[], &mut pcm[..FRAME_LEN], false) {
-                    mixer.push(key, &pcm[..samples * 2], gain);
-                }
-            }
-        }
-        let Ok(samples) = self.decoder.decode_float(opus, pcm, false) else { return };
-        mixer.push(key, &pcm[..samples * 2], gain);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use opus::Decoder;
 
     #[test]
     fn outbound_loss_is_unknown_until_reported() {
@@ -769,7 +724,7 @@ mod tests {
         let tone: Vec<f32> = (0..FRAME_LEN).map(|i| ((i / 2) as f32 * 0.05).sin() * 0.5).collect();
         let mut packet = [0u8; 4000];
         let n = encoder.encode_float(&tone, &mut packet).unwrap();
-        let mut pcm = vec![0f32; MAX_FRAME_SAMPLES * 2];
+        let mut pcm = vec![0f32; FRAME_LEN];
         assert_eq!(decoder.decode_float(&packet[..n], &mut pcm, false).unwrap(), FRAME_SAMPLES);
     }
 }

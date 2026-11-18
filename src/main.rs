@@ -48,6 +48,7 @@ mod sidebar;
 mod search;
 mod search_menu;
 mod search_results;
+mod server_settings;
 mod settings;
 mod shell;
 mod user_menu;
@@ -551,6 +552,7 @@ pub struct Rustcord {
     prefs: settings::Prefs,
     settings: Option<settings::SettingsView>,
     channel_settings: Option<channel_settings::ChannelSettings>,
+    server_settings: Option<server_settings::view::ServerSettings>,
     settings_search: Entity<SearchState>,
     hotkeys: Option<hotkeys::Hotkeys>,
     // Keybinds the system refused because another app holds them.
@@ -830,6 +832,7 @@ impl Rustcord {
             prefs: settings::Prefs::load(),
             settings: None,
             channel_settings: None,
+            server_settings: None,
             settings_search,
             hotkeys: None,
             keybind_errors: Vec::new(),

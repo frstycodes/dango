@@ -121,7 +121,8 @@ impl Rustcord {
         let (menu, dialog) = (self.render_menu(window, cx), self.render_dialog(window, cx));
         let (viewer, settings) = (self.viewer_overlay(window, cx), self.render_settings(window, cx));
         let channel_settings = self.render_channel_settings(window, cx);
-        crate::gif::set_covered(!overlays.is_empty() || !call_overlays.is_empty() || menu.is_some() || dialog.is_some() || viewer.is_some() || settings.is_some() || channel_settings.is_some());
+        let server_settings = self.render_server_settings(window, cx);
+        crate::gif::set_covered(!overlays.is_empty() || !call_overlays.is_empty() || menu.is_some() || dialog.is_some() || viewer.is_some() || settings.is_some() || channel_settings.is_some() || server_settings.is_some());
         // Away from the call, a watched stream floats as a picture-in-picture over everything but popups.
         let pip = (!self.call_view).then(|| self.stream_pip(cx)).flatten();
         self.pip_drop_zone(root, cx)
@@ -136,6 +137,7 @@ impl Rustcord {
             .children(viewer)
             .children(settings)
             .children(channel_settings)
+            .children(server_settings)
             .children(crate::window_controls::render(window, cx))
             .children(self.render_landing(window, cx))
             .into_any_element()
@@ -157,6 +159,10 @@ impl Rustcord {
         }
         if keystroke.key == "escape" && self.settings.is_some() {
             self.close_settings(cx);
+            return cx.stop_propagation();
+        }
+        if keystroke.key == "escape" && self.server_settings.is_some() {
+            self.close_server_settings(false, cx);
             return cx.stop_propagation();
         }
         if keystroke.key == "escape" && self.channel_settings.is_some() {
