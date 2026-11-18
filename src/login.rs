@@ -90,7 +90,7 @@ pub fn render(login: &Login, back: Option<crate::accounts::Account>, _: &mut Win
                 .items_center()
                 .gap(px(20.))
                 .child(waiting("scanned-wait", "Check your phone", cx))
-                .child(link("new-code", "Not you? Get a new code", cx).on_click(cx.listener(|this, _, _, cx| this.sign_in(cx))))
+                .child(ui::button("new-code", ui::Tone::Link, cx).child("Not you? Get a new code").on_click(cx.listener(|this, _, _, cx| this.sign_in(cx))))
                 .into_any_element(),
         ),
         _ => None,
@@ -128,7 +128,7 @@ pub fn render(login: &Login, back: Option<crate::accounts::Account>, _: &mut Win
         .children(after)
         .children(back.map(|account| {
             let label = format!("Back to {}", account.name);
-            link("back-to-account", label, cx).on_click(cx.listener(move |this, _, window, cx| this.switch_account(account.id.clone(), window, cx)))
+            ui::button("back-to-account", ui::Tone::Link, cx).child(label).on_click(cx.listener(move |this, _, window, cx| this.switch_account(account.id.clone(), window, cx)))
         }))
         .child(div().flex_1())
         .child(
@@ -264,10 +264,6 @@ fn waiting(id: &'static str, text: &'static str, cx: &App) -> Div {
     div().flex().items_center().gap(px(8.)).font_weight(FontWeight::NORMAL).text_color(palette::muted(cx)).child(ui::bars(id, palette::accent(), 12.)).child(text)
 }
 
-fn link(id: &'static str, text: impl Into<SharedString>, cx: &App) -> gpui_kit::Stateful<Div> {
-    div().id(id).cursor_pointer().font_weight(FontWeight::MEDIUM).text_color(palette::accent_ink(cx)).hover(|s| s.underline()).child(text.into())
-}
-
 // The account that scanned springs in from half size, the phone it's approving on badged at its foot.
 fn avatar_pop(user: &User, cx: &App) -> AnyElement {
     let badge = div()
@@ -287,7 +283,7 @@ fn avatar_pop(user: &User, cx: &App) -> AnyElement {
     div()
         .relative()
         .size(px(96.))
-        .child(img(user.avatar.clone()).size_full().rounded_full())
+        .child(ui::avatar(user.avatar.clone(), 96.))
         .child(badge)
         .with_animation("avatar-pop", Animation::new(Duration::from_millis(320)).with_easing(move |t| spring.sample(t)), |avatar, t| avatar.scale(0.5 + 0.5 * t).opacity(t.clamp(0., 1.)))
         .into_any_element()
