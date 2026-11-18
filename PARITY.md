@@ -48,6 +48,8 @@ Order: features first (most used at the top), then polish. `[x]` done, `[~]` par
 - [x] System notifications for DMs and mentions (Discord's rules: DND, muted servers and channels, notification levels, suppressed @everyone and roles), plus a Dock badge (macOS; Windows taskbar badge open)
 - [x] Server dropdown (header chevron): mark as read, notification settings, leave server
 - [ ] Notification bell in the channel header: per-channel notification level
+- [x] Channel settings (Edit channel / Edit category): Overview (name, topic, slowmode, age-restricted, hide threads after; voice bitrate, user limit, video quality, region), Permissions (private switch, category sync, role and member overwrites), Invites (revoke), Webhooks (copy URL, delete), Delete; pages gated on our permissions in the channel
+- [ ] Channel settings: add a member overwrite, create webhooks, forum tags and default reaction, stage and announcement specifics
 - [x] Mark channel read with Esc; Alt+↑/↓ to move between channels
 - [x] Message search filters: from:, mentions:, has:, in:, before:, after:, during:, pinned: (and search inside DMs)
 - [ ] Search autocomplete popout (Discord suggests filters and names as you type)

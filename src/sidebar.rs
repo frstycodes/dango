@@ -1202,26 +1202,7 @@ fn voice_mark_for(state: &crate::discord::VoiceState, cx: &App) -> Option<AnyEle
 
 // The DM list's header: a field-shaped button that opens the quick switcher.
 fn dm_find(cx: &App) -> Stateful<Div> {
-    let strong = palette::strong(cx);
-    let field = ui::search_field_fill(cx);
-    div()
-        .id("dm-find")
-        .occlude()
-        .w_full()
-        .h(px(34.))
-        .px(px(10.))
-        .squircle(ui::RADIUS_SM)
-        .flex()
-        .items_center()
-        .gap_2()
-        .cursor_pointer()
-        .bg(field)
-        .backdrop_blur(px(12.))
-        .text_color(palette::muted(cx))
-        .text_size(px(14.))
-        .hover(move |s| s.text_color(strong))
-        .child(Icon::new(Glyph::Search).size(px(16.)))
-        .child(ui::truncating("dm-find-label", "Find or start a conversation").flex_1())
+    ui::search_button("dm-find", "Find or start a conversation", cx).occlude()
 }
 
 pub(crate) fn channel_sections(guild: &Guild, me: &str) -> Vec<(Option<Channel>, Vec<Channel>)> {

@@ -46,6 +46,9 @@
 .input input::placeholder { color: var(--text-faint); }
 .input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .input.error { border-color: var(--danger-ink); }
+/* The one search box: the input's size on a translucent rail fill over a light blur, edge-free until focused. */
+.input.search, .set-nav .input { background: color-mix(in oklch, var(--bg-rail) 60%, transparent); backdrop-filter: blur(12px); }
+.input.search:not(:focus-within), .set-nav .input:not(:focus-within) { border-color: transparent; }
 .field .err { font-size: var(--text-xs); color: var(--danger-ink); display: flex; gap: 4px; align-items: center; }
 .field .err i { font-size: 14px; }
 
