@@ -1,8 +1,9 @@
-// Grouped settings (design/css/settings.css `.set-group`, `.set-card`, `.set-row`): a heading over a card
-// of rows, each a title and description with its control at the end, hairlines between them.
+// Grouped settings (design/css/settings.css `.set-group`, `.set-card`, `.set-row`), iOS inset-grouped style: a
+// heading over a borderless card of rows, each a title and description with its control at the end, inset
+// hairlines between them.
 use gpui_kit::{App, Div, FontWeight, InteractiveElement, IntoElement, ParentElement, SharedString, Stateful, Styled, div, prelude::FluentBuilder, px};
 
-use super::{RADIUS_LG, RADIUS_MD, Squircle};
+use super::{RADIUS_XL, Squircle};
 use crate::palette;
 
 // A heading over a card; the caller adds the card and any caption under it.
@@ -15,9 +16,11 @@ pub fn settings_caption(text: impl Into<SharedString>, cx: &App) -> Div {
     div().px(px(4.)).text_size(px(12.)).line_height(px(17.)).text_color(palette::muted(cx)).child(text.into())
 }
 
-// Rows on the raised surface, inset 4px so their fills clear its edge.
+const CARD_INSET: f32 = 4.;
+
+// Rows on the raised surface, one step from the page with no border, inset so their fills clear its edge.
 pub fn settings_card(cx: &App) -> Div {
-    div().min_w_0().p(px(4.)).squircle(RADIUS_LG).bg(palette::surface(palette::Level::Raised, cx)).border_1().border_color(palette::line(cx)).flex().flex_col()
+    div().min_w_0().p(px(CARD_INSET)).squircle(RADIUS_XL).bg(palette::surface(palette::Level::Group, cx)).flex().flex_col()
 }
 
 // A row in a settings card: title and description first, the control last. `line` draws the inset hairline
@@ -32,7 +35,7 @@ pub fn settings_row(id: impl Into<SharedString>, line: bool, cx: &App) -> Statef
         .min_h(px(56.))
         .py(px(10.))
         .px(px(12.))
-        .squircle(RADIUS_MD)
+        .squircle(RADIUS_XL - CARD_INSET)
         .flex()
         .items_center()
         .gap(px(16.))
