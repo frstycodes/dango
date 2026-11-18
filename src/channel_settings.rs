@@ -37,7 +37,7 @@ impl Page {
             Page::Overview => "Overview",
             Page::Permissions => "Permissions",
             Page::Invites => "Invites",
-            Page::Webhooks => "Webhooks",
+            Page::Webhooks => "Integrations",
         }
     }
 
@@ -180,6 +180,11 @@ pub fn private(overwrites: &[Overwrite], everyone: &str) -> bool {
     tri(overwrites, everyone, VIEW_CHANNEL) == Tri::Deny
 }
 
+pub fn set_private(overwrites: &mut Vec<Overwrite>, everyone: &str, raw_type: u8, on: bool) {
+    let bits = private_bits(raw_type);
+    set_tri(overwrites, everyone, false, bits, if on { Tri::Deny } else { Tri::Inherit });
+}
+
 // Discord's caps by boost level (Modify Channel docs); stages top out at 64 kbps.
 pub fn bitrate_cap(premium_tier: u8, stage: bool) -> u32 {
     if stage {
@@ -214,15 +219,13 @@ const SLOWMODE: [(u32, &str); 14] = [
 // default_auto_archive_duration, minutes.
 const ARCHIVE: [(u32, &str); 4] = [(60, "1 hour"), (1440, "24 hours"), (4320, "3 days"), (10080, "1 week")];
 
-const GENERAL: &[(u64, &str)] = &[
-    (VIEW_CHANNEL, "View channel"),
-    (perm::MANAGE_CHANNELS, "Manage channel"),
-    (perm::MANAGE_ROLES, "Manage permissions"),
-    (perm::MANAGE_WEBHOOKS, "Manage webhooks"),
-    (perm::CREATE_INSTANT_INVITE, "Create invite"),
-];
+// Discord's Advanced permissions, group for group as Discord web lists them (2026-11-18).
+const GENERAL: &[(u64, &str)] = &[(VIEW_CHANNEL, "View channel"), (perm::MANAGE_CHANNELS, "Manage channel"), (perm::MANAGE_ROLES, "Manage permissions"), (perm::MANAGE_WEBHOOKS, "Manage webhooks")];
+const MEMBERSHIP: &[(u64, &str)] = &[(perm::CREATE_INSTANT_INVITE, "Create invite")];
+const SEND_MESSAGES: u64 = 1 << 11;
+const CONNECT: u64 = 1 << 20;
 const TEXT: &[(u64, &str)] = &[
-    (1 << 11, "Send messages"),
+    (SEND_MESSAGES, "Send messages"),
     (1 << 38, "Send messages in threads"),
     (perm::CREATE_PUBLIC_THREADS, "Create public threads"),
     (1 << 36, "Create private threads"),
@@ -240,11 +243,25 @@ const TEXT: &[(u64, &str)] = &[
     (1 << 12, "Send text-to-speech messages"),
     (1 << 46, "Send voice messages"),
     (1 << 49, "Create polls"),
-    (1 << 31, "Use application commands"),
-    (1 << 50, "Use external apps"),
+];
+// A voice channel's own chat: no threads or pins.
+const VOICE_CHAT: &[(u64, &str)] = &[
+    (SEND_MESSAGES, "Send messages"),
+    (1 << 14, "Embed links"),
+    (1 << 15, "Attach files"),
+    (1 << 6, "Add reactions"),
+    (1 << 18, "Use external emoji"),
+    (1 << 37, "Use external stickers"),
+    (1 << 17, "Mention @everyone, @here and all roles"),
+    (perm::MANAGE_MESSAGES, "Manage messages"),
+    (1 << 52, "Bypass slowmode"),
+    (1 << 16, "Read message history"),
+    (1 << 12, "Send text-to-speech messages"),
+    (1 << 46, "Send voice messages"),
+    (1 << 49, "Create polls"),
 ];
 const VOICE: &[(u64, &str)] = &[
-    (1 << 20, "Connect"),
+    (CONNECT, "Connect"),
     (1 << 21, "Speak"),
     (1 << 9, "Video"),
     (1 << 42, "Use soundboard"),
@@ -255,17 +272,24 @@ const VOICE: &[(u64, &str)] = &[
     (perm::DEAFEN_MEMBERS, "Deafen members"),
     (perm::MOVE_MEMBERS, "Move members"),
     (1 << 48, "Set voice channel status"),
-    (1 << 39, "Use activities"),
 ];
+const EVENTS: &[(u64, &str)] = &[(1 << 44, "Create events"), (1 << 33, "Manage events")];
+const APPS: &[(u64, &str)] = &[(1 << 31, "Use application commands"), (1 << 39, "Use activities"), (1 << 50, "Use external apps")];
 
 // The permission groups Discord lists for a channel type (raw type: 2 voice, 4 category, 13 stage).
+// GAP: stage and category groups follow the docs' channel-type columns; only text and voice were seen live.
 pub fn permission_groups(raw_type: u8) -> Vec<(&'static str, &'static [(u64, &'static str)])> {
     match raw_type {
-        2 => vec![("General", GENERAL), ("Voice", VOICE), ("Text chat", TEXT)],
-        13 => vec![("General", GENERAL), ("Stage", VOICE)],
-        4 => vec![("General", GENERAL), ("Text", TEXT), ("Voice", VOICE)],
-        _ => vec![("General", GENERAL), ("Text", TEXT)],
+        2 => vec![("General", GENERAL), ("Membership", MEMBERSHIP), ("Voice", VOICE), ("Voice chat", VOICE_CHAT), ("Events", EVENTS), ("Apps", APPS)],
+        13 => vec![("General", GENERAL), ("Membership", MEMBERSHIP), ("Stage", VOICE), ("Events", EVENTS), ("Apps", APPS)],
+        4 => vec![("General", GENERAL), ("Membership", MEMBERSHIP), ("Text", TEXT), ("Voice", VOICE), ("Events", EVENTS), ("Apps", APPS)],
+        _ => vec![("General", GENERAL), ("Membership", MEMBERSHIP), ("Text", TEXT), ("Apps", APPS)],
     }
+}
+
+// Private channel denies @everyone View channel, and Connect too where there's voice (Discord web's switch).
+pub fn private_bits(raw_type: u8) -> u64 {
+    if matches!(raw_type, 2 | 13) { VIEW_CHANNEL | CONNECT } else { VIEW_CHANNEL }
 }
 
 // "Never", "Expired", or how long is left ("in 3 days").
@@ -742,7 +766,7 @@ impl Rustcord {
         let slow_options: Vec<(String, String)> = SLOWMODE.iter().map(|(s, l)| (s.to_string(), (*l).to_owned())).collect();
         let slow_name = SLOWMODE.iter().find(|(s, _)| *s == props.slowmode).map_or(format!("{} seconds", props.slowmode), |(_, l)| (*l).to_owned());
         let slowmode = ui::settings_row("cs-slowmode", false, cx)
-            .child(ui::settings_text("Slowmode", Some("How long each member waits between messages"), cx))
+            .child(ui::settings_text("Slowmode", Some("Each member sends one message and starts one thread per interval"), cx))
             .child(div().w(px(220.)).flex_none().child(self.cs_select(Select::Slowmode, &slow_options, &props.slowmode.to_string(), slow_name, cx)));
         let nsfw = switch_row("cs-nsfw", "Age-restricted", "People confirm they're over 18 before they see it", props.nsfw, true, window, cx).on_click(cx.listener(|this, _, _, cx| this.edit_draft(cx, |d| d.props.nsfw = !d.props.nsfw)));
         let archive = (!voice).then(|| {
@@ -754,7 +778,7 @@ impl Rustcord {
                 .child(div().w(px(220.)).flex_none().child(self.cs_select(Select::Archive, &options, &current.to_string(), label, cx)))
         });
         let chat = ui::settings_card(cx).child(slowmode).child(nsfw).children(archive);
-        out.push(ui::settings_group(if voice { "Text chat" } else { "Chat" }, cx).child(chat).child(ui::settings_caption("Members with Manage messages or Manage channel aren't slowed down.", cx)).into_any_element());
+        out.push(ui::settings_group(if voice { "Text chat" } else { "Chat" }, cx).child(chat).child(ui::settings_caption("Members with Bypass slowmode aren't slowed down.", cx)).into_any_element());
         out
     }
 
@@ -814,19 +838,24 @@ impl Rustcord {
             out.push(notice.into_any_element());
         }
 
-        let everyone = guild.id.clone();
+        let (everyone, raw_type) = (guild.id.clone(), channel.raw_type);
         let private_on = private(&overwrites, &everyone);
         let private_row = switch_row("cs-private", "Private channel", "Only the roles and members you add can see it", private_on, false, window, cx).on_click(cx.listener(move |this, _, _, cx| {
             let everyone = everyone.clone();
-            this.edit_draft(cx, |d| set_tri(&mut d.overwrites, &everyone, false, VIEW_CHANNEL, if private_on { Tri::Inherit } else { Tri::Deny }));
+            this.edit_draft(cx, |d| set_private(&mut d.overwrites, &everyone, raw_type, !private_on));
         }));
         out.push(ui::settings_card(cx).child(private_row).into_any_element());
 
         // Targets: @everyone first, then roles highest first, then members.
         let role = |id: &str| guild.roles.iter().find(|r| r.id == id);
-        let mut targets: Vec<&Overwrite> = overwrites.iter().collect();
+        // Discord always lists @everyone, overwrite or not; editing it creates one.
+        let mut shown = overwrites.clone();
+        if !shown.iter().any(|o| o.id == guild.id) {
+            shown.push(Overwrite { id: guild.id.clone(), ..Default::default() });
+        }
+        let mut targets: Vec<&Overwrite> = shown.iter().collect();
         targets.sort_by_key(|o| (o.member, if o.id == guild.id { i64::MIN } else { -role(&o.id).map_or(0, |r| r.position) }));
-        let selected = view.target.clone().filter(|t| overwrites.iter().any(|o| &o.id == t)).or_else(|| targets.first().map(|o| o.id.clone()));
+        let selected = view.target.clone().filter(|t| shown.iter().any(|o| &o.id == t)).or_else(|| targets.first().map(|o| o.id.clone()));
         let name_of = |o: &Overwrite| -> String {
             match role(&o.id) {
                 Some(r) => r.name.clone(),
@@ -870,7 +899,7 @@ impl Rustcord {
             .children(rows)
             .children(add);
 
-        let editor = selected.and_then(|id| overwrites.iter().find(|o| o.id == id).cloned()).map(|target| {
+        let editor = selected.and_then(|id| shown.iter().find(|o| o.id == id).cloned()).map(|target| {
             let who = name_of(&target);
             let groups: Vec<AnyElement> = permission_groups(channel.raw_type)
                 .into_iter()
@@ -961,7 +990,7 @@ impl Rustcord {
                     }, cx);
                 })))
         });
-        vec![ui::settings_card(cx).children(rows).into_any_element(), ui::settings_caption("Creating webhooks stays in Discord for now.", cx).into_any_element()]
+        vec![ui::settings_group("Webhooks", cx).child(ui::settings_card(cx).children(rows)).child(ui::settings_caption("Creating webhooks and following channels stay in Discord for now.", cx)).into_any_element()]
     }
 
     // Floats over the page bottom while there's something to save, saving, or a refusal to show.
@@ -1093,6 +1122,18 @@ mod tests {
         assert!(private(&list, "g"));
         set_tri(&mut list, "g", false, VIEW_CHANNEL, Tri::Inherit);
         assert!(!private(&list, "g"));
+    }
+
+    #[test]
+    fn private_voice_also_denies_connect() {
+        let mut list = Vec::new();
+        set_private(&mut list, "g", 2, true);
+        assert_eq!(list, vec![ow("g", 0, VIEW_CHANNEL | CONNECT)]);
+        assert!(private(&list, "g"));
+        set_private(&mut list, "g", 2, false);
+        assert_eq!(list, vec![ow("g", 0, 0)]);
+        set_private(&mut list, "g", 0, true);
+        assert_eq!(list, vec![ow("g", 0, VIEW_CHANNEL)]);
     }
 
     #[test]
