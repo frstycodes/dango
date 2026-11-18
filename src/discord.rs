@@ -660,6 +660,8 @@ pub struct MyAccount {
     pub banner: Option<String>,
     // Nitro: Discord takes banners and animated avatars only from subscribers.
     pub premium: bool,
+    // 0 none, 1 Nitro Classic, 2 Nitro, 3 Nitro Basic: sets the upload cap (`upload_limit`).
+    pub premium_type: u8,
 }
 
 impl MyAccount {
@@ -671,6 +673,7 @@ impl MyAccount {
             global_name: user["global_name"].as_str().map(str::to_owned),
             banner,
             premium: user["premium_type"].as_u64().is_some_and(|t| t > 0),
+            premium_type: user["premium_type"].as_u64().unwrap_or(0) as u8,
         }
     }
 }
@@ -847,24 +850,25 @@ impl Client {
 
     /// `ping_author`: whether a reply mentions the person replied to (Discord's "@ ON / OFF").
     pub async fn send_message(&self, channel_id: &str, content: &str, nonce: &str, reply_to: Option<&str>, ping_author: bool) -> Result<Message, String> {
-        let mut body = json!({ "content": content, "nonce": nonce });
-        if let Some(id) = reply_to {
-            body["message_reference"] = json!({ "message_id": id });
-            body["allowed_mentions"] = json!({ "parse": ["users", "roles", "everyone"], "replied_user": ping_author });
-        }
+        let body = message_body(content, nonce, reply_to, ping_author, &[]);
         let req = self.request(reqwest::Method::POST, &format!("/channels/{channel_id}/messages")).json(&body);
         self.run(req).await.and_then(|v| parse_message(&v).ok_or_else(|| "Unexpected response".into()))
     }
 
-    /// One message carrying all the files, as Discord sends a multi-attachment upload.
-    pub async fn upload(&self, channel_id: &str, paths: Vec<PathBuf>, content: &str, nonce: &str) -> Result<Message, String> {
-        let mut form = reqwest::multipart::Form::new().text("payload_json", json!({ "content": content, "nonce": nonce }).to_string());
-        for (i, path) in paths.iter().enumerate() {
-            let bytes = tokio::fs::read(path).await.map_err(|e| e.to_string())?;
-            let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "file".into());
-            form = form.part(format!("files[{i}]"), reqwest::multipart::Part::bytes(bytes).file_name(name));
+    /// One message carrying all the files, as Discord's own client sends it (docs.discord.food, Cloud
+    /// Uploads): upload URLs for every file, a PUT of each to its URL, then the message naming them.
+    /// Each file's `sent` counts its bytes as they go out.
+    pub async fn upload(&self, channel_id: &str, files: &[Upload], content: &str, nonce: &str, reply_to: Option<&str>, ping_author: bool) -> Result<Message, String> {
+        let req = self.request(reqwest::Method::POST, &format!("/channels/{channel_id}/attachments")).json(&attachments_request(files));
+        let slots = self.run(req).await?;
+        let slots = parse_upload_slots(&slots, files.len())?;
+        for (file, (url, _)) in files.iter().zip(&slots) {
+            let put = runtime().spawn(put_file(self.http.clone(), url.clone(), file.path.clone(), file.sent.clone()));
+            put.await.map_err(|e| e.to_string())??;
         }
-        let req = self.request(reqwest::Method::POST, &format!("/channels/{channel_id}/messages")).multipart(form);
+        let uploaded: Vec<(String, String)> = files.iter().zip(slots).map(|(f, (_, name))| (f.name.clone(), name)).collect();
+        let body = message_body(content, nonce, reply_to, ping_author, &uploaded);
+        let req = self.request(reqwest::Method::POST, &format!("/channels/{channel_id}/messages")).json(&body);
         self.run(req).await.and_then(|v| parse_message(&v).ok_or_else(|| "Unexpected response".into()))
     }
 
@@ -1163,6 +1167,94 @@ pub async fn send(req: reqwest::RequestBuilder) -> Result<Value, String> {
     }
     eprintln!("http: {status} {url}: {body}");
     Err(api_error(&body).unwrap_or_else(|| status.to_string()))
+}
+
+// A file on its way to Discord. `name` is what the message shows, `SPOILER_` included.
+#[derive(Clone, Debug)]
+pub struct Upload {
+    pub path: PathBuf,
+    pub name: String,
+    pub size: u64,
+    pub sent: std::sync::Arc<std::sync::atomic::AtomicU64>,
+}
+
+/// The most you can upload per file here: the higher of what your Nitro and the server's boost level
+/// allow (docs.discord.food, Uploading Files: 10 MiB default; Nitro 500, Classic and Basic 50; boost
+/// level 2 50, level 3 100).
+pub fn upload_limit(premium_type: u8, guild_tier: u8) -> u64 {
+    let user = match premium_type {
+        2 => 500,
+        1 | 3 => 50,
+        _ => 10,
+    };
+    let guild = match guild_tier {
+        3 => 100,
+        2 => 50,
+        _ => 10,
+    };
+    user.max(guild) << 20
+}
+
+// Discord caps a message at 10 attachments.
+pub const MAX_FILES: usize = 10;
+
+// `POST /channels/{id}/attachments`: one slot per file, its index as the id the response echoes.
+fn attachments_request(files: &[Upload]) -> Value {
+    let files: Vec<Value> = files.iter().enumerate().map(|(i, f)| json!({ "id": i.to_string(), "filename": f.name, "file_size": f.size })).collect();
+    json!({ "files": files })
+}
+
+// (upload_url, upload_filename) per file, in the request's order.
+fn parse_upload_slots(body: &Value, count: usize) -> Result<Vec<(String, String)>, String> {
+    let mut slots: Vec<(usize, String, String)> = body["attachments"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .enumerate()
+        .filter_map(|(i, a)| {
+            let at = a["id"].as_str().and_then(|id| id.parse().ok()).or(a["id"].as_u64().map(|id| id as usize)).unwrap_or(i);
+            Some((at, a["upload_url"].as_str()?.to_owned(), a["upload_filename"].as_str()?.to_owned()))
+        })
+        .collect();
+    slots.sort_by_key(|s| s.0);
+    if slots.len() != count {
+        return Err("Discord didn't return an upload URL for every file".into());
+    }
+    Ok(slots.into_iter().map(|(_, url, name)| (url, name)).collect())
+}
+
+// Create Message's body; `attachments` are (filename, uploaded_filename) of files already uploaded.
+fn message_body(content: &str, nonce: &str, reply_to: Option<&str>, ping_author: bool, attachments: &[(String, String)]) -> Value {
+    let mut body = json!({ "content": content, "nonce": nonce });
+    if let Some(id) = reply_to {
+        body["message_reference"] = json!({ "message_id": id });
+        body["allowed_mentions"] = json!({ "parse": ["users", "roles", "everyone"], "replied_user": ping_author });
+    }
+    if !attachments.is_empty() {
+        let list: Vec<Value> = attachments.iter().enumerate().map(|(i, (name, uploaded))| json!({ "id": i.to_string(), "filename": name, "uploaded_filename": uploaded })).collect();
+        body["attachments"] = json!(list);
+    }
+    body
+}
+
+// The PUT to a signed storage URL: no Authorization (the URL is the credential), streamed in chunks so
+// `sent` follows the bytes out. Content-Length is set so the body isn't sent chunked.
+async fn put_file(http: reqwest::Client, url: String, path: PathBuf, sent: std::sync::Arc<std::sync::atomic::AtomicU64>) -> Result<(), String> {
+    use std::sync::atomic::Ordering;
+    let bytes = bytes::Bytes::from(tokio::fs::read(&path).await.map_err(|e| e.to_string())?);
+    let len = bytes.len();
+    sent.store(0, Ordering::Relaxed);
+    let chunks = (0..len).step_by(64 << 10).map(move |at| bytes.slice(at..(at + (64 << 10)).min(len)));
+    let stream = futures::stream::iter(chunks).map(move |chunk| {
+        sent.fetch_add(chunk.len() as u64, Ordering::Relaxed);
+        Ok::<_, std::io::Error>(chunk)
+    });
+    let res = http.put(url).header(reqwest::header::CONTENT_LENGTH, len).body(reqwest::Body::wrap_stream(stream)).send().await.map_err(|e| e.to_string())?;
+    if res.status().is_success() {
+        return Ok(());
+    }
+    let status = res.status();
+    Err(format!("Upload failed: {status}"))
 }
 
 // Discord's refusal in its own words. "Invalid Form Body" says nothing alone, so the first field's
@@ -2022,6 +2114,44 @@ pub fn snowflake(v: &Value) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn upload(name: &str, size: u64) -> Upload {
+        Upload { path: PathBuf::from(format!("/tmp/{name}")), name: name.into(), size, sent: Default::default() }
+    }
+
+    #[test]
+    fn upload_limit_is_the_higher_of_nitro_and_boosts() {
+        assert_eq!(upload_limit(0, 0), 10 << 20);
+        assert_eq!(upload_limit(0, 1), 10 << 20, "boost level 1 adds nothing");
+        assert_eq!(upload_limit(3, 0), 50 << 20, "Nitro Basic");
+        assert_eq!(upload_limit(1, 3), 100 << 20, "the server's level 3 beats Classic");
+        assert_eq!(upload_limit(2, 3), 500 << 20, "Nitro beats every server");
+    }
+
+    #[test]
+    fn asks_for_one_upload_url_per_file() {
+        let body = attachments_request(&[upload("cat.png", 1200), upload("SPOILER_notes.txt", 3)]);
+        assert_eq!(body, json!({ "files": [{ "id": "0", "filename": "cat.png", "file_size": 1200 }, { "id": "1", "filename": "SPOILER_notes.txt", "file_size": 3 }] }));
+    }
+
+    #[test]
+    fn upload_urls_come_back_in_request_order() {
+        let body = json!({ "attachments": [
+            { "id": 1, "upload_url": "https://up/b", "upload_filename": "u/b.txt" },
+            { "id": 0, "upload_url": "https://up/a", "upload_filename": "u/a.png" },
+        ] });
+        assert_eq!(parse_upload_slots(&body, 2).unwrap(), vec![("https://up/a".into(), "u/a.png".into()), ("https://up/b".into(), "u/b.txt".into())]);
+        assert!(parse_upload_slots(&body, 3).is_err(), "a missing slot is an error, never a message without the file");
+    }
+
+    #[test]
+    fn the_message_names_each_uploaded_file() {
+        let body = message_body("look", "n1", Some("42"), false, &[("cat.png".into(), "u/cat.png".into())]);
+        assert_eq!(body["attachments"], json!([{ "id": "0", "filename": "cat.png", "uploaded_filename": "u/cat.png" }]));
+        assert_eq!(body["message_reference"], json!({ "message_id": "42" }));
+        assert_eq!(body["allowed_mentions"]["replied_user"], json!(false));
+        assert!(message_body("hi", "n2", None, true, &[]).get("attachments").is_none(), "plain text carries no attachments key");
+    }
 
     #[test]
     fn reads_the_activity_feed() {
