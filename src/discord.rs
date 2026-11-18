@@ -1002,6 +1002,13 @@ impl Client {
     }
 
     /// Marks several channels read at once (a server's "Mark As Read").
+    // A form upload with one file, as sticker creation takes it.
+    pub async fn call_form(&self, path: String, fields: Vec<(&'static str, String)>, file_name: String, bytes: Vec<u8>) -> Result<Value, String> {
+        let form = fields.into_iter().fold(reqwest::multipart::Form::new(), |form, (key, value)| form.text(key, value));
+        let form = form.part("file", reqwest::multipart::Part::bytes(bytes).file_name(file_name));
+        self.run(self.request(reqwest::Method::POST, &path).multipart(form)).await
+    }
+
     pub async fn ack_bulk(&self, reads: Vec<(String, u64)>) {
         let read_states: Vec<Value> = reads.into_iter().map(|(channel, message)| json!({ "channel_id": channel, "message_id": message.to_string(), "read_state_type": 0 })).collect();
         let req = self.request(reqwest::Method::POST, "/read-states/ack-bulk").json(&json!({ "read_states": read_states }));

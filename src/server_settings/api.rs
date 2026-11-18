@@ -1,0 +1,694 @@
+// Every REST call server settings makes, as plain values so tests can check path and body without a network.
+// Routes and fields from discord-api-docs (read 2026-11-18) unless a line says "user client": those are
+// what Discord's own app calls, undocumented. Not verified live.
+use base64::Engine;
+use reqwest::Method;
+use serde_json::{Map, Value, json};
+
+use crate::discord::Client;
+
+#[derive(Debug, PartialEq)]
+pub struct Call {
+    pub method: Method,
+    pub path: String,
+    pub body: Option<Value>,
+}
+
+impl Call {
+    fn new(method: Method, path: String, body: Option<Value>) -> Self {
+        Call { method, path, body }
+    }
+
+    // Discord's refusal comes back verbatim (discord::send keeps its message).
+    pub async fn send(self, client: &Client) -> Result<Value, String> {
+        client.call(self.method, self.path, self.body).await
+    }
+}
+
+fn get(path: String) -> Call {
+    Call::new(Method::GET, path, None)
+}
+
+fn delete(path: String) -> Call {
+    Call::new(Method::DELETE, path, None)
+}
+
+// Discord's image data: a base64 data URI.
+pub fn image_data(mime: &str, bytes: &[u8]) -> String {
+    format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes))
+}
+
+// Overview
+
+// What the Overview page edits. Images hold Discord's hash as loaded, or a data URI once replaced.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Overview {
+    pub name: String,
+    pub description: Option<String>,
+    pub icon: Option<String>,
+    pub banner: Option<String>,
+    pub splash: Option<String>,
+    pub system_channel_id: Option<String>,
+    pub system_channel_flags: u64,
+    pub afk_channel_id: Option<String>,
+    pub afk_timeout: u32,
+    pub default_message_notifications: u8,
+    pub verification_level: u8,
+    pub explicit_content_filter: u8,
+    pub premium_progress_bar_enabled: bool,
+}
+
+// Discord's allowed inactive timeouts, seconds.
+pub const AFK_TIMEOUTS: [u32; 5] = [60, 300, 900, 1800, 3600];
+
+// System channel flags are "suppress" bits: a set bit turns the message off.
+pub mod system_flags {
+    pub const JOIN: u64 = 1 << 0;
+    pub const BOOSTS: u64 = 1 << 1;
+    pub const SETUP_TIPS: u64 = 1 << 2;
+    pub const JOIN_STICKER_REPLIES: u64 = 1 << 3;
+}
+
+impl Overview {
+    pub fn parse(g: &Value) -> Self {
+        let s = |k: &str| g[k].as_str().map(str::to_owned);
+        let n = |k: &str| g[k].as_u64().unwrap_or(0);
+        Overview {
+            name: s("name").unwrap_or_default(),
+            description: s("description"),
+            icon: s("icon"),
+            banner: s("banner"),
+            splash: s("splash"),
+            system_channel_id: s("system_channel_id"),
+            system_channel_flags: n("system_channel_flags"),
+            afk_channel_id: s("afk_channel_id"),
+            afk_timeout: g["afk_timeout"].as_u64().unwrap_or(300) as u32,
+            default_message_notifications: n("default_message_notifications") as u8,
+            verification_level: n("verification_level") as u8,
+            explicit_content_filter: n("explicit_content_filter") as u8,
+            premium_progress_bar_enabled: g["premium_progress_bar_enabled"].as_bool().unwrap_or(false),
+        }
+    }
+}
+
+// Only the fields the draft changed, so a save never rewrites what someone else just set.
+pub fn overview_patch(saved: &Overview, draft: &Overview) -> Map<String, Value> {
+    let mut out = Map::new();
+    let mut put = |key: &str, before: Value, after: Value| {
+        if before != after {
+            out.insert(key.into(), after);
+        }
+    };
+    put("name", json!(saved.name), json!(draft.name.trim()));
+    put("description", json!(saved.description), json!(draft.description.as_deref().map(str::trim).filter(|d| !d.is_empty())));
+    put("icon", json!(saved.icon), json!(draft.icon));
+    put("banner", json!(saved.banner), json!(draft.banner));
+    put("splash", json!(saved.splash), json!(draft.splash));
+    put("system_channel_id", json!(saved.system_channel_id), json!(draft.system_channel_id));
+    put("system_channel_flags", json!(saved.system_channel_flags), json!(draft.system_channel_flags));
+    put("afk_channel_id", json!(saved.afk_channel_id), json!(draft.afk_channel_id));
+    put("afk_timeout", json!(saved.afk_timeout), json!(draft.afk_timeout));
+    put("default_message_notifications", json!(saved.default_message_notifications), json!(draft.default_message_notifications));
+    put("verification_level", json!(saved.verification_level), json!(draft.verification_level));
+    put("explicit_content_filter", json!(saved.explicit_content_filter), json!(draft.explicit_content_filter));
+    put("premium_progress_bar_enabled", json!(saved.premium_progress_bar_enabled), json!(draft.premium_progress_bar_enabled));
+    out
+}
+
+pub fn guild(guild_id: &str) -> Call {
+    get(format!("/guilds/{guild_id}?with_counts=true"))
+}
+
+// None when nothing changed: the save bar has nothing to send.
+pub fn edit_guild(guild_id: &str, saved: &Overview, draft: &Overview) -> Option<Call> {
+    let patch = overview_patch(saved, draft);
+    (!patch.is_empty()).then(|| Call::new(Method::PATCH, format!("/guilds/{guild_id}"), Some(Value::Object(patch))))
+}
+
+// Turning Community on: Discord requires verification of at least "low", the media filter on for
+// everyone, and a rules and an updates channel ("1" asks Discord to create one).
+pub fn enable_community(guild_id: &str, features: &[String], rules_channel_id: Option<&str>, updates_channel_id: Option<&str>) -> Call {
+    let mut features = features.to_vec();
+    if !features.iter().any(|f| f == "COMMUNITY") {
+        features.push("COMMUNITY".into());
+    }
+    Call::new(
+        Method::PATCH,
+        format!("/guilds/{guild_id}"),
+        Some(json!({
+            "features": features,
+            "verification_level": 1,
+            "explicit_content_filter": 2,
+            "rules_channel_id": rules_channel_id.unwrap_or("1"),
+            "public_updates_channel_id": updates_channel_id.unwrap_or("1"),
+        })),
+    )
+}
+
+pub fn disable_community(guild_id: &str, features: &[String]) -> Call {
+    let features: Vec<&String> = features.iter().filter(|f| *f != "COMMUNITY").collect();
+    Call::new(Method::PATCH, format!("/guilds/{guild_id}"), Some(json!({ "features": features })))
+}
+
+// User client: the owner's delete, which Discord confirms with the server's name typed out.
+pub fn delete_guild(guild_id: &str) -> Call {
+    Call::new(Method::POST, format!("/guilds/{guild_id}/delete"), Some(json!({})))
+}
+
+// Roles
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RoleDraft {
+    pub name: String,
+    pub permissions: u64,
+    pub color: u32,
+    // A second colour makes a gradient; a third, Discord's holographic style. Needs ENHANCED_ROLE_COLORS.
+    pub secondary_color: Option<u32>,
+    pub tertiary_color: Option<u32>,
+    pub hoist: bool,
+    pub mentionable: bool,
+    // A hash as loaded, or a data URI once replaced. Needs ROLE_ICONS.
+    pub icon: Option<String>,
+    pub unicode_emoji: Option<String>,
+}
+
+impl RoleDraft {
+    pub fn parse(r: &Value) -> Self {
+        let colors = &r["colors"];
+        RoleDraft {
+            name: r["name"].as_str().unwrap_or_default().to_owned(),
+            permissions: r["permissions"].as_str().and_then(|p| p.parse().ok()).unwrap_or(0),
+            color: colors["primary_color"].as_u64().or(r["color"].as_u64()).unwrap_or(0) as u32,
+            secondary_color: colors["secondary_color"].as_u64().map(|c| c as u32),
+            tertiary_color: colors["tertiary_color"].as_u64().map(|c| c as u32),
+            hoist: r["hoist"].as_bool().unwrap_or(false),
+            mentionable: r["mentionable"].as_bool().unwrap_or(false),
+            icon: r["icon"].as_str().map(str::to_owned),
+            unicode_emoji: r["unicode_emoji"].as_str().map(str::to_owned),
+        }
+    }
+}
+
+pub fn role_patch(saved: &RoleDraft, draft: &RoleDraft) -> Map<String, Value> {
+    let mut out = Map::new();
+    let mut put = |key: &str, before: Value, after: Value| {
+        if before != after {
+            out.insert(key.into(), after);
+        }
+    };
+    put("name", json!(saved.name), json!(draft.name.trim()));
+    // Permissions travel as a decimal string: the bitfield outgrows a JSON-safe integer.
+    put("permissions", json!(saved.permissions.to_string()), json!(draft.permissions.to_string()));
+    let colors = |r: &RoleDraft| json!({ "primary_color": r.color, "secondary_color": r.secondary_color, "tertiary_color": r.tertiary_color });
+    put("colors", colors(saved), colors(draft));
+    put("hoist", json!(saved.hoist), json!(draft.hoist));
+    put("mentionable", json!(saved.mentionable), json!(draft.mentionable));
+    put("icon", json!(saved.icon), json!(draft.icon));
+    put("unicode_emoji", json!(saved.unicode_emoji), json!(draft.unicode_emoji));
+    out
+}
+
+pub fn roles(guild_id: &str) -> Call {
+    get(format!("/guilds/{guild_id}/roles"))
+}
+
+pub fn role_member_counts(guild_id: &str) -> Call {
+    get(format!("/guilds/{guild_id}/roles/member-counts"))
+}
+
+// User client: the ids of everyone holding a role (Manage Members in the role editor).
+pub fn role_member_ids(guild_id: &str, role_id: &str) -> Call {
+    get(format!("/guilds/{guild_id}/roles/{role_id}/member-ids"))
+}
+
+// Discord's "Create role" makes "new role" with the server's defaults; the editor opens on it.
+pub fn create_role(guild_id: &str) -> Call {
+    Call::new(Method::POST, format!("/guilds/{guild_id}/roles"), Some(json!({ "name": "new role", "permissions": "0", "colors": { "primary_color": 0 } })))
+}
+
+pub fn edit_role(guild_id: &str, role_id: &str, saved: &RoleDraft, draft: &RoleDraft) -> Option<Call> {
+    let patch = role_patch(saved, draft);
+    (!patch.is_empty()).then(|| Call::new(Method::PATCH, format!("/guilds/{guild_id}/roles/{role_id}"), Some(Value::Object(patch))))
+}
+
+pub fn delete_role(guild_id: &str, role_id: &str) -> Call {
+    delete(format!("/guilds/{guild_id}/roles/{role_id}"))
+}
+
+// `order` is the roles as listed after a drag, highest first, @everyone last. Discord's positions run the
+// other way (@everyone is 0), so each role's position is its distance from the bottom. Only roles whose
+// position changed are sent; None when the drag put everything back.
+pub fn reorder_roles(guild_id: &str, order: &[(&str, i64)]) -> Option<Call> {
+    let bottom = order.len() as i64 - 1;
+    let moved: Vec<Value> = order.iter().enumerate().filter(|(i, (_, position))| bottom - *i as i64 != *position).map(|(i, (id, _))| json!({ "id": id, "position": bottom - i as i64 })).collect();
+    (!moved.is_empty()).then(|| Call::new(Method::PATCH, format!("/guilds/{guild_id}/roles"), Some(Value::Array(moved))))
+}
+
+pub fn add_member_role(guild_id: &str, user_id: &str, role_id: &str) -> Call {
+    Call::new(Method::PUT, format!("/guilds/{guild_id}/members/{user_id}/roles/{role_id}"), None)
+}
+
+pub fn remove_member_role(guild_id: &str, user_id: &str, role_id: &str) -> Call {
+    delete(format!("/guilds/{guild_id}/members/{user_id}/roles/{role_id}"))
+}
+
+// Emoji, stickers, soundboard
+
+pub fn emojis(guild_id: &str) -> Call {
+    get(format!("/guilds/{guild_id}/emojis"))
+}
+
+// `image` is image data (image_data); Discord takes up to 256 KiB.
+pub fn create_emoji(guild_id: &str, name: &str, image: String) -> Call {
+    Call::new(Method::POST, format!("/guilds/{guild_id}/emojis"), Some(json!({ "name": name, "image": image, "roles": [] })))
+}
+
+pub fn rename_emoji(guild_id: &str, emoji_id: &str, name: &str) -> Call {
+    Call::new(Method::PATCH, format!("/guilds/{guild_id}/emojis/{emoji_id}"), Some(json!({ "name": name })))
+}
+
+pub fn delete_emoji(guild_id: &str, emoji_id: &str) -> Call {
+    delete(format!("/guilds/{guild_id}/emojis/{emoji_id}"))
+}
+
+pub fn stickers(guild_id: &str) -> Call {
+    get(format!("/guilds/{guild_id}/stickers"))
+}
+
+// Creating a sticker is a multipart upload; `tags` is the related emoji's name, as Discord's uploader fills it.
+// `file` is a PNG, APNG, GIF or Lottie JSON up to 512 KiB.
+pub async fn create_sticker(client: &Client, guild_id: &str, name: &str, description: &str, tags: &str, file_name: String, file: Vec<u8>) -> Result<Value, String> {
+    let fields = vec![("name", name.to_owned()), ("description", description.to_owned()), ("tags", tags.to_owned())];
+    client.call_form(format!("/guilds/{guild_id}/stickers"), fields, file_name, file).await
+}
+
+pub fn edit_sticker(guild_id: &str, sticker_id: &str, name: &str, description: &str, tags: &str) -> Call {
+    Call::new(Method::PATCH, format!("/guilds/{guild_id}/stickers/{sticker_id}"), Some(json!({ "name": name, "description": description, "tags": tags })))
+}
+
+pub fn delete_sticker(guild_id: &str, sticker_id: &str) -> Call {
+    delete(format!("/guilds/{guild_id}/stickers/{sticker_id}"))
+}
+
+pub fn sounds(guild_id: &str) -> Call {
+    get(format!("/guilds/{guild_id}/soundboard-sounds"))
+}
+
+// `sound` is an mp3 or ogg as a data URI, up to 512 KiB and 5.2 seconds; volume 0-1.
+pub fn create_sound(guild_id: &str, name: &str, sound: String, volume: f32, emoji: Option<&str>) -> Call {
+    Call::new(Method::POST, format!("/guilds/{guild_id}/soundboard-sounds"), Some(json!({ "name": name, "sound": sound, "volume": volume, "emoji_name": emoji })))
+}
+
+pub fn edit_sound(guild_id: &str, sound_id: &str, name: &str, volume: f32, emoji: Option<&str>) -> Call {
+    Call::new(Method::PATCH, format!("/guilds/{guild_id}/soundboard-sounds/{sound_id}"), Some(json!({ "name": name, "volume": volume, "emoji_name": emoji })))
+}
+
+pub fn delete_sound(guild_id: &str, sound_id: &str) -> Call {
+    delete(format!("/guilds/{guild_id}/soundboard-sounds/{sound_id}"))
+}
+
+// Widget, template, vanity
+
+pub fn widget(guild_id: &str) -> Call {
+    get(format!("/guilds/{guild_id}/widget"))
+}
+
+pub fn edit_widget(guild_id: &str, enabled: bool, channel_id: Option<&str>) -> Call {
+    Call::new(Method::PATCH, format!("/guilds/{guild_id}/widget"), Some(json!({ "enabled": enabled, "channel_id": channel_id })))
+}
+
+pub fn templates(guild_id: &str) -> Call {
+    get(format!("/guilds/{guild_id}/templates"))
+}
+
+pub fn create_template(guild_id: &str, name: &str, description: &str) -> Call {
+    Call::new(Method::POST, format!("/guilds/{guild_id}/templates"), Some(json!({ "name": name, "description": description })))
+}
+
+// Sync: the template takes on the server's current channels, roles and settings.
+pub fn sync_template(guild_id: &str, code: &str) -> Call {
+    Call::new(Method::PUT, format!("/guilds/{guild_id}/templates/{code}"), None)
+}
+
+pub fn delete_template(guild_id: &str, code: &str) -> Call {
+    delete(format!("/guilds/{guild_id}/templates/{code}"))
+}
+
+pub fn vanity(guild_id: &str) -> Call {
+    get(format!("/guilds/{guild_id}/vanity-url"))
+}
+
+// User client. Needs the VANITY_URL feature (boost level 3).
+pub fn set_vanity(guild_id: &str, code: &str) -> Call {
+    Call::new(Method::PATCH, format!("/guilds/{guild_id}/vanity-url"), Some(json!({ "code": code })))
+}
+
+// Apps
+
+pub fn integrations(guild_id: &str) -> Call {
+    get(format!("/guilds/{guild_id}/integrations"))
+}
+
+pub fn remove_integration(guild_id: &str, integration_id: &str) -> Call {
+    delete(format!("/guilds/{guild_id}/integrations/{integration_id}"))
+}
+
+pub fn webhooks(guild_id: &str) -> Call {
+    get(format!("/guilds/{guild_id}/webhooks"))
+}
+
+// Discord's "New webhook" names it for you; the editor renames it.
+pub fn create_webhook(channel_id: &str, name: &str) -> Call {
+    Call::new(Method::POST, format!("/channels/{channel_id}/webhooks"), Some(json!({ "name": name })))
+}
+
+// `avatar`: None keeps it, Some(None) clears it, Some(Some(data)) replaces it.
+pub fn edit_webhook(webhook_id: &str, name: &str, channel_id: &str, avatar: Option<Option<String>>) -> Call {
+    let mut body = json!({ "name": name, "channel_id": channel_id });
+    if let Some(avatar) = avatar {
+        body["avatar"] = json!(avatar);
+    }
+    Call::new(Method::PATCH, format!("/webhooks/{webhook_id}"), Some(body))
+}
+
+pub fn delete_webhook(webhook_id: &str) -> Call {
+    delete(format!("/webhooks/{webhook_id}"))
+}
+
+// AutoMod
+
+pub mod automod {
+    pub const KEYWORD: u8 = 1;
+    pub const SPAM: u8 = 3;
+    pub const KEYWORD_PRESET: u8 = 4;
+    pub const MENTION_SPAM: u8 = 5;
+    pub const MEMBER_PROFILE: u8 = 6;
+    pub const BLOCK_MESSAGE: u8 = 1;
+    pub const SEND_ALERT: u8 = 2;
+    pub const TIMEOUT: u8 = 3;
+    pub const BLOCK_INTERACTION: u8 = 4;
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum AutomodAction {
+    // Shown to the member when their message is blocked; at most 150 characters.
+    Block { custom_message: Option<String> },
+    Alert { channel_id: String },
+    Timeout { seconds: u32 },
+    BlockInteraction,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Trigger {
+    Keyword { words: Vec<String>, regex: Vec<String>, allow: Vec<String> },
+    Spam,
+    Preset { presets: Vec<u8>, allow: Vec<String> },
+    MentionSpam { limit: u8, raid_protection: bool },
+    Profile { words: Vec<String>, regex: Vec<String>, allow: Vec<String> },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AutomodRule {
+    pub name: String,
+    pub enabled: bool,
+    pub trigger: Trigger,
+    pub actions: Vec<AutomodAction>,
+    pub exempt_roles: Vec<String>,
+    pub exempt_channels: Vec<String>,
+}
+
+impl AutomodRule {
+    pub fn body(&self) -> Value {
+        use automod::*;
+        let (trigger_type, metadata) = match &self.trigger {
+            Trigger::Keyword { words, regex, allow } => (KEYWORD, json!({ "keyword_filter": words, "regex_patterns": regex, "allow_list": allow })),
+            Trigger::Spam => (SPAM, json!({})),
+            Trigger::Preset { presets, allow } => (KEYWORD_PRESET, json!({ "presets": presets, "allow_list": allow })),
+            Trigger::MentionSpam { limit, raid_protection } => (MENTION_SPAM, json!({ "mention_total_limit": limit, "mention_raid_protection_enabled": raid_protection })),
+            Trigger::Profile { words, regex, allow } => (MEMBER_PROFILE, json!({ "keyword_filter": words, "regex_patterns": regex, "allow_list": allow })),
+        };
+        let actions: Vec<Value> = self
+            .actions
+            .iter()
+            .map(|a| match a {
+                AutomodAction::Block { custom_message } => json!({ "type": BLOCK_MESSAGE, "metadata": { "custom_message": custom_message } }),
+                AutomodAction::Alert { channel_id } => json!({ "type": SEND_ALERT, "metadata": { "channel_id": channel_id } }),
+                AutomodAction::Timeout { seconds } => json!({ "type": TIMEOUT, "metadata": { "duration_seconds": seconds } }),
+                AutomodAction::BlockInteraction => json!({ "type": BLOCK_INTERACTION, "metadata": {} }),
+            })
+            .collect();
+        // Event type 1 is "a member sends or edits a message"; 2 is "a member updates their profile".
+        let event_type = if trigger_type == MEMBER_PROFILE { 2 } else { 1 };
+        json!({
+            "name": self.name,
+            "enabled": self.enabled,
+            "event_type": event_type,
+            "trigger_type": trigger_type,
+            "trigger_metadata": metadata,
+            "actions": actions,
+            "exempt_roles": self.exempt_roles,
+            "exempt_channels": self.exempt_channels,
+        })
+    }
+}
+
+pub fn automod_rules(guild_id: &str) -> Call {
+    get(format!("/guilds/{guild_id}/auto-moderation/rules"))
+}
+
+pub fn create_automod_rule(guild_id: &str, rule: &AutomodRule) -> Call {
+    Call::new(Method::POST, format!("/guilds/{guild_id}/auto-moderation/rules"), Some(rule.body()))
+}
+
+// Discord won't change a rule's trigger type once made, so an edit leaves it out.
+pub fn edit_automod_rule(guild_id: &str, rule_id: &str, rule: &AutomodRule) -> Call {
+    let mut body = rule.body();
+    if let Some(body) = body.as_object_mut() {
+        body.remove("trigger_type");
+        body.remove("event_type");
+    }
+    Call::new(Method::PATCH, format!("/guilds/{guild_id}/auto-moderation/rules/{rule_id}"), Some(body))
+}
+
+pub fn delete_automod_rule(guild_id: &str, rule_id: &str) -> Call {
+    delete(format!("/guilds/{guild_id}/auto-moderation/rules/{rule_id}"))
+}
+
+// Moderation
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct AuditQuery {
+    pub user_id: Option<String>,
+    pub action_type: Option<u16>,
+    // The oldest entry shown so far: the next page is everything before it.
+    pub before: Option<String>,
+}
+
+pub const AUDIT_PAGE: usize = 50;
+
+pub fn audit_log(guild_id: &str, query: &AuditQuery) -> Call {
+    let mut path = format!("/guilds/{guild_id}/audit-logs?limit={AUDIT_PAGE}");
+    if let Some(user) = &query.user_id {
+        path.push_str(&format!("&user_id={user}"));
+    }
+    if let Some(action) = query.action_type {
+        path.push_str(&format!("&action_type={action}"));
+    }
+    if let Some(before) = &query.before {
+        path.push_str(&format!("&before={before}"));
+    }
+    get(path)
+}
+
+// A page of bans, oldest first; `after` is the last user id of the page before.
+pub fn bans(guild_id: &str, after: Option<&str>) -> Call {
+    let mut path = format!("/guilds/{guild_id}/bans?limit=1000");
+    if let Some(after) = after {
+        path.push_str(&format!("&after={after}"));
+    }
+    get(path)
+}
+
+// User client: search bans by name or id, as the Bans page's search field does.
+pub fn search_bans(guild_id: &str, query: &str) -> Call {
+    let query: String = url_encode(query);
+    get(format!("/guilds/{guild_id}/bans/search?query={query}&limit=10"))
+}
+
+pub fn unban(guild_id: &str, user_id: &str) -> Call {
+    delete(format!("/guilds/{guild_id}/bans/{user_id}"))
+}
+
+// `delete_seconds`: how much of their recent messages goes with them, up to 7 days.
+pub fn ban(guild_id: &str, user_id: &str, delete_seconds: u32) -> Call {
+    Call::new(Method::PUT, format!("/guilds/{guild_id}/bans/{user_id}"), Some(json!({ "delete_message_seconds": delete_seconds.min(604_800) })))
+}
+
+pub fn kick(guild_id: &str, user_id: &str) -> Call {
+    delete(format!("/guilds/{guild_id}/members/{user_id}"))
+}
+
+// `until`: an ISO 8601 time at most 28 days away; None lifts the timeout.
+pub fn timeout(guild_id: &str, user_id: &str, until: Option<&str>) -> Call {
+    Call::new(Method::PATCH, format!("/guilds/{guild_id}/members/{user_id}"), Some(json!({ "communication_disabled_until": until })))
+}
+
+pub fn search_members(guild_id: &str, query: &str) -> Call {
+    get(format!("/guilds/{guild_id}/members/search?query={}&limit=100", url_encode(query)))
+}
+
+pub fn prune_count(guild_id: &str, days: u8, roles: &[String]) -> Call {
+    get(format!("/guilds/{guild_id}/prune?days={days}&include_roles={}", roles.join(",")))
+}
+
+pub fn prune(guild_id: &str, days: u8, roles: &[String]) -> Call {
+    Call::new(Method::POST, format!("/guilds/{guild_id}/prune"), Some(json!({ "days": days, "include_roles": roles, "compute_prune_count": false })))
+}
+
+pub fn invites(guild_id: &str) -> Call {
+    get(format!("/guilds/{guild_id}/invites"))
+}
+
+pub fn revoke_invite(code: &str) -> Call {
+    delete(format!("/invites/{code}"))
+}
+
+// "Pause invites": `until` an ISO time up to 24 hours away, None to resume.
+pub fn pause_invites(guild_id: &str, until: Option<&str>) -> Call {
+    Call::new(Method::PUT, format!("/guilds/{guild_id}/incident-actions"), Some(json!({ "invites_disabled_until": until, "dms_disabled_until": null })))
+}
+
+// Community
+
+pub fn onboarding(guild_id: &str) -> Call {
+    get(format!("/guilds/{guild_id}/onboarding"))
+}
+
+// The whole onboarding object goes back as edited (Discord replaces it).
+pub fn put_onboarding(guild_id: &str, onboarding: Value) -> Call {
+    Call::new(Method::PUT, format!("/guilds/{guild_id}/onboarding"), Some(onboarding))
+}
+
+pub fn welcome_screen(guild_id: &str) -> Call {
+    get(format!("/guilds/{guild_id}/welcome-screen"))
+}
+
+pub fn edit_welcome_screen(guild_id: &str, enabled: bool, description: &str, channels: Value) -> Call {
+    Call::new(Method::PATCH, format!("/guilds/{guild_id}/welcome-screen"), Some(json!({ "enabled": enabled, "description": description, "welcome_channels": channels })))
+}
+
+// Server Insights has no API a user account can read: the page links to Discord's.
+pub fn insights_url(guild_id: &str) -> String {
+    format!("https://discord.com/developers/servers/{guild_id}/analytics")
+}
+
+fn url_encode(text: &str) -> String {
+    reqwest::Url::parse_with_params("x:", &[("q", text)]).map(|u| u.query().unwrap_or_default().trim_start_matches("q=").to_owned()).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn overview() -> Overview {
+        Overview { name: "Night Shift".into(), icon: Some("abc".into()), afk_timeout: 300, system_channel_id: Some("10".into()), ..Default::default() }
+    }
+
+    #[test]
+    fn overview_patch_sends_only_changes() {
+        let saved = overview();
+        assert!(edit_guild("1", &saved, &saved).is_none());
+        let mut draft = saved.clone();
+        draft.name = "  Night Owls ".into();
+        draft.system_channel_flags = system_flags::JOIN | system_flags::SETUP_TIPS;
+        let call = edit_guild("1", &saved, &draft).unwrap();
+        assert_eq!(call.method, Method::PATCH);
+        assert_eq!(call.path, "/guilds/1");
+        assert_eq!(call.body.unwrap(), json!({ "name": "Night Owls", "system_channel_flags": 5 }));
+    }
+
+    #[test]
+    fn overview_patch_clears_with_null() {
+        let saved = overview();
+        let mut draft = saved.clone();
+        draft.icon = None;
+        draft.system_channel_id = None;
+        draft.description = Some("   ".into());
+        assert_eq!(Value::Object(overview_patch(&saved, &draft)), json!({ "icon": null, "system_channel_id": null }));
+    }
+
+    #[test]
+    fn overview_round_trips_discord_guild() {
+        let g = json!({ "name": "Night Shift", "icon": "abc", "afk_timeout": 300, "system_channel_id": "10", "system_channel_flags": 0 });
+        assert!(overview_patch(&Overview::parse(&g), &overview()).is_empty());
+    }
+
+    #[test]
+    fn role_patch_sends_permissions_as_string_and_colors_whole() {
+        let saved = RoleDraft { name: "Mods".into(), permissions: 1 << 40, color: 0xC8471A, ..Default::default() };
+        let mut draft = saved.clone();
+        draft.permissions |= 1 << 2;
+        draft.secondary_color = Some(0x3355FF);
+        let body = Value::Object(role_patch(&saved, &draft));
+        assert_eq!(body, json!({ "permissions": ((1u64 << 40) | 4).to_string(), "colors": { "primary_color": 0xC8471A, "secondary_color": 0x3355FF, "tertiary_color": null } }));
+    }
+
+    #[test]
+    fn role_parse_reads_colors_or_legacy_color() {
+        let r = RoleDraft::parse(&json!({ "name": "A", "permissions": "8", "color": 5 }));
+        assert_eq!((r.permissions, r.color, r.secondary_color), (8, 5, None));
+        let r = RoleDraft::parse(&json!({ "name": "A", "permissions": "0", "color": 5, "colors": { "primary_color": 7, "secondary_color": 9 } }));
+        assert_eq!((r.color, r.secondary_color), (7, Some(9)));
+    }
+
+    #[test]
+    fn reorder_sends_only_moved_roles() {
+        // Listed highest first; Admin dragged below Mods.
+        let order = [("mods", 2), ("admin", 3), ("members", 1), ("everyone", 0)];
+        let call = reorder_roles("1", &order).unwrap();
+        assert_eq!(call.body.unwrap(), json!([{ "id": "mods", "position": 3 }, { "id": "admin", "position": 2 }]));
+        assert!(reorder_roles("1", &[("a", 1), ("everyone", 0)]).is_none());
+    }
+
+    #[test]
+    fn automod_bodies() {
+        let rule = AutomodRule {
+            name: "Mention spam".into(),
+            enabled: true,
+            trigger: Trigger::MentionSpam { limit: 20, raid_protection: true },
+            actions: vec![AutomodAction::Block { custom_message: None }, AutomodAction::Timeout { seconds: 600 }],
+            exempt_roles: vec!["9".into()],
+            exempt_channels: vec![],
+        };
+        let body = create_automod_rule("1", &rule).body.unwrap();
+        assert_eq!(body["trigger_type"], 5);
+        assert_eq!(body["event_type"], 1);
+        assert_eq!(body["trigger_metadata"], json!({ "mention_total_limit": 20, "mention_raid_protection_enabled": true }));
+        assert_eq!(body["actions"][1], json!({ "type": 3, "metadata": { "duration_seconds": 600 } }));
+        let edit = edit_automod_rule("1", "77", &rule).body.unwrap();
+        assert!(edit.get("trigger_type").is_none() && edit.get("event_type").is_none());
+        let profile = AutomodRule { trigger: Trigger::Profile { words: vec!["x".into()], regex: vec![], allow: vec![] }, ..rule };
+        assert_eq!(profile.body()["event_type"], 2);
+    }
+
+    #[test]
+    fn audit_log_query() {
+        assert_eq!(audit_log("1", &AuditQuery::default()).path, "/guilds/1/audit-logs?limit=50");
+        let q = AuditQuery { user_id: Some("5".into()), action_type: Some(22), before: Some("900".into()) };
+        assert_eq!(audit_log("1", &q).path, "/guilds/1/audit-logs?limit=50&user_id=5&action_type=22&before=900");
+    }
+
+    #[test]
+    fn small_calls() {
+        assert_eq!(ban("1", "2", 999_999).body.unwrap(), json!({ "delete_message_seconds": 604_800 }));
+        assert_eq!(search_bans("1", "a b&c").path, "/guilds/1/bans/search?query=a+b%26c&limit=10");
+        assert_eq!(revoke_invite("abc"), Call::new(Method::DELETE, "/invites/abc".into(), None));
+        assert_eq!(edit_webhook("3", "Bot", "4", None).body.unwrap(), json!({ "name": "Bot", "channel_id": "4" }));
+        assert_eq!(edit_webhook("3", "Bot", "4", Some(None)).body.unwrap()["avatar"], Value::Null);
+        assert_eq!(image_data("image/png", b"hi"), "data:image/png;base64,aGk=");
+        let community = enable_community("1", &["NEWS".into()], None, Some("8")).body.unwrap();
+        assert_eq!(community["features"], json!(["NEWS", "COMMUNITY"]));
+        assert_eq!((community["rules_channel_id"].as_str(), community["public_updates_channel_id"].as_str()), (Some("1"), Some("8")));
+        assert_eq!(disable_community("1", &["NEWS".into(), "COMMUNITY".into()]).body.unwrap(), json!({ "features": ["NEWS"] }));
+    }
+}

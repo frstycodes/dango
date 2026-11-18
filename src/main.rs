@@ -44,6 +44,7 @@ mod panel;
 mod rail_drag;
 mod sidebar;
 mod search;
+mod server_settings;
 mod settings;
 mod shell;
 mod user_menu;
