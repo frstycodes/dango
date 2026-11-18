@@ -103,10 +103,6 @@ pub fn all() -> impl Iterator<Item = &'static Permission> {
     GROUPS.iter().flat_map(|g| g.items)
 }
 
-pub fn name(bit: u64) -> Option<&'static str> {
-    all().find(|p| p.bit == bit).map(|p| p.name)
-}
-
 // Names of the bits in `bits`, in the editor's order.
 pub fn names(bits: u64) -> Vec<&'static str> {
     all().filter(|p| bits & p.bit != 0).map(|p| p.name).collect()

@@ -2,7 +2,7 @@
 // Safety pages edit one draft of the server (the save bar sends only what changed); a role's editor keeps
 // its own draft in the same bar. List pages load when first opened and act at once, confirming deletes in
 // place and offering Undo where Discord can take the change back.
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use gpui_kit::{
     AnyElement, App, AppContext, Context, Div, Entity, Focusable, FontWeight, IntoElement, ParentElement, ScrollHandle, SharedString, StatefulInteractiveElement, Styled, Window,
@@ -39,7 +39,6 @@ pub struct Info {
     pub features: Vec<String>,
     pub premium_tier: u8,
     pub boosts: u64,
-    pub members: u64,
     pub vanity: Option<String>,
     pub rules_channel_id: Option<String>,
     pub updates_channel_id: Option<String>,
@@ -52,7 +51,6 @@ impl Info {
             features: g["features"].as_array().into_iter().flatten().filter_map(|f| f.as_str().map(str::to_owned)).collect(),
             premium_tier: g["premium_tier"].as_u64().unwrap_or(0) as u8,
             boosts: g["premium_subscription_count"].as_u64().unwrap_or(0),
-            members: g["approximate_member_count"].as_u64().unwrap_or(0),
             vanity: g["vanity_url_code"].as_str().map(str::to_owned),
             rules_channel_id: g["rules_channel_id"].as_str().map(str::to_owned),
             updates_channel_id: g["public_updates_channel_id"].as_str().map(str::to_owned),
@@ -131,7 +129,7 @@ impl Rustcord {
 
     pub(crate) fn open_server_settings(&mut self, guild_id: String, window: &mut Window, cx: &mut Context<Self>) {
         let Some(page) = self.with_access(&guild_id, |me| me.nav().first().and_then(|(_, pages)| pages.first().copied())).flatten() else { return };
-        let input = |placeholder: &'static str, cx: &mut Context<Self>| {
+        let mut input = |placeholder: &'static str, cx: &mut Context<Self>| {
             let state = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder));
             cx.subscribe(&state, |_, _, _: &InputEvent, cx| cx.notify()).detach();
             state
@@ -359,13 +357,13 @@ impl Rustcord {
             return vec![loading_line("Loading the server…", cx)];
         }
         match page {
-            Page::Profile => self.profile_page(cx),
+            Page::Profile => self.ss_profile_page(cx),
             Page::Tag => vec![link_out("server-tag", "Server tags are set up on Discord", "Choosing a tag's name, badge and colour isn't in Discord's public API yet.", "https://discord.com/app", cx)],
-            Page::Engagement => self.engagement_page(window, cx),
-            Page::BoostPerks => self.boost_page(window, cx),
-            Page::Safety => self.safety_page(cx),
-            Page::Roles => self.roles_page(window, cx),
-            Page::Delete => self.delete_page(cx),
+            Page::Engagement => self.ss_engagement_page(window, cx),
+            Page::BoostPerks => self.ss_boost_page(window, cx),
+            Page::Safety => self.ss_safety_page(cx),
+            Page::Roles => self.ss_roles_page(window, cx),
+            Page::Delete => self.ss_delete_page(cx),
             other => self.list_page(other, window, cx),
         }
     }
@@ -440,7 +438,7 @@ impl Rustcord {
     }
 
     // The profile: icon, banner, name and description.
-    fn profile_page(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_profile_page(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let view = self.server_settings.as_ref().expect("server settings are open");
         let draft = &view.draft;
         let guild_id = view.guild_id.clone();
@@ -460,7 +458,7 @@ impl Rustcord {
         ]
     }
 
-    fn engagement_page(&self, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_engagement_page(&self, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
         use api::system_flags::*;
         let view = self.server_settings.as_ref().expect("server settings are open");
         let draft = view.draft.clone();
@@ -488,12 +486,12 @@ impl Rustcord {
             ui::settings_group("Default notifications", cx).child(ui::settings_card(cx).children(notifications)).child(ui::settings_caption("New members start here; anyone can change it for themselves.", cx)).into_any_element(),
             ui::settings_group("Inactive voice", cx).child(ui::settings_card(cx).child(afk_channel).child(afk_timeout)).into_any_element(),
         ];
-        out.push(self.widget_group(&channels, window, cx));
+        out.push(self.ss_widget_group(&channels, window, cx));
         out
     }
 
     // The widget saves at once: it's a separate endpoint from the server's own settings.
-    fn widget_group(&self, channels: &[(String, String)], window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    fn ss_widget_group(&self, channels: &[(String, String)], window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let view = self.server_settings.as_ref().expect("server settings are open");
         let card = match &view.widget {
             Load::Loading => ui::settings_card(cx).child(ui::settings_row("ss-widget-loading", false, cx).child(loading_line("Loading the widget…", cx))),
@@ -528,7 +526,7 @@ impl Rustcord {
         cx.notify();
     }
 
-    fn boost_page(&self, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_boost_page(&self, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let view = self.server_settings.as_ref().expect("server settings are open");
         let Load::Ready(info) = &view.info else { return Vec::new() };
         let draft = view.draft.clone();
@@ -565,7 +563,7 @@ impl Rustcord {
         ]
     }
 
-    fn safety_page(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_safety_page(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let view = self.server_settings.as_ref().expect("server settings are open");
         let draft = view.draft.clone();
         let levels = [(0u8, "Anyone", "No checks"), (1, "Verified email", "Their account has a confirmed email"), (2, "Verified email, on Discord 5 minutes", "Their account is older than five minutes"), (3, "Verified email, here 10 minutes", "They've been a member for ten minutes; slows raids the most"), (4, "Verified phone", "Their account has a confirmed phone number")];
@@ -584,7 +582,7 @@ impl Rustcord {
         ]
     }
 
-    fn delete_page(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_delete_page(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let view = self.server_settings.as_ref().expect("server settings are open");
         let name = self.guilds.iter().find(|g| g.id == view.guild_id).map(|g| g.name.clone()).unwrap_or_default();
         let typed = view.delete_name.read(cx).value().to_string();
@@ -855,8 +853,6 @@ pub fn snowflake_time(id: &str) -> String {
     chrono::DateTime::from_timestamp_millis(ms as i64).map(|t| t.with_timezone(&chrono::Local).format("%-d %b %Y, %H:%M").to_string()).unwrap_or_default()
 }
 
-pub type Names = HashMap<String, String>;
-
 pub fn sentence_spans(segs: &[audit::Seg], cx: &App) -> Div {
     let (strong, text) = (palette::strong(cx), palette::text(cx));
     div().flex().flex_wrap().min_w_0().children(segs.iter().map(|s| match s {
@@ -874,7 +870,7 @@ mod tests {
     #[test]
     fn info_reads_guild() {
         let info = Info::parse(&json!({ "name": "Night Shift", "features": ["BANNER", "COMMUNITY"], "premium_tier": 2, "premium_subscription_count": 9, "approximate_member_count": 120, "vanity_url_code": null }));
-        assert_eq!((info.saved.name.as_str(), info.premium_tier, info.boosts, info.members), ("Night Shift", 2, 9, 120));
+        assert_eq!((info.saved.name.as_str(), info.premium_tier, info.boosts), ("Night Shift", 2, 9));
         assert_eq!(info.features, vec!["BANNER", "COMMUNITY"]);
     }
 

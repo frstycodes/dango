@@ -81,13 +81,6 @@ pub enum Seg {
     Name(String),
 }
 
-pub fn plain(segs: &[Seg]) -> String {
-    segs.iter().map(|s| match s {
-        Seg::Text(t) | Seg::Name(t) => t.as_str(),
-    })
-    .collect()
-}
-
 // Create, change or remove: the entry's icon tone.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tone {
@@ -443,6 +436,13 @@ mod tests {
 
     fn entry(action: u16, target: Option<&str>, changes: Value, options: Value) -> Entry {
         parse_entry(&json!({ "id": "9", "action_type": action, "user_id": "u1", "target_id": target, "changes": changes, "options": options })).unwrap()
+    }
+
+    fn plain(segs: &[Seg]) -> String {
+        segs.iter().map(|s| match s {
+            Seg::Text(t) | Seg::Name(t) => t.as_str(),
+        })
+        .collect()
     }
 
     fn say(e: &Entry) -> String {

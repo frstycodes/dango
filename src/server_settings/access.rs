@@ -5,7 +5,7 @@ use crate::discord::perm;
 
 use super::perms::{ADMINISTRATOR, CREATE_GUILD_EXPRESSIONS, MANAGE_GUILD, MANAGE_GUILD_EXPRESSIONS, MANAGE_WEBHOOKS, VIEW_AUDIT_LOG, VIEW_GUILD_INSIGHTS};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Page {
     Profile,
     Tag,
@@ -178,9 +178,7 @@ pub fn can_edit_expression(me: &Me, uploader_id: Option<&str>) -> bool {
 pub const BANNER: (&str, u8) = ("BANNER", 2);
 pub const INVITE_SPLASH: (&str, u8) = ("INVITE_SPLASH", 1);
 pub const VANITY_URL: (&str, u8) = ("VANITY_URL", 3);
-pub const ROLE_ICONS: (&str, u8) = ("ROLE_ICONS", 2);
 pub const ENHANCED_ROLE_COLORS: (&str, u8) = ("ENHANCED_ROLE_COLORS", 2);
-pub const ANIMATED_ICON: (&str, u8) = ("ANIMATED_ICON", 1);
 
 #[cfg(test)]
 mod tests {

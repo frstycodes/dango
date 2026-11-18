@@ -7,7 +7,7 @@ use serde_json::{Map, Value, json};
 
 use crate::discord::Client;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Call {
     pub method: Method,
     pub path: String,
@@ -263,10 +263,6 @@ pub fn create_emoji(guild_id: &str, name: &str, image: String) -> Call {
     Call::new(Method::POST, format!("/guilds/{guild_id}/emojis"), Some(json!({ "name": name, "image": image, "roles": [] })))
 }
 
-pub fn rename_emoji(guild_id: &str, emoji_id: &str, name: &str) -> Call {
-    Call::new(Method::PATCH, format!("/guilds/{guild_id}/emojis/{emoji_id}"), Some(json!({ "name": name })))
-}
-
 pub fn delete_emoji(guild_id: &str, emoji_id: &str) -> Call {
     delete(format!("/guilds/{guild_id}/emojis/{emoji_id}"))
 }
@@ -282,10 +278,6 @@ pub async fn create_sticker(client: &Client, guild_id: &str, name: &str, descrip
     client.call_form(format!("/guilds/{guild_id}/stickers"), fields, file_name, file).await
 }
 
-pub fn edit_sticker(guild_id: &str, sticker_id: &str, name: &str, description: &str, tags: &str) -> Call {
-    Call::new(Method::PATCH, format!("/guilds/{guild_id}/stickers/{sticker_id}"), Some(json!({ "name": name, "description": description, "tags": tags })))
-}
-
 pub fn delete_sticker(guild_id: &str, sticker_id: &str) -> Call {
     delete(format!("/guilds/{guild_id}/stickers/{sticker_id}"))
 }
@@ -297,10 +289,6 @@ pub fn sounds(guild_id: &str) -> Call {
 // `sound` is an mp3 or ogg as a data URI, up to 512 KiB and 5.2 seconds; volume 0-1.
 pub fn create_sound(guild_id: &str, name: &str, sound: String, volume: f32, emoji: Option<&str>) -> Call {
     Call::new(Method::POST, format!("/guilds/{guild_id}/soundboard-sounds"), Some(json!({ "name": name, "sound": sound, "volume": volume, "emoji_name": emoji })))
-}
-
-pub fn edit_sound(guild_id: &str, sound_id: &str, name: &str, volume: f32, emoji: Option<&str>) -> Call {
-    Call::new(Method::PATCH, format!("/guilds/{guild_id}/soundboard-sounds/{sound_id}"), Some(json!({ "name": name, "volume": volume, "emoji_name": emoji })))
 }
 
 pub fn delete_sound(guild_id: &str, sound_id: &str) -> Call {
@@ -334,15 +322,6 @@ pub fn delete_template(guild_id: &str, code: &str) -> Call {
     delete(format!("/guilds/{guild_id}/templates/{code}"))
 }
 
-pub fn vanity(guild_id: &str) -> Call {
-    get(format!("/guilds/{guild_id}/vanity-url"))
-}
-
-// User client. Needs the VANITY_URL feature (boost level 3).
-pub fn set_vanity(guild_id: &str, code: &str) -> Call {
-    Call::new(Method::PATCH, format!("/guilds/{guild_id}/vanity-url"), Some(json!({ "code": code })))
-}
-
 // Apps
 
 pub fn integrations(guild_id: &str) -> Call {
@@ -362,15 +341,6 @@ pub fn create_webhook(channel_id: &str, name: &str) -> Call {
     Call::new(Method::POST, format!("/channels/{channel_id}/webhooks"), Some(json!({ "name": name })))
 }
 
-// `avatar`: None keeps it, Some(None) clears it, Some(Some(data)) replaces it.
-pub fn edit_webhook(webhook_id: &str, name: &str, channel_id: &str, avatar: Option<Option<String>>) -> Call {
-    let mut body = json!({ "name": name, "channel_id": channel_id });
-    if let Some(avatar) = avatar {
-        body["avatar"] = json!(avatar);
-    }
-    Call::new(Method::PATCH, format!("/webhooks/{webhook_id}"), Some(body))
-}
-
 pub fn delete_webhook(webhook_id: &str) -> Call {
     delete(format!("/webhooks/{webhook_id}"))
 }
@@ -382,20 +352,13 @@ pub mod automod {
     pub const SPAM: u8 = 3;
     pub const KEYWORD_PRESET: u8 = 4;
     pub const MENTION_SPAM: u8 = 5;
-    pub const MEMBER_PROFILE: u8 = 6;
     pub const BLOCK_MESSAGE: u8 = 1;
-    pub const SEND_ALERT: u8 = 2;
-    pub const TIMEOUT: u8 = 3;
-    pub const BLOCK_INTERACTION: u8 = 4;
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AutomodAction {
     // Shown to the member when their message is blocked; at most 150 characters.
     Block { custom_message: Option<String> },
-    Alert { channel_id: String },
-    Timeout { seconds: u32 },
-    BlockInteraction,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -404,7 +367,6 @@ pub enum Trigger {
     Spam,
     Preset { presets: Vec<u8>, allow: Vec<String> },
     MentionSpam { limit: u8, raid_protection: bool },
-    Profile { words: Vec<String>, regex: Vec<String>, allow: Vec<String> },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -425,20 +387,16 @@ impl AutomodRule {
             Trigger::Spam => (SPAM, json!({})),
             Trigger::Preset { presets, allow } => (KEYWORD_PRESET, json!({ "presets": presets, "allow_list": allow })),
             Trigger::MentionSpam { limit, raid_protection } => (MENTION_SPAM, json!({ "mention_total_limit": limit, "mention_raid_protection_enabled": raid_protection })),
-            Trigger::Profile { words, regex, allow } => (MEMBER_PROFILE, json!({ "keyword_filter": words, "regex_patterns": regex, "allow_list": allow })),
         };
         let actions: Vec<Value> = self
             .actions
             .iter()
             .map(|a| match a {
                 AutomodAction::Block { custom_message } => json!({ "type": BLOCK_MESSAGE, "metadata": { "custom_message": custom_message } }),
-                AutomodAction::Alert { channel_id } => json!({ "type": SEND_ALERT, "metadata": { "channel_id": channel_id } }),
-                AutomodAction::Timeout { seconds } => json!({ "type": TIMEOUT, "metadata": { "duration_seconds": seconds } }),
-                AutomodAction::BlockInteraction => json!({ "type": BLOCK_INTERACTION, "metadata": {} }),
             })
             .collect();
-        // Event type 1 is "a member sends or edits a message"; 2 is "a member updates their profile".
-        let event_type = if trigger_type == MEMBER_PROFILE { 2 } else { 1 };
+        // Event type 1: a member sends or edits a message.
+        let event_type = 1;
         json!({
             "name": self.name,
             "enabled": self.enabled,
@@ -458,16 +416,6 @@ pub fn automod_rules(guild_id: &str) -> Call {
 
 pub fn create_automod_rule(guild_id: &str, rule: &AutomodRule) -> Call {
     Call::new(Method::POST, format!("/guilds/{guild_id}/auto-moderation/rules"), Some(rule.body()))
-}
-
-// Discord won't change a rule's trigger type once made, so an edit leaves it out.
-pub fn edit_automod_rule(guild_id: &str, rule_id: &str, rule: &AutomodRule) -> Call {
-    let mut body = rule.body();
-    if let Some(body) = body.as_object_mut() {
-        body.remove("trigger_type");
-        body.remove("event_type");
-    }
-    Call::new(Method::PATCH, format!("/guilds/{guild_id}/auto-moderation/rules/{rule_id}"), Some(body))
 }
 
 pub fn set_automod_enabled(guild_id: &str, rule_id: &str, enabled: bool) -> Call {
@@ -511,12 +459,6 @@ pub fn bans(guild_id: &str, after: Option<&str>) -> Call {
         path.push_str(&format!("&after={after}"));
     }
     get(path)
-}
-
-// User client: search bans by name or id, as the Bans page's search field does.
-pub fn search_bans(guild_id: &str, query: &str) -> Call {
-    let query: String = url_encode(query);
-    get(format!("/guilds/{guild_id}/bans/search?query={query}&limit=10"))
 }
 
 pub fn unban(guild_id: &str, user_id: &str) -> Call {
@@ -566,19 +508,6 @@ pub fn pause_invites(guild_id: &str, until: Option<&str>) -> Call {
 
 pub fn onboarding(guild_id: &str) -> Call {
     get(format!("/guilds/{guild_id}/onboarding"))
-}
-
-// The whole onboarding object goes back as edited (Discord replaces it).
-pub fn put_onboarding(guild_id: &str, onboarding: Value) -> Call {
-    Call::new(Method::PUT, format!("/guilds/{guild_id}/onboarding"), Some(onboarding))
-}
-
-pub fn welcome_screen(guild_id: &str) -> Call {
-    get(format!("/guilds/{guild_id}/welcome-screen"))
-}
-
-pub fn edit_welcome_screen(guild_id: &str, enabled: bool, description: &str, channels: Value) -> Call {
-    Call::new(Method::PATCH, format!("/guilds/{guild_id}/welcome-screen"), Some(json!({ "enabled": enabled, "description": description, "welcome_channels": channels })))
 }
 
 // Server Insights has no API a user account can read: the page links to Discord's.
@@ -660,7 +589,7 @@ mod tests {
             name: "Mention spam".into(),
             enabled: true,
             trigger: Trigger::MentionSpam { limit: 20, raid_protection: true },
-            actions: vec![AutomodAction::Block { custom_message: None }, AutomodAction::Timeout { seconds: 600 }],
+            actions: vec![AutomodAction::Block { custom_message: Some("Too many mentions".into()) }],
             exempt_roles: vec!["9".into()],
             exempt_channels: vec![],
         };
@@ -668,11 +597,8 @@ mod tests {
         assert_eq!(body["trigger_type"], 5);
         assert_eq!(body["event_type"], 1);
         assert_eq!(body["trigger_metadata"], json!({ "mention_total_limit": 20, "mention_raid_protection_enabled": true }));
-        assert_eq!(body["actions"][1], json!({ "type": 3, "metadata": { "duration_seconds": 600 } }));
-        let edit = edit_automod_rule("1", "77", &rule).body.unwrap();
-        assert!(edit.get("trigger_type").is_none() && edit.get("event_type").is_none());
-        let profile = AutomodRule { trigger: Trigger::Profile { words: vec!["x".into()], regex: vec![], allow: vec![] }, ..rule };
-        assert_eq!(profile.body()["event_type"], 2);
+        assert_eq!(body["actions"][0], json!({ "type": 1, "metadata": { "custom_message": "Too many mentions" } }));
+        assert_eq!(set_automod_enabled("1", "77", false).body.unwrap(), json!({ "enabled": false }));
     }
 
     #[test]
@@ -685,10 +611,9 @@ mod tests {
     #[test]
     fn small_calls() {
         assert_eq!(ban("1", "2", 999_999).body.unwrap(), json!({ "delete_message_seconds": 604_800 }));
-        assert_eq!(search_bans("1", "a b&c").path, "/guilds/1/bans/search?query=a+b%26c&limit=10");
+        assert_eq!(search_members("1", "a b&c").path, "/guilds/1/members/search?query=a+b%26c&limit=100");
         assert_eq!(revoke_invite("abc"), Call::new(Method::DELETE, "/invites/abc".into(), None));
-        assert_eq!(edit_webhook("3", "Bot", "4", None).body.unwrap(), json!({ "name": "Bot", "channel_id": "4" }));
-        assert_eq!(edit_webhook("3", "Bot", "4", Some(None)).body.unwrap()["avatar"], Value::Null);
+        assert_eq!(create_webhook("4", "Bot").body.unwrap(), json!({ "name": "Bot" }));
         assert_eq!(image_data("image/png", b"hi"), "data:image/png;base64,aGk=");
         let community = enable_community("1", &["NEWS".into()], None, Some("8")).body.unwrap();
         assert_eq!(community["features"], json!(["NEWS", "COMMUNITY"]));

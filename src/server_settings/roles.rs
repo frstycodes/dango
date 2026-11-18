@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use gpui_kit::{
-    AnyElement, App, AppContext, Context, Entity, Focusable, FontWeight, IntoElement, ParentElement, SharedString, StatefulInteractiveElement, Styled, Window,
+    AnyElement, App, AppContext, Context, Entity, Focusable, FontWeight, InteractiveElement, IntoElement, ParentElement, SharedString, StatefulInteractiveElement, Styled, Window,
     component::{
         ActiveTheme, Icon,
         input::{Input, InputEvent, InputState},
@@ -73,6 +73,8 @@ pub struct RolesView {
     pub perm_search: Entity<InputState>,
     pub name: Entity<InputState>,
     pub open: Option<RoleEdit>,
+    // A role just created: its editor opens on the next draw, which has the window its name field needs.
+    pub pending_open: Option<String>,
 }
 
 impl RolesView {
@@ -82,7 +84,7 @@ impl RolesView {
             cx.subscribe(&state, |_, _, _: &InputEvent, cx| cx.notify()).detach();
             state
         };
-        RolesView { list: Load::Loading, counts: HashMap::new(), search: input("Search roles"), perm_search: input("Search permissions"), name: input("Role name"), open: None }
+        RolesView { list: Load::Loading, counts: HashMap::new(), search: input("Search roles"), perm_search: input("Search permissions"), name: input("Role name"), open: None, pending_open: None }
     }
 }
 
@@ -140,17 +142,15 @@ impl Rustcord {
 
     pub(crate) fn role_saved(&mut self, body: &Value) {
         let Some(fresh) = parse_role(body) else { return };
-        if let Some(guild) = self.server_settings.as_ref().and_then(|v| self.guilds.iter_mut().find(|g| g.id == v.guild_id)) {
-            if let Some(role) = guild.roles.iter_mut().find(|r| r.id == fresh.id) {
+        if let Some(guild) = self.server_settings.as_ref().and_then(|v| self.guilds.iter_mut().find(|g| g.id == v.guild_id))
+            && let Some(role) = guild.roles.iter_mut().find(|r| r.id == fresh.id) {
                 (role.name, role.color, role.permissions) = (fresh.role.name.clone(), fresh.role.color, fresh.role.permissions);
             }
-        }
         let Some(view) = &mut self.server_settings else { return };
-        if let Load::Ready(list) = &mut view.roles.list {
-            if let Some(row) = list.iter_mut().find(|r| r.id == fresh.id) {
+        if let Load::Ready(list) = &mut view.roles.list
+            && let Some(row) = list.iter_mut().find(|r| r.id == fresh.id) {
                 row.role = fresh.role.clone();
             }
-        }
         if let Some(edit) = view.roles.open.as_mut().filter(|e| e.id == fresh.id) {
             edit.saved = fresh.role.clone();
             edit.draft = RoleDraft { name: edit.draft.name.clone(), ..fresh.role };
@@ -175,10 +175,13 @@ impl Rustcord {
         cx.notify();
     }
 
-    pub(crate) fn roles_page(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    pub(crate) fn ss_roles_page(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        if let Some(id) = self.server_settings.as_mut().and_then(|v| v.roles.pending_open.take()) {
+            self.open_role(id, window, cx);
+        }
         let Some(view) = self.server_settings.as_ref() else { return Vec::new() };
         if view.roles.open.is_some() {
-            return self.role_editor(window, cx);
+            return self.ss_role_editor(window, cx);
         }
         let list = match &view.roles.list {
             Load::Loading => return vec![loading_line("Loading roles…", cx)],
@@ -197,7 +200,7 @@ impl Rustcord {
             ui::settings_choice(ui::settings_row("ss-role-everyone", false, cx).child(ui::icon_tile(Glyph::Users, palette::selected(cx), palette::strong(cx)).flex_none()).child(ui::settings_text("Default permissions", Some("@everyone · applies to all server members"), cx)).child(Icon::new(Glyph::ChevronRight).size(px(16.))), cx)
                 .on_click(cx.listener(move |this, _, window, cx| this.open_role(id.clone(), window, cx)))
         });
-        let create = ui::button("ss-role-create", Tone::Primary, cx).small().child(Icon::new(Glyph::Plus).size(px(16.))).child("Create role").on_click(cx.listener(|this, _, window, cx| this.create_role(window, cx)));
+        let create = ui::button("ss-role-create", Tone::Primary, cx).small().child(Icon::new(Glyph::Plus).size(px(16.))).child("Create role").on_click(cx.listener(|this, _, _, cx| this.create_role(cx)));
         let search = ui::search_field("ss-role-search", &view.roles.search, cx);
         let rows: Vec<AnyElement> = ranked
             .iter()
@@ -217,8 +220,9 @@ impl Rustcord {
                 let row = ui::settings_row(SharedString::from(format!("ss-role-{}", r.id)), i > 0 || default_shown(&list, &guild_id), cx)
                     .child(div().size(px(12.)).m(px(2.)).rounded_full().bg(color).flex_none())
                     .child(ui::settings_text(r.role.name.clone(), count.or_else(|| lock.reason().map(str::to_owned)), cx))
-                    .children(movable_up.then(|| ui::icon_button(SharedString::from(format!("ss-role-up-{up_id}")), Glyph::ArrowUp, "Move up", cx).on_click(cx.listener(move |this, _, _, cx| this.move_role(&up_id, -1, cx)))))
-                    .children(movable_down.then(|| ui::icon_button(SharedString::from(format!("ss-role-down-{down_id}")), Glyph::ArrowDown, "Move down", cx).on_click(cx.listener(move |this, _, _, cx| this.move_role(&down_id, 1, cx)))))
+                    // Both arrows keep their slots, so a row without one doesn't shift the other.
+                    .child(div().w(px(32.)).flex_none().children(movable_up.then(|| ui::icon_button(SharedString::from(format!("ss-role-up-{up_id}")), Glyph::ArrowUp, "Move up", cx).on_click(cx.listener(move |this, _, _, cx| this.move_role(&up_id, -1, cx))))))
+                    .child(div().w(px(32.)).flex_none().children(movable_down.then(|| ui::icon_button(SharedString::from(format!("ss-role-down-{down_id}")), Glyph::ArrowDown, "Move down", cx).on_click(cx.listener(move |this, _, _, cx| this.move_role(&down_id, 1, cx))))))
                     .child(Icon::new(Glyph::ChevronRight).size(px(16.)));
                 ui::settings_choice(row, cx).on_click(cx.listener(move |this, _, window, cx| this.open_role(id.clone(), window, cx))).into_any_element()
             })
@@ -231,18 +235,19 @@ impl Rustcord {
         ]
     }
 
-    fn create_role(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn create_role(&mut self, cx: &mut Context<Self>) {
         let Some(guild_id) = self.server_settings.as_ref().map(|v| v.guild_id.clone()) else { return };
-        let handle = window.window_handle();
         self.server_call(api::create_role(&guild_id), move |this, result, cx| match result {
             Ok(body) => {
                 let Some(row) = parse_role(&body) else { return };
                 let id = row.id.clone();
-                if let Some(Load::Ready(list)) = this.server_settings.as_mut().map(|v| &mut v.roles.list) {
-                    list.push(row);
-                    *list = sorted(std::mem::take(list));
+                if let Some(view) = &mut this.server_settings {
+                    if let Load::Ready(list) = &mut view.roles.list {
+                        list.push(row);
+                        *list = sorted(std::mem::take(list));
+                    }
+                    view.roles.pending_open = Some(id);
                 }
-                handle.update(cx, |_, window, cx| this.open_role(id, window, cx)).ok();
             }
             Err(error) => this.show_toast(error, cx),
         }, cx);
@@ -284,7 +289,7 @@ impl Rustcord {
         }, cx);
     }
 
-    fn role_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_role_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let Some(view) = self.server_settings.as_ref() else { return Vec::new() };
         let Some(edit) = view.roles.open.as_ref() else { return Vec::new() };
         let guild_id = view.guild_id.clone();
@@ -328,14 +333,14 @@ impl Rustcord {
         }
         let editable = lock != RoleLock::Above;
         out.extend(match tab {
-            RoleTab::Display => self.role_display(&row, editable, lock == RoleLock::Managed, window, cx),
-            RoleTab::Permissions => self.role_permissions(editable, window, cx),
-            RoleTab::Members => self.role_members(&row, editable && lock != RoleLock::Managed, cx),
+            RoleTab::Display => self.ss_role_display(&row, editable, lock == RoleLock::Managed, window, cx),
+            RoleTab::Permissions => self.ss_role_permissions(editable, window, cx),
+            RoleTab::Members => self.ss_role_members(&row, editable && lock != RoleLock::Managed, cx),
         });
         out
     }
 
-    fn role_display(&mut self, row: &RoleRow, editable: bool, managed: bool, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_role_display(&mut self, row: &RoleRow, editable: bool, managed: bool, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let Some(view) = self.server_settings.as_ref() else { return Vec::new() };
         let Some(edit) = view.roles.open.as_ref() else { return Vec::new() };
         let draft = edit.draft.clone();
@@ -347,7 +352,8 @@ impl Rustcord {
         let swatches = |slot: u8, current: Option<u32>, cx: &mut Context<Self>| {
             let none = ui::swatch(SharedString::from(format!("ss-swatch-{slot}-none")), palette::faint(cx), current.is_none_or(|c| c == 0), ring).on_click(cx.listener(move |this, _, _, cx| this.edit_role_draft(cx, |d| set_color(d, slot, None))));
             let rest = COLORS.map(|c| ui::swatch(SharedString::from(format!("ss-swatch-{slot}-{c:06x}")), gpui_kit::rgb(c).into(), current == Some(c), ring).on_click(cx.listener(move |this, _, _, cx| this.edit_role_draft(cx, |d| set_color(d, slot, Some(c))))).into_any_element());
-            div().flex().flex_wrap().gap(px(8.)).child(none).children(rest)
+            // Ten to a row, as Discord lays them out.
+            div().max_w(px(400.)).flex().flex_wrap().gap(px(8.)).child(none).children(rest)
         };
         let primary = swatches(0, Some(draft.color), cx);
         let mut colour = ui::settings_card(cx).p(px(16.)).gap(px(12.)).child(ui::settings_text("Colour", Some("Members show the colour of their highest coloured role"), cx)).child(primary);
@@ -364,12 +370,12 @@ impl Rustcord {
             ui::settings_group("Member list", cx).child(ui::settings_card(cx).child(hoist).child(mention)).into_any_element(),
         ];
         if editable && !managed {
-            out.push(self.role_delete(row, cx));
+            out.push(self.ss_role_delete(row, cx));
         }
         out
     }
 
-    fn role_delete(&self, row: &RoleRow, cx: &mut Context<Self>) -> AnyElement {
+    fn ss_role_delete(&self, row: &RoleRow, cx: &mut Context<Self>) -> AnyElement {
         let asking = self.server_settings.as_ref().and_then(|v| v.roles.open.as_ref()).is_some_and(|e| e.asking_delete);
         let ask = cx.listener(|this, _, _, cx| {
             if let Some(edit) = this.server_settings.as_mut().and_then(|v| v.roles.open.as_mut()) {
@@ -404,7 +410,7 @@ impl Rustcord {
         ui::callout_with(Notice::Danger, Glyph::Trash, format!("Delete {}?", row.role.name), format!("{} lose it. This can't be undone.", plural(count, "member", "members")), div().flex().gap(px(8.)).child(keep).child(delete), cx).into_any_element()
     }
 
-    fn role_permissions(&mut self, editable: bool, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_role_permissions(&mut self, editable: bool, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let Some(view) = self.server_settings.as_ref() else { return Vec::new() };
         let Some(edit) = view.roles.open.as_ref() else { return Vec::new() };
         let (bits, guild_id) = (edit.draft.permissions, view.guild_id.clone());
@@ -440,7 +446,7 @@ impl Rustcord {
         out
     }
 
-    fn role_members(&mut self, row: &RoleRow, editable: bool, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_role_members(&mut self, row: &RoleRow, editable: bool, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let Some(view) = self.server_settings.as_ref() else { return Vec::new() };
         let Some(edit) = view.roles.open.as_ref() else { return Vec::new() };
         let guild_id = view.guild_id.clone();
@@ -459,11 +465,11 @@ impl Rustcord {
             .map(|(i, id)| {
                 let user = known.get(id);
                 let name = user.map(|u| u.name.clone()).unwrap_or_else(|| format!("Member {id}"));
-                let avatar: AnyElement = match user.and_then(|u| u.avatar.clone()) {
+                let avatar: AnyElement = match user.map(|u| u.avatar.clone()).filter(|a| !a.is_empty()) {
                     Some(url) => ui::avatar(url, 28.).flex_none().into_any_element(),
                     None => ui::monogram(&name, 28.).flex_none().into_any_element(),
                 };
-                let (user_id, role_id, role_name, name_for) = (id.clone(), row.id.clone(), row.role.name.clone(), name.clone());
+                let (user_id, role_id, role_name, name_for, guild_id) = (id.clone(), row.id.clone(), row.role.name.clone(), name.clone(), guild_id.clone());
                 let remove = editable.then(|| {
                     ui::icon_button(SharedString::from(format!("ss-role-member-x-{id}")), Glyph::X, format!("Remove {name} from {}", row.role.name), cx).on_click(cx.listener(move |this, _, _, cx| {
                         let (gid, uid, rid) = (guild_id.clone(), user_id.clone(), role_id.clone());

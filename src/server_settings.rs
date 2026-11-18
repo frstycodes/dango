@@ -5,6 +5,8 @@
 pub mod access;
 pub mod api;
 pub mod audit;
+#[cfg(debug_assertions)]
+pub mod demo;
 pub mod lists;
 pub mod perms;
 pub mod registry;

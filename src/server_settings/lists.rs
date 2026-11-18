@@ -4,7 +4,7 @@
 use std::collections::HashSet;
 
 use gpui_kit::{
-    AnyElement, AppContext, Context, Entity, FontWeight, IntoElement, ParentElement, SharedString, StatefulInteractiveElement, Styled, Window,
+    AnyElement, AppContext, Context, Entity, InteractiveElement, IntoElement, ParentElement, SharedString, StatefulInteractiveElement, Styled, Window,
     component::{
         Icon,
         input::{InputEvent, InputState},
@@ -18,7 +18,7 @@ use super::{
     api::{self, AuditQuery, AutomodAction, AutomodRule, Trigger, automod},
     audit::{self, Directory},
     perms,
-    view::{Select, failed, link_out, loading_line, mime_of, plural, sentence_spans, snowflake_time, switch_row},
+    view::{Select, failed, link_out, loading_line, mime_of, plural, sentence_spans, snowflake_time},
 };
 use crate::{
     Rustcord,
@@ -26,7 +26,7 @@ use crate::{
     discord::{ChannelKind, avatar_url, perm},
     icons::Glyph,
     palette,
-    ui::{self, Notice, Tone},
+    ui::{self, Tone},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -365,26 +365,26 @@ impl Rustcord {
 
     pub(crate) fn list_page(&mut self, page: Page, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
         match page {
-            Page::Emoji | Page::Stickers | Page::Soundboard => self.expressions_page(page, cx),
-            Page::Members => self.members_page(cx),
-            Page::Invites => self.invites_page(cx),
+            Page::Emoji | Page::Stickers | Page::Soundboard => self.ss_expressions_page(page, cx),
+            Page::Members => self.ss_members_page(cx),
+            Page::Invites => self.ss_invites_page(cx),
             Page::Access => vec![link_out("access", "Rules screening is set up on Discord", "Server rules members agree to before chatting, and age restriction, use routes outside Discord's public API.", "https://discord.com/app", cx)],
-            Page::Integrations => self.integrations_page(cx),
-            Page::AuditLog => self.audit_page(cx),
-            Page::Bans => self.bans_page(cx),
-            Page::AutoMod => self.automod_page(window, cx),
-            Page::Community => self.community_page(cx),
-            Page::Onboarding => self.onboarding_page(cx),
+            Page::Integrations => self.ss_integrations_page(cx),
+            Page::AuditLog => self.ss_audit_page(cx),
+            Page::Bans => self.ss_bans_page(cx),
+            Page::AutoMod => self.ss_automod_page(window, cx),
+            Page::Community => self.ss_community_page(cx),
+            Page::Onboarding => self.ss_onboarding_page(cx),
             Page::Insights => {
                 let guild_id = self.server_settings.as_ref().map(|v| v.guild_id.clone()).unwrap_or_default();
                 vec![link_out("insights", "Server insights open on Discord", "Discord doesn't let user apps read a server's analytics.", api::insights_url(&guild_id), cx)]
             }
-            Page::Template => self.template_page(cx),
+            Page::Template => self.ss_template_page(cx),
             _ => Vec::new(),
         }
     }
 
-    fn expressions_page(&mut self, page: Page, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_expressions_page(&mut self, page: Page, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let Some(view) = self.server_settings.as_ref() else { return Vec::new() };
         let guild_id = view.guild_id.clone();
         let (items, noun, cap, row_id) = match page {
@@ -415,7 +415,7 @@ impl Rustcord {
                 };
                 let label = if page == Page::Emoji { format!(":{}:", item.name) } else { item.name.clone() };
                 let ask_id = format!("x-{}", item.id);
-                let delete = editable.then(|| self.delete_control(&ask_id, &label, match page {
+                let delete = editable.then(|| self.ss_delete_control(&ask_id, &label, match page {
                     Page::Emoji => api::delete_emoji(&guild_id, &item.id),
                     Page::Stickers => api::delete_sticker(&guild_id, &item.id),
                     _ => api::delete_sound(&guild_id, &item.id),
@@ -428,7 +428,7 @@ impl Rustcord {
     }
 
     // Delete, then in place: Keep / Delete <name>.
-    fn delete_control(&self, ask_id: &str, label: &str, call: api::Call, page: Page, cx: &mut Context<Self>) -> AnyElement {
+    fn ss_delete_control(&self, ask_id: &str, label: &str, call: api::Call, page: Page, cx: &mut Context<Self>) -> AnyElement {
         let ask = ask_id.to_owned();
         if !self.asking(ask_id) {
             return ui::icon_button(SharedString::from(format!("ss-{ask_id}")), Glyph::Trash, format!("Delete {label}"), cx).on_click(cx.listener(move |this, _, _, cx| this.ask(ask.clone(), cx))).into_any_element();
@@ -475,7 +475,7 @@ impl Rustcord {
         .detach();
     }
 
-    fn members_page(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_members_page(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let Some(view) = self.server_settings.as_ref() else { return Vec::new() };
         let guild_id = view.guild_id.clone();
         let l = &view.lists;
@@ -507,10 +507,10 @@ impl Rustcord {
                         })));
                     }
                     if kick {
-                        row = row.child(self.delete_control(&format!("kick-{id}"), &name, api::kick(&g, &id), Page::Members, cx));
+                        row = row.child(self.ss_delete_control(&format!("kick-{id}"), &name, api::kick(&g, &id), Page::Members, cx));
                     }
                     if ban {
-                        row = row.child(self.ban_control(&g, &id, &name, cx));
+                        row = row.child(self.ss_ban_control(&g, &id, &name, cx));
                     }
                     row.into_any_element()
                 })
@@ -521,12 +521,12 @@ impl Rustcord {
             out.push(ui::settings_group("Results", cx).child(ui::settings_card(cx).children(results)).into_any_element());
         }
         if kick {
-            out.push(self.prune_group(cx));
+            out.push(self.ss_prune_group(cx));
         }
         out
     }
 
-    fn ban_control(&self, guild_id: &str, user_id: &str, name: &str, cx: &mut Context<Self>) -> AnyElement {
+    fn ss_ban_control(&self, guild_id: &str, user_id: &str, name: &str, cx: &mut Context<Self>) -> AnyElement {
         let ask_id = format!("ban-{user_id}");
         let ask = ask_id.clone();
         if !self.asking(&ask_id) {
@@ -561,7 +561,7 @@ impl Rustcord {
         cx.notify();
     }
 
-    fn prune_group(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    fn ss_prune_group(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let Some(view) = self.server_settings.as_ref() else { return div().into_any_element() };
         let (days, guild_id) = (view.lists.prune_days, view.guild_id.clone());
         let options: Vec<(String, String)> = PRUNE_DAYS.iter().map(|d| (d.to_string(), format!("Inactive for {}", plural(u64::from(*d), "day", "days")))).collect();
@@ -588,7 +588,7 @@ impl Rustcord {
         ui::settings_group("Prune", cx).child(ui::settings_card(cx).child(row).child(ui::settings_row("ss-prune-pick", true, cx).child(pick).child(div().flex_1()).child(action))).into_any_element()
     }
 
-    fn invites_page(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_invites_page(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let Some(view) = self.server_settings.as_ref() else { return Vec::new() };
         let guild_id = view.guild_id.clone();
         let invites = match &view.lists.invites {
@@ -602,7 +602,7 @@ impl Rustcord {
             .enumerate()
             .map(|(i, invite)| {
                 let uses = if invite.max_uses == 0 { plural(invite.uses, "use", "uses") } else { format!("{} of {} uses", invite.uses, invite.max_uses) };
-                let revoke = self.delete_control(&format!("invite-{}", invite.code), &invite.code, api::revoke_invite(&invite.code), Page::Invites, cx);
+                let revoke = self.ss_delete_control(&format!("invite-{}", invite.code), &invite.code, api::revoke_invite(&invite.code), Page::Invites, cx);
                 ui::settings_row(SharedString::from(format!("ss-invite-{}", invite.code)), i > 0, cx)
                     .child(ui::settings_text(invite.code.clone(), Some(format!("{} · {} · {uses}", invite.inviter, invite.channel)), cx))
                     .child(div().w(px(90.)).flex_none().text_color(palette::muted(cx)).child(expires_label(invite.expires_at.as_deref(), now)))
@@ -629,7 +629,7 @@ impl Rustcord {
         ]
     }
 
-    fn integrations_page(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_integrations_page(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let Some(view) = self.server_settings.as_ref() else { return Vec::new() };
         let guild_id = view.guild_id.clone();
         let (manage_guild, manage_hooks) = self.with_access(&guild_id, |me| (me.has(perms::MANAGE_GUILD), me.has(perm::MANAGE_WEBHOOKS))).unwrap_or_default();
@@ -642,7 +642,7 @@ impl Rustcord {
                     .iter()
                     .enumerate()
                     .map(|(i, app)| {
-                        let remove = self.delete_control(&format!("app-{}", app.id), &app.name, api::remove_integration(&guild_id, &app.id), Page::Integrations, cx);
+                        let remove = self.ss_delete_control(&format!("app-{}", app.id), &app.name, api::remove_integration(&guild_id, &app.id), Page::Integrations, cx);
                         ui::settings_row(SharedString::from(format!("ss-app-{}", app.id)), i > 0, cx).child(ui::icon_tile(Glyph::AppWindow, palette::selected(cx), palette::strong(cx)).flex_none()).child(ui::settings_text(app.name.clone(), app.by.as_ref().map(|b| format!("Added by {b}")), cx)).child(remove).into_any_element()
                     })
                     .collect(),
@@ -660,7 +660,7 @@ impl Rustcord {
                     .map(|(i, hook)| {
                         let channel = channels.iter().find(|(id, _)| *id == hook.channel_id).map(|(_, n)| n.clone()).unwrap_or_default();
                         let copy = hook.url.clone().map(|url| ui::button(SharedString::from(format!("ss-hook-copy-{}", hook.id)), Tone::Secondary, cx).small().child("Copy URL").on_click(cx.listener(move |this, _, _, cx| this.copy_text(url.clone(), cx))));
-                        let remove = self.delete_control(&format!("hook-{}", hook.id), &hook.name, api::delete_webhook(&hook.id), Page::Integrations, cx);
+                        let remove = self.ss_delete_control(&format!("hook-{}", hook.id), &hook.name, api::delete_webhook(&hook.id), Page::Integrations, cx);
                         let detail = match &hook.by {
                             Some(by) => format!("{channel} · made by {by}"),
                             None => channel,
@@ -679,7 +679,7 @@ impl Rustcord {
         out
     }
 
-    fn automod_page(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_automod_page(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let Some(view) = self.server_settings.as_ref() else { return Vec::new() };
         let guild_id = view.guild_id.clone();
         let rules = match &view.lists.rules {
@@ -691,7 +691,7 @@ impl Rustcord {
         for (i, kind) in [automod::MENTION_SPAM, automod::SPAM, automod::KEYWORD_PRESET].into_iter().enumerate() {
             let template = preset(kind);
             match rules.iter().find(|r| r.trigger_type == kind) {
-                Some(rule) => rows.push(self.rule_row(&guild_id, rule, i > 0, window, cx)),
+                Some(rule) => rows.push(self.ss_rule_row(&guild_id, rule, i > 0, window, cx)),
                 None => {
                     let call = api::create_automod_rule(&guild_id, &template);
                     let call = std::cell::Cell::new(Some(call));
@@ -708,7 +708,7 @@ impl Rustcord {
                 }
             }
         }
-        let custom: Vec<AnyElement> = rules.iter().filter(|r| r.trigger_type == automod::KEYWORD).enumerate().map(|(i, r)| self.rule_row(&guild_id, r, i > 0, window, cx)).collect();
+        let custom: Vec<AnyElement> = rules.iter().filter(|r| r.trigger_type == automod::KEYWORD).enumerate().map(|(i, r)| self.ss_rule_row(&guild_id, r, i > 0, window, cx)).collect();
         let words = ui::search_field("ss-automod-words", &view.lists.words, cx);
         let add = ui::button("ss-automod-add", Tone::Primary, cx).small().child("Create rule").on_click(cx.listener(move |this, _, _, cx| {
             let Some(view) = &this.server_settings else { return };
@@ -726,31 +726,29 @@ impl Rustcord {
         ]
     }
 
-    fn rule_row(&mut self, guild_id: &str, rule: &Rule, line: bool, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    fn ss_rule_row(&self, guild_id: &str, rule: &Rule, line: bool, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let (g, id, enabled) = (guild_id.to_owned(), rule.id.clone(), rule.enabled);
         let detail = if rule.words.is_empty() { None } else { Some(rule.words.join(", ")) };
         let toggle = ui::switch_live(SharedString::from(format!("ss-rule-switch-{}", rule.id)), enabled, window, cx);
-        let delete = self.delete_control(&format!("rule-{}", rule.id), &rule.name, api::delete_automod_rule(guild_id, &rule.id), Page::AutoMod, cx);
+        let delete = self.ss_delete_control(&format!("rule-{}", rule.id), &rule.name, api::delete_automod_rule(guild_id, &rule.id), Page::AutoMod, cx);
         let row = ui::settings_row(SharedString::from(format!("ss-rule-{}", rule.id)), line, cx).child(ui::settings_text(rule.name.clone(), detail, cx)).child(delete).child(toggle);
         // Low stakes and reversible: flips at once, flips back if Discord refuses.
         ui::settings_choice(row, cx)
             .on_click(cx.listener(move |this, _, _, cx| {
                 let flip = |this: &mut Rustcord, on: bool| {
-                    if let Some(Load::Ready(rules)) = this.lists().map(|l| &mut l.rules) {
-                        if let Some(r) = rules.iter_mut().find(|r| r.id == id) {
+                    if let Some(Load::Ready(rules)) = this.lists().map(|l| &mut l.rules)
+                        && let Some(r) = rules.iter_mut().find(|r| r.id == id) {
                             r.enabled = on;
                         }
-                    }
                 };
                 flip(this, !enabled);
                 let id2 = id.clone();
                 this.server_call(api::set_automod_enabled(&g, &id, !enabled), move |this, r, cx| {
                     if let Err(e) = r {
-                        if let Some(Load::Ready(rules)) = this.lists().map(|l| &mut l.rules) {
-                            if let Some(r) = rules.iter_mut().find(|r| r.id == id2) {
+                        if let Some(Load::Ready(rules)) = this.lists().map(|l| &mut l.rules)
+                            && let Some(r) = rules.iter_mut().find(|r| r.id == id2) {
                                 r.enabled = enabled;
                             }
-                        }
                         this.show_toast(e, cx);
                     }
                 }, cx);
@@ -759,12 +757,12 @@ impl Rustcord {
             .into_any_element()
     }
 
-    fn audit_page(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_audit_page(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let Some(view) = self.server_settings.as_ref() else { return Vec::new() };
         let a = &view.lists.audit;
         let mut users: Vec<(String, String)> = vec![(String::new(), "All members".into())];
         let mut known: Vec<(String, String)> = a.names.users.iter().map(|(id, n)| (id.clone(), n.clone())).collect();
-        known.sort_by(|x, y| x.1.to_lowercase().cmp(&y.1.to_lowercase()));
+        known.sort_by_key(|x| x.1.to_lowercase());
         users.extend(known);
         let mut actions: Vec<(String, String)> = vec![(String::new(), "All actions".into())];
         actions.extend(audit::ACTIONS.iter().map(|(n, l)| (n.to_string(), (*l).to_owned())));
@@ -789,7 +787,7 @@ impl Rustcord {
             out.push(ui::settings_caption("Nothing here. Discord keeps 45 days of changes.", cx).into_any_element());
             return out;
         }
-        let rows: Vec<AnyElement> = a.entries.iter().enumerate().map(|(i, e)| self.audit_row(e, &a.names, a.open.contains(&e.id), i > 0, cx)).collect();
+        let rows: Vec<AnyElement> = a.entries.iter().enumerate().map(|(i, e)| self.ss_audit_row(e, &a.names, a.open.contains(&e.id), i > 0, cx)).collect();
         out.push(ui::settings_card(cx).id("ss-audit").children(rows).into_any_element());
         if a.next.is_some() {
             out.push(div().flex().justify_center().child(ui::button("ss-audit-more", Tone::Secondary, cx).loading(a.loading.then_some("Loading")).child("Load more").on_click(cx.listener(|this, _, _, cx| {
@@ -803,7 +801,7 @@ impl Rustcord {
         out
     }
 
-    fn audit_row(&self, e: &audit::Entry, names: &Directory, open: bool, line: bool, cx: &mut Context<Self>) -> AnyElement {
+    fn ss_audit_row(&self, e: &audit::Entry, names: &Directory, open: bool, line: bool, cx: &mut Context<Self>) -> AnyElement {
         let (glyph, ink) = match audit::tone(e.action) {
             audit::Tone::Create => (Glyph::PlusCircle, palette::status_in(crate::discord::Status::Online, cx)),
             audit::Tone::Update => (Glyph::Pen, palette::muted(cx)),
@@ -834,17 +832,16 @@ impl Rustcord {
         let row = ui::settings_row(SharedString::from(format!("ss-audit-{}", e.id)), line, cx).flex_col().items_stretch().child(head).children(body);
         ui::settings_choice(row, cx)
             .on_click(cx.listener(move |this, _, _, cx| {
-                if let Some(l) = this.lists() {
-                    if !l.audit.open.remove(&id) {
+                if let Some(l) = this.lists()
+                    && !l.audit.open.remove(&id) {
                         l.audit.open.insert(id.clone());
                     }
-                }
                 cx.notify();
             }))
             .into_any_element()
     }
 
-    fn bans_page(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_bans_page(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let Some(view) = self.server_settings.as_ref() else { return Vec::new() };
         let guild_id = view.guild_id.clone();
         let bans = match &view.lists.bans {
@@ -885,7 +882,7 @@ impl Rustcord {
         vec![search.into_any_element(), ui::settings_group(plural(bans.len() as u64, "ban", "bans"), cx).child(ui::settings_card(cx).id("ss-bans").children(rows)).children(empty).into_any_element()]
     }
 
-    fn community_page(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_community_page(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let Some(view) = self.server_settings.as_ref() else { return Vec::new() };
         let guild_id = view.guild_id.clone();
         let Load::Ready(info) = &view.info else { return Vec::new() };
@@ -930,7 +927,7 @@ impl Rustcord {
         ]
     }
 
-    fn onboarding_page(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_onboarding_page(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let Some(view) = self.server_settings.as_ref() else { return Vec::new() };
         let onboarding = match &view.lists.onboarding {
             Load::Loading => return vec![loading_line("Loading onboarding…", cx)],
@@ -950,7 +947,7 @@ impl Rustcord {
         ]
     }
 
-    fn template_page(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn ss_template_page(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let Some(view) = self.server_settings.as_ref() else { return Vec::new() };
         let guild_id = view.guild_id.clone();
         let templates = match &view.lists.templates {
@@ -968,7 +965,7 @@ impl Rustcord {
                 let link = format!("https://discord.new/{}", t.code);
                 let sync = ui::button("ss-template-sync", Tone::Secondary, cx).small().child("Sync").on_click(cx.listener(move |this, _, _, cx| this.act_and_reload(api::sync_template(&g, &code), Page::Template, cx)));
                 let copy = ui::button("ss-template-copy", Tone::Ghost, cx).small().child("Copy link").on_click(cx.listener(move |this, _, _, cx| this.copy_text(link.clone(), cx)));
-                let delete = self.delete_control(&format!("template-{}", t.code), &t.name, api::delete_template(&guild_id, &t.code), Page::Template, cx);
+                let delete = self.ss_delete_control(&format!("template-{}", t.code), &t.name, api::delete_template(&guild_id, &t.code), Page::Template, cx);
                 let detail = if t.dirty { "The server changed since the last sync." } else { "In sync with the server." };
                 out.push(ui::settings_group("Template", cx).child(ui::settings_card(cx).id("ss-template").child(ui::settings_row("ss-template-row", false, cx).child(ui::settings_text(format!("discord.new/{}", t.code), Some(format!("{} · {detail}", t.name)), cx)).child(sync).child(copy).child(delete))).into_any_element());
             }
