@@ -765,6 +765,13 @@ pub trait Styled: Sized {
         self
     }
 
+    /// Fades the backdrop filter in from each edge (top, right, bottom, left) over the given
+    /// lengths, so the blur eases into the unfiltered content, like iOS's scroll edge effect.
+    fn backdrop_fade(mut self, top: impl Into<Pixels>, right: impl Into<Pixels>, bottom: impl Into<Pixels>, left: impl Into<Pixels>) -> Self {
+        self.style().backdrop_filter.fade = Some([top.into(), right.into(), bottom.into(), left.into()]);
+        self
+    }
+
     /// Sets the grid columns of this element.
     fn grid_cols(mut self, cols: u16) -> Self {
         self.style().grid_cols = Some(GridTemplate {

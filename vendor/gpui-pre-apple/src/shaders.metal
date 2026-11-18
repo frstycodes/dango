@@ -1554,6 +1554,16 @@ fragment float4 backdrop_blur_up_fragment(
                            backdrop_source_position(input.position.xy, pass));
 }
 
+// 0 at an edge with a fade, easing to 1 at the fade's length in from it; 1 along edges without.
+float backdrop_edge_fade(float2 position, Bounds_ScaledPixels bounds, float4 fade) {
+  float4 inset = float4(position.y - bounds.origin.y,
+                        bounds.origin.x + bounds.size.width - position.x,
+                        bounds.origin.y + bounds.size.height - position.y,
+                        position.x - bounds.origin.x);
+  float4 ramp = select(float4(1.), smoothstep(float4(0.), max(fade, float4(1e-4)), inset), fade > 0.);
+  return ramp.x * ramp.y * ramp.z * ramp.w;
+}
+
 fragment float4 backdrop_blur_composite_fragment(
     BackdropBlurVertexOutput input [[stage_in]],
     constant BackdropBlurPass *pass [[buffer(BackdropBlurInputIndex_Pass)]],
@@ -1566,6 +1576,8 @@ fragment float4 backdrop_blur_composite_fragment(
   float3 saturated = saturate(mix(float3(luminance), color.rgb, pass->saturation));
 
   float distance = quad_sdf(input.position.xy, pass->bounds, pass->corner_radii);
-  float coverage = saturate(0.5 - distance) * pass->opacity;
+  float coverage = saturate(0.5 - distance) * pass->opacity *
+                   backdrop_edge_fade(input.position.xy, pass->bounds,
+                                      float4(pass->fade[0], pass->fade[1], pass->fade[2], pass->fade[3]));
   return float4(saturated, coverage);
 }
