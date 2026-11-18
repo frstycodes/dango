@@ -351,6 +351,9 @@ struct Shared {
     others_speaking: AtomicBool,
     // "No Audio Detected": 0 not known yet, 1 detected, 2 not detected.
     input_detected: AtomicU8,
+    // Set when another channel's join replaces this session: it must not send the leave, which
+    // can reach Discord after that join and disconnect us from the new channel.
+    superseded: AtomicBool,
 }
 
 // Spamming mute or deafen sent an update per press, and Discord rate-limits the gateway (about 120
@@ -464,6 +467,7 @@ pub fn join(
         self_speaking: AtomicBool::new(false),
         others_speaking: AtomicBool::new(false),
         input_detected: AtomicU8::new(0),
+        superseded: AtomicBool::new(false),
     });
     if ATTENUATION_SUPPORTED {
         let weak = Arc::downgrade(&shared);
@@ -615,6 +619,11 @@ impl VoiceSession {
 
     #[allow(dead_code, reason = "examples/voice_join.rs drives it; the app doesn't yet")]
     pub fn leave(self) {}
+
+    // Once dropped, this session ends without telling Discord we left: the next join's voice state moves us.
+    pub fn supersede(&self) {
+        self.shared.superseded.store(true, Ordering::Release);
+    }
 }
 
 // Lowers other applications while someone speaks, until the session is gone.
@@ -688,7 +697,9 @@ async fn run(shared: Arc<Shared>, leave: oneshot::Receiver<()>) {
         result = join_voice(&shared, &mut dispatches) => result.err().unwrap_or_else(|| "Voice connection closed".to_owned()),
         _ = leave => "Left".to_owned(),
     };
-    shared.send_voice_state(false);
+    if !shared.superseded.load(Ordering::Acquire) {
+        shared.send_voice_state(false);
+    }
     shared.emit(VoiceEvent::Stage(Stage::Disconnected));
     shared.emit(VoiceEvent::Disconnected(reason));
 }
@@ -1135,6 +1146,7 @@ mod tests {
             self_speaking: AtomicBool::new(false),
             others_speaking: AtomicBool::new(false),
             input_detected: AtomicU8::new(0),
+            superseded: AtomicBool::new(false),
         };
         (shared, rx)
     }

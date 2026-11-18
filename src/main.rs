@@ -2122,6 +2122,9 @@ impl Rustcord {
         if self.call.as_ref().is_some_and(|c| c.channel.id == channel.id) {
             return;
         }
+        if let Some(call) = &self.call {
+            call.session.supersede();
+        }
         self.leave_voice(cx);
         self.voice_error = None;
         let (session, mut events) = voice::join(me.id, self.guild_id.clone(), channel.id.clone(), client.voice.clone(), self.prefs.voice_settings());

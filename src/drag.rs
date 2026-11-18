@@ -417,12 +417,13 @@ impl Rustcord {
 
     // Drop someone on a voice channel: we join it ourselves, or move them there.
     pub(crate) fn drop_voice_user(&mut self, drag: &VoiceDrag, channel: Channel, cx: &mut Context<Self>) {
+        let previous = self.voice_channel_of(&drag.guild_id, &drag.user_id);
+        let Some(target) = voice_move_target(previous.as_deref(), &channel.id).map(str::to_owned) else { return };
         let me = self.me.as_ref().is_some_and(|m| m.id == drag.user_id);
         if me {
             return self.join_voice(channel, cx);
         }
-        let (guild_id, user_id, target) = (drag.guild_id.clone(), drag.user_id.clone(), channel.id.clone());
-        let previous = self.voice_channel_of(&guild_id, &user_id);
+        let (guild_id, user_id) = (drag.guild_id.clone(), drag.user_id.clone());
         let (g1, u1, g2, u2) = (guild_id.clone(), user_id.clone(), guild_id.clone(), user_id.clone());
         self.rest_optimistic(
             Method::PATCH,
@@ -520,6 +521,12 @@ pub fn reorder(mut siblings: Vec<(String, i64)>, moved: &str, anchor: Option<(&s
     ids.into_iter().enumerate().map(|(i, id)| (id, i as i64)).collect()
 }
 
+// Where dropping someone in `current` on `target` moves them: nowhere when it's their own channel,
+// or when they've already left voice (a PATCH can't move them, and `null` would mean disconnect).
+fn voice_move_target<'a>(current: Option<&str>, target: &'a str) -> Option<&'a str> {
+    current.filter(|current| *current != target).map(|_| target)
+}
+
 // A drop's place from how far down the row the pointer is.
 pub fn place_at(fraction: f32) -> Place {
     if fraction < 0.5 { Place::Before } else { Place::After }
@@ -567,5 +574,12 @@ mod tests {
             assert!(frames < 60, "still landing after 500ms");
         }
         assert!(frames as f32 * frame > 0.15, "landed in {}ms", frames as f32 * frame * 1000.);
+    }
+
+    #[test]
+    fn voice_drop_moves_only_to_another_channel() {
+        assert_eq!(voice_move_target(Some("a"), "b"), Some("b"));
+        assert_eq!(voice_move_target(Some("a"), "a"), None);
+        assert_eq!(voice_move_target(None, "b"), None);
     }
 }
