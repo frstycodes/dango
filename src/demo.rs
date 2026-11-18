@@ -613,19 +613,21 @@ fn demo_search(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut 
 // channel; Filters open over them in "search-filters".
 fn demo_search_results(chord: &mut Rustcord, filters_open: bool, window: &mut Window, cx: &mut Context<Rustcord>) {
     let mut hits: Vec<Message> = messages().into_iter().rev().take(3).collect();
-    let picture = |id: &str, width, height| Media { url: avatar_url(id, None), width, height, kind: MediaKind::Image };
+    // Real shapes: the avatars are square, the banner is 600×240.
+    let avatar = |id: &str| Media { url: avatar_url(id, None), width: 256., height: 256., kind: MediaKind::Image };
+    let banner = Media { url: "demo/banner.png".into(), width: 600., height: 240., kind: MediaKind::Image };
     for (i, hit) in hits.iter_mut().enumerate() {
         hit.author = user("8388608", "Wren");
         hit.media = match i {
-            0 => vec![picture("3", 1200., 800.)],
-            1 => vec![picture("5", 600., 900.), picture("2", 800., 800.), picture("4", 700., 1100.)],
+            0 => vec![banner.clone()],
+            1 => vec![avatar("5"), avatar("2"), avatar("4")],
             _ => Vec::new(),
         };
     }
     if let Some(last) = hits.last_mut() {
         last.channel_id = "media".into();
         last.content = "the night sky from the ridge, more in the thread".into();
-        last.media = vec![picture("2", 1600., 900.)];
+        last.media = vec![avatar("2")];
     }
     chord.right_panel = crate::RightPanel::Search(Box::new(crate::search_results::Results::demo(hits, 880, 2, filters_open)));
     let content = crate::search::Saved { text: "from:8388608 has:image".into(), tokens: vec![crate::search::SavedToken { start: 0, end: 12, label: "Wren".into() }, crate::search::SavedToken { start: 13, end: 22, label: "image".into() }] }.to_content();
@@ -638,7 +640,7 @@ fn demo_search_dm(chord: &mut Rustcord, results: bool, window: &mut Window, cx: 
     chord.guild_id = None;
     chord.open_channel(dm, window, cx);
     if results {
-        let picture = Media { url: avatar_url("3", None), width: 1200., height: 800., kind: MediaKind::Image };
+        let picture = Media { url: "demo/banner.png".into(), width: 600., height: 240., kind: MediaKind::Image };
         let hit = |id: &str, author: User, content: &str, media: Vec<Media>| Message { id: id.into(), channel_id: "dm".into(), author, timestamp: "2026-11-12T21:40:00+00:00".into(), content: content.into(), media, ..Default::default() };
         let hits = vec![hit("501", user("8388608", "Wren"), "here's the photo from the ridge", vec![picture]), hit("502", me_user(), "photo dump later tonight?", Vec::new())];
         chord.right_panel = crate::RightPanel::Search(Box::new(crate::search_results::Results::demo(hits, 2, 1, false)));

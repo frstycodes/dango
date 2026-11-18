@@ -873,7 +873,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
 // A search result: the message as the feed draws it (head, text, media, embeds, files), without the
 // toolbar, reactions or reply chrome, on a card that jumps to it.
 pub(crate) fn search_hit(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Div {
-    let media = media_grid(message, ctx, cx);
+    let media = hit_media(message, ctx, cx);
     let body = div()
         .flex_1()
         .min_w_0()
@@ -892,6 +892,39 @@ pub(crate) fn search_hit(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) 
         .gap(px(12.))
         .child(ui::avatar(message.author.avatar.clone(), 36.).flex_none().mt(px(2.)))
         .child(body)
+}
+
+// Result pictures: each in its own frame at its own shape, smaller than the feed's, side by side when
+// there are several. Only a picture past `MEDIA_RATIO` (a long screenshot, a panorama) is cropped.
+const HIT_MEDIA_ONE: (f32, f32) = (280., 220.);
+const HIT_MEDIA_MANY: (f32, f32) = (150., 120.);
+const MEDIA_RATIO: (f32, f32) = (1. / 2.5, 2.5);
+
+fn hit_media(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Option<AnyElement> {
+    if message.media.is_empty() {
+        return None;
+    }
+    let (max_w, max_h) = if message.media.len() == 1 { HIT_MEDIA_ONE } else { HIT_MEDIA_MANY };
+    let max = (max_w.min(ctx.column), max_h);
+    let tiles: Vec<AnyElement> = (0..message.media.len())
+        .map(|i| {
+            let item = &message.media[i];
+            let (w, h) = fit_frame((item.width, item.height), max);
+            div().flex_none().w(px(w)).h(px(h)).child(media_tile(message, i, (w, h), ui::all(RADIUS_MD), ctx, cx)).into_any_element()
+        })
+        .collect();
+    Some(div().mt(px(8.)).flex().flex_wrap().gap(px(4.)).children(tiles).into_any_element())
+}
+
+// The frame for a picture of `size` within `max`: its own shape, never larger than it is, with the shape
+// held between 1:2.5 and 2.5:1. An unknown size gets a square.
+fn fit_frame((width, height): (f32, f32), (max_w, max_h): (f32, f32)) -> (f32, f32) {
+    if width <= 0. || height <= 0. {
+        return (max_h, max_h);
+    }
+    let ratio = (width / height).clamp(MEDIA_RATIO.0, MEDIA_RATIO.1);
+    let w = max_w.min(max_h * ratio).min(width);
+    (w, w / ratio)
 }
 
 // Rows sit 8px in from the feed's edges, so their hover fill reads as a rounded card; a mention is flush.
@@ -2217,5 +2250,19 @@ mod tests {
         let old = format_stamp(&(now - chrono::TimeDelta::days(30)).to_rfc3339());
         assert!(old.contains(", 20") && old.contains(" at "), "{old}");
         assert!(!gutter_clock(&now.to_rfc3339()).contains('M'));
+    }
+
+    #[test]
+    fn result_pictures_keep_their_shape() {
+        use super::fit_frame;
+        let max = (280., 220.);
+        // A 3:2 photo fits the width; a square fits the height; neither is cropped.
+        assert_eq!(fit_frame((1200., 800.), max), (280., 280. / 1.5));
+        assert_eq!(fit_frame((800., 800.), max), (220., 220.));
+        // Small pictures aren't blown up.
+        assert_eq!(fit_frame((100., 50.), max), (100., 50.));
+        // A long screenshot is held at 1:2.5 and cropped; an unknown size is a square.
+        assert_eq!(fit_frame((400., 4000.), max), (88., 220.));
+        assert_eq!(fit_frame((0., 0.), max), (220., 220.));
     }
 }
