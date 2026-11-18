@@ -45,9 +45,10 @@ impl Rustcord {
                 .bg(palette::surface(palette::Level::Sidebar, cx))
                 .text_color(palette::text(cx))
                 .text_size(px(14.))
+                // The list runs up under the header, which blurs and fades it (ui::scroll_edge), as the feed does.
+                .child(div().id("right-panel").flex_1().min_h_0().overflow_y_scroll().pt(px(crate::layout::HEADER_HEIGHT + 8.)).px_2().pb_2().flex().flex_col().gap(px(2.)).child(body))
+                .child(ui::scroll_edge(palette::surface(palette::Level::Sidebar, cx), 0.).child(head))
                 .child(self.resize_handle(Edge::Panel, cx))
-                .child(head)
-                .child(div().id("right-panel").flex_1().min_h_0().overflow_y_scroll().p_2().flex().flex_col().gap(px(2.)).child(body))
                 .into_any_element(),
         )
     }
@@ -63,7 +64,6 @@ impl Rustcord {
         });
         div()
             .h(px(crate::layout::HEADER_HEIGHT))
-            .flex_none()
             .pl_4()
             .pr(px(8. + crate::window_controls::WIDTH))
             .flex()
