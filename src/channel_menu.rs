@@ -292,11 +292,14 @@ impl Rustcord {
         }
         out.push(Entry::Separator);
 
+        if !self.channel_setting_pages(guild_id, channel).is_empty() {
+            let (gid, ch) = (guild_id.to_owned(), channel.clone());
+            out.push(item("Edit channel", move |this, window, cx| this.open_channel_settings(ch.clone(), gid.clone(), window, cx)).icon(Glyph::Pen).entry());
+        }
         if manage {
             out.push(self.move_to_category(channel, guild_id));
             out.push(Entry::Separator);
-            let (gid, ch) = (guild_id.to_owned(), channel.clone());
-            out.push(item("Edit channel", move |this, window, cx| this.rename_channel(ch.clone(), window, cx)).icon(Glyph::Pen).entry());
+            let gid = guild_id.to_owned();
             let (gid2, ch2) = (gid.clone(), channel.clone());
             out.push(item("Duplicate channel", move |this, _, cx| {
                 let body = json!({ "name": ch2.name, "type": ch2.raw_type, "parent_id": ch2.parent_id, "topic": ch2.topic });
@@ -370,9 +373,11 @@ impl Rustcord {
         out.push(submenu("Notification settings", radios).hint(notification_label(effective(overrides.notifications, settings.notifications))).icon(Glyph::Bell).entry());
         out.push(Entry::Separator);
 
+        if !self.channel_setting_pages(guild_id, category).is_empty() {
+            let (gid, ch) = (guild_id.to_owned(), category.clone());
+            out.push(item("Edit category", move |this, window, cx| this.open_channel_settings(ch.clone(), gid.clone(), window, cx)).icon(Glyph::Pen).entry());
+        }
         if self.can_guild(guild_id, perm::MANAGE_CHANNELS) {
-            let ch = category.clone();
-            out.push(item("Edit category", move |this, window, cx| this.rename_channel(ch.clone(), window, cx)).icon(Glyph::Pen).entry());
             out.push(self.delete_channel_entry(category, "Delete category"));
             out.push(Entry::Separator);
         }
@@ -440,18 +445,6 @@ impl Rustcord {
         .danger()
         .icon(Glyph::Trash)
         .entry()
-    }
-
-    // ponytail: Discord's Edit Channel opens the full channel settings; this edits the name only.
-    fn rename_channel(&mut self, channel: Channel, window: &mut Window, cx: &mut Context<Self>) {
-        let id = channel.id.clone();
-        self.prompt("Edit channel", "Channel name", &channel.name, "Save", move |this, name, _, cx| {
-            let name = name.trim().to_owned();
-            if !name.is_empty() {
-                let next = name.clone();
-                this.channel_optimistic(&id, Method::PATCH, json!({ "name": name }), move |c| c.name = next.clone(), cx);
-            }
-        }, window, cx);
     }
 
     fn create_channel(&mut self, guild_id: String, kind: u64, parent: Option<String>, window: &mut Window, cx: &mut Context<Self>) {

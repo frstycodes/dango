@@ -33,14 +33,16 @@ mod feedback;
 mod field;
 mod group;
 mod tabs;
+mod tri;
 mod tunnel;
 
 pub use control::{Control, Pressable, button, chip, hover_fade, icon_button, menu_row, pressable, round_button, swatch, tip};
 pub use dialog::{dialog, dialog_body, modal};
 pub use feedback::{meter, meter_with, progress_indeterminate, progress_live, ring, skeleton, skeleton_circle, slider_live, slider_track};
-pub use field::{code_cell, drop_zone, field, field_error, field_frame, field_hint, select, stepper, text_area, text_field};
-pub use group::{settings_caption, settings_card, settings_group, settings_row};
+pub use field::{code_cell, drop_zone, field, field_error, field_frame, field_hint, search_button, search_field, search_frame, select, select_options, stepper, text_area, text_field};
+pub use group::{settings_caption, settings_card, settings_choice, settings_close, settings_column, settings_group, SettingsHighlight, settings_nav_item, settings_page, settings_row, settings_sidebar, settings_text, settings_title, settings_window};
 pub use tabs::{Tab, pill_tabs, segmented_live, tabs};
+pub use tri::{Tri, tri_state};
 pub use tunnel::{TUNNEL_GRACE, Tunnel};
 
 // Radius tiers: tags and tooltips, rows and menu items, controls, cards and tiles, dialogs. Sized for the
@@ -164,12 +166,6 @@ pub fn truncating(key: impl Into<SharedString>, text: impl Into<SharedString>) -
         .when(clipped, |d| gpui_kit::StatefulInteractiveElement::tooltip(d, move |window, cx| gpui_kit::component::tooltip::Tooltip::new(text.clone()).build(window, cx)))
 }
 
-/// A search field's fill: the rail tone at 60% over a light blur, so what scrolls under a header stays
-/// faintly visible through it rather than hitting an opaque block.
-pub fn search_field_fill(cx: &App) -> Hsla {
-    palette::surface(palette::Level::Rail, cx).opacity(0.6)
-}
-
 pub fn live_badge() -> Div {
     let white = gpui_kit::white();
     let wave = div().h(px(9.)).flex().items_center().gap(px(1.5)).children([0.55_f32, 1., 0.7].map(|base| div().w(px(2.)).h(px(9. * base)).rounded_full().bg(white)));
@@ -194,7 +190,7 @@ pub fn tag_with(glyph: Glyph, text: impl Into<SharedString>, cx: &App) -> Div {
     badge(palette::accent_soft(cx), palette::accent_ink(cx)).h(px(18.)).px(px(6.)).gap(px(3.)).child(Icon::new(glyph).size(px(11.))).child(text.to_uppercase())
 }
 
-// A count asks for you, so it takes the accent. A capsule that grows with the number.
+// A count asks for you, so it takes the alert red. A capsule that grows with the number.
 pub fn count_badge(count: u32) -> Div {
     let text = if count > 99 { "99+".to_owned() } else { count.to_string() };
     div()
@@ -203,7 +199,7 @@ pub fn count_badge(count: u32) -> Div {
         .px(px(5.))
         .flex_none()
         .rounded_full()
-        .bg(palette::accent())
+        .bg(palette::alert())
         .text_color(gpui_kit::white())
         .text_size(px(12.))
         .font_weight(FontWeight::SEMIBOLD)
@@ -216,7 +212,7 @@ pub fn count_badge(count: u32) -> Div {
 
 // Something unread, without a count.
 pub fn unread_dot() -> Div {
-    div().size(px(8.)).flex_none().rounded_full().bg(palette::accent())
+    div().size(px(8.)).flex_none().rounded_full().bg(palette::alert())
 }
 
 // A role: its colour as a dot, never as the text's colour.
@@ -323,13 +319,13 @@ fn switch_track(id: &ElementId, on: bool, pressed: bool, window: &mut Window, cx
     let swell = transition(control::part(id, "swell"), if pressed { 1. } else { 0. }, spring(), window, cx);
     let fill = transition(control::part(id, "fill"), if on { 1. } else { 0. }, Transition::new(DUR_POP).easing(motion::ease_out()), window, cx);
     let glass = hover_fade(control::part(id, "glass"), pressed, window, cx);
-    let knob = stretch(div().absolute().top(px(2.)).left(px(2.)).w(px(28.)).h(px(24.)).translate_x(px(20. * travel)), 1. + 0.18 * swell, 1. + 0.25 * swell)
+    let knob = stretch(div().absolute().top(px(2.)).left(px(2.)).w(px(22.)).h(px(20.)).translate_x(px(14. * travel)), 1. + 0.18 * swell, 1. + 0.25 * swell)
         .rounded_full()
         .bg(mix(gpui_kit::white(), gpui_kit::white().opacity(0.42), glass))
         .shadow(knob_glass(glass))
         // The backdrop blur keeps to the knob's unscaled box: gpui's blur doesn't follow transforms.
         .when(glass > 0., |k| k.backdrop_blur(px(2. * glass)).backdrop_saturate(1. + 0.8 * glass));
-    div().w(px(52.)).h(px(28.)).flex_none().relative().rounded_full().bg(mix(palette::track(cx), palette::accent(), fill.clamp(0., 1.))).child(knob)
+    div().w(px(40.)).h(px(24.)).flex_none().relative().rounded_full().bg(mix(palette::track(cx), palette::accent(), fill.clamp(0., 1.))).child(knob)
 }
 
 // The knob's shadows, from resting (`t` 0) to pressed glass (`t` 1): a lit inner rim and a deeper drop.

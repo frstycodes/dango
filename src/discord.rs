@@ -9,7 +9,7 @@ const GATEWAY: &str = "wss://gateway.discord.gg/?v=10&encoding=json";
 pub const API: &str = "https://discord.com/api/v10";
 const CDN: &str = "https://cdn.discordapp.com";
 const AUTH_FAILED: u16 = 4004;
-const VIEW_CHANNEL: u64 = 1 << 10;
+pub(crate) const VIEW_CHANNEL: u64 = 1 << 10;
 
 // The user-account gateway and several fields below (nameplates, guild tags, member list ops,
 // read states) are undocumented; shapes are from memory of the official client. Not verified live.
@@ -168,6 +168,8 @@ pub struct Guild {
     pub threads: Vec<Channel>,
     // Our own roles here, for working out what moderation we may do.
     pub my_roles: Vec<String>,
+    // Server boost level 0-3: sets the highest voice bitrate.
+    pub premium_tier: u8,
 }
 
 // Your notification settings for one server, or for DMs under the key "@me" (Discord's
@@ -248,6 +250,7 @@ pub mod perm {
     pub const MANAGE_MESSAGES: u64 = 1 << 13;
     pub const MANAGE_NICKNAMES: u64 = 1 << 27;
     pub const MANAGE_ROLES: u64 = 1 << 28;
+    pub const MANAGE_WEBHOOKS: u64 = 1 << 29;
     pub const MANAGE_THREADS: u64 = 1 << 34;
     pub const CREATE_PUBLIC_THREADS: u64 = 1 << 35;
     pub const MODERATE_MEMBERS: u64 = 1 << 40;
@@ -351,6 +354,9 @@ pub struct Channel {
     // Per-role and per-member permission changes on top of the server's; `id` is a role or user id.
     #[serde(default)]
     pub overwrites: Vec<Overwrite>,
+    // Boxed: rarely read, and it keeps every Channel-carrying event small.
+    #[serde(default)]
+    pub props: Box<ChannelProps>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -358,6 +364,26 @@ pub struct Overwrite {
     pub id: String,
     pub allow: u64,
     pub deny: u64,
+    // Discord's overwrite type 1: `id` is a member, not a role.
+    #[serde(default)]
+    pub member: bool,
+}
+
+// What channel settings edit beyond name and topic (Discord's Modify Channel fields).
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ChannelProps {
+    pub nsfw: bool,
+    // Slowmode, seconds (rate_limit_per_user).
+    pub slowmode: u32,
+    // Voice and stage only.
+    pub bitrate: u32,
+    pub user_limit: u32,
+    // None: Discord picks automatically.
+    pub rtc_region: Option<String>,
+    // video_quality_mode 2: 720p for everyone.
+    pub video_full: bool,
+    // Minutes until an idle thread hides (default_auto_archive_duration); 0 when Discord sent none.
+    pub archive_after: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -619,13 +645,101 @@ pub struct Ready {
     pub relationships: Vec<Relationship>,
     // Settings › Advanced › Developer Mode: shows the Copy … ID items.
     pub developer_mode: bool,
+    pub account_settings: AccountSettings,
+    pub my_account: MyAccount,
     pub guild_settings: Vec<(String, GuildSettings)>,
     // Users we've ignored (Discord's newer, softer block).
     pub ignored: Vec<String>,
 }
 
+// What Settings › My account edits about you, beyond the `User` every screen draws.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct MyAccount {
+    pub username: String,
+    pub global_name: Option<String>,
+    pub banner: Option<String>,
+    // Nitro: Discord takes banners and animated avatars only from subscribers.
+    pub premium: bool,
+}
+
+impl MyAccount {
+    pub fn parse(user: &Value) -> Self {
+        let id = user["id"].as_str().unwrap_or_default();
+        let banner = user["banner"].as_str().map(|hash| format!("{CDN}/banners/{id}/{hash}.{}?size=600", if hash.starts_with("a_") { "gif" } else { "png" }));
+        Self {
+            username: user["username"].as_str().unwrap_or_default().to_owned(),
+            global_name: user["global_name"].as_str().map(str::to_owned),
+            banner,
+            premium: user["premium_type"].as_u64().is_some_and(|t| t > 0),
+        }
+    }
+}
+
+// The account-wide settings Dango shows, from the legacy `user_settings` object (READY, USER_SETTINGS_UPDATE).
+// Field names are Discord's; `default_guilds_restricted` and the friend sources are inverted or split in the UI.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AccountSettings {
+    pub developer_mode: bool,
+    pub render_embeds: bool,
+    pub render_reactions: bool,
+    pub show_current_game: bool,
+    pub default_guilds_restricted: bool,
+    // 0 scans no DMs, 1 DMs from non-friends, 2 every DM.
+    pub explicit_content_filter: u8,
+    pub friends_all: bool,
+    pub friends_mutual_friends: bool,
+    pub friends_mutual_guilds: bool,
+}
+
+impl Default for AccountSettings {
+    fn default() -> Self {
+        Self {
+            developer_mode: false,
+            render_embeds: true,
+            render_reactions: true,
+            show_current_game: true,
+            default_guilds_restricted: false,
+            explicit_content_filter: 1,
+            friends_all: true,
+            friends_mutual_friends: true,
+            friends_mutual_guilds: true,
+        }
+    }
+}
+
+impl AccountSettings {
+    // Takes the fields `v` carries and keeps the rest: USER_SETTINGS_UPDATE sends only what changed.
+    pub fn apply(&mut self, v: &Value) {
+        let flag = |key: &str, into: &mut bool| {
+            if let Some(b) = v[key].as_bool() {
+                *into = b;
+            }
+        };
+        flag("developer_mode", &mut self.developer_mode);
+        flag("render_embeds", &mut self.render_embeds);
+        flag("render_reactions", &mut self.render_reactions);
+        flag("show_current_game", &mut self.show_current_game);
+        flag("default_guilds_restricted", &mut self.default_guilds_restricted);
+        if let Some(level) = v["explicit_content_filter"].as_u64() {
+            self.explicit_content_filter = level.min(2) as u8;
+        }
+        if v["friend_source_flags"].is_object() {
+            let sources = &v["friend_source_flags"];
+            self.friends_all = sources["all"].as_bool().unwrap_or(false);
+            self.friends_mutual_friends = self.friends_all || sources["mutual_friends"].as_bool().unwrap_or(false);
+            self.friends_mutual_guilds = self.friends_all || sources["mutual_guilds"].as_bool().unwrap_or(false);
+        }
+    }
+
+    pub fn friend_sources(&self) -> Value {
+        json!({ "all": self.friends_all, "mutual_friends": self.friends_mutual_friends, "mutual_guilds": self.friends_mutual_guilds })
+    }
+}
+
 pub enum Event {
     Ready(Box<Ready>),
+    // Account settings changed here or in another client: only the changed fields.
+    UserSettings(Value),
     // Who is watching a Go Live stream, by its key.
     StreamViewers { key: String, viewers: Vec<String> },
     // When each voice channel's current session began (Unix seconds); `all` replaces the server's list.
@@ -851,6 +965,20 @@ impl Client {
         let _ = self.run(req).await;
     }
 
+    /// Saves account settings: `patch` holds only the fields that changed.
+    // Not verified: the legacy endpoint still accepting each field Settings sends (it accepts `status`).
+    pub async fn set_account_settings(&self, patch: Value) -> Result<(), String> {
+        let req = self.request(reqwest::Method::PATCH, "/users/@me/settings").json(&patch);
+        self.run(req).await.map(|_| ())
+    }
+
+    /// Changes your account (PATCH /users/@me): display name, username (with `password`), avatar, banner.
+    /// Images go as data URIs. Returns the updated user.
+    pub async fn modify_me(&self, patch: Value) -> Result<Value, String> {
+        let req = self.request(reqwest::Method::PATCH, "/users/@me").json(&patch);
+        self.run(req).await
+    }
+
     /// Saves the rail's order and folders. Loose servers are folders without an id.
     // Not verified: the legacy settings endpoint still accepting `guild_folders` (it accepts `status`).
     pub async fn set_guild_folders(&self, folders: Vec<Folder>) {
@@ -993,7 +1121,23 @@ pub async fn send(req: reqwest::RequestBuilder) -> Result<Value, String> {
         return Ok(body);
     }
     eprintln!("http: {status} {url}: {body}");
-    Err(body["message"].as_str().map(str::to_owned).unwrap_or_else(|| status.to_string()))
+    Err(api_error(&body).unwrap_or_else(|| status.to_string()))
+}
+
+// Discord's refusal in its own words. "Invalid Form Body" says nothing alone, so the first field's
+// message follows it: "Invalid Form Body: name: Must be between 1 and 100 in length."
+fn api_error(body: &Value) -> Option<String> {
+    fn first_field(errors: &Value, path: &str) -> Option<String> {
+        if let Some(message) = errors["_errors"][0]["message"].as_str() {
+            return Some(format!("{path}: {message}"));
+        }
+        errors.as_object()?.iter().find_map(|(key, inner)| first_field(inner, &if path.is_empty() { key.clone() } else { format!("{path}.{key}") }))
+    }
+    let message = body["message"].as_str()?;
+    Some(match first_field(&body["errors"], "") {
+        Some(detail) => format!("{message}: {detail}"),
+        None => message.to_owned(),
+    })
 }
 
 // ponytail: full re-identify after every drop; RESUME (session_id + seq) when reconnect churn matters.
@@ -1106,6 +1250,7 @@ fn dispatch(kind: &str, d: &Value) -> Option<Event> {
     let s = |v: &Value| v.as_str().unwrap_or_default().to_owned();
     match kind {
         "READY" => Some(Event::Ready(Box::new(parse_ready(d)))),
+        "USER_SETTINGS_UPDATE" => Some(Event::UserSettings(d.clone())),
         "GUILD_CREATE" => parse_guild(d).map(Event::GuildCreate),
         "CHANNEL_CREATE" | "CHANNEL_UPDATE" | "THREAD_CREATE" | "THREAD_UPDATE" => {
             let guild_id = d["guild_id"].as_str()?.to_owned();
@@ -1207,6 +1352,12 @@ fn parse_ready(d: &Value) -> Ready {
             })
             .collect(),
         developer_mode: d["user_settings"]["developer_mode"].as_bool().unwrap_or(false),
+        my_account: MyAccount::parse(&d["user"]),
+        account_settings: {
+            let mut settings = AccountSettings::default();
+            settings.apply(&d["user_settings"]);
+            settings
+        },
         guild_settings: d["user_guild_settings"]["entries"].as_array().or(d["user_guild_settings"].as_array()).into_iter().flatten().map(parse_guild_settings).collect(),
         ignored: d["relationships"].as_array().into_iter().flatten().filter(|r| r["user_ignored"].as_bool() == Some(true)).filter_map(|r| r["id"].as_str().map(str::to_owned)).collect(),
         relationships: d["relationships"]
@@ -1278,6 +1429,7 @@ fn parse_guild(g: &Value) -> Option<Guild> {
         default_notifications: props["default_message_notifications"].as_u64().or(g["default_message_notifications"].as_u64()).unwrap_or(0) as u8,
         threads: g["threads"].as_array().into_iter().flatten().filter_map(|t| parse_channel(t, id)).collect(),
         my_roles: Vec::new(),
+        premium_tier: props["premium_tier"].as_u64().or(g["premium_tier"].as_u64()).unwrap_or(0) as u8,
     })
 }
 
@@ -1291,7 +1443,7 @@ pub fn parse_thread(c: &Value, guild_id: &str) -> Option<Channel> {
     parse_channel(c, guild_id)
 }
 
-fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
+pub(crate) fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
     let kind = match c["type"].as_u64()? {
         0 | 5 => ChannelKind::Text,
         2 | 13 => ChannelKind::Voice,
@@ -1314,7 +1466,7 @@ fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
         .as_array()
         .into_iter()
         .flatten()
-        .filter_map(|o| Some(Overwrite { id: o["id"].as_str()?.to_owned(), allow: permission(&o["allow"]), deny: permission(&o["deny"]) }))
+        .filter_map(|o| Some(Overwrite { id: o["id"].as_str()?.to_owned(), allow: permission(&o["allow"]), deny: permission(&o["deny"]), member: o["type"].as_u64() == Some(1) }))
         .collect();
     let private = overwrites.iter().any(|o| o.id == guild_id && o.deny & VIEW_CHANNEL != 0);
     Some(Channel {
@@ -1332,6 +1484,15 @@ fn parse_channel(c: &Value, guild_id: &str) -> Option<Channel> {
         thread,
         raw_type: c["type"].as_u64().unwrap_or(0) as u8,
         overwrites,
+        props: Box::new(ChannelProps {
+            nsfw: c["nsfw"].as_bool().unwrap_or(false),
+            slowmode: c["rate_limit_per_user"].as_u64().unwrap_or(0) as u32,
+            bitrate: c["bitrate"].as_u64().unwrap_or(0) as u32,
+            user_limit: c["user_limit"].as_u64().unwrap_or(0) as u32,
+            rtc_region: c["rtc_region"].as_str().map(str::to_owned),
+            video_full: c["video_quality_mode"].as_u64() == Some(2),
+            archive_after: c["default_auto_archive_duration"].as_u64().unwrap_or(0) as u32,
+        }),
     })
 }
 
@@ -1364,6 +1525,7 @@ fn parse_dm(c: &Value, users: &Value) -> Option<Channel> {
         thread: None,
         raw_type: c["type"].as_u64().unwrap_or(1) as u8,
         overwrites: Vec::new(),
+        props: Default::default(),
     })
 }
 
@@ -1836,6 +1998,14 @@ mod tests {
     }
 
     #[test]
+    fn form_errors_name_the_field() {
+        let body = json!({ "code": 50035, "message": "Invalid Form Body", "errors": { "name": { "_errors": [{ "code": "BASE_TYPE_BAD_LENGTH", "message": "Must be between 1 and 100 in length." }] } } });
+        assert_eq!(api_error(&body).as_deref(), Some("Invalid Form Body: name: Must be between 1 and 100 in length."));
+        assert_eq!(api_error(&json!({ "message": "Missing Permissions", "code": 50013 })).as_deref(), Some("Missing Permissions"));
+        assert_eq!(api_error(&Value::Null), None);
+    }
+
+    #[test]
     fn hides_channels_we_cannot_view() {
         let role = |id: &str, permissions: u64| Role { id: id.into(), name: id.into(), color: 0, position: 0, permissions, managed: false };
         let channel = |id: &str, overwrites: Value| parse_channel(&json!({ "id": id, "type": 0, "permission_overwrites": overwrites }), "g").unwrap();
@@ -1855,6 +2025,7 @@ mod tests {
             voice_states: Vec::new(),
             emojis: Vec::new(),
             owner_id: Some("owner".into()),
+            premium_tier: 0,
             threads: Vec::new(),
             my_roles: Vec::new(),
             default_notifications: Default::default(),

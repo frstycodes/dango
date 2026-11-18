@@ -174,7 +174,8 @@ impl Rustcord {
     // while it has focus or a query. Its width and fill run both ways on a quick ease-out, but only on a change:
     // present at mount, it simply is what it is.
     fn channel_search(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        const CLOSED: f32 = 34.;
+        // Closed it's the search box's icon alone: 12px padding either side of the 16px glyph; open, room for filter chips.
+        const CLOSED: f32 = 40.;
         const OPEN: f32 = 260.;
         let handle = self.search_input.read(cx).focus_handle(cx);
         let focused = handle.is_focused(window);
@@ -187,33 +188,19 @@ impl Rustcord {
             state.update(cx, |s, _| *s = (open, changes + 1));
         }
         let changes = state.read(cx).1;
-        let field = ui::search_field_fill(cx);
-        let (hover, strong) = (palette::hover(cx), palette::strong(cx));
+        let hover = palette::hover(cx);
         let avatars = self.search_avatars();
         let el = div()
             .id("search-field")
             .w(px(if open { OPEN } else { CLOSED }))
-            .h(px(34.))
             .ml(px(4.))
-            .px(px(9.))
             .flex_none()
             .occlude()
-            .flex()
-            .items_center()
-            .gap_2()
-            .overflow_hidden()
-            .squircle(RADIUS_SM)
-            .when(open, |d| d.bg(field).backdrop_blur(px(12.)))
-            .when(!open, |d| d.cursor_pointer().hover(move |s| s.bg(hover).text_color(strong)))
-            .border_1()
-            .border_color(if focused { palette::accent() } else { gpui_kit::transparent_black() })
-            .text_size(px(14.))
-            .text_color(palette::faint(cx))
-            .child(Icon::new(Glyph::Search).size(px(16.)).flex_none())
-            .child(div().flex_1().min_w_0().child(Input::new(&self.search_input).appearance(false).px_0().text_size(px(14.)).token(move |token, _, cx| crate::search_menu::render_token(token, &avatars, cx))))
+            .squircle(RADIUS_MD)
+            .child(ui::search_frame("channel-search", Input::new(&self.search_input).token(move |token, _, cx| crate::search_menu::render_token(token, &avatars, cx)), &handle).quiet(!open))
             .capture_key_down(cx.listener(Self::on_search_key))
             .when(!open, |d| {
-                d.on_click(cx.listener(move |_, _, window, cx| {
+                d.cursor_pointer().hover(move |s| s.bg(hover)).on_click(cx.listener(move |_, _, window, cx| {
                     window.focus(&handle, cx);
                     cx.notify();
                 }))
@@ -222,15 +209,12 @@ impl Rustcord {
             el.into_any_element()
         } else {
             let (from, to) = if open { (CLOSED, OPEN) } else { (OPEN, CLOSED) };
-            el.with_animation(SharedString::from(format!("search-{changes}")), Animation::new(Duration::from_millis(150)).with_easing(gpui_kit::ease_out_quint()), move |el, t| {
-                let fill = if open { t } else { 1. - t };
-                el.w(px(from + (to - from) * t)).bg(field.opacity(field.a * fill))
-            })
-            .into_any_element()
+            el.with_animation(SharedString::from(format!("search-{changes}")), Animation::new(Duration::from_millis(150)).with_easing(gpui_kit::ease_out_quint()), move |el, t| el.w(px(from + (to - from) * t)))
+                .into_any_element()
         };
         // The popover hangs from the field's right edge and rises from that corner.
         let popover = focused.then(|| self.search_popover(cx)).flatten().map(|card| {
-            let card = div().absolute().top(px(40.)).right_0().child(card);
+            let card = div().absolute().top(px(46.)).right_0().child(card);
             gpui_kit::deferred(ui::rise(card.transform_origin(ui::corner(true, false)), "search-popover-in", Duration::ZERO)).with_priority(2)
         });
         div()
@@ -388,6 +372,8 @@ impl Rustcord {
     pub(crate) fn row_context(&self, messages: &[Message], channel: Option<&Channel>, has_more: bool, column: f32, cx: &mut Context<Self>) -> Rc<RowContext> {
         Rc::new(RowContext {
             me: self.me.clone(),
+            embeds: self.account_settings.render_embeds,
+            reactions: self.account_settings.render_reactions,
             // Later entries win: the server's member cache last, so nicknames beat the account names
             // that history loaded over REST carries (it has no member objects).
             names: messages
@@ -743,6 +729,9 @@ impl RowContext {
 
 pub(crate) struct RowContext {
     me: Option<User>,
+    // Settings › Chat: Discord's render_embeds and render_reactions.
+    embeds: bool,
+    reactions: bool,
     names: HashMap<String, String>,
     colors: HashMap<String, Hsla>,
     mentions_me: std::collections::HashSet<String>,
@@ -810,10 +799,10 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .text_color(ink)
         .children(content(message, ctx, cx))
         .children(media.map(|m| div().when(pending, |d| d.opacity(0.6)).child(m)))
-        .children(message.embeds.iter().enumerate().map(|(i, e)| embed_card(e, format!("embed-{}-{i}", message.id), ctx, cx)))
+        .children(message.embeds.iter().filter(|_| ctx.embeds).enumerate().map(|(i, e)| embed_card(e, format!("embed-{}-{i}", message.id), ctx, cx)))
         .children(message.thread.as_ref().map(|t| thread_card(t, ctx, cx)))
         .children(files(message, ctx, cx))
-        .children(reactions(message, ctx, cx))
+        .children(reactions(message, ctx, cx).filter(|_| ctx.reactions))
         .when(message.state == SendState::Failed, |b| b.child(send_failure(message, ctx, cx)));
     let row = div()
         .id(group.clone())
@@ -2045,8 +2034,8 @@ fn unread_line() -> AnyElement {
         .flex()
         .items_center()
         .gap(px(8.))
-        .child(div().flex_1().h(px(1.)).bg(palette::accent()))
-        .child(ui::badge(palette::accent(), gpui_kit::white()).h(px(18.)).px(px(6.)).child("New"))
+        .child(div().flex_1().h(px(1.)).bg(palette::alert()))
+        .child(ui::badge(palette::alert(), gpui_kit::white()).h(px(18.)).px(px(6.)).child("New"))
         .into_any_element()
 }
 
@@ -2090,25 +2079,42 @@ fn day(timestamp: &str) -> Option<NaiveDate> {
     Some(local(timestamp)?.date_naive())
 }
 
-// "Today at 9:41 PM", "Yesterday at 11:58 PM", the weekday within the week, then the date.
-fn format_stamp(timestamp: &str) -> String {
-    let Some(time) = local(timestamp) else { return String::new() };
-    match (Local::now().date_naive() - time.date_naive()).num_days() {
-        0 => time.format("Today at %-I:%M %p").to_string(),
-        1 => time.format("Yesterday at %-I:%M %p").to_string(),
-        2..=6 => time.format("%A at %-I:%M %p").to_string(),
-        _ => time.format("%B %-d, %Y at %-I:%M %p").to_string(),
+// Settings › Chat › Use a 24-hour clock. A global, not a parameter: the formatters sit deep under
+// rendering code that has no prefs to hand.
+static CLOCK_24: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub(crate) fn set_clock_24(on: bool) {
+    CLOCK_24.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn time_format(gutter: bool) -> &'static str {
+    match (CLOCK_24.load(std::sync::atomic::Ordering::Relaxed), gutter) {
+        (true, _) => "%H:%M",
+        (false, false) => "%-I:%M %p",
+        (false, true) => "%-I:%M",
     }
 }
 
-// "9:41 PM".
+// "Today at 9:41 PM", "Yesterday at 11:58 PM", the weekday within the week, then the date.
+fn format_stamp(timestamp: &str) -> String {
+    let Some(time) = local(timestamp) else { return String::new() };
+    let clock = time.format(time_format(false));
+    match (Local::now().date_naive() - time.date_naive()).num_days() {
+        0 => format!("Today at {clock}"),
+        1 => format!("Yesterday at {clock}"),
+        2..=6 => format!("{} at {clock}", time.format("%A")),
+        _ => format!("{} at {clock}", time.format("%B %-d, %Y")),
+    }
+}
+
+// "9:41 PM", or "21:41".
 fn clock(timestamp: &str) -> String {
-    local(timestamp).map(|t| t.format("%-I:%M %p").to_string()).unwrap_or_default()
+    local(timestamp).map(|t| t.format(time_format(false)).to_string()).unwrap_or_default()
 }
 
 // The continuation gutter's "9:41": the half of the day is the header's to say.
 fn gutter_clock(timestamp: &str) -> String {
-    local(timestamp).map(|t| t.format("%-I:%M").to_string()).unwrap_or_default()
+    local(timestamp).map(|t| t.format(time_format(true)).to_string()).unwrap_or_default()
 }
 
 pub(crate) fn format_size(bytes: u64) -> String {
