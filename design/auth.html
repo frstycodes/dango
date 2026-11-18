@@ -421,17 +421,11 @@
     </div>
     <div id="st-update-ready">
       <h3>Update ready</h3>
-      <div class="au-app"><div class="banner banner--update" role="status"><i class="ph-fill ph-arrow-circle-up"></i>Wave 0.5 is ready to install.<button class="btn btn--primary btn--sm">Restart now</button><button class="iconbtn x" aria-label="Remind me later" title="Remind me later"><i class="ph ph-x"></i></button></div>
-        <div class="au-appbody"><aside class="side" data-side="general"></aside>
-        <div class="chat"><header><i class="ph ph-hash faint" style="font-size: 20px"></i><b>general</b></header>
-          <div class="feed">
-            <div class="msg first"><span class="av" data-av="Ana"></span><div><div class="head"><span class="name">Ana</span><span class="time">9:47 PM</span></div><div class="body">patch notes are out</div></div></div>
-          </div>
-          <div class="typing"></div>
-          <div class="composer"><button class="iconbtn" aria-label="Upload a file"><i class="ph-bold ph-plus-circle"></i></button><input placeholder="Message #general" aria-label="Message #general"><button class="iconbtn" aria-label="Emoji"><i class="ph ph-smiley"></i></button></div>
-        </div></div></div>
-      <div style="margin-top: var(--space-3); border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--line)"><div class="banner banner--update" role="status"><i class="ph-fill ph-arrow-circle-up"></i>Wave 0.5 is ready. You're in a call.<button class="btn btn--primary btn--sm" aria-pressed="false">Restart after call</button></div></div>
-      <p class="au-cap">Downloaded in the background; launch never waits on it. During a call the action defers to hang-up instead of dropping you. The banner component lives in <a href="overlays.html#banners">Overlays</a>.</p>
+      <div class="row" style="gap: var(--space-5); flex-wrap: wrap; align-items: flex-start">
+        <div style="width: 300px; border-radius: var(--radius-md); overflow: hidden; background: var(--bg-rail)"><div class="au-update" role="status"><i class="ph-fill ph-download-simple"></i><b>Dango 0.5.0 is ready</b><button class="btn btn--primary btn--sm" title="Installs the update and reopens Dango">Restart</button></div><div class="me" style="margin: 0; border-radius: 0 0 var(--radius-md) var(--radius-md)"><button class="who" aria-label="Your status and accounts"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>Online</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div></div>
+        <div style="width: 300px; border-radius: var(--radius-md); overflow: hidden; background: var(--bg-rail)"><div class="au-update" role="status"><i class="ph-fill ph-download-simple"></i><b>Dango 0.5.0 is ready</b><button class="btn btn--primary btn--sm" disabled title="Available once you leave the call. Otherwise Dango updates the next time it opens.">Restart</button></div><div class="me" style="margin: 0; border-radius: 0 0 var(--radius-md) var(--radius-md)"><button class="who" aria-label="Your status and accounts"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>Online</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div></div>
+      </div>
+      <p class="au-cap">Checked shortly after launch and about hourly; the build downloads in the background and only shows here once its checksum matches. One row tops the user card (above the voice panel in a call), naming the version and the one next step. Left alone, the next launch installs it behind the splash ("Installing 0.5.0…"), no network. In a call Restart waits (disabled, its tooltip says why) instead of dropping you. No toast, no dismiss: it's quiet and goes away on restart.</p>
     </div>
   </div>
 </section>
@@ -475,7 +469,7 @@
     <div><p>Sending too fast gets a bot message, and the message can fail.</p><p><b><a href="#st-rate-limited">Rate limited</a></b>Counts down on the composer and keeps your text until you can send.</p><p>You know exactly when you can send, and nothing is lost.</p></div>
     <div><p>A link to a hidden channel lands on "no access" with no reason.</p><p><b><a href="#st-no-permission">No permission</a></b>Names the role that can read it and offers the way back.</p><p>Permission states explain themselves.</p></div>
     <div><p>An unavailable server is a greyed icon that explains itself only in a hover tooltip.</p><p><b><a href="#st-server-unavailable">Server unavailable</a></b>The server opens to a page saying it's Discord's outage, that your other servers work, and that it reopens by itself.</p><p>Nothing is reachable only by hover, and you aren't left wondering whether Wave broke.</p></div>
-    <div><p>Updates download at launch before you can do anything.</p><p><b><a href="#st-update-ready">Update ready</a></b>Downloads in the background; a banner offers Restart now, and during a call it waits until you hang up.</p><p>Launch is never held up, and an update never drops a call.</p></div>
+    <div><p>Updates download at launch before you can do anything.</p><p><b><a href="#st-update-ready">Update ready</a></b>Downloads in the background; a row atop the user card offers Restart, which waits while you're in a call, and otherwise the next launch installs it.</p><p>Launch is never held up, and an update never drops a call.</p></div>
     <div><p>A failed edit or delete can quietly snap back.</p><p><b><a href="#toasts">Error toasts</a></b>Each failure is a toast saying what happened, with its one action: Retry, Edit again, Try again, Edit search.</p><p>Optimistic actions need a visible way back when they fail.</p></div>
   </div>
 </section>
