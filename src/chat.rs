@@ -42,7 +42,6 @@ const CONTENT_INSET: f32 = AVATAR + 16.;
 const REPLY_HEIGHT: f32 = 22.;
 
 // The floating stream player's width; its height keeps 16:9.
-const PIP_WIDTH: f32 = 320.;
 
 impl Rustcord {
     pub fn render_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -69,7 +68,7 @@ impl Rustcord {
             .flex_col()
             .on_drop(cx.listener(|this, paths: &gpui_kit::ExternalPaths, _, cx| this.add_files(paths.paths().to_vec(), cx)))
             // The composer floats over the feed, which scrolls on under its glass.
-            .child(div().relative().flex_1().min_h_0().child(body).children(unread_bar).child(self.render_composer(window, cx)).children(self.stream_pip(cx)));
+            .child(div().relative().flex_1().min_h_0().child(body).children(unread_bar).child(self.render_composer(window, cx)));
         // The feed runs up under the header, which blurs and fades it (scroll_edge); the members column beside
         // it runs to the window's top with a header of its own on the same line.
         let panel = self.render_panel(window, cx);
@@ -275,58 +274,6 @@ impl Rustcord {
                     this.unread_marker = None;
                     cx.notify();
                 })))
-                .into_any_element(),
-        )
-    }
-
-    // A Go Live we're watching takes the transcript's place, fitted to the column, like Discord's stream view.
-    // A Go Live we're watching, while we read a channel: a small floating player over the feed's
-    // bottom right, above the composer, as Discord's picture-in-picture. Clicking it goes back to the
-    // call; hovering shows whose it is and Stop watching.
-    fn stream_pip(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let call = self.call.as_ref()?;
-        let watching = call.focused()?;
-        let channel = call.channel.clone();
-        let name = self.user_name(&watching.streamer_id);
-        let white = gpui_kit::white();
-        let picture: AnyElement = match &watching.frame {
-            Some(frame) => ui::media(gpui_kit::ImageSource::Render(frame.clone()), ui::all(RADIUS_MD)).size_full().object_fit(gpui_kit::ObjectFit::Contain).into_any_element(),
-            None => crate::call::stream_fill(RADIUS_MD).size_full().flex().items_center().justify_center().text_size(px(12.)).text_color(white.opacity(0.7)).child(format!("Joining {name}'s stream…")).into_any_element(),
-        };
-        let bar = div()
-            .absolute()
-            .left_0()
-            .right_0()
-            .bottom_0()
-            .p(px(8.))
-            .flex()
-            .items_center()
-            .gap(px(8.))
-            .bg(gpui_kit::linear_gradient(180., gpui_kit::linear_color_stop(gpui_kit::transparent_black(), 0.), gpui_kit::linear_color_stop(gpui_kit::black().opacity(0.6), 1.)))
-            .opacity(0.)
-            .group_hover("stream-pip", |s| s.opacity(1.))
-            .child(div().flex_1().min_w_0().truncate().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(white).child(format!("{name}'s screen")))
-            .child(ui::button("pip-stop", ui::Tone::OnMedia, cx).small().child("Stop watching").on_click(cx.listener(|this, _, _, cx| {
-                cx.stop_propagation();
-                this.stop_watching(cx);
-            })));
-        Some(
-            div()
-                .id("stream-pip")
-                .group("stream-pip")
-                .absolute()
-                .right(px(16.))
-                .bottom(px(self.composer_height.get() + 36.))
-                .w(px(PIP_WIDTH))
-                .h(px(PIP_WIDTH * 9. / 16.))
-                .squircle(RADIUS_MD)
-                .bg(gpui_kit::black())
-                .shadow(ui::shadow_pop(cx))
-                .cursor_pointer()
-                .child(picture)
-                .child(div().absolute().left(px(8.)).top(px(8.)).child(ui::live_badge()))
-                .child(bar)
-                .on_click(cx.listener(move |this, _, window, cx| this.show_call(channel.clone(), window, cx)))
                 .into_any_element(),
         )
     }

@@ -217,7 +217,9 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
                 // Watching moss lantern's Go Live: the stream over the filmstrip.
                 "call-watch" | "call-focus" | "pip" => {
                     if let Some(call) = chord.call.as_mut() {
-                        call.watching.push(crate::Watching { streamer_id: "12582912".into(), frame: None, arrivals: Default::default(), _watch: None });
+                        // The PiP plays a 4:3 picture, to show it letterboxed inside its 16:9 frame.
+                        let frame = (scene == "pip").then(|| demo_frame(1440, 1080, 40));
+                        call.watching.push(crate::Watching { streamer_id: "12582912".into(), frame, arrivals: Default::default(), _watch: None });
                     }
                     // Reading #general meanwhile: the stream floats as a picture-in-picture.
                     chord.call_view = scene != "pip";
