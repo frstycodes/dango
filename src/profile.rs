@@ -40,6 +40,12 @@ impl Rustcord {
         if self.presences.get(&user.id).and_then(|p| p.rich.as_ref()).is_some_and(|r| r.started.is_some()) {
             self.tick_profile_timer(user.id.clone(), cx);
         }
+        self.fetch_profile(user, guild_id, cx);
+    }
+
+    // Fetches a profile unless a fresh one is cached; an open card on this user takes it when it lands.
+    pub(crate) fn fetch_profile(&mut self, user: User, guild_id: Option<String>, cx: &mut Context<Self>) {
+        let key = profile_key(&user.id, guild_id.as_deref());
         let Some(client) = self.client.clone() else { return };
         if !self.profiles.should_fetch(&key) {
             return;
@@ -487,6 +493,6 @@ fn message_field(user: &User, ink: Ink, cx: &mut Context<Rustcord>) -> Div {
 }
 
 // A profile differs per server (nickname, roles, server avatar), so the server is part of its key.
-fn profile_key(user_id: &str, guild_id: Option<&str>) -> String {
+pub(crate) fn profile_key(user_id: &str, guild_id: Option<&str>) -> String {
     format!("{user_id}-{}", guild_id.unwrap_or("dm"))
 }

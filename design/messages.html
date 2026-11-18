@@ -194,6 +194,7 @@
   <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr))">
     <div class="board" style="padding:var(--space-4) 0;background:var(--bg-page);min-width:0">
       <div class="dm-start"><span class="av" data-av="Mira"><span class="status online"></span></span><div class="dm-start-name">Mira</div><div class="dm-start-user">mira.k</div>
+        <p class="dm-start-line">This is the start of your messages with <b>Mira</b>.</p>
         <button class="dm-start-mutual"><span class="stackav"><span class="srv-tile" style="--hue: 300"></span><span class="srv-tile" style="--hue: 200"></span></span><span>2 mutual servers · 3 mutual friends</span></button>
         <div class="dm-start-acts"><button class="btn btn--sm btn--primary"><i class="ph-bold ph-user-plus"></i>Add friend</button><button class="btn btn--sm btn--ghost">Block</button></div></div>
     </div>
@@ -212,8 +213,13 @@
         <span class="dm-start-mutual"><i class="ph ph-users-three"></i><span>No mutual servers or friends</span></span>
         <div class="dm-start-acts"><button class="btn btn--sm btn--primary"><i class="ph-bold ph-user-plus"></i>Add friend</button><button class="btn btn--sm btn--ghost">Block</button></div></div>
     </div>
+    <div class="board" style="padding:var(--space-4) 0;background:var(--bg-page);min-width:0">
+      <div class="dm-start"><span class="gav"><span class="av" data-av="Theo"></span><span class="av" data-av="Ana"></span></span><div class="dm-start-name">Ranked squad</div><div class="dm-start-user">4 members</div>
+        <p class="dm-start-line">Welcome to the start of <b>Ranked squad</b>.</p></div>
+    </div>
   </div>
   <p class="note" style="margin-top:8px">Avatar 80 · name 28 bold on one line · username 16 muted. The mutual line names servers when it fits and opens the profile's mutual tab. Strangers get Add friend as the one primary; a pending request says so in place; friends get no buttons, only since when. Block is instant with an Undo toast, as in <a href="community.html" style="color:var(--accent-ink)">Community</a>.</p>
+  <p class="note">A group without its own icon shows two members on a diagonal (<code>.gav</code>, the same face its DM row, the header, the rail and the call strip use), back one top left, front one bottom right ringed in the surface; a group icon replaces both. Under the name: the member count, then one welcome line. Invite and Edit group join the actions once the app can do them.</p>
 </section>
 
 <section id="dividers">
