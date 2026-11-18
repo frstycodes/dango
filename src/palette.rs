@@ -7,9 +7,10 @@ use gpui_kit::{
 // Dango's colours, ported from the design system (design/tokens.css, Graphite neutrals). The OKLCH
 // tokens there are converted to sRGB here; keep the two in step.
 //
-// Chili is the one accent: primary actions, current selection, focus, and what asks for you
-// (mentions, unread counts, live). The fill is a shade deeper than the logo's #E25B26 so white on it
-// clears 4.5:1. Danger is crimson, a clearly different hue, so Delete never looks like the primary action.
+// Chili is the one accent: primary actions, current selection and focus. The fill is a shade deeper
+// than the logo's #E25B26 so white on it clears 4.5:1. What asks for you (counts, LIVE, Do Not
+// Disturb) is a true red, oklch(0.58 0.21 25), since chili beside it read as orange. Danger is crimson,
+// a clearly different hue, so Delete never looks like the primary action.
 const ACCENT: u32 = 0xC8471A;
 // The mark's own chili, brighter than the fill: only for the logo and mascot, never behind text.
 const LOGO: u32 = 0xE25B26;
@@ -18,7 +19,8 @@ const ACCENT_PRESS: u32 = 0x9A330F;
 const DANGER: u32 = 0xC21F3A;
 const DANGER_HOVER: u32 = 0xA8172F;
 const SUCCESS: u32 = 0x00753E;
-const DND: u32 = 0xF05136;
+const ALERT: u32 = 0xDB2B33;
+const DND: u32 = ALERT;
 const OFFLINE: u32 = 0x83868C;
 // Graphite's cast, for the few neutrals computed from OKLCH rather than listed below.
 const NEUTRAL_HUE: f32 = 260.;
@@ -332,7 +334,12 @@ pub fn danger_hover() -> Hsla {
 
 // LIVE asks for you, so it takes the accent.
 pub fn live() -> Hsla {
-    accent()
+    alert()
+}
+
+// Counts, unread marks and LIVE: what asks for you.
+pub fn alert() -> Hsla {
+    hex(ALERT)
 }
 
 // The surface ramp, deepest first.
@@ -540,7 +547,7 @@ mod tests {
                 }
             }
         }
-        for fill in [ACCENT, DANGER, SUCCESS] {
+        for fill in [ACCENT, ALERT, DANGER, SUCCESS] {
             assert!(contrast(0xFFFFFF, fill) >= 4.5, "white on {fill:06X}");
         }
     }

@@ -134,7 +134,7 @@ impl Rustcord {
         let inbox = rail_action("rail-inbox", Icon::new(Glyph::Inbox), "Inbox", cx)
             .relative()
             .when(open, |b| b.bg(palette::selected(cx)).text_color(palette::strong(cx)))
-            .when(mentions, |b| b.child(div().absolute().top(px(6.)).right(px(6.)).size(px(8.)).rounded_full().bg(palette::accent())))
+            .when(mentions, |b| b.child(div().absolute().top(px(6.)).right(px(6.)).size(px(8.)).rounded_full().bg(palette::alert())))
             .on_click(cx.listener(|this, _, _, cx| this.open_inbox(cx)));
         div()
             .w(px(RAIL_WIDTH))
