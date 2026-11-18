@@ -348,7 +348,7 @@ impl Rustcord {
             .flex_none()
             .flex()
             .flex_col()
-            .child(brand_bar(cx))
+            .children(brand_bar(window, cx))
             .child(div().flex_1().min_h_0().flex().child(self.render_rail(window, cx)).child(self.render_channels(window, cx)))
             .children(user_panel)
     }
@@ -591,17 +591,26 @@ pub fn status_mark(status: discord::Status, dot: f32, surface: Hsla) -> AnyEleme
     .into_any_element()
 }
 
-// A title bar control (.titlebar .iconbtn): 28px, quiet until hovered; disabled ones fade to 40%.
-// Each occludes the bar's drag area: on Windows a drag area is the native caption, which takes the
-// click before the app sees it.
-// The strip over the rail and channel list: macOS's traffic lights, then Dango's mark and name (on Windows
-// the mark leads, the caption buttons sitting over the chat header at the far right). It drags the window.
-fn brand_bar(cx: &App) -> Div {
-    let lead = if cfg!(target_os = "macos") { TRAFFIC_LIGHTS } else { 14. };
+/// The brand strip's height: only macOS shows its traffic lights in the window, and full screen hides them,
+/// so everywhere else the rail and channel list start at the top.
+pub fn brand_bar_height(window: &Window) -> f32 {
+    match cfg!(target_os = "macos") && !window.is_fullscreen() {
+        true => BRAND_BAR_HEIGHT,
+        false => 0.,
+    }
+}
+
+// The strip over the rail and channel list on macOS: the traffic lights, then Dango's mark and name.
+// It drags the window.
+fn brand_bar(window: &Window, cx: &App) -> Option<Div> {
+    (brand_bar_height(window) > 0.).then(|| brand_bar_strip(cx))
+}
+
+fn brand_bar_strip(cx: &App) -> Div {
     div()
         .h(px(BRAND_BAR_HEIGHT))
         .flex_none()
-        .pl(px(lead))
+        .pl(px(TRAFFIC_LIGHTS))
         .flex()
         .items_center()
         .gap(px(7.))
@@ -628,6 +637,9 @@ fn history_step(keystroke: &gpui_kit::Keystroke) -> Option<bool> {
     }
 }
 
+// A title bar control (.titlebar .iconbtn): 28px, quiet until hovered; disabled ones fade to 40%.
+// Each occludes the bar's drag area: on Windows a drag area is the native caption, which takes the
+// click before the app sees it.
 fn title_button(id: &'static str, glyph: Glyph, enabled: bool, label: &'static str, cx: &App) -> Stateful<Div> {
     let (hover, strong) = (palette::hover(cx), palette::strong(cx));
     div()
