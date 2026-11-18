@@ -45,6 +45,7 @@ pub enum Toggle {
     DesktopNotifications,
     DockBadge,
     Clock24,
+    AutoDownloadUpdates,
     RenderEmbeds,
     RenderReactions,
     DeveloperMode,
@@ -143,6 +144,12 @@ pub static SETTINGS: &[Setting] = &[
     s("default-keybinds", Keybinds, "Default keybinds", "Default keybinds", None, &["shortcut", "hotkey", "keyboard"], Custom),
     // Advanced
     s("developer-mode", Advanced, "Developer", "Developer mode", Some("Adds Copy ID to the menus of servers, channels, people and messages"), &["copy id", "developer", "debug", "ids"], Switch(Toggle::DeveloperMode)),
+    // Updates
+    // One row holds the version, the status and its action (check, download, or restart to update).
+    on_row(s("check-for-updates", Updates, "Dango", "Check for updates", Some("The version you're on, and Restart to update once one is downloaded"), &["update", "version", "upgrade", "release", "about", "latest", "restart to update", "install", "restart"], Custom), "update-status"),
+    s("whats-new", Updates, "Dango", "What's new", Some("Release notes on GitHub"), &["release notes", "changelog", "release", "version", "update"], Custom),
+    s("last-checked", Updates, "Dango", "Last checked", None, &["update", "check", "version"], Custom),
+    s("auto-download-updates", Updates, "Automatic updates", "Download updates automatically", Some("Off, Dango still checks and tells you, then downloads when you ask"), &["update", "upgrade", "auto update", "background", "download", "release"], Switch(Toggle::AutoDownloadUpdates)),
     // Activity privacy
     s("share-activity", ActivityPrivacy, "Activity status", "Share your activity status", Some("What you're playing or listening to, as Discord's apps detect it"), &["game", "playing", "spotify", "rich presence", "status", "activity"], Switch(Toggle::ShareActivity)),
 ];
@@ -212,7 +219,7 @@ fn word_score<P: Scope>(setting: &Setting<P>, word: &str) -> Option<u32> {
 mod tests {
     use super::*;
 
-    const ALL: [Page; 9] = [Account, ContentSocial, Appearance, VoiceVideo, Chat, Notifications, Keybinds, Advanced, ActivityPrivacy];
+    const ALL: [Page; 10] = [Account, ContentSocial, Appearance, VoiceVideo, Chat, Notifications, Keybinds, Advanced, Updates, ActivityPrivacy];
 
     #[test]
     fn ids_and_rows_are_unique() {
@@ -224,6 +231,14 @@ mod tests {
         rows.sort_unstable();
         rows.dedup();
         assert_eq!(rows.len(), SETTINGS.len(), "two settings highlight the same row");
+    }
+
+    #[test]
+    fn update_words_find_the_updates_page() {
+        for word in ["update", "version", "upgrade", "release", "restart to update"] {
+            assert_eq!(search(SETTINGS, word).first().map(|s| s.page), Some(Updates), "{word}");
+        }
+        assert_eq!(search(SETTINGS, "auto update").first().map(|s| s.id), Some("auto-download-updates"));
     }
 
     #[test]

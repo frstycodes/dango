@@ -373,19 +373,19 @@ impl Rustcord {
 
     /// The user area's height with the update row and voice panel above it, for overlays that open just over it.
     pub fn panel_stack_height(&self) -> f32 {
-        let update = if self.update_ready.is_some() { UPDATE_HEIGHT } else { 0. };
+        let update = if self.updates.staged().is_some() { UPDATE_HEIGHT } else { 0. };
         PANEL_HEIGHT + update + self.voice_panel_height()
     }
 
     // Tops the user area once an update has downloaded: which version, and the restart that installs it.
     // Left alone, it installs on the next launch. In a call, Restart asks before leaving it.
     fn update_row(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let staged = self.update_ready.as_ref()?;
+        let staged = self.updates.staged()?;
         let restart = ui::button("restart-to-update", ui::Tone::Primary, cx)
             .small()
             .child("Restart")
             .tooltip(|window, cx| ui::tip("Installs the update and reopens Dango", window, cx))
-            .on_click(cx.listener(|this, _, _, cx| this.request_restart(this.update_ready.clone(), cx)));
+            .on_click(cx.listener(|this, _, _, cx| this.request_restart(this.updates.staged().cloned(), cx)));
         let row = div()
             .h(px(UPDATE_HEIGHT))
             .flex_none()
@@ -406,11 +406,12 @@ impl Rustcord {
         if !crate::updater::enabled() {
             return;
         }
-        let mut staged = crate::updater::watch();
+        let (updater, mut statuses) = crate::updater::watch(self.prefs.auto_download_updates);
+        self.updates.updater = Some(updater);
         cx.spawn(async move |this, cx| {
-            while let Some(update) = futures::StreamExt::next(&mut staged).await {
+            while let Some(status) = futures::StreamExt::next(&mut statuses).await {
                 let shown = this.update(cx, |this, cx| {
-                    this.update_ready = Some(update);
+                    this.updates.apply(status, std::time::SystemTime::now());
                     cx.notify();
                 });
                 if shown.is_err() {

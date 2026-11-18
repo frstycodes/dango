@@ -70,6 +70,7 @@ impl Rustcord {
             Toggle::DesktopNotifications => self.prefs.desktop_notifications,
             Toggle::DockBadge => self.prefs.dock_badge,
             Toggle::Clock24 => self.prefs.clock_24h,
+            Toggle::AutoDownloadUpdates => self.prefs.auto_download_updates,
             Toggle::RenderEmbeds => account.render_embeds,
             Toggle::RenderReactions => account.render_reactions,
             Toggle::DeveloperMode => account.developer_mode,
@@ -91,6 +92,7 @@ impl Rustcord {
                 return self.update_badge();
             }
             Toggle::Clock24 => return self.update_prefs(cx, |p| p.clock_24h = on),
+            Toggle::AutoDownloadUpdates => return self.set_auto_download(on, cx),
             Toggle::RenderEmbeds => {
                 account.render_embeds = on;
                 json!({ "render_embeds": on })

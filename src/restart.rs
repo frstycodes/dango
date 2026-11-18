@@ -34,7 +34,7 @@ impl Rustcord {
     fn restart_now(&mut self, update: Option<Staged>, cx: &mut Context<Self>) {
         // Hides the row, so a second click can't install twice; a failed install leaves nothing to retry.
         if update.is_some() {
-            self.update_ready = None;
+            self.updates.status = crate::updater::Status::Idle;
             cx.notify();
         }
         self.prefs.save();

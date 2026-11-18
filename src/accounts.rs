@@ -128,11 +128,11 @@ impl Rustcord {
     fn restart(&mut self, token: Option<String>, window: &mut Window, cx: &mut Context<Self>) {
         self.remember_status();
         self.prefs.save();
-        let (hotkeys, update) = (self.hotkeys.take(), self.update_ready.take());
+        let (hotkeys, updates) = (self.hotkeys.take(), std::mem::take(&mut self.updates));
         self.call = None;
         *self = Self::build(window, None, cx);
         self.hotkeys = hotkeys;
-        self.update_ready = update;
+        self.updates = updates;
         self.apply_prefs();
         match token {
             Some(token) => self.connect(token, cx),
