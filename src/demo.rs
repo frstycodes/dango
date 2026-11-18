@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | search | search-from | search-date | search-results | search-filters | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updating (the launch splash alone).
+// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -85,6 +85,7 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         "hover" => chord.hovered_message = Some("105".into()),
         "search" | "search-from" | "search-date" => demo_search(chord, scene, window, cx),
         "search-results" | "search-filters" => demo_search_results(chord, scene == "search-filters", window, cx),
+        "search-dm" | "search-dm-results" => demo_search_dm(chord, scene == "search-dm-results", window, cx),
         // A long message.txt (Discord's file for a message past 2,000 characters), a short code file, and
         // a .log that isn't text, which stays a file card. The fixtures stand in for the CDN fetch.
         "text-files" | "text-expanded" | "text-viewer" => demo_text_files(chord, scene),
@@ -629,6 +630,23 @@ fn demo_search_results(chord: &mut Rustcord, filters_open: bool, window: &mut Wi
     chord.right_panel = crate::RightPanel::Search(Box::new(crate::search_results::Results::demo(hits, 880, 2, filters_open)));
     let content = crate::search::Saved { text: "from:8388608 has:image".into(), tokens: vec![crate::search::SavedToken { start: 0, end: 12, label: "Wren".into() }, crate::search::SavedToken { start: 13, end: 22, label: "image".into() }] }.to_content();
     chord.search_input.update(cx, |state, cx| state.set_value(content, window, cx));
+}
+
+// Search in the DM with Wren: the filters without `in:`, or a page of results from the DM.
+fn demo_search_dm(chord: &mut Rustcord, results: bool, window: &mut Window, cx: &mut Context<Rustcord>) {
+    let Some(dm) = chord.dms.iter().find(|d| d.id == "dm").cloned() else { return };
+    chord.guild_id = None;
+    chord.open_channel(dm, window, cx);
+    if results {
+        let picture = Media { url: avatar_url("3", None), width: 1200., height: 800., kind: MediaKind::Image };
+        let hit = |id: &str, author: User, content: &str, media: Vec<Media>| Message { id: id.into(), channel_id: "dm".into(), author, timestamp: "2026-11-12T21:40:00+00:00".into(), content: content.into(), media, ..Default::default() };
+        let hits = vec![hit("501", user("8388608", "Wren"), "here's the photo from the ridge", vec![picture]), hit("502", me_user(), "photo dump later tonight?", Vec::new())];
+        chord.right_panel = crate::RightPanel::Search(Box::new(crate::search_results::Results::demo(hits, 2, 1, false)));
+        let content = crate::search::Saved { text: "has:image photo".into(), tokens: vec![crate::search::SavedToken { start: 0, end: 9, label: "image".into() }] }.to_content();
+        chord.search_input.update(cx, |state, cx| state.set_value(content, window, cx));
+        return;
+    }
+    demo_search(chord, "search", window, cx);
 }
 
 fn me_user() -> User {

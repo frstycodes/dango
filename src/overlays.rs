@@ -346,7 +346,7 @@ impl Rustcord {
     /// Where a composer popover's right edge sits from the window's: the composer's own right edge, which
     /// stops short of the members column while it shows.
     fn composer_popover_right(&self) -> f32 {
-        let panel = self.guild_id.is_some() && !matches!(self.right_panel, crate::RightPanel::Hidden);
+        let panel = self.panel_shown();
         16. + if panel { self.panel_width } else { 0. }
     }
 

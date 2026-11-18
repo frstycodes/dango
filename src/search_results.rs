@@ -41,6 +41,11 @@ impl Results {
         Self { scope: String::new(), content: String::new(), params: Vec::new(), filters, page: 1, sort: Sort::Newest, filters_open, hits: Some(Ok(SearchPage { messages, total })) }
     }
 
+    // Demo results have no scope and stay wherever they're shown.
+    pub(crate) fn searched(&self, scope: &str) -> bool {
+        self.scope.is_empty() || self.scope == scope
+    }
+
     pub(crate) fn close_filters(&mut self) {
         self.filters_open = false;
     }
@@ -156,7 +161,8 @@ impl Rustcord {
         let ctx = self.row_context(&page.messages, None, false, HIT_COLUMN, cx);
         let mut out: Vec<AnyElement> = Vec::new();
         for (i, hit) in page.messages.iter().enumerate() {
-            if i == 0 || page.messages[i - 1].channel_id != hit.channel_id {
+            // A DM's hits are all from it: no channel headings.
+            if self.guild_id.is_some() && (i == 0 || page.messages[i - 1].channel_id != hit.channel_id) {
                 out.push(self.hit_channel(hit, cx));
             }
             out.push(self.hit_card(hit, &ctx, cx));
@@ -187,7 +193,10 @@ impl Rustcord {
 
     fn hit_card(&self, hit: &Message, ctx: &std::rc::Rc<crate::chat::RowContext>, cx: &mut Context<Self>) -> AnyElement {
         let (hover, page) = (palette::hover(cx), palette::surface(palette::Level::Page, cx));
-        let channel = self.guild().and_then(|g| g.channels.iter().find(|c| c.id == hit.channel_id).cloned());
+        let channel = match self.guild() {
+            Some(guild) => guild.channels.iter().find(|c| c.id == hit.channel_id).cloned(),
+            None => self.channel.clone().filter(|c| c.id == hit.channel_id),
+        };
         let message_id = hit.id.clone();
         div()
             .id(SharedString::from(format!("hit-{}", hit.id)))
@@ -258,7 +267,8 @@ impl Rustcord {
         let content = self.search_input.read(cx).content();
         let avatars = self.search_avatars();
         let (muted, strong) = (palette::muted(cx), palette::strong(cx));
-        let rows = Key::MAIN.into_iter().chain(Key::MORE).map(|key| {
+        let keys = self.search_keys(&Key::MAIN.into_iter().chain(Key::MORE).collect::<Vec<_>>());
+        let rows = keys.into_iter().map(|key| {
             let word = key.word();
             let on: Vec<(String, String)> = content.tokens().iter().filter_map(|t| t.token().text().split_once(':').filter(|(k, _)| *k == word).map(|(_, v)| (v.to_owned(), t.token().label().to_string()))).collect();
             let options: Option<&[&str]> = match key {

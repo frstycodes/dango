@@ -1400,6 +1400,14 @@ impl Rustcord {
 
     pub(crate) fn open_channel(&mut self, channel: Channel, window: &mut Window, cx: &mut Context<Self>) {
         self.inbox_page = false;
+        // Results belong to the server or DM they searched: another place closes them.
+        let scope = match &self.guild_id {
+            Some(guild) => format!("guilds/{guild}"),
+            None => format!("channels/{}", channel.id),
+        };
+        if matches!(&self.right_panel, RightPanel::Search(results) if !results.searched(&scope)) {
+            self.right_panel = RightPanel::Members;
+        }
         if let Some(current) = self.channel.clone().filter(|c| c.id != channel.id) {
             self.back.push((self.guild_id.clone(), current));
             self.forward.clear();

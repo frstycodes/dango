@@ -76,20 +76,22 @@ impl Rustcord {
             }
             return Menu::List(format!("{}:", key.word()).into(), self.search_values(key, typed));
         }
-        let keys = search::keys_matching(&text, token_end);
+        let keys = self.search_keys(&search::keys_matching(&text, token_end));
         if !keys.is_empty() {
             return Menu::List("Filters".into(), keys.into_iter().map(Row::Filter).collect());
         }
         if search::last_word_start(&text) < text.len() {
             return Menu::Hidden;
         }
-        let mut rows: Vec<Row> = Key::MAIN.into_iter().map(Row::Filter).collect();
+        let mut rows: Vec<Row> = self.search_keys(&Key::MAIN).into_iter().map(Row::Filter).collect();
         rows.push(Row::More);
         if self.search_more {
             rows.extend(Key::MORE.into_iter().map(Row::Filter));
         }
         if text.trim().is_empty() {
-            rows.extend((0..self.search_history().len()).map(Row::Recent));
+            // A DM can't take a server search that names a channel.
+            let history = self.search_history();
+            rows.extend((0..history.len()).filter(|&i| self.guild_id.is_some() || !history[i].text.split_whitespace().any(|w| w.starts_with("in:"))).map(Row::Recent));
         }
         Menu::Home(rows)
     }
@@ -101,9 +103,7 @@ impl Rustcord {
         let words = |list: &[&str], glyph: fn(&str) -> Glyph| list.iter().filter(|w| w.starts_with(&typed)).map(|w| pick(w, w, Lead::Glyph(glyph(w)))).collect();
         match key {
             Key::From | Key::Mentions => {
-                let mut seen = std::collections::HashSet::new();
-                let guild = self.guild_id.as_ref().and_then(|g| self.members.get(g));
-                let mut users: Vec<crate::discord::User> = guild.into_iter().flat_map(|m| m.values().cloned()).chain(self.known_users()).filter(|u| seen.insert(u.id.clone()) && u.name.to_lowercase().contains(&typed)).collect();
+                let mut users: Vec<crate::discord::User> = self.search_people().into_iter().filter(|u| u.name.to_lowercase().contains(&typed)).collect();
                 // Names that start with what's typed first, then by name, so the top row is the likely pick.
                 users.sort_by_key(|u| (!u.name.to_lowercase().starts_with(&typed), u.name.to_lowercase()));
                 users.into_iter().take(VALUES_SHOWN).map(|u| pick(&u.id, &u.name, Lead::Avatar(u.avatar.clone()))).collect()
@@ -196,7 +196,7 @@ impl Rustcord {
         if submit {
             content = content.tokens().iter().fold(InputContent::new(format!("{} ", content.text())), |next, t| next.clone().with_token(t.range(), t.token().clone()).unwrap_or(next));
         }
-        let users: Vec<crate::discord::User> = self.guild_id.as_ref().and_then(|g| self.members.get(g)).into_iter().flat_map(|m| m.values().cloned()).chain(self.known_users()).collect();
+        let users = self.search_people();
         let channels = self.guild().map(|g| g.channels.clone()).unwrap_or_default();
         let resolve = |key: Key, value: &str| match key {
             Key::From | Key::Mentions => users.iter().find(|u| u.id == value || u.name.eq_ignore_ascii_case(value)).map(|u| (u.id.clone(), u.name.clone())),
@@ -328,8 +328,22 @@ impl Rustcord {
 
     // Avatars by user id, for tokens: the field's and the history's.
     pub(crate) fn search_avatars(&self) -> HashMap<String, String> {
-        let guild = self.guild_id.as_ref().and_then(|g| self.members.get(g));
-        guild.into_iter().flat_map(|m| m.values().cloned()).chain(self.known_users()).map(|u| (u.id, u.avatar)).collect()
+        self.search_people().into_iter().map(|u| (u.id, u.avatar)).collect()
+    }
+
+    // Who `from:` and `mentions:` offer, each once: a server's members, or the people in this DM and you.
+    pub(crate) fn search_people(&self) -> Vec<crate::discord::User> {
+        let mut seen = std::collections::HashSet::new();
+        let people: Vec<crate::discord::User> = match &self.guild_id {
+            Some(guild) => self.members.get(guild).into_iter().flat_map(|m| m.values().cloned()).chain(self.known_users()).collect(),
+            None => self.channel.iter().flat_map(|c| c.recipients.iter().cloned().chain(c.recipient.clone())).chain(self.me.clone()).collect(),
+        };
+        people.into_iter().filter(|u| seen.insert(u.id.clone())).collect()
+    }
+
+    // The filters this place takes: a DM is one channel, so no `in:`.
+    pub(crate) fn search_keys(&self, keys: &[Key]) -> Vec<Key> {
+        keys.iter().copied().filter(|k| self.guild_id.is_some() || *k != Key::In).collect()
     }
 
     // The popover under the field, right-aligned to it. None while the menu has nothing to offer.
@@ -343,8 +357,9 @@ impl Rustcord {
             Menu::List(heading, rows) => std::iter::once(group(heading.clone(), cx).into_any_element()).chain(rows.iter().enumerate().map(|(i, row)| self.search_row(i, row, pick, &avatars, cx))).collect(),
             Menu::Home(rows) => {
                 let mut out = vec![group("Filters", cx).into_any_element()];
+                let first_recent = rows.iter().position(|r| matches!(r, Row::Recent(_)));
                 for (i, row) in rows.iter().enumerate() {
-                    if let Row::Recent(0) = row {
+                    if Some(i) == first_recent {
                         out.push(div().h(px(1.)).mx(px(8.)).my(px(4.)).bg(palette::line(cx)).into_any_element());
                         let clear = ui::icon_button("search-history-clear", Glyph::Trash, "Clear history", cx).small().on_click(cx.listener(|this, _, _, cx| this.clear_search_history(cx)));
                         out.push(group("History", cx).child(div().ml_auto().child(clear)).into_any_element());

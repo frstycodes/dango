@@ -23,8 +23,20 @@ use crate::{
 const ACTIVITY_SHOWN: usize = 3;
 
 impl Rustcord {
+    // Whether the side panel is on screen: a server's (unless hidden), or search results anywhere.
+    pub(crate) fn panel_shown(&self) -> bool {
+        match self.right_panel {
+            RightPanel::Search(_) => true,
+            RightPanel::Hidden => false,
+            _ => self.guild_id.is_some(),
+        }
+    }
+
     pub fn render_panel(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
-        self.guild_id.as_ref()?;
+        // A DM has no member list; its side panel is only ever search results.
+        if !self.panel_shown() {
+            return None;
+        }
         // Its header sits on the window's top line beside the channel header's: "Members", or the search's
         // query with a way back to the members.
         let (head, body, foot, width): (Div, AnyElement, Option<AnyElement>, f32) = match &self.right_panel {

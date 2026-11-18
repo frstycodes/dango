@@ -151,7 +151,7 @@ impl Rustcord {
                     cx.notify();
                 }))
         });
-        let search = self.guild_id.is_some().then(|| self.channel_search(window, cx));
+        let search = Some(self.channel_search(window, cx));
         // Occludes, like the composer: the feed scrolls under the header and must not take its hover or clicks.
         let bar = div()
             .occlude()
@@ -166,7 +166,7 @@ impl Rustcord {
             .child(crumbs)
             .children(topic)
             .child(div().ml_auto().flex_none().flex().items_center().gap(px(2.)).children(calls.into_iter().flatten()).children(threads).child(pins).children(members).children(search))
-            .child(self.caption_clearance(self.guild_id.is_none() || matches!(self.right_panel, RightPanel::Hidden)));
+            .child(self.caption_clearance(!self.panel_shown()));
         ui::scroll_edge(palette::surface(Level::Page, cx), 0.).child(bar)
     }
 
