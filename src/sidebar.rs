@@ -1358,8 +1358,8 @@ fn drop_marker(drop: Drop) -> Div {
 
 // ICONS
 
-// MOVE(icons): Phosphor glyphs the navigation chrome needs that `icons::Glyph` lacks yet (bold and fill
-// weights included); promote each into `Glyph` and drop this.
+// MOVE(icons): glyphs the navigation chrome needs that `icons::Glyph` lacks yet (window controls and
+// voice marks included); promote each into `Glyph` and drop this.
 #[derive(Clone, Copy)]
 pub(crate) enum Nav {
     Megaphone,
@@ -1395,30 +1395,30 @@ impl Nav {
 
     fn svg(self) -> &'static [u8] {
         match self {
-            Nav::Megaphone => include_bytes!("../assets/icons/phosphor/megaphone-bold.svg"),
-            Nav::Media => include_bytes!("../assets/icons/phosphor/images-bold.svg"),
-            Nav::Stage => include_bytes!("../assets/icons/phosphor/microphone-stage-bold.svg"),
-            Nav::BellSlash => include_bytes!("../assets/icons/phosphor/bell-slash-bold.svg"),
-            Nav::Compass => include_bytes!("../assets/icons/phosphor/compass-bold.svg"),
-            Nav::Plus => include_bytes!("../assets/icons/phosphor/plus-bold.svg"),
-            Nav::Caret => include_bytes!("../assets/icons/phosphor/caret-down-bold.svg"),
-            Nav::MoreVertical => include_bytes!("../assets/icons/phosphor/dots-three-vertical-bold.svg"),
-            Nav::Close => include_bytes!("../assets/icons/phosphor/x-bold.svg"),
-            Nav::MicOffFill => include_bytes!("../assets/icons/phosphor/microphone-slash-fill.svg"),
-            Nav::DeafenedFill => include_bytes!("../assets/icons/phosphor/speaker-slash-fill.svg"),
-            Nav::CameraFill => include_bytes!("../assets/icons/phosphor/video-camera-fill.svg"),
-            Nav::LiveFill => include_bytes!("../assets/icons/phosphor/broadcast-fill.svg"),
-            Nav::GameFill => include_bytes!("../assets/icons/phosphor/game-controller-fill.svg"),
-            Nav::MusicFill => include_bytes!("../assets/icons/phosphor/music-notes-fill.svg"),
-            Nav::TvFill => include_bytes!("../assets/icons/phosphor/television-simple-fill.svg"),
-            Nav::Mic => include_bytes!("../assets/icons/phosphor/microphone-bold.svg"),
-            Nav::Headphones => include_bytes!("../assets/icons/phosphor/headphones-bold.svg"),
-            Nav::HeadphonesOff => include_bytes!("../assets/icons/phosphor/ear-slash-bold.svg"),
-            Nav::MicOff => include_bytes!("../assets/icons/phosphor/microphone-slash-bold.svg"),
-            Nav::Settings => include_bytes!("../assets/icons/phosphor/gear-six-bold.svg"),
-            Nav::Minimize => include_bytes!("../assets/icons/phosphor/minus-bold.svg"),
-            Nav::Maximize => include_bytes!("../assets/icons/phosphor/square-bold.svg"),
-            Nav::Restore => include_bytes!("../assets/icons/phosphor/copy-simple-bold.svg"),
+            Nav::Megaphone => include_bytes!("../assets/icons/reicon/bullhorn.svg"),
+            Nav::Media => include_bytes!("../assets/icons/reicon/gallery.svg"),
+            Nav::Stage => include_bytes!("../assets/icons/reicon/podcast.svg"),
+            Nav::BellSlash => include_bytes!("../assets/icons/reicon/bell-off2.svg"),
+            Nav::Compass => include_bytes!("../assets/icons/reicon/compass.svg"),
+            Nav::Plus => include_bytes!("../assets/icons/reicon/add.svg"),
+            Nav::Caret => include_bytes!("../assets/icons/reicon/chevron-down.svg"),
+            Nav::MoreVertical => include_bytes!("../assets/icons/reicon/more-v.svg"),
+            Nav::Close => include_bytes!("../assets/icons/reicon/xmark.svg"),
+            Nav::MicOffFill => include_bytes!("../assets/icons/reicon/muted.svg"),
+            Nav::DeafenedFill => include_bytes!("../assets/icons/reicon/deafened.svg"),
+            Nav::CameraFill => include_bytes!("../assets/icons/reicon/video.svg"),
+            Nav::LiveFill => include_bytes!("../assets/icons/reicon/signal-stream.svg"),
+            Nav::GameFill => include_bytes!("../assets/icons/reicon/gamepad.svg"),
+            Nav::MusicFill => include_bytes!("../assets/icons/reicon/music-notes.svg"),
+            Nav::TvFill => include_bytes!("../assets/icons/reicon/tv.svg"),
+            Nav::Mic => include_bytes!("../assets/icons/reicon/microphone2.svg"),
+            Nav::Headphones => include_bytes!("../assets/icons/reicon/headphone.svg"),
+            Nav::HeadphonesOff => include_bytes!("../assets/icons/reicon/deafened.svg"),
+            Nav::MicOff => include_bytes!("../assets/icons/reicon/muted.svg"),
+            Nav::Settings => include_bytes!("../assets/icons/reicon/gear2.svg"),
+            Nav::Minimize => include_bytes!("../assets/icons/reicon/minus.svg"),
+            Nav::Maximize => include_bytes!("../assets/icons/reicon/win-max.svg"),
+            Nav::Restore => include_bytes!("../assets/icons/reicon/win-restore.svg"),
         }
     }
 }

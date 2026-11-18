@@ -1,5 +1,7 @@
-"""Builds design/icons-data.js for design/icons.html: every icon Dango draws today (Rust glyphs, sidebar
-glyphs and the spec's Phosphor names), mapped to its Reicon replacement, with the Reicon SVGs it needs.
+"""Builds design/icons-data.js for design/icons.html: every icon Dango draws (Rust glyphs, sidebar glyphs
+and the spec's Phosphor names), mapped to its Reicon replacement, with the Reicon SVGs it needs. Then writes
+the app's own SVGs to assets/icons/reicon/ (Reicon's filled weight, line-only glyphs as lines, and the
+custom glyphs drawn here) and points src/icons.rs and src/sidebar.rs at them.
 
     npm pack @iconify-json/reicon@1.2.6 && tar xzf iconify-json-reicon-1.2.6.tgz
     python3 tools/reicon.py package/icons.json
@@ -40,7 +42,7 @@ MAP = [
     ("folder-minus", "Channels", "Remove from folder", "folder-minus"),
     ("folder-simple-dashed", "Channels", "Empty folder", "folder-2"),
     ("compass", "Channels", "Discover", "compass"),
-    ("tray", "Channels", "Inbox", "inbox"),
+    ("tray", "Channels", "Inbox", "CUSTOM:inbox-tray"),
     ("tray-arrow-down", "Channels", "Archived inbox", "inbox-in"),
     ("microphone", "Voice", "Microphone", "microphone2"),
     ("microphone-slash", "Voice", "Muted", "CUSTOM:muted"),
@@ -195,11 +197,11 @@ MAP = [
     ("plus", "Chrome", "Add", "add"),
     ("minus", "Chrome", "Remove", "minus"),
     ("check", "Chrome", "Done", "check3"),
-    ("magnifying-glass", "Chrome", "Search", "search-normal"),
+    ("magnifying-glass", "Chrome", "Search", "search"),
     ("magnifying-glass-plus", "Chrome", "Zoom in", "search-zoom-in"),
     ("magnifying-glass-minus", "Chrome", "Zoom out", "search-zoom-out"),
     ("dots-three", "Chrome", "More", "more-h"),
-    ("dots-three-vertical", "Chrome", "More (vertical)", "more"),
+    ("dots-three-vertical", "Chrome", "More (vertical)", "CUSTOM:more-v"),
     ("dots-six-vertical", "Chrome", "Drag handle", "CUSTOM:grip"),
     ("dots-six", "Chrome", "Drag handle (horizontal)", "CUSTOM:grip"),
     ("funnel", "Chrome", "Filter", "filter"),
@@ -268,7 +270,7 @@ MAP = [
     ("download-simple", "Media", "Download", "download"),
     ("floppy-disk", "Media", "Save", "floppy"),
     ("archive", "Media", "Archive", "archive"),
-    ("gear-six", "Settings", "Settings", "setting"),
+    ("gear-six", "Settings", "Settings", "gear2"),
     ("palette", "Settings", "Appearance", "palette"),
     ("keyboard", "Settings", "Keybinds", "keyboard"),
     ("key", "Settings", "Password", "key"),
@@ -309,6 +311,7 @@ MAP = [
     ("twitch-logo", "Brand", "Twitch", "BRAND"),
     ("Nav::Minimize", "Window", "Minimize", "minus"),
     ("Nav::Restore", "Window", "Restore", "CUSTOM:win-restore"),
+    ("Nav::DeafenedFill", "Voice", "Deafened", "CUSTOM:deafened"),
 ]
 
 
@@ -318,16 +321,24 @@ def thicken(body):
     return f'<g stroke="currentColor" stroke-width="0.5" stroke-linejoin="round" paint-order="stroke fill">{body}</g>'
 
 
+def origin(folder, name):
+    """The map key an included file stands for: a Phosphor name as is, a Reicon file by the first row
+    that draws it (rows sharing a glyph share its card on the page anyway)."""
+    if folder == "phosphor":
+        return name
+    return next((k for k, _, _, to in MAP if "::" not in k and to in (name, f"CUSTOM:{name}")), name)
+
+
 def usage():
     base = lambda n: re.sub(r"-(bold|fill)$", "", n)
     src = {p: p.read_text() for p in (ROOT / "src").rglob("*.rs")}
     uses = lambda pat: sorted({str(p.relative_to(ROOT / "src"))[:-3] for p, t in src.items() if re.search(pat, t)})
     inv = {}
     icons = (ROOT / "src/icons.rs").read_text()
-    phos = re.findall(r'phosphor/([a-z0-9-]+)\.svg', icons.split("const BRAND")[0])
-    variants = re.findall(r"^\s+([A-Z]\w+),$", icons.split("pub enum Glyph")[1].split("}")[0], re.M)
+    phos = [origin(d, n) for d, n in re.findall(r'icons/(phosphor|reicon)/([a-z0-9-]+)\.svg', icons.split("const BRAND")[0])]
+    variants = re.findall(r"^\s+([A-Z]\w*),$", icons.split("pub enum Glyph")[1].split("}")[0], re.M)
     pairs = [(f"Glyph::{v}", p) for v, p in zip(variants, phos)]
-    pairs += [(f"Nav::{v}", p) for v, p in re.findall(r'Nav::(\w+) => include_bytes!\("\.\./assets/icons/phosphor/([a-z0-9-]+)\.svg', src[ROOT / "src/sidebar.rs"])]
+    pairs += [(f"Nav::{v}", origin(d, p)) for v, d, p in re.findall(r'Nav::(\w+) => include_bytes!\("\.\./assets/icons/(phosphor|reicon)/([a-z0-9-]+)\.svg', src[ROOT / "src/sidebar.rs"])]
     for var, p in pairs:
         inv.setdefault(base(p), {"rust": {}, "spec": Counter()})["rust"][var] = uses(rf"{var}\b")
     for f in [*(ROOT / "design").glob("*.html"), ROOT / "design/site.js", *(ROOT / "design/css").glob("*.css")]:
@@ -374,10 +385,88 @@ def main():
         f"const REICON_FILLED = {json.dumps(filled, separators=(',', ':'))};\n"
     )
     print(f"{len(rows)} rows, {len(bodies)} Reicon glyphs ({len(filled)} filled) -> {out.relative_to(ROOT)}")
+    write_app_icons(reicon, rows)
 
 
 # Bases the custom glyphs in design/icons.html are built on.
-EXTRA = {"hashtag2", "volume-high", "bullhorn", "podcast", "messages2", "gallery", "messages3", "microphone2", "headphone", "video", "screencast", "monitor", "sparkle"}
+EXTRA = {"inbox", "hashtag2", "volume-high", "bullhorn", "podcast", "messages2", "gallery", "messages3", "microphone2", "headphone", "video", "screencast", "monitor", "sparkle"}
+
+
+
+# Line-only glyphs whose Reicon filled form wraps them in a tile or circle: Discord draws these as bare
+# lines in either weight, so they keep the outline. Mirrors LINE_ONLY in design/icons.html.
+LINE_ONLY = {"hashtag2", "add", "arrow-right5", "arrow-up5", "check-read", "sort", "search"}
+ROOT_ATTRS = 'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'
+
+
+def sq(x, y, w, h, r):
+    """A squircle-cornered rectangle path, as `sq` in design/icons.html draws it."""
+    e = min(r * 1.35, w / 2, h / 2)
+    c, X, Y = e * 0.22, x + w, y + h
+    f = lambda n: f"{round(n, 2):g}"
+    return (f"M{f(x + e)} {f(y)}H{f(X - e)}C{f(X - c)} {f(y)} {f(X)} {f(y + c)} {f(X)} {f(y + e)}V{f(Y - e)}"
+            f"C{f(X)} {f(Y - c)} {f(X - c)} {f(Y)} {f(X - e)} {f(Y)}H{f(x + e)}C{f(x + c)} {f(Y)} {f(x)} {f(Y - c)} {f(x)} {f(Y - e)}"
+            f"V{f(y + e)}C{f(x)} {f(y + c)} {f(x + c)} {f(y)} {f(x + e)} {f(y)}Z")
+
+
+def glyph(reicon, name):
+    if name not in LINE_ONLY and f"{name}-filled" in reicon:
+        return f'<g stroke="none">{reicon[name + "-filled"]["body"]}</g>'
+    return thicken(reicon[name]["body"])
+
+
+def slashed(base):
+    """The muted state of a glyph: a slash, with a gap cut beside it from the glyph."""
+    slash = "M3.5 3.5 20.5 20.5"
+    return (f'<mask id="cut" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/>'
+            f'<path d="{slash}" stroke="#000" stroke-width="6"/></mask><g mask="url(#cut)">{base}</g><path d="{slash}"/>')
+
+
+def custom(reicon, name):
+    return {
+        "muted": lambda: slashed(glyph(reicon, "microphone2")),
+        "deafened": lambda: slashed(glyph(reicon, "headphone")),
+        "camera-off": lambda: slashed(glyph(reicon, "video")),
+        "gif": lambda: f'<path d="{sq(2.5, 5, 19, 14, 3.5)}"/><path d="M10 10.1a2.1 2.1 0 1 0 .4 2.2H8.6M12.75 9.75v4.5M15.5 14.25v-4.5h2.75M15.5 12h2.25" stroke-width="1.75"/>',
+        "more-v": lambda: f'<g transform="rotate(90 12 12)">{glyph(reicon, "more-h")}</g>',
+        # The inbox as an outline whose tray (the part below the lip) is filled, from Reicon's filled inbox.
+        "inbox-tray": lambda: thicken(reicon["inbox"]["body"]) + f'<g fill="currentColor" stroke="none">{re.search(r"<path[^>]*/>", reicon["inbox-filled"]["body"])[0]}</g>',
+        "collapse-all": lambda: '<path d="M8 3.5 12 7.5 16 3.5M8 20.5 12 16.5 16 20.5M4.5 12h15"/>',
+        "win-max": lambda: f'<path d="{sq(5, 5, 14, 14, 3)}"/>',
+        "win-restore": lambda: (f'<mask id="front" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/>'
+                                f'<path d="{sq(4, 8, 12, 12, 2.75)}" fill="#000" stroke="#000" stroke-width="5"/></mask>'
+                                f'<path mask="url(#front)" d="{sq(8, 4, 12, 12, 2.75)}"/><path d="{sq(4, 8, 12, 12, 2.75)}"/>'),
+    }[name]()
+
+
+def write_app_icons(reicon, rows):
+    """One SVG per glyph the Rust app draws, and its include paths pointed at them."""
+    out = ROOT / "assets/icons/reicon"
+    out.mkdir(parents=True, exist_ok=True)
+    files = {}
+    for row in rows:
+        if not row["rust"]:
+            continue
+        to = row["to"]
+        if to.startswith(("BRAND", "GAP")):
+            sys.exit(f"the app draws {row['was']}, which has no Reicon glyph")
+        name = to.removeprefix("CUSTOM:")
+        body = custom(reicon, name) if to.startswith("CUSTOM:") else glyph(reicon, name)
+        (out / f"{name}.svg").write_text(f"<svg {ROOT_ATTRS}>{body}</svg>\n")
+        for variant in row["rust"]:
+            files[variant] = name
+    icons = ROOT / "src/icons.rs"
+    text = icons.read_text()
+    head, tail = text.split("const BRAND", 1)
+    variants = re.findall(r"^\s+([A-Z]\w*),$", tail.split("pub enum Glyph")[1].split("}")[0], re.M)
+    entries = iter(variants)
+    head = re.sub(r'include_bytes!\("\.\./assets/icons/(?:phosphor|reicon)/[a-z0-9-]+\.svg"\)',
+                  lambda m: f'include_bytes!("../assets/icons/reicon/{files["Glyph::" + next(entries)]}.svg")', head)
+    icons.write_text(head + "const BRAND" + tail)
+    sidebar = ROOT / "src/sidebar.rs"
+    sidebar.write_text(re.sub(r'Nav::(\w+) => include_bytes!\("\.\./assets/icons/(?:phosphor|reicon)/[a-z0-9-]+\.svg"\)',
+                              lambda m: f'Nav::{m[1]} => include_bytes!("../assets/icons/reicon/{files["Nav::" + m[1]]}.svg")', sidebar.read_text()))
+    print(f"{len(set(files.values()))} app icons -> {out.relative_to(ROOT)}, {len(files)} variants pointed at them")
 
 if __name__ == "__main__":
     main()
