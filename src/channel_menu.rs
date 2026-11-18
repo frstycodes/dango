@@ -504,6 +504,10 @@ impl Rustcord {
             let gid = guild_id.to_owned();
             out.push(item("Invite people", move |this, window, cx| this.show_invite(gid.clone(), channel.clone(), window, cx)).brand().icon(Glyph::GroupPlus).entry());
         }
+        if self.can_open_server_settings(guild_id) {
+            let gid = guild_id.to_owned();
+            out.push(item("Server settings", move |this, window, cx| this.open_server_settings(gid.clone(), window, cx)).icon(Glyph::Settings).entry());
+        }
         if dropdown && manage_channels {
             let gid = guild_id.to_owned();
             out.push(item("Create channel", move |this, window, cx| this.create_channel(gid.clone(), TEXT, None, window, cx)).icon(Glyph::Plus).entry());

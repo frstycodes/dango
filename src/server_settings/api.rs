@@ -470,6 +470,10 @@ pub fn edit_automod_rule(guild_id: &str, rule_id: &str, rule: &AutomodRule) -> C
     Call::new(Method::PATCH, format!("/guilds/{guild_id}/auto-moderation/rules/{rule_id}"), Some(body))
 }
 
+pub fn set_automod_enabled(guild_id: &str, rule_id: &str, enabled: bool) -> Call {
+    Call::new(Method::PATCH, format!("/guilds/{guild_id}/auto-moderation/rules/{rule_id}"), Some(json!({ "enabled": enabled })))
+}
+
 pub fn delete_automod_rule(guild_id: &str, rule_id: &str) -> Call {
     delete(format!("/guilds/{guild_id}/auto-moderation/rules/{rule_id}"))
 }
