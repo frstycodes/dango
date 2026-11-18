@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | updating (the launch splash alone).
+// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | pins | header-search | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | channel-settings | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -39,6 +39,18 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
     chord.on_event(Event::Typing { channel_id: "general".into(), user_id: "8388608".into(), name: Some("Wren".into()) }, cx);
     match scene {
         "gallery" => chord.open_viewer(&avatar_url("3", None), window, cx),
+        "pins" => chord.pins = Some(Some(Ok(chord.feeds.get("general").map(|f| f.messages.iter().rev().take(3).cloned().collect()).unwrap_or_default()))),
+        // Typed once the window is up, as `mention` does: the field isn't live while the app is being built.
+        "header-search" => cx
+            .spawn_in(window, async move |this, cx| {
+                cx.background_executor().timer(std::time::Duration::from_millis(500)).await;
+                this.update_in(cx, |this, window, cx| {
+                    this.search_input.update(cx, |s, cx| s.set_value("gpui", window, cx));
+                    cx.notify();
+                })
+                .ok();
+            })
+            .detach(),
         "profile" => demo_profile(chord, cx),
         // No theme, banner, badges or games: the plain surface, and the Add role row in view.
         "profile-plain" => {
