@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dango Icons</title>
+<meta name="description" content="Every icon Dango draws, moved from Phosphor to Reicon, plus the custom glyphs.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<style>
+/* Each preview shows both themes side by side, whatever the page theme. */
+.ic-light { --tile: oklch(0.982 0.007 75); --ink: oklch(0.30 0.015 350); }
+.ic-dark { --tile: oklch(0.21 0.01 350); --ink: oklch(0.88 0.008 350); }
+svg.ri { display: block; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
+.ic-grid { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 228px), 1fr)); }
+.ic { background: var(--bg-sidebar); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-3); display: grid; gap: var(--space-2); align-content: start; min-width: 0; }
+.ic-prev { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; border-radius: var(--radius-md); overflow: hidden; }
+.ic-prev > div { background: var(--tile); color: var(--ink); display: flex; align-items: center; justify-content: center; gap: var(--space-4); height: 72px; }
+.ic-name { color: var(--text-strong); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.ic-meta { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: var(--text-xs); min-width: 0; }
+.ic-meta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ic-meta i { font-size: 16px; color: var(--text-faint); }
+.ic-tag { flex: none; padding: 1px 7px; border-radius: var(--radius-full); background: var(--accent-soft); color: var(--accent-ink); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.ic-tag.gap { background: oklch(0.80 0.15 78 / 0.16); color: var(--warning-ink); }
+.ic details { font-size: var(--text-xs); color: var(--text-muted); }
+.ic summary { cursor: pointer; color: var(--text-faint); width: fit-content; }
+.ic summary:hover { color: var(--text); }
+.ic details ul { margin: 6px 0 0; padding-left: 16px; display: grid; gap: 2px; }
+.ic details code { font-family: var(--font-mono); font-size: 11px; color: var(--text); }
+.stats { display: flex; gap: var(--space-6); flex-wrap: wrap; margin-top: var(--space-4); }
+.stats b { display: block; font-size: var(--text-xl); color: var(--text-strong); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stats span { color: var(--text-muted); }
+.jump { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-4); }
+
+/* Toggle demos */
+.tg-grid { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 228px), 1fr)); }
+.tg-row { display: flex; gap: var(--space-2); align-items: center; }
+.tg { width: 44px; height: 40px; border-radius: var(--radius-md); display: grid; place-items: center; background: var(--selected); color: var(--text-strong); transition: background var(--dur-hover) var(--ease-out), color var(--dur-hover) var(--ease-out), transform var(--dur-press) var(--ease-spring); }
+.tg:hover { background: var(--press); }
+.tg:active { transform: scale(0.92); }
+.tg[aria-pressed="true"].danger { background: oklch(0.6 0.2 20 / 0.16); color: var(--danger-ink); }
+.tg[aria-pressed="true"].live { background: var(--accent-soft); color: var(--accent-ink); }
+
+/* A slash drawing on and off is one glyph changing state; the cut beside it draws in step. */
+.slash, .slash-cut { stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 200ms var(--ease-out); }
+.slash-cut { stroke: #000; stroke-width: 6; }
+[data-on="true"] .slash, [data-on="true"] .slash-cut { stroke-dashoffset: 0; }
+/* Screen share: the arrow lifts and the screen fills while sharing. */
+.share-arrow { transition: transform 240ms var(--ease-spring); }
+.share-fill { fill: currentColor; stroke: none; opacity: 0; transition: opacity 200ms var(--ease-out); }
+[data-on="true"] .share-arrow { transform: translateY(-1.5px); }
+[data-on="true"] .share-fill { opacity: 0.18; }
+
+/* Two different glyphs trading places: scale 0.25 + 4px blur + fade. */
+.swap { display: grid; }
+.swap > svg { grid-area: 1 / 1; transition: transform 200ms var(--ease-out), opacity 200ms var(--ease-out), filter 200ms var(--ease-out); }
+.swap > svg[data-out] { transform: scale(0.25); opacity: 0; filter: blur(4px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .slash, .slash-cut { transition: none; }
+  .ri:has(.slash) { transition: opacity 150ms; }
+  .share-arrow { transition: none; }
+  .swap > svg { transition: opacity 150ms; }
+  .swap > svg[data-out] { transform: none; filter: none; }
+}
+</style>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+<section id="icons">
+  <h1>Icons</h1>
+  <p class="lede">Reicon replaces Phosphor everywhere. Its outlines are soft and round-jointed, which suits the dumplings better than Phosphor's straight cuts. It ships at 1.5 on a 24 grid, and every glyph here is thickened to 2 so its stroke matches Gabarito's stem at 16px. Each card shows the glyph at 16px and 40px on light and dark, the Phosphor glyph it replaces, and every place that uses it today.</p>
+  <div class="stats" id="stats"></div>
+  <div class="jump" id="jump"></div>
+</section>
+<section id="channels-custom">
+  <h2>Channel types</h2>
+  <p class="lede">Discord's channel kinds, each with its private (locked) variant and, where Discord has one, its age-restricted variant. The badge is cut from the base glyph by a gap the width of a stroke, so it reads at 16px.</p>
+  <div class="ic-grid" id="channel-grid"></div>
+</section>
+<section id="toggles">
+  <h2>Animated toggles</h2>
+  <p class="lede">Mute, deafen and camera are one glyph whose slash draws on and off with the gap beside it, in 200ms. Screen share lifts its arrow on a spring and tints the screen. With reduced motion, the slash appears without drawing. Press a button to toggle it.</p>
+  <div class="tg-grid" id="toggle-grid"></div>
+  <h3>Swapping glyphs</h3>
+  <p class="lede">When a glyph turns into a different one, the two cross through scale 0.25, a 4px blur and a fade, in about 200ms. With reduced motion only the fade remains.</p>
+  <div class="tg-grid" id="swap-grid"></div>
+</section>
+<section id="custom">
+  <h2>Other custom glyphs</h2>
+  <p class="lede">Concepts Reicon doesn't draw, made on its 24 grid at stroke 2 with continuous squircle corners. Dots are filled so they read as dots.</p>
+  <div class="ic-grid" id="custom-grid"></div>
+</section>
+<div id="groups"></div>
+<section id="gaps">
+  <h2>Gaps and collisions</h2>
+  <p class="lede">What Reicon doesn't cover, and the places where several current icons now share one glyph. A shared glyph is fine when the meaning really is the same. Otherwise it needs a call before the swap.</p>
+  <div class="ic-grid" id="gap-grid"></div>
+</section>
+</main>
+</div>
+<script src="site.js"></script>
+<script src="icons-data.js"></script>
+<script>
+// Squircle corners: each arc starts 1.35r from the corner and its handles pull tight, so the curve
+// eases into the edge (no circular kink), like the app's superellipse(1.4) surfaces.
+function sq(x, y, w, h, r) {
+  const e = Math.min(r * 1.35, w / 2, h / 2), c = e * 0.22, X = x + w, Y = y + h, f = n => +n.toFixed(2);
+  return `M${f(x + e)} ${y}H${f(X - e)}C${f(X - c)} ${y} ${X} ${f(y + c)} ${X} ${f(y + e)}V${f(Y - e)}C${X} ${f(Y - c)} ${f(X - c)} ${Y} ${f(X - e)} ${Y}H${f(x + e)}C${f(x + c)} ${Y} ${x} ${f(Y - c)} ${x} ${f(Y - e)}V${f(y + e)}C${x} ${f(y + c)} ${f(x + c)} ${y} ${f(x + e)} ${y}Z`;
+}
+let uid = 0;
+const svg = (inner, size = 24) => `<svg class="ri" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${inner}</svg>`;
+// A base glyph with a badge knocked out of its corner: the badge's own strokes, widened by a gap, cut the base.
+function badged(base, badge) {
+  const id = `m${uid++}`;
+  return `<mask id="${id}" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/><g stroke="#000" fill="#000" stroke-width="5">${badge}</g></mask><g mask="url(#${id})">${REICON[base]}</g>${badge}`;
+}
+// One glyph whose slash draws on: the base, cut by a widening line, plus the slash itself.
+function slashed(base, on) {
+  const id = `m${uid++}`, d = "M3.5 3.5 20.5 20.5";
+  return `<g${on ? ' data-on="true"' : ""}><mask id="${id}" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/><path class="slash-cut" pathLength="1" d="${d}"/></mask><g mask="url(#${id})">${base}</g><path class="slash" pathLength="1" d="${d}"/></g>`;
+}
+
+const LOCK = `<path d="${sq(14, 16.25, 9, 6.75, 2)}"/><path d="M16.25 16.25v-1.5a2.25 2.25 0 0 1 4.5 0v1.5"/>`;
+const AGE = `<path d="M19.5 13.5v4.25"/><circle cx="19.5" cy="21.25" r="1.4" fill="currentColor" stroke="none"/>`;
+const MONITOR = `<path d="${sq(2.5, 3.5, 19, 13.5, 3.25)}"/><path d="M8.5 21h7M12 17v4"/>`;
+const SHARE = `<path class="share-fill" d="${sq(2.5, 3.5, 19, 13.5, 3.25)}"/>${MONITOR}<g class="share-arrow"><path d="M12 13.5v-6M9.25 10 12 7.25 14.75 10"/></g>`;
+const BAR = (x, top, dim) => `<path d="M${x} 19.5V${top}"${dim ? ' opacity="0.3"' : ""}/>`;
+
+const CUSTOM = {
+  muted: { name: "Muted", svg: slashed(REICON.microphone2, true), on: true },
+  deafened: { name: "Deafened", svg: slashed(REICON.headphone, true), on: true },
+  "camera-off": { name: "Camera off", svg: slashed(REICON.video, true), on: true },
+  gif: { name: "GIF", svg: `<path d="${sq(2.5, 5, 19, 14, 3.5)}"/><path d="M10 10.1a2.1 2.1 0 1 0 .4 2.2H8.6M12.75 9.75v4.5M15.5 14.25v-4.5h2.75M15.5 12h2.25" stroke-width="1.75"/>` },
+  "reply-spine": { name: "Reply line", svg: `<path d="M5 20v-6.5a6 6 0 0 1 6-6h9"/>` },
+  "collapse-all": { name: "Collapse all", svg: `<path d="M8 3.5 12 7.5 16 3.5M8 20.5 12 16.5 16 20.5M4.5 12h15"/>` },
+  grip: { name: "Drag handle", svg: [9, 15].flatMap(x => [6, 12, 18].map(y => `<circle cx="${x}" cy="${y}" r="1.5" fill="currentColor" stroke="none"/>`)).join("") },
+  "dot-ring": { name: "Radio off", svg: `<circle cx="12" cy="12" r="8.5"/>` },
+  "dash-ring": { name: "Placeholder", svg: `<circle cx="12" cy="12" r="8.5" stroke-dasharray="3.2 3.5"/>` },
+  "win-max": { name: "Maximize", svg: `<path d="${sq(5, 5, 14, 14, 3)}"/>` },
+  "win-restore": { name: "Restore", svg: "" },
+  "signal-3": { name: "Connection good", svg: BAR(6, 16) + BAR(12, 11.5) + BAR(18, 5.5) },
+  "signal-2": { name: "Connection fair", svg: BAR(6, 16) + BAR(12, 11.5) + BAR(18, 5.5, true) },
+  "signal-1": { name: "Connection poor", svg: BAR(6, 16) + BAR(12, 11.5, true) + BAR(18, 5.5, true) },
+  "signal-x": { name: "No connection", svg: BAR(6, 16, true) + BAR(12, 11.5, true) + `<path d="M15.5 4.5l5 5m0-5-5 5"/>` },
+  bot: { name: "Bot", svg: `<path d="${sq(4, 8, 16, 12, 4)}"/><path d="M12 8V5.5M2 13v2.5M22 13v2.5"/><circle cx="12" cy="4.25" r="1.25" fill="currentColor" stroke="none"/><circle cx="9" cy="13.75" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="13.75" r="1.4" fill="currentColor" stroke="none"/>` },
+};
+// Restore: the back window, cut where the front one sits.
+{
+  const id = `m${uid++}`;
+  CUSTOM["win-restore"].svg = `<mask id="${id}" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/><path d="${sq(4, 8, 12, 12, 2.75)}" fill="#000" stroke="#000" stroke-width="5"/></mask><path mask="url(#${id})" d="${sq(8, 4, 12, 12, 2.75)}"/><path d="${sq(4, 8, 12, 12, 2.75)}"/>`;
+}
+
+const CHANNELS = [
+  ["Text", "hashtag2", true],
+  ["Voice", "volume-high", true],
+  ["Announcement", "bullhorn", false],
+  ["Stage", "podcast", false],
+  ["Forum", "messages2", true],
+  ["Media", "gallery", true],
+  ["Thread", "messages3", false],
+];
+
+// Cards
+const LIGHT_DARK = inner => `<div class="ic-prev"><div class="ic-light">${svg(inner, 16)}${svg(inner, 40)}</div><div class="ic-dark">${svg(inner, 16)}${svg(inner, 40)}</div></div>`;
+const esc = s => s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+function usageList(rows) {
+  const items = [];
+  for (const r of rows) {
+    for (const [v, files] of Object.entries(r.rust)) items.push(`<li><code>${v}</code> ${files.length ? files.join(", ") : "<em>unused</em>"}</li>`);
+    const spec = Object.entries(r.spec);
+    if (spec.length) items.push(`<li>spec <code>ph-${r.was}</code> ${spec.map(([p, n]) => `${p} ×${n}`).join(", ")}</li>`);
+  }
+  return items;
+}
+function card({ inner, title, meta, tag, rows = [] }) {
+  const uses = usageList(rows);
+  return `<article class="ic">${inner ? LIGHT_DARK(inner) : ""}
+    <div class="ic-name">${esc(title)}</div>
+    <div class="ic-meta">${meta}${tag ? `<b class="ic-tag${tag === "gap" || tag === "brand" ? " gap" : ""}">${tag}</b>` : ""}</div>
+    ${uses.length ? `<details><summary>Used in ${uses.length} ${uses.length === 1 ? "place" : "places"}</summary><ul>${uses.join("")}</ul></details>` : ""}
+  </article>`;
+}
+const was = rows => [...new Set(rows.map(r => r.was).filter(Boolean))].map(n => `<i class="ph-bold ph-${n}" title="Phosphor ${n}"></i>`).join("");
+const innerFor = to => to.startsWith("CUSTOM:") ? CUSTOM[to.slice(7)].svg : REICON[to] ?? "";
+
+// One card per target glyph within a group, so a glyph that several meanings now share shows as one card.
+const GROUPS = [["Channels", "Channels and navigation"], ["Voice", "Voice, video and calls"], ["Messages", "Messages"], ["People", "People and roles"], ["Chrome", "Controls and chrome"], ["Window", "Window"], ["Status", "Status and feedback"], ["Media", "Media and files"], ["Settings", "Settings and devices"], ["Emoji", "Emoji picker"], ["Brand", "Brand marks"]];
+const byTarget = new Map();
+for (const r of ICON_MAP) {
+  const k = `${r.group}|${r.to === "BRAND" || r.to === "GAP" ? r.was : r.to}`;
+  if (!byTarget.has(k)) byTarget.set(k, []);
+  byTarget.get(k).push(r);
+}
+const shared = [...byTarget.values()].filter(rs => new Set(rs.map(r => r.meaning)).size > 1);
+const gaps = ICON_MAP.filter(r => r.to === "GAP" || r.to === "BRAND");
+
+function targetCard(rs) {
+  const to = rs[0].to, meanings = [...new Set(rs.map(r => r.meaning))];
+  if (to === "BRAND") return card({ title: meanings.join(" · "), meta: `${was(rs)}<span>Keeps its real logo</span>`, tag: "brand", rows: rs });
+  if (to === "GAP") return card({ title: meanings.join(" · "), meta: `${was(rs)}<span>No Reicon glyph</span>`, tag: "gap", rows: rs });
+  const custom = to.startsWith("CUSTOM:");
+  return card({ inner: innerFor(to), title: meanings.join(" · "), meta: `${was(rs)}<span>${custom ? "custom" : to}</span>`, tag: custom ? "custom" : "", rows: rs });
+}
+
+$("#groups").innerHTML = GROUPS.map(([g, name]) => {
+  const cards = [...byTarget.entries()].filter(([k]) => k.startsWith(g + "|")).map(([, rs]) => targetCard(rs));
+  return `<section id="g-${g.toLowerCase()}"><h2>${name}</h2><p class="lede">${cards.length} glyphs.</p><div class="ic-grid">${cards.join("")}</div></section>`;
+}).join("");
+
+$("#channel-grid").innerHTML = CHANNELS.flatMap(([name, base, age]) => [
+  card({ inner: REICON[base], title: `${name} channel`, meta: `<span>${base}</span>` }),
+  card({ inner: badged(base, LOCK), title: `${name} channel, private`, meta: `<span>${base} + lock</span>`, tag: "custom" }),
+  ...(age ? [card({ inner: badged(base, AGE), title: `${name} channel, age-restricted`, meta: `<span>${base} + mark</span>`, tag: "custom" })] : []),
+]).join("");
+
+$("#custom-grid").innerHTML = Object.entries(CUSTOM).filter(([k]) => !["muted", "deafened", "camera-off"].includes(k))
+  .map(([k, c]) => card({ inner: c.svg, title: c.name, meta: `<span>${k}</span>`, tag: "custom", rows: ICON_MAP.filter(r => r.to === `CUSTOM:${k}`) })).join("");
+
+// Toggles: each button flips data-on on its glyphs; the preview tiles stay in step.
+const TOGGLES = [
+  ["Mute", "Unmute", () => slashed(REICON.microphone2), "danger"],
+  ["Deafen", "Undeafen", () => slashed(REICON.headphone), "danger"],
+  ["Turn on camera", "Turn off camera", () => slashed(REICON.video), "live", true],
+  ["Share screen", "Stop sharing", () => SHARE, "live"],
+];
+$("#toggle-grid").innerHTML = TOGGLES.map(([offLabel, onLabel, make, tone, startOn], i) => `<article class="ic" data-toggle="${i}" data-on="${!!startOn}">
+  ${LIGHT_DARK(make())}
+  <div class="tg-row"><button class="tg ${tone}" aria-pressed="${!!startOn}" aria-label="${startOn ? onLabel : offLabel}">${svg(make(), 20)}</button><span class="ic-name">${offLabel}</span></div>
+  <div class="ic-meta"><span>${make === TOGGLES[3]?.[2] ? "Arrow lifts, screen tints" : "Slash draws on and off"}</span></div>
+</article>`).join("");
+// The camera's slash shows while the camera is off, so its slash follows the inverse of pressed.
+for (const el of $$("[data-toggle]")) {
+  const i = +el.dataset.toggle, [offLabel, onLabel, , , startOn] = TOGGLES[i];
+  const slashOn = on => (i === 2 ? !on : on);
+  const set = on => { el.dataset.on = slashOn(on); const b = $("button", el); b.setAttribute("aria-pressed", on); b.setAttribute("aria-label", on ? onLabel : offLabel); $(".ic-name", el).textContent = on ? onLabel : offLabel; };
+  let on = false; set(on);
+  $("button", el).addEventListener("click", () => set(on = !on));
+}
+
+const SWAPS = [["Play / pause", "play", "pause"], ["Full screen / exit", "fullscreen", "exit-fullscreen"], ["Copy / copied", "copy", "check3"], ["Show / hide", "eye", "eye-slash"]];
+$("#swap-grid").innerHTML = SWAPS.map(([name, a, b]) => `<article class="ic">
+  <div class="tg-row"><button class="tg" data-swap aria-label="${name}"><span class="swap">${svg(REICON[a], 20)}${svg(REICON[b], 20).replace("<svg", "<svg data-out")}</span></button><span class="ic-name">${name}</span></div>
+  <div class="ic-meta"><span>${a} → ${b}</span></div></article>`).join("");
+for (const b of $$("[data-swap]")) b.addEventListener("click", () => { for (const s of $$(".swap > svg", b)) s.toggleAttribute("data-out"); });
+
+$("#gap-grid").innerHTML = [
+  ...gaps.map(r => targetCard([r])),
+  ...shared.map(rs => card({ inner: innerFor(rs[0].to), title: [...new Set(rs.map(r => r.meaning))].join(" · "), meta: `${was(rs)}<span>${rs[0].to.replace("CUSTOM:", "custom ")}</span>`, tag: "shared", rows: rs })),
+].join("");
+
+const customCount = Object.keys(CUSTOM).length + $$("#channel-grid .ic-tag").length;
+const reiconCount = new Set(ICON_MAP.map(r => r.to).filter(t => REICON[t])).size;
+$("#stats").innerHTML = [[ICON_MAP.length, "current icons"], [byTarget.size, "glyphs after the move"], [reiconCount, "from Reicon"], [customCount, "custom"], [gaps.length, "brand or gap"]].map(([n, l]) => `<div><b>${n}</b><span>${l}</span></div>`).join("");
+$("#jump").innerHTML = GROUPS.map(([g, name]) => `<a class="btn" href="#g-${g.toLowerCase()}">${name}</a>`).join("");
+</script>
+</body>
+</html>

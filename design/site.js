@@ -7,6 +7,7 @@ const PAGES = [
   ["index.html", "Overview"],
   ["better.html", "Better than Discord"],
   ["foundations.html", "Foundations"],
+  ["icons.html", "Icons"],
   ["primitives.html", "Primitives"],
   ["navigation.html", "Navigation"],
   ["messages.html", "Messages"],
