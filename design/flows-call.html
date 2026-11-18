@@ -69,8 +69,8 @@
 .srv .vc.is-ring .bars { --c: var(--on-accent); }
 .dm .nm small.fc-live { color: var(--online-ink); }
 .dm .nm small.fc-live .bars { --c: var(--online-ink); }
-.dm .nm small.fc-ring { color: var(--accent-ink); }
-.dm .nm small.fc-ring .bars { --c: var(--accent-ink); }
+.dm .nm small.fc-calling { color: var(--accent-ink); }
+.dm .nm small.fc-calling .bars { --c: var(--accent-ink); }
 .dm .nm small.fc-miss { color: var(--danger-ink); }
 .voicebar .fc-chan { display: block; text-decoration: none; }
 .voicebar .fc-chan:hover { color: var(--text-strong); text-decoration: underline; }
@@ -235,7 +235,7 @@ const DMS = [
   { id: "jun", name: "Jun", s: "offline", off: true },
 ];
 const LIVE = t => [`<small class="fc-live">${B()}In call · ${t}</small>`];
-const RING = who => [`<small class="fc-ring">${B("is-ringing")}${who}</small>`, "unread"];
+const RING = who => [`<small class="fc-calling">${B("is-ringing")}${who}</small>`, "unread"];
 function dmSide({ sel = "mira", rows = {}, call = "" } = {}) {
   const list = DMS.map(d => {
     const [sub, cls = ""] = rows[d.id] ?? [d.sub ? `<small>${d.sub}</small>` : ""];
