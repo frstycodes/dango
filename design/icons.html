@@ -49,27 +49,45 @@ svg.ri { display: block; flex: none; fill: none; stroke: currentColor; stroke-wi
 .tg[aria-pressed="true"].danger { background: oklch(0.6 0.2 20 / 0.16); color: var(--danger-ink); }
 .tg[aria-pressed="true"].live { background: var(--accent-soft); color: var(--accent-ink); }
 
-/* A slash drawing on and off is one glyph changing state; the cut beside it draws in step. */
-.slash, .slash-cut { stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 200ms var(--ease-out); }
+/* A slash drawing on and off is one glyph changing state; the cut beside it draws in step. It lands
+   just after the press wobble below, so the glyph reacts first and then gets crossed out. */
+.slash, .slash-cut { stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 140ms var(--ease-out); }
 .slash-cut { stroke: #000; stroke-width: 6; }
-[data-on="true"] .slash, [data-on="true"] .slash-cut { stroke-dashoffset: 0; }
-/* Screen share: the arrow lifts and the screen fills while sharing. */
-.share-arrow { transition: transform 240ms var(--ease-spring); }
-.share-fill { fill: currentColor; stroke: none; opacity: 0; transition: opacity 200ms var(--ease-out); }
-[data-on="true"] .share-arrow { transform: translateY(-1.5px); }
-[data-on="true"] .share-fill { opacity: 0.18; }
+[data-on="true"] .slash, [data-on="true"] .slash-cut { stroke-dashoffset: 0; transition: stroke-dashoffset 220ms var(--ease-spring) 70ms; }
+
+/* Every press gives the glyph a squishy wobble of its own, restarted per press, settling in ~280ms:
+   the mic ducks and tilts, the headphones clamp like hands over ears, the camera blinks like a
+   shutter, the screen hops. */
+.body { transform-box: fill-box; transform-origin: 50% 70%; }
+[data-kind="mute"].wobble .body { animation: duck 280ms var(--ease-out); }
+[data-kind="deafen"].wobble .body { animation: clamp 280ms var(--ease-out); transform-origin: 50% 50%; }
+[data-kind="camera"].wobble .body { animation: blink 260ms var(--ease-out); transform-origin: 50% 50%; }
+[data-kind="share"].wobble .body { animation: hop 300ms var(--ease-out); transform-origin: 50% 100%; }
+@keyframes duck { 35% { transform: scale(0.84) rotate(-12deg); } 70% { transform: scale(1.08) rotate(5deg); } }
+@keyframes clamp { 35% { transform: scale(0.78, 0.94); } 70% { transform: scale(1.08, 0.98); } }
+@keyframes blink { 30% { transform: scale(1.06, 0.62); } 65% { transform: scale(0.97, 1.06); } }
+@keyframes hop { 30% { transform: scale(1.08, 0.86); } 60% { transform: translateY(-2.5px) scale(0.96, 1.05); } }
+
+/* Screen share: the screen fills (its arrow cut out of the fill) and two waves pop out of its corner,
+   one after the other; stopping tucks them back in. */
+.share-fill { opacity: 0; transition: opacity 120ms var(--ease-out); }
+[data-on="true"] .share-fill { opacity: 1; transition-delay: 40ms; }
+.share-wave { transform-box: view-box; transform-origin: 18px 7px; transform: scale(0); opacity: 0; transition: transform 140ms var(--ease-out), opacity 100ms var(--ease-out); }
+[data-on="true"] .share-wave { transform: none; opacity: 1; transition: transform 300ms var(--ease-spring) 80ms, opacity 100ms 80ms; }
+[data-on="true"] .share-wave + .share-wave { transition-delay: 140ms; }
 
 /* Two different glyphs trading places: scale 0.25 + 4px blur + fade. */
 .swap { display: grid; }
-.swap > svg { grid-area: 1 / 1; transition: transform 200ms var(--ease-out), opacity 200ms var(--ease-out), filter 200ms var(--ease-out); }
-.swap > svg[data-out] { transform: scale(0.25); opacity: 0; filter: blur(4px); }
+/* The incoming glyph pops on the spring with a little spin; the outgoing one shrinks away faster. */
+.swap > svg { grid-area: 1 / 1; transition: transform 280ms var(--ease-spring), opacity 160ms var(--ease-out), filter 160ms var(--ease-out); }
+.swap > svg[data-out] { transform: scale(0.25) rotate(-35deg); opacity: 0; filter: blur(4px); transition-duration: 160ms; transition-timing-function: var(--ease-out); }
 
 @media (prefers-reduced-motion: reduce) {
-  .slash, .slash-cut { transition: none; }
-  .ri:has(.slash) { transition: opacity 150ms; }
-  .share-arrow { transition: none; }
+  .slash, .slash-cut, [data-on="true"] .slash, [data-on="true"] .slash-cut { transition: none; }
+  .wobble .body { animation: none !important; }
+  .share-wave, [data-on="true"] .share-wave { transform: none; transition: opacity 150ms; }
   .swap > svg { transition: opacity 150ms; }
-  .swap > svg[data-out] { transform: none; filter: none; }
+  .swap > svg, .swap > svg[data-out] { transform: none; filter: none; transition: opacity 150ms; }
 }
 </style>
 </head>
@@ -92,10 +110,10 @@ svg.ri { display: block; flex: none; fill: none; stroke: currentColor; stroke-wi
 </section>
 <section id="toggles">
   <h2>Animated toggles</h2>
-  <p class="lede">Mute, deafen and camera are one glyph whose slash draws on and off with the gap beside it, in 200ms. Screen share lifts its arrow on a spring and tints the screen. With reduced motion, the slash appears without drawing. Press a button to toggle it.</p>
+  <p class="lede">Each press makes the glyph react in its own way. The mic ducks and tilts, the headphones clamp like hands over ears, the camera blinks like a shutter, and the screen hops. Then the slash springs across. Share screen fills its screen and pops two waves out of the corner. Everything settles in about 300ms. With reduced motion, states switch without movement. Press a button to toggle it.</p>
   <div class="tg-grid" id="toggle-grid"></div>
   <h3>Swapping glyphs</h3>
-  <p class="lede">When a glyph turns into a different one, the two cross through scale 0.25, a 4px blur and a fade, in about 200ms. With reduced motion only the fade remains.</p>
+  <p class="lede">When a glyph turns into a different one, the old one shrinks away with a twist and a blur, and the new one pops in on the spring with a little spin. With reduced motion, only the fade remains.</p>
   <div class="tg-grid" id="swap-grid"></div>
 </section>
 <section id="custom">
@@ -130,7 +148,7 @@ function badged(base, badge) {
 // One glyph whose slash draws on: the base, cut by a widening line, plus the slash itself.
 function slashed(base, on) {
   const id = `m${uid++}`, d = "M3.5 3.5 20.5 20.5";
-  return `<g${on ? ' data-on="true"' : ""}><mask id="${id}" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/><path class="slash-cut" pathLength="1" d="${d}"/></mask><g mask="url(#${id})">${base}</g><path class="slash" pathLength="1" d="${d}"/></g>`;
+  return `<g${on ? ' data-on="true"' : ""}><mask id="${id}" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/><path class="slash-cut" pathLength="1" d="${d}"/></mask><g mask="url(#${id})"><g class="body">${base}</g></g><path class="slash" pathLength="1" d="${d}"/></g>`;
 }
 
 // Filled is the default, like Discord's chrome; the switch shows the outline set beside it.
@@ -151,9 +169,13 @@ function renderAll() {
 for (const b of $$("#weight button")) b.setAttribute("aria-pressed", String((b.dataset.v === "filled") === FILLED));
 const LOCK = `<path d="${sq(14, 16.25, 9, 6.75, 2)}"/><path d="M16.25 16.25v-1.5a2.25 2.25 0 0 1 4.5 0v1.5"/>`;
 const AGE = `<path d="M19.5 13.5v4.25"/><circle cx="19.5" cy="21.25" r="1.4" fill="currentColor" stroke="none"/>`;
-const MONITOR = `<path d="${sq(2.5, 3.5, 19, 13.5, 3.25)}"/><path d="M8.5 21h7M12 17v4"/>`;
-const SHARE = `<path class="share-fill" d="${sq(2.5, 3.5, 19, 13.5, 3.25)}"/>${MONITOR}<g class="share-arrow"><path d="M12 13.5v-6M9.25 10 12 7.25 14.75 10"/></g>`;
-// Signal like iOS: four solid bars rising left to right, squircle-ended; missing strength stays as a dim bar.
+const SCREEN = sq(2.5, 6, 16, 11.5, 3);
+const SHARE = () => {
+  const id = `m${uid++}`, arrow = "M10.5 14.5v-5M8 11.5l2.5-2.5 2.5 2.5";
+  return `<mask id="${id}" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/><path d="${arrow}" stroke="#000" stroke-width="2.25"/></mask>
+    <g class="body"><path class="share-fill" mask="url(#${id})" d="${SCREEN}" fill="currentColor"/><path d="${SCREEN}"/><path d="M7.5 21h6M10.5 17.5V21"/><path d="${arrow}"/></g>
+    <path class="share-wave" d="M18 3.5a3.5 3.5 0 0 1 3.5 3.5"/><path class="share-wave" d="M18 0.5a6.5 6.5 0 0 1 6.5 6.5"/>`;
+};
 const SIGNAL = (lit, none) => [5, 8.5, 12, 15.5].map((h, i) => `<path d="${sq(2 + i * 5.25, 20 - h, 3.5, h, 1.1)}" fill="currentColor" stroke="none"${i < lit ? "" : ' opacity="0.3"'}/>`).join("") + (none ? `<path d="M3 3.5l4.5 4.5m0-4.5L3 8"/>` : "");
 
 const CUSTOM = {
@@ -248,15 +270,15 @@ $("#custom-grid").innerHTML = Object.entries(CUSTOM).filter(([k]) => !["muted", 
 
 // Toggles: each button flips data-on on its glyphs; the preview tiles stay in step.
 const TOGGLES = [
-  ["Mute", "Unmute", () => slashed(ICON("microphone2")), "danger"],
-  ["Deafen", "Undeafen", () => slashed(ICON("headphone")), "danger"],
-  ["Turn on camera", "Turn off camera", () => slashed(ICON("video")), "live", true],
-  ["Share screen", "Stop sharing", () => SHARE, "live"],
+  ["Mute", "Unmute", () => slashed(ICON("microphone2")), "danger", false, "mute"],
+  ["Deafen", "Undeafen", () => slashed(ICON("headphone")), "danger", false, "deafen"],
+  ["Turn on camera", "Turn off camera", () => slashed(ICON("video")), "live", true, "camera"],
+  ["Share screen", "Stop sharing", SHARE, "live", false, "share"],
 ];
-$("#toggle-grid").innerHTML = TOGGLES.map(([offLabel, onLabel, make, tone, startOn], i) => `<article class="ic" data-toggle="${i}" data-on="${!!startOn}">
+$("#toggle-grid").innerHTML = TOGGLES.map(([offLabel, onLabel, make, tone, startOn, kind], i) => `<article class="ic" data-toggle="${i}" data-kind="${kind}" data-on="${!!startOn}">
   ${LIGHT_DARK(make())}
   <div class="tg-row"><button class="tg ${tone}" aria-pressed="${!!startOn}" aria-label="${startOn ? onLabel : offLabel}">${svg(make(), 20)}</button><span class="ic-name">${offLabel}</span></div>
-  <div class="ic-meta"><span>${make === TOGGLES[3]?.[2] ? "Arrow lifts, screen tints" : "Slash draws on and off"}</span></div>
+  <div class="ic-meta"><span>${{ mute: "Ducks and tilts, then the slash springs on", deafen: "Clamps like hands over ears", camera: "Blinks like a shutter", share: "Hops, fills, and pops two waves" }[kind]}</span></div>
 </article>`).join("");
 // The camera's slash shows while the camera is off, so its slash follows the inverse of pressed.
 for (const el of $$("[data-toggle]")) {
@@ -264,7 +286,12 @@ for (const el of $$("[data-toggle]")) {
   const slashOn = on => (i === 2 ? !on : on);
   const set = on => { el.dataset.on = slashOn(on); const b = $("button", el); b.setAttribute("aria-pressed", on); b.setAttribute("aria-label", on ? onLabel : offLabel); $(".ic-name", el).textContent = on ? onLabel : offLabel; };
   let on = false; set(on);
-  $("button", el).addEventListener("click", () => set(on = !on));
+  $("button", el).addEventListener("click", () => {
+    set(on = !on);
+    el.classList.remove("wobble");
+    void el.offsetWidth;
+    el.classList.add("wobble");
+  });
 }
 
 const SWAPS = [["Play / pause", "play", "pause"], ["Full screen / exit", "fullscreen", "exit-fullscreen"], ["Copy / copied", "copy", "check3"], ["Show / hide", "eye", "eye-slash"]];
