@@ -168,6 +168,8 @@ pub struct Prefs {
     pub desktop_notifications: bool,
     pub dock_badge: bool,
     pub clock_24h: bool,
+    // Recent message searches per account id, newest first.
+    pub search_history: HashMap<String, Vec<crate::search::Saved>>,
 }
 
 const KEYBINDS_VERSION: u32 = 1;
@@ -216,6 +218,7 @@ impl Default for Prefs {
             desktop_notifications: true,
             dock_badge: true,
             clock_24h: false,
+            search_history: HashMap::new(),
         }
     }
 }

@@ -36,15 +36,8 @@ impl Rustcord {
         cx.stop_propagation();
     }
 
-    // Header search is in servers only until PR #17 brings it to DMs.
-    pub(crate) fn has_search(&self) -> bool {
-        self.guild_id.is_some()
-    }
-
+    // Focusing the header field opens its popover (search_menu.rs).
     pub(crate) fn focus_search(&mut self, _: &crate::app_keys::FocusSearch, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.has_search() {
-            return;
-        }
         self.focused_message = None;
         self.search_input.update(cx, |state, cx| state.focus(window, cx));
         cx.notify();
