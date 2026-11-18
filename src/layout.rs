@@ -22,10 +22,11 @@ use crate::{
 pub const TITLE_HEIGHT: f32 = 36.;
 // Every column's header, which is also where the window drags from.
 pub const HEADER_HEIGHT: f32 = 48.;
-// The brand strip over the rail and channel list, which macOS's traffic lights sit in (centred at y 20).
+// The strip over the rail and channel list, which macOS's traffic lights sit in (centred at y 20).
 pub const BRAND_BAR_HEIGHT: f32 = 40.;
-// Where the brand starts on macOS: past the three 12px lights from x 12, 8 apart, plus a 24px gap.
-const TRAFFIC_LIGHTS: f32 = 92.;
+// Where the strip's server name starts on macOS: past the three 12px lights from x 12, 8 apart, plus a gap
+// (the name's button pads its text 8 more).
+pub const TRAFFIC_LIGHTS: f32 = 76.;
 pub const RAIL_WIDTH: f32 = 68.;
 pub const CHANNELS_WIDTH: f32 = 240.;
 pub const PANEL_WIDTH: f32 = 264.;
@@ -348,7 +349,8 @@ impl Rustcord {
             .flex_none()
             .flex()
             .flex_col()
-            .children(brand_bar(window, cx))
+            .bg(palette::surface(palette::Level::Sidebar, cx))
+            .when(brand_bar_height(window) > 0., |nav| nav.child(top_strip(self.guild().map(|g| g.name.clone().into()), cx)))
             .child(div().flex_1().min_h_0().flex().child(self.render_rail(window, cx)).child(self.render_channels(window, cx)))
             .children(user_panel)
     }
@@ -600,26 +602,18 @@ pub fn brand_bar_height(window: &Window) -> f32 {
     }
 }
 
-// The strip over the rail and channel list on macOS: the traffic lights, then Dango's mark and name.
-// It drags the window.
-fn brand_bar(window: &Window, cx: &App) -> Option<Div> {
-    (brand_bar_height(window) > 0.).then(|| brand_bar_strip(cx))
-}
-
-fn brand_bar_strip(cx: &App) -> Div {
+// The strip over the rail and channel list on macOS: the traffic lights, then the open server's name, which
+// drops the server menu. It drags the window. Home (DMs) leaves it to the lights.
+fn top_strip(name: Option<SharedString>, cx: &mut Context<Rustcord>) -> Div {
     div()
         .h(px(BRAND_BAR_HEIGHT))
         .flex_none()
         .pl(px(TRAFFIC_LIGHTS))
+        .pr(px(8.))
         .flex()
         .items_center()
-        .gap(px(7.))
         .window_control_area(WindowControlArea::Drag)
-        .text_size(px(14.))
-        .font_weight(FontWeight::SEMIBOLD)
-        .text_color(palette::strong(cx))
-        .child(img(crate::icons::MARK).size(px(18.)))
-        .child("Dango")
+        .children(name.map(|name| crate::sidebar::server_name_button(name, true, cx)))
 }
 
 // Back or forward through history: ⌘[ / ⌘] on macOS, Alt+←/→ elsewhere, like a browser.
