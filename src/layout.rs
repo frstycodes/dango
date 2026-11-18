@@ -350,7 +350,7 @@ impl Rustcord {
             .flex()
             .flex_col()
             .bg(palette::surface(palette::Level::Sidebar, cx))
-            .when(brand_bar_height(window) > 0., |nav| nav.child(top_strip(self.guild().map(|g| g.name.clone().into()), cx)))
+            .when(brand_bar_height(window) > 0., |nav| nav.child(top_strip(self.channel_list_head(true, cx))))
             .child(div().flex_1().min_h_0().flex().child(self.render_rail(window, cx)).child(self.render_channels(window, cx)))
             .children(user_panel)
     }
@@ -602,9 +602,9 @@ pub fn brand_bar_height(window: &Window) -> f32 {
     }
 }
 
-// The strip over the rail and channel list on macOS: the traffic lights, then the open server's name, which
-// drops the server menu. It drags the window. Home (DMs) leaves it to the lights.
-fn top_strip(name: Option<SharedString>, cx: &mut Context<Rustcord>) -> Div {
+// The strip over the rail and channel list on macOS: the traffic lights, then what heads the channel list
+// (the open server's name, or Home's search). It drags the window.
+fn top_strip(head: AnyElement) -> Div {
     div()
         .h(px(BRAND_BAR_HEIGHT))
         .flex_none()
@@ -613,7 +613,7 @@ fn top_strip(name: Option<SharedString>, cx: &mut Context<Rustcord>) -> Div {
         .flex()
         .items_center()
         .window_control_area(WindowControlArea::Drag)
-        .children(name.map(|name| crate::sidebar::server_name_button(name, true, cx)))
+        .child(head)
 }
 
 // Back or forward through history: ⌘[ / ⌘] on macOS, Alt+←/→ elsewhere, like a browser.
