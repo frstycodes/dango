@@ -697,9 +697,10 @@ impl Rustcord {
             .pb(px(64.))
             .flex()
             .flex_col()
+            .items_center()
             .gap(px(32.))
-            .children(title)
-            .children(sections.into_iter().map(|s| div().w_full().max_w(px(PAGE_WIDTH)).flex_none().child(s.body)));
+            .children(title.map(page_column))
+            .children(sections.into_iter().map(|s| page_column(s.body)));
         let main = div()
             .relative()
             .flex_1()
@@ -906,13 +907,13 @@ impl Rustcord {
 
     fn account_page(&self, cx: &mut Context<Self>) -> Vec<Section> {
         let Some(me) = self.me.clone() else { return Vec::new() };
-        let raised = palette::surface(Level::Raised, cx);
-        let banner = ui::edge(div().h(px(96.)).bg(gpui_kit::linear_gradient(135., gpui_kit::linear_color_stop(rgb(BANNER.0), 0.), gpui_kit::linear_color_stop(rgb(BANNER.1), 1.))), ui::top(ui::RADIUS_LG - 1.)).corner_shape(ui::SQUIRCLE);
+        let fill = palette::surface(Level::Group, cx);
+        let banner = ui::edge(div().h(px(96.)).bg(gpui_kit::linear_gradient(135., gpui_kit::linear_color_stop(rgb(BANNER.0), 0.), gpui_kit::linear_color_stop(rgb(BANNER.1), 1.))), ui::top(ui::RADIUS_XL)).corner_shape(ui::SQUIRCLE);
         let avatar = div()
             .relative()
             .flex_none()
-            .child(ui::avatar(me.avatar.clone(), 100.).border(px(6.)).border_color(raised))
-            .child(div().absolute().right(px(4.)).bottom(px(4.)).p(px(2.)).rounded_full().bg(raised).child(ui::status_mark(self.my_status, 28., raised, cx)));
+            .child(ui::avatar(me.avatar.clone(), 100.).border(px(6.)).border_color(fill))
+            .child(div().absolute().right(px(4.)).bottom(px(4.)).p(px(2.)).rounded_full().bg(fill).child(ui::status_mark(self.my_status, 28., fill, cx)));
         let identity = div()
             .mt(px(-42.))
             .px(px(10.))
@@ -938,7 +939,7 @@ impl Rustcord {
             .flex_col()
             .child(ui::settings_row("acct-name", lines.next(), cx).child(field_text("Display name", me.name.clone(), cx)))
             .child(ui::settings_row("acct-id", lines.next(), cx).child(field_text("User ID", me.id.clone(), cx)).child(copy));
-        let card = div().squircle(ui::RADIUS_LG).bg(raised).border_1().border_color(palette::line(cx)).flex().flex_col().child(banner).child(identity).child(fields);
+        let card = div().squircle(ui::RADIUS_XL).bg(fill).flex().flex_col().child(banner).child(identity).child(fields);
         vec![Section::new(ui::settings_group("Account info", cx).child(card))]
     }
 
@@ -1494,7 +1495,7 @@ impl Rustcord {
             .relative()
             .h(px(40.))
             .min_w_0()
-            .pl(px(12.))
+            .pl(px(11.))
             .pr(px(4.))
             .squircle(ui::RADIUS_MD)
             .bg(palette::surface(Level::Page, cx))
@@ -1504,7 +1505,7 @@ impl Rustcord {
             .items_center()
             .gap(px(8.))
             .children(recording.then(|| pulse_ring(SharedString::from(format!("record-ring-{index}")), cx)))
-            .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().font_weight(FontWeight::NORMAL).text_color(palette::strong(cx)).child(value))
+            .child(div().flex_1().min_w_0().p(px(1.)).overflow_hidden().whitespace_nowrap().font_weight(FontWeight::NORMAL).text_color(palette::strong(cx)).child(value))
             .child(ui::button(SharedString::from(format!("record-{index}")), Tone::Secondary, cx).small().child(label).on_click(cx.listener(move |this, _, window, cx| {
                 if let Some(s) = &mut this.settings {
                     s.recording = if s.recording == Some(index) { None } else { Some(index) };
@@ -1941,6 +1942,11 @@ fn sub_items(page: Page, current: usize, anchors: &[usize], cx: &mut Context<Rus
 
 fn page_title(text: &'static str, cx: &App) -> Div {
     div().text_size(px(28.)).line_height(px(34.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).truncate().child(text)
+}
+
+// The centred content column every title and section sits in.
+fn page_column(child: impl IntoElement) -> Div {
+    div().w_full().max_w(px(PAGE_WIDTH)).flex_none().child(child)
 }
 
 fn card_pad(cx: &App) -> Div {
