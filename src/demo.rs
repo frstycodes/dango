@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | login | scanned | failed | empty | updating (the launch splash alone).
+// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -131,6 +131,7 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         }
         // Zoë calls: the strip rings in her DM; "call-banner" takes the call while #general is open.
         "call-incoming" | "call-banner" | "call-joinable" => demo_dm_call(chord, scene, window, cx),
+        "dm-empty" | "group-empty" | "group-start" => demo_dm_start(chord, scene, window, cx),
         "stream-card" => {
             let key = "guild:1:lounge:12582912".to_owned();
             let blender = Activity { kind: ActivityKind::Playing, text: "Blender".into(), more: 0 };
@@ -275,6 +276,38 @@ fn demo_profile(chord: &mut Rustcord, cx: &mut Context<Rustcord>) {
     }
 }
 
+// The top of a DM's history: a stranger with nothing said yet, an iconless group with nothing said, and
+// the same group scrolled back to its first messages.
+fn demo_dm_start(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Context<Rustcord>) {
+    let ferris = user("20971520", "ferris");
+    let mut stranger = channel("dm-new", "ferris", ChannelKind::Dm, None);
+    stranger.recipient = Some(ferris.clone());
+    stranger.recipients = vec![ferris.clone()];
+    let profile = crate::discord::Profile { username: "ferris.rs".into(), mutual_server_count: 2, ..Default::default() };
+    chord.profiles.seed(&crate::profile::profile_key(&ferris.id, None), profile);
+    let mut group = channel("group", "Ranked squad", ChannelKind::Dm, None);
+    group.raw_type = 3;
+    group.recipients = vec![user("8388608", "Zoë"), user("16777216", "ani khet"), ferris];
+    chord.dms.extend([group.clone(), stranger.clone()]);
+    let ago = |mins: i64| (chrono::Utc::now() - chrono::Duration::minutes(mins)).to_rfc3339();
+    let messages = match scene {
+        "group-start" => vec![
+            Message { id: "401".into(), channel_id: "group".into(), author: group.recipients[0].clone(), timestamp: ago(60), content: "made a group for ranked tonight".into(), ..Default::default() },
+            Message { id: "402".into(), channel_id: "group".into(), author: group.recipients[1].clone(), timestamp: ago(58), content: "in, after dinner".into(), ..Default::default() },
+            Message { id: "403".into(), channel_id: "group".into(), author: me_user(), timestamp: ago(2), content: "on in 5".into(), ..Default::default() },
+        ],
+        _ => Vec::new(),
+    };
+    let open = if scene == "dm-empty" { stranger } else { group };
+    chord.feeds.insert(open.id.clone(), Feed { messages: std::sync::Arc::new(messages), loaded: true, ..Default::default() });
+    // Unread, so the group also stacks under Home on the rail.
+    chord.last_message.insert("group".into(), 200);
+    chord.read_states.insert("group".into(), ReadState { last_read: 100, mentions: 2 });
+    chord.restore = None;
+    chord.guild_id = None;
+    chord.open_channel(open, window, cx);
+}
+
 // A connected call in team-lounge with made-up stats; the session itself never reaches a server.
 fn demo_call(chord: &mut Rustcord) {
     let Some(lounge) = chord.guild().and_then(|g| g.channels.iter().find(|c| c.id == "lounge").cloned()) else { return };
@@ -371,6 +404,8 @@ fn channel(id: &str, name: &str, kind: ChannelKind, parent: Option<&str>) -> Cha
         last_message_id: None,
         private: false,
         recipient: None,
+        recipients: Vec::new(),
+        icon: None,
         thread: None,
         raw_type: 0,
         overwrites: Vec::new(),

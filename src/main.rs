@@ -9,6 +9,7 @@ mod query;
 mod call;
 mod channel_menu;
 mod dm_call;
+mod dm_start;
 mod chat;
 #[cfg(debug_assertions)]
 mod demo;
@@ -1432,6 +1433,7 @@ impl Rustcord {
         {
             self.feeds.insert(id.clone(), Feed { messages: Arc::new(messages), loaded: true, has_more: true, ..Default::default() });
         }
+        self.load_dm_profile(&channel, cx);
         self.channel = Some(channel);
         self.replying = None;
         self.editing = None;
@@ -1491,6 +1493,7 @@ impl Rustcord {
         let newest = fetched.last().map(|m| order(&m.id)).unwrap_or(0);
         let kept: Vec<Message> = feed.messages.iter().filter(|m| m.state != SendState::Sent || order(&m.id) > newest).cloned().collect();
         let unchanged = kept.is_empty() && feed.loaded && feed.messages.len() == fetched.len();
+        let reached_start = feed.has_more && fetched.len() < 50;
         feed.has_more = fetched.len() == 50;
         feed.messages = Arc::new(fetched.into_iter().chain(kept).collect());
         feed.loaded = true;
@@ -1500,6 +1503,9 @@ impl Rustcord {
         let authors: Vec<String> = feed.messages.iter().map(|m| m.author.id.clone()).collect();
         if is_open && !unchanged {
             self.list.reset(count);
+        } else if is_open && reached_start {
+            // The first row now carries the DM's start header.
+            self.list.remeasure_items(0..1.min(count));
         }
         self.request_missing_roles(authors);
         cx.notify();
@@ -1524,6 +1530,9 @@ impl Rustcord {
                 let added = older.len();
                 let authors: Vec<String> = older.iter().map(|m| m.author.id.clone()).collect();
                 Arc::make_mut(&mut feed.messages).splice(0..0, older);
+                if is_open && added == 0 && !feed.has_more {
+                    this.list.remeasure_items(0..1.min(feed.messages.len()));
+                }
                 if is_open && added > 0 {
                     // Keep the same message under the reader's eye while history grows above it.
                     let top = this.list.logical_scroll_top();
@@ -2064,7 +2073,7 @@ impl Rustcord {
         if let Some(feed) = self.channel.as_ref().and_then(|c| self.feeds.get(&c.id)) {
             users.extend(feed.messages.iter().rev().map(|m| m.author.clone()));
         }
-        users.extend(self.dms.iter().filter_map(|d| d.recipient.clone()));
+        users.extend(self.dms.iter().flat_map(|d| d.recipients.iter().cloned().chain(d.recipient.clone())));
         users
     }
 

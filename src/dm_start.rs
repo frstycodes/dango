@@ -1,0 +1,190 @@
+// The top of a DM's history (design: messages.html#dm-start): who this is, what you share, and the one
+// next step. It is the feed's first item once the beginning is loaded, so it stays as messages arrive and
+// scrolls away with the history, as Discord's does.
+//
+// GAP: a group gets no actions: Invite to group and Edit group aren't built. Report spam isn't either.
+use gpui_kit::{AnyElement, App, Context, FontWeight, SharedString, WeakEntity, div, prelude::*, px, relative};
+
+use crate::{
+    Rustcord,
+    chat::emphasised,
+    discord::{Channel, ChannelKind, DmFace, Relation, Status, User},
+    icons::Glyph,
+    layout::decorated_avatar,
+    palette::{self, Level},
+    profile::profile_key,
+    ui::{self, Tone},
+};
+
+const FACE: f32 = 80.;
+
+#[derive(Clone)]
+pub(crate) struct DmStart {
+    face: DmFace,
+    status: Option<Status>,
+    name: SharedString,
+    // A person's username, or a group's member count.
+    subtitle: Option<SharedString>,
+    line: Vec<(String, bool)>,
+    mutual: Option<SharedString>,
+    person: Option<User>,
+    next: Next,
+}
+
+// What the header offers a person, by where you stand with them.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Next {
+    // A group: nothing yet (see the GAP above).
+    Nothing,
+    Befriend,
+    Accept,
+    Pending,
+    Friends,
+    Blocked,
+    // A bot can't be friended, only blocked.
+    BlockOnly,
+}
+
+// The header leads a DM's feed once nothing older is left to load.
+pub(crate) fn shows(kind: ChannelKind, has_more: bool) -> bool {
+    kind == ChannelKind::Dm && !has_more
+}
+
+pub(crate) fn next_step(relation: Option<Relation>, bot: bool) -> Next {
+    match relation {
+        Some(Relation::Friend) => Next::Friends,
+        Some(Relation::Blocked) => Next::Blocked,
+        Some(Relation::Incoming) => Next::Accept,
+        Some(Relation::Outgoing) => Next::Pending,
+        None if bot => Next::BlockOnly,
+        None => Next::Befriend,
+    }
+}
+
+impl Rustcord {
+    // A 1:1 DM's username and mutual servers come from the person's profile: read from disk or fetched
+    // once as the DM opens.
+    pub(crate) fn load_dm_profile(&mut self, channel: &Channel, cx: &mut Context<Self>) {
+        let Some(person) = channel.recipient.clone() else { return };
+        if self.profiles.cached(&profile_key(&person.id, None)).is_none() {
+            self.fetch_profile(person, None, cx);
+        }
+    }
+
+    pub(crate) fn dm_start(&self, channel: &Channel, has_more: bool) -> Option<DmStart> {
+        if !shows(channel.kind, has_more) {
+            return None;
+        }
+        let Some(person) = channel.recipient.clone() else {
+            return Some(DmStart {
+                face: channel.face(),
+                status: None,
+                name: channel.name.clone().into(),
+                subtitle: Some(format!("{} members", channel.recipients.len() + 1).into()),
+                line: vec![("Welcome to the start of ".into(), false), (channel.name.clone(), true), (".".into(), false)],
+                mutual: None,
+                person: None,
+                next: Next::Nothing,
+            });
+        };
+        let profile = self.profiles.peek(&profile_key(&person.id, None));
+        Some(DmStart {
+            face: channel.face(),
+            status: self.presences.get(&person.id).map(|p| p.status),
+            name: person.name.clone().into(),
+            subtitle: profile.as_ref().map(|p| p.username.clone()).filter(|u| !u.is_empty()).map(Into::into),
+            line: vec![("This is the start of your messages with ".into(), false), (person.name.clone(), true), (".".into(), false)],
+            mutual: profile.map(|p| mutual_servers(p.mutual_server_count).into()),
+            next: next_step(self.relation(&person.id), person.bot),
+            person: Some(person),
+        })
+    }
+}
+
+fn mutual_servers(count: usize) -> String {
+    match count {
+        0 => "No mutual servers".into(),
+        1 => "1 mutual server".into(),
+        n => format!("{n} mutual servers"),
+    }
+}
+
+pub(crate) fn dm_start_header(start: &DmStart, this: WeakEntity<Rustcord>, cx: &App) -> AnyElement {
+    let page = palette::surface(Level::Page, cx);
+    let face = match (&start.face, start.person.is_some()) {
+        (DmFace::One(url), true) => decorated_avatar(url, None, FACE, start.status, page),
+        (face, _) => ui::dm_face(face, FACE, page),
+    };
+    div()
+        .w_full()
+        .min_w_0()
+        .px(px(16.))
+        .pt(px(8.))
+        .pb(px(16.))
+        .flex()
+        .flex_col()
+        .items_start()
+        .gap(px(4.))
+        .child(div().mb(px(8.)).child(face))
+        .child(div().max_w_full().truncate().text_size(px(28.)).line_height(relative(1.2)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child(start.name.clone()))
+        .children(start.subtitle.clone().map(|s| div().max_w_full().truncate().text_size(px(16.)).text_color(palette::muted(cx)).child(s)))
+        .child(div().mt(px(6.)).text_size(px(16.)).text_color(palette::muted(cx)).child(emphasised(&start.line, palette::strong(cx))))
+        .children(start.mutual.clone().map(|m| div().mt(px(2.)).flex().items_center().gap(px(6.)).text_size(px(14.)).text_color(palette::muted(cx)).child(gpui_kit::component::Icon::new(Glyph::Users).size(px(16.))).child(m)))
+        .children(actions(start, this, cx))
+        .into_any_element()
+}
+
+fn actions(start: &DmStart, this: WeakEntity<Rustcord>, cx: &App) -> Option<AnyElement> {
+    let person = start.person.clone()?;
+    let row = div().mt(px(12.)).flex().flex_wrap().items_center().gap(px(8.));
+    let act = move |id: &'static str, tone: Tone, label: &'static str, glyph: Option<Glyph>, run: fn(&mut Rustcord, User, &mut Context<Rustcord>)| {
+        let (this, person) = (this.clone(), person.clone());
+        ui::button(id, tone, cx)
+            .small()
+            .children(glyph.map(|g| gpui_kit::component::Icon::new(g).size(px(16.))))
+            .child(label)
+            .on_click(move |_, _, cx| {
+                let person = person.clone();
+                this.update(cx, |this, cx| run(this, person, cx)).ok();
+            })
+    };
+    let state = |glyph: Glyph, label: &'static str| {
+        div().flex().items_center().gap(px(6.)).text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::muted(cx)).child(gpui_kit::component::Icon::new(glyph).size(px(18.)).text_color(palette::positive_ink(cx))).child(label)
+    };
+    let block = || act("dm-start-block", Tone::Ghost, "Block", None, |this, user, cx| this.ask_block(user, cx));
+    let row = match start.next {
+        Next::Nothing => return None,
+        Next::Friends => row.child(state(Glyph::Users, "Friends")),
+        Next::Befriend => row.child(act("dm-start-add", Tone::Primary, "Add friend", Some(Glyph::GroupPlus), |this, user, cx| this.befriend(user, cx))).child(block()),
+        Next::Accept => row.child(act("dm-start-accept", Tone::Primary, "Accept friend request", Some(Glyph::GroupPlus), |this, user, cx| this.befriend(user, cx))).child(block()),
+        Next::Pending => row
+            .child(state(Glyph::CheckCircle, "Friend request sent"))
+            .child(act("dm-start-cancel", Tone::Ghost, "Cancel request", None, |this, user, cx| this.drop_relation(&user.id, cx)))
+            .child(block()),
+        Next::Blocked => row.child(act("dm-start-unblock", Tone::Ghost, "Unblock", None, |this, user, cx| this.drop_relation(&user.id, cx))),
+        Next::BlockOnly => row.child(block()),
+    };
+    Some(row.into_any_element())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn leads_only_a_dm_whose_start_is_loaded() {
+        assert!(shows(ChannelKind::Dm, false));
+        assert!(!shows(ChannelKind::Dm, true));
+        assert!(!shows(ChannelKind::Text, false));
+    }
+
+    #[test]
+    fn offers_the_next_step_by_relation() {
+        assert_eq!(next_step(None, false), Next::Befriend);
+        assert_eq!(next_step(None, true), Next::BlockOnly);
+        assert_eq!(next_step(Some(Relation::Incoming), false), Next::Accept);
+        assert_eq!(next_step(Some(Relation::Outgoing), false), Next::Pending);
+        assert_eq!(next_step(Some(Relation::Friend), false), Next::Friends);
+        assert_eq!(next_step(Some(Relation::Blocked), false), Next::Blocked);
+    }
+}

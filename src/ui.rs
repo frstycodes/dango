@@ -437,6 +437,27 @@ pub fn avatar(url: impl Into<SharedString>, size: f32) -> Img {
     img(url.into()).size(px(size)).flex_none().rounded_full()
 }
 
+// A DM's face at `size` (design: navigation.html's .gav). A pair puts the first member top left and the
+// second bottom right at 0.69 of the size, the front one ringed in `ring`, the surface behind it.
+pub fn dm_face(face: &crate::discord::DmFace, size: f32, ring: Hsla) -> AnyElement {
+    use crate::discord::DmFace;
+    match face {
+        DmFace::Icon(url) | DmFace::One(url) => avatar(url.clone(), size).into_any_element(),
+        DmFace::Letters(name) => monogram(name, size).into_any_element(),
+        DmFace::Pair(back, front) => {
+            let small = (size * 0.69).round();
+            let gap = if size >= 48. { 3. } else { 2. };
+            div()
+                .relative()
+                .flex_none()
+                .size(px(size))
+                .child(div().absolute().top_0().left_0().child(avatar(back.clone(), small)))
+                .child(div().absolute().right_0().bottom_0().size(px(small)).rounded_full().shadow(vec![shadow(ring, 0., 0., 0., gap, false)]).child(avatar(front.clone(), small)))
+                .into_any_element()
+        }
+    }
+}
+
 // An avatar without a photo: the name's initial on a gradient picked from the name. Below 24px it
 // drops the initial.
 pub fn monogram(name: &str, size: f32) -> Div {
