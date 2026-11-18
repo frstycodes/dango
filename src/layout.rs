@@ -109,6 +109,7 @@ impl Rustcord {
             .child(self.render_nav(window, cx))
             .child(match self.call_view.then(|| self.render_call_with_chat(window, cx)).flatten() {
                 Some(call) => div().flex_1().min_w_0().h_full().child(call).into_any_element(),
+                None if self.inbox_page => self.render_inbox_page(cx),
                 None if self.guild_id.is_none() && self.channel.is_none() => self.render_home(cx),
                 None if self.channel.as_ref().is_some_and(|c| c.kind == discord::ChannelKind::Forum) => {
                     let forum = self.channel.clone().expect("checked above");
@@ -228,18 +229,9 @@ impl Rustcord {
             )
     }
 
-    // Inbox and help close whichever header tops the content column; `clear_caption` keeps them clear of
-// Windows' caption buttons when that header runs to the window's right edge.
-    // History has no buttons: ⌘[ / ⌘] (Alt+←/→ elsewhere) and the mouse's side buttons step it.
-    pub(crate) fn header_trail(&self, clear_caption: bool, cx: &mut Context<Self>) -> Div {
-        let mentions = self.read_states.values().any(|r| r.mentions > 0);
-        let (selected, accent) = (palette::selected(cx), palette::accent());
-        let inbox = title_button("inbox", Glyph::Inbox, true, "Inbox", cx)
-            .when(self.inbox.is_some(), |b| b.bg(selected).text_color(palette::strong(cx)))
-            .when(mentions, |b| b.child(div().absolute().top(px(4.)).right(px(4.)).size(px(7.)).rounded_full().bg(accent)))
-            .on_click(cx.listener(|this, _, _, cx| this.open_inbox(cx)));
-        let help = title_button("help", Glyph::Help, true, "Help", cx).on_click(|_, _, cx| cx.open_url("https://support.discord.com"));
-        div().flex_none().when(clear_caption, |d| d.mr(px(crate::window_controls::WIDTH))).flex().items_center().gap_1().child(inbox).child(help)
+    /// The room a header running to the window's right edge leaves for Windows' caption buttons.
+    pub(crate) fn caption_clearance(&self, clear: bool) -> Div {
+        div().flex_none().when(clear, |d| d.w(px(crate::window_controls::WIDTH)))
     }
 
     // The user area (.me), at the foot of the channel list: who you are, how you look to others, and
@@ -355,7 +347,7 @@ impl Rustcord {
             .flex()
             .flex_col()
             .bg(palette::surface(palette::Level::Sidebar, cx))
-            .child(div().flex_1().min_h_0().flex().child(self.render_rail(window, cx)).child(self.render_channels(window, cx)))
+            .child(div().flex_1().min_h_0().flex().child(self.render_rail_column(window, cx)).child(self.render_channels(window, cx)))
             .children(user_panel)
     }
 
@@ -616,28 +608,6 @@ fn history_step(keystroke: &gpui_kit::Keystroke) -> Option<bool> {
         k if k == forward => Some(true),
         _ => None,
     }
-}
-
-// A title bar control (.titlebar .iconbtn): 28px, quiet until hovered; disabled ones fade to 40%.
-// Each occludes the bar's drag area: on Windows a drag area is the native caption, which takes the
-// click before the app sees it.
-fn title_button(id: &'static str, glyph: Glyph, enabled: bool, label: &'static str, cx: &App) -> Stateful<Div> {
-    let (hover, strong) = (palette::hover(cx), palette::strong(cx));
-    div()
-        .id(id)
-        .occlude()
-        .relative()
-        .size(px(28.))
-        .flex_none()
-        .squircle(ui::RADIUS_SM)
-        .flex()
-        .items_center()
-        .justify_center()
-        .text_color(palette::muted(cx))
-        .when(!enabled, |b| b.opacity(0.4))
-        .when(enabled, |b| b.cursor_pointer().hover(move |s| s.bg(hover).text_color(strong)))
-        .child(Icon::new(glyph).size(px(18.)))
-        .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
 }
 
 // A user area control (.me .iconbtn): 30px; `on` (muted, deafened) turns it coral. The glyph pops in on

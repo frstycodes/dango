@@ -605,7 +605,12 @@ pub struct Rustcord {
     revealed: Rc<RefCell<HashSet<String>>>,
     relationships: Vec<Relationship>,
     friends_tab: home::FriendsTab,
+    // Your recent mentions once fetched (None while loading); kept after the popover closes for the page.
     inbox: Option<Option<Result<Vec<Message>, SharedString>>>,
+    // The inbox popover, rising from the rail's Inbox tile.
+    inbox_open: bool,
+    // The full Inbox page in the content column ("See all").
+    inbox_page: bool,
     // The GIF picker: None closed, Some(None) loading, Some(Some(..)) results.
     gif_picker: Option<Option<Result<Vec<Gif>, SharedString>>>,
     gif_search: Entity<SearchState>,
@@ -801,6 +806,8 @@ impl Rustcord {
             relationships: Vec::new(),
             friends_tab: home::FriendsTab::Online,
             inbox: None,
+            inbox_open: false,
+            inbox_page: false,
             gif_picker: None,
             gif_search,
             restore: None,
@@ -1323,6 +1330,7 @@ impl Rustcord {
     }
 
     fn open_channel(&mut self, channel: Channel, window: &mut Window, cx: &mut Context<Self>) {
+        self.inbox_page = false;
         if let Some(current) = self.channel.clone().filter(|c| c.id != channel.id) {
             self.back.push((self.guild_id.clone(), current));
             self.forward.clear();

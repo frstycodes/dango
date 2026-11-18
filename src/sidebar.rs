@@ -119,7 +119,28 @@ impl Rustcord {
             .child(home)
             .child(separator)
             .children(items)
-            .child(rail_action("rail-discover", Nav::Compass, "Discover servers", cx).on_click(|_, _, cx| cx.open_url("https://discord.com/servers")))
+            .child(rail_action("rail-discover", Nav::Compass.icon(), "Discover servers", cx).on_click(|_, _, cx| cx.open_url("https://discord.com/servers")))
+    }
+
+    /// The rail: Home and the servers scroll; the Inbox tile stays pinned at its foot, above the user
+    /// area, however few servers there are.
+    pub fn render_rail_column(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let mentions = self.read_states.values().any(|r| r.mentions > 0);
+        let open = self.inbox_open || self.inbox_page;
+        let inbox = rail_action("rail-inbox", Icon::new(Glyph::Inbox), "Inbox", cx)
+            .relative()
+            .when(open, |b| b.bg(palette::selected(cx)).text_color(palette::strong(cx)))
+            .when(mentions, |b| b.child(div().absolute().top(px(6.)).right(px(6.)).size(px(8.)).rounded_full().bg(palette::accent())))
+            .on_click(cx.listener(|this, _, _, cx| this.open_inbox(cx)));
+        div()
+            .w(px(RAIL_WIDTH))
+            .h_full()
+            .flex_none()
+            .flex()
+            .flex_col()
+            .items_center()
+            .child(div().flex_1().min_h_0().w_full().child(self.render_rail(window, cx)))
+            .child(div().flex_none().pt(px(RAIL_GAP)).pb(px(8.)).child(inbox))
             .child(div().flex_none().h(self.user_panel_clearance()))
     }
 
@@ -1301,7 +1322,7 @@ impl Render for ServerPreview {
     }
 }
 
-fn rail_action(id: &'static str, glyph: Nav, tooltip: &'static str, cx: &App) -> Stateful<Div> {
+fn rail_action(id: &'static str, icon: Icon, tooltip: &'static str, cx: &App) -> Stateful<Div> {
     let (raised, strong) = (palette::surface(palette::Level::Raised, cx), palette::strong(cx));
     div()
         .id(id)
@@ -1315,7 +1336,7 @@ fn rail_action(id: &'static str, glyph: Nav, tooltip: &'static str, cx: &App) ->
         .bg(palette::surface(palette::Level::Raised, cx))
         .text_color(palette::muted(cx))
         .hover(move |s| s.bg(raised).text_color(strong))
-        .child(glyph.icon().size(px(20.)))
+        .child(icon.size(px(20.)))
         .tooltip(move |window, cx| Tooltip::new(tooltip).build(window, cx))
 }
 

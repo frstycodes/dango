@@ -230,7 +230,7 @@ impl Rustcord {
             | self.switcher.take().is_some()
             | self.close_share_picker(cx)
             | self.pins.take().is_some()
-            | self.inbox.take().is_some()
+            | std::mem::take(&mut self.inbox_open)
             | self.gif_picker.take().is_some()
             | self.dismiss_call_menus()
             | self.close_menu();
@@ -253,30 +253,72 @@ impl Rustcord {
         out
     }
 
-    // The title bar's Inbox: your recent mentions across servers, each jumping to its message.
+    // The Inbox: your recent mentions across servers, each jumping to its message. It rises from the rail's
+    // Inbox tile, showing the latest few, with the way to the full page at its foot.
     fn inbox_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let inbox = self.inbox.as_ref()?;
+        if !self.inbox_open {
+            return None;
+        }
+        const PREVIEW: usize = 6;
         let theme = cx.theme().clone();
-        let body: AnyElement = match inbox {
-            None => div().p_4().text_color(theme.muted_foreground).child("Loading mentions…").into_any_element(),
-            Some(Err(error)) => div().p_4().text_color(theme.danger).child(error.clone()).into_any_element(),
-            Some(Ok(list)) if list.is_empty() => div().p_6().text_color(theme.muted_foreground).child("You're all caught up!").into_any_element(),
-            Some(Ok(list)) => div()
+        let more = matches!(&self.inbox, Some(Some(Ok(list))) if list.len() > PREVIEW);
+        let see_all = div()
+            .id("inbox-see-all")
+            .mx_3()
+            .mb_3()
+            .h(px(34.))
+            .squircle(RADIUS_XS)
+            .flex()
+            .items_center()
+            .justify_center()
+            .cursor_pointer()
+            .text_size(px(14.))
+            .font_weight(FontWeight::MEDIUM)
+            .text_color(palette::strong(cx))
+            .bg(palette::selected(cx))
+            .hover(|s| s.bg(palette::hover(cx)))
+            .child(if more { "See all mentions" } else { "Open Inbox" })
+            .on_click(cx.listener(|this, _, _, cx| this.open_inbox_page(cx)));
+        Some(
+            backdrop("inbox-backdrop", cx)
+                .child(
+                    crate::ui::surface(cx)
+                        .id("inbox")
+                        .absolute()
+                        .left(px(crate::layout::RAIL_WIDTH + 4.))
+                        .bottom(px(f32::from(self.user_panel_clearance()) + 4.))
+                        .w(px(420.))
+                        .max_h(px(560.))
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .child(div().px_4().py_3().flex().items_center().gap_2().child(Icon::new(Glyph::Inbox).size(px(20.))).child(div().font_weight(FontWeight::SEMIBOLD).child("Inbox")).child(div().text_color(theme.muted_foreground).child("Mentions")))
+                        .child(div().id("inbox-list").flex_1().min_h_0().overflow_y_scroll().px_3().pb_3().child(self.mention_list(Some(PREVIEW), cx)))
+                        .child(see_all),
+                )
+                .into_any_element(),
+        )
+    }
+
+    /// Your recent mentions as cards (at most `limit`), each jumping to its message on click.
+    pub(crate) fn mention_list(&self, limit: Option<usize>, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme().clone();
+        match &self.inbox {
+            None | Some(None) => div().p_4().text_color(theme.muted_foreground).child("Loading mentions…").into_any_element(),
+            Some(Some(Err(error))) => div().p_4().text_color(theme.danger).child(error.clone()).into_any_element(),
+            Some(Some(Ok(list))) if list.is_empty() => div().p_6().text_color(theme.muted_foreground).child("You're all caught up!").into_any_element(),
+            Some(Some(Ok(list))) => div()
                 .flex()
                 .flex_col()
                 .gap_2()
-                .children(list.iter().map(|m| {
+                .children(list.iter().take(limit.unwrap_or(usize::MAX)).map(|m| {
                     let place = m.guild_id.as_ref().and_then(|g| self.guilds.iter().find(|x| &x.id == g)).and_then(|g| g.channels.iter().find(|c| c.id == m.channel_id).map(|c| format!("#{} · {}", c.name, g.name))).unwrap_or_default();
                     let (guild_id, channel_id, message_id) = (m.guild_id.clone(), m.channel_id.clone(), m.id.clone());
                     div()
                         .id(SharedString::from(format!("inbox-{}", m.id)))
                         .p_3()
                         .squircle(RADIUS_XS)
-                        .bg(theme.background)
-                        .border_1()
-                        .border_color(theme.border)
+                        .bg(palette::surface(palette::Level::Raised, cx))
                         .cursor_pointer()
-                        .hover(|s| s.border_color(theme.input))
+                        .hover(|s| s.bg(palette::hover(cx)))
                         .flex()
                         .flex_col()
                         .gap_1()
@@ -284,7 +326,7 @@ impl Rustcord {
                         .child(div().flex().items_center().gap_2().child(crate::ui::avatar(m.author.avatar.clone(), 24.)).child(div().font_weight(FontWeight::NORMAL).child(m.author.name.clone())))
                         .child(div().text_size(px(14.)).line_clamp(3).child(m.content.clone()))
                         .on_click(cx.listener(move |this, _, window, cx| {
-                            this.inbox = None;
+                            this.inbox_open = false;
                             let channel = guild_id.as_ref().and_then(|g| this.guilds.iter().find(|x| &x.id == g)).and_then(|g| g.channels.iter().find(|c| c.id == channel_id)).cloned();
                             if let Some(channel) = channel {
                                 this.guild_id = guild_id.clone();
@@ -294,23 +336,7 @@ impl Rustcord {
                         }))
                 }))
                 .into_any_element(),
-        };
-        Some(
-            backdrop("inbox-backdrop", cx)
-                .child(
-                    crate::ui::surface(cx)
-                        .id("inbox")
-                        .absolute()
-                        .top(px(TITLE_HEIGHT + 4.))
-                        .right(px(12.))
-                        .w(px(480.))
-                        .max_h(px(600.))
-                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .child(div().px_4().py_3().flex().items_center().gap_2().border_b_1().border_color(theme.border).child(Icon::new(Glyph::Inbox).size(px(20.))).child(div().font_weight(FontWeight::MEDIUM).child("Inbox")).child(div().text_color(theme.muted_foreground).child("· Mentions")))
-                        .child(div().id("inbox-list").flex_1().min_h_0().overflow_y_scroll().p_3().child(body)),
-                )
-                .into_any_element(),
-        )
+        }
     }
 
     // Discord's GIF picker: search on top, trending when empty, two columns of moving previews.
@@ -453,6 +479,15 @@ impl Rustcord {
             .when(self.can_add_account(), |card| {
                 let add = menu::item("Add an account", |_, _, _| {}).icon(Glyph::Plus);
                 card.child(menu::separator(cx)).child(menu::menu_item_row("add-account".into(), &add, false, true, cx).on_click(cx.listener(|this, _, window, cx| this.add_account(window, cx))))
+            })
+            .child(menu::separator(cx))
+            .child({
+                let help = menu::item("Help", |_, _, _| {}).icon(Glyph::Help);
+                menu::menu_item_row("status-help".into(), &help, false, true, cx).on_click(cx.listener(|this, _, _, cx| {
+                    this.status_menu = false;
+                    cx.open_url("https://support.discord.com");
+                    cx.notify();
+                }))
             });
         Some(backdrop("status-backdrop", cx).child(ui::rise(card.transform_origin(ui::corner(false, true)), "status-menu", Duration::ZERO)).into_any_element())
     }
