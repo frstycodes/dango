@@ -842,7 +842,7 @@ impl Rustcord {
         };
         let weak = cx.weak_entity();
         chord.list.set_scroll_handler(move |event, _, cx| {
-            let away = event.visible_range.end + 4 < event.count;
+            let away = chat::away_from_present(event.visible_range.end, event.count);
             weak.update(cx, |this, cx| {
                 if this.scrolled_up != away {
                     this.scrolled_up = away;
@@ -1371,6 +1371,7 @@ impl Rustcord {
         self.editing = None;
         self.send_error = None;
         self.autocomplete = None;
+        self.scrolled_up = false;
         // Cached channels show at once; every open also refreshes in the background.
         // Messages after this sit under Discord's red NEW line until the channel is left.
         self.unread_marker = self.unread(&id).then(|| self.read_states.get(&id).map(|r| r.last_read)).flatten();
