@@ -39,10 +39,11 @@ use std::{
     mem,
     rc::Rc,
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use super::ImageCacheProvider;
+use super::overscroll::{Overscroll, rubber_bands};
 
 #[cfg(feature = "stacker")]
 type StackSafe<T> = stacksafe::StackSafe<T>;
@@ -1793,7 +1794,10 @@ pub(crate) type ActionListener =
 #[track_caller]
 pub fn div() -> Div {
     Div {
-        interactivity: Interactivity::new(),
+        interactivity: Interactivity {
+            rubber_band: true,
+            ..Interactivity::new()
+        },
         children: SmallVec::default(),
         prepaint_listener: None,
         image_cache: None,
@@ -2147,6 +2151,10 @@ pub struct Interactivity {
     pub(crate) scroll_anchor: Option<ScrollAnchor>,
     pub(crate) scroll_offset: Option<Rc<RefCell<Point<Pixels>>>>,
     pub(crate) ongoing_scroll: Option<Rc<RefCell<OngoingScroll>>>,
+    /// Off for elements that position children from the scroll offset themselves
+    /// (`uniform_list`), which would read the stretch as a real offset.
+    pub(crate) rubber_band: bool,
+    pub(crate) overscroll: Option<Rc<RefCell<Overscroll>>>,
     pub(crate) group: Option<SharedString>,
     /// The base style of the element, before any modifications are applied
     /// by focus, active, etc.
@@ -2273,6 +2281,9 @@ impl Interactivity {
                     let scroll_handle_state = scroll_handle.0.borrow();
                     self.scroll_offset = Some(scroll_handle_state.offset.clone());
                     self.ongoing_scroll = Some(scroll_handle_state.ongoing_scroll.clone());
+                    if self.rubber_band {
+                        self.overscroll = Some(scroll_handle_state.overscroll.clone());
+                    }
                 } else if (self.base_style.overflow.x == Some(Overflow::Scroll)
                     || self.base_style.overflow.y == Some(Overflow::Scroll))
                     && let Some(element_state) = element_state.as_mut()
@@ -2289,6 +2300,14 @@ impl Interactivity {
                             .get_or_insert_with(|| Rc::new(RefCell::new(OngoingScroll::default())))
                             .clone(),
                     );
+                    if self.rubber_band {
+                        self.overscroll = Some(
+                            element_state
+                                .overscroll
+                                .get_or_insert_with(Rc::default)
+                                .clone(),
+                        );
+                    }
                 }
 
                 let style = self.compute_style_internal(None, element_state.as_mut(), window, cx);
@@ -2493,7 +2512,15 @@ impl Interactivity {
                 scroll_handle_state.bounds = bounds;
             }
 
-            *scroll_offset
+            let Some(overscroll) = self.overscroll.as_ref() else {
+                return *scroll_offset;
+            };
+            let mut overscroll = overscroll.borrow_mut();
+            overscroll.set_extent(scroll_max, bounds.size);
+            if overscroll.tick(Instant::now()) {
+                window.request_animation_frame();
+            }
+            *scroll_offset + overscroll.offset()
         } else {
             Point::default()
         }
@@ -3333,6 +3360,7 @@ impl Interactivity {
     ) {
         if let Some(scroll_offset) = self.scroll_offset.clone() {
             let ongoing_scroll = self.ongoing_scroll.clone();
+            let overscroll = self.overscroll.clone();
             let overflow = style.overflow;
             let allow_concurrent_scroll = style.allow_concurrent_scroll;
             let restrict_scroll_to_axis = style.restrict_scroll_to_axis;
@@ -3379,9 +3407,24 @@ impl Interactivity {
                             delta_x = Pixels::ZERO;
                         }
                     }
-                    scroll_offset.y += delta_y;
-                    scroll_offset.x += delta_x;
-                    if *scroll_offset != old_scroll_offset {
+                    let mut delta = point(delta_x, delta_y);
+                    let mut overscroll_changed = false;
+                    if let Some(overscroll) = overscroll.as_ref()
+                        && rubber_bands(event, cx)
+                    {
+                        let mut overscroll = overscroll.borrow_mut();
+                        let old_overscroll = overscroll.offset();
+                        delta = overscroll.scroll(
+                            *scroll_offset,
+                            delta,
+                            event.touch_phase,
+                            Instant::now(),
+                        );
+                        overscroll_changed =
+                            overscroll.offset() != old_overscroll || overscroll.is_springing();
+                    }
+                    *scroll_offset = *scroll_offset + delta;
+                    if overscroll_changed || *scroll_offset != old_scroll_offset {
                         cx.notify(current_view);
                     }
                 }
@@ -3625,6 +3668,7 @@ pub struct InteractiveElementState {
     pub(crate) pending_keyboard_down: Option<Rc<RefCell<Option<u64>>>>,
     pub(crate) scroll_offset: Option<Rc<RefCell<Point<Pixels>>>>,
     ongoing_scroll: Option<Rc<RefCell<OngoingScroll>>>,
+    overscroll: Option<Rc<RefCell<Overscroll>>>,
     pub(crate) active_tooltip: Option<Rc<RefCell<Option<ActiveTooltip>>>>,
     long_press_tooltip_active: Option<Rc<Cell<bool>>>,
 }
@@ -4224,6 +4268,7 @@ impl ScrollAnchor {
 struct ScrollHandleState {
     offset: Rc<RefCell<Point<Pixels>>>,
     ongoing_scroll: Rc<RefCell<OngoingScroll>>,
+    overscroll: Rc<RefCell<Overscroll>>,
     bounds: Bounds<Pixels>,
     max_offset: Point<Pixels>,
     child_bounds: Vec<Bounds<Pixels>>,
