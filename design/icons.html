@@ -340,7 +340,7 @@ for (const el of $$("[data-toggle]")) {
   });
 }
 
-const SWAPS = [["Play / pause", "play", "pause"], ["Full screen / exit", "fullscreen", "exit-fullscreen"], ["Copy / copied", "copy", "check3"], ["Show / hide", "eye", "eye-slash"]];
+const SWAPS = [["Play / pause", "play", "pause"], ["Full screen / exit", "fullscreen", "exit-fullscreen"], ["Copy / copied", "copy", "check"], ["Show / hide", "eye", "eye-slash"]];
 $("#swap-grid").innerHTML = SWAPS.map(([name, a, b]) => `<article class="ic">
   <div class="tg-row"><button class="tg" data-swap aria-label="${name}"><span class="swap">${svg(ICON(a), 20)}${svg(ICON(b), 20).replace("<svg", "<svg data-out")}</span></button><span class="ic-name">${name}</span></div>
   <div class="ic-meta"><span>${a} → ${b}</span></div></article>`).join("");
