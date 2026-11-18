@@ -2106,7 +2106,7 @@ impl Rustcord {
                 }
             }
         } else {
-            for user in self.known_users() {
+            for user in self.mention_candidates() {
                 if user.name.to_lowercase().contains(&query) && !items.iter().any(|s| s.wire == format!("<@{}>", user.id)) {
                     items.push(Suggestion { label: user.name.clone(), insert: format!("@{}", user.name), wire: format!("<@{}>", user.id), avatar: Some(user.avatar) });
                 }
@@ -2143,6 +2143,22 @@ impl Rustcord {
 
     fn shown_text(&self, text: &str) -> String {
         self.mention_wire.iter().fold(text.to_owned(), |text, (shown, wire)| text.replace(wire.as_str(), shown))
+    }
+
+    // Who `@` offers: in a DM or group DM only its own people, in a server everyone known there; you last.
+    fn mention_candidates(&self) -> Vec<User> {
+        let me = self.me.as_ref().map(|m| m.id.as_str());
+        match self.channel.as_ref().filter(|_| self.guild_id.is_none()) {
+            Some(dm) => mention_order(dm.recipients.iter().cloned().chain(dm.recipient.clone()).chain(self.me.clone()), me),
+            None => {
+                let members = self.guild_id.as_ref().and_then(|g| self.member_lists.get(g)).into_iter().flatten().filter_map(|i| match i {
+                    ListItem::Member(m) => Some(m.user.clone()),
+                    ListItem::Group { .. } => None,
+                });
+                let authors = self.channel.as_ref().and_then(|c| self.feeds.get(&c.id)).into_iter().flat_map(|f| f.messages.iter().rev().map(|m| m.author.clone()));
+                mention_order(members.chain(authors), me)
+            }
+        }
     }
 
     pub(crate) fn known_users(&self) -> Vec<User> {
@@ -2754,6 +2770,13 @@ fn upsert_voice_state(states: &mut Vec<discord::VoiceState>, state: discord::Voi
     }
 }
 
+// One entry per person, in the order given, with you moved to the end.
+fn mention_order(users: impl Iterator<Item = User>, me: Option<&str>) -> Vec<User> {
+    let mut seen = std::collections::HashSet::new();
+    let (mine, others): (Vec<User>, Vec<User>) = users.filter(|u| seen.insert(u.id.clone())).partition(|u| Some(u.id.as_str()) == me);
+    others.into_iter().chain(mine).collect()
+}
+
 #[cfg(test)]
 mod tests {
     fn voice(user: &str, channel: Option<&str>, guild: Option<&str>) -> discord::VoiceState {
@@ -2775,6 +2798,13 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn mentions_list_you_last_once() {
+        let user = |id: &str| User { id: id.into(), name: id.into(), ..Default::default() };
+        let order = mention_order([user("me"), user("pal"), user("me"), user("friend")].into_iter(), Some("me"));
+        assert_eq!(order.iter().map(|u| u.id.as_str()).collect::<Vec<_>>(), ["pal", "friend", "me"]);
+    }
 
     fn member(id: &str) -> ListItem {
         ListItem::Member(discord::Member { user: User { id: id.into(), ..Default::default() }, roles: vec![], presence: Presence::default() })
