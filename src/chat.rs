@@ -300,6 +300,7 @@ impl Rustcord {
             hovered: self.hovered_message.clone(),
             copied: self.copied.clone(),
             revealed: self.revealed.clone(),
+            text_files: self.text_files.clone(),
             unread_marker: self.unread_marker,
             this: cx.weak_entity(),
             has_more: feed.has_more,
@@ -694,6 +695,7 @@ struct RowContext {
     hovered: Option<String>,
     copied: Option<String>,
     revealed: Rc<std::cell::RefCell<std::collections::HashSet<String>>>,
+    text_files: Rc<std::cell::RefCell<crate::text_file::TextFiles>>,
     unread_marker: Option<u64>,
     this: WeakEntity<Rustcord>,
     has_more: bool,
@@ -735,7 +737,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .children(media.map(|m| div().when(pending, |d| d.opacity(0.6)).child(m)))
         .children(message.embeds.iter().enumerate().map(|(i, e)| embed_card(e, format!("embed-{}-{i}", message.id), ctx, cx)))
         .children(message.thread.as_ref().map(|t| thread_card(t, ctx, cx)))
-        .children(files(message, cx))
+        .children(files(message, ctx, cx))
         .children(reactions(message, ctx, cx))
         .when(message.state == SendState::Failed, |b| b.child(send_failure(message, ctx, cx)));
     let row = div()
@@ -1339,52 +1341,70 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
         .into_any_element()
 }
 
-// A file: its icon, name, size and one action.
-fn files(message: &Message, cx: &App) -> Vec<AnyElement> {
-    let (strong, faint, muted) = (palette::strong(cx), palette::faint(cx), palette::muted(cx));
+// Text files read in place (the fetch starts here, when the row first renders); any other file, or one
+// that turned out not to be text, is a card with its icon, name, size and one action.
+fn files(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Vec<AnyElement> {
     message
         .files
         .iter()
         .map(|file| {
-            let (open, download) = (file.url.clone(), file.url.clone());
-            div()
-                .mt(px(8.))
-                .w_full()
-                .max_w(px(COLUMN))
-                .p(px(12.))
-                .flex()
-                .items_center()
-                .gap(px(12.))
-                .squircle(RADIUS_LG)
-                .bg(palette::surface(Level::Sidebar, cx))
-                .border_1()
-                .border_color(palette::line(cx))
-                .when(message.state != SendState::Sent, |d| d.opacity(0.6))
-                .child(div().w(px(40.)).flex_none().flex().justify_center().text_color(muted).child(Icon::new(Glyph::File).size(px(36.))))
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .flex()
-                        .flex_col()
-                        .child(
-                            div()
-                                .id(SharedString::from(format!("file-{}-{}", message.id, file.name)))
-                                .truncate()
-                                .cursor_pointer()
-                                .text_size(px(14.))
-                                .font_weight(FontWeight::MEDIUM)
-                                .text_color(strong)
-                                .hover(|s| s.underline())
-                                .child(file.name.clone())
-                                .on_click(move |_, _, cx| cx.open_url(&open)),
-                        )
-                        .child(div().text_size(px(12.)).text_color(faint).child(format_size(file.size))),
-                )
-                .child(ui::icon_button(SharedString::from(format!("download-{}-{}", message.id, file.name)), Glyph::Download, "Download", cx).on_click(move |_, _, cx| cx.open_url(&download)))
-                .into_any_element()
+            let readable = message.state == SendState::Sent && crate::text_file::is_text_name(&file.name);
+            let text_files = ctx.text_files.borrow();
+            let state = text_files.files.get(&file.url);
+            if !readable || matches!(state, Some(crate::text_file::TextFile::Unreadable)) {
+                return file_card(message, file, cx);
+            }
+            if state.is_none() {
+                let (this, url) = (ctx.this.clone(), file.url.clone());
+                cx.defer(move |cx| {
+                    this.update(cx, |this, cx| this.load_text_file(url, cx)).ok();
+                });
+            }
+            let copied = ctx.copied.as_deref() == Some(file.url.as_str());
+            crate::text_file::inline(format!("text-{}-{}", message.id, file.name), file, state, text_files.expanded.contains(&file.url), copied, ctx.this.clone(), cx).into_any_element()
         })
         .collect()
+}
+
+fn file_card(message: &Message, file: &crate::discord::File, cx: &App) -> AnyElement {
+    let (strong, faint, muted) = (palette::strong(cx), palette::faint(cx), palette::muted(cx));
+    let (open, download) = (file.url.clone(), file.url.clone());
+    div()
+        .mt(px(8.))
+        .w_full()
+        .max_w(px(COLUMN))
+        .p(px(12.))
+        .flex()
+        .items_center()
+        .gap(px(12.))
+        .squircle(RADIUS_LG)
+        .bg(palette::surface(Level::Sidebar, cx))
+        .border_1()
+        .border_color(palette::line(cx))
+        .when(message.state != SendState::Sent, |d| d.opacity(0.6))
+        .child(div().w(px(40.)).flex_none().flex().justify_center().text_color(muted).child(Icon::new(Glyph::File).size(px(36.))))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .flex_col()
+                .child(
+                    div()
+                        .id(SharedString::from(format!("file-{}-{}", message.id, file.name)))
+                        .truncate()
+                        .cursor_pointer()
+                        .text_size(px(14.))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(strong)
+                        .hover(|s| s.underline())
+                        .child(file.name.clone())
+                        .on_click(move |_, _, cx| cx.open_url(&open)),
+                )
+                .child(div().text_size(px(12.)).text_color(faint).child(format_size(file.size))),
+        )
+        .child(ui::icon_button(SharedString::from(format!("download-{}-{}", message.id, file.name)), Glyph::Download, "Download", cx).on_click(move |_, _, cx| cx.open_url(&download)))
+        .into_any_element()
 }
 
 // Sits in the corner of every code block; it turns to a check, in the online ink, for a moment after.
@@ -1407,7 +1427,7 @@ fn copy_button(code: String, copied: bool, this: WeakEntity<Rustcord>, cx: &App)
         .child(Icon::new(if copied { Glyph::Checkmark } else { Glyph::Copy }).size(px(16.)))
         .tooltip(move |window, cx| Tooltip::new(if copied { "Copied" } else { "Copy" }).build(window, cx))
         .on_click(move |_, _, cx| {
-            this.update(cx, |this, cx| this.copy_code(code.clone(), cx)).ok();
+            this.update(cx, |this, cx| this.copy_code(code.clone(), code.clone(), cx)).ok();
         })
         .into_any_element()
 }
@@ -1835,7 +1855,7 @@ fn gutter_clock(timestamp: &str) -> String {
     local(timestamp).map(|t| t.format("%-I:%M").to_string()).unwrap_or_default()
 }
 
-fn format_size(bytes: u64) -> String {
+pub(crate) fn format_size(bytes: u64) -> String {
     match bytes {
         b if b >= 1 << 20 => format!("{:.1} MB", b as f64 / (1 << 20) as f64),
         b if b >= 1 << 10 => format!("{:.0} KB", b as f64 / (1 << 10) as f64),

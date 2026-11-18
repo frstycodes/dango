@@ -47,6 +47,7 @@ mod key_hook;
 mod sounds;
 #[cfg(target_os = "windows")]
 mod tray;
+mod text_file;
 mod ui;
 mod splash;
 mod updater;
@@ -603,6 +604,7 @@ pub struct Rustcord {
     pins: Option<Option<Result<Vec<Message>, SharedString>>>,
     // Messages whose spoilers were clicked open.
     revealed: Rc<RefCell<HashSet<String>>>,
+    text_files: Rc<RefCell<text_file::TextFiles>>,
     relationships: Vec<Relationship>,
     friends_tab: home::FriendsTab,
     inbox: Option<Option<Result<Vec<Message>, SharedString>>>,
@@ -798,6 +800,7 @@ impl Rustcord {
             avatar_colors: HashMap::new(),
             pins: None,
             revealed: Rc::default(),
+            text_files: Rc::default(),
             relationships: Vec::new(),
             friends_tab: home::FriendsTab::Online,
             inbox: None,
@@ -2454,13 +2457,14 @@ impl Rustcord {
         cx.notify();
     }
 
-    fn copy_code(&mut self, code: String, cx: &mut Context<Self>) {
-        cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string(code.clone()));
-        self.copied = Some(code.clone());
+    // `key` names what was copied (the code itself, a file's URL), so its button shows Copied for a moment.
+    fn copy_code(&mut self, code: String, key: String, cx: &mut Context<Self>) {
+        cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string(code));
+        self.copied = Some(key.clone());
         cx.spawn(async move |this, cx| {
             cx.background_executor().timer(Duration::from_millis(1500)).await;
             this.update(cx, |this, cx| {
-                if this.copied.as_ref() == Some(&code) {
+                if this.copied.as_ref() == Some(&key) {
                     this.copied = None;
                 }
                 cx.notify();

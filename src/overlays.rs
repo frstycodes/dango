@@ -224,7 +224,9 @@ impl Rustcord {
 
     /// Closes whichever floating surface is open; true if one was.
     pub(crate) fn dismiss_overlay(&mut self, cx: &mut Context<Self>) -> bool {
-        let open = self.profile_card.take().is_some()
+        let text_viewer = self.text_files.borrow_mut().viewer.take().is_some();
+        let open = text_viewer
+            | self.profile_card.take().is_some()
             | std::mem::take(&mut self.status_menu)
             | self.emoji_picker.take().is_some()
             | self.switcher.take().is_some()
@@ -243,6 +245,7 @@ impl Rustcord {
     pub(crate) fn render_overlays(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let mut out = Vec::new();
         out.extend(self.profile_overlay(window, cx));
+        out.extend(self.text_viewer_overlay(window, cx));
         out.extend(self.status_overlay(cx));
         out.extend(self.emoji_overlay(window, cx));
         out.extend(self.switcher_overlay(cx));

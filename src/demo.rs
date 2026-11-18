@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | login | scanned | failed | empty | updating (the launch splash alone).
+// CHORD_DEMO=chat | text-files | text-viewer | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | login | scanned | failed | empty | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -83,6 +83,9 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             })
             .detach(),
         "hover" => chord.hovered_message = Some("105".into()),
+        // A long message.txt (Discord's file for a message past 2,000 characters), a short code file, and
+        // a .log that isn't text, which stays a file card. The fixtures stand in for the CDN fetch.
+        "text-files" | "text-viewer" => demo_text_files(chord, scene == "text-viewer"),
         // Four pictures of mixed shapes on one message: the 2x2 gallery.
         "gallery-grid" => {
             if let Some(feed) = chord.feeds.get_mut("general") {
@@ -453,3 +456,47 @@ fn me_user() -> User {
 fn account(user: &User, status: Presence_) -> crate::accounts::Account {
     crate::accounts::Account { id: user.id.clone(), name: user.name.clone(), avatar: user.avatar.clone(), status }
 }
+
+fn demo_text_files(chord: &mut Rustcord, viewer: bool) {
+    use crate::{discord::File, text_file::TextFile};
+    let notes: String = PATCH_NOTES.repeat(3);
+    let hello = "fn main() {\n    let name = std::env::args().nth(1).unwrap_or(\"world\".into());\n    println!(\"hello, {name}\");\n}\n";
+    let file = |name: &str, size: usize| File { name: name.into(), url: format!("https://cdn.discordapp.com/attachments/demo/{name}"), size: size as u64 };
+    let (long, short, binary) = (file("message.txt", notes.len()), file("hello.rs", hello.len()), file("crash-dump.log", 48_213));
+    {
+        let mut texts = chord.text_files.borrow_mut();
+        texts.files.insert(long.url.clone(), TextFile::Ready { text: notes.into(), truncated: false });
+        texts.files.insert(short.url.clone(), TextFile::Ready { text: hello.into(), truncated: false });
+        texts.files.insert(binary.url.clone(), TextFile::Unreadable);
+        if viewer {
+            texts.viewer = Some(long.clone());
+        }
+    }
+    let Some(feed) = chord.feeds.get_mut("general") else { return };
+    let mut messages = feed.messages.as_ref().clone();
+    let author = user("12582912", "moss lantern");
+    let post = |id: &str, files: Vec<File>| Message { id: id.into(), channel_id: "general".into(), guild_id: Some("1".into()), author: author.clone(), timestamp: "2026-11-14T08:20:00Z".into(), files, ..Default::default() };
+    messages.push(post("106", vec![long]));
+    messages.push(post("107", vec![short, binary]));
+    feed.messages = std::sync::Arc::new(messages);
+}
+
+const PATCH_NOTES: &str = "Patch notes, season 7
+
+Ranked
+- Placement matches drop from 10 to 5; your old rank seeds the first one.
+- Leaving a match early now costs twice the rank it used to, and the second leave in a day locks the queue for 30 minutes.
+- Duo queue opens at every rank. Trios stay closed above Diamond.
+- A very long line with no spaces to check wrapping: https://example.com/a/really/long/path/that/keeps/going/and/going/and/going/without/any/break/at/all/until/the/end
+
+Maps
+- Harbor: the long sightline from B main to the crane is blocked by new containers.
+- Foundry returns to the pool with the smaller mid it had in season 5.
+- Every map gets a second spawn barrier, so the first ten seconds can't be peeked.
+
+Bug fixes
+- The scoreboard no longer swaps teams' colours after half time.
+- Crouch-peeking a ledge no longer shows your head through the wall.
+- Reconnecting mid-round puts you back on your team instead of spectating.
+
+";
