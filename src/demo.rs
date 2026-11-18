@@ -205,7 +205,7 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         }
         // Wren calls: the strip rings in her DM; "call-banner" takes the call while #general is open.
         "call-incoming" | "call-banner" | "call-joinable" => demo_dm_call(chord, scene, window, cx),
-        "dm-empty" | "group-empty" | "group-start" => demo_dm_start(chord, scene, window, cx),
+        "dm-empty" | "group-empty" | "group-start" | "group-mention" => demo_dm_start(chord, scene, window, cx),
         "stream-card" => {
             let key = "guild:1:lounge:12582912".to_owned();
             let blender = Activity { kind: ActivityKind::Playing, text: "Blender".into(), more: 0 };
@@ -382,6 +382,19 @@ fn demo_dm_start(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mu
     chord.restore = None;
     chord.guild_id = None;
     chord.open_channel(open, window, cx);
+    // A bare `@` in a group DM: only its people, you last.
+    if scene == "group-mention" {
+        cx.spawn_in(window, async move |this, cx| {
+            cx.background_executor().timer(std::time::Duration::from_millis(500)).await;
+            this.update_in(cx, |this, window, cx| {
+                this.composer.update(cx, |state, cx| state.set_value("@", window, cx));
+                this.autocomplete = this.suggest("@");
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+    }
 }
 
 // A connected call in hangout with made-up stats; the session itself never reaches a server.
