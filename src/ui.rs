@@ -39,7 +39,7 @@ mod tunnel;
 pub use control::{Control, Pressable, button, chip, hover_fade, icon_button, menu_row, pressable, round_button, swatch, tip};
 pub use dialog::{dialog, dialog_body, modal};
 pub use feedback::{meter, meter_with, progress_indeterminate, progress_live, ring, skeleton, skeleton_circle, slider_live, slider_track};
-pub use field::{code_cell, drop_zone, field, field_error, field_frame, field_hint, select, select_options, stepper, text_area, text_field};
+pub use field::{code_cell, drop_zone, field, field_error, field_frame, field_hint, search_button, search_field, select, select_options, stepper, text_area, text_field};
 pub use group::{settings_caption, settings_card, settings_choice, settings_close, settings_column, settings_group, settings_nav_item, settings_page, settings_row, settings_sidebar, settings_text, settings_title, settings_window};
 pub use tabs::{Tab, pill_tabs, segmented_live, tabs};
 pub use tri::{Tri, tri_state};
@@ -164,12 +164,6 @@ pub fn truncating(key: impl Into<SharedString>, text: impl Into<SharedString>) -
         .child(text.clone())
         .child(measure)
         .when(clipped, |d| gpui_kit::StatefulInteractiveElement::tooltip(d, move |window, cx| gpui_kit::component::tooltip::Tooltip::new(text.clone()).build(window, cx)))
-}
-
-/// A search field's fill: the rail tone at 60% over a light blur, so what scrolls under a header stays
-/// faintly visible through it rather than hitting an opaque block.
-pub fn search_field_fill(cx: &App) -> Hsla {
-    palette::surface(palette::Level::Rail, cx).opacity(0.6)
 }
 
 pub fn live_badge() -> Div {

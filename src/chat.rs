@@ -10,7 +10,7 @@ use gpui_kit::{
     WindowControlArea,
     component::{
         ActiveTheme, Icon, Sizable, Size,
-        input::{Input, Textarea},
+        input::Textarea,
         text::{InlineElement, InlineRenderContext, MarkdownExtensions, MarkdownNode, MarkdownParseContext, MarkdownPlugin, TextView, markdown_ast},
         tooltip::Tooltip,
     },
@@ -174,7 +174,8 @@ impl Rustcord {
     // while it has focus or a query. Its width and fill run both ways on a quick ease-out, but only on a change:
     // present at mount, it simply is what it is.
     fn channel_search(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        const CLOSED: f32 = 34.;
+        // Closed it's the search box's icon alone: 12px padding either side of the 16px glyph.
+        const CLOSED: f32 = 40.;
         const OPEN: f32 = 200.;
         let handle = self.search_input.read(cx).focus_handle(cx);
         let focused = handle.is_focused(window);
@@ -187,31 +188,17 @@ impl Rustcord {
             state.update(cx, |s, _| *s = (open, changes + 1));
         }
         let changes = state.read(cx).1;
-        let field = ui::search_field_fill(cx);
-        let (hover, strong) = (palette::hover(cx), palette::strong(cx));
+        let hover = palette::hover(cx);
         let el = div()
             .id("search-field")
             .w(px(if open { OPEN } else { CLOSED }))
-            .h(px(34.))
             .ml(px(4.))
-            .px(px(9.))
             .flex_none()
             .occlude()
-            .flex()
-            .items_center()
-            .gap_2()
-            .overflow_hidden()
-            .squircle(RADIUS_SM)
-            .when(open, |d| d.bg(field).backdrop_blur(px(12.)))
-            .when(!open, |d| d.cursor_pointer().hover(move |s| s.bg(hover).text_color(strong)))
-            .border_1()
-            .border_color(if focused { palette::accent() } else { gpui_kit::transparent_black() })
-            .text_size(px(14.))
-            .text_color(palette::faint(cx))
-            .child(Icon::new(Glyph::Search).size(px(16.)).flex_none())
-            .child(div().flex_1().min_w_0().child(Input::new(&self.search_input).appearance(false).px_0().text_size(px(14.))))
+            .squircle(RADIUS_MD)
+            .child(ui::search_field("channel-search", &self.search_input, cx).quiet(!open))
             .when(!open, |d| {
-                d.on_click(cx.listener(move |_, _, window, cx| {
+                d.cursor_pointer().hover(move |s| s.bg(hover)).on_click(cx.listener(move |_, _, window, cx| {
                     window.focus(&handle, cx);
                     cx.notify();
                 }))
@@ -220,10 +207,7 @@ impl Rustcord {
             return el.into_any_element();
         }
         let (from, to) = if open { (CLOSED, OPEN) } else { (OPEN, CLOSED) };
-        el.with_animation(SharedString::from(format!("search-{changes}")), Animation::new(Duration::from_millis(150)).with_easing(gpui_kit::ease_out_quint()), move |el, t| {
-            let fill = if open { t } else { 1. - t };
-            el.w(px(from + (to - from) * t)).bg(field.opacity(field.a * fill))
-        })
+        el.with_animation(SharedString::from(format!("search-{changes}")), Animation::new(Duration::from_millis(150)).with_easing(gpui_kit::ease_out_quint()), move |el, t| el.w(px(from + (to - from) * t)))
         .into_any_element()
     }
 

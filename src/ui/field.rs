@@ -4,9 +4,9 @@
 use std::f32::consts::PI;
 
 use gpui_kit::{
-    AnyElement, App, BoxShadow, Div, ElementId, FocusHandle, FontWeight, Hsla, InteractiveElement, IntoElement, ParentElement, RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window,
+    AnyElement, App, BoxShadow, Div, ElementId, Entity, FocusHandle, Focusable, FontWeight, Hsla, InteractiveElement, IntoElement, ParentElement, RenderOnce, SharedString, Stateful, StatefulInteractiveElement, Styled, Window,
     base::{Transition, transition},
-    component::{ActiveTheme, Icon},
+    component::{ActiveTheme, Icon, input::{Input, InputState}},
     div, point, prelude::FluentBuilder, px, radians,
 };
 
@@ -57,7 +57,36 @@ pub fn field_frame(cx: &App) -> Div {
 // The frame around a text input with its focus fade; focus takes the accent edge and ring. `input` is
 // the editor (gpui-component's `Input` with `.appearance(false)`), `focus` its handle.
 pub fn text_field(id: impl Into<ElementId>, input: impl IntoElement, focus: &FocusHandle) -> TextField {
-    TextField { id: id.into(), input: input.into_any_element(), focus: focus.clone(), leading: Vec::new(), trailing: Vec::new(), error: false, disabled: false, multiline: false }
+    TextField { id: id.into(), input: input.into_any_element(), focus: focus.clone(), leading: Vec::new(), trailing: Vec::new(), error: false, disabled: false, multiline: false, quiet: false, search: false }
+}
+
+// The one search box: the regular input's size, edge-free on a translucent fill over a light blur (content
+// scrolling under a header stays faintly visible), the magnifier first, the accent edge and ring on focus.
+pub fn search_field(id: impl Into<ElementId>, state: &Entity<InputState>, cx: &App) -> TextField {
+    let focus = state.read(cx).focus_handle(cx);
+    TextField { search: true, ..text_field(id, Input::new(state).appearance(false).px_0(), &focus) }.leading(Icon::new(Glyph::Search).size(px(16.)))
+}
+
+// The search box's fill: the rail tone at 60%.
+fn search_fill(cx: &App) -> Hsla {
+    palette::surface(palette::Level::Rail, cx).opacity(0.6)
+}
+
+// A button that opens a search somewhere else (the switcher), drawn as the search box with its label in the
+// placeholder ink: no caret, a hover fill and a pointer.
+pub fn search_button(id: impl Into<ElementId>, label: impl Into<SharedString>, cx: &App) -> Stateful<Div> {
+    let (strong, hover) = (palette::strong(cx), search_fill(cx).blend(palette::hover(cx)));
+    field_frame(cx)
+        .id(id.into())
+        .w_full()
+        .bg(search_fill(cx))
+        .backdrop_blur(px(12.))
+        .border_color(gpui_kit::transparent_black())
+        .cursor_pointer()
+        .text_color(palette::faint(cx))
+        .hover(move |s| s.bg(hover).text_color(strong))
+        .child(div().flex_none().child(Icon::new(Glyph::Search).size(px(16.))))
+        .child(div().flex_1().min_w_0().truncate().child(label.into()))
 }
 
 // The same frame for a multi-line input: at least 88px, 10px top and bottom.
@@ -75,6 +104,8 @@ pub struct TextField {
     error: bool,
     disabled: bool,
     multiline: bool,
+    quiet: bool,
+    search: bool,
 }
 
 impl TextField {
@@ -99,13 +130,25 @@ impl TextField {
         self.disabled = disabled;
         self
     }
+
+    // No fill or edge until focused, for a search folded into a header.
+    pub fn quiet(mut self, quiet: bool) -> Self {
+        self.quiet = quiet;
+        self
+    }
 }
 
 impl RenderOnce for TextField {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let focused = self.focus.contains_focused(window, cx) && !self.disabled;
         let t = hover_fade(part(&self.id, "focus"), focused, window, cx);
-        let rest_edge = if self.error { palette::danger_ink(cx) } else { palette::line_strong(cx) };
+        let rest_edge = if self.error {
+            palette::danger_ink(cx)
+        } else if self.search {
+            gpui_kit::transparent_black()
+        } else {
+            palette::line_strong(cx)
+        };
         let edge = if self.disabled { gpui_kit::transparent_black() } else { mix(rest_edge, palette::accent(), t) };
         field_frame(cx)
             .id(self.id)
@@ -113,6 +156,8 @@ impl RenderOnce for TextField {
             .border_color(edge)
             .when(self.disabled, |d| d.bg(palette::selected(cx)).text_color(palette::faint(cx)))
             .shadow(focus_ring(palette::accent_soft(cx), t))
+            .when(self.search, |d| d.bg(search_fill(cx)).backdrop_blur(px(12.)))
+            .when(self.quiet && t <= 0., |d| d.bg(gpui_kit::transparent_black()).border_color(gpui_kit::transparent_black()))
             .when(self.multiline, |d| d.h_auto().min_h(px(88.)).py(px(10.)).items_start())
             .children(self.leading.into_iter().map(|el| div().flex_none().text_color(palette::faint(cx)).child(el)))
             .child(div().flex_1().min_w_0().child(self.input))
