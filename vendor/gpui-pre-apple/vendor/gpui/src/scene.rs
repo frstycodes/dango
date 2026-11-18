@@ -978,6 +978,8 @@ pub struct BackdropBlur {
     pub opacity: f32,
     /// See [`crate::BackdropFilter::fade`].
     pub fade: [ScaledPixels; 4],
+    /// The element's corner shape, as [`CornerShape::exponent`], so the blur fills a squircle exactly.
+    pub corner_exponent: f32,
 }
 
 impl From<BackdropBlur> for Primitive {
@@ -1115,6 +1117,8 @@ impl BackdropBlurPlan {
             saturation: 1.,
             opacity: 1.,
             fade: [0.; 4],
+            corner_exponent: 2.,
+            corner_padding: [0.; 3],
         }
     }
 
@@ -1145,6 +1149,8 @@ impl BackdropBlurPlan {
             saturation: blur.saturation,
             opacity: blur.opacity,
             fade: blur.fade.map(|length| length.0),
+            corner_exponent: blur.corner_exponent,
+            corner_padding: [0.; 3],
         }
     }
 }
@@ -1182,8 +1188,12 @@ pub struct BackdropBlurPass {
     /// The composite's opacity.
     pub opacity: f32,
     /// How far in from each edge (top, right, bottom, left) the composite fades in, in target
-    /// pixels. Last, so it lands on a 16-byte boundary for the shaders' vec4.
+    /// pixels. On a 16-byte boundary for the shaders' vec4.
     pub fade: [f32; 4],
+    /// The composite's corner shape, as [`CornerShape::exponent`]; 2 is circular.
+    pub corner_exponent: f32,
+    /// Pads the pass to a multiple of 16 bytes, which uniform and structured buffers need.
+    pub corner_padding: [f32; 3],
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -1382,6 +1392,7 @@ mod tests {
             saturation: 1.,
             opacity: 1.,
             fade: [ScaledPixels(0.); 4],
+            corner_exponent: 2.,
         }
     }
 
