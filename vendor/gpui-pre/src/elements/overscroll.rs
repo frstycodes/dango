@@ -1,48 +1,54 @@
-//! Rubber-band overscroll for scroll containers, after AppKit/UIKit.
+//! Rubber-band overscroll for scroll containers, after AppKit's `NSScrollView`.
 //!
 //! The container's real scroll offset stays clamped to its content; [`Overscroll`] holds a
 //! separate, purely visual offset that the container adds when it positions its children.
+//!
+//! The curves are AppKit's private `_NSHyperbolicElasticDeltaForReboundDelta` and
+//! `_NSElasticDeltaForTimeDelta`, which WebKit's `ScrollingEffectsController.mm` and
+//! `ScrollAnimationRubberBand.mm` call; their constants were read back from AppKit itself.
 
-use crate::{
-    App, Pixels, Point, ScrollWheelEvent, Size, SpringConfig, SpringState, TouchPhase, point, px,
-};
-use std::{f32::consts::E, time::Instant};
+use crate::{App, Pixels, Point, ScrollWheelEvent, Size, TouchPhase, point, px};
+use std::time::Instant;
 
-const RESISTANCE: f32 = 0.55;
-/// Natural frequency (rad/s) of [`RETURN_SPRING`].
-const STIFFNESS: f32 = 20.;
-/// The critically damped spring that returns a stretch to the edge: a 100 px stretch is
-/// within half a pixel of rest after ~370 ms, and one released from rest never crosses it.
-pub const RETURN_SPRING: SpringConfig =
-    SpringConfig::new(STIFFNESS * STIFFNESS, 2. * STIFFNESS, 1.);
-const REST_DISTANCE: f32 = 0.5;
+/// AppKit's `NSScrollingBehaviorHyperbolicCoefficientTrackpad`.
+const TRACKPAD_COEFFICIENT: f32 = 0.075;
+const REBOUND_STIFFNESS: f32 = 20.;
+const REBOUND_AMPLITUDE: f32 = 0.31;
+const REBOUND_PERIOD: f32 = 1.6;
+/// A gap this long between scroll events means the content had stopped: no carried velocity.
+const VELOCITY_ZEROING_TIMEOUT: f32 = 0.1;
+/// WebKit coalesces wheel events per frame before measuring velocity; gpui delivers them one by
+/// one, and two landing microseconds apart would read as a near-infinite speed.
 const MIN_EVENT_INTERVAL: f32 = 1. / 240.;
-const MAX_EVENT_INTERVAL: f32 = 1. / 30.;
+/// The rebound may head away from the edge before it turns, so it can't end this early.
+const MIN_REBOUND_SECS: f32 = 0.024;
+const REST_DISTANCE: f32 = 0.5;
 
-/// Apple's rubber-band function: the displayed overshoot for a raw overshoot `x` along an axis
-/// whose viewport is `d` long. Odd in `x`, and its magnitude never reaches `d`.
-pub fn rubber_band(x: f32, d: f32) -> f32 {
+/// AppKit's trackpad stretch: how far content past an edge is shown for `force`, the scroll
+/// distance pushed past it, along an axis whose viewport is `d` long. Odd in `force`, and its
+/// magnitude never reaches `d`.
+pub fn rubber_band(force: f32, d: f32) -> f32 {
     if d <= 0. {
         return 0.;
     }
-    (1. - 1. / (x.abs() * RESISTANCE / d + 1.)) * d * x.signum()
+    (1. - 1. / (force.abs() * TRACKPAD_COEFFICIENT / d + 1.)) * d * force.signum()
 }
 
-/// The raw overshoot that [`rubber_band`] maps to `shown`, so a gesture can resume a stretch
-/// that is already on screen.
+/// The force that [`rubber_band`] maps to `shown`, so a gesture can resume a stretch that is
+/// already on screen.
 pub fn rubber_band_inverse(shown: f32, d: f32) -> f32 {
     if d <= 0. {
         return 0.;
     }
     let f = shown.abs().min(d * 0.999);
-    f * d / ((d - f) * RESISTANCE) * shown.signum()
+    f * d / ((d - f) * TRACKPAD_COEFFICIENT) * shown.signum()
 }
 
-/// The return spring's initial velocity for momentum hitting an edge at `velocity` px/s.
-/// [`RETURN_SPRING`] starting at 0 with velocity `v` peaks at `v / (STIFFNESS * e)`; that peak
-/// goes through [`rubber_band`] so a fast fling still overshoots less than the viewport `d`.
-pub fn bounce_velocity(velocity: f32, d: f32) -> f32 {
-    rubber_band(velocity / (STIFFNESS * E), d) * STIFFNESS * E
+/// AppKit's rebound: the stretch `t` seconds after letting go of `initial` while moving at
+/// `velocity` px/s, positive away from the edge. It carries on outward for a moment before
+/// decaying to the edge.
+pub fn rebound_offset(initial: f32, velocity: f32, t: f32) -> f32 {
+    (initial + velocity * t * REBOUND_AMPLITUDE) * (-t * REBOUND_STIFFNESS / REBOUND_PERIOD).exp()
 }
 
 /// Whether this scroll event may stretch past an edge. Wheel notches clamp, and the gesture
@@ -52,62 +58,100 @@ pub(crate) fn rubber_bands(event: &ScrollWheelEvent, cx: &App) -> bool {
     cfg!(target_os = "macos") && event.delta.precise() && !cx.reduce_motion()
 }
 
+#[derive(Clone, Copy, Debug)]
+struct Rebound {
+    initial: f32,
+    velocity: f32,
+    start: Instant,
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 struct Axis {
-    spring: SpringState,
+    shown: f32,
+    rebound: Option<Rebound>,
     momentum_spent: bool,
 }
 
 impl Axis {
-    fn is_moving(&self) -> bool {
-        self.spring != SpringState::default()
-    }
-
     fn grab(&mut self) {
-        self.spring.velocity = 0.;
+        self.rebound = None;
         self.momentum_spent = false;
     }
 
-    fn release(&mut self) {
-        self.momentum_spent |= self.spring.position != 0.;
+    fn release(&mut self, velocity: f32, now: Instant) {
+        if self.shown == 0. {
+            return;
+        }
+        self.momentum_spent = true;
+        self.rebound = Some(Rebound {
+            initial: self.shown,
+            velocity,
+            start: now,
+        });
     }
 
     /// `position` runs from `-max` to 0 and `delta` is added to it. Returns the part of `delta`
-    /// the real offset takes; the rest goes into the stretch.
-    fn scroll(
+    /// the real offset takes. Pushing further out goes through [`rubber_band`]; pulling back
+    /// takes the stretch in one to one, as AppKit does.
+    fn drag(&mut self, position: f32, delta: f32, max: f32, d: f32) -> f32 {
+        if max <= 0. || d <= 0. {
+            return delta;
+        }
+        if self.shown * delta < 0. {
+            let unwound = self.shown + delta;
+            if unwound * self.shown > 0. {
+                self.shown = unwound;
+                return 0.;
+            }
+            self.shown = 0.;
+            return (position + unwound).clamp(-max, 0.) - position;
+        }
+        let next = (position + delta).clamp(-max, 0.);
+        let past_edge = position + delta - next;
+        if past_edge != 0. {
+            self.shown = rubber_band(rubber_band_inverse(self.shown, d) + past_edge, d);
+        }
+        next - position
+    }
+
+    /// Momentum carries the content to the edge; what is left over stretches past it and
+    /// rebounds at the momentum's speed. The rest of that fling is ignored.
+    fn coast(
         &mut self,
         position: f32,
         delta: f32,
         max: f32,
         d: f32,
-        touching: bool,
-        interval: f32,
+        velocity: f32,
+        now: Instant,
     ) -> f32 {
+        if self.momentum_spent || self.rebound.is_some() {
+            return 0.;
+        }
         if max <= 0. || d <= 0. {
             return delta;
         }
-        if touching {
-            let logical = position + rubber_band_inverse(self.spring.position, d) + delta;
-            let next = logical.clamp(-max, 0.);
-            self.spring.position = rubber_band(logical - next, d);
-            return next - position;
-        }
         let next = (position + delta).clamp(-max, 0.);
-        let hit_edge = next != position + delta;
-        if hit_edge && !self.is_moving() && !self.momentum_spent {
-            self.spring.velocity = bounce_velocity(delta / interval, d);
-            self.momentum_spent = true;
+        let past_edge = position + delta - next;
+        if past_edge != 0. {
+            self.shown = rubber_band(past_edge, d);
+            self.release(velocity, now);
         }
         next - position
     }
 
-    fn step(&mut self, dt: f32) {
-        if !self.is_moving() {
+    fn step(&mut self, now: Instant) {
+        let Some(rebound) = self.rebound else {
             return;
-        }
-        self.spring = RETURN_SPRING.step(self.spring, 0., dt);
-        if RETURN_SPRING.is_settled(self.spring, 0., REST_DISTANCE) {
-            self.spring = SpringState::default();
+        };
+        let t = now.saturating_duration_since(rebound.start).as_secs_f32();
+        let shown = rebound_offset(rebound.initial, rebound.velocity, t);
+        let crossed_edge = shown * rebound.initial < 0.;
+        if crossed_edge || (shown.abs() < REST_DISTANCE && t > MIN_REBOUND_SECS) {
+            self.shown = 0.;
+            self.rebound = None;
+        } else {
+            self.shown = shown;
         }
     }
 }
@@ -115,8 +159,7 @@ impl Axis {
 /// One scroll container's stretch past its edges.
 ///
 /// macOS sends the finger's scroll events between `Started` and `Ended`, then momentum as
-/// phaseless `Moved` events, so a `Moved` outside a touch is momentum: it bounces off an edge
-/// once instead of stretching.
+/// phaseless `Moved` events, so a `Moved` outside a touch is momentum.
 #[derive(Debug, Default)]
 pub struct Overscroll {
     x: Axis,
@@ -124,8 +167,8 @@ pub struct Overscroll {
     touching: bool,
     max: Point<Pixels>,
     viewport: Size<Pixels>,
+    velocity: Point<f32>,
     last_event: Option<Instant>,
-    last_tick: Option<Instant>,
 }
 
 impl Overscroll {
@@ -137,12 +180,12 @@ impl Overscroll {
 
     /// The visual offset to add to the real scroll offset.
     pub fn offset(&self) -> Point<Pixels> {
-        point(px(self.x.spring.position), px(self.y.spring.position))
+        point(px(self.x.shown), px(self.y.shown))
     }
 
-    /// Whether the stretch is returning or bouncing, so frames must keep coming.
-    pub fn is_springing(&self) -> bool {
-        !self.touching && (self.x.is_moving() || self.y.is_moving())
+    /// Whether the stretch is rebounding, so frames must keep coming.
+    pub fn is_rebounding(&self) -> bool {
+        self.x.rebound.is_some() || self.y.rebound.is_some()
     }
 
     /// Feeds one scroll event at the real offset `position` (`-max..=0` per axis). Returns the
@@ -154,60 +197,84 @@ impl Overscroll {
         phase: TouchPhase,
         now: Instant,
     ) -> Point<Pixels> {
-        let was_springing = self.is_springing();
-        let interval = self
-            .last_event
-            .map_or(MAX_EVENT_INTERVAL, |last| (now - last).as_secs_f32())
-            .clamp(MIN_EVENT_INTERVAL, MAX_EVENT_INTERVAL);
-        self.last_event = Some(now);
         match phase {
             TouchPhase::Started => {
                 self.touching = true;
+                self.last_event = None;
                 self.x.grab();
                 self.y.grab();
             }
             TouchPhase::Ended | TouchPhase::Cancelled => {
                 self.touching = false;
-                self.x.release();
-                self.y.release();
+                let velocity = self.carried_velocity(now);
+                self.x.release(velocity.x, now);
+                self.y.release(velocity.y, now);
+                return Point::default();
             }
             TouchPhase::Moved => {}
         }
-        let applied = point(
-            px(self.x.scroll(
-                position.x.0,
-                delta.x.0,
-                self.max.x.0,
-                self.viewport.width.0,
-                self.touching,
-                interval,
-            )),
-            px(self.y.scroll(
+        self.track_velocity(delta, now);
+        let (max, d) = (self.max, self.viewport);
+        if self.touching {
+            return point(
+                px(self.x.drag(position.x.0, delta.x.0, max.x.0, d.width.0)),
+                px(self.y.drag(position.y.0, delta.y.0, max.y.0, d.height.0)),
+            );
+        }
+        let velocity = self.dominant_velocity();
+        point(
+            px(self
+                .x
+                .coast(position.x.0, delta.x.0, max.x.0, d.width.0, velocity.x, now)),
+            px(self.y.coast(
                 position.y.0,
                 delta.y.0,
-                self.max.y.0,
-                self.viewport.height.0,
-                self.touching,
-                interval,
+                max.y.0,
+                d.height.0,
+                velocity.y,
+                now,
             )),
-        );
-        if !was_springing && self.is_springing() {
-            self.last_tick = Some(now);
-        }
-        applied
+        )
     }
 
-    /// Advances the return spring to `now`. Returns whether another frame is needed.
-    pub fn tick(&mut self, now: Instant) -> bool {
-        if !self.is_springing() {
-            return false;
+    fn track_velocity(&mut self, delta: Point<Pixels>, now: Instant) {
+        let interval = self
+            .last_event
+            .map(|last| now.saturating_duration_since(last).as_secs_f32());
+        self.velocity = match interval {
+            Some(dt) if dt < VELOCITY_ZEROING_TIMEOUT => {
+                let dt = dt.max(MIN_EVENT_INTERVAL);
+                point(delta.x.0 / dt, delta.y.0 / dt)
+            }
+            _ => Point::default(),
+        };
+        self.last_event = Some(now);
+    }
+
+    fn carried_velocity(&self, now: Instant) -> Point<f32> {
+        let stale = self.last_event.is_none_or(|last| {
+            now.saturating_duration_since(last).as_secs_f32() >= VELOCITY_ZEROING_TIMEOUT
+        });
+        if stale {
+            Point::default()
+        } else {
+            self.dominant_velocity()
         }
-        let dt = self
-            .last_tick
-            .map_or(0., |last| now.saturating_duration_since(last).as_secs_f32());
-        self.last_tick = Some(now);
-        self.x.step(dt);
-        self.y.step(dt);
-        self.is_springing()
+    }
+
+    /// Like AppKit, a rebound keeps only the vertical velocity unless horizontal dominates.
+    fn dominant_velocity(&self) -> Point<f32> {
+        if self.velocity.y.abs() >= self.velocity.x.abs() {
+            point(0., self.velocity.y)
+        } else {
+            self.velocity
+        }
+    }
+
+    /// Advances the rebound to `now`. Returns whether another frame is needed.
+    pub fn tick(&mut self, now: Instant) -> bool {
+        self.x.step(now);
+        self.y.step(now);
+        self.is_rebounding()
     }
 }
