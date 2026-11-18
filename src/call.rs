@@ -982,7 +982,7 @@ impl Rustcord {
     }
 
     // .tile: a person (camera, or their avatar on their own tint) or someone's Go Live (its preview
-    // under LIVE and the viewer count). Speaking draws the accent ring above everything; the label
+    // under LIVE and the viewer count). Speaking draws the green ring above everything; the label
     // carries one mark for what's off.
     fn tile(&self, tile: &Tile, w: f32, cx: &mut Context<Self>) -> AnyElement {
         let call = self.call.as_ref().expect("in a call");
@@ -1790,13 +1790,14 @@ fn tile_name(content: Div) -> Div {
 }
 
 // The tile's edge, drawn above its media so a stream can't hide it: a faint 1px line, or while
-// speaking a 2px accent ring with a dark inner line (neutral when they're muted for you).
+// speaking a 2px green ring with a dark inner line (neutral when they're muted for you).
 fn tile_ring(speaking: bool, local_muted: bool) -> Div {
     let ring = div().absolute().inset_0().squircle(RADIUS_LG);
     if !speaking {
         return ring.border_1().border_color(stage::wash(0.06));
     }
-    let color = if local_muted { stage::wash(0.42) } else { palette::accent() };
+    // The stage is always dark, so the dark theme's green.
+    let color = if local_muted { stage::wash(0.42) } else { palette::status(crate::discord::Status::Online) };
     ring.border(px(2.)).border_color(color).child(div().absolute().inset_0().squircle(RADIUS_LG - 2.).border(px(2.)).border_color(stage::bg().opacity(0.6)))
 }
 
