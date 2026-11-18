@@ -1,25 +1,53 @@
-// Launch-time self-update from GitHub Releases: the splash checks for a newer version, downloads this
-// platform's asset, verifies its SHA-256, swaps it in and relaunches. Any failure carries on into the app.
+// Self-update from GitHub Releases, out of the user's way: shortly after launch and about hourly after,
+// a newer release's asset downloads into the data dir's `updates/` and is kept once its SHA-256 matches.
+// The next launch, or Restart in the user panel, swaps it in without touching the network.
+//
+// `updates/` holds `<version>.zip` (verified) and `<version>.zip.part` (still downloading); the name is
+// the record of which version it is, and a `.part` only becomes a `.zip` after its checksum matched.
 use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
 
-use futures::channel::mpsc::UnboundedSender;
+use futures::channel::mpsc::UnboundedReceiver;
+use rand::Rng;
+use reqwest::{StatusCode, header::RANGE};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
+use tokio::io::AsyncWriteExt;
 
 const LATEST: &str = "https://api.github.com/repos/frstycodes/dango/releases/latest";
-const CHECK_TIMEOUT: Duration = Duration::from_secs(4);
-// A download that sends nothing for this long is given up; a slow but moving one is not.
-const STALL_TIMEOUT: Duration = Duration::from_secs(15);
+const CURRENT: &str = env!("CARGO_PKG_VERSION");
+const CHECK_TIMEOUT: Duration = Duration::from_secs(10);
+// A download that sends nothing for this long is given up (and resumed on the next check); a slow but
+// moving one is not.
+const STALL_TIMEOUT: Duration = Duration::from_secs(30);
+const FIRST_CHECK: Duration = Duration::from_secs(30);
+const INTERVAL: Duration = Duration::from_secs(60 * 60);
+// Points the updater at another release JSON (same shape as GitHub's), e.g. a local server for testing.
+// It also stages under the temp dir, so a test never leaves a build for a real install to pick up.
+const FEED_VAR: &str = "DANGO_UPDATE_FEED";
 
 pub fn enabled() -> bool {
-    !cfg!(debug_assertions) && std::env::var_os("CHORD_DEMO").is_none()
+    std::env::var_os(FEED_VAR).is_some() || (!cfg!(debug_assertions) && std::env::var_os("CHORD_DEMO").is_none())
 }
 
-pub struct Update {
+#[derive(Clone, Debug, PartialEq)]
+pub struct Staged {
     pub version: String,
+    path: PathBuf,
+}
+
+#[cfg(debug_assertions)]
+impl Staged {
+    // For `CHORD_DEMO=update-ready`: shows the row; Restart fails to install and says so.
+    pub fn demo(version: &str) -> Self {
+        Self { version: version.into(), path: PathBuf::new() }
+    }
+}
+
+struct Update {
+    version: String,
     url: String,
     checksum_url: String,
 }
@@ -36,37 +64,162 @@ struct Asset {
     browser_download_url: String,
 }
 
+fn feed() -> String {
+    std::env::var(FEED_VAR).unwrap_or_else(|_| LATEST.into())
+}
+
+fn dir() -> Option<PathBuf> {
+    if std::env::var_os(FEED_VAR).is_some() {
+        return Some(std::env::temp_dir().join("dango-updates-test"));
+    }
+    Some(crate::data_dir()?.join("updates"))
+}
+
 fn http() -> reqwest::Client {
     // GitHub's API rejects requests without a User-Agent.
     reqwest::Client::builder().user_agent(concat!("Dango/", env!("CARGO_PKG_VERSION"))).connect_timeout(CHECK_TIMEOUT).read_timeout(STALL_TIMEOUT).build().unwrap_or_default()
 }
 
-pub async fn check() -> Option<Update> {
-    let request = http().get(LATEST).header("Accept", "application/vnd.github+json").timeout(CHECK_TIMEOUT);
+// A verified update for a newer version, if one is staged. Clears everything else out of the staging dir.
+pub fn pending() -> Option<Staged> {
+    tidy(&dir()?, CURRENT)
+}
+
+// Checks soon after launch, then about hourly, staging any newer release; each staged version is sent
+// on. One loop, so a check never starts while a download is in flight.
+pub fn watch() -> UnboundedReceiver<Staged> {
+    let (tx, rx) = futures::channel::mpsc::unbounded();
+    crate::discord::runtime().spawn(async move {
+        let Some(dir) = dir() else { return };
+        let client = http();
+        let mut wait = FIRST_CHECK;
+        loop {
+            tokio::time::sleep(jittered(wait)).await;
+            wait = INTERVAL;
+            let Some(update) = check(&client).await else { continue };
+            let staged = match stage(&dir, &update, &client, CURRENT).await {
+                Ok(staged) => staged,
+                Err(e) => {
+                    eprintln!("[updater] staging {} failed: {e}", update.version);
+                    continue;
+                }
+            };
+            if tx.unbounded_send(staged).is_err() {
+                return;
+            }
+        }
+    });
+    rx
+}
+
+// ±1/6 of the wait, so clients that launched together don't all ask GitHub at once.
+fn jittered(wait: Duration) -> Duration {
+    let spread = wait / 6;
+    rand::thread_rng().gen_range(wait - spread..=wait + spread)
+}
+
+async fn check(client: &reqwest::Client) -> Option<Update> {
+    let request = client.get(feed()).header("Accept", "application/vnd.github+json").timeout(CHECK_TIMEOUT);
     let release: Release = request.send().await.ok()?.error_for_status().ok()?.json().await.ok()?;
-    if !newer(&release.tag_name, env!("CARGO_PKG_VERSION")) {
+    if !newer(&release.tag_name, CURRENT) {
         return None;
     }
     pick(&release, std::env::consts::OS, std::env::consts::ARCH)
 }
 
-// Downloads, verifies and installs `update`, reporting progress (0..=1) as it goes. Returns the
-// executable to relaunch.
-pub async fn install(update: Update, progress: UnboundedSender<f32>) -> Result<PathBuf, String> {
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let client = http();
-    let checksum = client.get(&update.checksum_url).send().await.and_then(|r| r.error_for_status()).map_err(|e| e.to_string())?.text().await.map_err(|e| e.to_string())?;
-    let mut response = client.get(&update.url).send().await.and_then(|r| r.error_for_status()).map_err(|e| e.to_string())?;
-    let total = response.content_length().unwrap_or(0);
-    let mut bytes = Vec::with_capacity(total as usize);
-    while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
-        bytes.extend_from_slice(&chunk);
-        if total > 0 {
-            progress.unbounded_send(bytes.len() as f32 / total as f32).ok();
-        }
+// Downloads `update` into `dir`, carrying on from a `.part` an earlier attempt left, and keeps it only
+// once its checksum matches. A mismatch drops the `.part`, so the next check starts over.
+async fn stage(dir: &Path, update: &Update, client: &reqwest::Client, current: &str) -> Result<Staged, String> {
+    tokio::fs::create_dir_all(dir).await.map_err(|e| e.to_string())?;
+    if let Some(staged) = tidy(dir, current).filter(|s| s.version == update.version) {
+        return Ok(staged);
     }
-    verify(&bytes, &checksum)?;
-    tokio::task::spawn_blocking(move || platform::put_in_place(&exe, &bytes).map(|()| exe)).await.map_err(|e| e.to_string())?
+    let path = dir.join(staged_name(&update.version));
+    let part = dir.join(format!("{}.part", staged_name(&update.version)));
+    let checksum = client.get(&update.checksum_url).send().await.and_then(|r| r.error_for_status()).map_err(|e| e.to_string())?.text().await.map_err(|e| e.to_string())?;
+    let have = tokio::fs::metadata(&part).await.map_or(0, |m| m.len());
+    let mut request = client.get(&update.url);
+    if have > 0 {
+        request = request.header(RANGE, format!("bytes={have}-"));
+    }
+    let mut response = request.send().await.map_err(|e| e.to_string())?;
+    // 416: the `.part` is already whole (an earlier run stopped before renaming it), so only verify it.
+    let whole = have > 0 && response.status() == StatusCode::RANGE_NOT_SATISFIABLE;
+    if !whole {
+        response = response.error_for_status().map_err(|e| e.to_string())?;
+        // A server that ignores the range sends everything again (200), so start the file over.
+        let resume = response.status() == StatusCode::PARTIAL_CONTENT;
+        let mut file = tokio::fs::OpenOptions::new().create(true).write(true).append(resume).truncate(!resume).open(&part).await.map_err(|e| e.to_string())?;
+        while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+            file.write_all(&chunk).await.map_err(|e| e.to_string())?;
+        }
+        file.flush().await.map_err(|e| e.to_string())?;
+    }
+    let hashed = part.clone();
+    let digest = tokio::task::spawn_blocking(move || sha256_file(&hashed)).await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?;
+    if let Err(e) = verify(&digest, &checksum) {
+        tokio::fs::remove_file(&part).await.ok();
+        return Err(e);
+    }
+    tokio::fs::rename(&part, &path).await.map_err(|e| e.to_string())?;
+    tidy(dir, current).ok_or_else(|| "staged update vanished".into())
+}
+
+fn staged_name(version: &str) -> String {
+    format!("{version}.zip")
+}
+
+fn tidy(dir: &Path, current: &str) -> Option<Staged> {
+    let names: Vec<String> = std::fs::read_dir(dir).ok()?.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+    let (best, delete) = survey(&names, current);
+    for name in delete {
+        let path = dir.join(name);
+        std::fs::remove_dir_all(&path).or_else(|_| std::fs::remove_file(&path)).ok();
+    }
+    best.map(|version| Staged { path: dir.join(staged_name(&version)), version })
+}
+
+// The newest verified download newer than `current`, and what to delete: every other verified one,
+// every `.part` that isn't newer than what's staged (or running), and anything that isn't ours.
+fn survey(names: &[String], current: &str) -> (Option<String>, Vec<String>) {
+    let Some(current) = version(current) else { return (None, names.to_vec()) };
+    let parsed: Vec<_> = names.iter().map(|name| (name, parse_name(name))).collect();
+    let best = parsed.iter().filter_map(|(_, p)| *p).filter(|&(v, partial)| !partial && v > current).map(|(v, _)| v).max();
+    let floor = best.unwrap_or(current);
+    let delete = parsed
+        .iter()
+        .filter(|(_, p)| match *p {
+            Some((v, false)) => Some(v) != best,
+            Some((v, true)) => v <= floor,
+            None => true,
+        })
+        .map(|(name, _)| (*name).clone())
+        .collect();
+    (best.map(|(a, b, c)| format!("{a}.{b}.{c}")), delete)
+}
+
+// `0.4.0.zip` → (0.4.0, verified); `0.4.0.zip.part` → (0.4.0, partial).
+fn parse_name(name: &str) -> Option<((u64, u64, u64), bool)> {
+    let (stem, partial) = name.strip_suffix(".part").map_or((name, false), |s| (s, true));
+    let core = stem.strip_suffix(".zip")?;
+    // Only plain `x.y.z`, as `staged_name` writes it.
+    core.split('.').all(|p| p.chars().all(|c| c.is_ascii_digit())).then_some(())?;
+    Some((version(core)?, partial))
+}
+
+fn sha256_file(path: &Path) -> std::io::Result<Vec<u8>> {
+    let mut hasher = Sha256::new();
+    std::io::copy(&mut std::fs::File::open(path)?, &mut hasher)?;
+    Ok(hasher.finalize().to_vec())
+}
+
+// Swaps the staged build in place of the running one and returns the executable to relaunch. The staged
+// file goes either way: one that failed to install would only fail again, and the next check refetches.
+pub fn install(staged: &Staged) -> Result<PathBuf, String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let result = platform::put_in_place(&exe, &staged.path);
+    std::fs::remove_file(&staged.path).ok();
+    result.map(|()| exe)
 }
 
 // Starts the new build with this run's arguments and ends this one.
@@ -97,26 +250,23 @@ fn version(tag: &str) -> Option<(u64, u64, u64)> {
     parts.next().is_none().then_some(version)
 }
 
-// Must match the names the release workflow uploads.
+// Must match the names the release workflow uploads. v0.4.0 and older fetch `dango-windows-x86_64.exe`,
+// which the workflow still publishes for them.
 fn asset_name(os: &str, arch: &str) -> Option<String> {
-    let ext = match os {
-        "macos" => "zip",
-        "windows" => "exe",
-        _ => return None,
-    };
-    Some(format!("dango-{os}-{arch}.{ext}"))
+    matches!(os, "macos" | "windows").then(|| format!("dango-{os}-{arch}.zip"))
 }
 
 fn pick(release: &Release, os: &str, arch: &str) -> Option<Update> {
     let name = asset_name(os, arch)?;
     let url = |name: &str| release.assets.iter().find(|a| a.name == name).map(|a| a.browser_download_url.clone());
-    Some(Update { version: release.tag_name.trim_start_matches('v').to_string(), url: url(&name)?, checksum_url: url(&format!("{name}.sha256"))? })
+    let (a, b, c) = version(&release.tag_name)?;
+    Some(Update { version: format!("{a}.{b}.{c}"), url: url(&name)?, checksum_url: url(&format!("{name}.sha256"))? })
 }
 
 // `checksum` is a `shasum -a 256` line: the hex digest, then the file name.
-fn verify(bytes: &[u8], checksum: &str) -> Result<(), String> {
+fn verify(digest: &[u8], checksum: &str) -> Result<(), String> {
     let expected = checksum.split_whitespace().next().unwrap_or_default().to_ascii_lowercase();
-    let actual: String = Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect();
+    let actual: String = digest.iter().map(|b| format!("{b:02x}")).collect();
     if actual != expected {
         return Err(format!("checksum mismatch: expected {expected}, got {actual}"));
     }
@@ -142,20 +292,38 @@ fn swap(target: &Path, staged: &Path) -> Result<(), String> {
     Ok(())
 }
 
+// Unpacks `zip` into a fresh `.dango-update` beside `target`, hands its contents to `place`, then
+// removes the folder whatever happened.
+fn unpacked(target: &Path, zip: &Path, unpack: impl FnOnce(&Path, &Path) -> Result<(), String>, place: impl FnOnce(&Path) -> Result<(), String>) -> Result<(), String> {
+    let staging = target.with_file_name(".dango-update");
+    std::fs::remove_dir_all(&staging).ok();
+    std::fs::create_dir_all(&staging).map_err(|e| e.to_string())?;
+    let result = unpack(zip, &staging).and_then(|()| place(&staging));
+    std::fs::remove_dir_all(&staging).ok();
+    result
+}
+
+fn run(command: &mut std::process::Command) -> Result<(), String> {
+    let status = command.status().map_err(|e| e.to_string())?;
+    status.success().then_some(()).ok_or_else(|| format!("{command:?} exited with {status}"))
+}
+
 #[cfg(target_os = "windows")]
 mod platform {
-    use std::path::{Path, PathBuf};
+    use std::{
+        path::{Path, PathBuf},
+        process::Command,
+    };
 
     pub fn target(exe: &Path) -> PathBuf {
         exe.to_path_buf()
     }
 
-    pub fn put_in_place(exe: &Path, bytes: &[u8]) -> Result<(), String> {
-        let staged = exe.with_extension("exe.new");
-        std::fs::write(&staged, bytes).map_err(|e| e.to_string())?;
-        super::swap(exe, &staged).inspect_err(|_| {
-            std::fs::remove_file(&staged).ok();
-        })
+    // The asset is a zip holding `Dango.exe`. Windows' own bsdtar (10 1803+) reads zips; it's called by
+    // full path because a GNU tar earlier on PATH (Git for Windows) can't.
+    pub fn put_in_place(exe: &Path, zip: &Path) -> Result<(), String> {
+        let tar = PathBuf::from(std::env::var_os("SystemRoot").unwrap_or_else(|| "C:\\Windows".into())).join("System32\\tar.exe");
+        super::unpacked(exe, zip, |zip, staging| super::run(Command::new(&tar).arg("-xf").arg(zip).arg("-C").arg(staging)), |staging| super::swap(exe, &staging.join("Dango.exe")))
     }
 }
 
@@ -177,33 +345,18 @@ mod platform {
     }
 
     // The asset is a zipped `Dango.app`; `ditto` unpacks it keeping permissions and symlinks.
-    pub fn put_in_place(exe: &Path, bytes: &[u8]) -> Result<(), String> {
+    pub fn put_in_place(exe: &Path, zip: &Path) -> Result<(), String> {
         let target = target(exe);
-        let staging = target.with_file_name(".dango-update");
-        std::fs::remove_dir_all(&staging).ok();
-        std::fs::create_dir_all(&staging).map_err(|e| e.to_string())?;
-        let result = unpack_and_swap(exe, &target, &staging, bytes);
-        std::fs::remove_dir_all(&staging).ok();
-        result?;
+        super::unpacked(&target, zip, |zip, staging| super::run(Command::new("ditto").arg("-x").arg("-k").arg(zip).arg(staging)), |staging| {
+            let app = staging.join("Dango.app");
+            let staged = if bundle(exe).is_some() { app } else { app.join("Contents/MacOS").join(exe.file_name().unwrap_or_default()) };
+            // We downloaded it ourselves, so it shouldn't carry quarantine; clear it anyway so Gatekeeper
+            // never blocks the relaunch. Failure here is harmless.
+            Command::new("xattr").arg("-dr").arg("com.apple.quarantine").arg(&staged).status().ok();
+            super::swap(&target, &staged)
+        })?;
         std::fs::remove_dir_all(super::aside(&target)).or_else(|_| std::fs::remove_file(super::aside(&target))).ok();
         Ok(())
-    }
-
-    fn unpack_and_swap(exe: &Path, target: &Path, staging: &Path, bytes: &[u8]) -> Result<(), String> {
-        let zip = staging.join("update.zip");
-        std::fs::write(&zip, bytes).map_err(|e| e.to_string())?;
-        run(Command::new("ditto").arg("-x").arg("-k").arg(&zip).arg(staging))?;
-        let app = staging.join("Dango.app");
-        let staged = if bundle(exe).is_some() { app } else { app.join("Contents/MacOS").join(exe.file_name().unwrap_or_default()) };
-        // We downloaded it ourselves, so it shouldn't carry quarantine; clear it anyway so Gatekeeper
-        // never blocks the relaunch. Failure here is harmless.
-        Command::new("xattr").arg("-dr").arg("com.apple.quarantine").arg(&staged).status().ok();
-        super::swap(target, &staged)
-    }
-
-    fn run(command: &mut Command) -> Result<(), String> {
-        let status = command.status().map_err(|e| e.to_string())?;
-        status.success().then_some(()).ok_or_else(|| format!("{command:?} exited with {status}"))
     }
 }
 
@@ -215,7 +368,7 @@ mod platform {
         exe.to_path_buf()
     }
 
-    pub fn put_in_place(_: &Path, _: &[u8]) -> Result<(), String> {
+    pub fn put_in_place(_: &Path, _: &Path) -> Result<(), String> {
         Err("self-update is macOS and Windows only".into())
     }
 }
@@ -226,6 +379,17 @@ mod tests {
 
     fn release(tag: &str, names: &[&str]) -> Release {
         Release { tag_name: tag.into(), assets: names.iter().map(|n| Asset { name: (*n).into(), browser_download_url: format!("https://dl/{n}") }).collect() }
+    }
+
+    fn names(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("dango-{name}-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
     }
 
     #[test]
@@ -242,29 +406,66 @@ mod tests {
     }
 
     #[test]
-    fn picks_this_platforms_asset_and_its_checksum() {
-        let r = release("v0.2.0", &["dango-macos-aarch64.zip", "dango-macos-aarch64.zip.sha256", "dango-windows-x86_64.exe", "dango-windows-x86_64.exe.sha256"]);
+    fn picks_this_platforms_zip_and_its_checksum() {
+        let r = release("v0.4.0", &["dango-macos-aarch64.zip", "dango-macos-aarch64.zip.sha256", "dango-windows-x86_64.exe", "dango-windows-x86_64.exe.sha256", "dango-windows-x86_64.zip", "dango-windows-x86_64.zip.sha256"]);
         let mac = pick(&r, "macos", "aarch64").unwrap();
-        assert_eq!((mac.version.as_str(), mac.url.as_str(), mac.checksum_url.as_str()), ("0.2.0", "https://dl/dango-macos-aarch64.zip", "https://dl/dango-macos-aarch64.zip.sha256"));
-        assert_eq!(pick(&r, "windows", "x86_64").unwrap().url, "https://dl/dango-windows-x86_64.exe");
+        assert_eq!((mac.version.as_str(), mac.url.as_str(), mac.checksum_url.as_str()), ("0.4.0", "https://dl/dango-macos-aarch64.zip", "https://dl/dango-macos-aarch64.zip.sha256"));
+        assert_eq!(pick(&r, "windows", "x86_64").unwrap().url, "https://dl/dango-windows-x86_64.zip", "the compressed build, not the bare .exe");
         assert!(pick(&r, "macos", "x86_64").is_none());
         assert!(pick(&r, "linux", "x86_64").is_none());
-        assert!(pick(&release("v0.2.0", &["dango-windows-x86_64.exe"]), "windows", "x86_64").is_none(), "no checksum, no update");
+        assert!(pick(&release("v0.4.0", &["dango-windows-x86_64.zip"]), "windows", "x86_64").is_none(), "no checksum, no update");
     }
 
     #[test]
     fn rejects_a_checksum_mismatch() {
         let sum = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
-        assert!(verify(b"hello", &format!("{sum}  dango-windows-x86_64.exe\n")).is_ok());
-        assert!(verify(b"hello", &sum.to_uppercase()).is_ok());
-        assert!(verify(b"hellO", sum).is_err());
-        assert!(verify(b"hello", "").is_err());
+        let digest = Sha256::digest(b"hello");
+        assert!(verify(&digest, &format!("{sum}  dango-windows-x86_64.zip\n")).is_ok());
+        assert!(verify(&digest, &sum.to_uppercase()).is_ok());
+        assert!(verify(&Sha256::digest(b"hellO"), sum).is_err());
+        assert!(verify(&digest, "").is_err());
+    }
+
+    #[test]
+    fn stages_only_the_newest_verified_newer_version() {
+        let (best, delete) = survey(&names(&["0.4.0.zip", "0.5.0.zip", "0.3.0.zip", "0.2.0.zip"]), "0.3.0");
+        assert_eq!(best.as_deref(), Some("0.5.0"));
+        assert_eq!(delete, names(&["0.4.0.zip", "0.3.0.zip", "0.2.0.zip"]), "older and current builds go");
+        assert_eq!(survey(&names(&["0.3.0.zip"]), "0.3.0"), (None, names(&["0.3.0.zip"])), "the running version is never reinstalled");
+        assert_eq!(survey(&[], "0.3.0"), (None, vec![]));
+    }
+
+    #[test]
+    fn keeps_an_interrupted_download_newer_than_what_is_staged() {
+        let (best, delete) = survey(&names(&["0.4.0.zip", "0.4.0.zip.part", "0.5.0.zip.part", "0.2.0.zip.part"]), "0.3.0");
+        assert_eq!(best.as_deref(), Some("0.4.0"), "a .part is never staged");
+        assert_eq!(delete, names(&["0.4.0.zip.part", "0.2.0.zip.part"]), "0.5.0's download resumes next check");
+        assert_eq!(survey(&names(&["0.5.0.zip.part"]), "0.3.0"), (None, vec![]));
+    }
+
+    #[test]
+    fn clears_out_anything_that_isnt_a_staged_update() {
+        let (_, delete) = survey(&names(&["notes.txt", "v0.5.0.zip", "0.5.0-beta.zip", "0.5.zip", "0.5.0.exe", ".DS_Store"]), "0.3.0");
+        assert_eq!(delete.len(), 6);
+    }
+
+    #[test]
+    fn tidy_finds_the_staged_update_and_deletes_the_rest() {
+        let dir = temp_dir("tidy");
+        for name in ["0.2.0.zip", "0.4.0.zip", "0.5.0.zip.part", "junk"] {
+            std::fs::write(dir.join(name), name).unwrap();
+        }
+        let staged = tidy(&dir, "0.3.0").unwrap();
+        assert_eq!((staged.version.as_str(), staged.path.clone()), ("0.4.0", dir.join("0.4.0.zip")));
+        let mut left: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
+        left.sort();
+        assert_eq!(left, ["0.4.0.zip", "0.5.0.zip.part"]);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
     fn swap_replaces_the_target_and_sets_the_old_one_aside() {
-        let dir = std::env::temp_dir().join(format!("dango-swap-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = temp_dir("swap");
         let (target, staged) = (dir.join("dango"), dir.join("dango.new"));
         std::fs::write(&target, "old").unwrap();
         std::fs::write(&staged, "new").unwrap();
@@ -273,6 +474,71 @@ mod tests {
         assert_eq!(std::fs::read_to_string(aside(&target)).unwrap(), "old");
         assert!(swap(&target, &dir.join("missing")).is_err());
         assert_eq!(std::fs::read_to_string(&target).unwrap(), "new", "a failed swap puts the running build back");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    // A tiny HTTP server for `stage`: serves `body` (honouring `Range`) and its checksum, and cuts the
+    // first download off after `cut` bytes, as a dropped connection would.
+    async fn serve(body: Vec<u8>, checksum: String, cut: usize) -> String {
+        use tokio::io::AsyncReadExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let mut first = true;
+            loop {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = vec![0; 4096];
+                let n = socket.read(&mut request).await.unwrap();
+                let request = String::from_utf8_lossy(&request[..n]).to_lowercase();
+                let reply = if request.starts_with("get /sum") {
+                    format!("HTTP/1.1 200 OK\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{checksum}", checksum.len()).into_bytes()
+                } else if let Some(from) = request.split("range: bytes=").nth(1).and_then(|r| r.split('-').next()).and_then(|f| f.parse::<usize>().ok()) {
+                    let rest = &body[from.min(body.len())..];
+                    [format!("HTTP/1.1 206 Partial Content\r\ncontent-length: {}\r\nconnection: close\r\n\r\n", rest.len()).into_bytes(), rest.to_vec()].concat()
+                } else if std::mem::take(&mut first) {
+                    // Promises the whole body, sends part of it, hangs up.
+                    [format!("HTTP/1.1 200 OK\r\ncontent-length: {}\r\nconnection: close\r\n\r\n", body.len()).into_bytes(), body[..cut].to_vec()].concat()
+                } else {
+                    [format!("HTTP/1.1 200 OK\r\ncontent-length: {}\r\nconnection: close\r\n\r\n", body.len()).into_bytes(), body.clone()].concat()
+                };
+                socket.write_all(&reply).await.ok();
+                socket.shutdown().await.ok();
+            }
+        });
+        format!("http://{addr}")
+    }
+
+    #[tokio::test]
+    async fn an_interrupted_download_resumes_and_stages_once_verified() {
+        let dir = temp_dir("stage");
+        let body: Vec<u8> = (0..200_000u32).map(|i| (i % 251) as u8).collect();
+        let sum: String = Sha256::digest(&body).iter().map(|b| format!("{b:02x}")).collect();
+        let base = serve(body.clone(), format!("{sum}  dango-macos-aarch64.zip\n"), 70_000).await;
+        let update = Update { version: "0.4.0".into(), url: format!("{base}/zip"), checksum_url: format!("{base}/sum") };
+        let client = reqwest::Client::new();
+
+        assert!(stage(&dir, &update, &client, "0.3.0").await.is_err(), "the cut-off download fails");
+        // Not quite all 70,000: hyper drops what it buffered when the connection ends early.
+        let kept = std::fs::metadata(dir.join("0.4.0.zip.part")).unwrap().len();
+        assert!((1..=70_000).contains(&kept), "what arrived is kept: {kept}");
+        assert!(tidy(&dir, "0.3.0").is_none(), "a .part is not an update");
+
+        let staged = stage(&dir, &update, &client, "0.3.0").await.unwrap();
+        assert_eq!(staged.version, "0.4.0");
+        assert_eq!(std::fs::read(&staged.path).unwrap(), body, "resumed where the .part ended");
+        assert!(!dir.join("0.4.0.zip.part").exists());
+        assert_eq!(stage(&dir, &update, &client, "0.3.0").await.unwrap(), staged, "already staged: nothing to fetch");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_corrupt_download_is_dropped_so_the_next_check_starts_over() {
+        let dir = temp_dir("corrupt");
+        let base = serve(b"not the build".to_vec(), format!("{}  x\n", "0".repeat(64)), 13).await;
+        let update = Update { version: "0.4.0".into(), url: format!("{base}/zip"), checksum_url: format!("{base}/sum") };
+        let error = stage(&dir, &update, &reqwest::Client::new(), "0.3.0").await.unwrap_err();
+        assert!(error.contains("checksum mismatch"), "{error}");
+        assert!(std::fs::read_dir(&dir).unwrap().next().is_none(), "nothing left behind");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

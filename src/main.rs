@@ -135,8 +135,8 @@ fn main() {
         }
         updater::clean_up();
         let signed_in = accounts::startup_token(&settings::Prefs::load()).is_some();
-        if updater::enabled() {
-            update_then_open(signed_in, cx);
+        if let Some(staged) = updater::enabled().then(updater::pending).flatten() {
+            install_then_open(staged, signed_in, cx);
             return;
         }
         // Signed in: a small splash window shows while the main window loads hidden behind it.
@@ -146,13 +146,14 @@ fn main() {
     });
 }
 
-// Release builds look for an update behind the splash before anything signs in; a newer build is
-// installed and relaunched, anything else (no update, offline, a failed download) opens Dango as usual.
-fn update_then_open(signed_in: bool, cx: &mut gpui_kit::App) {
-    let splash = splash::open("Checking for updates…", cx);
+// An update downloaded in the background last run goes in before anything signs in, then this run
+// relaunches as the new build. A failed install opens Dango as usual.
+fn install_then_open(staged: updater::Staged, signed_in: bool, cx: &mut gpui_kit::App) {
+    let splash = splash::open(format!("Installing {}…", staged.version), cx);
     cx.spawn(async move |cx| {
-        if let Some(exe) = update(splash, cx).await {
-            updater::relaunch(&exe);
+        match cx.background_spawn(async move { updater::install(&staged) }).await {
+            Ok(exe) => updater::relaunch(&exe),
+            Err(e) => eprintln!("[updater] install failed: {e}"),
         }
         cx.update(|cx| {
             if signed_in {
@@ -168,27 +169,6 @@ fn update_then_open(signed_in: bool, cx: &mut gpui_kit::App) {
         });
     })
     .detach();
-}
-
-async fn update(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gpui_kit::AsyncApp) -> Option<std::path::PathBuf> {
-    let update = discord::runtime().spawn(updater::check()).await.ok()??;
-    let version = update.version.clone();
-    let (progress_tx, mut progress) = futures::channel::mpsc::unbounded();
-    progress_tx.unbounded_send(0.).ok();
-    let install = discord::runtime().spawn(updater::install(update, progress_tx));
-    while let Some(fraction) = progress.next().await {
-        if let Some(splash) = splash {
-            splash.update(cx, |splash, _, cx| splash.set_progress(&version, fraction, cx)).ok();
-        }
-    }
-    match install.await {
-        Ok(Ok(exe)) => Some(exe),
-        Ok(Err(e)) => {
-            eprintln!("[updater] update to {version} failed: {e}");
-            None
-        }
-        Err(_) => None,
-    }
 }
 
 fn open_main(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gpui_kit::App) {
@@ -593,6 +573,8 @@ pub struct Rustcord {
     dialog_input: Entity<SearchState>,
     // A short notice at the bottom, e.g. why a moderation action failed.
     toast: Option<SharedString>,
+    // An update the background updater downloaded and verified; installs on Restart or the next launch.
+    update_ready: Option<updater::Staged>,
     // The Go Live picker: None closed, Some(None) loading, Some(Some(..)) listed.
     share_picker: Option<go_live::SharePicker>,
     // The source picked in the Go Live window, waiting for "Go Live".
@@ -710,6 +692,7 @@ impl Rustcord {
         .detach();
         #[allow(unused_mut)]
         let mut chord = Self::build(window, splash, cx);
+        chord.watch_for_updates(cx);
         #[cfg(debug_assertions)]
         if let Ok(scene) = std::env::var("CHORD_DEMO") {
             demo::load(&mut chord, &scene, window, cx);
@@ -866,6 +849,7 @@ impl Rustcord {
             viewer: None,
             profile_card: None,
             status_menu: false,
+            update_ready: None,
             hovered_row: None,
             hovered_message: None,
             call_focus: None,

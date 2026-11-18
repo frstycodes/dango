@@ -29,15 +29,10 @@ impl Splash {
         self.progress = (step + 1) as f32 / STAGES as f32;
         cx.notify();
     }
-
-    pub fn set_progress(&mut self, version: &str, progress: f32, cx: &mut Context<Self>) {
-        self.stage = format!("Updating to {version}…").into();
-        self.progress = progress.clamp(0., 1.);
-        cx.notify();
-    }
 }
 
-pub fn open(stage: &'static str, cx: &mut App) -> Option<WindowHandle<Splash>> {
+pub fn open(stage: impl Into<SharedString>, cx: &mut App) -> Option<WindowHandle<Splash>> {
+    let stage = stage.into();
     let options = WindowOptions {
         window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(220.), px(248.)), cx))),
         titlebar: None,
@@ -51,7 +46,7 @@ pub fn open(stage: &'static str, cx: &mut App) -> Option<WindowHandle<Splash>> {
     };
     cx.open_window(options, |window, cx| {
         palette::sync(window, cx);
-        cx.new(|_| Splash { stage: stage.into(), progress: 1. / STAGES as f32 })
+        cx.new(|_| Splash { stage, progress: 1. / STAGES as f32 })
     })
     .ok()
 }
