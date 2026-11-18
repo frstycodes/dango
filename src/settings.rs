@@ -739,7 +739,7 @@ impl Rustcord {
             Page::VoiceVideo => self.voice_page(window, cx),
             Page::Keybinds => self.keybinds_page(cx),
             Page::Appearance => self.appearance_page(window, cx),
-            Page::Updates => self.updates_page(cx),
+            Page::Updates => self.updates_page(window, cx),
             Page::ContentSocial | Page::Chat | Page::Advanced | Page::ActivityPrivacy => Vec::new(),
         };
         sections.extend(self.registry_sections(page, window, cx));

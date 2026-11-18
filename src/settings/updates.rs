@@ -2,7 +2,7 @@
 // moves it on (check, download, restart), the release notes, and whether downloads start by themselves.
 use std::time::SystemTime;
 
-use gpui_kit::{AnyElement, App, Context, FontWeight, IntoElement, ParentElement, StatefulInteractiveElement, Styled, component::Icon, div, img, px, relative};
+use gpui_kit::{AnyElement, App, Context, FontWeight, IntoElement, Window, ParentElement, StatefulInteractiveElement, Styled, component::Icon, div, img, px};
 
 use super::Section;
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
 };
 
 impl Rustcord {
-    pub(super) fn updates_page(&self, cx: &mut Context<Self>) -> Vec<Section> {
+    pub(super) fn updates_page(&self, window: &mut Window, cx: &mut Context<Self>) -> Vec<Section> {
         let status = &self.updates.status;
         let notes_version = status.version().unwrap_or(CURRENT).to_owned();
         let notes = ui::settings_choice(ui::settings_row("whats-new", true, cx).child(ui::settings_text(format!("What's new in {notes_version}"), Some("Release notes on GitHub"), cx)), cx)
@@ -22,15 +22,16 @@ impl Rustcord {
             .on_click(move |_, _, cx: &mut App| cx.open_url(&crate::updater::release_notes(&notes_version)));
         let checked = self.updates.checked_at.map_or_else(|| "Not yet".to_owned(), |at| crate::panel::ago(elapsed_ms(at)));
         let last_checked = ui::settings_row("last-checked", true, cx).child(ui::settings_text("Last checked", None::<&str>, cx)).child(div().text_color(palette::muted(cx)).child(checked));
-        let card = ui::settings_card(cx).child(self.update_status_row(cx)).child(notes).child(last_checked);
+        let card = ui::settings_card(cx).child(self.update_status_row(window, cx)).child(notes).child(last_checked);
         vec![Section::keyed("Dango", ui::settings_group("Dango", cx).child(card).child(ui::settings_caption("Dango checks for a new version about every hour.", cx)))]
     }
 
     // The app icon, the version, where the updater is, and the action that moves it on.
-    fn update_status_row(&self, cx: &mut Context<Self>) -> AnyElement {
+    fn update_status_row(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let status = &self.updates.status;
         let progress = match status {
-            Status::Downloading { done, total: Some(total), .. } => Some(*done as f32 / (*total).max(1) as f32),
+            Status::Downloading { done, total: Some(total), .. } => Some(ui::progress_live("update-progress", *done as f32 / (*total).max(1) as f32, window, cx).into_any_element()),
+            Status::Downloading { total: None, .. } => Some(ui::progress_indeterminate("update-progress", cx)),
             _ => None,
         };
         let text = div()
@@ -41,7 +42,7 @@ impl Rustcord {
             .gap(px(2.))
             .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(format!("Dango {CURRENT}")))
             .child(div().text_size(px(12.)).line_height(px(17.)).text_color(palette::muted(cx)).child(status_line(status, self.updates.updater.is_some())))
-            .children(progress.map(|p| div().mt(px(6.)).h(px(4.)).w_full().rounded_full().bg(palette::track(cx)).child(div().h_full().w(relative(p.clamp(0., 1.))).rounded_full().bg(palette::accent()))));
+            .children(progress.map(|bar| div().mt(px(6.)).child(bar)));
         ui::settings_row("update-status", false, cx).child(img(self.prefs.app_icon.asset()).size(px(48.)).flex_none()).child(text).child(self.update_action(cx)).into_any_element()
     }
 
