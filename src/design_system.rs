@@ -453,7 +453,7 @@ impl DesignSystem {
                     .child(
                         stack()
                             .gap(px(16.))
-                            .child(div().flex().child(quality))
+                            .child(quality)
                             .child(
                                 ui::field("Mira's volume", cx).child(
                                     div().flex().items_center().gap(px(8.)).child(div().flex_1().min_w_0().child(volume)).child(
