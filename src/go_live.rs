@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use gpui_kit::{
     Animation, AnimationExt, AnyElement, AppContext, Context, Div, FontWeight, Hsla, MouseButton, RenderImage, SharedString, Window,
-    component::{ActiveTheme, Icon},
-    div, img, prelude::*, px, relative, rgb,
+    component::Icon,
+    div, img, prelude::*, px,
 };
 use serde::{Deserialize, Serialize};
 
@@ -292,78 +292,35 @@ impl Rustcord {
             .gap(px(2.))
             .child(div().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(format!("Go live in {channel}")))
             .child(div().text_color(palette::muted(cx)).child("Choose a screen, a window or a capture device."));
-        let dialog = div()
-            .id("share-picker")
-            .w(px(DIALOG_WIDTH))
-            .max_h(relative(0.92))
-            .p(px(24.))
-            .squircle(ui::RADIUS_XL)
-            .bg(palette::surface(palette::Level::Raised, cx))
-            .shadow(ui::shadow_pop(cx))
-            .flex()
-            .flex_col()
-            .gap(px(16.))
-            .text_size(px(14.))
-            .text_color(palette::text(cx))
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        let body = ui::dialog_body()
             .child(head)
-            .child(self.share_tabs(picker, cx))
+            .child(self.share_tabs(picker, window, cx))
             .child(self.share_sources(picker, cx))
             .child(self.share_quality(window, cx))
             .child(self.share_audio(window, cx))
-            .child(self.share_footer(cx))
-            .with_animation("share-open", Animation::new(ui::DUR_PANEL), |dialog, t| {
-                let t = crate::motion::ease_out().sample(t);
-                dialog.opacity(t).scale(0.95 + 0.05 * t)
-            });
-        let scrim = if cx.theme().is_dark() { Hsla::from(rgb(0x030102)).opacity(0.7) } else { Hsla::from(rgb(0x1D1217)).opacity(0.4) };
-        Some(
-            div()
-                .id("share-backdrop")
-                .absolute()
-                .inset_0()
-                .occlude()
-                .flex()
-                .items_center()
-                .justify_center()
-                .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
-                    this.close_share_picker(cx);
-                    cx.notify();
-                }))
-                .child(dialog)
-                .with_animation("share-dim", Animation::new(ui::DUR_POP), move |backdrop, t| backdrop.bg(scrim.opacity(scrim.a * t)))
-                .into_any_element(),
-        )
+            .child(self.share_footer(cx));
+        let backdrop = div().id("share-backdrop").absolute().inset_0().occlude().on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+            this.close_share_picker(cx);
+            cx.notify();
+        }));
+        let dialog = ui::dialog("share-picker", DIALOG_WIDTH, body, window, cx);
+        Some(ui::modal(backdrop, dialog, cx))
     }
 
-    // .tabs: 40px, 16px apart over a hairline; the open one is strong with a 2px accent underline.
-    // GAP: the underline doesn't slide between tabs; it moves in one step.
-    fn share_tabs(&self, picker: &SharePicker, cx: &mut Context<Self>) -> impl IntoElement {
-        let (strong, muted) = (palette::strong(cx), palette::muted(cx));
-        let tabs = [(ShareTab::Screens, Glyph::Screen, "Screens"), (ShareTab::Windows, Glyph::AppWindow, "Windows"), (ShareTab::Devices, Glyph::Usb, "Devices")].map(|(tab, glyph, label)| {
-            let on = picker.tab == tab;
-            div()
-                .id(SharedString::from(format!("share-tab-{label}")))
-                .relative()
-                .h(px(40.))
-                .flex()
-                .items_center()
-                .gap(px(6.))
-                .cursor_pointer()
-                .font_weight(FontWeight::MEDIUM)
-                .text_color(if on { strong } else { muted })
-                .hover(move |s| s.text_color(strong))
-                .child(Icon::new(glyph).size(px(18.)))
-                .child(label)
-                .when(on, |d| d.child(div().absolute().left_0().right_0().bottom_0().h(px(2.)).rounded(px(2.)).bg(palette::accent())))
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    if let Some(picker) = &mut this.share_picker {
-                        picker.tab = tab;
-                    }
-                    cx.notify();
-                }))
-        });
-        div().flex().gap(px(16.)).border_b_1().border_color(palette::line(cx)).children(tabs)
+    fn share_tabs(&self, picker: &SharePicker, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        const TABS: [ShareTab; 3] = [ShareTab::Screens, ShareTab::Windows, ShareTab::Devices];
+        let items = [ui::Tab::new("Screens").glyph(Glyph::Screen), ui::Tab::new("Windows").glyph(Glyph::AppWindow), ui::Tab::new("Devices").glyph(Glyph::Usb)];
+        let selected = TABS.iter().position(|t| *t == picker.tab).unwrap_or_default();
+        let this = cx.entity().downgrade();
+        ui::tabs("share-tabs", &items, selected, move |i, _, cx| {
+            this.update(cx, |this, cx| {
+                if let Some(picker) = &mut this.share_picker {
+                    picker.tab = TABS[i];
+                }
+                cx.notify();
+            })
+            .ok();
+        }, window, cx)
     }
 
     // .srcs: three across, 12px apart; each a live still and its name.

@@ -28,6 +28,7 @@ use gpui_kit::{
 use crate::{discord::Status, icons::Glyph, mascot, motion, palette};
 
 mod control;
+mod dialog;
 mod feedback;
 mod field;
 mod group;
@@ -35,10 +36,11 @@ mod tabs;
 mod tunnel;
 
 pub use control::{Control, Pressable, button, chip, hover_fade, icon_button, menu_row, pressable, round_button, swatch, tip};
+pub use dialog::{dialog, dialog_body, modal};
 pub use feedback::{meter, meter_with, progress_indeterminate, progress_live, ring, skeleton, skeleton_circle, slider_live, slider_track};
 pub use field::{code_cell, drop_zone, field, field_error, field_frame, field_hint, select, stepper, text_area, text_field};
 pub use group::{settings_caption, settings_card, settings_group, settings_row};
-pub use tabs::{pill_tabs, segmented_live, tabs};
+pub use tabs::{Tab, pill_tabs, segmented_live, tabs};
 pub use tunnel::{TUNNEL_GRACE, Tunnel};
 
 // Radius tiers: tags and tooltips, rows and menu items, controls, cards and tiles, dialogs. Sized for the

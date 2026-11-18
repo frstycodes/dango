@@ -164,12 +164,14 @@ pub(super) fn choice(id: impl Into<ElementId>, cx: &App) -> Control {
 }
 
 // One option in a strip: muted ink that strengthens on hover; the strip draws the selection itself.
-pub(super) fn tab_option(id: impl Into<ElementId>, kind: TabKind, on: bool, cx: &App) -> Control {
+pub(super) fn tab_option(id: impl Into<ElementId>, kind: TabKind, on: bool, glyph: Option<Glyph>, cx: &App) -> Control {
     let clear = gpui_kit::transparent_black();
     let (muted, strong) = (palette::muted(cx), palette::strong(cx));
     let hover = if kind == TabKind::Pill && !on { palette::hover(cx) } else { clear };
     let ink = if on { strong } else { muted };
-    Control::new(id, Kind::Tab(kind), Look { rest: clear, hover, press: hover, ink, ink_hover: strong, edge: None })
+    let mut control = Control::new(id, Kind::Tab(kind), Look { rest: clear, hover, press: hover, ink, ink_hover: strong, edge: None });
+    control.glyph = glyph;
+    control
 }
 
 impl Control {

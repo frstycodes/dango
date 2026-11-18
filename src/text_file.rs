@@ -151,7 +151,7 @@ impl Rustcord {
             .w(px(width))
             .shadow(ui::shadow_pop(cx))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation());
-        Some(crate::overlays::backdrop("text-viewer-backdrop", cx).bg(palette::scrim(cx)).flex().items_center().justify_center().child(card).into_any_element())
+        Some(ui::modal(crate::overlays::backdrop("text-viewer-backdrop", cx), card, cx))
     }
 }
 

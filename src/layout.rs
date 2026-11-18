@@ -90,7 +90,7 @@ impl Rustcord {
             && let Some(call) = self.render_call_with_chat(window, cx)
         {
             let (overlays, call_overlays) = (self.render_overlays(window, cx), self.render_call_overlays(window, cx));
-            let (menu, dialog) = (self.render_menu(window, cx), self.render_dialog(cx));
+            let (menu, dialog) = (self.render_menu(window, cx), self.render_dialog(window, cx));
             crate::gif::set_covered(!overlays.is_empty() || !call_overlays.is_empty() || menu.is_some() || dialog.is_some());
             return root
                 .child(call)
@@ -110,7 +110,7 @@ impl Rustcord {
             .child(match self.call_view.then(|| self.render_call_with_chat(window, cx)).flatten() {
                 Some(call) => div().flex_1().min_w_0().h_full().child(call).into_any_element(),
                 None if self.inbox_page => self.render_inbox_page(cx),
-                None if self.guild_id.is_none() && self.channel.is_none() => self.render_home(cx),
+                None if self.guild_id.is_none() && self.channel.is_none() => self.render_home(window, cx),
                 None if self.channel.as_ref().is_some_and(|c| c.kind == discord::ChannelKind::Forum) => {
                     let forum = self.channel.clone().expect("checked above");
                     self.render_forum(forum, cx)
@@ -119,7 +119,7 @@ impl Rustcord {
             });
         // Anything drawn over the chat pauses its GIFs (the GIF layer paints above the whole app).
         let (overlays, call_overlays) = (self.render_overlays(window, cx), self.render_call_overlays(window, cx));
-        let (menu, dialog) = (self.render_menu(window, cx), self.render_dialog(cx));
+        let (menu, dialog) = (self.render_menu(window, cx), self.render_dialog(window, cx));
         let (viewer, settings) = (self.viewer_overlay(window, cx), self.render_settings(window, cx));
         crate::gif::set_covered(!overlays.is_empty() || !call_overlays.is_empty() || menu.is_some() || dialog.is_some() || viewer.is_some() || settings.is_some());
         // Away from the call, a watched stream floats as a picture-in-picture over everything but popups.
