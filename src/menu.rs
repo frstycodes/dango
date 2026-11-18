@@ -6,9 +6,9 @@
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, App, BoxShadow, Context, Div, FocusHandle, FontWeight, Hsla, KeyDownEvent, MouseButton, Pixels, Point, SharedString, Stateful, Window,
+    Animation, AnimationExt, AnyElement, App, Bounds, BoxShadow, Context, Div, FocusHandle, FontWeight, Hsla, KeyDownEvent, MouseButton, Pixels, Point, SharedString, Stateful, Window,
     component::{Icon, input::Input},
-    div, img, point, prelude::*, px,
+    div, img, point, prelude::*, px, size,
 };
 
 use crate::{
@@ -274,6 +274,12 @@ pub struct OpenMenu {
     focus: FocusHandle,
     // Whatever had the keyboard before the menu took it, to hand it back on close.
     restore: RefCell<Option<FocusHandle>>,
+    // Each open card's bounds, top level first, as last drawn.
+    cards: RefCell<Vec<Bounds<Pixels>>>,
+    tunnel: ui::Tunnel,
+    // A sibling's submenu path, held back while the pointer tunnels toward the open submenu's card
+    // (an index into `cards`).
+    pending: Option<(usize, Vec<usize>)>,
 }
 
 // A one-field dialog (nickname, note) or a confirmation (kick, ban, remove friend).
@@ -295,7 +301,7 @@ impl Rustcord {
 
     // A menu built from state each time it's drawn, e.g. one whose checkboxes change.
     pub(crate) fn open_live_menu(&mut self, at: Point<Pixels>, build: impl Fn(&Rustcord) -> Vec<Entry> + 'static, cx: &mut Context<Self>) {
-        self.menu = Some(OpenMenu { at, build: Rc::new(move |this| tidy(build(this))), sub: Vec::new(), cursor: None, focus: cx.focus_handle(), restore: RefCell::new(None) });
+        self.menu = Some(OpenMenu { at, build: Rc::new(move |this| tidy(build(this))), sub: Vec::new(), cursor: None, focus: cx.focus_handle(), restore: RefCell::new(None), cards: RefCell::default(), tunnel: ui::Tunnel::default(), pending: None });
         cx.notify();
     }
 
@@ -304,6 +310,51 @@ impl Rustcord {
     pub(crate) fn open_submenus(&mut self, path: Vec<usize>) {
         if let Some(menu) = &mut self.menu {
             menu.sub = path;
+        }
+    }
+
+    // Hovering a row opens its submenu and closes any deeper one from a sibling, unless the pointer is
+    // tunnelling across the sibling toward the open submenu: then the switch waits for the grace.
+    fn hover_menu_row(&mut self, row: &[usize], next: Vec<usize>, at: Point<Pixels>, cx: &mut Context<Self>) {
+        let Some(menu) = &mut self.menu else { return };
+        let depth = row.len();
+        let leaves_open_sub = menu.sub.len() >= depth && menu.sub[..depth] != *row && menu.sub[..depth - 1] == row[..depth - 1];
+        let open_card = menu.cards.borrow().get(depth).copied();
+        if leaves_open_sub && open_card.is_some_and(|card| menu.tunnel.heading_to(at, card)) {
+            menu.pending = Some((depth, next.clone()));
+            cx.spawn(async move |this, cx| {
+                cx.background_executor().timer(ui::TUNNEL_GRACE).await;
+                this.update(cx, |this, cx| {
+                    if this.menu.as_ref().is_some_and(|m| m.pending.as_ref().is_some_and(|(_, p)| *p == next)) {
+                        this.apply_menu_sub(next, cx);
+                    }
+                })
+                .ok();
+            })
+            .detach();
+            return;
+        }
+        self.apply_menu_sub(next, cx);
+    }
+
+    fn apply_menu_sub(&mut self, next: Vec<usize>, cx: &mut Context<Self>) {
+        let Some(menu) = &mut self.menu else { return };
+        menu.pending = None;
+        if menu.sub != next || menu.cursor.is_some() {
+            menu.sub = next;
+            menu.cursor = None;
+            cx.notify();
+        }
+    }
+
+    // A held-back switch lands as soon as the pointer stops heading for the open submenu.
+    fn track_menu_pointer(&mut self, at: Point<Pixels>, cx: &mut Context<Self>) {
+        let Some(menu) = &mut self.menu else { return };
+        menu.tunnel.track(at);
+        let Some((depth, next)) = menu.pending.clone() else { return };
+        let open_card = menu.cards.borrow().get(depth).copied();
+        if !open_card.is_some_and(|card| menu.tunnel.heading_to(at, card)) {
+            self.apply_menu_sub(next, cx);
         }
     }
 
@@ -451,6 +502,7 @@ impl Rustcord {
         let y = if flip_y { (at_y - height).max(8.) } else { at_y };
         // Keyed by where it opened, so a fresh right-click replays the rise.
         let open_key = format!("{at_x:.0}-{at_y:.0}");
+        let mut bounds = vec![Bounds::new(point(px(x), px(y)), size(px(WIDTH), px(height.min(vh - 16.))))];
         let top = self.menu_card(&entries, &[], menu.sub.first().copied(), menu.cursor.filter(|_| menu.sub.is_empty()), WIDTH, cx).left(px(x)).top(px(y)).max_h(px(vh - 16.)).overflow_y_scroll();
         let mut cards = vec![ui::rise(top.transform_origin(ui::corner(flip_x, flip_y)), SharedString::from(format!("menu-rise-{open_key}")), Duration::ZERO).into_any_element()];
         // One flyout per open level beside its parent row, its first row level with that row; it
@@ -466,12 +518,14 @@ impl Rustcord {
             card_x = if flip { card_x - sub_w - 4. } else { card_x + card_w + 4. };
             card_y = (card_y + offset(level, i)).min(vh - card_height(&item.sub) - 8.).max(8.);
             card_w = sub_w;
+            bounds.push(Bounds::new(point(px(card_x), px(card_y)), size(px(sub_w), px(card_height(&item.sub)))));
             let path = &menu.sub[..=depth];
             let cursor = menu.cursor.filter(|_| depth + 1 == menu.sub.len());
             let card = self.menu_card(&item.sub, path, menu.sub.get(depth + 1).copied(), cursor, sub_w, cx).left(px(card_x)).top(px(card_y));
             cards.push(ui::rise(card.transform_origin(ui::corner(flip, false)), SharedString::from(format!("menu-rise-{open_key}-{path:?}")), SUB_DELAY).into_any_element());
             level = &item.sub;
         }
+        *menu.cards.borrow_mut() = bounds;
         Some(
             div()
                 .id("menu-backdrop")
@@ -480,6 +534,7 @@ impl Rustcord {
                 .occlude()
                 .track_focus(&menu.focus)
                 .on_key_down(cx.listener(Self::on_menu_key))
+                .on_mouse_move(cx.listener(|this, e: &gpui_kit::MouseMoveEvent, _, cx| this.track_menu_pointer(e.position, cx)))
                 .on_mouse_down(MouseButton::Left, cx.listener(|this, _, window, cx| this.shut_menu(window, cx)))
                 .on_mouse_down(MouseButton::Right, cx.listener(|this, _, window, cx| this.shut_menu(window, cx)))
                 .children(cards)
@@ -539,16 +594,10 @@ impl Rustcord {
         menu_item_row(SharedString::from(format!("menu-item-{path:?}")), item, sub_open || keyboard, lead_slot, cx)
             .when(keyboard, |row| row.shadow(vec![ring]))
             // Hovering a row opens its submenu and closes any deeper one from a sibling.
-            .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
-                let Some(menu) = &mut this.menu else { return };
-                if !*hovered {
-                    return;
-                }
-                let next = if has_sub { path.clone() } else { path[..path.len() - 1].to_vec() };
-                if menu.sub != next || menu.cursor.is_some() {
-                    menu.sub = next;
-                    menu.cursor = None;
-                    cx.notify();
+            .on_hover(cx.listener(move |this, hovered: &bool, window, cx| {
+                if *hovered {
+                    let next = if has_sub { path.clone() } else { path[..path.len() - 1].to_vec() };
+                    this.hover_menu_row(&path, next, window.mouse_position(), cx);
                 }
             }))
             .on_click(cx.listener(move |this, _, window, cx| this.run_menu_item(&run_path, window, cx)))

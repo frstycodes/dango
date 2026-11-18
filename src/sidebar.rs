@@ -39,6 +39,8 @@ const ROW_GAP: f32 = 2.;
 #[derive(Clone)]
 pub(crate) enum Face {
     Home,
+    // A DM on the rail: the person's avatar, round like every person.
+    Person(String),
     Icon(String),
     Letters(String),
     Folder { tint: Hsla, minis: Vec<Mini> },
@@ -89,6 +91,7 @@ impl Rustcord {
             open: 0.,
         };
         let home = self.rail_item(home, window, cx);
+        let dm_tiles: Vec<AnyElement> = self.rail_dms().into_iter().map(|dm| self.dm_tile(dm, window, cx)).collect();
         let mut items: Vec<AnyElement> = Vec::new();
         for entry in self.rail_entries() {
             match entry {
@@ -109,9 +112,44 @@ impl Rustcord {
             .overflow_y_scroll()
             .text_size(px(14.))
             .child(home)
+            .children(dm_tiles)
             .children(items)
             .child(rail_action("rail-discover", Nav::Compass, "Discover servers", cx).on_click(|_, _, cx| cx.open_url("https://discord.com/servers")))
             .child(div().flex_none().h(self.user_panel_clearance()))
+    }
+
+    // DMs that want you, under Home as Discord stacks them: unread ones, newest first, and the one
+    // you're in a call with.
+    fn rail_dms(&self) -> Vec<Channel> {
+        let in_call = |id: &str| self.call.as_ref().is_some_and(|c| c.guild_id.is_none() && c.channel.id == id);
+        self.dms.iter().filter(|d| self.unread(&d.id) || in_call(&d.id)).cloned().collect()
+    }
+
+    fn dm_tile(&mut self, dm: Channel, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let avatar = dm.recipient.as_ref().map(|u| u.avatar.clone()).unwrap_or_else(|| crate::discord::avatar_url(&dm.id, None));
+        let tile = RailTile {
+            key: format!("dm-{}", dm.id),
+            name: dm.recipient.as_ref().map_or_else(|| dm.name.clone(), |u| u.name.clone()).into(),
+            selected: self.guild_id.is_none() && self.channel.as_ref().is_some_and(|c| c.id == dm.id),
+            unread: false,
+            // Every DM message counts as a mention, so this is its unread count.
+            mentions: self.mention_count(&dm.id),
+            muted: false,
+            in_voice: self.call.as_ref().is_some_and(|c| c.guild_id.is_none() && c.channel.id == dm.id),
+            face: Face::Person(avatar),
+            guild_id: None,
+            badge_scale: 1.,
+            open: 0.,
+        };
+        let item = self.rail_item(tile, window, cx);
+        div()
+            .id(SharedString::from(format!("rail-dm-hit-{}", dm.id)))
+            .child(item)
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.open_guild(None, window, cx);
+                this.open_channel(dm.clone(), window, cx);
+            }))
+            .into_any_element()
     }
 
     // Who's in the server's voice channels and who's live there, by avatar, for its hover card.
@@ -251,7 +289,7 @@ impl Rustcord {
             .when_some(guild_id.clone(), |item, guild_id| item.on_click(cx.listener(move |this, _, window, cx| this.open_guild(Some(guild_id.clone()), window, cx))))
             .when(key == "dms", |item| item.on_click(cx.listener(|this, _, window, cx| this.open_guild(None, window, cx))));
         let item = match key.as_str() {
-            "dms" => item,
+            k if k == "dms" || k.starts_with("dm-") => item,
             _ => self.rail_draggable(item, RailDrag { key: key.clone() }, look, cx),
         };
         let Some(guild_id) = guild_id else { return item.into_any_element() };
@@ -359,9 +397,11 @@ impl Rustcord {
                     .child(div().truncate().text_size(px(12.)).text_color(palette::faint(cx)).child(detail.join(" · "))),
             )
             .when_some(who, |d, who| d.tooltip(move |window, cx| Tooltip::new(who.clone()).build(window, cx)));
+        let record = self.stream_card_bounds.clone();
         div()
             .id(SharedString::from(format!("stream-card-{}", streamer.id)))
             .w(px(STREAM_CARD_WIDTH))
+            .child(gpui_kit::canvas(move |bounds, _, _| record.set(bounds), |_, _, _, _| {}).absolute().inset_0())
             .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
                 this.stream_card_hover = hovered.then(|| hover_key.clone());
                 cx.notify();
@@ -674,6 +714,28 @@ impl Rustcord {
             .collect()
     }
 
+    // Leaving a streaming row toward its card holds the card open for the tunnel's grace.
+    fn hover_stream_row(&mut self, key: &str, hovered: bool, at: gpui_kit::Point<gpui_kit::Pixels>, cx: &mut Context<Self>) {
+        if !hovered && self.stream_tunnel.heading_to(at, self.stream_card_bounds.get()) {
+            self.stream_hold = Some(key.to_owned());
+            let key = key.to_owned();
+            cx.spawn(async move |this, cx| {
+                cx.background_executor().timer(ui::TUNNEL_GRACE).await;
+                this.update(cx, |this, cx| {
+                    if this.stream_hold.as_deref() == Some(key.as_str()) {
+                        this.stream_hold = None;
+                        this.set_hovered(&key, false, cx);
+                    }
+                })
+                .ok();
+            })
+            .detach();
+            return;
+        }
+        self.stream_hold = None;
+        self.set_hovered(key, hovered, cx);
+    }
+
     // Rows show their hover-only controls from this, not from `group_hover`: gpui resolves group hover
     // only while painting, so a `display` toggled by it paints children that were never prepainted.
     fn track_row_hover(&self, row: Stateful<Div>, id: &str, prefetch: bool, cx: &mut Context<Self>) -> Stateful<Div> {
@@ -742,7 +804,7 @@ impl Rustcord {
                 let stream_key = format!("guild:{}:{}:{}", guild.id, channel.id, state.user_id);
                 self.stream_card(Streamer { id: &state.user_id, name: &name, avatar: &avatar }, channel, &stream_key, connected, window, cx).into_any_element()
             });
-            let stream_hover = cx.listener(move |this, hovered: &bool, _, cx| this.set_hovered(&hover_key, *hovered, cx));
+            let stream_hover = cx.listener(move |this, hovered: &bool, window, cx| this.hover_stream_row(&hover_key, *hovered, window.mouse_position(), cx));
             let end = voice_mark_for(state, cx);
             let key = SharedString::from(format!("voice-{}", state.user_id));
             let carried = self.drag_motion.row(&key);
@@ -771,14 +833,14 @@ impl Rustcord {
                     .text_color(if talking { palette::strong(cx) } else { palette::muted(cx) })
                     .hover(move |s| s.bg(hover).text_color(text))
                     // You, in this call from another client (not this app): avatar and name faded, as Discord does.
-                    .child(speaking_avatar(&avatar, talking).when(elsewhere(&state.user_id), |a| a.opacity(0.45)))
+                    .child(speaking_avatar(&avatar, talking, cx).when(elsewhere(&state.user_id), |a| a.opacity(0.45)))
                     .child(div().flex_1().min_w_0().truncate().when(elsewhere(&state.user_id), |n| n.opacity(0.45)).child(name.clone()))
                     .children(end)
                     .on_mouse_down(gpui_kit::MouseButton::Right, {
                         let user_id = state.user_id.clone();
                         cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.voice_user_menu(&user_id, e.position, cx))
                     })
-                    .when(state.streaming, |r| r.on_hover(stream_hover).children(stream_card.map(|card| div().absolute().top_0().right(px(4.)).child(gpui_kit::deferred(gpui_kit::anchored().snap_to_window_with_margin(px(8.)).child(card))))))
+                    .when(state.streaming, |r| r.on_hover(stream_hover).on_mouse_move(cx.listener(|this, e: &gpui_kit::MouseMoveEvent, _, _| this.stream_tunnel.track(e.position))).children(stream_card.map(|card| div().absolute().top_0().right(px(4.)).child(gpui_kit::deferred(gpui_kit::anchored().snap_to_window_with_margin(px(8.)).child(card))))))
                     .when(state.streaming && connected, |r| {
                         r.cursor_pointer()
                             .when(is_watched, |r| r.bg(selected))
@@ -995,7 +1057,7 @@ pub(crate) fn channel_row(id: SharedString, group: SharedString, state: RowState
 
 // A category's header row (.cathead): the label, a button that folds the category unless `static_`,
 // and room on its right for the add button. `group` names the row so the add can show on hover.
-fn category_head(group: SharedString, label: Stateful<Div>, static_: bool, cx: &App) -> Div {
+pub(crate) fn category_head(group: SharedString, label: Stateful<Div>, static_: bool, cx: &App) -> Div {
     let (hover, strong) = (palette::hover(cx), palette::strong(cx));
     div().group(group).relative().flex().items_center().child(
         label
@@ -1064,14 +1126,14 @@ pub(crate) fn channel_glyph(channel: &Channel) -> Icon {
     }
 }
 
-// A voice occupant's avatar; while they speak, an accent ring sits 1px clear of it, as Discord's does.
-fn speaking_avatar(avatar: &str, talking: bool) -> Div {
+// A voice occupant's avatar; while they speak, a green ring sits 1px clear of it, as Discord's does.
+fn speaking_avatar(avatar: &str, talking: bool, cx: &App) -> Div {
     div()
         .relative()
         .flex_none()
         .size(px(22.))
         .child(ui::avatar(avatar.to_owned(), 22.))
-        .when(talking, |a| a.child(div().absolute().top(px(-3.)).left(px(-3.)).size(px(28.)).rounded_full().border(px(2.)).border_color(palette::accent())))
+        .when(talking, |a| a.child(div().absolute().top(px(-3.)).left(px(-3.)).size(px(28.)).rounded_full().border(px(2.)).border_color(palette::status_in(crate::discord::Status::Online, cx))))
 }
 
 // The one mark a voice occupant gets, most important first: server-muted, live, camera, muted or
@@ -1171,7 +1233,7 @@ fn ease_out() -> impl Fn(f32) -> f32 + 'static {
 }
 
 // Hover and state changes: --dur-hover on --ease-out.
-fn hover_ease() -> Transition {
+pub(crate) fn hover_ease() -> Transition {
     Transition::Tween(ui::DUR_HOVER, Easing::Bezier(Bezier::new(0.23, 1., 0.32, 1.).expect("monotonic bezier")))
 }
 
@@ -1211,6 +1273,7 @@ pub(crate) fn render_face(face: Face, size: f32, radius: f32, selected: bool, op
     let tile = || div().size(px(size)).flex_none().squircle(radius).flex().items_center().justify_center();
     match face {
         Face::Icon(url) => img(url).size(px(size)).flex_none().squircle(radius).into_any_element(),
+        Face::Person(url) => img(url).size(px(size)).flex_none().rounded_full().into_any_element(),
         Face::Letters(label) => letters_tile(&label, size, radius, cx).into_any_element(),
         Face::Home => tile()
             .bg(if selected { palette::accent() } else { palette::surface(palette::Level::Sidebar, cx) })

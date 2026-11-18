@@ -325,6 +325,8 @@ struct Feed {
 
 enum RightPanel {
     Members,
+    // Every Activity card, from the section's chevron.
+    Activity,
     Search { query: SharedString, results: Option<Result<Vec<Message>, SharedString>> },
     Hidden,
 }
@@ -562,6 +564,12 @@ pub struct Rustcord {
     shift_held: bool,
     // The stream hover card under the pointer, which keeps it open off the row.
     stream_card_hover: Option<String>,
+    // The open stream card's bounds as last drawn, the pointer's tunnel toward it, and the row whose
+    // card the tunnel is holding open.
+    stream_card_bounds: Rc<std::cell::Cell<gpui_kit::Bounds<gpui_kit::Pixels>>>,
+    stream_tunnel: ui::Tunnel,
+    stream_hold: Option<String>,
+    activity_feed: Vec<discord::FeedEntry>,
     // A stream to start watching as soon as the call we're joining connects.
     watch_on_connect: Option<String>,
     // The window is in front; notifications for the open channel are skipped then.
@@ -777,6 +785,10 @@ impl Rustcord {
             hidden_voice_names: HashSet::new(),
             shift_held: false,
             stream_card_hover: None,
+            stream_card_bounds: Rc::default(),
+            stream_tunnel: ui::Tunnel::default(),
+            stream_hold: None,
+            activity_feed: Vec::new(),
             watch_on_connect: None,
             window_active: true,
             dialog: None,
@@ -845,7 +857,7 @@ impl Rustcord {
         };
         let weak = cx.weak_entity();
         chord.list.set_scroll_handler(move |event, _, cx| {
-            let away = event.visible_range.end + 4 < event.count;
+            let away = chat::away_from_present(event.visible_range.end, event.count);
             weak.update(cx, |this, cx| {
                 if this.scrolled_up != away {
                     this.scrolled_up = away;
@@ -989,6 +1001,7 @@ impl Rustcord {
                 self.ignored = ready.ignored.into_iter().collect();
                 self.presences = ready.presences.into_iter().collect();
                 self.status = Status::Online;
+                self.load_activity_feed(cx);
                 self.splash_ready(cx);
             }
             Event::Batch(events) => {
@@ -1324,7 +1337,7 @@ impl Rustcord {
         }
     }
 
-    fn open_channel(&mut self, channel: Channel, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn open_channel(&mut self, channel: Channel, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(current) = self.channel.clone().filter(|c| c.id != channel.id) {
             self.back.push((self.guild_id.clone(), current));
             self.forward.clear();
@@ -1374,6 +1387,7 @@ impl Rustcord {
         self.editing = None;
         self.send_error = None;
         self.autocomplete = None;
+        self.scrolled_up = false;
         // Cached channels show at once; every open also refreshes in the background.
         // Messages after this sit under Discord's red NEW line until the channel is left.
         self.unread_marker = self.unread(&id).then(|| self.read_states.get(&id).map(|r| r.last_read)).flatten();
@@ -1989,7 +2003,7 @@ impl Rustcord {
         self.mention_wire.iter().fold(text.to_owned(), |text, (shown, wire)| text.replace(wire.as_str(), shown))
     }
 
-    fn known_users(&self) -> Vec<User> {
+    pub(crate) fn known_users(&self) -> Vec<User> {
         let mut users: Vec<User> = Vec::new();
         if let Some(list) = self.guild_id.as_ref().and_then(|g| self.member_lists.get(g)) {
             users.extend(list.iter().filter_map(|i| match i {
