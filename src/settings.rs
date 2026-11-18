@@ -86,10 +86,16 @@ pub enum NoiseMode {
     Standard,
 }
 
+// The interface fonts Appearance offers: (family as the OS names it, label), the first the default. Figtree and
+// Gabarito are bundled (Figtree's weights cut from its variable font, so gpui can pick each); the rest are macOS's.
+pub const UI_FONTS: [(&str, &str); 5] = [("Figtree", "Figtree"), ("Gabarito", "Gabarito"), (".SystemUIFont", "System (SF Pro)"), ("Helvetica Neue", "Helvetica Neue"), ("Avenir Next", "Avenir Next")];
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Prefs {
     pub theme: ThemePref,
+    // The interface's font family: Figtree (bundled) unless picked in Appearance.
+    pub ui_font: String,
     pub app_icon: crate::app_icon::AppIcon,
     pub input_device: Option<String>,
     pub output_device: Option<String>,
@@ -149,6 +155,7 @@ impl Default for Prefs {
     fn default() -> Self {
         Self {
             theme: ThemePref::System,
+            ui_font: UI_FONTS[0].0.into(),
             app_icon: crate::app_icon::AppIcon::default(),
             input_device: None,
             output_device: None,
@@ -969,10 +976,37 @@ impl Rustcord {
             .child(pick("theme-light", ThemePref::Light, mini_window(&MINI_LIGHT).into_any_element(), "Light", None, cx))
             .child(pick("theme-dark", ThemePref::Dark, mini_window(&MINI_DARK).into_any_element(), "Midnight", None, cx))
             .child(pick("theme-system", ThemePref::System, mini_sync(), "Sync with OS", Some(if os_dark { "Midnight now" } else { "Light now" }), cx));
+        let font = self.prefs.ui_font.clone();
+        let fonts = div().flex().flex_wrap().gap(px(8.)).children(UI_FONTS.map(|(family, label)| {
+            let on = font == family;
+            let hover = palette::hover(cx);
+            ui::pressable(div().id(SharedString::from(format!("font-{label}"))), 0.97)
+                .min_w(px(150.))
+                .flex_1()
+                .px(px(12.))
+                .py(px(10.))
+                .squircle(ui::RADIUS_LG)
+                .flex()
+                .flex_col()
+                .gap(px(2.))
+                .cursor_pointer()
+                .font_family(family)
+                .text_color(if on { palette::strong(cx) } else { palette::text(cx) })
+                .when(on, |d| d.bg(palette::selected(cx)))
+                .when(!on, |d| d.hover(move |s| s.bg(hover)))
+                .child(div().text_size(px(20.)).font_weight(FontWeight::MEDIUM).child("Aa"))
+                .child(div().text_size(px(13.)).child(label))
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.update_prefs(cx, |prefs| prefs.ui_font = family.into());
+                    palette::sync(window, cx);
+                    window.refresh();
+                }))
+        }));
         // GAP: the design's Neutrals, Message density and Chat font size groups have no setting in the
         // app yet; they appear here once Prefs carries them.
         vec![
             Section::new(ui::settings_group("Theme", cx).child(picks).child(ui::settings_caption("Midnight is the darkest theme, the one Dango is built on.", cx))),
+            Section::new(ui::settings_group("Font", cx).child(fonts).child(ui::settings_caption("The interface's typeface. Compare System with other Mac apps: if it looks heavier here, the rendering is the cause; if only Gabarito does, the font is.", cx))),
             Section::new(ui::settings_group("App icon", cx).child(self.app_icon_grid(cx)).child(ui::settings_caption("How Dango looks in your Dock: the same dango in different media. Changes right away; no restart.", cx))),
         ]
     }

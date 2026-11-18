@@ -22,6 +22,7 @@ use crate::{
     EmojiTarget, Feed, RightPanel, Rustcord,
     discord::{Channel, ChannelKind, Embed, Emoji, MediaKind, Message, SendState, User},
     icons::Glyph,
+    layout::HEADER_HEIGHT,
     mascot::Mood,
     motion,
     palette::{self, Level},
@@ -45,19 +46,20 @@ const PIP_WIDTH: f32 = 320.;
 
 impl Rustcord {
     pub fn render_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let main = div().relative().flex_1().min_w_0().h_full().flex().flex_col().bg(palette::surface(Level::Page, cx)).border_l_1().border_color(palette::line(cx));
+        let main = div().relative().flex_1().min_w_0().h_full().flex().flex_col().bg(palette::surface(Level::Page, cx));
         let Some(channel) = self.channel.clone() else {
             return main.child(empty_state("idle", Mood::Idle, "No channel open", "Pick a server on the left, then a channel to start reading.", cx));
         };
         let header = self.channel_header(&channel, window, cx);
         let body = match self.feeds.get(&channel.id) {
             Some(Feed { loaded: true, messages, .. }) if messages.is_empty() => empty_state("empty", Mood::Happy, "No messages yet", "Be the first to say something.", cx),
-            Some(Feed { loaded: true, .. }) => self.render_messages(cx).into_any_element(),
+            Some(Feed { loaded: true, .. }) => self.render_messages(HEADER_HEIGHT, cx).into_any_element(),
             Some(Feed { error: Some(error), .. }) => empty_state("failed", Mood::Idle, "Couldn't load messages", error.clone(), cx),
             _ => skeleton(cx),
         };
         let unread_bar = self.unread_bar(&channel.id, cx);
         let chat = div()
+            .relative()
             .flex_1()
             .min_w_0()
             .h_full()
@@ -66,7 +68,10 @@ impl Rustcord {
             .on_drop(cx.listener(|this, paths: &gpui_kit::ExternalPaths, _, cx| this.add_files(paths.paths().to_vec(), cx)))
             // The composer floats over the feed, which scrolls on under its glass.
             .child(div().relative().flex_1().min_h_0().child(body).children(unread_bar).child(self.render_composer(window, cx)).children(self.stream_pip(cx)));
-        main.child(header).child(div().flex_1().min_h_0().flex().child(chat).children(self.render_panel(window, cx)))
+        // The feed runs up under the header, which blurs and fades it (scroll_edge); the members column beside
+        // it runs to the window's top with a header of its own on the same line.
+        let panel = self.render_panel(window, cx);
+        main.child(div().flex_1().min_h_0().flex().child(chat.child(header)).children(panel))
     }
 
     // Where you are as breadcrumbs, the topic, then the channel's tools (design: navigation.html's chanbar).
@@ -75,7 +80,7 @@ impl Rustcord {
         let parent = self.thread_parent(channel).map(|parent| {
             crumb("thread-parent", cx)
                 .child(Icon::new(Glyph::Hashtag).size(px(14.)))
-                .child(div().min_w_0().truncate().child(parent.name.clone()))
+                .child(ui::truncating("header-thread-parent", parent.name.clone()))
                 .on_click(cx.listener(move |this, _, window, cx| this.open_channel(parent.clone(), window, cx)))
         });
         let glyph = match channel.kind {
@@ -94,7 +99,7 @@ impl Rustcord {
             .font_weight(FontWeight::SEMIBOLD)
             .text_color(strong)
             .child(Icon::new(glyph).size(px(20.)).text_color(faint))
-            .child(div().min_w_0().truncate().child(channel.name.clone()));
+            .child(ui::truncating("header-channel-name", channel.name.clone()));
         // Thread names are often whole sentences: the crumbs cap at 60% and truncate rather than push the tools off.
         let crumbs = div()
             .flex_none()
@@ -105,7 +110,7 @@ impl Rustcord {
             .gap(px(2.))
             .when_some(parent, |c, parent| c.child(parent).child(Icon::new(Glyph::ChevronRight).size(px(14.)).text_color(faint)))
             .child(here);
-        let topic = channel.topic.clone().map(|topic| div().flex_1().min_w_0().pl(px(12.)).border_l_1().border_color(palette::line_strong(cx)).truncate().text_size(px(14.)).text_color(faint).child(topic));
+        let topic = channel.topic.clone().map(|topic| div().flex_1().min_w_0().pl(px(12.)).border_l_1().border_color(palette::line_strong(cx)).text_size(px(14.)).text_color(palette::muted(cx)).child(ui::truncating("header-topic", topic)));
         let threads = (channel.kind == ChannelKind::Text && self.guild_id.is_some()).then(|| {
             let id = channel.id.clone();
             ui::icon_button("threads-button", Glyph::Thread, "Threads", cx)
@@ -115,7 +120,10 @@ impl Rustcord {
         let pins = ui::icon_button("pins-button", Glyph::Pin, "Pinned Messages", cx)
             .occlude()
             .when(self.pins.is_some(), |b| b.bg(selected).text_color(strong))
-            .on_click(cx.listener(|this, _, _, cx| this.open_pins(cx)));
+            .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(|this, e: &gpui_kit::MouseDownEvent, _, cx| {
+                this.popover_at = e.position;
+                this.open_pins(cx);
+            }));
         let members_on = matches!(self.right_panel, RightPanel::Members);
         let members = self.guild_id.is_some().then(|| {
             ui::icon_button("members-toggle", Glyph::Users, if members_on { "Hide Member List" } else { "Show Member List" }, cx)
@@ -127,44 +135,79 @@ impl Rustcord {
                 }))
         });
         let search = self.guild_id.is_some().then(|| self.channel_search(window, cx));
-        div()
-            .h(px(48.))
-            .flex_none()
-            .pl(px(12.))
+        // Occludes, like the composer: the feed scrolls under the header and must not take its hover or clicks.
+        let bar = div()
+            .occlude()
+            .h(px(HEADER_HEIGHT))
+            .pl(px(8.))
             .pr(px(8.))
             .flex()
             .items_center()
             .gap(px(8.))
-            .bg(palette::surface(Level::Page, cx))
-            .border_b_1()
-            .border_color(palette::line(cx))
             // Drag area: every control inside it occludes it, or Windows' caption takes its clicks.
             .window_control_area(WindowControlArea::Drag)
             .child(crumbs)
             .children(topic)
             .child(div().ml_auto().flex_none().flex().items_center().gap(px(2.)).children(threads).child(pins).children(members).children(search))
+            .child(self.caption_clearance(self.guild_id.is_none() || matches!(self.right_panel, RightPanel::Hidden)));
+        ui::scroll_edge(palette::surface(Level::Page, cx), 0.).child(bar)
     }
 
-    fn channel_search(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        let focused = self.search_input.read(cx).focus_handle(cx).is_focused(window);
-        div()
-            .w(px(200.))
-            .h(px(32.))
-            .ml(px(8.))
-            .px(px(10.))
+    // The header's search: one element that is a search button when closed and opens into the field, open
+    // while it has focus or a query. Its width and fill run both ways on a quick ease-out, but only on a change:
+    // present at mount, it simply is what it is.
+    fn channel_search(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        const CLOSED: f32 = 34.;
+        const OPEN: f32 = 200.;
+        let handle = self.search_input.read(cx).focus_handle(cx);
+        let focused = handle.is_focused(window);
+        let open = focused || !self.search_input.read(cx).value().is_empty();
+        // (open when last drawn, how many times it has changed): the count keys the animation, so one change
+        // plays once and later frames keep its end state.
+        let state = window.use_keyed_state("search-open-state", cx, |_, _| (open, 0usize));
+        let (was_open, changes) = *state.read(cx);
+        if was_open != open {
+            state.update(cx, |s, _| *s = (open, changes + 1));
+        }
+        let changes = state.read(cx).1;
+        let field = ui::search_field_fill(cx);
+        let (hover, strong) = (palette::hover(cx), palette::strong(cx));
+        let el = div()
+            .id("search-field")
+            .w(px(if open { OPEN } else { CLOSED }))
+            .h(px(34.))
+            .ml(px(4.))
+            .px(px(9.))
             .flex_none()
             .occlude()
             .flex()
             .items_center()
-            .gap(px(6.))
+            .gap_2()
+            .overflow_hidden()
             .squircle(RADIUS_SM)
-            .bg(palette::surface(Level::Rail, cx))
+            .when(open, |d| d.bg(field).backdrop_blur(px(12.)))
+            .when(!open, |d| d.cursor_pointer().hover(move |s| s.bg(hover).text_color(strong)))
             .border_1()
             .border_color(if focused { palette::accent() } else { gpui_kit::transparent_black() })
             .text_size(px(14.))
             .text_color(palette::faint(cx))
+            .child(Icon::new(Glyph::Search).size(px(16.)).flex_none())
             .child(div().flex_1().min_w_0().child(Input::new(&self.search_input).appearance(false).px_0().text_size(px(14.))))
-            .child(Icon::new(Glyph::Search).size(px(16.)))
+            .when(!open, |d| {
+                d.on_click(cx.listener(move |_, _, window, cx| {
+                    window.focus(&handle, cx);
+                    cx.notify();
+                }))
+            });
+        if changes == 0 {
+            return el.into_any_element();
+        }
+        let (from, to) = if open { (CLOSED, OPEN) } else { (OPEN, CLOSED) };
+        el.with_animation(SharedString::from(format!("search-{changes}")), Animation::new(Duration::from_millis(150)).with_easing(gpui_kit::ease_out_quint()), move |el, t| {
+            let fill = if open { t } else { 1. - t };
+            el.w(px(from + (to - from) * t)).bg(field.opacity(field.a * fill))
+        })
+        .into_any_element()
     }
 
     // The bar over the feed while unread messages wait: jump to the first, or mark the channel read.
@@ -188,7 +231,7 @@ impl Rustcord {
         Some(
             div()
                 .absolute()
-                .top(px(8.))
+                .top(px(HEADER_HEIGHT + 8.))
                 .left(px(8.))
                 .right(px(8.))
                 .min_h(px(36.))
@@ -275,7 +318,8 @@ impl Rustcord {
         )
     }
 
-    pub(crate) fn render_messages(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    /// `top`: how far a header floating over the feed reaches down; the first message rests below it.
+    pub(crate) fn render_messages(&self, top: f32, cx: &mut Context<Self>) -> impl IntoElement {
         let Some(channel) = &self.channel else { return div().into_any_element() };
         let Some(feed) = self.feeds.get(&channel.id) else { return div().into_any_element() };
         // A pointer copy: the feed is copy-on-write, so this frame shares it rather than cloning every message.
@@ -356,11 +400,11 @@ impl Rustcord {
             frame.apply(div().w_full().child(row)).into_any_element()
         })
         .size_full()
-        .pt(px(12.))
+        .pt(px(top + 12.))
         // Clear of the composer and the typing pill above it, so the last message rests in view.
         .pb(px(self.composer_height.get() + 32.))
         ;
-        // The visible message area, which inline GIFs are clipped to (see gif.rs): the list down to
+        // The visible message area, which inline GIFs are clipped to (see gif.rs): the list between the header and
         // the floating composer, which GIFs must not paint over. Pinned to the top left: an absolute
         // element without offsets sits where it would flow, after the list.
         let composer = self.composer_height.clone();
@@ -370,8 +414,9 @@ impl Rustcord {
             .child(messages)
             .child(
                 gpui_kit::canvas(|_, _, _| {}, move |bounds, _, _, _| {
-                    let covered = px(composer.get() + 16.).min(bounds.size.height);
-                    crate::gif::set_chat_clip(gpui_kit::Bounds { origin: bounds.origin, size: gpui_kit::size(bounds.size.width, bounds.size.height - covered) });
+                    let top = px(top).min(bounds.size.height);
+                    let covered = (px(composer.get() + 16.) + top).min(bounds.size.height);
+                    crate::gif::set_chat_clip(gpui_kit::Bounds { origin: gpui_kit::point(bounds.origin.x, bounds.origin.y + top), size: gpui_kit::size(bounds.size.width, bounds.size.height - covered) });
                 })
                 .absolute()
                 .top_0()
@@ -395,7 +440,7 @@ impl Rustcord {
             .gap(px(4.))
             .child(ui::icon_button("attach", Glyph::PlusCircle, "Upload a File", cx).on_click(cx.listener(|this, _, window, cx| this.upload(window, cx))))
             // XSmall gives the editor 0/4px padding of its own; with these, the design's 4/6.
-            .child(div().flex_1().min_w_0().child(Textarea::new(&self.composer).appearance(false).with_size(Size::XSmall).py(px(4.)).px(px(2.)).text_size(px(16.)).line_height(px(24.)).text_color(strong)))
+            .child(div().flex_1().min_w_0().child(Textarea::new(&self.composer).appearance(false).with_size(Size::XSmall).py(px(4.)).px(px(2.)).text_size(px(15.)).line_height(px(22.)).text_color(strong)))
             .child(ui::icon_button("composer-gif", Glyph::Gif, "Open GIF picker", cx).on_click(cx.listener(|this, _, window, cx| this.open_gifs(window, cx))))
             .child(ui::icon_button("composer-emoji", Glyph::Emoji, "Select Emoji", cx).on_click(cx.listener(|this, _, window, cx| this.open_emoji_picker(EmojiTarget::Composer, window, cx))));
         let card = div()
@@ -405,11 +450,12 @@ impl Rustcord {
             .flex_col()
             .squircle(RADIUS_LG)
             // Glass: the feed shows through, blurred, as it scrolls under.
-            // GAP: the blur's mask uses round corners, a hair outside the squircle's.
             .bg(palette::surface(Level::Raised, cx).opacity(0.72))
             .backdrop_blur(px(24.))
             .backdrop_saturate(1.6)
-            .shadow(ui::shadow_pop(cx))
+            // The ring-less elevation: the hairline below is the edge, and the pop shadow's own 1px ring
+            // on top of it drew a line three times as heavy as the design's.
+            .shadow(ui::shadow_pop_on(gpui_kit::transparent_black(), cx))
             // A hairline: one device pixel on Retina; a full point read heavy around the glass.
             .border(px(0.5))
             .border_color(if focused { palette::line_strong(cx) } else { palette::line(cx) })
@@ -454,9 +500,11 @@ impl Rustcord {
             .capture_key_down(cx.listener(Self::on_composer_key))
             .child(measure)
             .children(self.jump_to_present(cx))
-            .child(div().relative().child(card).children(typing))
+            // Occludes: the composer floats over the feed, which must not take the hover or the click under it.
+            .child(div().relative().occlude().child(card).children(typing))
             .children(note)
-            .child(div().h(px(16.)))
+            // 8px off the window's foot, level with the user card in the left column.
+            .child(div().h(px(8.)))
     }
 
     // A mention badge's click: a person's profile beside it, or the channel it names.

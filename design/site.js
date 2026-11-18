@@ -8,6 +8,7 @@ const PAGES = [
   ["better.html", "Better than Discord"],
   ["foundations.html", "Foundations"],
   ["icons.html", "Icons"],
+  ["window-chrome.html", "Window frame"],
   ["primitives.html", "Primitives"],
   ["navigation.html", "Navigation"],
   ["messages.html", "Messages"],
@@ -28,7 +29,7 @@ const PAGES = [
   ["flows-call.html", "Flows: DM calls"],
   ["flows-community.html", "Flows: people and servers"],
 ];
-const FONTS = [["Gabarito", "Gabarito"], ["Onest", "Onest"], ["Figtree", "Figtree"], ["Rubik", "Rubik"], ["gg sans", "gg sans (current)"]];
+const FONTS = [["Figtree", "Figtree"], ["Gabarito", "Gabarito"], ["Onest", "Onest"], ["Rubik", "Rubik"], ["gg sans", "gg sans (current)"]];
 const NEUTRALS = [["", "Ink and bone"], ["plum", "Plum"], ["graphite", "Graphite"]];
 const LOGO = `<svg width="22" height="22" viewBox="0 0 64 66" aria-hidden="true"><g fill="#e8326f"><rect x="2" y="21" width="8" height="24" rx="4"/><rect x="15" y="10.5" width="8" height="45" rx="4"/><rect x="28" y="1" width="8" height="64" rx="4"/><rect x="41" y="13.5" width="8" height="39" rx="4"/><rect x="54" y="22" width="8" height="22" rx="4"/></g></svg>`;
 

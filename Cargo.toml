@@ -126,3 +126,5 @@ gpui-pre-apple = { path = "vendor/gpui-pre-apple" }
 gpui-pre-windows = { path = "vendor/gpui-pre-windows" }
 gpui-pre-wgpu = { path = "vendor/gpui-pre-wgpu" }
 gpui-pre-macos = { path = "vendor/gpui-pre-macos" }
+# Links in rendered markdown carry no underline.
+gpui-base = { path = "vendor/gpui-base" }

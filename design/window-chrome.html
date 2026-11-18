@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dango Window Frame</title>
+<meta name="description" content="One frame for every window: a 48px header line across all columns, columns told apart by tone.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.neutral)r.dataset.neutral=p.neutral;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<style>
+/* The rule: every column's first 48px is its header, on one line across the window. Columns are told
+   apart by tone alone (navigation and members on the sidebar tone, content on the page tone): no
+   hairlines, no cards, no strips. The only per-platform difference is where the left header starts. */
+.variants { display: grid; gap: var(--space-12); }
+.variant h3 { margin: 0 0 var(--space-2); }
+.variant p { color: var(--text-muted); margin-bottom: var(--space-3); max-width: 70ch; }
+/* Below 900px a desktop window would only squash: it keeps its size and scrolls sideways in its own box. */
+.wrap { container-type: inline-size; overflow-x: auto; padding-bottom: 8px; }
+.wrap > .win { min-width: 900px; }
+.win { --head: 48px; --rail: 64px; --list: 232px; --members: 232px; position: relative; height: 600px; display: grid; grid-template-columns: var(--rail) var(--list) minmax(0, 1fr) var(--members); grid-template-rows: var(--head) minmax(0, 1fr); background: var(--bg-sidebar); border-radius: 12px; overflow: hidden; box-shadow: 0 24px 60px oklch(0 0 0 / 0.28), 0 0 0 1px var(--line-strong); font-size: 14px; color: var(--text); }
+.win.windows { border-radius: 8px; }
+.win.full { border-radius: 0; }
+@container (max-width: 860px) { .win { --members: 0px; --list: 200px; } .members, .members-head { display: none !important; } }
+.ri { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ri.sm { width: 16px; height: 16px; }
+
+/* The left header row is split by column: the rail's slot holds the traffic lights (macOS, windowed) or
+   the Home tile, and the server name sits over the channel list, starting where the channel rows start. */
+.rail-head { grid-column: 1; grid-row: 1; display: grid; place-items: center; }
+/* The Home tile keeps its rail size and takes the header's 7px top inset, like the server name and the tools;
+   it runs 3px past the row, so the rail below starts 11px down to keep its 8px gap. */
+.win.full .rail-head, .win.windows .rail-head { align-items: start; padding-top: 7px; }
+.win.full .rail, .win.windows .rail { padding-top: 11px; }
+.list-head { grid-column: 2; grid-row: 1; display: flex; align-items: center; padding: 0 8px; min-width: 0; }
+.lights { display: flex; gap: 8px; flex: none; margin-left: 4px; }
+.lights i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; }
+.lights i:nth-child(2) { background: #febc2e; }
+.lights i:nth-child(3) { background: #28c840; }
+.server { flex: 1; min-width: 0; height: 34px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: var(--radius-sm); background: transparent; text-align: left; color: var(--text-strong); font-weight: var(--weight-semibold); font-size: 16px; }
+.server span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.server:hover { background: var(--hover); }
+.server .ri { color: var(--text-muted); }
+
+/* Rail and channel list under it, on the same surface. */
+.rail { grid-column: 1; grid-row: 2; display: grid; justify-items: center; align-content: start; gap: 8px; padding-top: 4px; position: relative; }
+.tile { width: 44px; height: 44px; border-radius: 15px; background: var(--bg-raised); display: grid; place-items: center; color: var(--text-strong); font-weight: var(--weight-semibold); font-size: 13px; position: relative; }
+.tile.home { background: var(--accent); color: #fff; }
+/* Home and the servers are different kinds of place: a short rounded rule splits them, 8px either side. */
+.rail-sep { width: 24px; height: 2px; border-radius: 1px; background: var(--line-strong); }
+.tile.on::before { content: ""; position: absolute; left: -12px; width: 4px; height: 36px; border-radius: 0 4px 4px 0; background: var(--text-strong); }
+.tile .badge { position: absolute; right: -4px; bottom: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 11px; display: grid; place-items: center; box-shadow: 0 0 0 3px var(--bg-sidebar); }
+.list { grid-column: 2; grid-row: 2; padding: 4px 8px 80px; display: grid; align-content: start; gap: 2px; color: var(--text-muted); min-width: 0; }
+.cat { font-size: 12px; font-weight: var(--weight-semibold); padding: 12px 8px 4px; display: flex; gap: 4px; align-items: center; }
+.cat .ri { width: 12px; height: 12px; }
+.row { height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border-radius: var(--radius-sm); min-width: 0; }
+.row span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row.on { background: var(--selected); color: var(--text-strong); }
+.row.unread { color: var(--text-strong); font-weight: var(--weight-semibold); }
+.row .ri { color: var(--text-faint); }
+.vm { height: 28px; padding-left: 36px; display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
+.av { width: 24px; height: 24px; border-radius: 50%; flex: none; background: var(--h, oklch(0.7 0.13 60)); }
+.me { position: absolute; left: 8px; bottom: 8px; width: calc(var(--rail) + var(--list) - 16px); height: 52px; border-radius: var(--radius-lg); background: var(--bg-raised); display: flex; align-items: center; gap: 10px; padding: 0 10px; }
+.me .who { flex: 1; min-width: 0; line-height: 1.2; }
+.me .who b { display: block; color: var(--text-strong); font-weight: var(--weight-semibold); }
+.me .who small { color: var(--text-muted); font-size: 12px; }
+.me .tools { display: flex; gap: 10px; color: var(--text-muted); }
+
+/* Content: the page tone runs to the top; the header floats over the feed and blurs it as it fades. */
+.content { grid-column: 3; grid-row: 1 / 3; position: relative; background: var(--bg-page); overflow: hidden; min-width: 0; }
+.feed { position: absolute; inset: 0; padding: calc(var(--head) + 12px) 20px 96px; display: grid; gap: 16px; align-content: end; }
+.msg { display: flex; gap: 12px; }
+.msg .av { width: 36px; height: 36px; }
+.msg b { color: var(--text-strong); font-weight: var(--weight-semibold); }
+.msg time { color: var(--text-faint); font-size: 12px; margin-left: 6px; }
+.msg p { color: var(--text); }
+.shot { margin-top: 6px; height: 120px; width: min(320px, 100%); border-radius: var(--radius-md); background: linear-gradient(135deg, oklch(0.62 0.16 265), oklch(0.7 0.14 330)); }
+.chanbar { position: absolute; inset: 0 0 auto; height: calc(var(--head) + 24px); }
+.chanbar::before { content: ""; position: absolute; inset: 0; backdrop-filter: blur(16px); -webkit-mask: linear-gradient(#000, #000 55%, transparent); mask: linear-gradient(#000, #000 55%, transparent); background: linear-gradient(color-mix(in oklch, var(--bg-page) 90%, transparent), color-mix(in oklch, var(--bg-page) 60%, transparent) 60%, transparent); }
+.chanbar .bar { position: relative; height: var(--head); display: flex; align-items: center; gap: 10px; padding: 0 12px 0 16px; min-width: 0; }
+.chanbar .title { display: flex; align-items: center; gap: 6px; color: var(--text-strong); font-weight: var(--weight-semibold); font-size: 16px; flex: none; }
+.chanbar .title .ri { color: var(--text-faint); }
+.chanbar .topic { flex: 1; min-width: 0; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 12px; border-left: 1px solid var(--line-strong); }
+.chanbar .tools { display: flex; align-items: center; gap: 4px; color: var(--text-muted); flex: none; }
+.chanbar .tools > i { width: 34px; height: 34px; display: grid; place-items: center; border-radius: var(--radius-sm); }
+.chanbar .tools > i.on { background: var(--selected); color: var(--text-strong); }
+.search { width: 168px; height: 34px; border-radius: var(--radius-sm); background: var(--bg-sidebar); display: flex; align-items: center; justify-content: space-between; padding: 0 8px 0 10px; color: var(--text-faint); font-size: 13px; margin: 0 4px; }
+@container (max-width: 1000px) { .search { display: none; } }
+@container (max-width: 1180px) { .chanbar .topic { display: none; } }
+.composer { position: absolute; left: 16px; right: 16px; bottom: 16px; height: 48px; border-radius: var(--radius-lg); background: color-mix(in oklch, var(--bg-raised) 80%, transparent); backdrop-filter: blur(20px); box-shadow: 0 0 0 0.5px var(--line-strong), 0 8px 24px oklch(0 0 0 / 0.18); display: flex; align-items: center; gap: 10px; padding: 0 12px; color: var(--text-faint); }
+.composer span { flex: 1; }
+
+/* Members: the sidebar tone again, with its own header on the same line. */
+.members-head { grid-column: 4; grid-row: 1; display: flex; align-items: center; padding: 0 16px; color: var(--text-strong); font-weight: var(--weight-semibold); }
+.members-head small { color: var(--text-faint); font-weight: var(--weight-medium); margin-left: 6px; }
+.members { grid-column: 4; grid-row: 2; padding: 4px 8px; display: grid; align-content: start; gap: 2px; }
+.members .label { font-size: 12px; font-weight: var(--weight-semibold); color: var(--text-muted); padding: 10px 8px 4px; }
+.person { height: 42px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border-radius: var(--radius-sm); }
+.person .av { width: 32px; height: 32px; }
+.person b { font-weight: var(--weight-medium); color: var(--text-strong); }
+.person small { display: block; color: var(--text-faint); font-size: 12px; }
+
+/* Windows: the caption buttons sit flush at the top right, over the members' header. */
+.caption { position: absolute; top: 0; right: 0; display: flex; z-index: 3; }
+.caption button { width: 46px; height: 32px; display: grid; place-items: center; color: var(--text-muted); }
+.caption button:hover { background: var(--hover); color: var(--text-strong); }
+.caption button.close:hover { background: #c42b1c; color: #fff; }
+.caption svg { width: 10px; height: 10px; stroke: currentColor; stroke-width: 1.2; fill: none; }
+.windows .members-head { padding-right: 150px; }
+@container (max-width: 860px) { .windows .chanbar .bar { padding-right: 150px; } }
+</style>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+<section id="frame">
+  <h1>Window frame</h1>
+  <p class="lede">One frame and one rule. The first 48px of every column is its header, and the headers line up across the window. Columns are told apart by tone: the navigation and the members sit on the sidebar tone, the content on the page tone. There are no hairlines, cards or extra strips. The content header floats over the feed and blurs it as the feed scrolls under. The only thing that changes between platforms is what fills the rail's slot in the header row: the traffic lights, or the Home tile.</p>
+</section>
+<section id="variants">
+  <h2>On each platform</h2>
+  <div class="variants" id="variant-list"></div>
+</section>
+</main>
+</div>
+<script src="site.js"></script>
+<script src="icons-data.js"></script>
+<script>
+const LINE_ONLY = new Set(["hashtag2", "add", "arrow-right5", "arrow-up5", "check-read", "sort", "search"]);
+const body = n => (!LINE_ONLY.has(n) && REICON_FILLED[n]) || REICON[n] || "";
+const ic = (n, cls = "") => `<svg class="ri ${cls}" viewBox="0 0 24 24" aria-hidden="true">${body(n)}</svg>`;
+const inbox = `<svg class="ri" viewBox="0 0 24 24" aria-hidden="true">${REICON.inbox}<g fill="currentColor" stroke="none">${REICON_FILLED.inbox.match(/<path[^>]*\/>/)[0]}</g></svg>`;
+
+const VARIANTS = [
+  { key: "mac", name: "macOS", note: "The traffic lights take the rail's slot in the header row. The server name sits over the channel list, lined up with the channel rows." },
+  { key: "full", name: "macOS, full screen", note: "No traffic lights, so the Home tile moves up into the rail's slot. The server name stays where it was." },
+  { key: "windows", name: "Windows", note: "The same as full screen. The caption buttons sit flush at the top right, over the members' header, and the members' title keeps clear of them." },
+];
+
+const frame = v => `<div class="wrap"><div class="win ${v.key === "mac" ? "" : v.key}">
+  <div class="rail-head">${v.key === "mac" ? '<span class="lights"><i></i><i></i><i></i></span>' : `<div class="tile home">${ic("messages3")}</div>`}</div>
+  <div class="list-head"><button class="server"><span>We are Sandesh Pandey</span>${ic("chevron-down", "sm")}</button></div>
+  <div class="rail">
+    ${v.key === "mac" ? `<div class="tile home">${ic("messages3")}</div>` : ""}<div class="rail-sep" role="separator"></div>
+    <div class="tile on">WaS<span class="badge">2</span></div>
+    <div class="tile">gz</div>
+    <div class="tile" style="color: var(--text-muted)">${ic("compass")}</div>
+  </div>
+  <div class="list">
+    <div class="cat">${ic("chevron-down")} General</div>
+    <div class="row on">${ic("hashtag2")}<span>general</span></div>
+    <div class="row unread">${ic("hashtag2")}<span>media</span></div>
+    <div class="row">${ic("hashtag2")}<span>staff-notes</span></div>
+    <div class="cat">${ic("chevron-down")} Voice</div>
+    <div class="row">${ic("volume-high")}<span>team-lounge</span></div>
+    <div class="vm"><span class="av"></span>abyss reverie</div>
+    <div class="vm"><span class="av" style="--h: oklch(0.6 0.17 20)"></span>ani khet</div>
+  </div>
+  <div class="me"><span class="av" style="width: 32px; height: 32px; --h: oklch(0.62 0.02 300)"></span><div class="who"><b>frsty</b><small>Do Not Disturb</small></div><div class="tools">${ic("microphone2")}${ic("headphone")}${ic("gear2")}</div></div>
+  <div class="content">
+    <div class="feed">
+      <div class="msg"><span class="av"></span><div><b>abyss reverie</b><time>2:00 PM</time><p>look at this</p><div class="shot"></div></div></div>
+      <div class="msg"><span class="av" style="--h: oklch(0.62 0.14 150)"></span><div><b>Zoë</b><time>2:02 PM</time><p>it already feels faster than the real one</p></div></div>
+      <div class="msg"><span class="av" style="--h: oklch(0.6 0.17 20)"></span><div><b>frsty</b><time>2:03 PM</time><p>discord on rust, check #media</p></div></div>
+    </div>
+    <div class="chanbar"><div class="bar">
+      <span class="title">${ic("hashtag2")}general</span>
+      <span class="topic">A good place to talk about Rust, gpui and everything else</span>
+      <span class="tools"><i>${ic("messages3")}</i><i>${ic("pin")}</i><i class="on">${ic("users")}</i><span class="search">Search ${ic("search", "sm")}</span><i>${inbox}</i><i>${ic("help-circle")}</i></span>
+    </div></div>
+    <div class="composer">${ic("add-circle")}<span>Message #general</span>${ic("emoji-happy")}</div>
+  </div>
+  <div class="members-head">Members<small>6</small></div>
+  <div class="members">
+    <div class="label">Online · 3</div>
+    <div class="person"><span class="av"></span><div><b>abyss reverie</b><small>Apex Legends</small></div></div>
+    <div class="person"><span class="av" style="--h: oklch(0.6 0.17 20)"></span><div><b>ani khet</b><small>Hozier</small></div></div>
+    <div class="person"><span class="av" style="--h: oklch(0.62 0.14 150)"></span><div><b>Zoë</b></div></div>
+    <div class="label">Offline · 1</div>
+    <div class="person" style="opacity: 0.55"><span class="av" style="--h: oklch(0.55 0.12 270)"></span><div><b>a member whose display name is long</b></div></div>
+  </div>
+  ${v.key === "windows" ? `<div class="caption"><button aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5h10"/></svg></button><button aria-label="Maximize"><svg viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" rx="1.5"/></svg></button><button class="close" aria-label="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0 0 10"/></svg></button></div>` : ""}
+</div></div>`;
+
+$("#variant-list").innerHTML = VARIANTS.map(v => `<div class="variant"><h3>${v.name}</h3><p>${v.note}</p>${frame(v)}</div>`).join("");
+</script>
+</body>
+</html>

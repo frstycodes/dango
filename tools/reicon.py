@@ -312,6 +312,12 @@ MAP = [
     ("Nav::Minimize", "Window", "Minimize", "minus"),
     ("Nav::Restore", "Window", "Restore", "CUSTOM:win-restore"),
     ("Nav::DeafenedFill", "Voice", "Deafened", "CUSTOM:deafened"),
+    ("Glyph::TextLocked", "Channels", "Text channel, private", "CUSTOM:text-locked"),
+    ("Glyph::VoiceLocked", "Channels", "Voice channel, private", "CUSTOM:voice-locked"),
+    ("Glyph::AnnouncementLocked", "Channels", "Announcement channel, private", "CUSTOM:announcement-locked"),
+    ("Glyph::StageLocked", "Channels", "Stage channel, private", "CUSTOM:stage-locked"),
+    ("Glyph::ForumLocked", "Channels", "Forum channel, private", "CUSTOM:forum-locked"),
+    ("Glyph::MediaLocked", "Channels", "Media channel, private", "CUSTOM:media-locked"),
 ]
 
 
@@ -389,7 +395,7 @@ def main():
 
 
 # Bases the custom glyphs in design/icons.html are built on.
-EXTRA = {"inbox", "hashtag2", "volume-high", "bullhorn", "podcast", "messages2", "gallery", "messages3", "microphone2", "headphone", "video", "screencast", "monitor", "sparkle"}
+EXTRA = {"podcast", "messages2", "gallery", "bullhorn", "inbox", "hashtag2", "volume-high", "bullhorn", "podcast", "messages2", "gallery", "messages3", "microphone2", "headphone", "video", "screencast", "monitor", "sparkle"}
 
 
 
@@ -422,7 +428,19 @@ def slashed(base):
             f'<path d="{slash}" stroke="#000" stroke-width="6"/></mask><g mask="url(#cut)">{base}</g><path d="{slash}"/>')
 
 
+# The private-channel badge: a small padlock in the corner, cut from the glyph by a stroke-wide gap.
+LOCK = f'<path d="{sq(14, 16.25, 9, 6.75, 2)}" fill="currentColor"/><path d="M16.25 16.25v-1.5a2.25 2.25 0 0 1 4.5 0v1.5"/>'
+
+
+def badged(base, badge):
+    return (f'<mask id="badge" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/>'
+            f'<g stroke="#000" fill="#000" stroke-width="5">{badge}</g></mask><g mask="url(#badge)">{base}</g>{badge}')
+
+
 def custom(reicon, name):
+    if name.endswith("-locked"):
+        base = {"text-locked": "hashtag2", "voice-locked": "volume-high", "announcement-locked": "bullhorn", "stage-locked": "podcast", "forum-locked": "messages2", "media-locked": "gallery"}[name]
+        return badged(glyph(reicon, base), LOCK)
     return {
         "muted": lambda: slashed(glyph(reicon, "microphone2")),
         "deafened": lambda: slashed(glyph(reicon, "headphone")),

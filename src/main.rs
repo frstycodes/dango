@@ -103,6 +103,10 @@ fn main() {
                     include_bytes!("../assets/fonts/Gabarito-SemiBold.ttf"),
                     include_bytes!("../assets/fonts/Gabarito-Bold.ttf"),
                     include_bytes!("../assets/fonts/Gabarito-ExtraBold.ttf"),
+                    include_bytes!("../assets/fonts/Figtree-Regular.ttf"),
+                    include_bytes!("../assets/fonts/Figtree-Medium.ttf"),
+                    include_bytes!("../assets/fonts/Figtree-SemiBold.ttf"),
+                    include_bytes!("../assets/fonts/Figtree-Bold.ttf"),
                     include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"),
                     include_bytes!("../assets/fonts/RobotoMono-Bold.ttf"),
                 ]
@@ -191,7 +195,7 @@ fn open_main(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gp
         window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(1280.), px(820.)), cx))),
         window_min_size: Some(size(px(940.), px(520.))),
         // The traffic lights centre in the 36px title bar, leaving the first 72px to them.
-        titlebar: Some(TitlebarOptions { title: Some("Dango".into()), appears_transparent: true, traffic_light_position: Some(gpui_kit::point(px(12.), px(12.))) }),
+        titlebar: Some(TitlebarOptions { title: Some("Dango".into()), appears_transparent: true, traffic_light_position: Some(gpui_kit::point(px(12.), px(18.))) }),
         window_background: material::window_background(),
         ..Default::default()
     };
@@ -615,7 +619,14 @@ pub struct Rustcord {
     text_files: Rc<RefCell<text_file::TextFiles>>,
     relationships: Vec<Relationship>,
     friends_tab: home::FriendsTab,
+    // Your recent mentions once fetched (None while loading); kept after the popover closes for the page.
     inbox: Option<Option<Result<Vec<Message>, SharedString>>>,
+    // The inbox popover, rising from the rail's Inbox tile.
+    inbox_open: bool,
+    // Where the pins popover or a reaction's emoji picker was opened from, so it rises from its trigger.
+    popover_at: gpui_kit::Point<gpui_kit::Pixels>,
+    // The full Inbox page in the content column ("See all").
+    inbox_page: bool,
     // The GIF picker: None closed, Some(None) loading, Some(Some(..)) results.
     gif_picker: Option<Option<Result<Vec<Gif>, SharedString>>>,
     gif_search: Entity<SearchState>,
@@ -819,6 +830,9 @@ impl Rustcord {
             relationships: Vec::new(),
             friends_tab: home::FriendsTab::Online,
             inbox: None,
+            inbox_open: false,
+            popover_at: gpui_kit::Point::default(),
+            inbox_page: false,
             gif_picker: None,
             gif_search,
             restore: None,
@@ -966,7 +980,8 @@ impl Rustcord {
             Event::Ready(ready) => {
                 let ready = *ready;
                 self.channel_info_requested.clear();
-                if self.me.is_none() {
+                // Demo scenes set their own place; the last channel a real session saved would override it.
+                if self.me.is_none() && std::env::var_os("CHORD_DEMO").is_none() {
                     self.restore = home::load_last_channel(&ready.me.id);
                 }
                 self.my_status = ready.status;
@@ -1331,6 +1346,7 @@ impl Rustcord {
     }
 
     pub(crate) fn open_channel(&mut self, channel: Channel, window: &mut Window, cx: &mut Context<Self>) {
+        self.inbox_page = false;
         if let Some(current) = self.channel.clone().filter(|c| c.id != channel.id) {
             self.back.push((self.guild_id.clone(), current));
             self.forward.clear();
@@ -1356,8 +1372,6 @@ impl Rustcord {
             _ => format!("Message #{}", channel.name),
         };
         self.composer.update(cx, |state, cx| state.set_placeholder(placeholder, window, cx));
-        let search = format!("Search {}", self.guild().map(|g| g.name.as_str()).unwrap_or("messages"));
-        self.search_input.update(cx, |state, cx| state.set_placeholder(search, window, cx));
         self.last_channel.insert(self.guild_id.clone(), channel.id.clone());
         home::save_last_channel(self.my_id(), self.guild_id.as_deref(), &channel.id);
         let id = channel.id.clone();
