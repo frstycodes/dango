@@ -126,8 +126,8 @@ fn main() -> Result<(), String> {
                 event = events.next() => match event {
                     Some(voice::VoiceEvent::Stage(stage)) => println!("stage {stage:?}"),
                     Some(voice::VoiceEvent::Stats(s)) => println!(
-                        "stats ping {} ms (avg {}), loss in {:.1}% out {:.1}%, {} {} {} dave={}",
-                        s.ping_ms, s.avg_ping_ms, s.inbound_loss_pct, s.outbound_loss_pct, s.endpoint, s.server_ip, s.encryption, s.dave
+                        "stats ping {} ms (median {}), loss out {:?}%, {} {} {} dave={}",
+                        s.ping_ms, s.median_ping_ms, s.outbound_loss_pct, s.endpoint, s.server_ip, s.encryption, s.dave
                     ),
                     Some(voice::VoiceEvent::InputLevel { .. }) => {}
                     Some(voice::VoiceEvent::Connected) => {
