@@ -102,6 +102,10 @@ fn main() {
                     include_bytes!("../assets/fonts/Gabarito-SemiBold.ttf"),
                     include_bytes!("../assets/fonts/Gabarito-Bold.ttf"),
                     include_bytes!("../assets/fonts/Gabarito-ExtraBold.ttf"),
+                    include_bytes!("../assets/fonts/Figtree-Regular.ttf"),
+                    include_bytes!("../assets/fonts/Figtree-Medium.ttf"),
+                    include_bytes!("../assets/fonts/Figtree-SemiBold.ttf"),
+                    include_bytes!("../assets/fonts/Figtree-Bold.ttf"),
                     include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"),
                     include_bytes!("../assets/fonts/RobotoMono-Bold.ttf"),
                 ]
