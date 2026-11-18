@@ -315,10 +315,9 @@ fn demo_call(chord: &mut Rustcord) {
     let (session, _) = crate::voice::join("4194304".into(), Some("1".into()), "lounge".into(), crate::voice::GatewayHandle::new().0, Default::default());
     let stats = crate::voice::Stats {
         ping_ms: 42,
-        avg_ping_ms: 47,
+        median_ping_ms: 47,
         last_pings: vec![44, 51, 47, 40, 62, 45, 43, 48, 120, 52, 46, 44, 41, 47, 50, 42],
-        outbound_loss_pct: 0.,
-        inbound_loss_pct: 0.4,
+        outbound_loss_pct: Some(0.4),
         endpoint: "c-bom06-1a2b3c4d.discord.media".into(),
         server_ip: "162.159.0.1".into(),
         encryption: "aead_aes256_gcm_rtpsize".into(),

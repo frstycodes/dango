@@ -8,7 +8,7 @@ use std::{
     net::UdpSocket,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         mpsc::{self as std_mpsc, Receiver, RecvTimeoutError},
     },
     thread,
@@ -98,27 +98,24 @@ impl Link {
     }
 }
 
-// Packet loss, both ways, for `Stats`.
-#[derive(Default)]
+// Loss of what we send, as the server's RTCP reports give it. Incoming loss isn't counted: gaps in
+// other people's audio mix network loss with reordering and decryption failures, and it's our own
+// audio reaching the call that matters.
 pub struct Counters {
-    received: AtomicU64,
-    expected: AtomicU64,
-    // Percent, as f32 bits, from the server's RTCP receiver reports about our audio.
+    // Percent, as f32 bits; NaN until the server has reported.
     outbound_loss: AtomicU32,
 }
 
-impl Counters {
-    fn count(&self, gap: u16) {
-        self.received.fetch_add(1, Ordering::Relaxed);
-        self.expected.fetch_add(gap as u64 + 1, Ordering::Relaxed);
+impl Default for Counters {
+    fn default() -> Self {
+        Self { outbound_loss: AtomicU32::new(f32::NAN.to_bits()) }
     }
+}
 
-    // (inbound %, outbound %) since the last call.
-    pub fn take_loss(&self) -> (f32, f32) {
-        let received = self.received.swap(0, Ordering::Relaxed) as f32;
-        let expected = self.expected.swap(0, Ordering::Relaxed) as f32;
-        let inbound = if expected > 0.0 { (1.0 - received / expected).max(0.0) * 100.0 } else { 0.0 };
-        (inbound, f32::from_bits(self.outbound_loss.load(Ordering::Relaxed)))
+impl Counters {
+    // The server's latest report on our audio, if it has sent one.
+    pub fn outbound_loss(&self) -> Option<f32> {
+        Some(f32::from_bits(self.outbound_loss.load(Ordering::Relaxed))).filter(|loss| !loss.is_nan())
     }
 }
 
@@ -501,6 +498,9 @@ fn handle_rtcp(link: &Link, packet: &[u8]) {
         }
     }
     if let Some(loss) = rtp::reported_loss(&rtcp, link.ssrc) {
+        if super::debug() {
+            eprintln!("[{:?}] server reports {loss:.1}% loss of our audio", link.role);
+        }
         link.counters.outbound_loss.store(loss.to_bits(), Ordering::Relaxed);
     }
 }
@@ -726,7 +726,6 @@ impl AudioIn {
             return; // late: older than what was already played
         }
         self.last_sequence = Some(sequence);
-        link.counters.count(gap);
         let (mixer, key) = (&link.shared.mixer, link.mix_key(ssrc));
         // Short gaps get Opus loss concealment (exactly one frame each); longer ones are silence.
         if gap <= MAX_CONCEALED_FRAMES {
@@ -746,14 +745,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn counters_report_inbound_loss() {
+    fn outbound_loss_is_unknown_until_reported() {
         let counters = Counters::default();
-        counters.count(0);
-        counters.count(2);
-        let (inbound, outbound) = counters.take_loss();
-        assert!((inbound - 50.0).abs() < 0.01, "2 of 4 expected packets lost: {inbound}");
-        assert_eq!(outbound, 0.0);
-        assert_eq!(counters.take_loss().0, 0.0, "counts reset per interval");
+        assert_eq!(counters.outbound_loss(), None);
+        counters.outbound_loss.store(2.5f32.to_bits(), Ordering::Relaxed);
+        assert_eq!(counters.outbound_loss(), Some(2.5));
     }
 
     #[test]
