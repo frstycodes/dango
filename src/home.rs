@@ -188,6 +188,7 @@ impl Rustcord {
             .border_b_1()
             .border_color(palette::line(cx))
             .window_control_area(WindowControlArea::Drag)
+            .child(self.header_lead(cx))
             .child(
                 div()
                     .flex()
@@ -209,7 +210,8 @@ impl Rustcord {
                     this.friends_tab = this_tab;
                     cx.notify();
                 }))
-            })));
+            })))
+            .child(div().ml_auto().child(self.header_trail(cx)));
         let heading = match tab {
             FriendsTab::Online => "Online",
             FriendsTab::All => "All friends",

@@ -1,10 +1,10 @@
-// Dango's frame (design/navigation.html): a title bar over the rail, channel list, chat and side panel,
-// with the user area at the foot of the channel list.
+// Dango's frame (design/navigation.html): the rail, channel list, chat and side panel run to the window's
+// top, each column's own header doubling as the title bar; the user area sits at the foot of the channel list.
 use std::time::Duration;
 
 use gpui_kit::{
     Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent,
-    ObjectFit, Render, SharedString, Stateful, Window, WindowControlArea,
+    ObjectFit, Render, SharedString, Stateful, Window,
     component::{ActiveTheme, Icon, tooltip::Tooltip},
     div, img, linear_color_stop, linear_gradient, prelude::*, px,
 };
@@ -14,18 +14,19 @@ use crate::{
     discord::{self, MediaKind},
     icons::Glyph,
     login, palette,
-    sidebar::{Nav, render_face, server_face},
+    sidebar::Nav,
     ui::{self, Squircle},
 };
 
+// Room at the window's top for the traffic lights and Windows' caption buttons, which overlays keep clear of.
 pub const TITLE_HEIGHT: f32 = 36.;
+// Every column's header, which is also where the window drags from.
+pub const HEADER_HEIGHT: f32 = 48.;
 pub const RAIL_WIDTH: f32 = 68.;
 pub const CHANNELS_WIDTH: f32 = 240.;
 pub const PANEL_WIDTH: f32 = 264.;
 // The user area: 8px over and 10px under its 32px row.
 pub const PANEL_HEIGHT: f32 = 50.;
-// The room macOS's traffic lights take at the title bar's start (12px lights 8px apart, from x 12).
-pub const TRAFFIC_LIGHTS: f32 = 72.;
 const CHANNELS_RANGE: (f32, f32) = (200., 440.);
 const PANEL_RANGE: (f32, f32) = (200., 380.);
 
@@ -117,8 +118,7 @@ impl Rustcord {
         let (menu, dialog) = (self.render_menu(window, cx), self.render_dialog(cx));
         let (viewer, settings) = (self.viewer_overlay(window, cx), self.render_settings(window, cx));
         crate::gif::set_covered(!overlays.is_empty() || !call_overlays.is_empty() || menu.is_some() || dialog.is_some() || viewer.is_some() || settings.is_some());
-        root.child(self.title_bar(cx))
-            .child(body)
+        root.child(body)
             .children(overlays)
             .children(call_overlays)
             .children(self.render_toast(cx))
@@ -221,65 +221,23 @@ impl Rustcord {
             )
     }
 
-    // The window's own chrome (.titlebar): history arrows lead, the current place sits centred, inbox and
-    // help close the bar. The whole bar drags the window.
-    fn title_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let (mark, title): (AnyElement, SharedString) = match self.guild() {
-            Some(guild) => (render_face(server_face(guild), 20., ui::RADIUS_XS, false, 0., cx), guild.name.clone().into()),
-            None if self.channel.is_none() => (Icon::new(Glyph::Users).size(px(18.)).text_color(palette::faint(cx)).into_any_element(), "Friends".into()),
-            None => (Icon::new(Glyph::ChatRound).size(px(18.)).text_color(palette::faint(cx)).into_any_element(), "Direct messages".into()),
-        };
-        let mentions = self.read_states.values().any(|r| r.mentions > 0);
+    // What the title bar held, now leading and closing whichever header tops the content column:
+    // history arrows first, inbox and help last, clear of Windows' caption buttons.
+    pub(crate) fn header_lead(&self, cx: &mut Context<Self>) -> Div {
         let back = title_button("back", Glyph::ArrowLeft, !self.back.is_empty(), "Back", cx).on_click(cx.listener(|this, _, window, cx| this.navigate(false, window, cx)));
         let forward = title_button("forward", Glyph::ArrowRight, !self.forward.is_empty(), "Forward", cx).on_click(cx.listener(|this, _, window, cx| this.navigate(true, window, cx)));
-        let inbox_open = self.inbox.is_some();
+        div().flex_none().flex().items_center().gap_1().child(back).child(forward)
+    }
+
+    pub(crate) fn header_trail(&self, cx: &mut Context<Self>) -> Div {
+        let mentions = self.read_states.values().any(|r| r.mentions > 0);
         let (selected, accent) = (palette::selected(cx), palette::accent());
         let inbox = title_button("inbox", Glyph::Inbox, true, "Inbox", cx)
-            .when(inbox_open, |b| b.bg(selected).text_color(palette::strong(cx)))
+            .when(self.inbox.is_some(), |b| b.bg(selected).text_color(palette::strong(cx)))
             .when(mentions, |b| b.child(div().absolute().top(px(4.)).right(px(4.)).size(px(7.)).rounded_full().bg(accent)))
             .on_click(cx.listener(|this, _, _, cx| this.open_inbox(cx)));
-        div()
-            .relative()
-            .h(px(TITLE_HEIGHT))
-            .flex_none()
-            .px_2()
-            .flex()
-            .items_center()
-            .gap_1()
-            .text_size(px(14.))
-            .window_control_area(WindowControlArea::Drag)
-            // macOS draws its traffic lights in the first 72px; Windows leads with the app's name instead.
-            .map(|bar| match cfg!(target_os = "macos") {
-                true => bar.child(div().w(px(TRAFFIC_LIGHTS - 8.)).flex_none()),
-                false => bar.child(brand(cx)),
-            })
-            .child(back)
-            .child(forward)
-            .child(
-                div()
-                    .absolute()
-                    .left_0()
-                    .right_0()
-                    .top_0()
-                    .bottom_0()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(
-                        div()
-                            .max_w(gpui_kit::relative(0.4))
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(palette::strong(cx))
-                            .child(mark)
-                            .child(div().min_w_0().truncate().child(title)),
-                    ),
-            )
-            .child(div().ml_auto().mr(px(crate::window_controls::WIDTH)).flex().items_center().gap_1().child(inbox).child(
-                title_button("help", Glyph::Help, true, "Help", cx).on_click(|_, _, cx| cx.open_url("https://support.discord.com")),
-            ))
+        let help = title_button("help", Glyph::Help, true, "Help", cx).on_click(|_, _, cx| cx.open_url("https://support.discord.com"));
+        div().flex_none().mr(px(crate::window_controls::WIDTH)).flex().items_center().gap_1().child(inbox).child(help)
     }
 
     // The user area (.me), at the foot of the channel list: who you are, how you look to others, and
@@ -648,21 +606,6 @@ fn title_button(id: &'static str, glyph: Glyph, enabled: bool, label: &'static s
         .when(enabled, |b| b.cursor_pointer().hover(move |s| s.bg(hover).text_color(strong)))
         .child(Icon::new(glyph).size(px(18.)))
         .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
-}
-
-// Dango's mark and name, leading the bar where the system draws no traffic lights.
-fn brand(cx: &App) -> Div {
-    div()
-        .flex_none()
-        .pl_1()
-        .pr_2()
-        .flex()
-        .items_center()
-        .gap_2()
-        .font_weight(FontWeight::MEDIUM)
-        .text_color(palette::strong(cx))
-        .child(img(crate::icons::MARK).size(px(18.)))
-        .child("Dango")
 }
 
 // A user area control (.me .iconbtn): 30px; `on` (muted, deafened) turns it coral. The glyph pops in on

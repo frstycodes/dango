@@ -93,6 +93,27 @@ pub fn split(main: Control, options: Control) -> Div {
 }
 
 // The LIVE badge: chili, with the mini wave at its own 2px weight.
+/// A header floating over content that scrolls under it, like iOS's scroll edge effect: the content
+/// blurs and fades into the surface towards the window's top, one gradient running through the bar
+/// itself, with no hairline. `fade_right` keeps it off a column at the right (the side panel) whose
+/// content doesn't scroll under the header.
+pub fn scroll_edge(surface: Hsla, fade_right: f32) -> Div {
+    const TAIL: f32 = 16.;
+    let height = crate::layout::HEADER_HEIGHT + TAIL;
+    div()
+        .absolute()
+        .top_0()
+        .left_0()
+        .right_0()
+        .h(px(height))
+        .child(div().absolute().inset_0().right(px(fade_right)).backdrop_blur(px(16.)).backdrop_fade(px(0.), px(0.), px(height * 0.8), px(0.)))
+        .child(div().absolute().inset_0().right(px(fade_right)).bg(linear_gradient(
+            180.,
+            linear_color_stop(surface.opacity(0.9), 0.),
+            linear_color_stop(surface.opacity(0.), 1.),
+        )))
+}
+
 pub fn live_badge() -> Div {
     let white = gpui_kit::white();
     let wave = div().h(px(9.)).flex().items_center().gap(px(1.5)).children([0.55_f32, 1., 0.7].map(|base| div().w(px(2.)).h(px(9. * base)).rounded_full().bg(white)));
