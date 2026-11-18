@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dango Channel Settings</title>
+<meta name="description" content="Everything a moderator edits on one channel: overview, permissions, invites, webhooks.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<link rel="stylesheet" href="css/overlays.css">
+<link rel="stylesheet" href="css/settings.css">
+<link rel="stylesheet" href="css/server-settings.css">
+<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+
+<section id="window">
+  <h2>Channel settings window</h2>
+  <p class="lede">Edit channel opens this over the whole window, like server settings: the channel heads the nav, then Overview, Permissions, Invites and Webhooks, then Delete channel. Pages you can't use are left out, not greyed: Permissions needs Manage permissions on the channel, Invites needs Manage channel, Webhooks needs Manage webhooks. Edits on Overview and Permissions collect in one save bar; Discord's own refusal shows in it word for word.</p>
+  <div class="set-wrap">
+    <div class="set is-pushed" id="cs-win">
+      <nav class="set-nav" aria-label="Channel settings">
+        <div class="set-me"><span class="icontile"><i class="ph ph-hash"></i></span><div><b>clips</b><span>Hangout</span></div></div>
+        <button class="set-navi" aria-current="page" data-page="overview"><i class="ph ph-info"></i><span>Overview</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="perms"><i class="ph ph-shield-check"></i><span>Permissions</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="invites"><i class="ph ph-link"></i><span>Invites</span><i class="ph ph-caret-right chev"></i></button>
+        <button class="set-navi" data-page="webhooks"><i class="ph ph-webhooks-logo"></i><span>Webhooks</span><i class="ph ph-caret-right chev"></i></button>
+        <hr>
+        <button class="set-navi danger"><i class="ph ph-trash"></i><span>Delete channel</span></button>
+      </nav>
+      <div class="set-main">
+        <div class="set-close"><button aria-label="Close channel settings"><i class="ph-bold ph-x"></i></button>Esc</div>
+
+        <div class="set-page cs-page" data-page="overview">
+          <h4 class="set-h">Overview</h4>
+          <div class="set-group">
+            <h5>Name and topic</h5>
+            <div class="set-card" style="padding: var(--space-4); gap: var(--space-4)">
+              <div class="field"><label for="cs-name">Channel name</label><div class="input"><span class="lead"><i class="ph ph-hash"></i></span><input id="cs-name" value="clips" maxlength="100" autocomplete="off" data-field></div></div>
+              <div class="field"><label for="cs-topic">Topic</label><div class="input" style="height: auto; align-items: start; padding-block: 10px"><textarea id="cs-topic" rows="3" maxlength="1024" data-field style="width: 100%; resize: none; background: none; border: 0; color: var(--text-strong); font: inherit">Your best plays. One clip per message, spoilers tagged.</textarea></div><span class="hint"><span>Shows in the header. Markdown and links work.</span><span>56 / 1024</span></span></div>
+            </div>
+          </div>
+          <div class="set-group">
+            <h5>Chat</h5>
+            <div class="set-card">
+              <div class="set-row"><div class="t"><b>Slowmode</b><span>How long each member waits between messages</span></div><button class="dropdown" aria-haspopup="listbox" data-field><span>Off</span><i class="ph ph-caret-down"></i></button></div>
+              <button class="set-row choice" data-toggle="switch" data-field><div class="t"><b>Age-restricted</b><span>People confirm they're over 18 before they see it</span></div><span class="switch" role="switch" aria-checked="false"></span></button>
+              <div class="set-row"><div class="t"><b>Hide threads after</b><span>New threads close with no activity for this long</span></div><button class="dropdown" aria-haspopup="listbox"><span>3 days</span><i class="ph ph-caret-down"></i></button></div>
+            </div>
+            <p class="set-cap">Members with Manage messages or Manage channel aren't slowed down.</p>
+          </div>
+          <div class="cs-savebar" hidden><div class="ss-savebar is-static"><i class="ph-fill ph-pencil-simple"></i><p>Unsaved changes<small>On Overview</small></p><div class="ctl"><button class="btn btn--ghost" data-reset>Reset</button><button class="btn btn--primary">Save changes</button></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: var(--space-3)">Shell, groups and rows are Settings' <code>set-*</code>; the save bar is server settings' <code>ss-savebar</code>. The nav leads with the channel's type icon on a tile and its category under the name.</p>
+</section>
+
+<section id="voice">
+  <h2>Voice and stage overview</h2>
+  <p class="lede">Voice channels trade topic for sound: bitrate up to the server's boost cap, a member limit, camera quality and a region. Region lists Discord's live regions after Automatic.</p>
+  <div class="board set-sheet">
+    <div class="set-page cs-page">
+      <h4 class="set-h">Overview</h4>
+      <div class="set-group">
+        <h5>Name</h5>
+        <div class="set-card" style="padding: var(--space-4)"><div class="field"><label>Channel name</label><div class="input"><span class="lead"><i class="ph ph-speaker-high"></i></span><input value="Lounge"></div></div></div>
+      </div>
+      <div class="set-group">
+        <h5>Sound and video</h5>
+        <div class="set-card">
+          <div class="set-row stack"><div class="t"><b>Bitrate</b><span>Higher sounds better and costs slow connections more</span></div><div class="stack" style="gap: 6px"><div class="slider" style="--v: 63%"><span></span></div><div class="row" style="justify-content: space-between; font-size: var(--text-xs); color: var(--text-muted)"><span>8 kbps</span><b class="strong">64 kbps</b><span>96 kbps</span></div></div></div>
+          <div class="set-row"><div class="t"><b>User limit</b><span>Members with Move members can still join</span></div><div class="stepper"><button aria-label="Fewer"><i class="ph-bold ph-minus"></i></button><span>No limit</span><button aria-label="More"><i class="ph-bold ph-plus"></i></button></div></div>
+          <div class="set-row"><div class="t"><b>Video quality</b><span>Full is 720p for everyone watching</span></div><div class="seg"><button aria-pressed="true">Auto</button><button aria-pressed="false">720p</button></div></div>
+          <div class="set-row"><div class="t"><b>Region</b><span>Where the voice server runs</span></div><button class="dropdown" aria-haspopup="listbox"><i class="ph ph-globe-simple"></i><span>Automatic</span><i class="ph ph-caret-down"></i></button></div>
+        </div>
+      </div>
+      <div class="set-group">
+        <h5>Chat</h5>
+        <div class="set-card">
+          <div class="set-row"><div class="t"><b>Slowmode</b><span>For the channel's text chat</span></div><button class="dropdown"><span>Off</span><i class="ph ph-caret-down"></i></button></div>
+          <div class="set-row choice"><div class="t"><b>Age-restricted</b></div><span class="switch" role="switch" aria-checked="false"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: var(--space-2)">Category overview is name only. Announcement adds nothing over text; forum and media topic run to 4,096 characters and are called Guidelines.</p>
+</section>
+
+<section id="perms">
+  <h2>Permissions</h2>
+  <p class="lede">The basic switch first: Private channel, which denies View channel to @everyone. Under it, server settings' channel overrides as they are: a notice says whether the channel matches its category, the targets list on the left, each permission as deny, inherit or allow. Only permissions that apply to this channel type are listed.</p>
+  <div class="board set-sheet">
+    <div class="set-page cs-page" data-page="perms">
+      <h4 class="set-h">Permissions</h4>
+      <div class="callout callout--warning"><i class="ph-fill ph-link-simple-break"></i><div><b>Not synced with Hangout</b>This channel's permissions differ from its category.</div><button class="btn btn--sm">Sync with Hangout</button></div>
+      <div class="set-group">
+        <div class="set-card"><button class="set-row choice"><span class="icontile"><i class="ph ph-lock-simple"></i></span><div class="t"><b>Private channel</b><span>Only the roles and members below can see it</span></div><span class="switch" role="switch" aria-checked="false"></span></button></div>
+      </div>
+      <div class="ss-ovr">
+        <div class="ss-targets" role="tablist" aria-label="Roles and members with changes on #clips">
+          <header>Roles and members<button class="iconbtn iconbtn--sm" aria-label="Add a role"><i class="ph ph-plus"></i></button></header>
+          <button class="ss-target" role="tab" aria-selected="false"><span class="ss-rdot" style="--role: var(--offline)"></span><span>@everyone</span></button>
+          <button class="ss-target" role="tab" aria-selected="true"><span class="ss-rdot" style="--role: #4a8fe0"></span><span>Streamers</span></button>
+          <button class="ss-target" role="tab" aria-selected="false"><span class="av" data-av="Theo"></span><span>Theo</span></button>
+        </div>
+        <div class="stack" style="gap: var(--space-6); min-width: 0">
+          <div class="set-group">
+            <h5>General</h5>
+            <div class="set-card">
+              <div class="set-row"><div class="t"><b>View channel</b></div><div class="ss-tri" role="radiogroup" aria-label="View channel"><button role="radio" data-v="deny" aria-checked="false" aria-label="Deny"><i class="ph-bold ph-x"></i></button><button role="radio" data-v="inherit" aria-checked="true" aria-label="Inherit"><i class="ph-bold ph-line-segment"></i></button><button role="radio" data-v="allow" aria-checked="false" aria-label="Allow"><i class="ph-bold ph-check"></i></button></div></div>
+              <div class="set-row"><div class="t"><b>Manage channel</b></div><div class="ss-tri" role="radiogroup" aria-label="Manage channel"><button role="radio" data-v="deny" aria-checked="false" aria-label="Deny"><i class="ph-bold ph-x"></i></button><button role="radio" data-v="inherit" aria-checked="true" aria-label="Inherit"><i class="ph-bold ph-line-segment"></i></button><button role="radio" data-v="allow" aria-checked="false" aria-label="Allow"><i class="ph-bold ph-check"></i></button></div></div>
+            </div>
+          </div>
+          <div class="set-group">
+            <h5>Text</h5>
+            <div class="set-card">
+              <div class="set-row"><div class="t"><b>Send messages</b></div><div class="ss-tri" role="radiogroup" aria-label="Send messages"><button role="radio" data-v="deny" aria-checked="false" aria-label="Deny"><i class="ph-bold ph-x"></i></button><button role="radio" data-v="inherit" aria-checked="true" aria-label="Inherit"><i class="ph-bold ph-line-segment"></i></button><button role="radio" data-v="allow" aria-checked="false" aria-label="Allow"><i class="ph-bold ph-check"></i></button></div></div>
+              <div class="set-row"><div class="t"><b>Attach files</b></div><div class="ss-tri" role="radiogroup" aria-label="Attach files"><button role="radio" data-v="deny" aria-checked="false" aria-label="Deny"><i class="ph-bold ph-x"></i></button><button role="radio" data-v="inherit" aria-checked="false" aria-label="Inherit"><i class="ph-bold ph-line-segment"></i></button><button role="radio" data-v="allow" aria-checked="true" aria-label="Allow"><i class="ph-bold ph-check"></i></button></div></div>
+              <div class="set-row"><div class="t"><b>Mention @everyone, @here and all roles</b></div><div class="ss-tri" role="radiogroup" aria-label="Mention everyone"><button role="radio" data-v="deny" aria-checked="true" aria-label="Deny"><i class="ph-bold ph-x"></i></button><button role="radio" data-v="inherit" aria-checked="false" aria-label="Inherit"><i class="ph-bold ph-line-segment"></i></button><button role="radio" data-v="allow" aria-checked="false" aria-label="Allow"><i class="ph-bold ph-check"></i></button></div></div>
+            </div>
+          </div>
+          <div class="row" style="justify-content: flex-end"><button class="btn btn--sm set-dangerbtn"><i class="ph-bold ph-trash"></i>Remove Streamers</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="margin-top: var(--space-2)">Synced: the notice turns info-toned, "Synced with Hangout", with no button. A channel with no category shows no notice. Without Manage permissions on the channel this page isn't in the nav.</p>
+</section>
+
+<section id="invites">
+  <h2>Invites and webhooks</h2>
+  <p class="lede">Invites to this channel only, with uses and expiry, each revocable. Webhooks list by name with Copy URL and Delete. Both load when opened; a failure says Discord's words and offers Try again.</p>
+  <div class="board set-sheet">
+    <div class="set-page cs-page" data-page="invites">
+      <div class="ss-hrow"><h4 class="set-h">Invites</h4><button class="btn btn--primary"><i class="ph-bold ph-plus"></i>Create invite</button></div>
+      <div class="ss-table ss-table--inv">
+        <div class="ss-tr ss-thead"><span>Invite</span><span>Uses</span><span>Expires</span><span></span></div>
+        <div class="ss-tr"><div class="ss-who"><span class="av" data-av="Mira"></span><div><b>7Kq2xQ</b><span>Mira</span></div></div><div class="ss-uses">12 of 25</div><div class="ss-when">in 3 days</div><button class="btn btn--sm">Revoke</button></div>
+        <div class="ss-tr"><div class="ss-who"><span class="av" data-av="Bartholomew"></span><div><b>zP0aWq8rTt4Y</b><span>Bartholomew Featherstonehaugh-Wright</span></div></div><div class="ss-uses">0</div><div class="ss-when">Never</div><button class="btn btn--sm">Revoke</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="board set-sheet" style="margin-top: var(--space-4)">
+    <div class="set-page cs-page" data-page="webhooks">
+      <h4 class="set-h">Webhooks</h4>
+      <div class="set-card">
+        <div class="set-row"><span class="icontile"><i class="ph ph-webhooks-logo"></i></span><div class="t"><b>Clip bot</b><span>Made by Mira</span></div><button class="btn btn--sm">Copy URL</button><button class="iconbtn" aria-label="Delete Clip bot"><i class="ph ph-trash"></i></button></div>
+        <div class="set-row"><span class="icontile"><i class="ph ph-webhooks-logo"></i></span><div class="t"><b>Release notes from the build server that runs every night</b><span>Made by Theo</span></div><button class="btn btn--sm">Copy URL</button><button class="iconbtn" aria-label="Delete"><i class="ph ph-trash"></i></button></div>
+      </div>
+      <p class="set-cap">Creating webhooks stays in Discord for now.</p>
+    </div>
+  </div>
+</section>
+
+</main>
+</div>
+<script src="site.js"></script>
+<script>
+const win = $("#cs-win"), main = $(".set-main", win), pages = { overview: $(".set-page", main) };
+document.addEventListener("click", e => {
+  const nav = e.target.closest("#cs-win .set-navi[data-page]");
+  if (nav) {
+    const name = nav.dataset.page, src = pages[name] ?? $(`.set-sheet .set-page[data-page="${name}"]`);
+    if (!src) return;
+    const next = pages[name] ??= src.cloneNode(true);
+    $(".set-page", main).replaceWith(next);
+    for (const b of $$(".set-navi[data-page]", win)) b === nav ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current");
+    return;
+  }
+  const tri = e.target.closest(".ss-tri button");
+  if (tri) for (const b of $$("button", tri.parentElement)) b.setAttribute("aria-checked", b === tri);
+  if (e.target.closest("[data-reset]")) location.reload();
+});
+document.addEventListener("input", () => { $(".cs-savebar", pages.overview).hidden = false; });
+</script>
+</body>
+</html>
