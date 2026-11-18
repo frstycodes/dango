@@ -226,7 +226,10 @@ impl PlatformTextSystem for AppleTextSystem {
         // When font smoothing is enabled, CoreGraphics thickens glyph strokes by an amount that
         // depends on the foreground color's luminance. We replicate the logic used by CoreGraphics
         // to select between the different levels of dilation.
-        if !font_smoothing_allowed_by_user() {
+        // Dango: never dilate. Plain grayscale antialiasing, like a browser's
+        // `-webkit-font-smoothing: antialiased`; smoothing made Gabarito read a weight heavier than the
+        // design, most of all light text on dark.
+        if DANGO_NO_DILATION || !font_smoothing_allowed_by_user() {
             return 0;
         }
         let rgba: Rgba = color.into();
@@ -235,6 +238,9 @@ impl PlatformTextSystem for AppleTextSystem {
         level.clamp(0, 4) as u8
     }
 }
+
+#[cfg(target_os = "macos")]
+const DANGO_NO_DILATION: bool = true;
 
 #[cfg(target_os = "macos")]
 fn font_smoothing_allowed_by_user() -> bool {
