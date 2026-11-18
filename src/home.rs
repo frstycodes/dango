@@ -177,6 +177,7 @@ impl Rustcord {
     pub(crate) fn render_inbox_page(&self, cx: &mut Context<Self>) -> AnyElement {
         let page = palette::surface(palette::Level::Page, cx);
         let header = div()
+            .occlude()
             .h(px(crate::layout::HEADER_HEIGHT))
             .pl_4()
             .pr_3()
@@ -227,6 +228,7 @@ impl Rustcord {
         let pending = self.relationships.iter().filter(|r| r.kind == Relation::Incoming).count() as u32;
         let tabs = [(FriendsTab::Online, "Online"), (FriendsTab::All, "All"), (FriendsTab::Pending, "Pending"), (FriendsTab::Blocked, "Blocked")];
         let header = div()
+            .occlude()
             .h(px(crate::layout::HEADER_HEIGHT))
             .pl_4()
             .pr_3()
