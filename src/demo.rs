@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | updating (the launch splash alone).
+// CHORD_DEMO=chat | text-files | text-expanded | text-viewer | activity | activity-all | rail-dms | gallery | profile | profile-plain | emoji | switcher | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -13,8 +13,7 @@ use crate::{
 
 // The launch splash mid-download, without the main window.
 pub fn updating_splash(cx: &mut gpui_kit::App) {
-    let Some(splash) = crate::splash::open("Checking for updates…", cx) else { return };
-    splash.update(cx, |splash, _, cx| splash.set_progress("0.2.0", 0.42, cx)).ok();
+    crate::splash::open("Installing 0.5.0…", cx);
 }
 
 pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Context<Rustcord>) {
@@ -54,6 +53,7 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         "emoji" => chord.open_emoji_picker(crate::EmojiTarget::Composer, window, cx),
         "switcher" => chord.open_switcher(window, cx),
         "status" => chord.status_menu = true,
+        "update-ready" => chord.update_ready = Some(crate::updater::Staged::demo("0.5.0")),
         "accounts" => {
             chord.prefs.accounts = vec![account(&me_user(), Presence_::Online), account(&user("8388608", "Bartholomew Featherstonehaugh-Wright"), Presence_::Dnd), account(&user("16777216", "juno.alt"), Presence_::Idle)];
             chord.status_menu = true;

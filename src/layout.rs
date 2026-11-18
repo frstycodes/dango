@@ -28,6 +28,7 @@ pub const PANEL_WIDTH: f32 = 264.;
 // The user area: its 42px row (name 18 + status 16 beside a 32px avatar, in a 4px-padded button), inset 6px
 // all round.
 pub const PANEL_HEIGHT: f32 = 54.;
+const UPDATE_HEIGHT: f32 = 42.;
 const CHANNELS_RANGE: (f32, f32) = (200., 440.);
 const PANEL_RANGE: (f32, f32) = (200., 380.);
 
@@ -275,9 +276,9 @@ impl Rustcord {
             .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_device_menu(crate::call::DeviceKind::Output, e.position, cx)))
             .when_some(plate(deafened), |b, fill| b.bg(fill));
         let settings = me_button("settings", Nav::Settings, false, "User settings", cx).on_click(cx.listener(|this, _, window, cx| this.open_settings(crate::settings::Page::Account, window, cx)));
-        // The card's bottom corners, and its top ones too when no voice panel sits above; outside them, the sidebar.
-        let in_call = self.voice_panel_height() > 0.;
-        let corners = [0., if in_call { 0. } else { ui::RADIUS_MD }, ui::RADIUS_MD, 0.];
+        // The card's bottom corners, and its top ones too when nothing sits above; outside them, the sidebar.
+        let stacked = self.panel_stack_height() > PANEL_HEIGHT;
+        let corners = [0., if stacked { 0. } else { ui::RADIUS_MD }, ui::RADIUS_MD, 0.];
         let behind = palette::surface(palette::Level::Sidebar, cx);
         let nameplate = me.nameplate.as_ref().map(|plate| nameplate(plate, rail, behind, corners, false, cx.theme().is_dark()));
         let hover = palette::hover(cx);
@@ -319,6 +320,7 @@ impl Rustcord {
             .flex()
             .flex_col()
             .text_size(px(14.))
+            .children(self.update_row(cx))
             .children(voice)
             .child(
                 div()
@@ -364,9 +366,73 @@ impl Rustcord {
         }
     }
 
-    /// The user area's height with the voice panel above it, for overlays that open just over it.
+    /// The user area's height with the update row and voice panel above it, for overlays that open just over it.
     pub fn panel_stack_height(&self) -> f32 {
-        PANEL_HEIGHT + self.voice_panel_height()
+        let update = if self.update_ready.is_some() { UPDATE_HEIGHT } else { 0. };
+        PANEL_HEIGHT + update + self.voice_panel_height()
+    }
+
+    // Tops the user area once an update has downloaded: which version, and the restart that installs it.
+    // Left alone, it installs on the next launch. Restart waits out a call rather than dropping it.
+    fn update_row(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let staged = self.update_ready.as_ref()?;
+        let in_call = self.call.is_some();
+        let tip = if in_call { "Available once you leave the call. Otherwise Dango updates the next time it opens." } else { "Installs the update and reopens Dango" };
+        let restart = ui::button("restart-to-update", ui::Tone::Primary, cx)
+            .small()
+            .child("Restart")
+            .disabled(in_call)
+            .tooltip(move |window, cx| ui::tip(tip, window, cx))
+            .when(!in_call, |b| b.on_click(cx.listener(|this, _, _, cx| this.restart_to_update(cx))));
+        let row = div()
+            .h(px(UPDATE_HEIGHT))
+            .flex_none()
+            .pl(px(12.))
+            .pr(px(6.))
+            .flex()
+            .items_center()
+            .gap_2()
+            .border_b_1()
+            .border_color(palette::line(cx))
+            .child(Icon::new(Glyph::Download).size(px(16.)).flex_none().text_color(palette::accent_ink(cx)))
+            .child(div().flex_1().min_w_0().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(format!("Dango {} is ready", staged.version)))
+            .child(restart);
+        Some(row.into_any_element())
+    }
+
+    pub(crate) fn watch_for_updates(&mut self, cx: &mut Context<Self>) {
+        if !crate::updater::enabled() {
+            return;
+        }
+        let mut staged = crate::updater::watch();
+        cx.spawn(async move |this, cx| {
+            while let Some(update) = futures::StreamExt::next(&mut staged).await {
+                let shown = this.update(cx, |this, cx| {
+                    this.update_ready = Some(update);
+                    cx.notify();
+                });
+                if shown.is_err() {
+                    return;
+                }
+            }
+        })
+        .detach();
+    }
+
+    fn restart_to_update(&mut self, cx: &mut Context<Self>) {
+        let Some(staged) = self.update_ready.take() else { return };
+        self.prefs.save();
+        cx.notify();
+        cx.spawn(async move |this, cx| {
+            match cx.background_spawn(async move { crate::updater::install(&staged) }).await {
+                Ok(exe) => crate::updater::relaunch(&exe),
+                Err(e) => {
+                    eprintln!("[updater] install failed: {e}");
+                    this.update(cx, |this, cx| this.show_toast("Couldn't install the update. Dango will try again later.", cx)).ok();
+                }
+            }
+        })
+        .detach();
     }
 
     // A gallery over the whole window: every image and video in the channel, with arrows and ←/→ to page.
