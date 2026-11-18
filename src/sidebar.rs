@@ -1019,7 +1019,7 @@ pub(crate) fn channel_row(id: SharedString, group: SharedString, state: RowState
 
 // A category's header row (.cathead): the label, a button that folds the category unless `static_`,
 // and room on its right for the add button. `group` names the row so the add can show on hover.
-fn category_head(group: SharedString, label: Stateful<Div>, static_: bool, cx: &App) -> Div {
+pub(crate) fn category_head(group: SharedString, label: Stateful<Div>, static_: bool, cx: &App) -> Div {
     let (hover, strong) = (palette::hover(cx), palette::strong(cx));
     div().group(group).relative().flex().items_center().child(
         label
@@ -1195,7 +1195,7 @@ fn ease_out() -> impl Fn(f32) -> f32 + 'static {
 }
 
 // Hover and state changes: --dur-hover on --ease-out.
-fn hover_ease() -> Transition {
+pub(crate) fn hover_ease() -> Transition {
     Transition::Tween(ui::DUR_HOVER, Easing::Bezier(Bezier::new(0.23, 1., 0.32, 1.).expect("monotonic bezier")))
 }
 
