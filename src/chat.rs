@@ -22,7 +22,6 @@ use crate::{
     EmojiTarget, Feed, RightPanel, Rustcord,
     discord::{Channel, ChannelKind, Embed, Emoji, MediaKind, Message, SendState, User},
     icons::Glyph,
-    layout::HEADER_HEIGHT,
     mascot::Mood,
     motion,
     palette::{self, Level},
@@ -41,9 +40,6 @@ const CONTENT_INSET: f32 = AVATAR + 16.;
 // A reply preview's line, above the message it answers.
 const REPLY_HEIGHT: f32 = 22.;
 
-// The member panel floats this far in from the window's right and bottom edges.
-const PANEL_INSET: f32 = 8.;
-
 // The floating stream player's width; its height keeps 16:9.
 const PIP_WIDTH: f32 = 320.;
 
@@ -56,7 +52,7 @@ impl Rustcord {
         let header = self.channel_header(&channel, window, cx);
         let body = match self.feeds.get(&channel.id) {
             Some(Feed { loaded: true, messages, .. }) if messages.is_empty() => empty_state("empty", Mood::Happy, "No messages yet", "Be the first to say something.", cx),
-            Some(Feed { loaded: true, .. }) => self.render_messages(HEADER_HEIGHT, cx).into_any_element(),
+            Some(Feed { loaded: true, .. }) => self.render_messages(cx).into_any_element(),
             Some(Feed { error: Some(error), .. }) => empty_state("failed", Mood::Idle, "Couldn't load messages", error.clone(), cx),
             _ => skeleton(cx),
         };
@@ -70,9 +66,7 @@ impl Rustcord {
             .on_drop(cx.listener(|this, paths: &gpui_kit::ExternalPaths, _, cx| this.add_files(paths.paths().to_vec(), cx)))
             // The composer floats over the feed, which scrolls on under its glass.
             .child(div().relative().flex_1().min_h_0().child(body).children(unread_bar).child(self.render_composer(window, cx)).children(self.stream_pip(cx)));
-        // The feed runs up under the header, which blurs and fades it (scroll_edge); the panel starts below.
-        let panel = self.render_panel(window, cx).map(|p| div().h_full().flex_none().pt(px(HEADER_HEIGHT)).pr(px(PANEL_INSET)).pb(px(PANEL_INSET)).child(p));
-        main.child(div().flex_1().min_h_0().flex().child(chat).children(panel)).child(header)
+        main.child(header).child(div().flex_1().min_h_0().flex().child(chat).children(self.render_panel(window, cx)))
     }
 
     // Where you are as breadcrumbs, the topic, then the channel's tools (design: navigation.html's chanbar).
@@ -133,21 +127,22 @@ impl Rustcord {
                 }))
         });
         let search = self.guild_id.is_some().then(|| self.channel_search(window, cx));
-        let bar = div()
-            .h(px(HEADER_HEIGHT))
-            .pl(px(8.))
+        div()
+            .h(px(48.))
+            .flex_none()
+            .pl(px(12.))
             .pr(px(8.))
             .flex()
             .items_center()
             .gap(px(8.))
+            .bg(palette::surface(Level::Page, cx))
+            .border_b_1()
+            .border_color(palette::line(cx))
             // Drag area: every control inside it occludes it, or Windows' caption takes its clicks.
             .window_control_area(WindowControlArea::Drag)
             .child(crumbs)
             .children(topic)
             .child(div().ml_auto().flex_none().flex().items_center().gap(px(2.)).children(threads).child(pins).children(members).children(search))
-            .child(self.header_trail(cx));
-        let panel = if self.guild_id.is_some() && !matches!(self.right_panel, RightPanel::Hidden) { self.panel_width + PANEL_INSET } else { 0. };
-        ui::scroll_edge(palette::surface(Level::Page, cx), panel).child(bar)
     }
 
     fn channel_search(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -193,7 +188,7 @@ impl Rustcord {
         Some(
             div()
                 .absolute()
-                .top(px(HEADER_HEIGHT + 8.))
+                .top(px(8.))
                 .left(px(8.))
                 .right(px(8.))
                 .min_h(px(36.))
@@ -280,8 +275,7 @@ impl Rustcord {
         )
     }
 
-    /// `top`: how far a header floating over the feed reaches down; the first message rests below it.
-    pub(crate) fn render_messages(&self, top: f32, cx: &mut Context<Self>) -> impl IntoElement {
+    pub(crate) fn render_messages(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let Some(channel) = &self.channel else { return div().into_any_element() };
         let Some(feed) = self.feeds.get(&channel.id) else { return div().into_any_element() };
         // A pointer copy: the feed is copy-on-write, so this frame shares it rather than cloning every message.
@@ -358,11 +352,11 @@ impl Rustcord {
             frame.apply(div().w_full().child(row)).into_any_element()
         })
         .size_full()
-        .pt(px(top + 12.))
+        .pt(px(12.))
         // Clear of the composer and the typing pill above it, so the last message rests in view.
         .pb(px(self.composer_height.get() + 32.))
         ;
-        // The visible message area, which inline GIFs are clipped to (see gif.rs): the list between the header and
+        // The visible message area, which inline GIFs are clipped to (see gif.rs): the list down to
         // the floating composer, which GIFs must not paint over. Pinned to the top left: an absolute
         // element without offsets sits where it would flow, after the list.
         let composer = self.composer_height.clone();
@@ -372,9 +366,8 @@ impl Rustcord {
             .child(messages)
             .child(
                 gpui_kit::canvas(|_, _, _| {}, move |bounds, _, _, _| {
-                    let top = px(top).min(bounds.size.height);
-                    let covered = (px(composer.get() + 16.) + top).min(bounds.size.height);
-                    crate::gif::set_chat_clip(gpui_kit::Bounds { origin: gpui_kit::point(bounds.origin.x, bounds.origin.y + top), size: gpui_kit::size(bounds.size.width, bounds.size.height - covered) });
+                    let covered = px(composer.get() + 16.).min(bounds.size.height);
+                    crate::gif::set_chat_clip(gpui_kit::Bounds { origin: bounds.origin, size: gpui_kit::size(bounds.size.width, bounds.size.height - covered) });
                 })
                 .absolute()
                 .top_0()

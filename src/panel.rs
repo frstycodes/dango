@@ -34,11 +34,7 @@ impl Rustcord {
                 .flex_none()
                 .flex()
                 .flex_col()
-                // A card floating beside the feed, not a column flush to the window: its edges never need a hairline.
-                .squircle(ui::RADIUS_LG)
-                .overflow_hidden()
                 .bg(palette::surface(palette::Level::Sidebar, cx))
-                .shadow(ui::shadow_pop(cx))
                 .text_color(palette::text(cx))
                 .text_size(px(14.))
                 .child(self.resize_handle(Edge::Panel, cx))

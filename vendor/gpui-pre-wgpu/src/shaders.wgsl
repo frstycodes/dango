@@ -1538,7 +1538,6 @@ struct BackdropBlurPass {
     tap_offset: f32,
     saturation: f32,
     opacity: f32,
-    fade: vec4<f32>,
 }
 
 @group(1) @binding(0) var<uniform> backdrop_blur_pass: BackdropBlurPass;
@@ -1611,16 +1610,6 @@ fn fs_backdrop_blur_up(input: BackdropBlurVarying) -> @location(0) vec4<f32> {
     return backdrop_upsample(backdrop_source_position(input.position.xy));
 }
 
-// 0 at an edge with a fade, easing to 1 at the fade's length in from it; 1 along edges without.
-fn backdrop_edge_fade(position: vec2<f32>, bounds: Bounds, fade: vec4<f32>) -> f32 {
-    let inset = vec4<f32>(position.y - bounds.origin.y,
-                          bounds.origin.x + bounds.size.x - position.x,
-                          bounds.origin.y + bounds.size.y - position.y,
-                          position.x - bounds.origin.x);
-    let ramp = select(vec4<f32>(1.0), smoothstep(vec4<f32>(0.0), max(fade, vec4<f32>(1e-4)), inset), fade > vec4<f32>(0.0));
-    return ramp.x * ramp.y * ramp.z * ramp.w;
-}
-
 @fragment
 fn fs_backdrop_blur_composite(input: BackdropBlurVarying) -> @location(0) vec4<f32> {
     let color = backdrop_upsample(backdrop_source_position(input.position.xy));
@@ -1630,6 +1619,5 @@ fn fs_backdrop_blur_composite(input: BackdropBlurVarying) -> @location(0) vec4<f
     let saturated = saturate(mix(vec3<f32>(luminance), color.rgb, backdrop_blur_pass.saturation));
 
     let distance = quad_sdf(input.position.xy, backdrop_blur_pass.bounds, backdrop_blur_pass.corner_radii);
-    let fade = backdrop_edge_fade(input.position.xy, backdrop_blur_pass.bounds, backdrop_blur_pass.fade);
-    return blend_color(vec4<f32>(saturated, 1.0), saturate(0.5 - distance) * backdrop_blur_pass.opacity * fade);
+    return blend_color(vec4<f32>(saturated, 1.0), saturate(0.5 - distance) * backdrop_blur_pass.opacity);
 }

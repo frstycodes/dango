@@ -176,12 +176,17 @@ impl Rustcord {
         let pending = self.relationships.iter().filter(|r| r.kind == Relation::Incoming).count() as u32;
         let tabs = [(FriendsTab::Online, "Online"), (FriendsTab::All, "All"), (FriendsTab::Pending, "Pending"), (FriendsTab::Blocked, "Blocked")];
         let header = div()
-            .h(px(crate::layout::HEADER_HEIGHT))
+            .min_h(px(48.))
+            .flex_none()
+            .py(px(6.))
             .pl_4()
             .pr_3()
             .flex()
+            .flex_wrap()
             .items_center()
             .gap_3()
+            .border_b_1()
+            .border_color(palette::line(cx))
             .window_control_area(WindowControlArea::Drag)
             .child(
                 div()
@@ -198,14 +203,13 @@ impl Rustcord {
                     .child(Icon::new(Glyph::Users).size(px(20.)).text_color(palette::faint(cx)))
                     .child("Friends"),
             )
-            .child(div().flex().min_w_0().overflow_hidden().gap_1().children(tabs.map(|(this_tab, label)| {
+            .child(div().flex().flex_wrap().gap_1().children(tabs.map(|(this_tab, label)| {
                 let count = (this_tab == FriendsTab::Pending && pending > 0).then_some(pending);
                 friends_tab(this_tab, label, tab == this_tab, count, cx).on_click(cx.listener(move |this, _, _, cx| {
                     this.friends_tab = this_tab;
                     cx.notify();
                 }))
-            })))
-            .child(div().ml_auto().child(self.header_trail(cx)));
+            })));
         let heading = match tab {
             FriendsTab::Online => "Online",
             FriendsTab::All => "All friends",
@@ -226,20 +230,17 @@ impl Rustcord {
                 div().flex().flex_col().gap(px(2.)).child(label).children(rows).into_any_element()
             }
         };
-        // The list runs up under the header, which blurs and fades it (ui::scroll_edge).
-        let page = palette::surface(palette::Level::Page, cx);
         div()
-            .relative()
             .flex_1()
             .min_w_0()
             .h_full()
             .flex()
             .flex_col()
-            .bg(page)
+            .bg(palette::surface(palette::Level::Page, cx))
             .text_color(palette::text(cx))
             .text_size(px(14.))
-            .child(div().id("friends-list").flex_1().min_h_0().overflow_y_scroll().pt(px(crate::layout::HEADER_HEIGHT + 16.)).px_4().pb_6().child(body))
-            .child(ui::scroll_edge(page, 0.).child(header))
+            .child(header)
+            .child(div().id("friends-list").flex_1().min_h_0().overflow_y_scroll().pt_4().px_4().pb_6().child(body))
             .into_any_element()
     }
 
