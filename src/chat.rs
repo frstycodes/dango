@@ -457,7 +457,7 @@ impl Rustcord {
 
     // A small capsule 12px above the composer, out of the flow, so it never opens a gap.
     fn jump_to_present(&self, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
-        if !self.scrolled_up {
+        if !self.scrolled_up || self.list.item_count() == 0 {
             return None;
         }
         let overlay = palette::surface(Level::Overlay, cx);
@@ -703,6 +703,11 @@ struct RowContext {
     manage_messages: bool,
     // Messages here can start threads.
     threads: bool,
+}
+
+// More than a few rows below the viewport: the feed is scrolled away from its newest message.
+pub(crate) fn away_from_present(visible_end: usize, count: usize) -> bool {
+    visible_end + 4 < count
 }
 
 // An avatar column and a content column; a continuation shows its time in the gutter on hover, and the
@@ -1875,6 +1880,13 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn away_from_present_needs_rows_below() {
+        assert!(!away_from_present(0, 0));
+        assert!(!away_from_present(10, 12));
+        assert!(away_from_present(10, 20));
+    }
 
     #[test]
     fn bare_media_links_are_hidden() {
