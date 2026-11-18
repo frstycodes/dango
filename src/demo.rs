@@ -346,6 +346,7 @@ fn demo_call(chord: &mut Rustcord) {
         median_ping_ms: 47,
         last_pings: vec![44, 51, 47, 40, 62, 45, 43, 48, 120, 52, 46, 44, 41, 47, 50, 42],
         outbound_loss_pct: Some(0.4),
+        playout_delay_ms: Some(60),
         endpoint: "c-bom06-1a2b3c4d.discord.media".into(),
         server_ip: "162.159.0.1".into(),
         encryption: "aead_aes256_gcm_rtpsize".into(),

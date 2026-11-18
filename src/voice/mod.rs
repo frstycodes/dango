@@ -20,6 +20,7 @@ mod echo_suppressor;
 mod echo_check;
 #[cfg(test)]
 mod fixtures;
+mod jitter;
 mod media;
 mod rtp;
 mod vad;
@@ -106,6 +107,8 @@ pub struct Stats {
     // How much of our audio the server says it lost, averaged over the last LOSS_WINDOW of reports;
     // None until it has reported.
     pub outbound_loss_pct: Option<f32>,
+    // The largest jitter-buffer target among the speakers we hear; None before anyone has spoken.
+    pub playout_delay_ms: Option<u32>,
     pub endpoint: String,
     pub server_ip: String,
     pub encryption: String,
@@ -981,6 +984,16 @@ async fn serve(
                 (stats.ping_ms, stats.median_ping_ms, stats.last_pings) = pings.stats();
                 stats.outbound_loss_pct = loss.push(counters.outbound_loss());
                 stats.dave = dave.e2ee().load(Ordering::Relaxed);
+                let playout = shared.mixer.playout_stats();
+                stats.playout_delay_ms = playout.iter().map(|(_, p)| p.target_ms).max();
+                if debug() {
+                    for (key, p) in &playout {
+                        eprintln!(
+                            "[playout {key:x}] target {} ms, buffered {} ms, underruns {}, concealed {}, fec {}, late {}, dropped {}",
+                            p.target_ms, p.buffered_ms, p.underruns, p.concealed, p.fec, p.late, p.dropped
+                        );
+                    }
+                }
                 shared.emit(VoiceEvent::Stats(stats.clone()));
                 continue;
             }
