@@ -773,7 +773,7 @@ impl Rustcord {
             .min_w_0()
             .h_full()
             .bg(palette::surface(Level::Page, cx))
-            .child(div().size_full().relative().child(body).with_animation(SharedString::from(format!("set-page-{page:?}")), Animation::new(ui::DUR_POP).with_easing(|t| motion::ease_out().sample(t)), |el, t| el.top(px(-4. * (1. - t))).opacity(t)))
+            .child(div().size_full().relative().child(body).child(gpui_kit::component::scroll::Scrollbar::vertical(&scroll)).with_animation(SharedString::from(format!("set-page-{page:?}")), Animation::new(ui::DUR_POP).with_easing(|t| motion::ease_out().sample(t)), |el, t| el.top(px(-4. * (1. - t))).opacity(t)))
             .child(ui::settings_close("settings-close", cx.listener(|this, _, _, cx| this.close_settings(cx)), cx));
         let nav = self.settings_nav(&anchors, cx).into_any_element();
         Some(ui::settings_window("settings", nav, main, cx).capture_key_down(cx.listener(Self::settings_search_key)).into_any_element())

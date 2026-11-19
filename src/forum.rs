@@ -4,6 +4,7 @@
 // the post's first message from FORUM_POSTS, fetched ten at a time as Discord does.
 use std::collections::HashMap;
 
+use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::{
     AnyElement, Context, FontWeight, HighlightStyle, SharedString, StyledText, Window, WindowControlArea,
     component::Icon,
@@ -187,7 +188,7 @@ impl Rustcord {
             .bg(palette::surface(Level::Page, cx))
             .child(header)
             .child(
-                div().id("forum-scroll").flex_1().min_h_0().overflow_y_scroll().child(
+                div().id("forum-scroll").flex_1().min_h_0().overflow_y_scrollbar().child(
                     div()
                         .w_full()
                         .max_w(px(880.))

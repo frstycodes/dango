@@ -2,6 +2,7 @@
 // results, with a fixed head and a scrolling body.
 use std::collections::HashMap;
 
+use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::{
     AnyElement, App, Context, Div, FontWeight, Radians, SharedString, Window,
     component::{ActiveTheme, Icon},
@@ -62,7 +63,7 @@ impl Rustcord {
                 .text_color(palette::text(cx))
                 .text_size(px(14.))
                 // The list runs up under the header, which blurs and fades it (ui::scroll_edge), as the feed does.
-                .child(div().id("right-panel").flex_1().min_h_0().overflow_y_scroll().pt(px(crate::layout::HEADER_HEIGHT + 8.)).px_2().pb_2().flex().flex_col().gap(px(2.)).child(body))
+                .child(div().id("right-panel").flex_1().min_h_0().overflow_y_scrollbar().pt(px(crate::layout::HEADER_HEIGHT + 8.)).px_2().pb_2().flex().flex_col().gap(px(2.)).child(body))
                 .child(ui::scroll_edge(palette::surface(palette::Level::Sidebar, cx), 0.).child(head))
                 .child(self.resize_handle(Edge::Panel, cx))
                 .children(foot.map(|pager| div().flex_none().py(px(8.)).border_t_1().border_color(line).child(pager)))

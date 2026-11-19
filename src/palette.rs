@@ -1,6 +1,6 @@
 use gpui_kit::{
     App, Hsla, Window,
-    component::{ActiveTheme, Theme, ThemeMode},
+    component::{ActiveTheme, Theme, ThemeMode, scroll::ScrollbarMode},
     rgb,
 };
 
@@ -193,6 +193,10 @@ pub fn apply(cx: &mut App) {
         theme.success = hex(SUCCESS);
         theme.warning = hex(t.idle);
         theme.scrollbar_thumb = hex(t.ink_wash).opacity(t.line_strong);
+        theme.scrollbar = gpui_kit::transparent_black();
+        // Revealed by scrolling or by the pointer over the bar's strip; init's system sync picks `Scrolling`
+        // on macOS, which never shows the bar to a pointer that hasn't scrolled.
+        theme.scrollbar_mode = ScrollbarMode::Hover;
     });
 }
 

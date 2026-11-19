@@ -356,6 +356,7 @@ impl Rustcord {
             .relative()
             .size_full()
             .child(messages)
+            .child(gpui_kit::component::scroll::Scrollbar::vertical(&self.list))
             .child(
                 gpui_kit::canvas(|_, _, _| {}, move |bounds, _, _, _| {
                     let top = px(top).min(bounds.size.height);
@@ -1614,8 +1615,8 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
     });
     let link = embed.url.clone();
     let title = embed.title.clone().map(|title| {
-        div()
         let this = ctx.this.clone();
+        div()
             .id(SharedString::from(format!("{key}-title")))
             .text_size(px(14.))
             .font_weight(FontWeight::MEDIUM)

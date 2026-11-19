@@ -504,6 +504,7 @@ impl Rustcord {
             .h_full()
             .bg(palette::surface(Level::Page, cx))
             .child(body)
+            .child(gpui_kit::component::scroll::Scrollbar::vertical(&scroll))
             .children(self.save_bar(cx))
             .child(ui::settings_close("channel-settings-close", cx.listener(|this, _, _, cx| this.close_channel_settings(false, cx)), cx));
         let nav = self.channel_settings_nav(&channel, &guild_id, cx).into_any_element();
