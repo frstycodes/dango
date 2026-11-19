@@ -357,6 +357,8 @@ impl Waffle {
         // the floating composer, which GIFs must not paint over. Pinned to the top left: an absolute
         // element without offsets sits where it would flow, after the list.
         let composer = self.composer_height.clone();
+        // The Jump to Present capsule floats 44px above the composer; GIFs stop short of it too.
+        let jump = if self.shows_jump_to_present() { 44. } else { 0. };
         div()
             .id("feed")
             .track_focus(&self.feed_focus)
@@ -368,7 +370,7 @@ impl Waffle {
             .child(
                 gpui_kit::canvas(|_, _, _| {}, move |bounds, _, _, _| {
                     let top = px(top).min(bounds.size.height);
-                    let covered = (px(composer.get() + 16.) + top).min(bounds.size.height);
+                    let covered = (px(composer.get() + 16. + jump) + top).min(bounds.size.height);
                     crate::gif::set_chat_clip(gpui_kit::Bounds { origin: gpui_kit::point(bounds.origin.x, bounds.origin.y + top), size: gpui_kit::size(bounds.size.width, bounds.size.height - covered) });
                 })
                 .absolute()
@@ -536,9 +538,13 @@ impl Waffle {
         }
     }
 
+    fn shows_jump_to_present(&self) -> bool {
+        self.scrolled_up && self.list.item_count() > 0
+    }
+
     // A small capsule 12px above the composer, out of the flow, so it never opens a gap.
     fn jump_to_present(&self, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
-        if !self.scrolled_up || self.list.item_count() == 0 {
+        if !self.shows_jump_to_present() {
             return None;
         }
         let overlay = palette::surface(Level::Overlay, cx);

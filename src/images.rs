@@ -3,10 +3,11 @@
 // until the app quits; this one lets go of images that are no longer drawn.
 //
 // An image is drawn by loading it, every frame it's on screen, so each load stamps the current frame.
-// An image not drawn for `KEEP_FRAMES` frames and `KEEP_FOR` is freed (RAM and GPU). Both conditions
-// matter: a window that isn't redrawing draws nothing, so time alone would evict what's on screen,
-// and a burst of frames (scrolling) shouldn't drop what was just scrolled past. Reloading an evicted
-// image skips the network when its file is still in discord::Images' download cache.
+// What's on screen is what the cache's last render drew (a part that isn't redrawing replays it), so
+// an image missing from that render and not drawn for `KEEP_FOR` is freed (RAM and GPU); the time
+// keeps what was just scrolled past. `sweep_all` runs this on a timer too, so an idle window lets go of
+// what it browsed earlier without having to redraw. Reloading an evicted image skips the network when
+// its file is still in discord::Images' download cache.
 //
 // Each of the window's parts (part.rs) has a cache of its own; the app's own drawing (overlays) uses
 // `cache`. `clear_all()` drops everything; the app calls it when it goes out of sight (see main.rs).
@@ -19,7 +20,6 @@ use std::{
 
 use gpui_kit::{App, AppContext, Entity, Global, ImageCache, ImageCacheError, ImageCacheItem, RenderImage, Resource, WeakEntity, Window};
 
-const KEEP_FRAMES: u64 = 120;
 const KEEP_FOR: Duration = Duration::from_secs(10);
 // How often eviction looks through the cache.
 const SWEEP_EVERY: Duration = Duration::from_secs(2);
@@ -72,6 +72,13 @@ pub fn clear_all(cx: &mut App) {
     }
 }
 
+// Every cache's sweep, for when the window isn't redrawing; returns whether anything was freed.
+pub fn sweep_all(cx: &mut App) -> bool {
+    let all: Vec<Entity<Images>> = cx.default_global::<Shared>().all.iter().filter_map(WeakEntity::upgrade).collect();
+    // Counted, not `any`: every cache sweeps.
+    all.into_iter().filter(|images| images.update(cx, |images, cx| images.sweep(cx))).count() > 0
+}
+
 pub struct Stats {
     pub images: usize,
     pub decoded_bytes: usize,
@@ -99,27 +106,25 @@ impl Images {
 impl Images {
     // Called once per window render, before children load their images.
     pub fn next_frame(&mut self, cx: &mut App) {
-        self.frame += 1;
+        // Before the frame moves on: `frame` is still the render on screen.
         if self.swept_at.elapsed() >= SWEEP_EVERY {
-            self.swept_at = Instant::now();
-            self.evict(cx);
-            self.publish();
+            self.sweep(cx);
         }
+        self.frame += 1;
     }
 
-    fn evict(&mut self, cx: &mut App) {
+    // Returns whether anything was freed.
+    fn sweep(&mut self, cx: &mut App) -> bool {
+        self.swept_at = Instant::now();
         let frame = self.frame;
-        let stale: Vec<u64> = self
-            .items
-            .iter()
-            .filter(|(_, item)| frame.saturating_sub(item.drawn_frame) > KEEP_FRAMES && item.drawn_at.elapsed() > KEEP_FOR)
-            .map(|(key, _)| *key)
-            .collect();
-        for key in stale {
-            if let Some(item) = self.items.remove(&key) {
+        let stale: Vec<u64> = self.items.iter().filter(|(_, item)| item.drawn_frame != frame && item.drawn_at.elapsed() > KEEP_FOR).map(|(key, _)| *key).collect();
+        for key in &stale {
+            if let Some(item) = self.items.remove(key) {
                 free(item, cx);
             }
         }
+        self.publish();
+        !stale.is_empty()
     }
 
     // Frees every image; whatever is on screen loads again (from the download cache) when next drawn.

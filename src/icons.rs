@@ -50,7 +50,7 @@ const GLYPHS: [(&str, &[u8]); 147] = [
     ("icons/video-off.svg", include_bytes!("../assets/icons/reicon/camera-off.svg")),
     ("icons/palette.svg", include_bytes!("../assets/icons/reicon/palette.svg")),
     ("icons/screen.svg", include_bytes!("../assets/icons/reicon/monitor.svg")),
-    ("icons/screen-off.svg", include_bytes!("../assets/icons/reicon/forbidden.svg")),
+    ("icons/screen-off.svg", include_bytes!("../assets/icons/reicon/monitor-off.svg")),
     ("icons/door-exit.svg", include_bytes!("../assets/icons/reicon/logout.svg")),
     ("icons/crown.svg", include_bytes!("../assets/icons/reicon/crown.svg")),
     ("icons/id.svg", include_bytes!("../assets/icons/reicon/user-id.svg")),

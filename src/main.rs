@@ -225,6 +225,26 @@ fn open_main(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gp
     }
     cx.activate(true);
     background_watch(cx);
+    idle_sweep(cx);
+}
+
+// In view, images are only swept when a column redraws, so what was browsed before the window went
+// still would stay decoded. Sweeps on a timer and hands freed heap pages back when it let go of any.
+const IDLE_SWEEP: Duration = Duration::from_secs(15);
+
+fn idle_sweep(cx: &mut gpui_kit::App) {
+    cx.spawn(async move |cx| {
+        loop {
+            cx.background_executor().timer(IDLE_SWEEP).await;
+            if !cx.update(images::sweep_all) {
+                continue;
+            }
+            // After the deferred image drops have run and the GPU has let go of the textures.
+            cx.background_executor().timer(Duration::from_millis(100)).await;
+            cx.background_executor().spawn(async { memory::compact() }).await;
+        }
+    })
+    .detach();
 }
 
 // Background mode, unless a video is playing: minimized or closed to the tray, the app gives memory
@@ -439,8 +459,8 @@ struct Call {
     watching: Vec<Watching>,
     // The stream shown large in Focus layout; the first watched when unset.
     focus: Option<String>,
-    // A watched stream that just ended, so the stage can say so instead of going blank.
-    ended: Option<String>,
+    // Watched streams that ended, by streamer: each keeps a card until closed, and rejoins if they go live again.
+    ended: Vec<String>,
     // Our own Go Live; dropping it ends the stream.
     sharing: Option<voice::GoLive>,
     // What we're sharing, as the Go Live panel names it ("Screen 1", an app, a window).
@@ -2490,7 +2510,7 @@ impl Waffle {
             }
         })
         .detach();
-        self.call = Some(Call { session, guild_id, channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: Vec::new(), focus: None, ended: None, sharing: None, share_label: None, share_source: None, live_since: None, self_view: None, joined: Instant::now(), _events: task });
+        self.call = Some(Call { session, guild_id, channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: Vec::new(), focus: None, ended: Vec::new(), sharing: None, share_label: None, share_source: None, live_since: None, self_view: None, joined: Instant::now(), _events: task });
         cx.notify();
     }
 
@@ -2574,6 +2594,10 @@ impl Waffle {
                     state.streaming = streaming;
                     state.camera = camera;
                 }
+                // Live again while their ended card is still up: rejoin, as Discord does. Close stream clears it.
+                if streaming && call.ended.contains(&user_id) {
+                    start_watch = Some(user_id.clone());
+                }
                 // A camera tile is drawn while it has a frame: without this, a camera turned off froze on its last one.
                 if !camera && let Some(frame) = call.cameras.remove(&user_id) {
                     cx.drop_image(frame, None);
@@ -2654,7 +2678,7 @@ impl Waffle {
     fn watch_stream(&mut self, streamer_id: String, cx: &mut Context<Self>) {
         let mine = self.me.as_ref().is_some_and(|m| m.id == streamer_id);
         let Some(call) = &mut self.call else { return };
-        call.ended = None;
+        call.ended.retain(|id| *id != streamer_id);
         call.focus = Some(streamer_id.clone());
         if call.watched(&streamer_id).is_some() {
             return cx.notify();
@@ -2719,9 +2743,9 @@ impl Waffle {
             cx.drop_image(frame, None);
         }
         sounds::play(sounds::Cue::StreamEnded);
-        // The stage says who stopped.
-        if call.watching.is_empty() {
-            call.ended = Some(streamer_id);
+        // Its card stays, saying who stopped.
+        if !call.ended.contains(&streamer_id) {
+            call.ended.push(streamer_id);
         }
         cx.notify();
     }

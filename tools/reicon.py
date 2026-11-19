@@ -312,6 +312,7 @@ MAP = [
     ("Nav::Minimize", "Window", "Minimize", "minus"),
     ("Nav::Restore", "Window", "Restore", "CUSTOM:win-restore"),
     ("Nav::DeafenedFill", "Voice", "Deafened", "CUSTOM:deafened"),
+    ("Glyph::ScreenOff", "Voice", "Stop watching or streaming", "CUSTOM:monitor-off"),
     ("Glyph::TextLocked", "Channels", "Text channel, private", "CUSTOM:text-locked"),
     ("Glyph::VoiceLocked", "Channels", "Voice channel, private", "CUSTOM:voice-locked"),
     ("Glyph::AnnouncementLocked", "Channels", "Announcement channel, private", "CUSTOM:announcement-locked"),
@@ -445,6 +446,9 @@ def custom(reicon, name):
         "muted": lambda: slashed(glyph(reicon, "microphone2")),
         "deafened": lambda: slashed(glyph(reicon, "headphone")),
         "camera-off": lambda: slashed(glyph(reicon, "video")),
+        # The screen with an X cut out of it, as Discord's stop-watching and stop-streaming buttons.
+        "monitor-off": lambda: (f'<mask id="x" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/>'
+                                f'<path d="M9.75 5 14.25 9.5M14.25 5 9.75 9.5" stroke="#000" stroke-width="2"/></mask><g mask="url(#x)">{glyph(reicon, "monitor")}</g>'),
         "thumbtack-off": lambda: slashed(glyph(reicon, "thumbtack")),
         "gif": lambda: f'<path d="{sq(2.5, 5, 19, 14, 3.5)}"/><path d="M10 10.1a2.1 2.1 0 1 0 .4 2.2H8.6M12.75 9.75v4.5M15.5 14.25v-4.5h2.75M15.5 12h2.25" stroke-width="1.75"/>',
         "more-v": lambda: f'<g transform="rotate(90 12 12)">{glyph(reicon, "more-h")}</g>',
