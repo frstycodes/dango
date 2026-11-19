@@ -555,9 +555,10 @@ pub fn traffic_lights_overhang(window: &Window) -> f32 {
     (right - RAIL_WIDTH).max(0.)
 }
 
-/// Zooms the window and moves the traffic lights with it (a no-op for them off macOS).
+/// Zooms the window and, on macOS, moves the traffic lights with it.
 pub fn apply_zoom(window: &mut Window, zoom: f32, cx: &mut gpui_kit::App) {
     window.set_zoom(zoom, cx);
+    #[cfg(target_os = "macos")]
     window.set_traffic_light_position(traffic_lights(zoom));
 }
 
