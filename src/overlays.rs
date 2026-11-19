@@ -22,7 +22,21 @@ use crate::{
 };
 
 const PICKER_SIZE: (f32, f32) = (420., 440.);
+// The composer's pickers share one frame, tall enough for the tabs over the GIF picker's.
+const COMPOSER_PICKER_HEIGHT: f32 = PICKER_SIZE.1 + 100.;
 const SWITCHER_WIDTH: f32 = 560.;
+
+// The three pickers the composer opens in one spot, in tab order.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ComposerPicker {
+    Gifs,
+    Stickers,
+    Emoji,
+}
+
+impl ComposerPicker {
+    const ALL: [ComposerPicker; 3] = [ComposerPicker::Gifs, ComposerPicker::Stickers, ComposerPicker::Emoji];
+}
 
 impl Waffle {
     pub(crate) fn on_emoji_search(&mut self, _: &Entity<SearchState>, _: &InputEvent, _: &mut Window, cx: &mut Context<Self>) {
@@ -256,7 +270,7 @@ impl Waffle {
         out.extend(self.share_overlay(window, cx));
         out.extend(self.pins_overlay(cx));
         out.extend(self.inbox_overlay(cx));
-        out.extend(self.gif_overlay(cx));
+        out.extend(self.composer_picker_overlay(window, cx));
         out
     }
 
@@ -358,10 +372,70 @@ impl Waffle {
         self.composer_height.get() + 16.
     }
 
-    // Discord's GIF picker: search on top, trending when empty, two columns of moving previews. It rises
-    // from the composer's GIF button, at the composer's right edge.
-    fn gif_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let results = self.gif_picker.as_ref()?;
+    // The composer's picker (media.html): GIFs, Stickers and Emoji tabs over one frame that stays put while
+    // the tabs change what's in it. It rises from the composer at its right edge.
+    fn composer_picker_overlay(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let content = match self.composer_picker()? {
+            ComposerPicker::Gifs => self.gif_tab(self.gif_picker.as_ref()?, cx),
+            ComposerPicker::Stickers => self.sticker_tab(window, cx),
+            ComposerPicker::Emoji => self.emoji_content(window, cx),
+        };
+        let picker = picker_frame("composer-picker", COMPOSER_PICKER_HEIGHT, cx)
+            .absolute()
+            .right(px(self.composer_popover_right()))
+            .bottom(px(self.composer_popover_bottom()))
+            .child(div().pt(px(ui::SURFACE_INSET)).child(self.picker_tabs(window, cx)))
+            .children(content);
+        Some(backdrop("composer-picker-backdrop", cx).child(ui::rise(picker.transform_origin(ui::corner(true, true)), "composer-picker", Duration::ZERO)).into_any_element())
+    }
+
+    // GIFs, Stickers and Emoji over one frame at the same spot; Emoji is its own picker, so switching to or
+    // from it swaps which one is open.
+    fn picker_tabs(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let items = [ui::Tab::new("GIFs"), ui::Tab::new("Stickers"), ui::Tab::new("Emoji")];
+        let selected = self.composer_picker().map_or(0, |tab| tab as usize);
+        let this = cx.entity().downgrade();
+        div().px(px(12.)).pt(px(4.)).child(ui::tabs("picker-tabs", &items, selected, move |i, window, cx| {
+            this.update(cx, |this, cx| this.show_composer_picker(ComposerPicker::ALL[i], window, cx)).ok();
+        }, window, cx))
+    }
+
+    /// Which of the composer's pickers is open, if any: what its tabs and buttons show as chosen.
+    pub(crate) fn composer_picker(&self) -> Option<ComposerPicker> {
+        if matches!(self.emoji_picker, Some(EmojiTarget::Composer)) {
+            return Some(ComposerPicker::Emoji);
+        }
+        self.gif_picker.as_ref()?;
+        Some(match self.picker_tab {
+            crate::stickers::PickerTab::Gifs => ComposerPicker::Gifs,
+            crate::stickers::PickerTab::Stickers => ComposerPicker::Stickers,
+        })
+    }
+
+    /// A composer button or picker tab: opens that picker in the shared spot, or closes it if it's the one open.
+    pub(crate) fn show_composer_picker(&mut self, picker: ComposerPicker, window: &mut Window, cx: &mut Context<Self>) {
+        if self.composer_picker() == Some(picker) {
+            self.gif_picker = None;
+            self.emoji_picker = None;
+            return cx.notify();
+        }
+        match picker {
+            ComposerPicker::Gifs | ComposerPicker::Stickers => {
+                self.emoji_picker = None;
+                if self.gif_picker.is_none() {
+                    self.open_gifs(window, cx);
+                }
+                let tab = if picker == ComposerPicker::Gifs { crate::stickers::PickerTab::Gifs } else { crate::stickers::PickerTab::Stickers };
+                self.set_picker_tab(tab, window, cx);
+            }
+            ComposerPicker::Emoji => {
+                self.gif_picker = None;
+                self.open_emoji_picker(EmojiTarget::Composer, window, cx);
+            }
+        }
+    }
+
+    fn gif_tab(&self, results: &Option<Result<Vec<crate::discord::Gif>, SharedString>>, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let theme = cx.theme().clone();
         let column_width = (PICKER_SIZE.0 - 28.) / 2.;
         let body: AnyElement = match results {
@@ -387,17 +461,10 @@ impl Waffle {
                 }))
                 .into_any_element(),
         };
-        let picker = crate::ui::surface(cx)
-            .id("gif-picker")
-            .absolute()
-            .right(px(self.composer_popover_right()))
-            .bottom(px(self.composer_popover_bottom()))
-            .w(px(PICKER_SIZE.0))
-            .h(px(PICKER_SIZE.1 + 60.))
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .child(div().p_2().child(ui::search_field("gif-search", &self.gif_search, cx)))
-            .child(div().id("gif-scroll").flex_1().min_h_0().overflow_y_scrollbar().px_2().pb_2().child(body));
-        Some(backdrop("gif-backdrop", cx).child(ui::rise(picker.transform_origin(ui::corner(true, true)), "gif-picker", Duration::ZERO)).into_any_element())
+        vec![
+            div().p(px(10.)).child(ui::search_field("gif-search", &self.gif_search, cx)).into_any_element(),
+            div().id("gif-scroll").flex_1().min_h_0().overflow_y_scrollbar().px_2().pb_2().child(body).into_any_element(),
+        ]
     }
 
     // The pins popover under the header's pin button: newest first, each with a Jump link.
@@ -463,8 +530,18 @@ impl Waffle {
 
     // The emoji picker (messages.css `.picker`): search on top, categories down the left, the grid in
     // the middle and the hovered emoji named at the foot. Recent first, then the server's own, then Unicode.
+    // For a reaction it opens above and left of the click, kept in the window; from the composer it's the
+    // composer picker's Emoji tab.
     fn emoji_overlay(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
-        self.emoji_picker.as_ref()?;
+        if matches!(self.emoji_picker.as_ref()?, EmojiTarget::Composer) {
+            return None;
+        }
+        let picker = picker_frame("emoji-picker", PICKER_SIZE.1, cx).children(self.emoji_content(window, cx));
+        Some(backdrop("emoji-backdrop", cx).child(anchored_at(self.popover_at, gpui_kit::Anchor::BottomRight, ui::rise(picker.transform_origin(ui::corner(true, true)), "emoji-picker", Duration::ZERO))).into_any_element())
+    }
+
+    // Search, the category rail beside the grid, and the hovered emoji named at the foot.
+    fn emoji_content(&self, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let sections = self.emoji_sections(cx);
                 let scroll = window.use_keyed_state("emoji-scroll-handle", cx, |_, _| ScrollHandle::new()).read(cx).clone();
         let hovered = window.use_keyed_state("emoji-hovered", cx, |_, _| None::<(Emoji, SharedString)>);
@@ -598,26 +675,11 @@ impl Waffle {
             }));
         // GAP: the design's skin-tone button sits beside search; Waffle has no skin tones yet.
         let head = div().p(px(10.)).child(ui::search_field("emoji-search", &self.emoji_search, cx));
-        let picker = div()
-            .id("emoji-picker")
-            .w(px(PICKER_SIZE.0))
-            .h(px(PICKER_SIZE.1))
-            .squircle(RADIUS_LG)
-            .bg(palette::surface(palette::Level::Overlay, cx))
-            .shadow(ui::shadow_pop(cx))
-            .flex()
-            .flex_col()
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .child(head)
-            .child(div().flex_1().min_h_0().flex().child(rail).child(div().flex_1().min_w_0().h_full().flex().relative().child(grid).child(gpui_kit::component::scroll::Scrollbar::vertical(&scroll))))
-            .child(foot);
-        // From the composer's emoji button it sits just above the composer, at its right edge; for a reaction
-        // it opens above and left of the click, kept in the window.
-        let placed: AnyElement = match self.emoji_picker {
-            Some(EmojiTarget::Composer) => ui::rise(picker.absolute().right(px(self.composer_popover_right())).bottom(px(self.composer_popover_bottom())).transform_origin(ui::corner(true, true)), "emoji-picker", Duration::ZERO).into_any_element(),
-            _ => anchored_at(self.popover_at, gpui_kit::Anchor::BottomRight, ui::rise(picker.transform_origin(ui::corner(true, true)), "emoji-picker", Duration::ZERO)),
-        };
-        Some(backdrop("emoji-backdrop", cx).child(placed).into_any_element())
+        vec![
+            head.into_any_element(),
+            div().flex_1().min_h_0().flex().child(rail).child(div().flex_1().min_w_0().h_full().flex().relative().child(grid).child(gpui_kit::component::scroll::Scrollbar::vertical(&scroll))).into_any_element(),
+            foot.into_any_element(),
+        ]
     }
 
     // What the picker lists for the current search: recent (only before you search), the server's own, then Unicode by group.
@@ -788,6 +850,20 @@ impl SectionLead {
 /// A popover placed with one corner at `at` (in window coordinates), shifted to stay 8px inside the window.
 pub(crate) fn anchored_at(at: gpui_kit::Point<gpui_kit::Pixels>, corner: gpui_kit::Anchor, popover: impl IntoElement) -> AnyElement {
     gpui_kit::anchored().position(at).anchor(corner).snap_to_window_with_margin(px(8.)).child(popover).into_any_element()
+}
+
+// A picker's floating card: the overlay surface, rounded and shadowed, its content laid out top to bottom.
+fn picker_frame(id: &'static str, height: f32, cx: &App) -> gpui_kit::Stateful<gpui_kit::Div> {
+    div()
+        .id(id)
+        .w(px(PICKER_SIZE.0))
+        .h(px(height))
+        .squircle(RADIUS_LG)
+        .bg(palette::surface(palette::Level::Overlay, cx))
+        .shadow(ui::shadow_pop(cx))
+        .flex()
+        .flex_col()
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
 }
 
 pub(crate) fn backdrop(id: &'static str, cx: &mut Context<Waffle>) -> gpui_kit::Stateful<gpui_kit::Div> {

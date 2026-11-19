@@ -162,6 +162,7 @@ pub struct Prefs {
     pub hidden_video: Vec<String>,
     // How often we've reacted with each emoji, for the "frequently used" rows.
     pub emoji_uses: Vec<(crate::discord::Emoji, u32)>,
+    pub sticker_uses: Vec<(crate::discord::Sticker, u32)>,
     // Go Live quality: height (0 = source), frame rate, and whether the source's sound goes too.
     pub stream_resolution: u32,
     pub stream_fps: u32,
@@ -224,6 +225,7 @@ impl Default for Prefs {
             soundboard_mutes: Vec::new(),
             hidden_video: Vec::new(),
             emoji_uses: Vec::new(),
+            sticker_uses: Vec::new(),
             stream_resolution: 720,
             stream_fps: 30,
             stream_audio: true,
@@ -371,6 +373,20 @@ impl Prefs {
             }
         }
         out
+    }
+
+    // Most used first, counted like emoji.
+    pub fn frequent_stickers(&self, n: usize) -> Vec<crate::discord::Sticker> {
+        let mut uses = self.sticker_uses.clone();
+        uses.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
+        uses.into_iter().map(|(s, _)| s).take(n).collect()
+    }
+
+    pub fn record_sticker(&mut self, sticker: &crate::discord::Sticker) {
+        match self.sticker_uses.iter_mut().find(|(s, _)| s.id == sticker.id) {
+            Some((_, count)) => *count += 1,
+            None => self.sticker_uses.push((sticker.clone(), 1)),
+        }
     }
 
     pub fn record_emoji(&mut self, emoji: &crate::discord::Emoji) {

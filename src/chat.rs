@@ -25,6 +25,7 @@ use crate::{
     layout::HEADER_HEIGHT,
     mascot::Mood,
     motion,
+    overlays::ComposerPicker,
     palette::{self, Level},
     ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XS, Squircle},
 };
@@ -422,6 +423,7 @@ impl Waffle {
     pub(crate) fn render_composer(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let focused = self.composer.read(cx).focus_handle(cx).is_focused(window);
         let (strong, muted) = (palette::strong(cx), palette::muted(cx));
+        let open_picker = self.composer_picker();
         let row = div()
             .min_h(px(48.))
             .py(px(7.))
@@ -432,8 +434,9 @@ impl Waffle {
             .child(ui::icon_button("attach", Glyph::PlusCircle, "Upload a File", cx).on_click(cx.listener(|this, _, window, cx| this.upload(window, cx))))
             // XSmall gives the editor 0/4px padding of its own; with these, the design's 4/6.
             .child(div().flex_1().min_w_0().child(Textarea::new(&self.composer).appearance(false).with_size(Size::XSmall).py(px(4.)).px(px(2.)).text_size(px(15.)).line_height(px(22.)).text_color(strong).token(mention_chip(cx))))
-            .child(ui::icon_button("composer-gif", Glyph::Gif, "Open GIF picker", cx).on_click(cx.listener(|this, _, window, cx| this.open_gifs(window, cx))))
-            .child(ui::icon_button("composer-emoji", Glyph::Emoji, "Select Emoji", cx).on_click(cx.listener(|this, _, window, cx| this.open_emoji_picker(EmojiTarget::Composer, window, cx))));
+            .children([(ComposerPicker::Gifs, "composer-gif", Glyph::Gif, "Open GIF picker"), (ComposerPicker::Stickers, "composer-sticker", Glyph::Sticker, "Open sticker picker"), (ComposerPicker::Emoji, "composer-emoji", Glyph::Emoji, "Select Emoji")].map(|(picker, id, glyph, label)| {
+                ui::icon_button(id, glyph, label, cx).toggled(open_picker == Some(picker), cx).on_click(cx.listener(move |this, _, window, cx| this.show_composer_picker(picker, window, cx)))
+            }));
         let card = div()
             .relative()
             .mx(px(16.))
@@ -856,6 +859,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .text_color(ink)
         .children(content(message, ctx, cx))
         .children(media.map(|m| div().when(pending, |d| d.opacity(0.6)).child(m)))
+        .children(message.stickers.iter().map(|s| div().when(pending, |d| d.opacity(0.6)).child(crate::stickers::in_chat(s, cx))))
         .children(message.embeds.iter().filter(|_| ctx.embeds).enumerate().map(|(i, e)| embed_card(e, format!("embed-{}-{i}", message.id), ctx, cx)))
         .children(link_cards(message, ctx, cx))
         .children(message.thread.as_ref().map(|t| thread_card(t, ctx, cx)))
@@ -1130,12 +1134,16 @@ fn attachment_kind(message: &Message) -> &'static str {
         Some(MediaKind::Image) => "Image",
         Some(MediaKind::Video { .. }) => "Video",
         Some(MediaKind::Gif { .. }) => "GIF",
+        None if !message.stickers.is_empty() => "Sticker",
         None if !message.files.is_empty() => "File",
         None => "Attachment",
     }
 }
 
 fn attachment_glyph(message: &Message) -> Glyph {
+    if message.media.is_empty() && !message.stickers.is_empty() {
+        return Glyph::Sticker;
+    }
     match message.media.is_empty() && !message.files.is_empty() {
         true => Glyph::File,
         false => Glyph::Image,
