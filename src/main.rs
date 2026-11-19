@@ -88,7 +88,7 @@ use futures::StreamExt;
 use gpui_kit::{
     AppContext, Bounds, Context, Entity, FocusHandle, Hsla, RenderImage, ListAlignment, ListOffset, ListState, SharedString, Task, TitlebarOptions, Window, WindowBounds,
     WindowOptions,
-    component::input::{InputEvent, InputState as SearchState, TextareaState},
+    component::input::{InlineToken, InputContent, InputEvent, InputState as SearchState, TextareaState},
     px, size,
 };
 use gpui_motion_kit::Motions;
@@ -824,6 +824,9 @@ impl Waffle {
         let emoji_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Find the perfect emoji"));
         cx.subscribe_in(&emoji_search, window, Self::on_emoji_search).detach();
         let feed_focus = cx.focus_handle();
+        // Esc closing a focused popup (search, ⌘K) leaves nothing focused, and app keys only reach the root
+        // through the focus path, so take focus back.
+        cx.on_focus_lost(window, |this, window, cx| this.focus.focus(window, cx)).detach();
         let switcher_input = cx.new(|cx| SearchState::new(window, cx).placeholder("Where would you like to go?"));
         let gif_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search Tenor"));
         cx.subscribe_in(&gif_search, window, Self::on_gif_search).detach();
@@ -1789,11 +1792,12 @@ impl Waffle {
     /// Enter in the composer: saves the edit in progress, otherwise sends (optimistically).
     fn submit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let (Some(client), Some(channel), Some(me)) = (self.client.clone(), self.channel.clone(), self.me.clone()) else { return };
-        let typed = self.composer.read(cx).value().trim().to_owned();
+        let typed = wire_text(&self.composer.read(cx).content());
+        let typed = typed.trim();
         if typed.is_empty() && self.pending_files.is_empty() {
             return;
         }
-        let content = self.to_wire(&typed);
+        let content = self.to_wire(typed);
         self.composer.update(cx, |state, cx| state.set_value("", window, cx));
         self.has_draft = false;
         self.send_error = None;
@@ -2194,12 +2198,9 @@ impl Waffle {
 
     fn accept_suggestion(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(auto) = self.autocomplete.take() else { return };
-        let Some(pick) = auto.items.get(auto.selected).cloned() else { return };
-        let text = self.composer.read(cx).value().to_string();
-        let Some(head) = text.strip_suffix(auto.token.as_str()) else { return };
-        let replaced = format!("{head}{} ", pick.insert);
-        self.mention_wire.insert(pick.insert, pick.wire);
-        self.composer.update(cx, |state, cx| state.set_value(replaced, window, cx));
+        let Some(pick) = auto.items.get(auto.selected) else { return };
+        let chip = InlineToken::new(pick.wire.clone(), pick.insert.clone());
+        self.composer.update(cx, |state, cx| complete_mention(state, &auto.token, chip, window, cx));
         cx.notify();
     }
 
@@ -2675,7 +2676,7 @@ impl Waffle {
     fn go_live(&mut self, source: voice::ShareSource, cx: &mut Context<Self>) -> bool {
         let Some(call) = &mut self.call else { return false };
         let options = voice::GoLiveOptions { resolution: self.prefs.stream_resolution, fps: self.prefs.stream_fps, audio: self.prefs.stream_audio };
-        match call.session.go_live_with_options(source, options) {
+        match call.session.go_live_with_options(source, options, call.sharing.take()) {
             Ok(live) => {
                 call.sharing = Some(live);
                 call.share_source = Some(source);
@@ -2692,7 +2693,7 @@ impl Waffle {
     // Quality and sound changes take effect by restarting the same stream; viewers rejoin it.
     pub(crate) fn restart_share(&mut self, cx: &mut Context<Self>) {
         let Some(call) = self.call.as_mut() else { return };
-        let Some(source) = call.share_source.filter(|_| call.sharing.take().is_some()) else { return };
+        let Some(source) = call.share_source.filter(|_| call.sharing.is_some()) else { return };
         self.go_live(source, cx);
         cx.notify();
     }
@@ -2846,6 +2847,27 @@ fn upsert_voice_state(states: &mut Vec<discord::VoiceState>, state: discord::Voi
     }
 }
 
+// Swaps the `@`/`#` query that ends the draft for a mention chip, then a space, leaving the caret after both.
+pub(crate) fn complete_mention(state: &mut ComposerState, query: &str, chip: InlineToken, window: &mut Window, cx: &mut Context<ComposerState>) {
+    let end = state.value().len();
+    if !state.value().ends_with(query) {
+        return;
+    }
+    state.set_selected_range(end - query.len()..end, cx);
+    if state.replace_with_token(chip, window, cx).is_ok() {
+        state.insert(" ", window, cx);
+    }
+}
+
+// The draft as Discord takes it: each mention chip becomes its `<@id>` / `<#id>`, kept as the token's id.
+fn wire_text(content: &InputContent) -> String {
+    let mut text = content.text().to_string();
+    for span in content.tokens().iter().rev() {
+        text.replace_range(span.range(), span.token().id());
+    }
+    text
+}
+
 // One entry per person, in the order given, with you moved to the end.
 fn mention_order(users: impl Iterator<Item = User>, me: Option<&str>) -> Vec<User> {
     let mut seen = std::collections::HashSet::new();
@@ -2874,6 +2896,33 @@ mod tests {
     }
 
     use super::*;
+
+    struct Draft(Entity<ComposerState>);
+
+    impl gpui_kit::Render for Draft {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl gpui_kit::IntoElement {
+            gpui_kit::component::input::Textarea::new(&self.0)
+        }
+    }
+
+    #[gpui_kit::test]
+    fn a_picked_mention_becomes_a_chip_with_the_caret_after_its_space(cx: &mut gpui_kit::TestAppContext) {
+        cx.update(gpui_kit::component::init);
+        let (draft, cx) = cx.add_window_view(|window, cx| Draft(cx.new(|cx| ComposerState::new(window, cx))));
+        let state = cx.read(|cx| draft.read(cx).0.clone());
+        cx.update(|window, cx| {
+            state.update(cx, |state, cx| {
+                state.set_value("hi @fe", window, cx);
+                complete_mention(state, "@fe", InlineToken::new("<@42>", "@Ferris"), window, cx);
+            })
+        });
+        let (content, caret) = cx.read(|cx| (state.read(cx).content(), state.read(cx).cursor()));
+        assert_eq!(content.text().as_ref(), "hi @Ferris ");
+        assert_eq!(caret, "hi @Ferris ".len(), "caret after the chip and its space");
+        assert_eq!(content.tokens().len(), 1);
+        assert_eq!(content.tokens()[0].range(), 3..10);
+        assert_eq!(wire_text(&content), "hi <@42> ");
+    }
 
     #[test]
     fn mentions_list_you_last_once() {
