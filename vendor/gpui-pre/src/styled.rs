@@ -779,6 +779,12 @@ pub trait Styled: Sized {
         self
     }
 
+    /// Clears everything painted under this element's shape to transparent: a cutout through to what's
+    /// behind the window's content, for a transparent window.
+    fn backdrop_erase(self) -> Self {
+        self.backdrop_clear_top(crate::px(1e9))
+    }
+
     /// Sets the grid columns of this element.
     fn grid_cols(mut self, cols: u16) -> Self {
         self.style().grid_cols = Some(GridTemplate {

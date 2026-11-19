@@ -438,7 +438,7 @@ pub struct BackdropFilter {
 impl BackdropFilter {
     /// Whether the filter leaves the backdrop unchanged.
     pub fn is_identity(&self) -> bool {
-        self.blur_radius <= Pixels::ZERO && self.saturation == 1.
+        self.blur_radius <= Pixels::ZERO && self.saturation == 1. && self.clear_top <= Pixels::ZERO
     }
 }
 
