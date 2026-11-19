@@ -246,16 +246,19 @@ impl Waffle {
 
     // Who's in the server's voice channels and who's live there, by avatar, for its hover card.
     fn server_preview(&self, guild_id: &str, name: SharedString) -> ServerPreview {
-        let Some(guild) = self.guilds.iter().find(|g| g.id == guild_id) else { return ServerPreview { name, voice: Vec::new(), live: Vec::new() } };
+        let muted = self.guild_settings.get(guild_id).is_some_and(|s| s.is_muted());
+        let Some(guild) = self.guilds.iter().find(|g| g.id == guild_id) else { return ServerPreview { name, voice: Vec::new(), live: Vec::new(), muted } };
         let members = self.members.get(guild_id);
+        // Someone whose member hasn't loaded yet still shows, with Discord's default avatar for their id.
         let avatar = |state: &crate::discord::VoiceState| {
-            state.user.as_ref().or_else(|| members.and_then(|m| m.get(&state.user_id))).map(|u| u.avatar.clone())
+            state.user.as_ref().or_else(|| members.and_then(|m| m.get(&state.user_id))).map(|u| u.avatar.clone()).unwrap_or_else(|| crate::discord::avatar_url(&state.user_id, None))
         };
         let present = guild.voice_states.iter().filter(|v| v.channel_id.is_some());
         ServerPreview {
             name,
-            voice: present.clone().filter_map(avatar).collect(),
-            live: present.filter(|v| v.streaming).filter_map(avatar).collect(),
+            voice: present.clone().map(avatar).collect(),
+            live: present.filter(|v| v.streaming).map(avatar).collect(),
+            muted,
         }
     }
 
@@ -1496,6 +1499,7 @@ struct ServerPreview {
     name: SharedString,
     voice: Vec<String>,
     live: Vec<String>,
+    muted: bool,
 }
 
 impl ServerPreview {
@@ -1524,6 +1528,7 @@ impl Render for ServerPreview {
             .child(div().truncate().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(self.name.clone()))
             .when(!self.voice.is_empty(), |c| c.child(row(Glyph::VolumeHigh, &self.voice)))
             .when(!self.live.is_empty(), |c| c.child(row(Glyph::ShareScreen, &self.live)))
+            .when(self.muted, |c| c.child(div().text_size(px(14.)).text_color(muted).child("Muted")))
     }
 }
 
