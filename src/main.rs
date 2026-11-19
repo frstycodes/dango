@@ -1265,6 +1265,7 @@ impl Waffle {
                 self.status = Status::Online;
                 self.load_activity_feed(cx);
                 self.splash_ready(cx);
+                self.rejoin_after_restart(cx);
             }
             Event::Batch(events) => {
                 for event in events {
@@ -2478,6 +2479,16 @@ impl Waffle {
         let Some(channel) = &self.channel else { return Vec::new() };
         let now = Instant::now();
         self.typing.get(&channel.id).map(|t| t.iter().filter(|t| t.until > now).cloned().collect()).unwrap_or_default()
+    }
+
+    // The call Waffle's own restart left (restart.rs). Once only: a channel gone or hidden is dropped.
+    fn rejoin_after_restart(&mut self, cx: &mut Context<Self>) {
+        let Some((guild_id, channel_id)) = self.prefs.rejoin_voice.take() else { return };
+        self.prefs.save();
+        let channel = self.guilds.iter().find(|g| g.id == guild_id).and_then(|g| g.channels.iter().find(|c| c.id == channel_id)).cloned();
+        if let Some(channel) = channel {
+            self.join_voice_in(Some(guild_id), channel, cx);
+        }
     }
 
     fn join_voice(&mut self, channel: Channel, cx: &mut Context<Self>) {
