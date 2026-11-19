@@ -658,10 +658,10 @@ impl Waffle {
             let category = category.clone();
             head.child(cat_add(SharedString::from(format!("section-add-{}", category.id)), Some(group), "Create channel", cx).on_mouse_down(
                 gpui_kit::MouseButton::Left,
-                cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| {
+                cx.listener(move |this, _, window, cx| {
                     let Some(guild_id) = this.guild_id.clone() else { return };
                     cx.stop_propagation();
-                    this.open_channel_menu(category.clone(), guild_id, e.position, cx);
+                    this.open_create_channel(guild_id, 0, Some(category.id.clone()), window, cx);
                 }),
             ))
         });
@@ -839,11 +839,11 @@ impl Waffle {
         let (menu_channel, menu_guild) = (channel.clone(), guild.id.clone());
         let invite = row_action(SharedString::from(format!("invite-{}", channel.id)), Icon::new(Glyph::GroupPlus), "Invite people", cx)
             .on_click(cx.listener(move |this, _, window, cx| this.show_invite(gid.clone(), cid.clone(), window, cx)));
-        let options = row_action(SharedString::from(format!("options-{}", channel.id)), Icon::new(Glyph::Settings), "Channel options", cx).on_mouse_down(
+        let options = row_action(SharedString::from(format!("options-{}", channel.id)), Icon::new(Glyph::Settings), "Edit channel", cx).on_mouse_down(
             gpui_kit::MouseButton::Left,
-            cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| {
+            cx.listener(move |this, _, window, cx| {
                 cx.stop_propagation();
-                this.open_channel_menu(menu_channel.clone(), menu_guild.clone(), e.position, cx);
+                this.open_channel_settings(menu_channel.clone(), menu_guild.clone(), window, cx);
             }),
         );
         div()

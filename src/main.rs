@@ -886,8 +886,19 @@ impl Waffle {
         cx.subscribe_in(&switcher_input, window, Self::on_switcher_input).detach();
         let settings_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search settings"));
         let dialog_input = cx.new(|cx| SearchState::new(window, cx));
+        // Enter in the field submits Create Channel; the input keeps the key from reaching the dialog.
+        cx.subscribe(&dialog_input, |this: &mut Self, _, event: &InputEvent, cx| {
+            if matches!(event, InputEvent::PressEnter { .. }) && this.create_channel.is_some() {
+                this.submit_create_channel(cx);
+            }
+        })
+        .detach();
         let status_input = cx.new(|cx| SearchState::new(window, cx).placeholder("What's on your mind?"));
         cx.subscribe_in(&status_input, window, Self::on_status_input).detach();
+        let add_friend_input = cx.new(|cx| SearchState::new(window, cx).placeholder("username"));
+        cx.subscribe_in(&add_friend_input, window, Self::on_add_friend_input).detach();
+        let add_friend_note = cx.new(|cx| TextareaState::new(window, cx).placeholder("Say hi, or how you know each other"));
+        cx.observe(&add_friend_note, |_, _, cx| cx.notify()).detach();
         cx.subscribe(&settings_search, |this: &mut Self, _, _: &InputEvent, cx| {
             // A new query starts at its best result.
             if let Some(view) = this.settings.as_mut() {
