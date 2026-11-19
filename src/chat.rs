@@ -6,7 +6,7 @@ use std::{collections::HashMap, f32::consts::TAU, rc::Rc, time::Duration};
 
 use chrono::{DateTime, Local, NaiveDate};
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, App, Context, Corners, Div, Focusable, FontWeight, HighlightStyle, Hsla, KeyDownEvent, Pixels, SharedString, Stateful, StyledText, WeakEntity, Window,
+    Animation, AnimationExt, AnyElement, App, Bounds, Context, Corners, Div, Focusable, FontWeight, HighlightStyle, Hsla, KeyDownEvent, Pixels, SharedString, Stateful, StyledText, WeakEntity, Window,
     WindowControlArea,
     component::{
         ActiveTheme, Icon, Sizable, Size,
@@ -216,15 +216,23 @@ impl Waffle {
                 .into_any_element()
         };
         // The popover hangs from the field's right edge and rises from that corner.
+        // Deferred and absolute, the popover lies outside this element's bounds, so mouse-down-out fires on a
+        // press inside it too; its last drawn bounds let that press through instead of blurring and unmounting it.
+        let popover_bounds = window.use_keyed_state("search-popover-bounds", cx, |_, _| None::<Bounds<Pixels>>);
         let popover = focused.then(|| self.search_popover(cx)).flatten().map(|card| {
-            let card = div().absolute().top(px(46.)).right_0().child(card);
+            let bounds = popover_bounds.clone();
+            let card = div().absolute().top(px(46.)).right_0().on_children_prepainted(move |children, _, cx| bounds.update(cx, |b, _| *b = children.first().copied())).child(card);
             gpui_kit::deferred(ui::rise(card.transform_origin(ui::corner(true, false)), "search-popover-in", Duration::ZERO)).with_priority(2)
         });
+        if popover.is_none() {
+            popover_bounds.update(cx, |b, _| *b = None);
+        }
         div()
             .relative()
             .flex_none()
             .on_mouse_down_out(cx.listener(move |_, _, window, cx| {
-                if focused {
+                let in_popover = popover_bounds.read(cx).is_some_and(|b| b.contains(&window.mouse_position()));
+                if focused && !in_popover {
                     window.blur(cx);
                 }
             }))
