@@ -9,6 +9,11 @@ pub fn spring() -> Transition {
     Transition::Spring(Spring::visual(Duration::from_millis(220), 0.).expect("valid spring"))
 }
 
+// SwiftUI's `.snappy` bounce (0.15) on `spring`'s 220ms: its own 0.5s read as slow.
+pub fn snappy() -> Transition {
+    Transition::Spring(Spring::visual(Duration::from_millis(220), 0.15).expect("valid spring"))
+}
+
 // Folds are one block, height and fade together, on the house enter curve.
 pub fn fold() -> Transition {
     Transition::Tween(Duration::from_millis(140), Easing::Bezier(Bezier::new(0.23, 1., 0.32, 1.).expect("monotonic bezier")))

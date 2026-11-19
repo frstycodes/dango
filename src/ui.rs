@@ -105,8 +105,13 @@ pub fn split(main: Control, options: Control) -> Div {
 /// curve runs from fully gone at the top edge, through ~90% at the bar's text, to clear just below the bar.
 /// The blur under it eases off on the same curve. `fade_right` keeps it off a column at the right.
 pub fn scroll_edge(surface: Hsla, fade_right: f32) -> Div {
-    const TAIL: f32 = 24.;
-    let height = crate::layout::HEADER_HEIGHT + TAIL;
+    scroll_edge_over(surface, fade_right, crate::layout::HEADER_HEIGHT, 24.)
+}
+
+/// The same over a bar `bar` tall, clear `tail` below it: the rail's strip is shorter than a header, and its
+/// first tile sits just under it, so its fade ends sooner.
+pub fn scroll_edge_over(surface: Hsla, fade_right: f32, bar: f32, tail: f32) -> Div {
+    let height = bar + tail;
     // Two linear ramps stacked make an ease-out: steep at the top, long and soft below the bar.
     let ramp = |h: f32| {
         div().absolute().top_0().left_0().right(px(fade_right)).h(px(h)).bg(linear_gradient(
@@ -123,7 +128,7 @@ pub fn scroll_edge(surface: Hsla, fade_right: f32) -> Div {
         .h(px(height))
         .child(div().absolute().inset_0().right(px(fade_right)).backdrop_blur(px(16.)).backdrop_fade(px(0.), px(0.), px(height * 0.8), px(0.)))
         .child(ramp(height))
-        .child(ramp(crate::layout::HEADER_HEIGHT * 0.75))
+        .child(ramp(bar * 0.75))
 }
 
 thread_local! {
