@@ -103,7 +103,16 @@ mod apple_build {
     /// build-script runtime against this crate's manifest dir, so no checkout
     /// path is baked into a compiled artifact (which corgi rejects).
     fn find_gpui_crate_dir() -> PathBuf {
-        PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("vendor/gpui")
+        let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+        // Waffle patch: generate the header from the gpui-pre this app actually compiles (its vendored,
+        // patched copy beside this crate), so the Metal structs can't drift from the Rust ones. The
+        // nested `vendor/gpui` snapshot is only the fallback for a build outside the Waffle checkout.
+        let sibling = manifest.join("../gpui-pre");
+        if sibling.join("src/scene.rs").exists() {
+            println!("cargo:rerun-if-changed={}", sibling.join("src/scene.rs").display());
+            return sibling;
+        }
+        manifest.join("vendor/gpui")
     }
 
     /// To enable runtime compilation, we need to "stitch" the shaders file with the generated header

@@ -1553,7 +1553,14 @@ float backdrop_edge_fade(float2 position, Bounds bounds, float4 fade) {
     return ramp.x * ramp.y * ramp.z * ramp.w;
 }
 
-float4 backdrop_blur_composite_fragment(BackdropBlurVertexOutput input): SV_Target {
+// Two outputs for dual-source blending: the masked blur, and the mask itself as the weight the pixel
+// underneath keeps (1 - mask).
+struct BackdropBlurCompositeOutput {
+    float4 color: SV_Target0;
+    float4 weight: SV_Target1;
+};
+
+BackdropBlurCompositeOutput backdrop_blur_composite_fragment(BackdropBlurVertexOutput input) {
     BackdropBlurPass blur_pass = backdrop_blur_passes[input.pass_id];
     float4 color = backdrop_upsample(blur_pass, backdrop_source_position(blur_pass, input.position.xy));
 
@@ -1562,6 +1569,19 @@ float4 backdrop_blur_composite_fragment(BackdropBlurVertexOutput input): SV_Targ
     float3 saturated = saturate(lerp(float3(luminance, luminance, luminance), color.rgb, blur_pass.saturation));
 
     float distance = shaped_quad_sdf(input.position.xy, blur_pass.bounds, blur_pass.corner_radii, blur_pass.corner_exponent);
-    float coverage = saturate(0.5 - distance) * blur_pass.opacity * backdrop_edge_fade(input.position.xy, blur_pass.bounds, blur_pass.fade);
-    return float4(saturated, coverage);
+    float inside = saturate(0.5 - distance);
+    float coverage = inside * blur_pass.opacity * backdrop_edge_fade(input.position.xy, blur_pass.bounds, blur_pass.fade);
+    float kept = blur_pass.clear_top > 0.
+        ? smoothstep(0., blur_pass.clear_top, input.position.y - blur_pass.bounds.origin.y)
+        : 1.;
+    float cleared = inside * (1. - kept);
+    // Premultiplied, so the blur of clear pixels stays clear, and it replaces what's underneath by the mask
+    // rather than covering it: over a clear layer, sharp content can't show through its own blur. Then
+    // the cleared share of the result goes too. Over an opaque backdrop (alpha 1) this is plain
+    // coverage blending, as before.
+    BackdropBlurCompositeOutput output;
+    output.color = float4(min(saturated, float3(color.a, color.a, color.a)), color.a) * coverage * (1. - cleared);
+    float weight = 1. - (1. - coverage) * (1. - cleared);
+    output.weight = float4(weight, weight, weight, weight);
+    return output;
 }

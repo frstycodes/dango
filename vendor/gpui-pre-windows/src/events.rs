@@ -116,13 +116,13 @@ impl WindowsWindowInner {
             // If you don't interact with any elements, this will fall through to the windows default
             // behavior of toggling whether the window is maximized.
             WM_NCLBUTTONDBLCLK | WM_NCLBUTTONDOWN => {
-                self.handle_nc_mouse_down_msg(handle, MouseButton::Left, wparam, lparam)
+                self.handle_nc_mouse_down_msg(handle, msg, MouseButton::Left, wparam, lparam)
             }
             WM_NCRBUTTONDOWN => {
-                self.handle_nc_mouse_down_msg(handle, MouseButton::Right, wparam, lparam)
+                self.handle_nc_mouse_down_msg(handle, msg, MouseButton::Right, wparam, lparam)
             }
             WM_NCMBUTTONDOWN => {
-                self.handle_nc_mouse_down_msg(handle, MouseButton::Middle, wparam, lparam)
+                self.handle_nc_mouse_down_msg(handle, msg, MouseButton::Middle, wparam, lparam)
             }
             WM_NCLBUTTONUP => {
                 self.handle_nc_mouse_up_msg(handle, MouseButton::Left, wparam, lparam)
@@ -1046,6 +1046,7 @@ impl WindowsWindowInner {
     fn handle_nc_mouse_down_msg(
         &self,
         handle: HWND,
+        msg: u32,
         button: MouseButton,
         wparam: WPARAM,
         lparam: LPARAM,
@@ -1073,6 +1074,14 @@ impl WindowsWindowInner {
             // Dango patch: a press on a drag area always reaches `DefWindowProc`, which starts the
             // move or (on a double click) maximizes. An ancestor that stops every mouse-down, like a
             // full-window overlay, would otherwise cancel the drag; controls opt out by occluding.
+            if wparam.0 as u32 == HTCAPTION && msg == WM_NCLBUTTONDOWN {
+                // Waffle patch: the move loop `DefWindowProc` runs here swallows the button release,
+                // so gpui would see a press with no release (a stuck pressed button, active styles,
+                // a click that never fires). Run it now and hand gpui the release when it returns.
+                unsafe { DefWindowProcW(handle, msg, wparam, lparam) };
+                self.send_release_after_move(handle, button, click_count);
+                return Some(0);
+            }
             if handled && wparam.0 as u32 != HTCAPTION {
                 return Some(0);
             }
@@ -1091,6 +1100,25 @@ impl WindowsWindowInner {
         } else {
             None
         }
+    }
+
+    fn send_release_after_move(&self, handle: HWND, button: MouseButton, click_count: usize) {
+        let Some(mut func) = self.state.callbacks.input.take() else {
+            return;
+        };
+        let mut cursor = POINT::default();
+        unsafe {
+            GetCursorPos(&mut cursor).log_err();
+            ScreenToClient(handle, &mut cursor).ok().log_err();
+        }
+        let scale_factor = self.state.scale_factor.get();
+        func(PlatformInput::MouseUp(MouseUpEvent {
+            button,
+            position: logical_point(cursor.x as f32, cursor.y as f32, scale_factor),
+            modifiers: current_modifiers(),
+            click_count,
+        }));
+        self.state.callbacks.input.set(Some(func));
     }
 
     fn handle_nc_mouse_up_msg(

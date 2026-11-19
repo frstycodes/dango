@@ -1625,15 +1625,43 @@ fn backdrop_edge_fade(position: vec2<f32>, bounds: Bounds, fade: vec4<f32>) -> f
     return ramp.x * ramp.y * ramp.z * ramp.w;
 }
 
+// The composite replaces what's underneath by its mask rather than covering it, which takes the
+// destination's own weight. Without dual-source blending that's two draws: `fs_backdrop_blur_erase`
+// scales the frame by one minus the mask's weight, then `fs_backdrop_blur_composite` adds the blur.
+
+// The mask: x is the blur's coverage, y the share of the result `clear_top` clears.
+fn backdrop_blur_mask(position: vec2<f32>) -> vec2<f32> {
+    let distance = shaped_quad_sdf(position, backdrop_blur_pass.bounds, backdrop_blur_pass.corner_radii, backdrop_blur_pass.corner_exponent);
+    let inside = saturate(0.5 - distance);
+    let fade = backdrop_edge_fade(position, backdrop_blur_pass.bounds, backdrop_blur_pass.fade);
+    var kept = 1.0;
+    if (backdrop_blur_pass.clear_top > 0.0) {
+        kept = smoothstep(0.0, backdrop_blur_pass.clear_top, position.y - backdrop_blur_pass.bounds.origin.y);
+    }
+    return vec2<f32>(inside * backdrop_blur_pass.opacity * fade, inside * (1.0 - kept));
+}
+
+// Blended with zero and one minus source alpha, leaving the frame times one minus the weight: the share
+// of the pixel underneath that the result replaces.
+@fragment
+fn fs_backdrop_blur_erase(input: BackdropBlurVarying) -> @location(0) vec4<f32> {
+    let mask = backdrop_blur_mask(input.position.xy);
+    return vec4<f32>(0.0, 0.0, 0.0, 1.0 - (1.0 - mask.x) * (1.0 - mask.y));
+}
+
+// Blended additively, after `fs_backdrop_blur_erase`.
 @fragment
 fn fs_backdrop_blur_composite(input: BackdropBlurVarying) -> @location(0) vec4<f32> {
+    // The frame holds premultiplied color whatever the surface's alpha mode: everything is blended over
+    // a clear or opaque start.
     let color = backdrop_upsample(backdrop_source_position(input.position.xy));
 
     // CSS saturate(): mixes each color with its luminance, by the filter's Rec. 709 weights.
     let luminance = dot(color.rgb, vec3<f32>(0.213, 0.715, 0.072));
     let saturated = saturate(mix(vec3<f32>(luminance), color.rgb, backdrop_blur_pass.saturation));
 
-    let distance = shaped_quad_sdf(input.position.xy, backdrop_blur_pass.bounds, backdrop_blur_pass.corner_radii, backdrop_blur_pass.corner_exponent);
-    let fade = backdrop_edge_fade(input.position.xy, backdrop_blur_pass.bounds, backdrop_blur_pass.fade);
-    return blend_color(vec4<f32>(saturated, 1.0), saturate(0.5 - distance) * backdrop_blur_pass.opacity * fade);
+    // Premultiplied, so the blur of clear pixels stays clear: over a clear layer, sharp content can't
+    // show through its own blur. Then the cleared share of the result goes too.
+    let mask = backdrop_blur_mask(input.position.xy);
+    return vec4<f32>(min(saturated, vec3<f32>(color.a)), color.a) * mask.x * (1.0 - mask.y);
 }

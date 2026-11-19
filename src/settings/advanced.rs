@@ -39,7 +39,9 @@ impl Waffle {
     }
 
     fn save_crash_log(&mut self, path: std::path::PathBuf, cx: &mut Context<Self>) {
-        let downloads = std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join("Downloads")).unwrap_or_default();
+        // Windows sets USERPROFILE, not HOME.
+        let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"));
+        let downloads = home.map(|h| std::path::PathBuf::from(h).join("Downloads")).unwrap_or_default();
         let name = path.file_name().and_then(|n| n.to_str()).map(|n| format!("waffle-{n}"));
         let target = cx.prompt_for_new_path(&downloads, name.as_deref());
         cx.spawn(async move |this, cx| {
