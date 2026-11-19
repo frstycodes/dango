@@ -77,12 +77,22 @@ jobs:
       # them recompile every run; sccache keys each compile by its inputs, so those come back too.
       # Binaries and proc-macros still compile every time: sccache only caches libraries.
       - uses: mozilla-actions/sccache-action@v0.0.11
+      # GAP: Windows runs sccache built from mozilla/sccache#3026 until a release carries it (v0.19.0
+      # predates it). Since v0.17 sccache expands cargo's @argfile and spawns rustc with the full list;
+      # gpui-base's ~36k characters pass Windows' 32,767 limit (os error 206) whenever it isn't cached.
+      # The action still sets up the GitHub cache; this binary goes first on PATH. It lands in cargo's
+      # bin, which rust-cache keeps, so later runs skip the build. Drop this once a release has the fix.
+      - name: sccache with the response-file fix (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cargo install sccache --git https://github.com/mozilla/sccache --rev 91d34f10947e68a850f4c124ddaba0d040a921f6 --locked
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - run: echo "VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)" >> "$GITHUB_ENV"
       - run: for target in ${{ matrix.targets }}; do cargo build --release --locked --target "$target"; done
         env:
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: sccache
-      - run: sccache --show-stats
+      - run: sccache --version && sccache --show-stats
 
       - name: Package Waffle.app
         if: runner.os == 'macOS'
