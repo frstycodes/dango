@@ -57,7 +57,7 @@ pub fn field_frame(cx: &App) -> Div {
 // The frame around a text input with its focus fade; focus takes the accent edge and ring. `input` is
 // the editor (gpui-component's `Input` with `.appearance(false)`), `focus` its handle.
 pub fn text_field(id: impl Into<ElementId>, input: impl IntoElement, focus: &FocusHandle) -> TextField {
-    TextField { id: id.into(), input: input.into_any_element(), focus: focus.clone(), leading: Vec::new(), trailing: Vec::new(), error: false, disabled: false, multiline: false, quiet: false, search: false }
+    TextField { id: id.into(), input: input.into_any_element(), focus: focus.clone(), leading: Vec::new(), trailing: Vec::new(), error: false, disabled: false, multiline: false, quiet: false, search: false, sidebar: false }
 }
 
 // The one search box: the regular input's size, edge-free on a translucent fill over a light blur (content
@@ -80,11 +80,12 @@ fn search_fill(cx: &App) -> Hsla {
 // A button that opens a search somewhere else (the switcher), drawn as the search box with its label in the
 // placeholder ink: no caret, a hover fill and a pointer.
 pub fn search_button(id: impl Into<ElementId>, label: impl Into<SharedString>, cx: &App) -> Stateful<Div> {
-    let (strong, hover) = (palette::strong(cx), search_fill(cx).blend(palette::hover(cx)));
+    let fill = crate::material::card(cx);
+    let (strong, hover) = (palette::strong(cx), fill.blend(palette::hover(cx)));
     field_frame(cx)
         .id(id.into())
         .w_full()
-        .bg(search_fill(cx))
+        .bg(fill)
         .backdrop_blur(px(12.))
         .border_color(gpui_kit::transparent_black())
         .cursor_pointer()
@@ -111,6 +112,7 @@ pub struct TextField {
     multiline: bool,
     quiet: bool,
     search: bool,
+    sidebar: bool,
 }
 
 impl TextField {
@@ -141,6 +143,12 @@ impl TextField {
         self.quiet = quiet;
         self
     }
+
+    // A search box on a sidebar: the sidebar cards' lighter wash instead of the page's darker fill.
+    pub fn on_sidebar(mut self) -> Self {
+        self.sidebar = true;
+        self
+    }
 }
 
 impl RenderOnce for TextField {
@@ -155,13 +163,25 @@ impl RenderOnce for TextField {
             palette::line_strong(cx)
         };
         let edge = if self.disabled { gpui_kit::transparent_black() } else { mix(rest_edge, palette::accent(), t) };
+        // A click elsewhere takes focus away, as on the web: gpui leaves it in the field. On release rather than
+        // press, so a press on a list the field drives (search results) still lands before the list hides, and
+        // only when the press began outside too, so a selection dragged past the field's edge keeps it.
+        let pressed_out = window.use_keyed_state(part(&self.id, "pressed-out"), cx, |_, _| false);
+        let (down, up, focus) = (pressed_out.clone(), pressed_out, self.focus.clone());
         field_frame(cx)
+            .when(focused, |d| {
+                d.on_mouse_down_out(move |_, _, cx| down.update(cx, |pressed, _| *pressed = true)).on_mouse_up_out(gpui_kit::MouseButton::Left, move |_, window, cx| {
+                    if up.update(cx, |pressed, _| std::mem::take(pressed)) && focus.contains_focused(window, cx) {
+                        window.blur(cx);
+                    }
+                })
+            })
             .id(self.id)
             .w_full()
             .border_color(edge)
             .when(self.disabled, |d| d.bg(palette::selected(cx)).text_color(palette::faint(cx)))
             .shadow(focus_ring(palette::accent_soft(cx), t))
-            .when(self.search, |d| d.bg(search_fill(cx)).backdrop_blur(px(12.)))
+            .when(self.search, |d| d.bg(if self.sidebar { crate::material::card(cx) } else { search_fill(cx) }).backdrop_blur(px(12.)))
             .when(self.quiet && t <= 0., |d| d.bg(gpui_kit::transparent_black()).border_color(gpui_kit::transparent_black()))
             .when(self.multiline, |d| d.h_auto().min_h(px(88.)).py(px(10.)).items_start())
             .children(self.leading.into_iter().map(|el| div().flex_none().text_color(palette::faint(cx)).child(el)))
@@ -263,7 +283,16 @@ pub fn drop_zone(over: bool, glyph: Glyph, title: impl Into<SharedString>, cx: &
 
 // A select's open list, rising from under its trigger (`top` is the trigger's height); the chosen option
 // carries a check. Deferred, so it paints above whatever sits below the trigger.
-pub fn select_options(id: impl Into<SharedString>, options: &[(String, String)], chosen: &str, top: f32, on_choose: impl Fn(String, &mut Window, &mut App) + Clone + 'static, cx: &App) -> AnyElement {
+// A press anywhere else dismisses it.
+pub fn select_options(
+    id: impl Into<SharedString>,
+    options: &[(String, String)],
+    chosen: &str,
+    top: f32,
+    on_choose: impl Fn(String, &mut Window, &mut App) + Clone + 'static,
+    on_dismiss: impl Fn(&mut Window, &mut App) + 'static,
+    cx: &App,
+) -> AnyElement {
     let id: SharedString = id.into();
     let (strong, accent_ink) = (palette::strong(cx), palette::accent_ink(cx));
     let rows: Vec<AnyElement> = options
@@ -280,6 +309,23 @@ pub fn select_options(id: impl Into<SharedString>, options: &[(String, String)],
         .collect();
     let menu = super::surface(cx).id(id.clone()).squircle(RADIUS_LG).max_h(px(280.)).overflow_y_scroll().gap(px(1.)).occlude().children(rows);
     // Rises from the trigger: 0.95 scale about its top centre, with the fade.
-    let list = div().absolute().top(px(top + 4.)).left_0().right_0().min_w(px(200.)).child(menu);
+    // The trigger is outside the list's box, so a press on it would read as outside too and close the list
+    // just before the trigger's own toggle reopened it: the list's last bounds place the trigger above it.
+    let bounds = std::rc::Rc::new(std::cell::Cell::new(None::<gpui_kit::Bounds<gpui_kit::Pixels>>));
+    let record = bounds.clone();
+    let list = div()
+        .absolute()
+        .top(px(top + 4.))
+        .left_0()
+        .right_0()
+        .min_w(px(200.))
+        .child(gpui_kit::canvas(move |b, _, _| record.set(Some(b)), |_, _, _, _| {}).absolute().size_full())
+        .child(menu)
+        .on_mouse_down_out(move |event, window, cx| {
+            let on_trigger = bounds.get().is_some_and(|b| gpui_kit::Bounds::new(point(b.left(), b.top() - px(top + 4.)), gpui_kit::size(b.size.width, px(top))).contains(&event.position));
+            if !on_trigger {
+                on_dismiss(window, cx);
+            }
+        });
     gpui_kit::deferred(super::rise(list.transform_origin(gpui_kit::point(gpui_kit::relative(0.5), gpui_kit::relative(0.))), SharedString::from(format!("{id}-in")), std::time::Duration::ZERO)).with_priority(2).into_any_element()
 }

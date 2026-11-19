@@ -350,7 +350,7 @@ impl Rustcord {
             .children(self.server_save_bar(cx))
             .child(ui::settings_close("server-settings-close", cx.listener(|this, _, _, cx| this.close_server_settings(false, cx)), cx));
         let nav = self.server_settings_nav(&guild_id, cx).into_any_element();
-        Some(ui::settings_window("server-settings", nav, main, cx).into_any_element())
+        Some(self.settings_frame("server-settings", nav, main, cx).into_any_element())
     }
 
     fn server_page(&mut self, page: Page, window: &mut Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
@@ -391,7 +391,7 @@ impl Rustcord {
         let mut out = vec![head.into_any_element(), div().pb(px(8.)).child(search).into_any_element()];
         if !query.trim().is_empty() {
             out.extend(self.server_search_results(&query, cx));
-            return ui::settings_sidebar("server-settings-nav", cx).children(out);
+            return ui::settings_sidebar("server-settings-nav", &self.settings_nav_scroll, cx).children(out);
         }
         let community = self.with_access(guild_id, |me| me.feature("COMMUNITY")).unwrap_or(false);
         let nav = self.with_access(guild_id, |me| me.nav()).unwrap_or_default();
@@ -410,7 +410,7 @@ impl Rustcord {
                 out.push(item.on_click(cx.listener(move |this, _, _, cx| this.open_server_page(page, cx))).into_any_element());
             }
         }
-        ui::settings_sidebar("server-settings-nav", cx).children(out)
+        ui::settings_sidebar("server-settings-nav", &self.settings_nav_scroll, cx).children(out)
     }
 
     fn server_search_results(&self, query: &str, cx: &mut Context<Self>) -> Vec<AnyElement> {
@@ -628,8 +628,16 @@ impl Rustcord {
             cx.notify();
         }));
         let list = open.then(|| {
-            let this = cx.entity();
-            ui::select_options(SharedString::from(format!("ss-options-{select:?}")), options, chosen, 40., move |id, _, cx| this.update(cx, |this, cx| this.ss_pick(select, &id, cx)), cx)
+            let (this, close) = (cx.entity(), cx.entity());
+            let dismiss = move |_: &mut Window, cx: &mut App| {
+                close.update(cx, |this, cx| {
+                    if let Some(v) = &mut this.server_settings {
+                        v.select = None;
+                    }
+                    cx.notify();
+                })
+            };
+            ui::select_options(SharedString::from(format!("ss-options-{select:?}")), options, chosen, 40., move |id, _, cx| this.update(cx, |this, cx| this.ss_pick(select, &id, cx)), dismiss, cx)
         });
         div().relative().w_full().child(trigger).children(list).into_any_element()
     }

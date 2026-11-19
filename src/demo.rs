@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
+// CHORD_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | home-presence | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -112,6 +112,15 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             }
         }
         "appearance" => chord.open_settings(crate::settings::Page::Appearance, window, cx),
+        // The nav scrolled up under its header strip, where the traffic lights sit.
+        "appearance-scrolled" => {
+            chord.open_settings(crate::settings::Page::Appearance, window, cx);
+            let nav = chord.settings_nav_scroll.clone();
+            window.on_next_frame(move |window, _| {
+                nav.set_offset(gpui_kit::point(gpui_kit::px(0.), gpui_kit::px(-90.)));
+                window.refresh();
+            });
+        }
         "notifications" => chord.open_settings(crate::settings::Page::Notifications, window, cx),
         "content-social" => chord.open_settings(crate::settings::Page::ContentSocial, window, cx),
         "chat-settings" => chord.open_settings(crate::settings::Page::Chat, window, cx),
@@ -187,6 +196,19 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             chord.restore = None;
             chord.open_home(cx);
         }
+        // One DM per presence, so each status mark shows its cutout on the sidebar.
+        "home-presence" => {
+            for (id, name, status) in [("12582912", "moss lantern", Presence_::Idle), ("16777216", "toma reed", Presence_::Dnd), ("25165824", "ferris", Presence_::Offline)] {
+                let mut dm = chord.dms[0].clone();
+                dm.id = format!("dm-{id}");
+                dm.name = name.into();
+                dm.recipient = Some(user(id, name));
+                chord.dms.push(dm);
+                chord.presences.insert(id.into(), Presence { status, ..Default::default() });
+            }
+            chord.restore = None;
+            chord.open_home(cx);
+        }
         "activity" | "activity-all" => {
             let ago = |hours: i64| chrono::Utc::now().timestamp_millis() - hours * 3_600_000;
             let entry = |author: &str, kind, title: &str, image: Option<&str>, live, at, streak_days| crate::discord::FeedEntry { author_id: author.into(), kind, title: title.into(), image: image.map(Into::into), live, at, streak_days };
@@ -236,6 +258,47 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         }
         // Wren calls: the strip rings in her DM; "call-banner" takes the call while #general is open.
         "call-incoming" | "call-banner" | "call-joinable" => demo_dm_call(chord, scene, window, cx),
+        // The foot of the sidebar stacked full (an update over the voice panel, then its disconnected
+        // state), with the channel list scrolled so rows run under the header's blur.
+        // The channel list resized back and forth, as if its edge were being dragged: the traffic lights
+        // must hold still.
+        "sidebar-resize" => {
+            cx.spawn(async move |this, cx| {
+                for step in 0.. {
+                    cx.background_executor().timer(std::time::Duration::from_millis(16)).await;
+                    let width = 240. + 80. * ((step as f32) / 30.).sin().abs();
+                    if this.update(cx, |this, cx| {
+                        this.channels_width = width;
+                        cx.notify();
+                    })
+                    .is_err()
+                    {
+                        return;
+                    }
+                }
+            })
+            .detach();
+        }
+        "sidebar-voice" | "sidebar-voice-error" | "sidebar-voice-solid" | "sidebar-voice-fullscreen" => {
+            chord.prefs.native_sidebar = scene != "sidebar-voice-solid";
+            chord.updates.status = crate::updater::Status::Ready(crate::updater::Staged::demo("0.8.0"));
+            match scene {
+                "sidebar-voice" | "sidebar-voice-solid" | "sidebar-voice-fullscreen" => demo_call(chord),
+                _ => chord.voice_error = Some("Moved to a voice channel Dango can't show".into()),
+            }
+            if let Some(guild) = chord.guilds.iter_mut().find(|g| g.id == "1") {
+                guild.channels.extend((1..=16).map(|n| channel(&format!("filler-{n}"), &format!("filler-{n}"), ChannelKind::Text, Some("c0"))));
+            }
+            // After the first layout: before it there is nothing to scroll, and the offset clamps to 0.
+            if scene == "sidebar-voice-fullscreen" {
+                window.toggle_fullscreen();
+            }
+            let list = chord.channels_scroll.clone();
+            window.on_next_frame(move |window, _| {
+                list.set_offset(gpui_kit::point(gpui_kit::px(0.), gpui_kit::px(-40.)));
+                window.refresh();
+            });
+        }
         "dm-empty" | "group-empty" | "group-start" | "group-mention" => demo_dm_start(chord, scene, window, cx),
         "stream-card" => {
             let key = "guild:1:lounge:12582912".to_owned();

@@ -133,7 +133,7 @@ fn main() {
         // The design is drawn with `-webkit-font-smoothing: antialiased`; macOS smoothing would thicken every stroke.
         cx.text_system().set_font_smoothing(false);
         cx.set_http_client(std::sync::Arc::new(discord::Images::default()));
-        cx.set_reduce_motion(material::system_reduce_motion());
+        cx.set_reduce_motion(material::system_reduce_motion() || settings::Prefs::load().reduce_motion);
         settings::Prefs::load().app_icon.apply();
         // WAVE_DESIGN=1 opens only the design system gallery, no sign-in needed.
         if std::env::var_os("WAVE_DESIGN").is_some() {
@@ -191,8 +191,7 @@ fn open_main(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gp
         focus: splash.is_none(),
         window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(1280.), px(820.)), cx))),
         window_min_size: Some(size(px(940.), px(520.))),
-        // The traffic lights centre in the 36px title bar, leaving the first 72px to them.
-        titlebar: Some(TitlebarOptions { title: Some("Dango".into()), appears_transparent: true, traffic_light_position: Some(gpui_kit::point(px(12.), px(18.))) }),
+        titlebar: Some(TitlebarOptions { title: Some("Dango".into()), appears_transparent: true, traffic_light_position: Some(layout::TRAFFIC_LIGHTS) }),
         window_background: material::window_background(),
         ..Default::default()
     };
@@ -205,7 +204,7 @@ fn open_main(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gp
         cx.new(|cx| shell::Shell::new(window, splash, cx))
     })
     .expect("open window");
-    if material::NATIVE_SIDEBAR {
+    if material::setting_name().is_some() {
         // gpui-component's root paints the theme background over the whole window, hiding the native
         // material; Root's own style is applied last, so it can clear that.
         handle
@@ -485,6 +484,8 @@ enum EmojiTarget {
 enum Edge {
     Channels,
     Panel,
+    // The nav column of the settings views (app, server, channel), one width for all three.
+    Settings,
 }
 
 struct Drag {
@@ -677,6 +678,7 @@ pub struct Rustcord {
     autocomplete: Option<Autocomplete>,
     // The suggestion list's scroll, kept on the highlighted row.
     autocomplete_scroll: gpui_kit::ScrollHandle,
+    channels_scroll: gpui_kit::ScrollHandle,
     flash: Option<String>,
     muted: bool,
     deafened: bool,
@@ -717,6 +719,9 @@ pub struct Rustcord {
     copied: Option<String>,
     focus: FocusHandle,
     channels_width: f32,
+    settings_width: f32,
+    // The settings views' nav list; one is open at a time.
+    settings_nav_scroll: gpui_kit::ScrollHandle,
     panel_width: f32,
     drag: Option<Drag>,
     back: Vec<(Option<String>, Channel)>,
@@ -920,6 +925,7 @@ impl Rustcord {
             mention_wire: HashMap::new(),
             autocomplete: None,
             autocomplete_scroll: gpui_kit::ScrollHandle::new(),
+            channels_scroll: gpui_kit::ScrollHandle::new(),
             flash: None,
             muted: false,
             deafened: false,
@@ -949,6 +955,8 @@ impl Rustcord {
             copied: None,
             focus: cx.focus_handle(),
             channels_width: layout::CHANNELS_WIDTH,
+            settings_width: ui::SETTINGS_NAV_WIDTH,
+            settings_nav_scroll: gpui_kit::ScrollHandle::new(),
             panel_width: layout::PANEL_WIDTH,
             drag: None,
             back: Vec::new(),

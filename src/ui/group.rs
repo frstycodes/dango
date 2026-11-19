@@ -139,24 +139,33 @@ pub fn settings_window(id: impl Into<ElementId>, nav: impl IntoElement, main: im
         .child(main)
 }
 
-// A settings window's nav column. Its top strip is the header line: the traffic lights sit over it on
-// macOS, as in System Settings, and it drags the window everywhere.
-pub fn settings_sidebar(id: impl Into<ElementId>, cx: &App) -> Stateful<Div> {
+// A settings window's nav list. It starts below the header strip (`settings_nav_edge`), which stays put
+// over it while it scrolls.
+pub fn settings_sidebar(id: impl Into<ElementId>, scroll: &ScrollHandle, cx: &App) -> Stateful<Div> {
     div()
         .id(id.into())
-        .w(px(240.))
-        .flex_none()
-        .h_full()
+        .size_full()
         .overflow_y_scroll()
-        .bg(palette::surface(palette::Level::Sidebar, cx))
-
+        .track_scroll(scroll)
+        .bg(crate::material::sidebar_fill(cx))
+        .pt(px(SETTINGS_NAV_STRIP + SETTINGS_NAV_TAIL))
         .px(px(8.))
         .pb(px(12.))
         .flex()
         .flex_col()
         .gap(px(1.))
-        .child(div().h(px(crate::layout::HEADER_HEIGHT)).flex_none().window_control_area(gpui_kit::WindowControlArea::Drag))
 }
+
+// The settings nav's header strip: the traffic lights sit over it on macOS, as in System Settings, it drags
+// the window, and the list scrolls up under it into a blur and fade (scroll_edge), as the channel list does.
+pub fn settings_nav_edge(cx: &App) -> Div {
+    crate::ui::scroll_edge_over(crate::material::sidebar_fill(cx), 0., SETTINGS_NAV_STRIP, SETTINGS_NAV_TAIL)
+        .child(div().h(px(SETTINGS_NAV_STRIP)).window_control_area(gpui_kit::WindowControlArea::Drag))
+}
+
+// The strip holds the traffic lights (centred at 18); the list's first row starts clear of the fade below it.
+const SETTINGS_NAV_STRIP: f32 = 36.;
+const SETTINGS_NAV_TAIL: f32 = 12.;
 
 // The scrolling column of a settings page: title, then its groups.
 // Children go in `settings_column`s, so the content centres beside the nav.
@@ -165,6 +174,9 @@ pub fn settings_page(id: impl Into<ElementId>, scroll: &ScrollHandle) -> Statefu
 }
 
 pub const SETTINGS_WIDTH: f32 = 680.;
+
+// The settings nav column's starting width; it can be dragged wider or narrower.
+pub const SETTINGS_NAV_WIDTH: f32 = 240.;
 
 // The centred content column a settings page's title and every group sit in.
 pub fn settings_column(child: impl IntoElement) -> Div {

@@ -1464,7 +1464,8 @@ struct BackdropBlurPass {
     float opacity;
     float4 fade;
     float corner_exponent;
-    float3 corner_padding;
+    float clear_top;
+    float2 corner_padding;
 };
 
 struct BackdropBlurVertexOutput {

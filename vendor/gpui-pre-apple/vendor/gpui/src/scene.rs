@@ -1118,7 +1118,8 @@ impl BackdropBlurPlan {
             opacity: 1.,
             fade: [0.; 4],
             corner_exponent: 2.,
-            corner_padding: [0.; 3],
+            clear_top: 0.,
+            corner_padding: [0.; 2],
         }
     }
 
@@ -1150,7 +1151,8 @@ impl BackdropBlurPlan {
             opacity: blur.opacity,
             fade: blur.fade.map(|length| length.0),
             corner_exponent: blur.corner_exponent,
-            corner_padding: [0.; 3],
+            clear_top: 0.,
+            corner_padding: [0.; 2],
         }
     }
 }
@@ -1192,8 +1194,11 @@ pub struct BackdropBlurPass {
     pub fade: [f32; 4],
     /// The composite's corner shape, as [`CornerShape::exponent`]; 2 is circular.
     pub corner_exponent: f32,
+    /// How far down from the top the content clears to transparent, in target pixels; 0 for none.
+    /// Takes a slot that was padding, so the pass keeps its size.
+    pub clear_top: f32,
     /// Pads the pass to a multiple of 16 bytes, which uniform and structured buffers need.
-    pub corner_padding: [f32; 3],
+    pub corner_padding: [f32; 2],
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
