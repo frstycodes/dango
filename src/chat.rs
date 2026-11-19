@@ -414,8 +414,8 @@ impl Waffle {
             column,
             quick_reactions: self.prefs.frequent_emojis(3, &["💯", "😆", "💖"]),
             shift: self.shift_held,
-            manage_messages: self.guild().is_some_and(|g| self.me.as_ref().is_some_and(|me| g.can(&me.id, crate::discord::perm::MANAGE_MESSAGES))),
-            threads: self.guild_id.is_some() && channel.is_some_and(|c| c.kind == ChannelKind::Text),
+            manage_messages: channel.is_some_and(|c| self.can_in(&c.id, crate::discord::perm::MANAGE_MESSAGES)),
+            threads: channel.is_some_and(|c| c.kind == ChannelKind::Text && self.can_in(&c.id, crate::discord::perm::CREATE_PUBLIC_THREADS)),
         })
     }
 
