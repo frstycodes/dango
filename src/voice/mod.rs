@@ -819,10 +819,15 @@ fn voice_dispatch(shared: &Shared, kind: &str, d: &Value) -> Option<String> {
     let in_channel = d["channel_id"].as_str() == Some(&shared.channel_id);
     if user_id == shared.user_id && !in_channel {
         let session = shared.session_id.lock().ok().and_then(|id| id.clone());
-        let Some(channel) = moved_to(session.as_deref(), d) else { return Some("Removed from the voice channel".into()) };
-        shared.supersede();
-        shared.emit(VoiceEvent::Moved(channel.to_owned()));
-        return Some("Moved".into());
+        match ours_left(session.as_deref(), d) {
+            Left::Not => return None,
+            Left::Removed => return Some("Removed from the voice channel".into()),
+            Left::MovedTo(channel) => {
+                shared.supersede();
+                shared.emit(VoiceEvent::Moved(channel.to_owned()));
+                return Some("Moved".into());
+            }
+        }
     }
     let streaming = in_channel && d["self_stream"].as_bool().unwrap_or(false);
     let camera = in_channel && d["self_video"].as_bool().unwrap_or(false);
@@ -830,11 +835,23 @@ fn voice_dispatch(shared: &Shared, kind: &str, d: &Value) -> Option<String> {
     None
 }
 
-// Our own session in another channel is a move. No channel is a disconnect, and another session
-// (we joined from another client) took the call from us: both remove us.
-fn moved_to<'a>(our_session: Option<&str>, d: &'a Value) -> Option<&'a str> {
-    let ours = our_session.is_some() && d["session_id"].as_str() == our_session;
-    d["channel_id"].as_str().filter(|_| ours)
+enum Left<'a> {
+    Not,
+    Removed,
+    MovedTo(&'a str),
+}
+
+// What a voice state of ours outside our channel means. Our own session in another channel is a move,
+// and with no channel a disconnect. Another session of ours joining voice (another client) takes the
+// call from us; another session leaving voice, or a stale one being cleaned up, says nothing about ours.
+// With either session unknown, it's taken as a removal.
+fn ours_left<'a>(our_session: Option<&str>, d: &'a Value) -> Left<'a> {
+    let (theirs, channel) = (d["session_id"].as_str(), d["channel_id"].as_str());
+    match (our_session.zip(theirs).map(|(a, b)| a == b), channel) {
+        (Some(true), Some(channel)) => Left::MovedTo(channel),
+        (Some(false), None) => Left::Not,
+        _ => Left::Removed,
+    }
 }
 
 #[derive(Clone)]
@@ -1358,6 +1375,16 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn only_our_session_or_another_joining_ends_the_call() {
+        use serde_json::json;
+        let state = |session: &str, channel: Option<&str>| json!({ "session_id": session, "channel_id": channel });
+        assert!(matches!(ours_left(Some("me"), &state("me", Some("c2"))), Left::MovedTo("c2")));
+        assert!(matches!(ours_left(Some("me"), &state("me", None)), Left::Removed));
+        assert!(matches!(ours_left(Some("me"), &state("phone", Some("c2"))), Left::Removed), "another client joined voice");
+        assert!(matches!(ours_left(Some("me"), &state("phone", None)), Left::Not), "another client leaving isn't us");
+    }
 
     #[test]
     fn median_ping_and_loss_window() {
