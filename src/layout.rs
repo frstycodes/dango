@@ -2,7 +2,7 @@
 // top, each column's own header doubling as the title bar; the user area sits at the foot of the channel list.
 use gpui_kit::{
     Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent, NavigationDirection,
-    ObjectFit, Render, SharedString, Stateful, Window,
+    Render, SharedString, Stateful, Window,
     component::{ActiveTheme, Icon, tooltip::Tooltip},
     div, img, linear_color_stop, linear_gradient, prelude::*, px,
 };
@@ -314,9 +314,9 @@ impl Waffle {
         let settings = me_button("settings", Nav::Settings, false, "User settings", cx).on_click(cx.listener(|this, _, window, cx| this.open_settings(crate::settings::Page::Account, window, cx)));
         // The card's bottom corners, and its top ones too when nothing sits above; outside them, the sidebar.
         let stacked = self.panel_stack_height() > PANEL_HEIGHT;
-        let corners = [0., if stacked { 0. } else { ui::RADIUS_MD }, ui::RADIUS_MD, 0.];
-        let behind = crate::material::sidebar_fill(cx);
-        let nameplate = me.nameplate.as_ref().map(|plate| nameplate(plate, card, behind, corners, false, cx.theme().is_dark()));
+        let top = if stacked { 0. } else { ui::RADIUS_MD };
+        let corners = [top, top, ui::RADIUS_MD, ui::RADIUS_MD];
+        let nameplate = me.nameplate.as_ref().map(|plate| nameplate(plate, palette::surface(palette::Level::Sidebar, cx), corners, cx.theme().is_dark()));
         let hover = palette::hover(cx);
         let who = div()
             .id("me")
@@ -451,50 +451,29 @@ impl Waffle {
     }
 }
 
-/// A collectible nameplate behind a row, as Discord draws it: the palette colour as a left-to-right tint
-/// (10% → 40%) across the whole card, and the art on top, contain-fit against the right edge. In the user
-/// panel the art sits at 40%; in the member list it is full strength but held back to ~30% under the name,
-/// rising to full ~50px past it (Discord masks it; gpui has no masks, so a surface wash does the same).
-/// `corners` are the radii of the shape it fills (top-left, top-right, bottom-right, bottom-left), and
-/// `behind` the colour just outside that shape.
-pub fn nameplate(plate: &discord::Nameplate, surface: Hsla, behind: Hsla, corners: [f32; 4], member_row: bool, dark: bool) -> AnyElement {
-    let tint: Hsla = gpui_kit::rgb(if dark { plate.tint.0 } else { plate.tint.1 }).into();
-    let art = img(plate.art.clone()).size_full().object_fit(ObjectFit::Cover).opacity(if member_row { 1. } else { 0.4 });
-    div()
-        .absolute()
-        .inset_0()
-        .when(!member_row, |p| p.left(px(50.)))
-        .overflow_hidden()
-        .bg(linear_gradient(90., linear_color_stop(tint.opacity(0.1), 0.), linear_color_stop(tint.opacity(0.4), 1.)))
-        .child(art)
-        // A wash of the surface from the left: under the name in a member row, and in the user panel the
-        // art's own left edge, which would otherwise stop in a hard line.
-        .child(div().absolute().inset_0().bg(match member_row {
-            true => linear_gradient(90., linear_color_stop(surface.opacity(0.7), 0.45), linear_color_stop(surface.opacity(0.), 0.75)),
-            false => linear_gradient(90., linear_color_stop(surface, 0.), linear_color_stop(surface.opacity(0.), 0.5)),
-        }))
-        .child(corner_frame(behind, corners))
-        .into_any_element()
+/// A collectible nameplate behind the user panel, as Discord draws it there: the palette colour as a
+/// left-to-right tint (10% → 40%) on `surface` laid solid, as Discord's sits on the panel's own base (over
+/// the glass it read washed out), and the art at 40%, `height: 100%; width: auto` pinned to the right edge,
+/// so the art's own transparent edge is the fade. `corners` are the radii of the shape it fills (top-left,
+/// top-right, bottom-right, bottom-left); every layer rounds itself, since over the glass nothing behind
+/// can paint the corners off.
+pub fn nameplate(plate: &discord::Nameplate, surface: Hsla, corners: [f32; 4], dark: bool) -> AnyElement {
+    let tint = nameplate_tint(plate, dark);
+    let [tl, tr, br, bl] = corners.map(px);
+    let shape = gpui_kit::Corners { top_left: tl, top_right: tr, bottom_right: br, bottom_left: bl };
+    let wash = ui::edge(div().absolute().inset_0(), shape).bg(linear_gradient(90., linear_color_stop(tint.opacity(0.1), 0.), linear_color_stop(tint.opacity(0.4), 1.)));
+    ui::edge(div(), shape).absolute().inset_0().overflow_hidden().bg(surface).child(wash).child(nameplate_art(plate, PANEL_HEIGHT, tr, br).opacity(0.4)).into_any_element()
 }
 
-// Rounds an image-filled box's corners. gpui clips only to rectangles, and a covering image paints past its
-// own bounds, so its square corners would poke out of the row's rounded shape. A frame in the colour
-// behind, set just outside the box, has an inner edge that is the row's corner and paints over them.
-fn corner_frame(behind: Hsla, [tl, tr, br, bl]: [f32; 4]) -> Div {
-    const FRAME: f32 = 16.;
-    div()
-        .absolute()
-        .top(px(-FRAME))
-        .left(px(-FRAME))
-        .right(px(-FRAME))
-        .bottom(px(-FRAME))
-        .border(px(FRAME))
-        .border_color(behind)
-        .rounded_tl(px(FRAME + tl))
-        .rounded_tr(px(FRAME + tr))
-        .rounded_br(px(FRAME + br))
-        .rounded_bl(px(FRAME + bl))
-        .corner_shape(ui::SQUIRCLE)
+pub fn nameplate_tint(plate: &discord::Nameplate, dark: bool) -> Hsla {
+    gpui_kit::rgb(if dark { plate.tint.0 } else { plate.tint.1 }).into()
+}
+
+/// Discord's `height: 100%; width: auto` art, pinned to the right edge and rounding its own right corners.
+/// gpui sizes an image's width from its aspect only when the height is absolute, so the row's height
+/// stands in for 100%.
+pub fn nameplate_art(plate: &discord::Nameplate, height: f32, top_right: gpui_kit::Pixels, bottom_right: gpui_kit::Pixels) -> gpui_kit::Img {
+    ui::edge(img(plate.art.clone()).absolute().top_0().right_0().h(px(height)), gpui_kit::Corners { top_left: px(0.), top_right, bottom_right, bottom_left: px(0.) })
 }
 
 /// An avatar with Discord's status shape cut into its bottom-right corner: a dot for online, a moon for
@@ -608,8 +587,8 @@ fn me_button(id: &'static str, glyph: Nav, on: bool, label: &'static str, cx: &A
         .items_center()
         .justify_center()
         .cursor_pointer()
-        .text_color(if on { palette::danger_ink(cx) } else { palette::muted(cx) })
-        .hover(move |s| if on { s.bg(hover) } else { s.bg(hover).text_color(strong) })
+        .text_color(if on { palette::danger_ink(cx) } else { strong })
+        .hover(move |s| s.bg(hover))
         .child(icon)
         .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
 }

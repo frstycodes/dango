@@ -582,6 +582,8 @@ pub struct Waffle {
     file_previews: HashMap<PathBuf, Option<Arc<RenderImage>>>,
     // Uploads in flight or failed, by the nonce of the message carrying them, kept for Resend.
     uploads: HashMap<String, UploadJob>,
+    // Each running upload's task by nonce; dropping it (Cancel, Delete) stops the bytes going out.
+    upload_tasks: HashMap<String, Task<()>>,
     talk_key_down: bool,
     prefs: settings::Prefs,
     settings: Option<settings::SettingsView>,
@@ -886,6 +888,7 @@ impl Waffle {
             pending_files: Vec::new(),
             file_previews: HashMap::new(),
             uploads: HashMap::new(),
+            upload_tasks: HashMap::new(),
             talk_key_down: false,
             prefs: settings::Prefs::load(),
             settings: None,
@@ -1837,15 +1840,19 @@ impl Waffle {
 
     // The REST reply and the gateway echo race; whichever lands first replaces the pending copy.
     fn settle(&mut self, channel_id: &str, nonce: &str, result: Result<Message, String>, cx: &mut Context<Self>) {
+        // Detached, not dropped: settle runs inside that task.
+        if let Some(task) = self.upload_tasks.remove(nonce) {
+            task.detach();
+        }
+        // Before the pending lookup: when the gateway echo landed first there is no pending copy left,
+        // and the job (with its upload cards) would stay forever.
+        if result.is_ok() {
+            self.forget_upload(nonce);
+        }
         let pending = self.feeds.get_mut(channel_id).and_then(|f| Arc::make_mut(&mut f.messages).iter_mut().find(|m| m.nonce.as_deref() == Some(nonce) && m.state != SendState::Sent));
         let Some(pending) = pending else { return };
         match result {
-            Ok(sent) => {
-                *pending = sent;
-                for file in self.uploads.remove(nonce).into_iter().flat_map(|job| job.files) {
-                    self.file_previews.remove(&file.path);
-                }
-            }
+            Ok(sent) => *pending = sent,
             Err(error) => {
                 pending.state = SendState::Failed;
                 match self.uploads.get_mut(nonce) {
@@ -1903,6 +1910,11 @@ impl Waffle {
         self.remove_message(&message.channel_id, &message.id);
         cx.notify();
         if message.state != SendState::Sent {
+            // Unsent: also how an upload is cancelled mid-flight.
+            if let Some(nonce) = message.nonce.as_deref() {
+                self.upload_tasks.remove(nonce);
+                self.forget_upload(nonce);
+            }
             return;
         }
         cx.spawn(async move |this, cx| {
@@ -2056,12 +2068,21 @@ impl Waffle {
             }
         })
         .detach();
-        cx.spawn(async move |this, cx| {
-            let result = client.upload(&job.channel_id, &job.files, &job.content, &nonce, job.reply_to.as_deref(), job.ping).await;
-            this.update(cx, |this, cx| this.settle(&job.channel_id, &nonce, result, cx)).ok();
-        })
-        .detach();
+        let task = cx.spawn({
+            let nonce = nonce.clone();
+            async move |this, cx| {
+                let result = client.upload(&job.channel_id, &job.files, &job.content, &nonce, job.reply_to.as_deref(), job.ping).await;
+                this.update(cx, |this, cx| this.settle(&job.channel_id, &nonce, result, cx)).ok();
+            }
+        });
+        self.upload_tasks.insert(nonce, task);
         cx.notify();
+    }
+
+    fn forget_upload(&mut self, nonce: &str) {
+        for file in self.uploads.remove(nonce).into_iter().flat_map(|job| job.files) {
+            self.file_previews.remove(&file.path);
+        }
     }
 
     fn remove_file(&mut self, index: usize, cx: &mut Context<Self>) {
