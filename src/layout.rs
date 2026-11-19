@@ -221,6 +221,10 @@ impl Waffle {
     // tracks a drag of that handle itself.
     pub(crate) fn settings_frame(&self, id: &'static str, nav: AnyElement, main: impl IntoElement, cx: &mut Context<Self>) -> gpui_kit::Stateful<Div> {
         let nav = div().relative().flex_none().h_full().w(px(self.settings_width)).child(nav).child(ui::settings_nav_edge(cx)).child(self.resize_handle(Edge::Settings, cx));
+        // The page's top band drags the window too, as every other column's header does; it stops above
+        // the close button, which sits below the caption buttons.
+        let drag = div().absolute().top_0().left_0().right_0().h(px(TITLE_HEIGHT)).window_control_area(gpui_kit::WindowControlArea::Drag);
+        let main = div().relative().flex_1().min_w_0().h_full().flex().child(main).child(drag);
         ui::settings_window(id, nav, main, cx).on_mouse_move(cx.listener(Self::on_drag_move)).on_mouse_up(
             MouseButton::Left,
             cx.listener(|this, _, _, cx| {
