@@ -496,6 +496,7 @@ struct Drag {
 #[derive(Clone, PartialEq, Eq, Hash)]
 enum Part {
     Pill(String),
+    RailDm(String),
     Fold(String),
     Chevron(String),
     Banner,
@@ -723,6 +724,9 @@ pub struct Rustcord {
     folded: HashSet<String>,
     hovered: Option<String>,
     motions: Motions<Part>,
+    // The DM tiles on the rail with their counts, leaving ones included until their exit settles; None until
+    // DMs first load, so the ones there at launch never animate in.
+    rail_dms_shown: Option<Vec<(Channel, u32)>>,
     // Live messages pop in; history never animates. Shared with the list's row closure.
     arrivals: Rc<RefCell<Arrivals>>,
 }
@@ -952,6 +956,7 @@ impl Rustcord {
             folded: HashSet::new(),
             hovered: None,
             motions: Motions::new(),
+            rail_dms_shown: None,
             arrivals: Rc::default(),
         };
         let weak = cx.weak_entity();

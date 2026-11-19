@@ -25,6 +25,8 @@ pub(crate) const TILE: f32 = 44.;
 const RAIL_GAP: f32 = 8.;
 // How far a header control sits below the window's top: a 34px control centred in the 48px header row.
 const HEADER_INSET: f32 = 7.;
+// The strip the rail leaves the traffic lights; Home starts a gap below it.
+const LIGHTS_STRIP: f32 = crate::layout::HEADER_HEIGHT - RAIL_GAP + 4.;
 pub(crate) const TILE_X: f32 = (RAIL_WIDTH - TILE) / 2.;
 const MINI: f32 = 16.;
 const MINI_GAP: f32 = 4.;
@@ -93,7 +95,7 @@ impl Rustcord {
             open: 0.,
         };
         let home = self.rail_item(home, window, cx);
-        let dm_tiles: Vec<AnyElement> = self.rail_dms().into_iter().map(|dm| self.dm_tile(dm, window, cx)).collect();
+        let dm_tiles = self.rail_dm_tiles(window, cx);
         let mut items: Vec<AnyElement> = Vec::new();
         for entry in self.rail_entries() {
             match entry {
@@ -118,12 +120,12 @@ impl Rustcord {
             .gap(px(RAIL_GAP))
             .overflow_y_scroll()
             .text_size(px(14.))
-            .when(lights, |rail| rail.child(div().flex_none().w_full().h(px(crate::layout::HEADER_HEIGHT - RAIL_GAP + 4.)).window_control_area(gpui_kit::WindowControlArea::Drag)))
+            .when(lights, |rail| rail.child(div().flex_none().w_full().h(px(LIGHTS_STRIP)).window_control_area(gpui_kit::WindowControlArea::Drag)))
             // Without the lights, Home holds the slot over a drag strip; Home keeps its clicks from the strip,
             // and the rail still scrolls under it.
             .when(!lights, |rail| rail.child(div().absolute().top_0().left_0().w_full().h(px(crate::layout::HEADER_HEIGHT)).window_control_area(gpui_kit::WindowControlArea::Drag)))
             .child(if lights { home } else { div().block_mouse_except_scroll().child(home).into_any_element() })
-            .children(dm_tiles)
+            .child(dm_tiles)
             .child(separator)
             .children(items)
             .child(rail_action("rail-discover", Nav::Compass.icon(), "Discover servers", cx).on_click(|_, _, cx| cx.open_url("https://discord.com/servers")))
@@ -139,6 +141,9 @@ impl Rustcord {
             .when(open, |b| b.bg(palette::selected(cx)).text_color(palette::strong(cx)))
             .when(mentions, |b| b.child(div().absolute().top(px(6.)).right(px(6.)).size(px(8.)).rounded_full().bg(palette::alert())))
             .on_click(cx.listener(|this, _, _, cx| this.open_inbox(cx)));
+        // Under the traffic lights the tiles scroll up into the strip, which blurs and fades them (ui::scroll_edge).
+        let lights = crate::layout::traffic_lights_shown(window);
+        let edge = lights.then(|| ui::scroll_edge_over(palette::surface(palette::Level::Sidebar, cx), 0., LIGHTS_STRIP, RAIL_GAP));
         div()
             .w(px(RAIL_WIDTH))
             .h_full()
@@ -146,7 +151,7 @@ impl Rustcord {
             .flex()
             .flex_col()
             .items_center()
-            .child(div().flex_1().min_h_0().w_full().child(self.render_rail(window, cx)))
+            .child(div().relative().flex_1().min_h_0().w_full().child(self.render_rail(window, cx)).children(edge))
             .child(div().flex_none().pt(px(RAIL_GAP)).pb(px(8.)).child(inbox))
             .child(div().flex_none().h(self.user_panel_clearance()))
     }
@@ -158,14 +163,57 @@ impl Rustcord {
         self.dms.iter().filter(|d| self.unread(&d.id) || in_call(&d.id)).cloned().collect()
     }
 
-    fn dm_tile(&mut self, dm: Channel, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    // DM tiles grow in and fold away on one gently bouncing spring: the slot's height, the tile's fade and scale travel
+    // together, so the servers below glide instead of jumping. The tile scales with its slot, so it never
+    // reaches past it into Home or the next tile. A leaving tile keeps its last count and stays until its
+    // exit settles. Each slot carries the gap above it, so the column cancels the rail's own gap.
+    fn rail_dm_tiles(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
+        const SLOT: f32 = TILE + RAIL_GAP;
+        let wanted: Vec<(Channel, u32)> = self.rail_dms().into_iter().map(|dm| {
+            let count = self.mention_count(&dm.id);
+            (dm, count)
+        }).collect();
+        let launch = self.rail_dms_shown.is_none();
+        let before = self.rail_dms_shown.take().unwrap_or_default();
+        let gone = Target::default().height(0.).opacity(0.);
+        let mut kept = Vec::new();
+        let mut slots = Vec::new();
+        for (dm, count) in keep_leaving(wanted.clone(), before, |a, b| a.0.id == b.0.id) {
+            let part = Part::RailDm(dm.id.clone());
+            let present = wanted.iter().any(|(w, _)| w.id == dm.id);
+            let motion = Motion::new(Target::default().height(SLOT).opacity(1.)).exit(gone).present(present).transition(motion::snappy());
+            let motion = if launch { motion } else { motion.initial(gone) };
+            let frame = self.motions.frame_one(part.clone(), motion, window, cx);
+            if !frame.is_mounted() {
+                self.motions.remove(&part);
+                continue;
+            }
+            // Past 1 is the spring's overshoot, kept so the tile and its slot bounce together; below 0 is clamped.
+            let shown = (frame.target().height_px().unwrap_or(SLOT) / SLOT).max(0.);
+            let tile = self.dm_tile(dm.clone(), count, window, cx);
+            slots.push(
+                div()
+                    .relative()
+                    .w(px(RAIL_WIDTH))
+                    .h(px(shown * SLOT))
+                    .flex_none()
+                    .child(div().absolute().left_0().top(px(RAIL_GAP * shown - (1. - shown) * TILE / 2.)).opacity(frame.target().alpha().clamp(0., 1.)).scale(shown).child(tile))
+                    .into_any_element(),
+            );
+            kept.push((dm, count));
+        }
+        self.rail_dms_shown = (!launch || !self.dms.is_empty()).then_some(kept);
+        div().flex_none().flex().flex_col().mt(px(-RAIL_GAP)).children(slots)
+    }
+
+    fn dm_tile(&mut self, dm: Channel, mentions: u32, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let tile = RailTile {
             key: format!("dm-{}", dm.id),
             name: dm.recipient.as_ref().map_or_else(|| dm.name.clone(), |u| u.name.clone()).into(),
             selected: self.guild_id.is_none() && self.channel.as_ref().is_some_and(|c| c.id == dm.id),
             unread: false,
             // Every DM message counts as a mention, so this is its unread count.
-            mentions: self.mention_count(&dm.id),
+            mentions,
             muted: false,
             in_voice: self.call.as_ref().is_some_and(|c| c.guild_id.is_none() && c.channel.id == dm.id),
             face: Face::Person(dm.face()),
@@ -1684,4 +1732,30 @@ pub(crate) fn server_name_button(name: SharedString, cx: &mut Context<Rustcord>)
             let at = gpui_kit::point(px(RAIL_WIDTH + 8.), px(crate::layout::HEADER_HEIGHT - 4.));
             this.open_server_menu(guild_id, at, true, cx);
         }))
+}
+
+// `wanted` in its order, with each item of `before` that left put back right after the one it followed.
+fn keep_leaving<T>(mut wanted: Vec<T>, before: Vec<T>, same: impl Fn(&T, &T) -> bool) -> Vec<T> {
+    let mut at = 0;
+    for old in before {
+        match wanted.iter().position(|w| same(w, &old)) {
+            Some(i) => at = i + 1,
+            None => {
+                wanted.insert(at, old);
+                at += 1;
+            }
+        }
+    }
+    wanted
+}
+
+#[cfg(test)]
+mod rail_dm_tests {
+    #[test]
+    fn leaving_tiles_hold_their_place() {
+        let same = |a: &&str, b: &&str| a == b;
+        assert_eq!(super::keep_leaving(vec!["a", "c"], vec!["a", "b", "c"], same), ["a", "b", "c"]);
+        assert_eq!(super::keep_leaving(vec!["n", "a"], vec!["a", "b"], same), ["n", "a", "b"]);
+        assert_eq!(super::keep_leaving(vec![], vec!["a", "b"], same), ["a", "b"]);
+    }
 }
