@@ -595,10 +595,12 @@ impl Waffle {
                     .child(div().truncate().child(format!("Reconnecting… {}", reconnecting.clone().unwrap_or_default()))),
             )
         });
-        // The header row: 8px in, like the list below, so the name lines up with the channel rows.
+        // The header row: 8px in, like the list below, so the name lines up with the channel rows; below
+        // 100% zoom the traffic lights outgrow the rail and push it further in.
         let header = div()
             .h(px(crate::layout::HEADER_HEIGHT))
             .px_2()
+            .pl(px(8. + crate::layout::traffic_lights_overhang(window)))
             .flex()
             .items_center()
             .window_control_area(gpui_kit::WindowControlArea::Drag)
