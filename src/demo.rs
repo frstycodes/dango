@@ -224,11 +224,15 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
         }
         "activity" | "activity-all" => {
             let ago = |hours: i64| chrono::Utc::now().timestamp_millis() - hours * 3_600_000;
-            let entry = |author: &str, kind, title: &str, image: Option<&str>, live, at, streak_days| crate::discord::FeedEntry { author_id: author.into(), kind, title: title.into(), image: image.map(Into::into), live, at, streak_days };
+            let entry = |author: &str, kind, title: &str, image: Option<&str>, live, at, streak_days| crate::discord::FeedEntry { author_id: author.into(), kind, title: title.into(), image: image.map(Into::into), app_id: None, live, at, streak_days };
+            let game = |author: &str, (name, app_id): (&str, &str), at, streak_days| crate::discord::FeedEntry { app_id: Some(app_id.into()), ..entry(author, ActivityKind::Playing, name, None, false, at, streak_days) };
+            demo_games(waffle);
             waffle.activity_feed = vec![
-                entry("12582912", ActivityKind::Playing, "EA SPORTS FC 26", None, false, ago(26), Some(6)),
+                game("12582912", HADES, ago(26), Some(6)),
                 entry("16777216", ActivityKind::Listening, "Too Sweet", Some("demo/banner.png"), true, ago(0), None),
+                // No application: the card keeps its placeholder art.
                 entry("8388608", ActivityKind::Playing, "The Legend of Heroes: Trails through Daybreak II", None, false, ago(30), None),
+                game("25165824", FACTORIO, ago(2), None),
                 entry("4194304", ActivityKind::Watching, "Frieren: Beyond Journey's End", Some("demo/banner.png"), false, ago(3), None),
             ];
             if scene == "activity-all" {
@@ -299,6 +303,7 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
                 "sidebar-voice" | "sidebar-voice-solid" | "sidebar-voice-fullscreen" => demo_call(waffle),
                 _ => waffle.voice_error = Some("Moved to a voice channel Waffle can't show".into()),
             }
+            demo_games(waffle);
             if let Some(guild) = waffle.guilds.iter_mut().find(|g| g.id == "1") {
                 guild.channels.extend((1..=16).map(|n| channel(&format!("filler-{n}"), &format!("filler-{n}"), ChannelKind::Text, Some("c0"))));
             }
@@ -426,6 +431,7 @@ fn demo_profile(waffle: &mut Waffle, cx: &mut Context<Waffle>) {
     let rich = crate::discord::RichPresence {
         kind: ActivityKind::Playing,
         name: "PUBG: BATTLEGROUNDS".into(),
+        app_id: Some("1402418717781921935".into()),
         details: Some("Normal, Erangel, 58/99".into()),
         state: Some("4 Squad".into()),
         image: Some("brand/icons/blueprint.png".into()),
@@ -501,6 +507,25 @@ fn demo_dm_start(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut
             .ok();
         })
         .detach();
+    }
+}
+
+// Real Discord applications (id, icon hash from /applications/detectable), so their icons load from the CDN.
+const HADES: (&str, &str) = ("Hades II", "1237101681695522867");
+const FACTORIO: (&str, &str) = ("Factorio", "358422126602223616");
+const APEX: (&str, &str) = ("Apex Legends", "542075586886107149");
+
+// Games in hangout: you (kiwi) detected playing Hades II, moss lantern and Wren by their presences.
+fn demo_games(waffle: &mut Waffle) {
+    for ((_, app_id), icon) in [(HADES, "e8aaa81a90f8c36e88014722906884b6"), (FACTORIO, "7624a1d91d9828ed2f2dc3510bbe09e6"), (APEX, "91fac0600c5b6527c1aea95a93c6a8e0")] {
+        waffle.games.seed_icon(app_id, &crate::discord::app_icon_url(app_id, icon));
+    }
+    waffle.games.mine = Some(crate::games::Game { pid: 501, app_id: HADES.1.into(), name: HADES.0.into(), icon: Some("e8aaa81a90f8c36e88014722906884b6".into()), started: chrono::Utc::now().timestamp_millis() });
+    for (id, (name, app_id)) in [("12582912", APEX), ("8388608", FACTORIO)] {
+        let started = Some(chrono::Utc::now().timestamp_millis() - 47 * 60_000);
+        let rich = crate::discord::RichPresence { kind: ActivityKind::Playing, name: name.into(), app_id: Some(app_id.into()), started, ..Default::default() };
+        let activity = Activity { kind: ActivityKind::Playing, text: name.into(), more: 0 };
+        waffle.presences.insert(id.into(), Presence { status: Presence_::Online, activity: Some(activity), rich: Some(rich) });
     }
 }
 

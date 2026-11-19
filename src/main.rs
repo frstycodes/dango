@@ -29,6 +29,7 @@ mod mascot;
 mod material;
 mod forum;
 mod gif;
+mod games;
 mod go_live;
 mod h264;
 mod home;
@@ -728,6 +729,7 @@ pub struct Waffle {
     profiles: query::Query<discord::Profile>,
     // Previews of Discord's own links (messages, invites), shared with the rows that draw them.
     link_previews: link_preview::Previews,
+    games: games::Games,
     emoji_picker: Option<EmojiTarget>,
     emoji_search: Entity<SearchState>,
     switcher: Option<usize>,
@@ -974,6 +976,7 @@ impl Waffle {
             call_area: Rc::new(std::cell::Cell::new((0., 0.))),
             profiles: query::Query::new("profiles", Duration::from_secs(5 * 60)),
             link_previews: link_preview::previews(),
+            games: Default::default(),
             composer_height: Rc::new(std::cell::Cell::new(86.)),
             pip: Default::default(),
             emoji_picker: None,
@@ -1049,6 +1052,7 @@ impl Waffle {
         let (client, mut events) = discord::connect(token.clone());
         self.token = Some(token);
         self.client = Some(client);
+        self.watch_games(cx);
         self.status = Status::Connecting;
         self._session = Some(cx.spawn(async move |this, cx| {
             while let Some(event) = events.next().await {
@@ -1118,6 +1122,10 @@ impl Waffle {
                 self.me = Some(ready.me);
                 self.custom_status = ready.custom_status;
                 self.expire_custom_status_later(cx);
+                // The identify went out with no activities; a game already running goes back in.
+                if self.games.mine.is_some() {
+                    self.publish_presence();
+                }
                 for channel in ready.guilds.iter().flat_map(|g| &g.channels).chain(&ready.dms) {
                     if let Some(id) = channel.last_message_id.as_deref().and_then(|id| id.parse().ok()) {
                         self.last_message.insert(channel.id.clone(), id);
