@@ -437,6 +437,19 @@ pub fn alert() -> Hsla {
 }
 
 // The surface ramp, deepest first.
+// WCAG relative luminance of an opaque colour, 0 to 1.
+pub fn luminance(c: Hsla) -> f32 {
+    let c = gpui_kit::Rgba::from(c);
+    let lin = |v: f32| if v <= 0.03928 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) };
+    0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b)
+}
+
+// WCAG contrast ratio between two opaque colours, 1 to 21.
+pub fn contrast(a: Hsla, b: Hsla) -> f32 {
+    let (a, b) = (luminance(a), luminance(b));
+    (a.max(b) + 0.05) / (a.min(b) + 0.05)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Level {
     Rail,

@@ -280,7 +280,7 @@ impl Waffle {
                 .items_center()
                 .gap(px(6.))
                 .min_w_0()
-                .child(ui::truncating(key, member.user.name.clone()).font_weight(FontWeight::NORMAL).text_color(name_ink))
+                .child(crate::name_fonts::styled(ui::truncating(key, member.user.name.clone()).font_weight(FontWeight::NORMAL).text_color(name_ink), member.user.name_style.as_ref()))
                 .children(member.user.tag.as_ref().map(|tag| crate::chat::guild_tag(tag, cx)))
                 .when(owner, |r| r.child(Icon::new(Glyph::Crown).size(px(14.)).flex_none().text_color(crown)))
                 .when(member.user.bot, |r| r.child(ui::tag("App", cx)))

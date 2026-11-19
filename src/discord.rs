@@ -24,6 +24,45 @@ pub struct User {
     pub nameplate: Option<Nameplate>,
     // Avatar decoration frame drawn around the avatar.
     pub decoration: Option<String>,
+    pub name_style: Option<NameStyle>,
+}
+
+// Discord's display-name style: a font, an effect and the effect's colours (0xRRGGBB). Ids are its
+// DisplayNameFont / DisplayNameEffect enums, read from its web client (2026-11-19).
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct NameStyle {
+    pub font: u32,
+    pub effect: NameEffect,
+    pub colors: Vec<u32>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum NameEffect {
+    Solid,
+    Gradient,
+    Neon,
+    Toon,
+    Pop,
+    Glow,
+    Prism,
+    Gummy,
+}
+
+// `display_name_styles`: { font_id, effect_id, colors }. An unknown effect draws solid, as Discord's does.
+fn parse_name_style(styles: &Value) -> Option<NameStyle> {
+    let styles = styles.as_object()?;
+    let effect = match styles.get("effect_id").and_then(Value::as_u64) {
+        Some(2) => NameEffect::Gradient,
+        Some(3) => NameEffect::Neon,
+        Some(4) => NameEffect::Toon,
+        Some(5) => NameEffect::Pop,
+        Some(6) => NameEffect::Glow,
+        Some(7) => NameEffect::Prism,
+        Some(8) => NameEffect::Gummy,
+        _ => NameEffect::Solid,
+    };
+    let colors = styles.get("colors").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_u64).filter(|c| *c <= 0xFF_FFFF).map(|c| c as u32).collect();
+    Some(NameStyle { font: styles.get("font_id").and_then(Value::as_u64).unwrap_or(11) as u32, effect, colors })
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -2000,6 +2039,9 @@ pub fn parse_member_user(member: &Value, user: &Value, guild_id: Option<&str>) -
     if let (Some(hash), Some(guild_id)) = (member["avatar"].as_str().filter(|h| !h.is_empty()), guild_id) {
         parsed.avatar = format!("{CDN}/guilds/{guild_id}/users/{}/avatars/{hash}.png?size=128", parsed.id);
     }
+    if let Some(style) = parse_name_style(&member["display_name_styles"]) {
+        parsed.name_style = Some(style);
+    }
     parsed
 }
 
@@ -2021,7 +2063,8 @@ pub fn parse_user(user: &Value) -> User {
         tint: palette_tint(plate["palette"].as_str().unwrap_or_default()),
     });
     let decoration = user["avatar_decoration_data"]["asset"].as_str().map(|asset| format!("{CDN}/avatar-decoration-presets/{asset}.png?size=96&passthrough=false"));
-    User { id, name, avatar, bot: user["bot"].as_bool().unwrap_or(false), tag, nameplate, decoration }
+    let name_style = parse_name_style(&user["display_name_styles"]);
+    User { id, name, avatar, bot: user["bot"].as_bool().unwrap_or(false), tag, nameplate, decoration, name_style }
 }
 
 /// An image as Discord's media proxy scales it: `width` x `height` (logical pixels, drawn at up to 2x
@@ -2336,6 +2379,18 @@ pub fn snowflake(v: &Value) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn display_name_styles_parse_with_member_override() {
+        let user = serde_json::json!({ "id": "1", "global_name": "Yumiko", "display_name_styles": { "font_id": 12, "effect_id": 2, "colors": [2797222, 16762000, -1, 16777216] } });
+        let style = parse_user(&user).name_style.expect("styled");
+        assert_eq!(style, NameStyle { font: 12, effect: NameEffect::Gradient, colors: vec![0x2AAEA6, 0xFFC490] }, "out-of-range colours dropped");
+        assert_eq!(parse_user(&serde_json::json!({ "id": "1", "display_name_styles": null })).name_style, None);
+        let unknown = serde_json::json!({ "id": "1", "display_name_styles": { "effect_id": 1001 } });
+        assert_eq!(parse_user(&unknown).name_style, Some(NameStyle { font: 11, effect: NameEffect::Solid, colors: vec![] }));
+        let member = serde_json::json!({ "display_name_styles": { "font_id": 3, "effect_id": 8, "colors": [255] } });
+        assert_eq!(parse_member_user(&member, &user, Some("g")).name_style.map(|s| s.effect), Some(NameEffect::Gummy), "the server's style wins");
+    }
 
     fn upload(name: &str, size: u64) -> Upload {
         Upload { path: PathBuf::from(format!("/tmp/{name}")), name: name.into(), size, sent: Default::default() }

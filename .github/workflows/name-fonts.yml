@@ -1,0 +1,23 @@
+# Weekly: Discord's live web build must still yield its display-name font table, agreeing with the one
+# built into Waffle (src/name_fonts.rs). Fails when the extraction no longer finds the table or Discord
+# added a font; the log prints the table it read, ready to paste into TABLE. Never runs on pushes, so a
+# discord.com hiccup can't block a merge.
+name: Display-name fonts
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  live-table:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Debug profile: `cargo test --release` doesn't compile (updater.rs's tests use a debug-only helper), so
+      # the release builds' cache doesn't apply; sccache still carries compiles from week to week.
+      - uses: mozilla-actions/sccache-action@v0.0.11
+      - run: cargo test --locked --bin waffle name_fonts::tests::live_build_yields_the_font_table -- --ignored --nocapture
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: sccache

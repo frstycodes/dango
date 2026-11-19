@@ -716,13 +716,7 @@ fn pass(fg: Hsla, bg: Hsla, cx: &App) -> impl IntoElement {
 }
 
 fn ratio(fg: Hsla, bg: Hsla) -> String {
-    let luminance = |c: Hsla| {
-        let c = gpui_kit::Rgba::from(c);
-        let lin = |v: f32| if v <= 0.03928 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) };
-        0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b)
-    };
-    let (a, b) = (luminance(fg), luminance(bg));
-    let r = (a.max(b) + 0.05) / (a.min(b) + 0.05);
+    let r = palette::contrast(fg, bg);
     let grade = if r >= 4.5 { "AA" } else if r >= 3. { "AA large" } else { "fails" };
     format!("{r:.2}:1 {grade}")
 }

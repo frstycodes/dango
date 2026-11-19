@@ -25,6 +25,11 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 futures = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Discord's display-name fonts: its .woff2 files decoded to TTF, its client build read for the font table.
+wuff = { version = "0.2", default-features = false, features = ["brotli"] }
+brotli-decompressor = "6"
+ttf-parser = "0.25"
+regex = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 rsa = { version = "0.9", features = ["sha2"] }
 sha2 = "0.10"

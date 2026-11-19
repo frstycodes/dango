@@ -174,6 +174,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloc-no-stdlib"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2fb6cfd47bf496ff64095c20eaba0c201404ee38714d4142fcfa1dc334fcc7a"
+
+[[package]]
+name = "alloc-stdlib"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b5c1865780388bfa186411ab5f247819487fc4864c6e9c3106611fa347586e1"
+dependencies = [
+ "alloc-no-stdlib",
+]
+
+[[package]]
 name = "allocator-api2"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -868,6 +883,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.10",
+]
+
+[[package]]
+name = "brotli-decompressor"
+version = "6.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc031cd87c6529082b0b65c604e86af0ed7744841b17ccfe60b1e31fa606179e"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloc-stdlib",
 ]
 
 [[package]]
@@ -10663,6 +10688,7 @@ dependencies = [
  "async-trait",
  "backtrace",
  "base64 0.22.1",
+ "brotli-decompressor",
  "bytes",
  "chacha20poly1305",
  "chrono",
@@ -10694,6 +10720,7 @@ dependencies = [
  "qrcode",
  "rand 0.8.8",
  "raw-window-handle",
+ "regex",
  "reqwest",
  "rodio",
  "rsa",
@@ -10713,10 +10740,12 @@ dependencies = [
  "tract-onnx",
  "tract-pulse",
  "tray-icon",
+ "ttf-parser",
  "wasapi",
  "webrtc-util",
  "windows 0.62.2",
  "windows-capture 2.0.1",
+ "wuff",
 ]
 
 [[package]]
@@ -11966,6 +11995,16 @@ name = "writeable"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
+
+[[package]]
+name = "wuff"
+version = "0.2.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6a992b57b3d1ee972b2e3fd9225e44793104d49818836dd812d5459187712dd"
+dependencies = [
+ "brotli-decompressor",
+ "bytes",
+]
 
 [[package]]
 name = "x11"
