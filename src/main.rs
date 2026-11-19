@@ -825,6 +825,7 @@ impl Waffle {
         .detach();
         #[allow(unused_mut)]
         let mut waffle = Self::build(window, splash, cx);
+        window.set_zoom(waffle.prefs.zoom, cx);
         let main = restart::Main(cx.entity().downgrade());
         cx.set_global(main);
         waffle.watch_for_updates(cx);

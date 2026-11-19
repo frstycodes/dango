@@ -184,6 +184,10 @@ pub struct Prefs {
     pub auto_download_updates: bool,
     // Recent message searches per account id, newest first.
     pub search_history: HashMap<String, Vec<crate::search::Saved>>,
+    // Window zoom, 1 = 100% (⌘= / ⌘- / ⌘0).
+    pub zoom: f32,
+    // The server voice channel (guild, channel) a restart left, rejoined once the new session is ready.
+    pub rejoin_voice: Option<(String, String)>,
 }
 
 const KEYBINDS_VERSION: u32 = 1;
@@ -238,6 +242,8 @@ impl Default for Prefs {
             clock_24h: false,
             auto_download_updates: true,
             search_history: HashMap::new(),
+            zoom: 1.,
+            rejoin_voice: None,
         }
     }
 }

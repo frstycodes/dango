@@ -28,6 +28,7 @@ use crate::{
 
 use crate::gestures::{GestureTuning, RecognizedTouchGesture, TouchGestureRecognizer};
 use crate::interactive::TouchEvent;
+use crate::{ScrollDelta, ScrollWheelEvent};
 use anyhow::{Context as _, Result, anyhow};
 use collections::{FxHashMap, FxHashSet};
 use derive_more::{Deref, DerefMut};
@@ -1298,6 +1299,10 @@ pub struct Window {
     modifiers: Modifiers,
     capslock: Capslock,
     scale_factor: f32,
+    // Dango patch: page zoom. Layout runs in logical pixels divided by it, so the whole UI scales.
+    zoom: f32,
+    // Dango patch: a mouse wheel's line steps, still to be played out over the next frames.
+    smooth_wheel: Option<SmoothWheel>,
     pub(crate) bounds_observers: SubscriberSet<(), AnyObserver>,
     appearance: WindowAppearance,
     pub(crate) appearance_observers: SubscriberSet<(), AnyObserver>,
@@ -2208,6 +2213,8 @@ impl Window {
             modifiers,
             capslock,
             scale_factor,
+            zoom: 1.,
+            smooth_wheel: None,
             bounds_observers: SubscriberSet::new(),
             appearance,
             appearance_observers: SubscriberSet::new(),
@@ -2837,9 +2844,9 @@ impl Window {
     /// the platform window, then notifies observers. Normally called automatically
     /// by the platform's resize callback, but exposed publicly for test infrastructure.
     pub fn bounds_changed(&mut self, cx: &mut App) {
-        self.scale_factor = self.platform_window.scale_factor();
-        self.viewport_size = self.platform_window.content_size();
-        self.mouse_position = self.platform_window.mouse_position();
+        self.scale_factor = self.platform_window.scale_factor() * self.zoom;
+        self.viewport_size = self.platform_window.content_size().map(|v| v / self.zoom);
+        self.mouse_position = self.platform_window.mouse_position().map(|v| v / self.zoom);
 
         self.refresh();
 
@@ -3138,6 +3145,63 @@ impl Window {
     /// be rendered as two pixels on screen.
     pub fn scale_factor(&self) -> f32 {
         self.scale_factor
+    }
+
+    // Dango patch: a mouse wheel (line steps, not a trackpad) jumps a whole step per notch. Each notch's
+    // lines play out over ~150ms instead: this frame takes a share, the rest follow on the next frames.
+    // Smoothed steps arrive back here as `ScrollDelta::Lines` too, so elements treat them as a wheel.
+    fn smooth_wheel_step(&mut self, event: PlatformInput, cx: &App) -> PlatformInput {
+        let PlatformInput::ScrollWheel(mut wheel) = event else { return event };
+        let ScrollDelta::Lines(lines) = wheel.delta else { return PlatformInput::ScrollWheel(wheel) };
+        if cx.reduce_motion() {
+            return PlatformInput::ScrollWheel(wheel);
+        }
+        let now = Instant::now();
+        let left = match self.smooth_wheel.take() {
+            // A reversed notch drops what's left of the old direction.
+            Some(prev) if prev.left.x * lines.x >= 0. && prev.left.y * lines.y >= 0. => prev.left + lines,
+            _ => lines,
+        };
+        let first = left * SmoothWheel::share(SmoothWheel::FRAME);
+        wheel.delta = ScrollDelta::Lines(first);
+        self.smooth_wheel = Some(SmoothWheel { left: left - first, event: wheel.clone(), at: now });
+        self.on_next_frame(Self::play_wheel);
+        PlatformInput::ScrollWheel(wheel)
+    }
+
+    fn play_wheel(&mut self, cx: &mut App) {
+        let Some(mut wheel) = self.smooth_wheel.take() else { return };
+        let now = Instant::now();
+        let mut step = wheel.left * SmoothWheel::share(now.duration_since(wheel.at).as_secs_f32());
+        let done = (wheel.left - step).x.abs() < 0.01 && (wheel.left - step).y.abs() < 0.01;
+        if done {
+            step = wheel.left;
+        }
+        let mut event = wheel.event.clone();
+        event.delta = ScrollDelta::Lines(step);
+        wheel.left = wheel.left - step;
+        wheel.at = now;
+        if !done {
+            self.smooth_wheel = Some(wheel);
+            self.on_next_frame(Self::play_wheel);
+        }
+        // Straight to dispatch: back through `dispatch_event` it would be smoothed a second time.
+        self.dispatch_unsmoothed(PlatformInput::ScrollWheel(event), cx);
+    }
+
+    /// Dango patch: the window's zoom (1.0 = 100%). Everything lays out in logical pixels divided by
+    /// it and renders at the display scale times it, so text stays sharp.
+    pub fn zoom(&self) -> f32 {
+        self.zoom
+    }
+
+    /// Dango patch: sets the window's zoom; see [`Self::zoom`].
+    pub fn set_zoom(&mut self, zoom: f32, cx: &mut App) {
+        if zoom <= 0. || zoom == self.zoom {
+            return;
+        }
+        self.zoom = zoom;
+        self.bounds_changed(cx);
     }
 
     /// Overrides the display scale factor for tests.
@@ -5800,6 +5864,12 @@ impl Window {
     /// Dispatch a mouse, keyboard, or touch event on the window.
     #[profiling::function]
     pub fn dispatch_event(&mut self, event: PlatformInput, cx: &mut App) -> DispatchEventResult {
+        let event = if self.zoom == 1. { event } else { event.unzoomed(self.zoom) };
+        let event = self.smooth_wheel_step(event, cx);
+        self.dispatch_unsmoothed(event, cx)
+    }
+
+    fn dispatch_unsmoothed(&mut self, event: PlatformInput, cx: &mut App) -> DispatchEventResult {
         #[cfg(feature = "profiler")]
         self.window_profiler.begin_input(event.kind_name());
         let update_count_before = self.invalidator.update_count();
@@ -10025,5 +10095,22 @@ mod inspector_tests {
             }
         })
         .expect("closed inspector has no bookkeeping and no style overrides");
+    }
+}
+
+// A mouse wheel's remaining lines and the event they came with (position, modifiers).
+struct SmoothWheel {
+    left: Point<f32>,
+    event: ScrollWheelEvent,
+    at: Instant,
+}
+
+impl SmoothWheel {
+    // Exponential approach: ~95% of a notch lands within 3τ (~135ms).
+    const TAU: f32 = 0.045;
+    const FRAME: f32 = 1. / 60.;
+
+    fn share(elapsed_secs: f32) -> f32 {
+        1. - (-elapsed_secs.max(0.) / Self::TAU).exp()
     }
 }
