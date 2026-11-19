@@ -26,11 +26,18 @@ pub struct Tab {
     label: SharedString,
     glyph: Option<Glyph>,
     count: Option<u32>,
+    // The strip's call to action (Add friend): accent ink on an accent tint, a deeper tint when chosen.
+    accent: bool,
 }
 
 impl Tab {
     pub fn new(label: impl Into<SharedString>) -> Self {
-        Self { label: label.into(), glyph: None, count: None }
+        Self { label: label.into(), glyph: None, count: None, accent: false }
+    }
+
+    pub fn accent(mut self) -> Self {
+        self.accent = true;
+        self
     }
 
     pub fn glyph(mut self, glyph: Glyph) -> Self {
@@ -69,7 +76,9 @@ struct Measured(Vec<Bounds<Pixels>>);
 
 fn strip(id: ElementId, style: Style, items: &[Tab], selected: usize, on_select: OnSelect, window: &mut Window, cx: &mut App) -> Div {
     let measured = window.use_keyed_state(part(&id, "measured"), cx, |_, _| Measured::default());
-    let indicator = slide(&id, style, &measured, selected, window, cx);
+    let accent_chosen = items.get(selected).is_some_and(|t| t.accent);
+    let indicator = slide(&id, style, &measured, selected, accent_chosen, window, cx);
+    let (accent_tint, accent_ink) = (palette::accent_soft(cx), palette::accent_ink(cx));
     let kind = match style {
         Style::Underline => TabKind::Underline,
         Style::Pills => TabKind::Pill,
@@ -80,6 +89,7 @@ fn strip(id: ElementId, style: Style, items: &[Tab], selected: usize, on_select:
         tab_option(part_n(&id, i), kind, i == selected, tab.glyph, cx)
             .child(tab.label.clone())
             .when_some(tab.count, |o, n| o.child(count_badge(n)))
+            .when(tab.accent, |o| o.text_color(accent_ink).when(i != selected, |o| o.squircle(RADIUS_SM).bg(accent_tint)))
             .on_click(move |_, window, cx| on_select(i, window, cx))
     });
     let frame = match style {
@@ -103,7 +113,7 @@ fn strip(id: ElementId, style: Style, items: &[Tab], selected: usize, on_select:
 }
 
 // The indicator at the chosen option, sliding there over the strip's timing once it has been measured.
-fn slide(id: &ElementId, style: Style, measured: &Entity<Measured>, selected: usize, window: &mut Window, cx: &mut App) -> Option<Div> {
+fn slide(id: &ElementId, style: Style, measured: &Entity<Measured>, selected: usize, accent: bool, window: &mut Window, cx: &mut App) -> Option<Div> {
     let target = {
         let bounds = &measured.read(cx).0;
         let (strip, option) = (bounds.first()?, bounds.get(selected + 1)?);
@@ -122,7 +132,7 @@ fn slide(id: &ElementId, style: Style, measured: &Entity<Measured>, selected: us
     let base = div().absolute().left(px(x)).w(px(w));
     Some(match style {
         Style::Underline => base.bottom_0().h(px(2.)).squircle(2.).bg(palette::accent()),
-        Style::Pills => base.top(px(y)).h(px(h)).squircle(RADIUS_SM).bg(palette::selected(cx)),
+        Style::Pills => base.top(px(y)).h(px(h)).squircle(RADIUS_SM).bg(if accent { palette::accent().opacity(0.3) } else { palette::selected(cx) }),
         Style::Segmented => base.top(px(y)).h(px(h)).squircle(RADIUS_MD - 3.).bg(palette::seg_thumb(cx)).shadow(seg_lift(cx)),
     })
 }

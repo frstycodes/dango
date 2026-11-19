@@ -277,9 +277,12 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
                 feed.messages = std::sync::Arc::new(messages);
             }
         }
-        "home" => {
+        "home" | "add-friend" => {
             waffle.restore = None;
             waffle.open_home(cx);
+            if scene == "add-friend" {
+                waffle.friends_tab = crate::home::FriendsTab::AddFriend;
+            }
         }
         // One DM per presence, so each status mark shows its cutout on the sidebar.
         "home-presence" => {

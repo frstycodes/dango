@@ -4,8 +4,12 @@ use std::time::Duration;
 
 use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::{
-    AnyElement, App, Context, Div, Entity, FontWeight, Hsla, SharedString, Stateful, Window, WindowControlArea,
-    component::{Icon, input::InputEvent, tooltip::Tooltip},
+    AnyElement, App, Context, Div, Entity, Focusable, FontWeight, Hsla, SharedString, Stateful, Window, WindowControlArea,
+    component::{
+        Icon,
+        input::{Input, InputEvent, Textarea},
+        tooltip::Tooltip,
+    },
     div, prelude::*, px,
 };
 use reqwest::Method;
@@ -22,12 +26,18 @@ use crate::{
     ui::{self, Squircle, Tone},
 };
 
+const MASCOT: &str = "add-friend-mascot-hit";
+
+// Discord's cap on a friend request's note.
+const NOTE_MAX: usize = 120;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum FriendsTab {
     Online,
     All,
     Pending,
     Blocked,
+    AddFriend,
 }
 
 // One file per account ("last-channel-<id>"); the shared file from before accounts is read as a fallback.
@@ -224,17 +234,19 @@ impl Waffle {
                 FriendsTab::All => r.kind == Relation::Friend,
                 FriendsTab::Pending => matches!(r.kind, Relation::Incoming | Relation::Outgoing),
                 FriendsTab::Blocked => r.kind == Relation::Blocked,
+                FriendsTab::AddFriend => false,
             })
             .cloned()
             .collect();
         let pending = self.relationships.iter().filter(|r| r.kind == Relation::Incoming).count() as u32;
-        const TABS: [FriendsTab; 4] = [FriendsTab::Online, FriendsTab::All, FriendsTab::Pending, FriendsTab::Blocked];
-        let items = [ui::Tab::new("Online"), ui::Tab::new("All"), ui::Tab::new("Pending").count((pending > 0).then_some(pending)), ui::Tab::new("Blocked")];
+        const TABS: [FriendsTab; 5] = [FriendsTab::Online, FriendsTab::All, FriendsTab::Pending, FriendsTab::Blocked, FriendsTab::AddFriend];
+        let items = [ui::Tab::new("Online"), ui::Tab::new("All"), ui::Tab::new("Pending").count((pending > 0).then_some(pending)), ui::Tab::new("Blocked"), ui::Tab::new("Add friend").accent()];
         let selected = TABS.iter().position(|t| *t == tab).unwrap_or_default();
         let this = cx.entity().downgrade();
         let tabs = ui::pill_tabs("friends-tabs", &items, selected, move |i, _, cx| {
             this.update(cx, |this, cx| {
                 this.friends_tab = TABS[i];
+                this.add_friend_result = None;
                 cx.notify();
             })
             .ok();
@@ -270,8 +282,10 @@ impl Waffle {
             FriendsTab::All => "All friends",
             FriendsTab::Pending => "Pending",
             FriendsTab::Blocked => "Blocked",
+            FriendsTab::AddFriend => "Add friend",
         };
         let body = match (people.is_empty(), tab) {
+            (_, FriendsTab::AddFriend) => self.add_friend_page(cx),
             (true, FriendsTab::Online) => ui::empty_state("friends-empty", Mood::Idle, "No one's around right now", "Your friends are offline. Say hi anyway, they'll see it when they're back.", cx)
                 .child(ui::button("show-all-friends", Tone::Secondary, cx).mt_2().child("Show all friends").on_click(cx.listener(|this, _, _, cx| {
                     this.friends_tab = FriendsTab::All;
@@ -300,6 +314,128 @@ impl Waffle {
             .child(div().id("friends-list").flex_1().min_h_0().overflow_y_scrollbar().pt(px(crate::layout::HEADER_HEIGHT + 16.)).px_4().pb_6().child(body))
             .child(ui::scroll_edge(page, 0.).child(header))
             .into_any_element()
+    }
+
+    // Add a friend, as one centred column rather than Discord's full-width form: the mascot (hopping once a
+    // request lands) over the heading, one card holding the username and an optional note, the requests
+    // you've sent right under it so you see yours arrive, and public servers as the other way in.
+    fn add_friend_page(&self, cx: &mut Context<Self>) -> AnyElement {
+        let (strong, muted) = (palette::strong(cx), palette::muted(cx));
+        let empty = self.add_friend_input.read(cx).value().trim().is_empty();
+        let note_len = self.add_friend_note.read(cx).value().chars().count();
+        let poked = self.hovered.as_deref() == Some(MASCOT);
+        let mood = if poked || matches!(self.add_friend_result, Some(Ok(_))) { Mood::Happy } else { Mood::Idle };
+        // It hops under the pointer, squishes on press, and a click drops you into the username field.
+        let mascot = ui::pressable(div().id(MASCOT), 0.9)
+            .cursor_pointer()
+            .child(crate::mascot::mascot_at("add-friend-mascot", mood, 1., cx))
+            .on_hover(cx.listener(|this, hovered: &bool, _, cx| this.set_hovered(MASCOT, *hovered, cx)))
+            .on_click(cx.listener(|this, _, window, cx| this.add_friend_input.update(cx, |input, cx| input.focus(window, cx))));
+        let send = ui::button("send-friend-request", Tone::Primary, cx)
+            .flex_none()
+            .child("Send request")
+            .when(empty, |b| b.opacity(0.5))
+            .on_click(cx.listener(|this, _, _, cx| this.send_friend_request(cx)));
+        let username_focus = self.add_friend_input.read(cx).focus_handle(cx);
+        let note_focus = self.add_friend_note.read(cx).focus_handle(cx);
+        let username = div()
+            .flex()
+            .items_center()
+            .gap_2()
+            .child(div().flex_1().min_w_0().child(ui::text_field("add-friend-name", Input::new(&self.add_friend_input).appearance(false), &username_focus).leading(Icon::new(Glyph::At).size(px(16.)))))
+            .child(send);
+        let note = ui::text_area("add-friend-note", Textarea::new(&self.add_friend_note).appearance(false).px_0().text_size(px(14.)), &note_focus).error(note_len > NOTE_MAX);
+        let hint = ui::field_hint("Optional. If they accept, it opens your DM.", Some(format!("{note_len} / {NOTE_MAX}").into()), cx);
+        let result = self.add_friend_result.clone().map(|result| {
+            let (ink, text) = match result {
+                Ok(text) => (palette::positive_ink(cx), text),
+                Err(text) => (palette::danger_ink(cx), text),
+            };
+            div().text_size(px(14.)).text_color(ink).child(text)
+        });
+        let sent: Vec<AnyElement> = self.relationships.iter().filter(|r| r.kind == Relation::Outgoing).map(|r| self.friend_row(r, cx)).collect();
+        let sent = (!sent.is_empty()).then(|| {
+            let label = div().px_2().pb_1().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::faint(cx)).child(format!("Sent requests · {}", sent.len()));
+            div().flex().flex_col().gap(px(2.)).child(label).children(sent)
+        });
+        let explore = div()
+            .id("add-friend-explore")
+            .flex()
+            .items_center()
+            .gap_3()
+            .p(px(10.))
+            .squircle(ui::RADIUS_LG)
+            .cursor_pointer()
+            .hover(|s| s.bg(palette::hover(cx)))
+            .child(div().size(px(36.)).flex_none().squircle(ui::RADIUS_MD).bg(palette::positive_ink(cx)).text_color(gpui_kit::white()).flex().items_center().justify_center().child(Nav::Compass.icon().size(px(20.))))
+            .child(ui::settings_text("Explore public servers", Some("No username handy? Meet people around gaming, music, anime and more."), cx))
+            .child(div().text_color(palette::faint(cx)).child(Icon::new(Glyph::ChevronRight).size(px(16.))))
+            .on_click(|_, _, cx| cx.open_url("https://discord.com/servers"));
+        let column = div()
+            .w_full()
+            .max_w(px(560.))
+            .flex()
+            .flex_col()
+            .gap(px(24.))
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .gap(px(8.))
+                    .child(mascot)
+                    .child(div().text_size(px(22.)).font_weight(FontWeight::SEMIBOLD).text_color(strong).child("Add a friend"))
+                    .child(div().text_color(muted).child("Send a request with their Discord username.")),
+            )
+            .child(div().flex().flex_col().gap(px(8.)).child(ui::settings_card(cx).p(px(16.)).gap(px(12.)).child(username).child(note).child(hint)).children(result))
+            .children(sent)
+            .child(explore);
+        div().w_full().flex().justify_center().pt(px(24.)).child(column).into_any_element()
+    }
+
+    pub(crate) fn on_add_friend_input(&mut self, _: &Entity<SearchState>, event: &InputEvent, _: &mut Window, cx: &mut Context<Self>) {
+        match event {
+            InputEvent::PressEnter { .. } => self.send_friend_request(cx),
+            InputEvent::Change => {
+                self.add_friend_result = None;
+                cx.notify();
+            }
+            _ => {}
+        }
+    }
+
+    fn send_friend_request(&mut self, cx: &mut Context<Self>) {
+        let username = self.add_friend_input.read(cx).value().trim().trim_start_matches('@').to_lowercase();
+        if username.is_empty() {
+            return;
+        }
+        // Discord caps a friend request's note at 120 characters (docs.discord.food, Relationships).
+        let note: String = self.add_friend_note.read(cx).value().trim().chars().take(120).collect();
+        let Some(client) = self.client.clone() else { return };
+        // Discord may want a captcha for a friend request: its page opens in the browser, as for an invite.
+        let (captcha_url, mut captcha_urls) = futures::channel::mpsc::unbounded::<String>();
+        cx.spawn(async move |_, cx| {
+            while let Some(url) = futures::StreamExt::next(&mut captcha_urls).await {
+                cx.update(|cx: &mut App| cx.open_url(&url));
+            }
+        })
+        .detach();
+        cx.spawn(async move |this, cx| {
+            let mut body = json!({ "username": username, "discriminator": null });
+            if !note.is_empty() {
+                body["note"] = json!(note);
+            }
+            let result = client.call_with_captcha(Method::POST, "/users/@me/relationships".into(), Some(body), captcha_url).await;
+            this.update(cx, |this, cx| {
+                this.add_friend_result = Some(match result {
+                    Ok(_) => Ok(format!("Success! Your friend request to {username} was sent.").into()),
+                    Err(error) => Err(error.into()),
+                });
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
     }
 
     // A person in the list (.friend): who they are, what they're up to, and the actions that fit.
@@ -365,7 +501,12 @@ impl Waffle {
                     .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(user.name.clone()))
                     .child(div().truncate().text_size(px(12.)).text_color(palette::muted(cx)).child(subtitle)),
             )
-            .child(div().flex_none().flex().gap_2().children(acts))
+            // The buttons keep their press to themselves, so the row's own click (open the DM) never fires with them.
+            .child(div().flex_none().flex().gap_2().on_mouse_down(gpui_kit::MouseButton::Left, |_, _, cx| cx.stop_propagation()).children(acts))
+            .when(relation.kind == Relation::Friend, |row| {
+                let id = user.id.clone();
+                row.cursor_pointer().on_click(cx.listener(move |this, _, window, cx| this.message_user(id.clone(), window, cx)))
+            })
             .on_mouse_down(gpui_kit::MouseButton::Right, {
                 let user = user.clone();
                 cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_user_menu(user.clone(), None, crate::user_menu::Surface::Generic, e.position, cx))

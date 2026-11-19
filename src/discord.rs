@@ -1229,17 +1229,27 @@ impl Client {
     }
 
     /// Joins the invite's server (`POST /invites/{code}`) and returns its id; already a member succeeds too.
-    /// Discord usually wants a captcha first: its page goes out on `captcha_url` for the browser, and the
-    /// join is retried with the solved key, as the sign-in does (`auth::exchange_ticket`).
+    /// Discord usually wants a captcha first (see `call_with_captcha`).
     pub async fn join_invite(&self, code: &str, captcha_url: mpsc::UnboundedSender<String>) -> Result<String, String> {
-        let (client, code) = (self.clone(), code.to_owned());
-        runtime().spawn(async move { client.join_invite_with_captcha(&code, captcha_url).await }).await.map_err(|e| e.to_string())?
+        let body = self.call_with_captcha(reqwest::Method::POST, format!("/invites/{code}"), Some(json!({})), captcha_url).await?;
+        joined_guild(&body).ok_or_else(|| "That invite isn't to a server".into())
     }
 
-    async fn join_invite_with_captcha(&self, code: &str, captcha_url: mpsc::UnboundedSender<String>) -> Result<String, String> {
+    /// A call Discord may answer with a captcha (joining a server, sending a friend request): its page goes
+    /// out on `captcha_url` for the browser, and the call is retried with the solved key, as the sign-in
+    /// does (`auth::exchange_ticket`). Other failures read as `send` words them.
+    pub async fn call_with_captcha(&self, method: reqwest::Method, path: String, body: Option<Value>, captcha_url: mpsc::UnboundedSender<String>) -> Result<Value, String> {
+        let client = self.clone();
+        runtime().spawn(async move { client.captcha_loop(method, &path, body, captcha_url).await }).await.map_err(|e| e.to_string())?
+    }
+
+    async fn captcha_loop(&self, method: reqwest::Method, path: &str, body: Option<Value>, captcha_url: mpsc::UnboundedSender<String>) -> Result<Value, String> {
         let mut solved: Option<(crate::captcha::Challenge, String)> = None;
         for _ in 0..3 {
-            let mut req = self.request(reqwest::Method::POST, &format!("/invites/{code}")).json(&json!({}));
+            let mut req = self.request(method.clone(), path);
+            if let Some(body) = &body {
+                req = req.json(body);
+            }
             if let Some((challenge, answer)) = &solved {
                 for (name, value) in challenge.headers(answer) {
                     req = req.header(name, value);
@@ -1249,11 +1259,11 @@ impl Client {
             let status = res.status();
             let body: Value = res.json().await.unwrap_or(Value::Null);
             if status.is_success() {
-                return joined_guild(&body).ok_or_else(|| "That invite isn't to a server".into());
+                return Ok(body);
             }
             let Some(challenge) = crate::captcha::Challenge::from_response(&body) else {
-                eprintln!("http: {status} /invites/{code}: {body}");
-                return Err(api_error(&body).unwrap_or_else(|| status.to_string()));
+                eprintln!("http: {status} {path} (code {}): {body}", body["code"]);
+                return Err(error_text(status.as_u16(), &body));
             };
             let pending = crate::captcha::serve(&challenge).await?;
             let _ = captcha_url.unbounded_send(pending.url.clone());
