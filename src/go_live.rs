@@ -67,23 +67,26 @@ fn window_choice(window: &ShareableWindow) -> (ShareSource, String) {
     (ShareSource::Window(window.id), window.title.clone())
 }
 
+// What the Toggle Screen Share keybind shares: the app in front when it's pressed (the game being
+// played, as Discord's Go Live does), else the remembered source. None opens the picker. Waffle in front
+// has no windows on offer, so it falls through. Takes the app's first listed window: a game that keeps a
+// launcher window open may need picking by size instead.
+pub fn keybind_source(front_pid: Option<i32>, last: Option<&LastShare>, windows: &[ShareableWindow], screens: &[ShareableScreen]) -> Option<(ShareSource, String)> {
+    front_pid.and_then(|pid| windows.iter().find(|w| w.pid == pid)).map(window_choice).or_else(|| last.and_then(|l| l.find(windows, screens)))
+}
+
 #[derive(Debug, PartialEq)]
 pub enum KeybindMove {
     Nothing,
     Stop,
-    // Go live again with the remembered source, if it can still be found.
-    Resume,
-    Pick,
+    Start,
 }
 
-pub fn keybind_move(in_call: bool, live: bool, remembered: bool) -> KeybindMove {
-    if !in_call {
-        return KeybindMove::Nothing;
-    }
-    match (live, remembered) {
-        (true, _) => KeybindMove::Stop,
-        (false, true) => KeybindMove::Resume,
-        (false, false) => KeybindMove::Pick,
+pub fn keybind_move(in_call: bool, live: bool) -> KeybindMove {
+    match (in_call, live) {
+        (false, _) => KeybindMove::Nothing,
+        (true, true) => KeybindMove::Stop,
+        (true, false) => KeybindMove::Start,
     }
 }
 
@@ -91,18 +94,18 @@ impl Waffle {
     pub(crate) fn toggle_share_keybind(&mut self, cx: &mut Context<Self>) {
         let in_call = self.call.as_ref().is_some_and(|c| c.connected);
         let live = self.call.as_ref().is_some_and(|c| c.sharing.is_some());
-        match keybind_move(in_call, live, self.prefs.last_share.is_some()) {
+        match keybind_move(in_call, live) {
             KeybindMove::Nothing => {}
             KeybindMove::Stop => self.toggle_screen_share(cx),
-            KeybindMove::Resume => self.resume_share(cx),
-            KeybindMove::Pick => self.open_share_picker(cx),
+            KeybindMove::Start => self.share_from_keybind(cx),
         }
     }
 
-    // Listing windows takes tens of milliseconds, so it runs off the UI thread; the call may have
-    // changed by the time it's back.
-    fn resume_share(&mut self, cx: &mut Context<Self>) {
-        let Some(last) = self.prefs.last_share.clone() else { return };
+    // The app in front is read now, at the key press; listing windows takes tens of milliseconds, so it
+    // runs off the UI thread, and the call may have changed by the time it's back.
+    fn share_from_keybind(&mut self, cx: &mut Context<Self>) {
+        let front = voice::frontmost_pid();
+        let last = self.prefs.last_share.clone();
         let listing = cx.background_spawn(async { (voice::shareable_windows().unwrap_or_default(), voice::screens().unwrap_or_default()) });
         cx.spawn(async move |this, cx| {
             let (windows, screens) = listing.await;
@@ -111,7 +114,7 @@ impl Waffle {
                 if !ready {
                     return;
                 }
-                match last.find(&windows, &screens) {
+                match keybind_source(front, last.as_ref(), &windows, &screens) {
                     Some((source, label)) => this.share_and_remember(source, label, &windows, cx),
                     None => this.open_share_picker(cx),
                 }
@@ -544,11 +547,20 @@ mod tests {
     }
 
     #[test]
-    fn keybind_stops_resumes_or_asks() {
-        assert_eq!(keybind_move(false, false, true), KeybindMove::Nothing);
-        assert_eq!(keybind_move(false, true, true), KeybindMove::Nothing);
-        assert_eq!(keybind_move(true, true, false), KeybindMove::Stop);
-        assert_eq!(keybind_move(true, false, true), KeybindMove::Resume);
-        assert_eq!(keybind_move(true, false, false), KeybindMove::Pick);
+    fn keybind_stops_or_starts_in_a_call() {
+        assert_eq!(keybind_move(false, false), KeybindMove::Nothing);
+        assert_eq!(keybind_move(false, true), KeybindMove::Nothing);
+        assert_eq!(keybind_move(true, true), KeybindMove::Stop);
+        assert_eq!(keybind_move(true, false), KeybindMove::Start);
+    }
+
+    #[test]
+    fn keybind_shares_the_app_in_front_then_the_remembered_source() {
+        let windows = [window(10, 100, "Figma"), window(20, 200, "Valorant")];
+        let figma = LastShare::Window { id: 10, pid: 100, app_name: "Figma".into() };
+        let source = |front, last| keybind_source(front, last, &windows, &screens()).map(|(s, _)| s);
+        assert_eq!(source(Some(200), Some(&figma)), Some(ShareSource::Window(20)), "the game in front wins over the last share");
+        assert_eq!(source(Some(1), Some(&figma)), Some(ShareSource::Window(10)), "Waffle in front: the last share");
+        assert_eq!(source(None, None), None, "nothing to go on: the picker");
     }
 }

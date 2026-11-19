@@ -281,6 +281,14 @@ pub fn thumbnail(source: ShareSource, max_width: u32) -> Result<VideoFrame, Stri
     }
 }
 
+// The process of the app in front, whichever app that is (Waffle included).
+pub fn frontmost_pid() -> Option<i32> {
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    return capture::frontmost_pid();
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    None
+}
+
 // The icon of the app with process id `pid`, as a `size` x `size` BGRA square (premultiplied alpha).
 pub fn app_icon(pid: i32, size: u32) -> Option<VideoFrame> {
     #[cfg(target_os = "macos")]
