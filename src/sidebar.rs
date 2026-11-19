@@ -144,7 +144,7 @@ impl Rustcord {
             .on_click(cx.listener(|this, _, _, cx| this.open_inbox(cx)));
         // Under the traffic lights the tiles scroll up into the strip, which blurs and fades them (ui::scroll_edge).
         let lights = crate::layout::traffic_lights_shown(window);
-        let edge = lights.then(|| ui::scroll_edge_over(palette::surface(palette::Level::Sidebar, cx), 0., LIGHTS_STRIP, RAIL_GAP));
+        let edge = lights.then(|| ui::scroll_edge_over(crate::material::sidebar_fill(cx), 0., LIGHTS_STRIP, RAIL_GAP));
         div()
             .w(px(RAIL_WIDTH))
             .h_full()
@@ -357,7 +357,7 @@ impl Rustcord {
             // GAP: muted tiles skip the design's saturate(0.35): gpui has no element filters.
             .child(div().absolute().left(px(TILE_X)).top_0().when(muted, |f| f.opacity(0.55)).child(face))
             .when(mentions > 0 && badge_scale > 0.01, |item| item.child(rail_count(mentions, badge_scale, crate::material::behind_sidebar(rail))))
-            .when(in_voice && mentions == 0, |item| item.child(voice_mark(rail, cx)))
+            .when(in_voice && mentions == 0, |item| item.child(voice_mark(crate::material::behind_sidebar(rail), cx)))
             .children(drop_hint.map(drop_marker))
             .tooltip({
                 let name = name.clone();
@@ -1486,27 +1486,20 @@ fn rail_action(id: &'static str, icon: Icon, tooltip: &'static str, cx: &App) ->
 // The mention count on a tile's corner, ringed in the rail so it reads apart from the art.
 fn rail_count(count: u32, scale: f32, rail: Hsla) -> Div {
     let ring = 3.;
-    div()
-        .absolute()
-        .right(px(RAIL_WIDTH - TILE_X - TILE - 5. - ring))
-        .bottom(px(-4. - ring))
-        .p(px(ring))
-        .rounded_full()
-        .bg(rail)
+    ui::cut_out(div().absolute().right(px(RAIL_WIDTH - TILE_X - TILE - 5. - ring)).bottom(px(-4. - ring)).p(px(ring)).rounded_full(), rail)
         .scale(scale.max(0.))
         .child(ui::count_badge(count).min_w(px(18.)).h(px(18.)).px(px(5.)).text_size(px(12.)))
 }
 
 // Connected to voice here: the still wave in a rail-coloured capsule on the corner.
 fn voice_mark(rail: Hsla, cx: &App) -> Div {
-    div()
+    ui::cut_out(div(), rail)
         .absolute()
         .right(px(RAIL_WIDTH - TILE_X - TILE - 7.))
         .bottom(px(-6.))
         .h(px(22.))
         .px(px(7.))
         .rounded_full()
-        .bg(rail)
         .flex()
         .items_center()
         .child(ui::bars_still(palette::positive_ink(cx), 10.))

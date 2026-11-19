@@ -508,7 +508,7 @@ impl Rustcord {
             .children(self.save_bar(cx))
             .child(ui::settings_close("channel-settings-close", cx.listener(|this, _, _, cx| this.close_channel_settings(false, cx)), cx));
         let nav = self.channel_settings_nav(&channel, &guild_id, cx).into_any_element();
-        Some(ui::settings_window("channel-settings", nav, main, cx).into_any_element())
+        Some(self.settings_frame("channel-settings", nav, main, cx).into_any_element())
     }
 
     fn channel_settings_nav(&self, channel: &Channel, guild_id: &str, cx: &mut Context<Self>) -> impl IntoElement {
@@ -566,7 +566,7 @@ impl Rustcord {
         let search = div().flex_none().pb(px(12.)).child(ui::search_field("channel-settings-search", &view.search, cx));
         let query = view.search.read(cx).value().to_string();
         let items = if query.trim().is_empty() { items } else { self.channel_setting_results(channel, guild_id, &query, cx) };
-        ui::settings_sidebar("channel-settings-nav", cx)
+        ui::settings_sidebar("channel-settings-nav", &self.settings_nav_scroll, cx)
             .child(head)
             .child(search)
             .children(items)
@@ -749,8 +749,16 @@ impl Rustcord {
             cx.notify();
         }));
         let list = open.then(|| {
-            let this = cx.entity();
-            ui::select_options(SharedString::from(format!("cs-options-{select:?}")), options, chosen, 40., move |id, _, cx| this.update(cx, |this, cx| this.pick(select, &id, cx)), cx)
+            let (this, close) = (cx.entity(), cx.entity());
+            let dismiss = move |_: &mut Window, cx: &mut App| {
+                close.update(cx, |this, cx| {
+                    if let Some(v) = &mut this.channel_settings {
+                        v.select = None;
+                    }
+                    cx.notify();
+                })
+            };
+            ui::select_options(SharedString::from(format!("cs-options-{select:?}")), options, chosen, 40., move |id, _, cx| this.update(cx, |this, cx| this.pick(select, &id, cx)), dismiss, cx)
         });
         div().relative().w_full().child(trigger).children(list).into_any_element()
     }

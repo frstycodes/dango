@@ -115,7 +115,10 @@ pub static SETTINGS: &[Setting] = &[
     s("friends-mutual-guilds", ContentSocial, "Who can send you a friend request", "Server members", None, &["friend request", "mutual servers"], Switch(Toggle::FriendsMutualGuilds)),
     // Appearance
     s("theme", Appearance, "Theme", "Theme", Some("Light, dark or midnight"), &["dark", "light", "midnight", "mode", "colour", "color", "night"], Custom),
-    s("font", Appearance, "Font", "Font", None, &["typeface", "text", "figtree", "type"], Custom),
+    s("native-sidebar", Appearance, "Sidebar", "Sidebar material", Some("Mica or Liquid Glass behind the sidebar"), &["mica", "liquid glass", "glass", "translucent", "transparent", "vibrancy", "blur", "wallpaper"], Custom),
+    s("ui-font", Appearance, "Text", "Interface font", Some("Menus, messages and everything else"), &["font", "typeface", "text", "figtree", "type"], Custom),
+    s("mono-font", Appearance, "Text", "Code font", Some("Code blocks and inline code"), &["font", "monospace", "mono", "code", "roboto mono", "typeface"], Custom),
+    s("reduce-motion", Appearance, "Motion", "Reduce motion", Some("Fades instead of springs and slides"), &["animation", "motion", "accessibility", "springs"], Custom),
     s("app-icon", Appearance, "App icon", "App icon", Some("How Dango looks in your Dock"), &["dock icon", "logo", "icon"], Custom),
     // Voice and video
     s("input-device", VoiceVideo, "Voice", "Input device", None, &["mic", "microphone", "input"], Custom),

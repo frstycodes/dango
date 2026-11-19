@@ -152,14 +152,83 @@ pub fn sync(window: &mut Window, cx: &mut App) {
 }
 
 // Paints Dango's tokens onto the current theme mode (call after `Theme::change`).
+// Code colours: One Dark Pro's in the dark theme, One Light's in the light one, on Dango's own surfaces.
+// Each is that palette's hue at a lightness that holds 4.5:1 on the raised surface code blocks sit on
+// (only One Dark's comment and most of One Light needed moving). Variables keep the text colour: every
+// identifier is one, so One Dark's red would flood the block.
+const SYNTAX_DARK: [(&str, u32); 12] = [
+    ("keyword", 0xC678DD),
+    ("function", 0x61AFEF),
+    ("string", 0x98C379),
+    ("number", 0xD19A66),
+    ("type", 0xE5C07B),
+    ("comment", 0x868B94),
+    ("variable.special", 0xE06C75),
+    ("property", 0xE06C75),
+    ("tag", 0xE06C75),
+    ("operator", 0x56B6C2),
+    ("string.escape", 0x56B6C2),
+    ("punctuation", 0xABB2BF),
+];
+const SYNTAX_LIGHT: [(&str, u32); 12] = [
+    ("keyword", 0xA626A4),
+    ("function", 0x1358EF),
+    ("string", 0x397338),
+    ("number", 0x9A4F00),
+    ("type", 0x7A5F00),
+    ("comment", 0x65666D),
+    ("variable.special", 0xC32B1D),
+    ("property", 0xC32B1D),
+    ("tag", 0xC32B1D),
+    ("operator", 0x016D9B),
+    ("string.escape", 0x016D9B),
+    ("punctuation", 0x383A42),
+];
+
+// Names that take the colour of a listed one, the way One Dark groups them.
+const SYNTAX_ALIASES: [(&str, &str); 16] = [
+    ("comment.doc", "comment"),
+    ("preproc", "keyword"),
+    ("tag.doctype", "keyword"),
+    ("constructor", "type"),
+    ("enum", "number"),
+    ("constant", "number"),
+    ("boolean", "number"),
+    ("attribute", "number"),
+    ("variant", "function"),
+    ("link_text", "function"),
+    ("link_uri", "operator"),
+    ("string.regex", "string.escape"),
+    ("string.special", "string.escape"),
+    ("string.special.symbol", "string.escape"),
+    ("punctuation.bracket", "punctuation"),
+    ("punctuation.delimiter", "punctuation"),
+];
+
+fn highlight_theme(dark: bool) -> std::sync::Arc<gpui_kit::component::highlighter::HighlightTheme> {
+    let colours = if dark { &SYNTAX_DARK } else { &SYNTAX_LIGHT };
+    let colour = |name: &str| colours.iter().find(|(n, _)| *n == name).map(|(_, c)| format!("#{c:06X}"));
+    let mut syntax = serde_json::Map::new();
+    for (name, _) in colours {
+        syntax.insert((*name).into(), serde_json::json!({ "color": colour(name), "font_style": (*name == "comment").then_some("italic") }));
+    }
+    for (name, like) in SYNTAX_ALIASES {
+        syntax.insert(name.into(), serde_json::json!({ "color": colour(like), "font_style": (like == "comment").then_some("italic") }));
+    }
+    let json = serde_json::json!({ "name": if dark { "Dango One Dark" } else { "Dango One Light" }, "appearance": if dark { "dark" } else { "light" }, "style": { "syntax": syntax } });
+    std::sync::Arc::new(serde_json::from_value(json).expect("a valid highlight theme"))
+}
+
 pub fn apply(cx: &mut App) {
     let t = tokens(cx);
     // `update`, not `global_mut`: gpui-component's own widgets paint from `theme.tokens`, which only
     // `update` reconciles with the colours set here.
     Theme::update(cx, |theme| {
-        // The picked interface font (Figtree, bundled, by default) and Roboto Mono, both OFL in assets/fonts.
-        theme.font_family = crate::settings::Prefs::load().ui_font.into();
-        theme.mono_font_family = "Roboto Mono".into();
+        // The picked interface and code fonts: Figtree and Roboto Mono, bundled, by default.
+        let prefs = crate::settings::Prefs::load();
+        theme.font_family = prefs.ui_font.into();
+        theme.mono_font_family = prefs.mono_font.into();
+        theme.highlight_theme = highlight_theme(theme.is_dark());
         let text = hex(t.text);
         let line = hex(t.ink_wash).opacity(t.line);
         theme.background = hex(t.page);
@@ -585,6 +654,24 @@ mod tests {
             }
         }
         assert!(warm.is_empty(), "warm neutrals left in src/:\n{}", warm.join("\n"));
+    }
+
+    #[test]
+    fn code_colours_meet_aa_where_code_sits() {
+        for (t, colours) in [(&DARK, &SYNTAX_DARK), (&LIGHT, &SYNTAX_LIGHT)] {
+            for (name, ink) in colours {
+                for surface in [t.raised, t.page] {
+                    let ratio = contrast(*ink, surface);
+                    assert!(ratio >= 4.5, "{name} {ink:06X} on {surface:06X} is {ratio:.2}:1");
+                }
+            }
+        }
+        for dark in [true, false] {
+            let theme = super::highlight_theme(dark);
+            for name in ["keyword", "comment", "comment.doc", "string.special", "punctuation.bracket"] {
+                assert!(theme.style.syntax.style(name).and_then(|s| s.color).is_some(), "{name} has a colour");
+            }
+        }
     }
 
     #[test]

@@ -133,7 +133,7 @@ fn main() {
         // The design is drawn with `-webkit-font-smoothing: antialiased`; macOS smoothing would thicken every stroke.
         cx.text_system().set_font_smoothing(false);
         cx.set_http_client(std::sync::Arc::new(discord::Images::default()));
-        cx.set_reduce_motion(material::system_reduce_motion());
+        cx.set_reduce_motion(material::system_reduce_motion() || settings::Prefs::load().reduce_motion);
         settings::Prefs::load().app_icon.apply();
         // WAVE_DESIGN=1 opens only the design system gallery, no sign-in needed.
         if std::env::var_os("WAVE_DESIGN").is_some() {
@@ -484,6 +484,8 @@ enum EmojiTarget {
 enum Edge {
     Channels,
     Panel,
+    // The nav column of the settings views (app, server, channel), one width for all three.
+    Settings,
 }
 
 struct Drag {
@@ -717,6 +719,9 @@ pub struct Rustcord {
     copied: Option<String>,
     focus: FocusHandle,
     channels_width: f32,
+    settings_width: f32,
+    // The settings views' nav list; one is open at a time.
+    settings_nav_scroll: gpui_kit::ScrollHandle,
     panel_width: f32,
     drag: Option<Drag>,
     back: Vec<(Option<String>, Channel)>,
@@ -950,6 +955,8 @@ impl Rustcord {
             copied: None,
             focus: cx.focus_handle(),
             channels_width: layout::CHANNELS_WIDTH,
+            settings_width: ui::SETTINGS_NAV_WIDTH,
+            settings_nav_scroll: gpui_kit::ScrollHandle::new(),
             panel_width: layout::PANEL_WIDTH,
             drag: None,
             back: Vec::new(),

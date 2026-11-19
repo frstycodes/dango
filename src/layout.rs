@@ -30,6 +30,7 @@ pub const PANEL_HEIGHT: f32 = 54.;
 const UPDATE_HEIGHT: f32 = 42.;
 const CHANNELS_RANGE: (f32, f32) = (200., 440.);
 const PANEL_RANGE: (f32, f32) = (200., 380.);
+const SETTINGS_RANGE: (f32, f32) = (200., 360.);
 
 impl Render for Rustcord {
     // Everything draws through the app's image cache, which frees images that are no longer drawn.
@@ -48,7 +49,8 @@ impl Rustcord {
         // Before the rows draw, so a row just let go of draws as landing rather than as a hole.
         self.settle_carry(cx);
         // First, so every fill below knows whether it sits on the native material this frame.
-        crate::material::sync_sidebar_material(window, RAIL_WIDTH + self.channels_width, cx.theme().is_dark(), self.prefs.native_sidebar);
+        let sidebar_width = if self.settings_open() { self.settings_width } else { RAIL_WIDTH + self.channels_width };
+        crate::material::sync_sidebar_material(window, sidebar_width, cx.theme().is_dark(), self.prefs.native_sidebar);
         let theme = cx.theme().clone();
         let root = div()
             .id("chord")
@@ -103,12 +105,13 @@ impl Rustcord {
                 .children(dialog)
                 .into_any_element();
         }
-        let body = div()
-            .relative()
-            .flex_1()
-            .min_h_0()
-            .flex()
-            .child(self.render_nav(window, cx))
+        // A settings view covers the whole window and its nav takes the sidebar's place, so the app under it
+        // isn't drawn: over the native material its own sidebar would show through the settings nav.
+        let body = div().relative().flex_1().min_h_0().flex();
+        let body = if self.settings_open() {
+            body
+        } else {
+            body.child(self.render_nav(window, cx))
             .child(match self.call_view.then(|| self.render_call_with_chat(window, cx)).flatten() {
                 Some(call) => div().flex_1().min_w_0().h_full().child(call).into_any_element(),
                 None if self.inbox_page => self.render_inbox_page(cx),
@@ -118,7 +121,8 @@ impl Rustcord {
                     self.render_forum(forum, cx)
                 }
                 None => self.render_chat(window, cx).into_any_element(),
-            });
+            })
+        };
         // Anything drawn over the chat pauses its GIFs (the GIF layer paints above the whole app).
         let (overlays, call_overlays) = (self.render_overlays(window, cx), self.render_call_overlays(window, cx));
         let (menu, dialog) = (self.render_menu(window, cx), self.render_dialog(window, cx));
@@ -201,6 +205,24 @@ impl Rustcord {
         }
     }
 
+    pub(crate) fn settings_open(&self) -> bool {
+        self.settings.is_some() || self.channel_settings.is_some() || self.server_settings.is_some()
+    }
+
+    // A settings view: its nav with a resize handle on the edge, then the page. It covers the window, so it
+    // tracks a drag of that handle itself.
+    pub(crate) fn settings_frame(&self, id: &'static str, nav: AnyElement, main: impl IntoElement, cx: &mut Context<Self>) -> gpui_kit::Stateful<Div> {
+        let nav = div().relative().flex_none().h_full().w(px(self.settings_width)).child(nav).child(ui::settings_nav_edge(cx)).child(self.resize_handle(Edge::Settings, cx));
+        ui::settings_window(id, nav, main, cx).on_mouse_move(cx.listener(Self::on_drag_move)).on_mouse_up(
+            MouseButton::Left,
+            cx.listener(|this, _, _, cx| {
+                if this.drag.take().is_some() {
+                    cx.notify();
+                }
+            }),
+        )
+    }
+
     fn on_drag_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
         let Some(drag) = &self.drag else { return };
         let dx = f32::from(event.position.x) - drag.start_x;
@@ -208,6 +230,7 @@ impl Rustcord {
             Edge::Channels => self.channels_width = (drag.start_width + dx).clamp(CHANNELS_RANGE.0, CHANNELS_RANGE.1),
             // The member list grows leftward.
             Edge::Panel => self.panel_width = (drag.start_width - dx).clamp(PANEL_RANGE.0, PANEL_RANGE.1),
+            Edge::Settings => self.settings_width = (drag.start_width + dx).clamp(SETTINGS_RANGE.0, SETTINGS_RANGE.1),
         }
         cx.notify();
     }
@@ -221,12 +244,13 @@ impl Rustcord {
             .id(match edge {
                 Edge::Channels => "resize-channels",
                 Edge::Panel => "resize-panel",
+                Edge::Settings => "resize-settings",
             })
             .absolute()
             .top_0()
             .bottom_0()
             .w(px(8.))
-            .when(edge == Edge::Channels, |h| h.right(px(-4.)))
+            .when(edge != Edge::Panel, |h| h.right(px(-4.)))
             .when(edge == Edge::Panel, |h| h.left(px(-4.)))
             .group("resize-grip")
             .cursor_col_resize()
@@ -234,7 +258,11 @@ impl Rustcord {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                    let start_width = if edge == Edge::Channels { this.channels_width } else { this.panel_width };
+                    let start_width = match edge {
+                        Edge::Channels => this.channels_width,
+                        Edge::Panel => this.panel_width,
+                        Edge::Settings => this.settings_width,
+                    };
                     this.drag = Some(Drag { edge, start_x: f32::from(event.position.x), start_width });
                     cx.stop_propagation();
                     cx.notify();
@@ -491,13 +519,7 @@ pub fn decorated_avatar(url: &str, decoration: Option<&str>, size: f32, status: 
         .child(img(url.to_owned()).size_full().rounded_full())
         .children(decoration.map(|d| img(d.to_owned()).absolute().size(px(frame)).left(px((size - frame) / 2.)).top(px((size - frame) / 2.))))
         .children(status.map(|status| {
-            div()
-                .absolute()
-                .right(px(inset))
-                .bottom(px(inset))
-                .size(px(dot + 2. * STATUS_RING))
-                .rounded_full()
-                .bg(surface)
+            ui::cut_out(div().absolute().right(px(inset)).bottom(px(inset)).size(px(dot + 2. * STATUS_RING)).rounded_full(), surface)
                 .flex()
                 .items_center()
                 .justify_center()
@@ -510,7 +532,7 @@ const STATUS_RING: f32 = 2.;
 
 pub fn status_mark(status: discord::Status, dot: f32, surface: Hsla) -> AnyElement {
     let mark = div().relative().size(px(dot)).rounded_full().bg(palette::status(status)).overflow_hidden();
-    let cut = |w: f32, h: f32| div().absolute().w(px(w)).h(px(h)).bg(surface);
+    let cut = |w: f32, h: f32| ui::cut_out(div().absolute().w(px(w)).h(px(h)), surface);
     match status {
         discord::Status::Online => mark,
         discord::Status::Idle => mark.child(cut(dot * 0.62, dot * 0.62).rounded_full().left(px(-dot * 0.12)).top(px(-dot * 0.12))),

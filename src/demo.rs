@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// CHORD_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
+// CHORD_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | home-presence | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -112,6 +112,15 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             }
         }
         "appearance" => chord.open_settings(crate::settings::Page::Appearance, window, cx),
+        // The nav scrolled up under its header strip, where the traffic lights sit.
+        "appearance-scrolled" => {
+            chord.open_settings(crate::settings::Page::Appearance, window, cx);
+            let nav = chord.settings_nav_scroll.clone();
+            window.on_next_frame(move |window, _| {
+                nav.set_offset(gpui_kit::point(gpui_kit::px(0.), gpui_kit::px(-90.)));
+                window.refresh();
+            });
+        }
         "notifications" => chord.open_settings(crate::settings::Page::Notifications, window, cx),
         "content-social" => chord.open_settings(crate::settings::Page::ContentSocial, window, cx),
         "chat-settings" => chord.open_settings(crate::settings::Page::Chat, window, cx),
@@ -184,6 +193,19 @@ pub fn load(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
             }
         }
         "home" => {
+            chord.restore = None;
+            chord.open_home(cx);
+        }
+        // One DM per presence, so each status mark shows its cutout on the sidebar.
+        "home-presence" => {
+            for (id, name, status) in [("12582912", "moss lantern", Presence_::Idle), ("16777216", "toma reed", Presence_::Dnd), ("25165824", "ferris", Presence_::Offline)] {
+                let mut dm = chord.dms[0].clone();
+                dm.id = format!("dm-{id}");
+                dm.name = name.into();
+                dm.recipient = Some(user(id, name));
+                chord.dms.push(dm);
+                chord.presences.insert(id.into(), Presence { status, ..Default::default() });
+            }
             chord.restore = None;
             chord.open_home(cx);
         }
