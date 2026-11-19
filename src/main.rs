@@ -638,6 +638,8 @@ pub struct Rustcord {
     // The launch window while the hidden main window signs in and loads; None once it's gone.
     splash: Option<gpui_kit::WindowHandle<splash::Splash>>,
     main_window: gpui_kit::AnyWindowHandle,
+    // A server joined from an invite, opened when its GUILD_CREATE arrives.
+    joining: Option<String>,
     // Bumped on each Go Live so an earlier stream's preview uploads stop.
     preview_generation: u64,
     // The call view filling the screen on its own, as Discord's full screen does.
@@ -891,6 +893,7 @@ impl Rustcord {
             preview_generation: 0,
             splash,
             main_window: window.window_handle(),
+            joining: None,
             stream_volumes: HashMap::new(),
             call_fullscreen: false,
             call_chat: false,
@@ -1173,6 +1176,7 @@ impl Rustcord {
                 self.guild_settings.insert(key, settings);
             }
             Event::GuildCreate(mut guild) => {
+                let joined = self.joining.take_if(|id| *id == guild.id);
                 // GUILD_CREATE carries no member entry for us: keep the roles we know (READY, or
                 // GUILD_MEMBER_UPDATE), or take them from the member cache, so permissions hold.
                 let me = self.me.as_ref().map(|m| m.id.clone()).unwrap_or_default();
@@ -1195,6 +1199,9 @@ impl Rustcord {
                         }
                         self.guilds.push(guild);
                     }
+                }
+                if let Some(id) = joined {
+                    self.open_joined_guild(id, cx);
                 }
             }
             Event::MessageCreate(message) => self.on_message(*message, cx),

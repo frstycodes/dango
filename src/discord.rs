@@ -1021,6 +1021,40 @@ impl Client {
         Ok(body.as_ref().and_then(parse_invite))
     }
 
+    /// Joins the invite's server (`POST /invites/{code}`) and returns its id; already a member succeeds too.
+    /// Discord usually wants a captcha first: its page goes out on `captcha_url` for the browser, and the
+    /// join is retried with the solved key, as the sign-in does (`auth::exchange_ticket`).
+    pub async fn join_invite(&self, code: &str, captcha_url: mpsc::UnboundedSender<String>) -> Result<String, String> {
+        let (client, code) = (self.clone(), code.to_owned());
+        runtime().spawn(async move { client.join_invite_with_captcha(&code, captcha_url).await }).await.map_err(|e| e.to_string())?
+    }
+
+    async fn join_invite_with_captcha(&self, code: &str, captcha_url: mpsc::UnboundedSender<String>) -> Result<String, String> {
+        let mut solved: Option<(crate::captcha::Challenge, String)> = None;
+        for _ in 0..3 {
+            let mut req = self.request(reqwest::Method::POST, &format!("/invites/{code}")).json(&json!({}));
+            if let Some((challenge, answer)) = &solved {
+                for (name, value) in challenge.headers(answer) {
+                    req = req.header(name, value);
+                }
+            }
+            let res = req.send().await.map_err(|e| e.to_string())?;
+            let status = res.status();
+            let body: Value = res.json().await.unwrap_or(Value::Null);
+            if status.is_success() {
+                return joined_guild(&body).ok_or_else(|| "That invite isn't to a server".into());
+            }
+            let Some(challenge) = crate::captcha::Challenge::from_response(&body) else {
+                eprintln!("http: {status} /invites/{code}: {body}");
+                return Err(api_error(&body).unwrap_or_else(|| status.to_string()));
+            };
+            let pending = crate::captcha::serve(&challenge).await?;
+            let _ = captcha_url.unbounded_send(pending.url.clone());
+            solved = Some((challenge, pending.solved().await?));
+        }
+        Err("Discord kept asking for a captcha".into())
+    }
+
     /// Marks several channels read at once (a server's "Mark As Read").
     // A form upload with one file, as sticker creation takes it.
     pub async fn call_form(&self, path: String, fields: Vec<(&'static str, String)>, file_name: String, bytes: Vec<u8>) -> Result<Value, String> {
@@ -1294,6 +1328,11 @@ pub struct Invite {
     pub icon: Option<String>,
     pub online: Option<u64>,
     pub members: Option<u64>,
+}
+
+// The server a joined invite was to; a group DM invite has none.
+fn joined_guild(body: &Value) -> Option<String> {
+    body["guild"]["id"].as_str().or(body["guild_id"].as_str()).map(str::to_owned)
 }
 
 // Group DM invites carry no guild; they get the invalid card, as there is no server to show.
@@ -2257,6 +2296,13 @@ mod tests {
         assert_eq!(api_error(&body).as_deref(), Some("Invalid Form Body: name: Must be between 1 and 100 in length."));
         assert_eq!(api_error(&json!({ "message": "Missing Permissions", "code": 50013 })).as_deref(), Some("Missing Permissions"));
         assert_eq!(api_error(&Value::Null), None);
+    }
+
+    #[test]
+    fn joined_invite_names_its_server() {
+        assert_eq!(joined_guild(&json!({ "code": "x", "guild": { "id": "7" } })).as_deref(), Some("7"));
+        assert_eq!(joined_guild(&json!({ "code": "x", "guild_id": "7" })).as_deref(), Some("7"));
+        assert_eq!(joined_guild(&json!({ "code": "x", "channel": { "id": "9" } })), None);
     }
 
     #[test]

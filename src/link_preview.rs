@@ -167,22 +167,67 @@ impl Rustcord {
         .detach();
     }
 
-    // A message card's click: the channel it's in, scrolled to it and flashed.
-    fn open_linked_message(&mut self, guild: String, channel_id: String, message_id: String, window: &mut Window, cx: &mut Context<Self>) {
-        if self.channel.as_ref().is_some_and(|c| c.id == channel_id) {
-            return self.jump_to(message_id, cx);
+    // A Discord link clicked in a message opens here, not in the browser.
+    pub(crate) fn open_discord_link(&mut self, link: DiscordLink, window: &mut Window, cx: &mut Context<Self>) {
+        match link {
+            DiscordLink::Message { guild, channel, message } => self.open_linked(guild, channel, Some(message), window, cx),
+            DiscordLink::Channel { guild, channel } => self.open_linked(guild, channel, None, window, cx),
+            DiscordLink::Invite(code) => self.join_invite(code, cx),
         }
-        let guild_id = (guild != "@me").then_some(guild);
-        let channel = match &guild_id {
-            Some(g) => self.guilds.iter().find(|x| &x.id == g).and_then(|x| x.channels.iter().chain(&x.threads).find(|c| c.id == channel_id)).cloned(),
-            None => self.dms.iter().find(|c| c.id == channel_id).cloned(),
-        };
-        let Some(channel) = channel else { return };
-        if self.guild_id != guild_id {
-            self.open_guild(guild_id, window, cx);
+    }
+
+    // The channel a link points at, scrolled to and flashing its message when it names one.
+    fn open_linked(&mut self, guild: String, channel_id: String, message_id: Option<String>, window: &mut Window, cx: &mut Context<Self>) {
+        let here = self.channel.as_ref().is_some_and(|c| c.id == channel_id);
+        if !here {
+            let guild_id = (guild != "@me").then_some(guild);
+            let channel = match &guild_id {
+                Some(g) => self.guilds.iter().find(|x| &x.id == g).and_then(|x| x.channels.iter().chain(&x.threads).find(|c| c.id == channel_id)).cloned(),
+                None => self.dms.iter().find(|c| c.id == channel_id).cloned(),
+            };
+            let Some(channel) = channel else { return self.show_toast("You don't have access to that channel", cx) };
+            if self.guild_id != guild_id {
+                self.open_guild(guild_id, window, cx);
+            }
+            self.open_channel(channel, window, cx);
         }
-        self.open_channel(channel, window, cx);
-        self.jump_to(message_id, cx);
+        if let Some(message_id) = message_id {
+            self.jump_to(message_id, cx);
+        }
+    }
+
+    // Joins the invite's server and opens it. A captcha Discord asks for shows in the browser, as at sign-in.
+    pub(crate) fn join_invite(&mut self, code: String, cx: &mut Context<Self>) {
+        let Some(client) = self.client.clone() else { return };
+        let (captcha_url, mut captcha_urls) = futures::channel::mpsc::unbounded::<String>();
+        cx.spawn(async move |_, cx| {
+            while let Some(url) = futures::StreamExt::next(&mut captcha_urls).await {
+                cx.update(|cx: &mut App| cx.open_url(&url));
+            }
+        })
+        .detach();
+        cx.spawn(async move |this, cx| {
+            let joined = client.join_invite(&code, captcha_url).await;
+            this.update(cx, |this, cx| match joined {
+                Ok(guild_id) => this.open_joined_guild(guild_id, cx),
+                Err(error) => this.show_toast(error, cx),
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    // A server we just joined opens once its GUILD_CREATE lands; one we were already in opens now.
+    pub(crate) fn open_joined_guild(&mut self, guild_id: String, cx: &mut Context<Self>) {
+        if !self.guilds.iter().any(|g| g.id == guild_id) {
+            self.joining = Some(guild_id);
+            return;
+        }
+        let (this, main) = (cx.weak_entity(), self.main_window);
+        // The main window's root is this view, so it can only be borrowed once this update ends.
+        cx.defer(move |cx| {
+            main.update(cx, |_, window, cx| this.update(cx, |this, cx| this.open_guild(Some(guild_id), window, cx))).ok();
+        });
     }
 }
 
@@ -295,7 +340,7 @@ fn message_card(id: String, guild: &str, channel: &str, message: &Message, ctx: 
         .children(thumb.map(|url| img(url).size(px(THUMB)).flex_none().squircle(RADIUS_SM).object_fit(gpui_kit::ObjectFit::Cover)))
         .on_click(move |_, window, cx| { cx.stop_propagation();
             let (guild, channel, target) = (guild.clone(), channel.clone(), target.clone());
-            this.update(cx, |this, cx| this.open_linked_message(guild, channel, target, window, cx)).ok();
+            this.update(cx, |this, cx| this.open_linked(guild, channel, Some(target), window, cx)).ok();
         })
         .into_any_element()
 }
@@ -317,14 +362,16 @@ fn invite_card(id: String, code: &str, invite: &Invite, ctx: &CardContext, cx: &
         Some(url) => img(url.clone()).size(px(INVITE_ICON)).flex_none().squircle(RADIUS_MD).into_any_element(),
         None => initials_tile(&invite.name, cx),
     };
-    let (this, guild_id, url) = (ctx.this.clone(), invite.guild_id.clone(), format!("https://discord.gg/{code}"));
+    let (this, guild_id, code) = (ctx.this.clone(), invite.guild_id.clone(), code.to_owned());
     let action = match joined {
         true => ui::button(SharedString::from(format!("{id}-open")), Tone::Secondary, cx).child("Joined").on_click(move |_, window, cx| { cx.stop_propagation();
             let guild_id = guild_id.clone();
             this.update(cx, |this, cx| this.open_guild(Some(guild_id), window, cx)).ok();
         }),
-        // GAP: Dango has no join flow yet (Discord's needs a captcha step), so Join opens the invite.
-        false => ui::button(SharedString::from(format!("{id}-join")), Tone::Primary, cx).child("Join").on_click(move |_, _, cx| { cx.stop_propagation(); cx.open_url(&url) }),
+        false => ui::button(SharedString::from(format!("{id}-join")), Tone::Primary, cx).child("Join").on_click(move |_, _, cx| { cx.stop_propagation();
+            let code = code.clone();
+            this.update(cx, |this, cx| this.join_invite(code, cx)).ok();
+        }),
     };
     let name = div().min_w_0().truncate().text_size(px(16.)).font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(invite.name.clone());
     let row = div().child(icon).child(div().flex_1().min_w_0().flex().flex_col().gap(px(2.)).child(name).child(counts)).child(div().flex_none().child(action));
