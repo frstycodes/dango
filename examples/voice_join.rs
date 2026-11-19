@@ -106,7 +106,7 @@ fn main() -> Result<(), String> {
                             let mut parts = rest.split_whitespace().filter_map(|p| p.parse().ok());
                             let options = voice::GoLiveOptions { resolution: parts.next().unwrap_or(720), fps: parts.next().unwrap_or(30), audio: true };
                             let main = voice::screens().ok().and_then(|s| s.first().map(|s| s.id)).unwrap_or_default();
-                            live = session.go_live_with_options(voice::ShareSource::Screen(main), options).map_err(|e| println!("go live failed: {e}")).ok();
+                            live = session.go_live_with_options(voice::ShareSource::Screen(main), options, live.take()).map_err(|e| println!("go live failed: {e}")).ok();
                         } else if let Some(id) = key.strip_prefix("cam ") {
                             if let Err(e) = session.set_camera(Some(id.trim().to_owned())) {
                                 println!("camera failed: {e}");

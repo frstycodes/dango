@@ -115,8 +115,9 @@ fn supported() -> bool {
 
 // AppKit's own sidebar: an NSSplitViewController whose sidebar item is pinned to the rail and channel
 // list's width, under GPUI's view, so the system draws the sidebar background (its glass, tinted by the
-// wallpaper and not the windows behind). Claude's desktop app does the same. Made on first use, hidden
-// while off. One main window, so one split view.
+// wallpaper and not the windows behind). Claude's desktop app does the same. Made on first use and taken
+// out of the window while off: even hidden, it sends clicks on full screen's traffic lights to the content
+// under them. One main window, so one split view.
 #[cfg(target_os = "macos")]
 fn apply(window: &mut gpui_kit::Window, on: bool, width: f32, dark: bool) {
     use objc2::{
@@ -129,6 +130,7 @@ fn apply(window: &mut gpui_kit::Window, on: bool, width: f32, dark: bool) {
     struct Native {
         sidebar: *mut AnyObject,
         view: *mut AnyObject,
+        content: *mut AnyObject,
         width: f32,
         dark: bool,
         on: bool,
@@ -144,7 +146,7 @@ fn apply(window: &mut gpui_kit::Window, on: bool, width: f32, dark: bool) {
             // while the list was dragged. Lay out now and move them back in the same pass.
             // SAFETY: the split view made below, on the main thread.
             unsafe {
-                let ns_window: *mut AnyObject = msg_send![native.view, window];
+                let ns_window: *mut AnyObject = msg_send![native.content, window];
                 let _: () = msg_send![ns_window, layoutIfNeeded];
             }
             window.set_traffic_light_position(crate::layout::TRAFFIC_LIGHTS);
@@ -153,10 +155,7 @@ fn apply(window: &mut gpui_kit::Window, on: bool, width: f32, dark: bool) {
             match_theme(window, dark);
         }
         if native.on != on {
-            // SAFETY: the split view made below, on the main thread.
-            unsafe {
-                let _: () = msg_send![native.view, setHidden: !on];
-            }
+            attach(native.view, native.content, on);
         }
         (native.width, native.dark, native.on) = (width, dark, on);
         NATIVE.set(Some(native));
@@ -168,7 +167,7 @@ fn apply(window: &mut gpui_kit::Window, on: bool, width: f32, dark: bool) {
     let ns_view = handle.ns_view.as_ptr() as *mut AnyObject;
     let class = |name: &std::ffi::CStr| AnyClass::get(name).expect("AppKit class");
     // SAFETY: AppKit calls on the main thread, where GPUI renders. The controller is never released: it
-    // lives as long as the window, and its view stays a subview.
+    // lives as long as the window, and holds its view while that is out of the window.
     unsafe {
         let ns_window: *mut AnyObject = msg_send![ns_view, window];
         // GPUI's transparent background keeps its layer clear over the sidebar; an opaque window with the
@@ -197,10 +196,27 @@ fn apply(window: &mut gpui_kit::Window, on: bool, width: f32, dark: bool) {
         let _: () = msg_send![view, setFrame: bounds];
         // NSViewWidthSizable | NSViewHeightSizable
         let _: () = msg_send![view, setAutoresizingMask: 2usize | 16usize];
-        let _: () = msg_send![view, setHidden: !on];
+        attach(view, content, on);
+        NATIVE.set(Some(Native { sidebar, view, content, width, dark, on }));
+    }
+}
+
+// Puts the split view under GPUI's view, sized to the window, or takes it out. The controller keeps the
+// view alive while it's out.
+#[cfg(target_os = "macos")]
+fn attach(view: *mut objc2::runtime::AnyObject, content: *mut objc2::runtime::AnyObject, on: bool) {
+    use objc2::{msg_send, runtime::AnyObject};
+    use objc2_foundation::NSRect;
+    // SAFETY: the split view and the window's content view, on the main thread.
+    unsafe {
+        if !on {
+            let _: () = msg_send![view, removeFromSuperview];
+            return;
+        }
+        let bounds: NSRect = msg_send![content, bounds];
+        let _: () = msg_send![view, setFrame: bounds];
         let nil: *mut AnyObject = std::ptr::null_mut();
         let _: () = msg_send![content, addSubview: view, positioned: -1isize, relativeTo: nil];
-        NATIVE.set(Some(Native { sidebar, view, width, dark, on }));
     }
 }
 

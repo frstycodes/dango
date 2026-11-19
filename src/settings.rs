@@ -1419,7 +1419,7 @@ impl Waffle {
             ui::Notice::Warning,
             Glyph::Keyboard,
             "Keybinds need Input Monitoring",
-            "Turn on Waffle in System Settings, under Privacy & Security, Input Monitoring. Keybinds start working as soon as you do.",
+            "Turn on Waffle in System Settings, under Privacy & Security, Input Monitoring. Already on? An update can leave it stale: remove Waffle with \u{2212} and add it again. Keybinds start working as soon as you do.",
             div().mt(px(8.)).flex().child(open),
             cx,
         ))

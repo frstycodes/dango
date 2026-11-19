@@ -819,6 +819,9 @@ impl Waffle {
         let emoji_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Find the perfect emoji"));
         cx.subscribe_in(&emoji_search, window, Self::on_emoji_search).detach();
         let feed_focus = cx.focus_handle();
+        // Esc closing a focused popup (search, ⌘K) leaves nothing focused, and app keys only reach the root
+        // through the focus path, so take focus back.
+        cx.on_focus_lost(window, |this, window, cx| this.focus.focus(window, cx)).detach();
         let switcher_input = cx.new(|cx| SearchState::new(window, cx).placeholder("Where would you like to go?"));
         let gif_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search Tenor"));
         cx.subscribe_in(&gif_search, window, Self::on_gif_search).detach();
@@ -2662,7 +2665,7 @@ impl Waffle {
     fn go_live(&mut self, source: voice::ShareSource, cx: &mut Context<Self>) -> bool {
         let Some(call) = &mut self.call else { return false };
         let options = voice::GoLiveOptions { resolution: self.prefs.stream_resolution, fps: self.prefs.stream_fps, audio: self.prefs.stream_audio };
-        match call.session.go_live_with_options(source, options) {
+        match call.session.go_live_with_options(source, options, call.sharing.take()) {
             Ok(live) => {
                 call.sharing = Some(live);
                 call.share_source = Some(source);
@@ -2679,7 +2682,7 @@ impl Waffle {
     // Quality and sound changes take effect by restarting the same stream; viewers rejoin it.
     pub(crate) fn restart_share(&mut self, cx: &mut Context<Self>) {
         let Some(call) = self.call.as_mut() else { return };
-        let Some(source) = call.share_source.filter(|_| call.sharing.take().is_some()) else { return };
+        let Some(source) = call.share_source.filter(|_| call.sharing.is_some()) else { return };
         self.go_live(source, cx);
         cx.notify();
     }
