@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="currentColor" role="img" aria-labelledby="title">
+  <title id="title">Waffle Short stack mark</title>
+  <path fill-rule="evenodd" d="M46 11Q50 9 54 11L87 30Q95 35 87 40L54 59Q50 61 46 59L13 40Q5 35 13 30ZM47 25 30 35 47 45Q50 47 53 45L70 35 53 25Q50 23 47 25Z"/>
+  <path d="m10 47 36 21q4 3 8 0l36-21v10L54 79q-4 3-8 0L10 57Zm0 21 36 21q4 3 8 0l36-21v10L54 99q-4 3-8 0L10 78Z" transform="translate(0 -4) scale(1 .94)"/>
+</svg>
