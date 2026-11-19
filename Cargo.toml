@@ -78,6 +78,8 @@ objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSRunningApplication", "NSImage", "NSImageRep", "NSBitmapImageRep", "NSGraphicsContext", "NSGraphics", "NSWorkspace", "objc2-core-foundation"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSGeometry", "NSString", "NSProcessInfo"] }
 screencapturekit = { version = "11", features = ["macos_14_0"] }
+# Process footprint for the memory report (proc_pid_rusage); already in the tree.
+libc = "0.2"
 # The sidebar's native material: the window's NSView, to put an NSVisualEffectView under it.
 raw-window-handle = "0.6"
 

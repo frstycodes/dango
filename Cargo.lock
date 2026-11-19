@@ -8092,6 +8092,7 @@ dependencies = [
  "gpui-pre",
  "image",
  "keyring",
+ "libc",
  "mp4",
  "ndarray",
  "nnnoiseless",
