@@ -1297,6 +1297,10 @@ fn markdown(id: SharedString, text: String, ctx: &RowContext) -> TextView {
                 .ok();
                 return;
             }
+            if let Some(link) = crate::link_preview::parse(&url) {
+                this.update(cx, |this, cx| this.open_discord_link(link, window, cx)).ok();
+                return;
+            }
             if !url.starts_with("rustcord://") {
                 cx.open_url(&url);
             }
