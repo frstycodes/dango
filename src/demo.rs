@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// WAFFLE_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | accounts | unread | home | home-presence | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
+// WAFFLE_DEMO=chat | busy | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | accounts | unread | home | home-presence | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -43,6 +43,25 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
     }
     waffle.on_event(Event::Typing { channel_id: "general".into(), user_id: "8388608".into(), name: Some("Wren".into()) }, cx);
     match scene {
+        // An account big enough that the rail, the channel list and the member list all scroll.
+        "busy" => {
+            let servers: Vec<Guild> = (1..=24u8).map(|n| {
+                let mut guild = waffle.guilds[0].clone();
+                guild.id = format!("busy-{n}");
+                guild.name = format!("Server {}", char::from(b'A' + n - 1));
+                guild
+            }).collect();
+            waffle.guilds.extend(servers);
+            if let Some(guild) = waffle.guilds.iter_mut().find(|g| g.id == "1") {
+                guild.channels.extend((1..=30).map(|n| channel(&format!("busy-{n}"), &format!("channel-{n}"), ChannelKind::Text, Some("c0"))));
+            }
+            let mut items = members();
+            items.extend((0..80).map(|n| {
+                let user = user(&(30_000_000 + n).to_string(), &format!("member {n}"));
+                ListItem::Member(Member { user, roles: Vec::new(), presence: Presence { status: Presence_::Offline, activity: None, rich: None } })
+            }));
+            waffle.on_event(Event::MemberList { guild_id: "1".into(), groups: vec![("r1".into(), 2), ("online".into(), 3), ("offline".into(), 81)], ops: vec![ListOp::Sync { start: 0, items }] }, cx);
+        }
         "gallery" => waffle.open_viewer(&avatar_url("3", None), window, cx),
         // Twenty made-up pictures and clips on one message, the viewer open at the tenth.
         "viewer" | "viewer-video" => {
