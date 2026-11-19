@@ -47,6 +47,8 @@ impl Rustcord {
     fn render_root(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         // Before the rows draw, so a row just let go of draws as landing rather than as a hole.
         self.settle_carry(cx);
+        // First, so every fill below knows whether it sits on the native material this frame.
+        crate::material::sync_sidebar_material(window, RAIL_WIDTH + self.channels_width, cx.theme().is_dark(), self.prefs.native_sidebar);
         let theme = cx.theme().clone();
         let root = div()
             .id("chord")
@@ -54,7 +56,7 @@ impl Rustcord {
             .size_full()
             .flex()
             .flex_col()
-            .bg(theme.title_bar)
+            .when(!crate::material::active(), |d| d.bg(theme.title_bar))
             .text_color(theme.foreground)
             .text_size(px(16.))
             .on_key_down(cx.listener(Self::on_root_key))
@@ -250,6 +252,7 @@ impl Rustcord {
     // In a call, the voice panel sits on top of it inside the same card.
     pub(crate) fn user_panel(&mut self, me: discord::User, cx: &mut Context<Self>) -> AnyElement {
         let rail = palette::surface(palette::Level::Rail, cx);
+        let (card, ring) = (crate::material::card(cx), crate::material::behind_sidebar(rail));
         let sharing = self.call.as_ref().is_some_and(|c| c.sharing.is_some());
         let server_muted = self.call.as_ref().and_then(|c| self.guilds.iter().find(|g| Some(&g.id) == c.guild_id.as_ref())).and_then(|g| g.voice_states.iter().find(|v| v.user_id == me.id)).is_some_and(|v| v.server_muted);
         let (muted, deafened) = (self.muted || self.deafened || server_muted, self.deafened);
@@ -284,8 +287,8 @@ impl Rustcord {
         // The card's bottom corners, and its top ones too when nothing sits above; outside them, the sidebar.
         let stacked = self.panel_stack_height() > PANEL_HEIGHT;
         let corners = [0., if stacked { 0. } else { ui::RADIUS_MD }, ui::RADIUS_MD, 0.];
-        let behind = palette::surface(palette::Level::Sidebar, cx);
-        let nameplate = me.nameplate.as_ref().map(|plate| nameplate(plate, rail, behind, corners, false, cx.theme().is_dark()));
+        let behind = crate::material::sidebar_fill(cx);
+        let nameplate = me.nameplate.as_ref().map(|plate| nameplate(plate, card, behind, corners, false, cx.theme().is_dark()));
         let hover = palette::hover(cx);
         let who = div()
             .id("me")
@@ -303,7 +306,7 @@ impl Rustcord {
                 this.status_menu = !this.status_menu;
                 cx.notify();
             }))
-            .child(decorated_avatar(&me.avatar, me.decoration.as_deref(), 32., Some(self.my_status), rail))
+            .child(decorated_avatar(&me.avatar, me.decoration.as_deref(), 32., Some(self.my_status), ring))
             .child(
                 div()
                     .flex_1()
@@ -321,7 +324,7 @@ impl Rustcord {
             .bottom_2()
             .squircle(ui::RADIUS_MD)
             .overflow_hidden()
-            .bg(rail)
+            .bg(card)
             .flex()
             .flex_col()
             .text_size(px(14.))
@@ -358,7 +361,7 @@ impl Rustcord {
             .flex_none()
             .flex()
             .flex_col()
-            .bg(palette::surface(palette::Level::Sidebar, cx))
+            .bg(crate::material::sidebar_fill(cx))
             .child(div().flex_1().min_h_0().flex().child(self.render_rail_column(window, cx)).child(self.render_channels(window, cx)))
             .children(user_panel)
     }
@@ -394,8 +397,8 @@ impl Rustcord {
             .flex()
             .items_center()
             .gap_2()
-            .border_b_1()
-            .border_color(palette::line(cx))
+            .relative()
+            .child(ui::inset_rule(crate::call::PANEL_PAD, cx))
             .child(Icon::new(Glyph::Download).size(px(16.)).flex_none().text_color(palette::accent_ink(cx)))
             .child(div().flex_1().min_w_0().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(format!("Dango {} is ready", staged.version)))
             .child(restart);
@@ -516,6 +519,9 @@ pub fn status_mark(status: discord::Status, dot: f32, surface: Hsla) -> AnyEleme
     }
     .into_any_element()
 }
+
+/// Where the traffic lights sit: centred in the 36px title strip, leaving the first 72px to them.
+pub const TRAFFIC_LIGHTS: gpui_kit::Point<gpui_kit::Pixels> = gpui_kit::point(px(12.), px(18.));
 
 /// Whether macOS draws its traffic lights in the window: windowed, not full screen. They take the rail's slot
 /// in the header row; everywhere else that slot holds the Home tile.

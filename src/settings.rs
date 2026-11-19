@@ -117,6 +117,8 @@ pub const UI_FONTS: [(&str, &str); 5] = [("Figtree", "Figtree"), ("Gabarito", "G
 #[serde(default)]
 pub struct Prefs {
     pub theme: ThemePref,
+    // The system's material behind the sidebar (Mica, Liquid Glass), where there is one.
+    pub native_sidebar: bool,
     // The interface's font family: Figtree (bundled) unless picked in Appearance.
     pub ui_font: String,
     pub app_icon: crate::app_icon::AppIcon,
@@ -185,6 +187,7 @@ impl Default for Prefs {
     fn default() -> Self {
         Self {
             theme: ThemePref::System,
+            native_sidebar: true,
             ui_font: UI_FONTS[0].0.into(),
             app_icon: crate::app_icon::AppIcon::default(),
             input_device: None,
@@ -964,7 +967,7 @@ impl Rustcord {
         )]
     }
 
-    fn appearance_page(&self, window: &Window, cx: &mut Context<Self>) -> Vec<Section> {
+    fn appearance_page(&self, window: &mut Window, cx: &mut Context<Self>) -> Vec<Section> {
         let current = self.prefs.theme;
         let os_dark = matches!(window.appearance(), gpui_kit::WindowAppearance::Dark | gpui_kit::WindowAppearance::VibrantDark);
         let pick = |id: &'static str, pref: ThemePref, preview: AnyElement, label: &'static str, note: Option<&'static str>, cx: &mut Context<Self>| {
@@ -1041,11 +1044,20 @@ impl Rustcord {
         }));
         // GAP: the design's Message density and Chat font size groups have no setting in the
         // app yet; they appear here once Prefs carries them.
-        vec![
+        let material = crate::material::setting_name().map(|name| {
+            let row = self.switch_row(SwitchRow { id: "set-native-sidebar", title: name, detail: None, on: self.prefs.native_sidebar, enabled: true, field: |p| &mut p.native_sidebar }, false, window, cx);
+            Section::keyed(
+                "Sidebar",
+                ui::settings_group("Sidebar", cx).child(ui::settings_card(cx).child(row)).child(ui::settings_caption("Lets your wallpaper's colour through the sidebar. In full screen the sidebar stays solid.", cx)),
+            )
+        });
+        let mut sections = vec![
             Section::keyed("Theme", ui::settings_group("Theme", cx).child(picks).child(ui::settings_caption("Midnight is the darkest theme, the one Dango is built on.", cx))),
             Section::keyed("Font", ui::settings_group("Font", cx).child(fonts).child(ui::settings_caption("The interface's typeface. Compare System with other Mac apps: if it looks heavier here, the rendering is the cause; if only Gabarito does, the font is.", cx))),
             Section::keyed("App icon", ui::settings_group("App icon", cx).child(self.app_icon_grid(cx)).child(ui::settings_caption("How Dango looks in your Dock: the same dango in different media. Changes right away; no restart.", cx))),
-        ]
+        ];
+        sections.splice(1..1, material);
+        sections
     }
 
     fn app_icon_grid(&self, cx: &mut Context<Self>) -> AnyElement {

@@ -80,11 +80,12 @@ fn search_fill(cx: &App) -> Hsla {
 // A button that opens a search somewhere else (the switcher), drawn as the search box with its label in the
 // placeholder ink: no caret, a hover fill and a pointer.
 pub fn search_button(id: impl Into<ElementId>, label: impl Into<SharedString>, cx: &App) -> Stateful<Div> {
-    let (strong, hover) = (palette::strong(cx), search_fill(cx).blend(palette::hover(cx)));
+    let fill = crate::material::card(cx);
+    let (strong, hover) = (palette::strong(cx), fill.blend(palette::hover(cx)));
     field_frame(cx)
         .id(id.into())
         .w_full()
-        .bg(search_fill(cx))
+        .bg(fill)
         .backdrop_blur(px(12.))
         .border_color(gpui_kit::transparent_black())
         .cursor_pointer()

@@ -126,7 +126,17 @@ pub fn scroll_edge_over(surface: Hsla, fade_right: f32, bar: f32, tail: f32) -> 
         .left_0()
         .right_0()
         .h(px(height))
-        .child(div().absolute().inset_0().right(px(fade_right)).backdrop_blur(px(16.)).backdrop_fade(px(0.), px(0.), px(height * 0.8), px(0.)))
+        .child(
+            div()
+                .absolute()
+                .inset_0()
+                .right(px(fade_right))
+                .backdrop_blur(px(16.))
+                .backdrop_fade(px(0.), px(0.), px(height * 0.8), px(0.))
+                // A clear surface (the native sidebar) has no colour for the ramps to fade into, so the
+                // content itself fades out toward the top instead.
+                .when(surface.a == 0., |d| d.backdrop_clear_top(px(height))),
+        )
         .child(ramp(height))
         .child(ramp(bar * 0.75))
 }
@@ -677,6 +687,12 @@ pub fn divider(label: Option<&'static str>, cx: &App) -> Div {
         .gap(px(12.))
         .child(line())
         .when_some(label, |d, label| d.child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::faint(cx)).child(label)).child(line()))
+}
+
+// The hairline along a stacked section's foot, held in from the card's edges by `inset`. The section
+// must be `relative`.
+pub fn inset_rule(inset: f32, cx: &App) -> Div {
+    div().absolute().bottom_0().left(px(inset)).right(px(inset)).h(px(1.)).bg(palette::line(cx))
 }
 
 // A squircle holding an icon, for row leads and settings.

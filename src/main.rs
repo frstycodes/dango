@@ -191,8 +191,7 @@ fn open_main(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gp
         focus: splash.is_none(),
         window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(1280.), px(820.)), cx))),
         window_min_size: Some(size(px(940.), px(520.))),
-        // The traffic lights centre in the 36px title bar, leaving the first 72px to them.
-        titlebar: Some(TitlebarOptions { title: Some("Dango".into()), appears_transparent: true, traffic_light_position: Some(gpui_kit::point(px(12.), px(18.))) }),
+        titlebar: Some(TitlebarOptions { title: Some("Dango".into()), appears_transparent: true, traffic_light_position: Some(layout::TRAFFIC_LIGHTS) }),
         window_background: material::window_background(),
         ..Default::default()
     };
@@ -205,7 +204,7 @@ fn open_main(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gp
         cx.new(|cx| shell::Shell::new(window, splash, cx))
     })
     .expect("open window");
-    if material::NATIVE_SIDEBAR {
+    if material::setting_name().is_some() {
         // gpui-component's root paints the theme background over the whole window, hiding the native
         // material; Root's own style is applied last, so it can clear that.
         handle
@@ -677,6 +676,7 @@ pub struct Rustcord {
     autocomplete: Option<Autocomplete>,
     // The suggestion list's scroll, kept on the highlighted row.
     autocomplete_scroll: gpui_kit::ScrollHandle,
+    channels_scroll: gpui_kit::ScrollHandle,
     flash: Option<String>,
     muted: bool,
     deafened: bool,
@@ -920,6 +920,7 @@ impl Rustcord {
             mention_wire: HashMap::new(),
             autocomplete: None,
             autocomplete_scroll: gpui_kit::ScrollHandle::new(),
+            channels_scroll: gpui_kit::ScrollHandle::new(),
             flash: None,
             muted: false,
             deafened: false,
