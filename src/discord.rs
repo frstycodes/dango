@@ -257,6 +257,8 @@ pub mod perm {
     pub const MANAGE_THREADS: u64 = 1 << 34;
     pub const CREATE_PUBLIC_THREADS: u64 = 1 << 35;
     pub const MODERATE_MEMBERS: u64 = 1 << 40;
+    pub const PIN_MESSAGES: u64 = 1 << 51;
+    pub const CONNECT: u64 = 1 << 20;
 }
 
 impl Guild {
@@ -301,9 +303,36 @@ impl Guild {
         bits
     }
 
+    // A channel or one of the threads we know of.
+    pub fn channel(&self, id: &str) -> Option<&Channel> {
+        self.channels.iter().chain(&self.threads).find(|c| c.id == id)
+    }
+
     /// Discord sends every channel in a server, including ones we can't open; fetching those is a 403.
     pub fn can_view(&self, me: &str, channel: &Channel) -> bool {
         self.channel_permissions(me, channel) & VIEW_CHANNEL != 0
+    }
+
+    // Discord's voice move rule (Modify Guild Member, and its menu code): moving ourselves is joining,
+    // which needs Connect; moving someone else needs Move members where they are and where they go,
+    // and Connect there. Its menus leave out full channels.
+    pub fn can_move(&self, me: &str, user_id: &str, to: &Channel) -> bool {
+        let present = self.voice_states.iter().filter(|v| v.channel_id.as_deref() == Some(to.id.as_str())).count();
+        if to.props.user_limit > 0 && present >= to.props.user_limit as usize {
+            return false;
+        }
+        let has = |channel: &Channel, bit: u64| self.channel_permissions(me, channel) & bit != 0;
+        if user_id == me {
+            return has(to, perm::CONNECT);
+        }
+        let from = self.voice_states.iter().find(|v| v.user_id == user_id).and_then(|v| self.channel(v.channel_id.as_deref()?));
+        from.is_some_and(|c| has(c, perm::MOVE_MEMBERS)) && has(to, perm::MOVE_MEMBERS) && has(to, perm::CONNECT)
+    }
+
+    // Where an invite is made: the first text channel we may invite from, one everyone sees if there is one.
+    pub fn invite_channel(&self, me: &str) -> Option<&Channel> {
+        let bits = VIEW_CHANNEL | perm::CREATE_INSTANT_INVITE;
+        self.channels.iter().filter(|c| c.kind == ChannelKind::Text && self.channel_permissions(me, c) & bits == bits).min_by_key(|c| c.private)
     }
 
     // The highest role we hold; Discord lets us manage only roles below it.
@@ -2492,6 +2521,89 @@ mod tests {
         let admin = Guild { my_roles: vec!["admins".into()], ..guild.clone() };
         assert_eq!(visible(&admin).len(), 5);
         assert!(guild.can_view("owner", &guild.channels[3]));
+    }
+
+    #[test]
+    fn manage_messages_follows_owner_admin_roles_and_overwrites() {
+        let role = |id: &str, permissions: u64| Role { id: id.into(), name: id.into(), color: 0, position: 0, permissions, managed: false };
+        let channel = |id: &str, overwrites: Value| parse_channel(&json!({ "id": id, "type": 0, "permission_overwrites": overwrites }), "g").unwrap();
+        let thread = parse_channel(&json!({ "id": "t", "type": 11, "parent_id": "locked", "thread_metadata": {} }), "g").unwrap();
+        let guild = Guild {
+            id: "g".into(),
+            name: "g".into(),
+            icon: None,
+            channels: vec![
+                channel("open", json!([])),
+                channel("locked", json!([{ "id": "mods", "type": 0, "allow": "0", "deny": "8192" }])),
+                channel("mine", json!([{ "id": "mods", "type": 0, "allow": "0", "deny": "8192" }, { "id": "me", "type": 1, "allow": "8192", "deny": "0" }])),
+                channel("everyone", json!([{ "id": "g", "type": 0, "allow": "8192", "deny": "0" }])),
+            ],
+            roles: vec![role("g", VIEW_CHANNEL), role("mods", perm::MANAGE_MESSAGES), role("admins", perm::ADMINISTRATOR)],
+            voice_states: Vec::new(),
+            emojis: Vec::new(),
+            stickers: Vec::new(),
+            owner_id: Some("owner".into()),
+            premium_tier: 0,
+            threads: vec![thread],
+            my_roles: Vec::new(),
+            default_notifications: Default::default(),
+        };
+        let can = |g: &Guild, me: &str, id: &str| g.channel_permissions(me, g.channel(id).unwrap()) & perm::MANAGE_MESSAGES != 0;
+        let all = ["open", "locked", "mine", "everyone", "t"];
+        let allowed = |g: &Guild, me: &str| all.iter().copied().filter(|id| can(g, me, id)).collect::<Vec<_>>();
+
+        assert_eq!(allowed(&guild, "me"), ["mine", "everyone"]);
+        assert_eq!(allowed(&guild, "owner"), all);
+        assert_eq!(allowed(&Guild { my_roles: vec!["admins".into()], ..guild.clone() }, "me"), all);
+        // The role grants it server-wide; a role overwrite takes it back, a member overwrite beats that, and threads follow their parent.
+        assert_eq!(allowed(&Guild { my_roles: vec!["mods".into()], ..guild.clone() }, "me"), ["open", "mine", "everyone"]);
+    }
+
+    #[test]
+    fn voice_moves_and_invites_follow_channel_permissions() {
+        let role = |id: &str, permissions: u64| Role { id: id.into(), name: id.into(), color: 0, position: 0, permissions, managed: false };
+        let channel = |id: &str, kind: u8, limit: u32, overwrites: Value| parse_channel(&json!({ "id": id, "type": kind, "user_limit": limit, "permission_overwrites": overwrites }), "g").unwrap();
+        let in_voice = |user: &str, channel: &str| VoiceState { user_id: user.into(), channel_id: Some(channel.into()), ..Default::default() };
+        let deny = |bits: u64| json!([{ "id": "mods", "type": 0, "allow": "0", "deny": bits.to_string() }]);
+        let guild = Guild {
+            id: "g".into(),
+            name: "g".into(),
+            icon: None,
+            channels: vec![
+                channel("rules", 0, 0, deny(perm::CREATE_INSTANT_INVITE)),
+                channel("chat", 0, 0, json!([])),
+                channel("a", 2, 0, json!([])),
+                channel("b", 2, 0, json!([])),
+                channel("full", 2, 1, json!([])),
+                channel("locked", 2, 0, deny(perm::MOVE_MEMBERS)),
+                channel("closed", 2, 0, deny(perm::CONNECT)),
+            ],
+            roles: vec![role("g", VIEW_CHANNEL | perm::CONNECT | perm::CREATE_INSTANT_INVITE), role("mods", perm::MOVE_MEMBERS)],
+            voice_states: vec![in_voice("them", "a"), in_voice("other", "full"), in_voice("held", "locked")],
+            emojis: Vec::new(),
+            stickers: Vec::new(),
+            owner_id: Some("owner".into()),
+            premium_tier: 0,
+            threads: Vec::new(),
+            my_roles: vec!["mods".into()],
+            default_notifications: Default::default(),
+        };
+        let to = |g: &Guild, me: &str, who: &str| ["b", "full", "locked", "closed"].into_iter().filter(|id| g.can_move(me, who, g.channel(id).unwrap())).collect::<Vec<_>>();
+
+        // Move members on both ends and Connect on the destination; full channels are out.
+        assert_eq!(to(&guild, "me", "them"), ["b"]);
+        // Not from a channel where Move members is denied.
+        assert_eq!(to(&guild, "me", "held"), Vec::<&str>::new());
+        // Without the role, nobody else moves.
+        assert_eq!(to(&Guild { my_roles: Vec::new(), ..guild.clone() }, "me", "them"), Vec::<&str>::new());
+        // Ourselves: Connect is enough.
+        assert_eq!(to(&guild, "me", "me"), ["b", "locked"]);
+        assert_eq!(to(&guild, "owner", "them"), ["b", "locked", "closed"]);
+
+        assert_eq!(guild.invite_channel("me").map(|c| c.id.as_str()), Some("chat"));
+        assert_eq!(guild.invite_channel("owner").map(|c| c.id.as_str()), Some("rules"));
+        let no_invites = Guild { roles: vec![role("g", VIEW_CHANNEL)], my_roles: Vec::new(), ..guild.clone() };
+        assert_eq!(no_invites.invite_channel("me").map(|c| c.id.as_str()), None);
     }
 
     #[test]

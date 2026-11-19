@@ -405,9 +405,9 @@ pub enum Place {
 }
 
 impl Waffle {
-    pub(crate) fn can_move_people(&self, guild_id: &str) -> bool {
+    pub(crate) fn can_move_voice(&self, guild_id: &str, user_id: &str, to: &str) -> bool {
         let (Some(me), Some(guild)) = (self.me.as_ref(), self.guilds.iter().find(|g| g.id == guild_id)) else { return false };
-        guild.can(&me.id, perm::MOVE_MEMBERS)
+        guild.channel(to).is_some_and(|to| guild.can_move(&me.id, user_id, to))
     }
 
     pub(crate) fn can_arrange_channels(&self, guild_id: &str) -> bool {
@@ -417,6 +417,9 @@ impl Waffle {
 
     // Drop someone on a voice channel: we join it ourselves, or move them there.
     pub(crate) fn drop_voice_user(&mut self, drag: &VoiceDrag, channel: Channel, cx: &mut Context<Self>) {
+        if !self.can_move_voice(&drag.guild_id, &drag.user_id, &channel.id) {
+            return;
+        }
         let previous = self.voice_channel_of(&drag.guild_id, &drag.user_id);
         let Some(target) = voice_move_target(previous.as_deref(), &channel.id).map(str::to_owned) else { return };
         let me = self.me.as_ref().is_some_and(|m| m.id == drag.user_id);

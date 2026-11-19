@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// WAFFLE_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | mention | mention-tab | mention-enter | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | home | home-presence | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
+// WAFFLE_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | message-menu-theirs | user-menu-voice | user-menu-voice-denied | mention | mention-tab | mention-enter | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | home | home-presence | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -200,6 +200,32 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
                 if let Some(message) = mine {
                     waffle.open_message_menu(message, gpui_kit::point(gpui_kit::px(560.), gpui_kit::px(120.)), cx);
                 }
+            }
+        }
+        // Wren's voice menu. As owner, Move to lists study-hall; "-denied" makes us a Council moderator whose
+        // role study-hall denies Move members, so Move to is gone while mute, deafen and disconnect stay.
+        "user-menu-voice" | "user-menu-voice-denied" => {
+            use crate::discord::{Overwrite, VIEW_CHANNEL, perm};
+            if scene == "user-menu-voice-denied"
+                && let Some(guild) = waffle.guilds.iter_mut().find(|g| g.id == "1")
+            {
+                guild.owner_id = Some("8388608".into());
+                guild.my_roles = vec!["r1".into()];
+                for role in guild.roles.iter_mut().filter(|r| r.id == "r1") {
+                    role.permissions = VIEW_CHANNEL | perm::CONNECT | perm::MOVE_MEMBERS | perm::MUTE_MEMBERS | perm::DEAFEN_MEMBERS;
+                }
+                for hub in guild.channels.iter_mut().filter(|c| c.id == "hub") {
+                    hub.overwrites.push(Overwrite { id: "r1".into(), allow: 0, deny: perm::MOVE_MEMBERS, member: false });
+                }
+            }
+            waffle.open_user_menu(user("8388608", "Wren"), Some("1".into()), crate::user_menu::Surface::ServerVoice, gpui_kit::point(gpui_kit::px(300.), gpui_kit::px(300.)), cx);
+        }
+        // As the server's owner, someone else's message as REST history loads it (no guild_id): Delete, Pin
+        // and the reaction removals are on offer.
+        "message-menu-theirs" => {
+            let theirs = waffle.feeds.get("general").and_then(|f| f.messages.iter().find(|m| m.id == "102").cloned());
+            if let Some(message) = theirs {
+                waffle.open_message_menu(Message { guild_id: None, ..message }, gpui_kit::point(gpui_kit::px(560.), gpui_kit::px(120.)), cx);
             }
         }
         "search" | "search-from" | "search-date" => demo_search(waffle, scene, window, cx),
