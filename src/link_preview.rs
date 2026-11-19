@@ -167,8 +167,9 @@ impl Rustcord {
         .detach();
     }
 
-    // A Discord link clicked in a message opens here, not in the browser.
-    pub(crate) fn open_discord_link(&mut self, link: DiscordLink, window: &mut Window, cx: &mut Context<Self>) {
+    // A clicked link: a Discord one opens here, anything else in the browser.
+    pub(crate) fn open_link(&mut self, url: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(link) = parse(url) else { return cx.open_url(url) };
         match link {
             DiscordLink::Message { guild, channel, message } => self.open_linked(guild, channel, Some(message), window, cx),
             DiscordLink::Channel { guild, channel } => self.open_linked(guild, channel, None, window, cx),

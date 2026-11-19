@@ -1297,12 +1297,8 @@ fn markdown(id: SharedString, text: String, ctx: &RowContext) -> TextView {
                 .ok();
                 return;
             }
-            if let Some(link) = crate::link_preview::parse(&url) {
-                this.update(cx, |this, cx| this.open_discord_link(link, window, cx)).ok();
-                return;
-            }
             if !url.starts_with("rustcord://") {
-                cx.open_url(&url);
+                this.update(cx, |this, cx| this.open_link(&url, window, cx)).ok();
             }
         })
 }
@@ -1603,7 +1599,7 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
         div().flex().items_center().gap(px(6.)).min_w_0().text_size(px(12.)).font_weight(FontWeight::NORMAL).text_color(faint).child(div().size(px(14.)).flex_none().squircle(4.).bg(mark)).child(div().min_w_0().truncate().child(provider))
     });
     let author = embed.author.clone().map(|name| {
-        let url = embed.author_url.clone();
+        let (url, this) = (embed.author_url.clone(), ctx.this.clone());
         div()
             .id(SharedString::from(format!("{key}-author")))
             .flex()
@@ -1614,16 +1610,17 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
             .text_color(strong)
             .children(embed.author_icon.clone().map(|icon| ui::avatar(icon, 20.)))
             .child(div().when(url.is_some(), |d| d.cursor_pointer().hover(|s| s.underline())).child(name))
-            .when_some(url, |d, url| d.on_click(move |_, _, cx| { cx.stop_propagation(); cx.open_url(&url) }))
+            .when_some(url, |d, url| d.on_click(move |_, window, cx| { cx.stop_propagation(); this.update(cx, |this, cx| this.open_link(&url, window, cx)).ok(); }))
     });
     let link = embed.url.clone();
     let title = embed.title.clone().map(|title| {
         div()
+        let this = ctx.this.clone();
             .id(SharedString::from(format!("{key}-title")))
             .text_size(px(14.))
             .font_weight(FontWeight::MEDIUM)
             .text_color(if link.is_some() { link_ink } else { strong })
-            .when_some(link.clone(), |t, url| t.cursor_pointer().hover(|s| s.underline()).on_click(move |_, _, cx| { cx.stop_propagation(); cx.open_url(&url) }))
+            .when_some(link.clone(), |t, url| t.cursor_pointer().hover(|s| s.underline()).on_click(move |_, window, cx| { cx.stop_propagation(); this.update(cx, |this, cx| this.open_link(&url, window, cx)).ok(); }))
             .child(title)
     });
     let fields = (!embed.fields.is_empty()).then(|| {
