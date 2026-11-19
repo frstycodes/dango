@@ -935,8 +935,9 @@ impl Client {
         let slots = self.run(req).await?;
         let slots = parse_upload_slots(&slots, files.len())?;
         for (file, (url, _)) in files.iter().zip(&slots) {
-            let put = runtime().spawn(put_file(self.http.clone(), url.clone(), file.path.clone(), file.sent.clone()));
-            put.await.map_err(|e| e.to_string())??;
+            // Cancel drops this future; the guard stops the PUT with it.
+            let mut put = AbortOnDrop(runtime().spawn(put_file(self.http.clone(), url.clone(), file.path.clone(), file.sent.clone())));
+            (&mut put.0).await.map_err(|e| e.to_string())??;
         }
         let uploaded: Vec<(String, String)> = files.iter().zip(slots).map(|(f, (_, name))| (f.name.clone(), name)).collect();
         let body = message_body(content, nonce, reply_to, ping_author, &uploaded);

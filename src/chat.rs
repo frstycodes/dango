@@ -1713,14 +1713,18 @@ fn files(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Vec<AnyElemen
         .collect()
 }
 
-// The files of a message still uploading: each with its picture, and its bytes out of its size as a
-// bar, so a big file visibly moves.
+// The files of a message still uploading: each with its picture, its bytes out of its size as a bar so
+// a big file visibly moves, and Cancel, which drops the whole message as Discord's does.
 fn upload_cards(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Vec<AnyElement> {
+    if message.state == SendState::Sent {
+        return Vec::new();
+    }
     let Some(job) = message.nonce.as_ref().and_then(|n| ctx.uploads.get(n)) else { return Vec::new() };
     let (strong, faint) = (palette::strong(cx), palette::faint(cx));
     job.files
         .iter()
-        .map(|file| {
+        .enumerate()
+        .map(|(ix, file)| {
             let sent = file.sent.load(std::sync::atomic::Ordering::Relaxed).min(file.size);
             let fraction = if file.size == 0 { 1. } else { sent as f32 / file.size as f32 };
             let kind = crate::attachments::FileKind::of(&file.path);
@@ -1752,6 +1756,13 @@ fn upload_cards(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Vec<AnyEle
                         .child(div().flex().items_baseline().gap(px(8.)).child(div().flex_1().min_w_0().truncate().text_size(px(14.)).font_weight(FontWeight::MEDIUM).text_color(strong).child(file.name.clone())).child(div().flex_none().text_size(px(12.)).text_color(faint).child(status)))
                         .when(job.error.is_none(), |d| d.child(ui::progress(fraction, cx))),
                 )
+                .when(job.error.is_none(), |d| {
+                    let (this, cancel) = (ctx.this.clone(), message.clone());
+                    d.child(ui::icon_button(SharedString::from(format!("cancel-upload-{}-{ix}", message.id)), Glyph::X, "Cancel upload", cx).small().on_click(move |_, _, cx| {
+                        cx.stop_propagation();
+                        this.update(cx, |this, cx| this.delete(cancel.clone(), cx)).ok();
+                    }))
+                })
                 .into_any_element()
         })
         .collect()
