@@ -82,9 +82,19 @@ libc = "0.2"
 # The sidebar's native material: the window's NSView, to put an NSVisualEffectView under it.
 raw-window-handle = "0.6"
 
+# Full debug info made each worktree's target/ tens of GB. Backtraces keep file:line; a debugger
+# loses locals in our code and everything in dependencies. Not "line-tables-only": inlined frames
+# then lose their module path, which the memory report's frame filter matches on.
+[profile.dev]
+debug = "limited"
+
 # RSA key generation takes seconds unoptimised; dependencies build optimised even in debug.
 [profile.dev.package."*"]
 opt-level = 2
+debug = false
+
+[profile.dev.build-override]
+debug = false
 
 # tract 0.21.4's debug-only graph check rejects DeepFilterNet3's encoder ("duplicate name
 # /convt3/Conv.bias") although release builds run it fine; debug builds skip the check like release.
