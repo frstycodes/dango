@@ -4,6 +4,8 @@
 mod accounts;
 mod attachments;
 mod app_keys;
+mod crash;
+mod create_channel;
 mod restart;
 mod feed_keys;
 mod auth;
@@ -110,6 +112,7 @@ static ALLOCATOR: memory::Counting = memory::Counting;
 static ALLOCATOR: dhat::Alloc = dhat::Alloc;
 
 fn main() {
+    crash::install();
     #[cfg(feature = "dhat-heap")]
     memory::start_heap_profile();
     memory::start_reporting();
@@ -679,9 +682,16 @@ pub struct Waffle {
     // The window is in front; notifications for the open channel are skipped then.
     window_active: bool,
     dialog: Option<menu::Dialog>,
+    create_channel: Option<create_channel::CreateChannel>,
     dialog_input: Entity<SearchState>,
     // A short notice at the bottom, e.g. why a moderation action failed.
     toast: Option<SharedString>,
+    // The Friends page's Add friend tab: the username field and how the last request went.
+    add_friend_input: Entity<SearchState>,
+    add_friend_note: Entity<TextareaState>,
+    add_friend_result: Option<Result<SharedString, SharedString>>,
+    // The gateway refused the token once and REST accepted it; set until the next READY.
+    auth_retried: bool,
     // The background updater: its status (a staged update installs on Restart or the next launch).
     updates: updater::Updates,
     // The Go Live picker: None closed, Some(None) loading, Some(Some(..)) listed.
@@ -825,6 +835,7 @@ impl Waffle {
         .detach();
         #[allow(unused_mut)]
         let mut waffle = Self::build(window, splash, cx);
+        window.set_zoom(waffle.prefs.zoom, cx);
         let main = restart::Main(cx.entity().downgrade());
         cx.set_global(main);
         waffle.watch_for_updates(cx);
@@ -878,8 +889,19 @@ impl Waffle {
         cx.subscribe_in(&switcher_input, window, Self::on_switcher_input).detach();
         let settings_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search settings"));
         let dialog_input = cx.new(|cx| SearchState::new(window, cx));
+        // Enter in the field submits Create Channel; the input keeps the key from reaching the dialog.
+        cx.subscribe(&dialog_input, |this: &mut Self, _, event: &InputEvent, cx| {
+            if matches!(event, InputEvent::PressEnter { .. }) && this.create_channel.is_some() {
+                this.submit_create_channel(cx);
+            }
+        })
+        .detach();
         let status_input = cx.new(|cx| SearchState::new(window, cx).placeholder("What's on your mind?"));
         cx.subscribe_in(&status_input, window, Self::on_status_input).detach();
+        let add_friend_input = cx.new(|cx| SearchState::new(window, cx).placeholder("username"));
+        cx.subscribe_in(&add_friend_input, window, Self::on_add_friend_input).detach();
+        let add_friend_note = cx.new(|cx| TextareaState::new(window, cx).placeholder("Say hi, or how you know each other"));
+        cx.observe(&add_friend_note, |_, _, cx| cx.notify()).detach();
         cx.subscribe(&settings_search, |this: &mut Self, _, _: &InputEvent, cx| {
             // A new query starts at its best result.
             if let Some(view) = this.settings.as_mut() {
@@ -975,8 +997,13 @@ impl Waffle {
             watch_on_connect: None,
             window_active: true,
             dialog: None,
+            create_channel: None,
             dialog_input,
             toast: None,
+            add_friend_input,
+            add_friend_note,
+            add_friend_result: None,
+            auth_retried: false,
             share_picker: None,
             share_choice: None,
             share_choice_label: None,
@@ -1125,6 +1152,34 @@ impl Waffle {
         cx.notify();
     }
 
+    // The gateway closed with 4004. Only a token the REST API also refuses is forgotten (that sends you to
+    // sign in); anything else, a network error included, reconnects with the same token.
+    fn verify_rejected_token(&mut self, cx: &mut Context<Self>) {
+        let (Some(client), Some(token)) = (self.client.clone(), self.token.clone()) else { return self.sign_in(cx) };
+        // A second 4004 before any READY: the token reads fine over REST but the gateway still refuses it.
+        if std::mem::replace(&mut self.auth_retried, true) {
+            self.forget_rejected_account();
+            return self.sign_in(cx);
+        }
+        self.status = Status::Reconnecting("Checking your sign-in…".into());
+        cx.spawn(async move |this, cx| {
+            let refused = client.call(reqwest::Method::GET, "/users/@me".into(), None).await.err().is_some_and(|e| crate::discord::is_unauthorized(&e));
+            this.update(cx, |this, cx| match refused {
+                true => {
+                    eprintln!("gateway: token refused (4004 and REST 401), signing out");
+                    this.forget_rejected_account();
+                    this.sign_in(cx);
+                }
+                false => {
+                    eprintln!("gateway: 4004 but the token still works, reconnecting");
+                    this.connect(token, cx);
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+
     fn sign_in(&mut self, cx: &mut Context<Self>) {
         // Signing in happens in the main window, so the splash steps aside.
         self.finish_splash(cx);
@@ -1174,6 +1229,7 @@ impl Waffle {
             Event::Ready(ready) => {
                 let ready = *ready;
                 self.channel_info_requested.clear();
+                self.auth_retried = false;
                 // Demo scenes set their own place; the last channel a real session saved would override it.
                 if self.me.is_none() && std::env::var_os("WAFFLE_DEMO").is_none() {
                     self.restore = home::load_last_channel(&ready.me.id);
@@ -1223,6 +1279,7 @@ impl Waffle {
                 self.status = Status::Online;
                 self.load_activity_feed(cx);
                 self.splash_ready(cx);
+                self.rejoin_after_restart(cx);
             }
             Event::Batch(events) => {
                 for event in events {
@@ -1445,10 +1502,8 @@ impl Waffle {
                 self.splash_stage(0, "Reconnecting…", cx);
                 self.status = Status::Reconnecting(reason.into());
             }
-            Event::AuthFailed => {
-                self.forget_rejected_account();
-                return self.sign_in(cx);
-            }
+            Event::Resumed => self.status = Status::Online,
+            Event::AuthFailed => return self.verify_rejected_token(cx),
         }
         self.resolve_voice_users();
         self.refresh_stream_previews(cx);
@@ -2438,6 +2493,16 @@ impl Waffle {
         let Some(channel) = &self.channel else { return Vec::new() };
         let now = Instant::now();
         self.typing.get(&channel.id).map(|t| t.iter().filter(|t| t.until > now).cloned().collect()).unwrap_or_default()
+    }
+
+    // The call Waffle's own restart left (restart.rs). Once only: a channel gone or hidden is dropped.
+    fn rejoin_after_restart(&mut self, cx: &mut Context<Self>) {
+        let Some((guild_id, channel_id)) = self.prefs.rejoin_voice.take() else { return };
+        self.prefs.save();
+        let channel = self.guilds.iter().find(|g| g.id == guild_id).and_then(|g| g.channels.iter().find(|c| c.id == channel_id)).cloned();
+        if let Some(channel) = channel {
+            self.join_voice_in(Some(guild_id), channel, cx);
+        }
     }
 
     fn join_voice(&mut self, channel: Channel, cx: &mut Context<Self>) {

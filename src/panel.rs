@@ -216,9 +216,9 @@ impl Waffle {
             .when_some(entry.streak_days, |m, days| m.child(div().w(px(6.)).flex_none()).child(Icon::default().data(BOLT).size(px(14.)).flex_none()).child(div().truncate().child(format!("{days}× streak"))));
         let image = entry.image.clone().or_else(|| self.app_icon(entry.app_id.as_deref()?, cx));
         let art = match image {
-            Some(url) => img(url).size(px(56.)).flex_none().object_fit(gpui_kit::ObjectFit::Cover).squircle(ui::RADIUS_MD).into_any_element(),
+            Some(url) => img(url).size(px(44.)).flex_none().object_fit(gpui_kit::ObjectFit::Cover).squircle(ui::RADIUS_MD).into_any_element(),
             None => div()
-                .size(px(56.))
+                .size(px(44.))
                 .flex_none()
                 .squircle(ui::RADIUS_MD)
                 .bg(palette::selected(cx))
@@ -226,15 +226,16 @@ impl Waffle {
                 .items_center()
                 .justify_center()
                 .text_color(muted)
-                .children(activity_glyph(entry.kind).or_else(|| activity_glyph(ActivityKind::Playing)).map(|icon| icon.size(px(24.))))
+                .children(activity_glyph(entry.kind).or_else(|| activity_glyph(ActivityKind::Playing)).map(|icon| icon.size(px(20.))))
                 .into_any_element(),
         };
         div()
             .id(SharedString::from(format!("activity-{i}")))
             .flex()
             .items_center()
-            .gap(px(12.))
-            .p(px(10.))
+            .gap(px(10.))
+            .px(px(10.))
+            .py(px(8.))
             .squircle(ui::RADIUS_LG)
             .bg(palette::surface(palette::Level::Page, cx))
             .border_1()
@@ -247,8 +248,8 @@ impl Waffle {
                     .min_w_0()
                     .flex()
                     .flex_col()
-                    .gap(px(2.))
-                    .child(div().flex().items_center().gap(px(6.)).min_w_0().child(ui::avatar(member.user.avatar.clone(), 16.).flex_none()).child(div().truncate().text_color(name_ink).child(member.user.name.clone())))
+                    .gap(px(1.))
+                    .child(div().flex().items_center().gap(px(6.)).min_w_0().text_size(px(12.)).child(ui::avatar(member.user.avatar.clone(), 14.).flex_none()).child(div().truncate().text_color(name_ink).child(member.user.name.clone())))
                     .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(strong).child(entry.title.clone()))
                     .child(meta),
             )

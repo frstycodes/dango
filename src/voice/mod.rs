@@ -53,6 +53,8 @@ pub use dsp::NoiseSuppression;
 pub use video::VideoFrame;
 
 const SERVER_TIMEOUT: Duration = Duration::from_secs(10);
+// How long a call closed with 4022 waits for a VOICE_SERVER_UPDATE that moves it elsewhere.
+const MOVE_TIMEOUT: Duration = Duration::from_secs(5);
 // Every voice state in every guild passes through: a receiver more than this far behind misses
 // dispatches, and a missed STREAM_DELETE leaves a stream we watch frozen on its last frame.
 const DISPATCH_BACKLOG: usize = 1024;
@@ -386,6 +388,8 @@ struct Shared {
     channel_id: String,
     events: mpsc::UnboundedSender<VoiceEvent>,
     session_id: Mutex<Option<String>>,
+    // A VOICE_SERVER_UPDATE mid-call: Discord moved the call to this server; the session reconnects there.
+    moved_server: Mutex<Option<Server>>,
     muted: AtomicBool,
     deafened: AtomicBool,
     // A voice-state update is waiting to go out, and when the last one did (see `send_flags_soon`).
@@ -521,6 +525,7 @@ pub fn join(
         channel_id,
         events,
         session_id: Mutex::new(None),
+        moved_server: Mutex::new(None),
         muted: AtomicBool::new(false),
         deafened: AtomicBool::new(false),
         flags_pending: AtomicBool::new(false),
@@ -800,18 +805,54 @@ async fn join_voice(shared: &Arc<Shared>, dispatches: &mut broadcast::Receiver<(
     if let Ok(mut id) = shared.session_id.lock() {
         *id = Some(session_id.clone());
     }
-    let target = Target {
+    let mut target = Target {
         server_id: shared.server_id().to_owned(),
         dave_channel: shared.channel_id.clone(),
         session_id,
         server,
         role: Role::Voice,
     };
-    serve(shared, target, dispatches, |kind, d| voice_dispatch(shared, kind, d)).await
+    // Discord reallocates a call's voice server with a fresh VOICE_SERVER_UPDATE (docs: Voice, "Voice
+    // Server Update"): the old connection is dropped and the same session identifies on the new endpoint.
+    loop {
+        let result = serve(shared, target.clone(), dispatches, |kind, d| voice_dispatch(shared, kind, d)).await;
+        let mut moved = take_moved(shared);
+        // The old server closes with 4022 when the call moves, possibly before the update naming the new
+        // one arrives (Discord sends a null-endpoint update first). Not verified live: the order isn't documented.
+        if moved.is_none() && result.as_ref().is_err_and(|reason| call_terminated(reason)) {
+            moved = tokio::time::timeout(MOVE_TIMEOUT, await_move(shared, dispatches)).await.ok().flatten();
+        }
+        let Some(server) = moved else { return result };
+        shared.emit(VoiceEvent::Stage(Stage::AwaitingEndpoint));
+        target.server = server;
+    }
+}
+
+fn take_moved(shared: &Shared) -> Option<Server> {
+    shared.moved_server.lock().ok().and_then(|mut s| s.take())
+}
+
+// Follows dispatches as `serve` does until one ends the call; Some when that was a server move.
+async fn await_move(shared: &Shared, dispatches: &mut broadcast::Receiver<(String, Value)>) -> Option<Server> {
+    loop {
+        let (kind, d) = next_dispatch(dispatches).await?;
+        if voice_dispatch(shared, &kind, &d).is_some() {
+            return take_moved(shared);
+        }
+    }
 }
 
 // Follows our channel's voice states while connected; ends the connection if we were moved out.
 fn voice_dispatch(shared: &Shared, kind: &str, d: &Value) -> Option<String> {
+    if kind == "VOICE_SERVER_UPDATE" {
+        let for_us = d["guild_id"].as_str().or(d["channel_id"].as_str()) == Some(shared.server_id());
+        // A null endpoint means another update follows with the new server; wait for that one.
+        let server = parse_server(d).filter(|_| for_us)?;
+        if let Ok(mut moved) = shared.moved_server.lock() {
+            *moved = Some(server);
+        }
+        return Some("Voice server moved".into());
+    }
     if kind != "VOICE_STATE_UPDATE" {
         return None;
     }
@@ -860,6 +901,7 @@ struct Server {
     endpoint: String,
 }
 
+#[derive(Clone)]
 struct Target {
     server_id: String,
     // DAVE's MLS group id: the voice channel, or a Go Live's `rtc_channel_id`.
@@ -1121,7 +1163,7 @@ async fn serve(
                 None => Ok(None),
             },
             frame = stream.next() => match frame {
-                None => Err("Voice gateway closed".to_owned()),
+                None => Err("Voice connection lost".to_owned()),
                 Some(Err(e)) => Err(e.to_string()),
                 Some(Ok(WsMessage::Close(close))) if !resumable(close.as_ref()) => return Err(close_reason(close.as_ref())),
                 Some(Ok(WsMessage::Close(close))) => Err(close_reason(close.as_ref())),
@@ -1284,16 +1326,51 @@ fn resume_payload(target: &Target, seq_ack: i64) -> Value {
     }})
 }
 
-// Not verified against a live server; from Discord's voice close-code docs: 4014 (removed from the
-// channel / channel deleted), 4022 (call terminated), 4004 (auth failed) and 4006 (session no
-// longer valid) end the session for good. Everything else, 4015 (voice server crashed) and plain
-// network closes included, is worth a resume.
+// Discord's voice close codes (docs.discord.com, Opcodes and Status Codes; 4013 from docs.discord.food):
+// whether a resume is worth trying, and the reason the voice panel shows. Docs: don't reconnect after
+// 4014, 4021, 4022; try resuming after 4013 and 4015. The rest describe a session or request a resume
+// can't repair, so they end the call too (the user can rejoin). Unlisted codes and a reset without a
+// close frame resume.
+fn voice_close(code: u16) -> (bool, Option<&'static str>) {
+    match code {
+        4001 => (false, Some("Unknown opcode")),
+        4002 => (false, Some("Failed to decode payload")),
+        4003 => (false, Some("Not authenticated")),
+        4004 => (false, Some("Authentication failed")),
+        4005 => (false, Some("Already authenticated")),
+        4006 => (false, Some("Session no longer valid")),
+        4009 => (false, Some("Session timed out")),
+        4011 => (false, Some("Voice server not found")),
+        4012 => (false, Some("Unknown protocol")),
+        4013 => (true, Some("WebRTC crashed")),
+        4014 => (false, Some("Disconnected by Discord")),
+        4015 => (true, Some("Voice server crashed")),
+        4016 => (false, Some("Unknown encryption mode")),
+        4017 => (false, Some("End-to-end encryption required")),
+        4020 => (false, Some("Bad request")),
+        4021 => (false, Some("Rate limited by Discord")),
+        4022 => (false, Some("The call ended")),
+        _ => (true, None),
+    }
+}
+
+fn call_terminated(reason: &str) -> bool {
+    reason.ends_with("(4022)")
+}
+
 fn resumable(close: Option<&tungstenite::protocol::CloseFrame>) -> bool {
-    close.is_none_or(|c| !matches!(u16::from(c.code), 4004 | 4006 | 4014 | 4022))
+    close.is_none_or(|c| voice_close(u16::from(c.code)).0)
 }
 
 fn close_reason(close: Option<&tungstenite::protocol::CloseFrame>) -> String {
-    close.map_or_else(|| "Voice gateway closed".to_owned(), |c| format!("Voice gateway closed: {} {}", u16::from(c.code), c.reason))
+    match close {
+        None => "Voice connection lost".to_owned(),
+        Some(c) => {
+            let code = u16::from(c.code);
+            let reason = voice_close(code).1.map(str::to_owned).unwrap_or_else(|| if c.reason.is_empty() { "Voice connection lost".to_owned() } else { c.reason.to_string() });
+            format!("{reason} ({code})")
+        }
+    }
 }
 
 // WAFFLE_VOICE_DEBUG=1 logs voice-gateway traffic and unroutable UDP packets to stderr.
@@ -1411,6 +1488,7 @@ mod tests {
             channel_id: "c".into(),
             events,
             session_id: Mutex::new(None),
+            moved_server: Mutex::new(None),
             muted: AtomicBool::new(false),
             deafened: AtomicBool::new(false),
             flags_pending: AtomicBool::new(false),
@@ -1438,11 +1516,18 @@ mod tests {
         use tungstenite::protocol::{CloseFrame, frame::coding::CloseCode};
         let close = |code: u16| CloseFrame { code: CloseCode::from(code), reason: "".into() };
         assert!(resumable(None), "a reset without a close frame resumes");
-        assert!(resumable(Some(&close(4015))), "voice server crashed");
-        assert!(resumable(Some(&close(1001))));
-        for code in [4004, 4006, 4014, 4022] {
+        for code in [1000, 1001, 1006, 4013, 4015] {
+            assert!(resumable(Some(&close(code))), "{code} resumes");
+        }
+        for code in [4001, 4002, 4003, 4004, 4005, 4006, 4009, 4011, 4012, 4014, 4016, 4017, 4020, 4021, 4022] {
             assert!(!resumable(Some(&close(code))), "{code} ends the call");
         }
+        assert_eq!(close_reason(Some(&close(4014))), "Disconnected by Discord (4014)");
+        assert_eq!(close_reason(Some(&close(4022))), "The call ended (4022)");
+        assert!(call_terminated(&close_reason(Some(&close(4022)))));
+        assert!(!call_terminated(&close_reason(Some(&close(4014)))));
+        assert_eq!(close_reason(Some(&CloseFrame { code: CloseCode::from(4999), reason: "Odd".into() })), "Odd (4999)");
+        assert_eq!(close_reason(None), "Voice connection lost");
     }
 
     #[test]
@@ -1458,6 +1543,27 @@ mod tests {
         let Ok(VoiceEvent::VideoState { user_id, streaming: true, camera: false }) = rx.try_recv() else { panic!() };
         assert_eq!(user_id, "u");
         assert!(voice_dispatch(&shared, "VOICE_STATE_UPDATE", &json!({ "user_id": "me", "channel_id": null })).is_some());
+    }
+
+    #[test]
+    fn server_update_mid_call_moves_only_ours_with_an_endpoint() {
+        let (shared, _rx) = shared();
+        let update = |guild: &str, endpoint: Value| json!({ "guild_id": guild, "token": "t", "endpoint": endpoint });
+        assert_eq!(voice_dispatch(&shared, "VOICE_SERVER_UPDATE", &update("g", Value::Null)), None, "null endpoint waits");
+        assert_eq!(voice_dispatch(&shared, "VOICE_SERVER_UPDATE", &update("other", json!("b.discord.media"))), None);
+        assert!(take_moved(&shared).is_none());
+        assert!(voice_dispatch(&shared, "VOICE_SERVER_UPDATE", &update("g", json!("b.discord.media"))).is_some());
+        assert_eq!(take_moved(&shared).map(|s| s.endpoint).as_deref(), Some("b.discord.media"));
+    }
+
+    #[test]
+    fn closed_call_waits_for_the_move_in_the_backlog() {
+        let (shared, _rx) = shared();
+        let mut dispatches = shared.gateway.dispatches.subscribe();
+        shared.gateway.dispatch("VOICE_SERVER_UPDATE", &json!({ "guild_id": "g", "token": "t", "endpoint": "b.discord.media" }));
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_time().build().unwrap();
+        let moved = runtime.block_on(await_move(&shared, &mut dispatches));
+        assert_eq!(moved.map(|s| s.endpoint).as_deref(), Some("b.discord.media"));
     }
 
     #[test]

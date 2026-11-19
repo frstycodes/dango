@@ -9,6 +9,7 @@ use gpui_kit::{
 };
 use serde::{Deserialize, Serialize};
 
+mod advanced;
 mod profile;
 pub(crate) mod registry;
 mod updates;
@@ -184,6 +185,10 @@ pub struct Prefs {
     pub auto_download_updates: bool,
     // Recent message searches per account id, newest first.
     pub search_history: HashMap<String, Vec<crate::search::Saved>>,
+    // Window zoom, 1 = 100% (⌘= / ⌘- / ⌘0).
+    pub zoom: f32,
+    // The server voice channel (guild, channel) a restart left, rejoined once the new session is ready.
+    pub rejoin_voice: Option<(String, String)>,
 }
 
 const KEYBINDS_VERSION: u32 = 1;
@@ -238,6 +243,8 @@ impl Default for Prefs {
             clock_24h: false,
             auto_download_updates: true,
             search_history: HashMap::new(),
+            zoom: 1.,
+            rejoin_voice: None,
         }
     }
 }
@@ -769,7 +776,8 @@ impl Waffle {
             Page::Keybinds => self.keybinds_page(cx),
             Page::Appearance => self.appearance_page(window, cx),
             Page::Updates => self.updates_page(window, cx),
-            Page::ContentSocial | Page::Chat | Page::Advanced | Page::ActivityPrivacy => Vec::new(),
+            Page::Advanced => self.advanced_page(cx),
+            Page::ContentSocial | Page::Chat | Page::ActivityPrivacy => Vec::new(),
         };
         sections.extend(self.registry_sections(page, window, cx));
         // Groups follow the registry's order; an unkeyed section stays with the one before it.

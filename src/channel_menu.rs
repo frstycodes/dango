@@ -452,17 +452,18 @@ impl Waffle {
     }
 
     fn create_channel(&mut self, guild_id: String, kind: u64, parent: Option<String>, window: &mut Window, cx: &mut Context<Self>) {
-        let title = match kind {
-            VOICE => "Create voice channel",
-            CATEGORY => "Create category",
-            _ => "Create text channel",
-        };
-        self.prompt(title, if kind == CATEGORY { "Category name" } else { "Channel name" }, "", "Create", move |this, name, _, cx| {
-            if !name.trim().is_empty() {
-                let body = json!({ "name": name.trim(), "type": kind, "parent_id": parent });
-                this.rest(Method::POST, format!("/guilds/{guild_id}/channels"), Some(body), |_, _| {}, cx);
-            }
-        }, window, cx);
+        if kind == CATEGORY {
+            return self.prompt("Create category", "Category name", "", "Create", move |this, name, _, cx| this.post_channel(&guild_id, &name, CATEGORY, None, cx), window, cx);
+        }
+        self.open_create_channel(guild_id, kind, parent, window, cx);
+    }
+
+    fn post_channel(&mut self, guild_id: &str, name: &str, kind: u64, parent: Option<String>, cx: &mut Context<Self>) {
+        if name.trim().is_empty() {
+            return;
+        }
+        let body = json!({ "name": name.trim(), "type": kind, "parent_id": parent });
+        self.rest(Method::POST, format!("/guilds/{guild_id}/channels"), Some(body), |_, _| {}, cx);
     }
 
     // Discord's invite modal, simplified: a week-long invite link to copy.

@@ -29,10 +29,8 @@ pub(crate) const TILE_X: f32 = (RAIL_WIDTH - TILE) / 2.;
 const MINI: f32 = 16.;
 const MINI_GAP: f32 = 4.;
 const MINI_INSET: f32 = (TILE - 2. * MINI - MINI_GAP) / 2.;
-// A folder opening: badges shrink away, the servers travel from their mini tiles to their slots, then
-// their badges pop back. Closing runs the same steps in reverse.
-const BADGE_OUT: Duration = Duration::from_millis(100);
-const BADGE_IN: Duration = Duration::from_millis(200);
+// A folder opening is one trip: the servers travel from their mini tiles to their slots, the folder's
+// pill splits into theirs and its count hands over to theirs on the way. Closing runs it backwards.
 const TRIP: Duration = Duration::from_millis(260);
 
 const ROW_HEIGHT: f32 = 32.;
@@ -70,6 +68,8 @@ struct RailTile {
     badge_scale: f32,
     // An open folder's head trades its minis for the folder glyph (0 closed, 1 open).
     open: f32,
+    // A folder head whose pill its servers carry off while it's open (their pills start from it).
+    handed: bool,
 }
 
 impl Waffle {
@@ -91,6 +91,7 @@ impl Waffle {
             guild_id: None,
             badge_scale: 1.,
             open: 0.,
+            handed: false,
         };
         let home = self.rail_item(home, window, cx);
         let dm_tiles = self.rail_dm_tiles(window, cx);
@@ -230,6 +231,7 @@ impl Waffle {
             guild_id: None,
             badge_scale: 1.,
             open: 0.,
+            handed: false,
         };
         let item = self.rail_item(tile, window, cx);
         div()
@@ -244,16 +246,19 @@ impl Waffle {
 
     // Who's in the server's voice channels and who's live there, by avatar, for its hover card.
     fn server_preview(&self, guild_id: &str, name: SharedString) -> ServerPreview {
-        let Some(guild) = self.guilds.iter().find(|g| g.id == guild_id) else { return ServerPreview { name, voice: Vec::new(), live: Vec::new() } };
+        let muted = self.guild_settings.get(guild_id).is_some_and(|s| s.is_muted());
+        let Some(guild) = self.guilds.iter().find(|g| g.id == guild_id) else { return ServerPreview { name, voice: Vec::new(), live: Vec::new(), muted } };
         let members = self.members.get(guild_id);
+        // Someone whose member hasn't loaded yet still shows, with Discord's default avatar for their id.
         let avatar = |state: &crate::discord::VoiceState| {
-            state.user.as_ref().or_else(|| members.and_then(|m| m.get(&state.user_id))).map(|u| u.avatar.clone())
+            state.user.as_ref().or_else(|| members.and_then(|m| m.get(&state.user_id))).map(|u| u.avatar.clone()).unwrap_or_else(|| crate::discord::avatar_url(&state.user_id, None))
         };
         let present = guild.voice_states.iter().filter(|v| v.channel_id.is_some());
         ServerPreview {
             name,
-            voice: present.clone().filter_map(avatar).collect(),
-            live: present.filter(|v| v.streaming).filter_map(avatar).collect(),
+            voice: present.clone().map(avatar).collect(),
+            live: present.filter(|v| v.streaming).map(avatar).collect(),
+            muted,
         }
     }
 
@@ -271,6 +276,7 @@ impl Waffle {
             guild_id: Some(guild.id.clone()),
             badge_scale,
             open: 0.,
+            handed: false,
         }
     }
 
@@ -290,18 +296,28 @@ impl Waffle {
         let has_selected = guilds.iter().any(|g| self.guild_id.as_ref() == Some(&g.id));
         let name: SharedString = folder.name.clone().unwrap_or_else(|| guilds.iter().map(|g| g.name.as_str()).take(3).collect::<Vec<_>>().join(", ")).into();
         let minis: Vec<Mini> = guilds.iter().map(|g| mini(g)).collect();
+        let badges: Vec<Badge> = guilds.iter().map(|g| {
+            let (unread, mentions) = self.guild_badge(g);
+            Badge { pill: pill_height(self.guild_id.as_ref() == Some(&g.id), false, unread), mentions }
+        }).collect();
+        // The height the servers' pills split from and merge back into: the head's own, hover included.
+        let head_pill = pill_height(has_selected, self.hovered.as_deref() == Some(key.as_str()), unread);
+        let handed = badges.iter().any(|b| b.pill > 0.);
+        let rail = palette::surface(palette::Level::Rail, cx);
         let head = RailTile {
             key: key.clone(),
             name,
-            selected: has_selected && !open,
-            unread: unread && !open,
-            mentions: if open { 0 } else { mentions },
+            selected: has_selected,
+            unread,
+            mentions,
             muted: false,
             in_voice: false,
             face: Face::Folder { tint, minis: minis.iter().take(4).cloned().collect() },
             guild_id: None,
-            badge_scale: motion.head_badge,
+            // Its count hands over to the servers' over the trip, gone once they land.
+            badge_scale: 1. - motion.trip,
             open: motion.trip,
+            handed,
         };
         let head = self.rail_item(head, window, cx);
         let (toggle_id, menu_id) = (folder.id.clone(), folder.id.clone());
@@ -322,8 +338,8 @@ impl Waffle {
         let landed = motion.trip >= 1.;
         let servers: Vec<AnyElement> = match (motion.trip > 0., landed) {
             (false, _) => Vec::new(),
-            (true, true) => indices.into_iter().enumerate().map(|(i, g)| div().absolute().left_0().top(px(slot_y(i))).child(self.guild_item(g, motion.child_badge, window, cx)).into_any_element()).collect(),
-            (true, false) => minis.iter().enumerate().map(|(i, m)| flying_tile(m, i, motion.trip, cx)).collect(),
+            (true, true) => indices.into_iter().enumerate().map(|(i, g)| div().absolute().left_0().top(px(slot_y(i))).child(self.guild_item(g, 1., window, cx)).into_any_element()).collect(),
+            (true, false) => minis.iter().zip(&badges).enumerate().map(|(i, (m, badge))| flying_tile(m, badge, head_pill, i, minis.len(), motion.trip, rail, cx)).collect(),
         };
         div()
             .relative()
@@ -331,19 +347,28 @@ impl Waffle {
             .h(px(TILE + motion.trip * count as f32 * (TILE + RAIL_GAP)))
             .flex_none()
             .child(div().absolute().top_0().bottom_0().left(px(TILE_X)).w(px(TILE)).squircle(ui::RADIUS_LG).bg(tint.opacity(0.18 * motion.trip)))
-            .children(servers)
+            // Servers over the head: in flight they cross its tinted face, which would shade them until
+            // they land as its unshaded minis, a flash at the end of a close.
             .child(head)
+            .children(servers)
             .into_any_element()
     }
 
     // A rail tile: the face, the state pill on the rail's edge (dot unread, longer on hover, full when
     // selected), and a count for mentions.
     fn rail_item(&mut self, tile: RailTile, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let RailTile { key, name, selected, unread, mentions, muted, in_voice, face, guild_id, badge_scale, open } = tile;
+        let RailTile { key, name, selected, unread, mentions, muted, in_voice, face, guild_id, badge_scale, open, handed } = tile;
         let hovered = self.hovered.as_deref() == Some(&key);
-        let pill_height = if selected { 36. } else if hovered { 20. } else if unread { 8. } else { 0. };
+        let pill_height = pill_height(selected, hovered, unread);
         let pill = self.motions.frame_one(Part::Pill(key.clone()), Motion::new(Target::default().height(pill_height)).transition(hover_ease()), window, cx);
+        // A folder's head hands its pill to its servers for the trip (theirs start and end at its height);
+        // with no server to take it (a hover alone), it eases away with the trip instead.
         let pill_height = pill.target().height_px().unwrap_or(pill_height).max(0.);
+        let pill_height = match (open > 0., handed) {
+            (false, _) => pill_height,
+            (true, true) => 0.,
+            (true, false) => pill_height * (1. - open),
+        };
         let rail = palette::surface(palette::Level::Rail, cx);
         let look = crate::drag::Look::Tile(face.clone());
         let drop_hint = self.rail_drop.as_ref().filter(|(target, _)| *target == key).map(|(_, drop)| *drop);
@@ -658,10 +683,10 @@ impl Waffle {
             let category = category.clone();
             head.child(cat_add(SharedString::from(format!("section-add-{}", category.id)), Some(group), "Create channel", cx).on_mouse_down(
                 gpui_kit::MouseButton::Left,
-                cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| {
+                cx.listener(move |this, _, window, cx| {
                     let Some(guild_id) = this.guild_id.clone() else { return };
                     cx.stop_propagation();
-                    this.open_channel_menu(category.clone(), guild_id, e.position, cx);
+                    this.open_create_channel(guild_id, 0, Some(category.id.clone()), window, cx);
                 }),
             ))
         });
@@ -839,11 +864,11 @@ impl Waffle {
         let (menu_channel, menu_guild) = (channel.clone(), guild.id.clone());
         let invite = row_action(SharedString::from(format!("invite-{}", channel.id)), Icon::new(Glyph::GroupPlus), "Invite people", cx)
             .on_click(cx.listener(move |this, _, window, cx| this.show_invite(gid.clone(), cid.clone(), window, cx)));
-        let options = row_action(SharedString::from(format!("options-{}", channel.id)), Icon::new(Glyph::Settings), "Channel options", cx).on_mouse_down(
+        let options = row_action(SharedString::from(format!("options-{}", channel.id)), Icon::new(Glyph::Settings), "Edit channel", cx).on_mouse_down(
             gpui_kit::MouseButton::Left,
-            cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| {
+            cx.listener(move |this, _, window, cx| {
                 cx.stop_propagation();
-                this.open_channel_menu(menu_channel.clone(), menu_guild.clone(), e.position, cx);
+                this.open_channel_settings(menu_channel.clone(), menu_guild.clone(), window, cx);
             }),
         );
         div()
@@ -1318,33 +1343,33 @@ pub fn initials(name: &str) -> String {
 
 // RAIL
 
-// A folder's motion this frame. Each step's delay lets the one before it finish: badges leave, the
-// servers travel, badges return.
+// A folder's trip this frame: 0 closed, 1 open.
 struct FolderMotion {
     trip: f32,
-    head_badge: f32,
-    child_badge: f32,
 }
 
 impl FolderMotion {
     fn frame(key: &str, open: bool, window: &mut Window, cx: &mut App) -> Self {
         let id = SharedString::from(key.to_owned());
-        let (target, back) = if open { (1., 0.) } else { (0., 1.) };
-        let trip = transition((id.clone(), "trip"), target, Tween::new(TRIP).delay(BADGE_OUT).ease(ease_out()), window, cx);
-        let head_delay = if open { Duration::ZERO } else { BADGE_OUT + TRIP };
-        let head_badge = transition((id.clone(), "head-badge"), back, badge_tween(open, head_delay), window, cx);
-        let child_delay = if open { BADGE_OUT + TRIP } else { Duration::ZERO };
-        let child_badge = transition((id, "child-badge"), target, badge_tween(!open, child_delay), window, cx);
-        Self { trip, head_badge, child_badge }
+        let trip = transition((id, "trip"), if open { 1. } else { 0. }, Tween::new(TRIP).ease(ease_out()), window, cx);
+        Self { trip }
     }
 }
 
-// Badges shrink quickly on the way out and pop back with a little overshoot.
-fn badge_tween(leaving: bool, delay: Duration) -> Tween {
-    match leaving {
-        true => Tween::new(BADGE_OUT).delay(delay).ease(ease_out()),
-        false => Tween::new(BADGE_IN).delay(delay).ease(motion::back_out),
+// A rail tile's state pill: full when selected, longer on hover, a dot when unread.
+fn pill_height(selected: bool, hovered: bool, unread: bool) -> f32 {
+    match (selected, hovered, unread) {
+        (true, _, _) => 36.,
+        (_, true, _) => 20.,
+        (_, _, true) => 8.,
+        _ => 0.,
     }
+}
+
+// A folder server's marks, which ride its tile on the trip.
+struct Badge {
+    pill: f32,
+    mentions: u32,
 }
 
 // --ease-out: cubic-bezier(0.23, 1, 0.32, 1).
@@ -1363,10 +1388,12 @@ fn slot_y(i: usize) -> f32 {
 }
 
 // A server on its way between its mini tile and its slot. Past the fourth, servers have no mini and
-// grow out of the last one.
-fn flying_tile(mini: &Mini, i: usize, t: f32, cx: &App) -> AnyElement {
-    let slot = i.min(3);
-    let from = (TILE_X + MINI_INSET + (slot % 2) as f32 * (MINI + MINI_GAP), MINI_INSET + (slot / 2) as f32 * (MINI + MINI_GAP), if i < 4 { MINI } else { 0. });
+// grow out of the last one. Its pill starts as the folder's (`head_pill`, on the folder's row) and slides
+// with it to its own height; its count grows with the tile, so both land together.
+#[allow(clippy::too_many_arguments)]
+fn flying_tile(mini: &Mini, badge: &Badge, head_pill: f32, i: usize, total: usize, t: f32, rail: Hsla, cx: &App) -> AnyElement {
+    let (x, y) = mini_slot(i.min(3), total.min(4));
+    let from = (TILE_X + x, y, if i < 4 { MINI } else { 0. });
     let to = (TILE_X, slot_y(i), TILE);
     let lerp = |a: f32, b: f32| a + (b - a) * t;
     let size = lerp(from.2, to.2);
@@ -1374,7 +1401,19 @@ fn flying_tile(mini: &Mini, i: usize, t: f32, cx: &App) -> AnyElement {
         Some(url) => img(url.clone()).size(px(size)).squircle(lerp(ui::RADIUS_XS, ui::RADIUS_LG)).into_any_element(),
         None => letters_tile(&mini.letters, size, lerp(ui::RADIUS_XS, ui::RADIUS_LG), cx).into_any_element(),
     };
-    div().absolute().left(px(lerp(from.0, to.0))).top(px(lerp(from.1, to.1))).child(face).into_any_element()
+    let tile = div()
+        .absolute()
+        .left(px(lerp(from.0, to.0)))
+        .top(px(lerp(from.1, to.1)))
+        .size(px(size))
+        .child(face)
+        .when(badge.mentions > 0, |tile| tile.child(count_chip(badge.mentions, t, rail).absolute().right(px(-5. - COUNT_RING)).bottom(px(-4. - COUNT_RING))));
+    let pill = (badge.pill > 0.).then(|| {
+        let height = lerp(head_pill, badge.pill);
+        let center = lerp(TILE / 2., slot_y(i) + TILE / 2.);
+        div().absolute().left_0().top(px(center - height / 2.)).w(px(4.)).h(px(height)).rounded_r(px(4.)).bg(palette::strong(cx))
+    });
+    div().absolute().inset_0().children(pill).child(tile).into_any_element()
 }
 
 pub(crate) fn server_face(guild: &Guild) -> Face {
@@ -1408,14 +1447,30 @@ pub(crate) fn render_face(face: Face, size: f32, radius: f32, selected: bool, op
     }
 }
 
+// A closed folder's first four servers, laid out for how many there are (no empty slots).
 fn minis_grid(minis: Vec<Mini>, cx: &App) -> Div {
-    let sidebar = crate::material::lifted(palette::surface(palette::Level::Raised, cx), cx);
-    let cells = (0..4).map(|i| match minis.get(i) {
-        Some(Mini { icon: Some(url), .. }) => img(url.clone()).size(px(MINI)).squircle(ui::RADIUS_XS).into_any_element(),
-        Some(Mini { letters, .. }) => letters_tile(letters, MINI, ui::RADIUS_XS, cx).into_any_element(),
-        None => div().size(px(MINI)).squircle(ui::RADIUS_XS).bg(sidebar).into_any_element(),
+    let shown = minis.len().min(4);
+    let cells = minis.into_iter().take(4).enumerate().map(|(i, mini)| {
+        let (x, y) = mini_slot(i, shown);
+        let face = match mini {
+            Mini { icon: Some(url), .. } => img(url).size(px(MINI)).squircle(ui::RADIUS_XS).into_any_element(),
+            Mini { letters, .. } => letters_tile(&letters, MINI, ui::RADIUS_XS, cx).into_any_element(),
+        };
+        div().absolute().left(px(x)).top(px(y)).child(face)
     });
-    div().absolute().left(px(MINI_INSET)).top(px(MINI_INSET)).w(px(2. * MINI + MINI_GAP)).flex().flex_wrap().gap(px(MINI_GAP)).children(cells)
+    div().absolute().inset_0().children(cells)
+}
+
+// Where mini `i` of `shown` (1..=4) sits inside the folder tile: one centred, two side by side,
+// three as two over one, four as a 2x2 grid.
+fn mini_slot(i: usize, shown: usize) -> (f32, f32) {
+    let (centre, step) = ((TILE - MINI) / 2., MINI + MINI_GAP);
+    match (shown, i) {
+        (0 | 1, _) => (centre, centre),
+        (2, i) => (MINI_INSET + i as f32 * step, centre),
+        (3, 2) => (centre, MINI_INSET + step),
+        (_, i) => (MINI_INSET + (i % 2) as f32 * step, MINI_INSET + (i / 2) as f32 * step),
+    }
 }
 
 // A server with no icon: its initials on the sidebar tone. Minis keep only the first letter.
@@ -1444,6 +1499,7 @@ struct ServerPreview {
     name: SharedString,
     voice: Vec<String>,
     live: Vec<String>,
+    muted: bool,
 }
 
 impl ServerPreview {
@@ -1472,6 +1528,7 @@ impl Render for ServerPreview {
             .child(div().truncate().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(self.name.clone()))
             .when(!self.voice.is_empty(), |c| c.child(row(Glyph::VolumeHigh, &self.voice)))
             .when(!self.live.is_empty(), |c| c.child(row(Glyph::ShareScreen, &self.live)))
+            .when(self.muted, |c| c.child(div().text_size(px(14.)).text_color(muted).child("Muted")))
     }
 }
 
@@ -1495,9 +1552,19 @@ fn rail_action(id: &'static str, icon: Icon, tooltip: &'static str, cx: &App) ->
 
 // The mention count on a tile's corner, ringed in the rail so it reads apart from the art.
 fn rail_count(count: u32, scale: f32, rail: Hsla) -> Div {
-    let ring = 3.;
-    ui::cut_out(div().absolute().right(px(RAIL_WIDTH - TILE_X - TILE - 5. - ring)).bottom(px(-4. - ring)).p(px(ring)).rounded_full(), rail)
-        .scale(scale.max(0.))
+    count_chip(count, scale, rail).absolute().right(px(RAIL_WIDTH - TILE_X - TILE - 5. - COUNT_RING)).bottom(px(-4. - COUNT_RING))
+}
+
+const COUNT_RING: f32 = 3.;
+
+// The count itself, unplaced; `scale` grows it in with a folder's trip.
+fn count_chip(count: u32, scale: f32, rail: Hsla) -> Div {
+    let chip = div().p(px(COUNT_RING)).rounded_full();
+    // The ring's cutout erases the glass behind it at full size whatever the scale or opacity, so while the
+    // count grows or shrinks it goes without, or an empty hole is left where it was.
+    let chip = if scale >= 0.999 { ui::cut_out(chip, rail) } else { chip };
+    chip.scale(scale.max(0.))
+        .opacity(scale.clamp(0., 1.))
         .child(ui::count_badge(count).min_w(px(18.)).h(px(18.)).px(px(5.)).text_size(px(12.)))
 }
 
@@ -1666,6 +1733,15 @@ fn voice_row_click(in_call: Option<&str>, clicked: &str) -> VoiceRowClick {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn folder_minis_fill_the_tile_for_how_many_there_are() {
+        let centre = (TILE - MINI) / 2.;
+        assert_eq!(mini_slot(0, 1), (centre, centre), "one sits in the middle");
+        assert_eq!([mini_slot(0, 2).1, mini_slot(1, 2).1], [centre, centre], "two share the middle row");
+        assert_eq!(mini_slot(2, 3).0, centre, "the third of three centres under the pair");
+        assert_eq!(mini_slot(3, 4), (MINI_INSET + MINI + MINI_GAP, MINI_INSET + MINI + MINI_GAP), "four fill the grid");
+    }
 
     #[test]
     fn self_deafen_shows_mute_and_deafen_server_deafen_shows_one() {

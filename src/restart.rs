@@ -1,6 +1,7 @@
 // Restart (⌘R / Ctrl+R) and Restart to update. Both go through gpui's restart, which relaunches only
 // once this process has exited (through LaunchServices on macOS), so two Waffles never overlap. A call
-// is no reason to refuse: one confirm names it, then voice is left before Waffle goes.
+// is no reason to refuse: one confirm names it, voice is left before Waffle goes, and the relaunched
+// Waffle rejoins that channel once it's connected (`Prefs::rejoin_voice`), as Discord does on reload.
 use std::time::Duration;
 
 use gpui_kit::{App, AppContext as _, Context, Global, WeakEntity};
@@ -49,6 +50,9 @@ impl Waffle {
             let in_call = this
                 .update(cx, |this, cx| {
                     let in_call = this.call.is_some();
+                    // ponytail: server voice only; a DM call rings again, so it isn't rejoined.
+                    this.prefs.rejoin_voice = this.call.as_ref().and_then(|c| Some((c.guild_id.clone()?, c.channel.id.clone())));
+                    this.prefs.save();
                     this.leave_voice(cx);
                     in_call
                 })
@@ -66,7 +70,7 @@ impl Waffle {
 fn confirm_text(call: Option<&str>, update: bool) -> Option<(String, String)> {
     let name = call?;
     let then = if update { ", install the update and reopen" } else { " and reopen" };
-    Some((format!("Restart and leave {name}?"), format!("Waffle will leave the call{then}. You can rejoin once it's back.")))
+    Some((format!("Restart during {name}?"), format!("Waffle will leave the call{then}, then rejoin it.")))
 }
 
 #[cfg(test)]
@@ -78,8 +82,8 @@ mod tests {
         assert_eq!(confirm_text(None, false), None);
         assert_eq!(confirm_text(None, true), None);
         let (title, body) = confirm_text(Some("hangout"), true).unwrap();
-        assert_eq!(title, "Restart and leave hangout?");
-        assert_eq!(body, "Waffle will leave the call, install the update and reopen. You can rejoin once it's back.");
-        assert_eq!(confirm_text(Some("hangout"), false).unwrap().1, "Waffle will leave the call and reopen. You can rejoin once it's back.");
+        assert_eq!(title, "Restart during hangout?");
+        assert_eq!(body, "Waffle will leave the call, install the update and reopen, then rejoin it.");
+        assert_eq!(confirm_text(Some("hangout"), false).unwrap().1, "Waffle will leave the call and reopen, then rejoin it.");
     }
 }

@@ -3,12 +3,11 @@ use std::{collections::HashMap, path::PathBuf, sync::OnceLock, time::Duration};
 use futures::{SinkExt, StreamExt, channel::mpsc};
 use serde_json::{Value, json};
 use tokio::runtime::Runtime;
-use tokio_tungstenite::tungstenite::{Message as WsMessage, protocol::frame::coding::CloseCode};
+use tokio_tungstenite::tungstenite::Message as WsMessage;
 
 const GATEWAY: &str = "wss://gateway.discord.gg/?v=10&encoding=json";
 pub const API: &str = "https://discord.com/api/v10";
 const CDN: &str = "https://cdn.discordapp.com";
-const AUTH_FAILED: u16 = 4004;
 pub(crate) const VIEW_CHANNEL: u64 = 1 << 10;
 
 // The user-account gateway and several fields below (nameplates, guild tags, member list ops,
@@ -952,6 +951,8 @@ pub enum Event {
     // Raw voice server info (endpoint, token) for the voice engine.
     VoiceServer(Value),
     Disconnected(String),
+    // A dropped connection picked its session back up: nothing to reload.
+    Resumed,
     AuthFailed,
 }
 
@@ -1105,10 +1106,12 @@ impl Client {
         Ok(parse_activity_feed(&body))
     }
 
-    /// Newest pin first.
+    /// Newest pin first. Discord moved pins to `/messages/pins`, which wraps each as `{ pinned_at, message }`;
+    /// the old `/pins` route is deprecated.
+    // ponytail: first page only (50); page with `before` = the last `pinned_at` if a channel needs more.
     pub async fn pins(&self, channel_id: &str) -> Result<Vec<Message>, String> {
-        let body = self.run(self.request(reqwest::Method::GET, &format!("/channels/{channel_id}/pins"))).await?;
-        Ok(body.as_array().into_iter().flatten().filter_map(parse_message).collect())
+        let body = self.run(self.request(reqwest::Method::GET, &format!("/channels/{channel_id}/messages/pins?limit=50"))).await?;
+        Ok(parse_pins(&body))
     }
 
     pub async fn edit_message(&self, channel_id: &str, id: &str, content: &str) -> Result<(), String> {
@@ -1226,17 +1229,27 @@ impl Client {
     }
 
     /// Joins the invite's server (`POST /invites/{code}`) and returns its id; already a member succeeds too.
-    /// Discord usually wants a captcha first: its page goes out on `captcha_url` for the browser, and the
-    /// join is retried with the solved key, as the sign-in does (`auth::exchange_ticket`).
+    /// Discord usually wants a captcha first (see `call_with_captcha`).
     pub async fn join_invite(&self, code: &str, captcha_url: mpsc::UnboundedSender<String>) -> Result<String, String> {
-        let (client, code) = (self.clone(), code.to_owned());
-        runtime().spawn(async move { client.join_invite_with_captcha(&code, captcha_url).await }).await.map_err(|e| e.to_string())?
+        let body = self.call_with_captcha(reqwest::Method::POST, format!("/invites/{code}"), Some(json!({})), captcha_url).await?;
+        joined_guild(&body).ok_or_else(|| "That invite isn't to a server".into())
     }
 
-    async fn join_invite_with_captcha(&self, code: &str, captcha_url: mpsc::UnboundedSender<String>) -> Result<String, String> {
+    /// A call Discord may answer with a captcha (joining a server, sending a friend request): its page goes
+    /// out on `captcha_url` for the browser, and the call is retried with the solved key, as the sign-in
+    /// does (`auth::exchange_ticket`). Other failures read as `send` words them.
+    pub async fn call_with_captcha(&self, method: reqwest::Method, path: String, body: Option<Value>, captcha_url: mpsc::UnboundedSender<String>) -> Result<Value, String> {
+        let client = self.clone();
+        runtime().spawn(async move { client.captcha_loop(method, &path, body, captcha_url).await }).await.map_err(|e| e.to_string())?
+    }
+
+    async fn captcha_loop(&self, method: reqwest::Method, path: &str, body: Option<Value>, captcha_url: mpsc::UnboundedSender<String>) -> Result<Value, String> {
         let mut solved: Option<(crate::captcha::Challenge, String)> = None;
         for _ in 0..3 {
-            let mut req = self.request(reqwest::Method::POST, &format!("/invites/{code}")).json(&json!({}));
+            let mut req = self.request(method.clone(), path);
+            if let Some(body) = &body {
+                req = req.json(body);
+            }
             if let Some((challenge, answer)) = &solved {
                 for (name, value) in challenge.headers(answer) {
                     req = req.header(name, value);
@@ -1246,11 +1259,11 @@ impl Client {
             let status = res.status();
             let body: Value = res.json().await.unwrap_or(Value::Null);
             if status.is_success() {
-                return joined_guild(&body).ok_or_else(|| "That invite isn't to a server".into());
+                return Ok(body);
             }
             let Some(challenge) = crate::captcha::Challenge::from_response(&body) else {
-                eprintln!("http: {status} /invites/{code}: {body}");
-                return Err(api_error(&body).unwrap_or_else(|| status.to_string()));
+                eprintln!("http: {status} {path} (code {}): {body}", body["code"]);
+                return Err(error_text(status.as_u16(), &body));
             };
             let pending = crate::captcha::serve(&challenge).await?;
             let _ = captcha_url.unbounded_send(pending.url.clone());
@@ -1395,16 +1408,59 @@ pub fn demo_media(url: &str) -> Option<bytes::Bytes> {
     DEMO_MEDIA.get()?(url)
 }
 
+// Discord's HTTP failures (docs.discord.com, Opcodes and Status Codes, HTTP): 429 waits out
+// `retry_after` and tries again; a 5xx is retried once, only for methods that are safe to repeat, so a
+// message never sends twice; 401 means the token is no longer accepted. Every other failure shows
+// Discord's own message (its JSON `message`, field errors included).
 pub async fn send(req: reqwest::RequestBuilder) -> Result<Value, String> {
-    let res = req.send().await.map_err(|e| e.to_string())?;
-    let status = res.status();
-    let url = res.url().path().to_owned();
-    let body: Value = res.json().await.unwrap_or(Value::Null);
-    if status.is_success() {
-        return Ok(body);
+    let idempotent = req.try_clone().and_then(|r| r.build().ok()).is_some_and(|r| matches!(*r.method(), reqwest::Method::GET | reqwest::Method::PUT | reqwest::Method::DELETE | reqwest::Method::HEAD));
+    let mut req = req;
+    let mut retries = 0;
+    loop {
+        // None for a streamed body (uploads): those aren't retried.
+        let again = req.try_clone();
+        let res = req.send().await.map_err(|e| e.to_string())?;
+        let status = res.status();
+        let url = res.url().path().to_owned();
+        let header_wait = res.headers().get(reqwest::header::RETRY_AFTER).and_then(|v| v.to_str().ok()?.parse::<f64>().ok());
+        let body: Value = res.json().await.unwrap_or(Value::Null);
+        if status.is_success() {
+            return Ok(body);
+        }
+        if let (Some(wait), Some(next)) = (retry_wait(status.as_u16(), &body, header_wait, idempotent, retries), again) {
+            eprintln!("http: {status} {url}, retrying in {wait:?}");
+            tokio::time::sleep(wait).await;
+            req = next;
+            retries += 1;
+            continue;
+        }
+        eprintln!("http: {status} {url} (code {}): {body}", body["code"]);
+        return Err(error_text(status.as_u16(), &body));
     }
-    eprintln!("http: {status} {url}: {body}");
-    Err(api_error(&body).unwrap_or_else(|| status.to_string()))
+}
+
+// Longer than this and the caller hears "rate limited" instead of a frozen action.
+const MAX_RETRY_WAIT: f64 = 10.;
+
+fn retry_wait(status: u16, body: &Value, header_wait: Option<f64>, idempotent: bool, retries: u32) -> Option<Duration> {
+    match status {
+        429 if retries < 2 => {
+            let secs = body["retry_after"].as_f64().or(header_wait).unwrap_or(1.);
+            (secs <= MAX_RETRY_WAIT).then(|| Duration::from_secs_f64(secs.max(0.)))
+        }
+        500 | 502 | 503 | 504 if idempotent && retries == 0 => Some(Duration::from_secs(1)),
+        _ => None,
+    }
+}
+
+const SESSION_EXPIRED: &str = "Your session has expired. Sign in again.";
+
+fn error_text(status: u16, body: &Value) -> String {
+    match status {
+        401 => SESSION_EXPIRED.to_owned(),
+        // 40002 (verify your account), 50035 (invalid form) and the rest read as Discord words them.
+        _ => api_error(body).unwrap_or_else(|| reqwest::StatusCode::from_u16(status).map_or_else(|_| status.to_string(), |s| s.to_string())),
+    }
 }
 
 // A file on its way to Discord. `name` is what the message shows, `SPOILER_` included.
@@ -1497,6 +1553,11 @@ async fn put_file(http: reqwest::Client, url: String, path: PathBuf, sent: std::
 
 // Discord's refusal in its own words. "Invalid Form Body" says nothing alone, so the first field's
 // message follows it: "Invalid Form Body: name: Must be between 1 and 100 in length."
+/// A REST error that means the token itself was refused (HTTP 401).
+pub fn is_unauthorized(error: &str) -> bool {
+    error == SESSION_EXPIRED
+}
+
 fn api_error(body: &Value) -> Option<String> {
     fn first_field(errors: &Value, path: &str) -> Option<String> {
         if let Some(message) = errors["_errors"][0]["message"].as_str() {
@@ -1552,7 +1613,6 @@ pub fn parse_invite(v: &Value) -> Option<Invite> {
     })
 }
 
-// ponytail: full re-identify after every drop; RESUME (session_id + seq) when reconnect churn matters.
 // What the app and the voice engine send through the gateway, and where voice dispatches go.
 struct Outbound {
     commands: mpsc::UnboundedReceiver<Value>,
@@ -1560,12 +1620,20 @@ struct Outbound {
     voice_out: mpsc::UnboundedReceiver<String>,
 }
 
+// A drop RESUMEs the session (its id, the URL READY named and the last sequence) so Discord replays
+// what was missed and keeps everything bound to it, a voice connection included: a fresh IDENTIFY
+// ends the old session, and the voice server closes with 4014. Only an invalid session identifies anew.
 async fn run_gateway(token: String, tx: mpsc::UnboundedSender<Event>, mut outbound: Outbound) {
+    let mut resume: Option<Resume> = None;
     loop {
-        let reason = match session(&token, &tx, &mut outbound).await {
+        let reason = match session(&token, &tx, &mut outbound, &mut resume).await {
             Ok(()) => return,
             Err(GatewayError::AuthFailed) => {
                 let _ = tx.unbounded_send(Event::AuthFailed);
+                return;
+            }
+            Err(GatewayError::Fatal(reason)) => {
+                let _ = tx.unbounded_send(Event::Disconnected(reason));
                 return;
             }
             Err(GatewayError::Dropped(reason)) => reason,
@@ -1573,36 +1641,110 @@ async fn run_gateway(token: String, tx: mpsc::UnboundedSender<Event>, mut outbou
         if tx.unbounded_send(Event::Disconnected(reason)).is_err() {
             return;
         }
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        // A resumable drop goes straight back; a fresh session waits, as Discord asks after op 9.
+        let wait = if resume.is_some() { Duration::from_millis(500) } else { Duration::from_secs(3) };
+        tokio::time::sleep(wait).await;
     }
+}
+
+struct Resume {
+    session_id: String,
+    url: String,
+    seq: Option<u64>,
+}
+
+impl Resume {
+    fn payload(&self, token: &str) -> String {
+        json!({ "op": 6, "d": { "token": token, "session_id": self.session_id, "seq": self.seq } }).to_string()
+    }
+}
+
+// What each gateway close code means for us, from Discord's close event code table (docs.discord.com,
+// Opcodes and Status Codes; 4015/4016 from docs.discord.food). Anything else, a network drop included,
+// resumes.
+#[derive(Debug, PartialEq, Eq)]
+enum Close {
+    Resume,
+    // The session is gone: identify anew.
+    Identify,
+    // 4004: the token was refused.
+    AuthFailed,
+    // Reconnecting can't help (bot-only shard and intent codes, wrong API version): stop and say so.
+    Fatal,
+}
+
+fn close_kind(code: u16) -> Close {
+    match code {
+        4004 => Close::AuthFailed,
+        // 4007 invalid seq and 4009 session timed out invalidate the session; 4015 too many sessions,
+        // 4016 connection request canceled.
+        4007 | 4009 | 4015 | 4016 => Close::Identify,
+        4010..=4014 => Close::Fatal,
+        _ => Close::Resume,
+    }
+}
+
+fn gateway_close_text(code: u16, reason: &str) -> String {
+    let what = match code {
+        4000 => "Unknown error",
+        4001 => "Unknown opcode",
+        4002 => "Decode error",
+        4003 => "Not authenticated",
+        4004 => "Authentication failed",
+        4005 => "Already authenticated",
+        4007 => "Invalid sequence",
+        4008 => "Rate limited",
+        4009 => "Session timed out",
+        4010 => "Invalid shard",
+        4011 => "Sharding required",
+        4012 => "Invalid API version",
+        4013 => "Invalid intents",
+        4014 => "Disallowed intents",
+        4015 => "Too many sessions",
+        4016 => "Connection request canceled",
+        _ if reason.is_empty() => "Connection closed",
+        _ => reason,
+    };
+    format!("{what} ({code})")
 }
 
 enum GatewayError {
     AuthFailed,
     Dropped(String),
+    Fatal(String),
 }
 
-async fn session(token: &str, tx: &mpsc::UnboundedSender<Event>, outbound: &mut Outbound) -> Result<(), GatewayError> {
+async fn session(token: &str, tx: &mpsc::UnboundedSender<Event>, outbound: &mut Outbound, resume: &mut Option<Resume>) -> Result<(), GatewayError> {
     let dropped = |e: &dyn std::fmt::Display| GatewayError::Dropped(e.to_string());
-    let (ws, _) = tokio_tungstenite::connect_async(GATEWAY).await.map_err(|e| {
+    let url = resume.as_ref().map(|r| format!("{}/?v=10&encoding=json", r.url.trim_end_matches('/'))).unwrap_or_else(|| GATEWAY.to_owned());
+    let (ws, _) = tokio_tungstenite::connect_async(url.as_str()).await.map_err(|e| {
         eprintln!("gateway: connect failed: {e}");
         dropped(&e)
     })?;
     let (mut sink, mut stream) = ws.split();
-    let mut seq: Option<u64> = None;
+    let mut seq: Option<u64> = resume.as_ref().and_then(|r| r.seq);
     let mut heartbeat = tokio::time::interval(Duration::from_secs(3600));
     heartbeat.tick().await;
+    // A beat with no ACK before the next one means a zombie socket (typically after sleep or a network
+    // change): Discord's guidance is to drop it and reconnect rather than wait for TCP to notice.
+    let mut acked = true;
+    let mut greeted = false;
 
     loop {
         tokio::select! {
             _ = heartbeat.tick() => {
+                if !acked {
+                    return Err(GatewayError::Dropped("No heartbeat ACK".into()));
+                }
+                acked = false;
                 let beat = json!({ "op": 1, "d": seq }).to_string();
                 sink.send(WsMessage::Text(beat)).await.map_err(|e| dropped(&e))?;
             }
-            Some(command) = outbound.commands.next() => {
+            // Held until IDENTIFY or RESUME is out: anything earlier is answered with a 4003 close.
+            Some(command) = outbound.commands.next(), if greeted => {
                 sink.send(WsMessage::Text(command.to_string())).await.map_err(|e| dropped(&e))?;
             }
-            Some(text) = outbound.voice_out.next() => {
+            Some(text) = outbound.voice_out.next(), if greeted => {
                 sink.send(WsMessage::Text(text)).await.map_err(|e| dropped(&e))?;
             }
             frame = stream.next() => {
@@ -1612,24 +1754,66 @@ async fn session(token: &str, tx: &mpsc::UnboundedSender<Event>, outbound: &mut 
                 };
                 let text = match frame {
                     WsMessage::Text(text) => text,
-                    WsMessage::Close(Some(close)) if close.code == CloseCode::from(AUTH_FAILED) => return Err(GatewayError::AuthFailed),
-                    WsMessage::Close(close) => return Err(GatewayError::Dropped(close.map(|c| c.reason.to_string()).unwrap_or_default())),
+                    WsMessage::Close(None) => return Err(GatewayError::Dropped("Connection closed".into())),
+                    WsMessage::Close(Some(close)) => {
+                        let code = u16::from(close.code);
+                        let text = gateway_close_text(code, &close.reason);
+                        eprintln!("gateway: closed {text}");
+                        return Err(match close_kind(code) {
+                            Close::AuthFailed => GatewayError::AuthFailed,
+                            Close::Fatal => GatewayError::Fatal(text),
+                            Close::Identify => {
+                                *resume = None;
+                                GatewayError::Dropped(text)
+                            }
+                            Close::Resume => GatewayError::Dropped(text),
+                        });
+                    }
                     _ => continue,
                 };
                 let payload: Value = serde_json::from_str(&text).map_err(|e| dropped(&e))?;
                 if let Some(s) = payload["s"].as_u64() {
                     seq = Some(s);
+                    if let Some(resume) = resume.as_mut() {
+                        resume.seq = seq;
+                    }
                 }
                 match payload["op"].as_u64() {
                     Some(10) => {
                         let ms = payload["d"]["heartbeat_interval"].as_u64().unwrap_or(41_250);
-                        heartbeat = tokio::time::interval(Duration::from_millis(ms));
-                        heartbeat.tick().await;
-                        sink.send(WsMessage::Text(identify(token))).await.map_err(|e| dropped(&e))?;
+                        // The first beat waits a random share of the interval (Discord's jitter), then every interval.
+                        let period = Duration::from_millis(ms);
+                        let first = period.mul_f64(rand::random::<f64>());
+                        heartbeat = tokio::time::interval_at(tokio::time::Instant::now() + first, period);
+                        // After a sleep, beats missed while asleep would fire back to back and fail the ACK check.
+                        heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+                        let hello = resume.as_ref().map(|r| r.payload(token)).unwrap_or_else(|| identify(token));
+                        sink.send(WsMessage::Text(hello)).await.map_err(|e| dropped(&e))?;
+                        greeted = true;
                     }
-                    Some(7) | Some(9) => return Err(GatewayError::Dropped("Gateway asked to reconnect".into())),
+                    Some(11) => acked = true,
+                    // The gateway asking for a beat now.
+                    Some(1) => sink.send(WsMessage::Text(json!({ "op": 1, "d": seq }).to_string())).await.map_err(|e| dropped(&e))?,
+                    Some(7) => return Err(GatewayError::Dropped("Gateway asked to reconnect".into())),
+                    // Invalid session: `d` says whether it can still be resumed.
+                    Some(9) => {
+                        if payload["d"].as_bool() != Some(true) {
+                            *resume = None;
+                        }
+                        return Err(GatewayError::Dropped("Session expired".into()));
+                    }
                     Some(0) => {
                         let kind = payload["t"].as_str().unwrap_or("");
+                        match kind {
+                            "READY" => {
+                                let d = &payload["d"];
+                                // No resume URL: resume through the regular gateway.
+                                let url = d["resume_gateway_url"].as_str().unwrap_or("wss://gateway.discord.gg").to_owned();
+                                *resume = d["session_id"].as_str().map(|id| Resume { session_id: id.to_owned(), url, seq });
+                            }
+                            "RESUMED" => _ = tx.unbounded_send(Event::Resumed),
+                            _ => {}
+                        }
                         outbound.voice.dispatch(kind, &payload["d"]);
                         let Some(event) = dispatch(kind, &payload["d"]) else { continue };
                         if tx.unbounded_send(event).is_err() {
@@ -1950,6 +2134,14 @@ fn parse_dm(c: &Value, users: &Value) -> Option<Channel> {
         overwrites: Vec::new(),
         props: Default::default(),
     })
+}
+
+// `/messages/pins` lists `{ items: [{ pinned_at, message }] }`; the deprecated `/pins` a bare message array.
+fn parse_pins(body: &Value) -> Vec<Message> {
+    match body["items"].as_array() {
+        Some(items) => items.iter().filter_map(|pin| parse_message(&pin["message"])).collect(),
+        None => body.as_array().into_iter().flatten().filter_map(parse_message).collect(),
+    }
 }
 
 pub fn parse_message(m: &Value) -> Option<Message> {
@@ -2394,6 +2586,48 @@ mod tests {
 
     fn upload(name: &str, size: u64) -> Upload {
         Upload { path: PathBuf::from(format!("/tmp/{name}")), name: name.into(), size, sent: Default::default() }
+    }
+
+    #[test]
+    fn http_failures_retry_only_where_discord_allows() {
+        let limited = json!({ "message": "You are being rate limited.", "retry_after": 0.5, "global": false });
+        assert_eq!(retry_wait(429, &limited, None, false, 0), Some(Duration::from_millis(500)), "429 retries even a POST");
+        assert_eq!(retry_wait(429, &limited, None, false, 2), None, "two retries at most");
+        assert_eq!(retry_wait(429, &json!({ "retry_after": 60.0 }), None, true, 0), None, "too long to wait");
+        assert_eq!(retry_wait(429, &Value::Null, Some(2.), true, 0), Some(Duration::from_secs(2)), "Retry-After header");
+        assert_eq!(retry_wait(502, &Value::Null, None, true, 0), Some(Duration::from_secs(1)));
+        assert_eq!(retry_wait(502, &Value::Null, None, false, 0), None, "a POST never repeats on 5xx");
+        assert_eq!(retry_wait(502, &Value::Null, None, true, 1), None);
+        for status in [400, 401, 403, 404, 405] {
+            assert_eq!(retry_wait(status, &Value::Null, None, true, 0), None, "{status}");
+        }
+        assert_eq!(error_text(403, &json!({ "message": "Missing Permissions", "code": 50013 })), "Missing Permissions");
+        assert_eq!(error_text(404, &Value::Null), "404 Not Found");
+    }
+
+    #[test]
+    fn every_gateway_close_code_has_its_documented_outcome() {
+        for code in [1000, 1001, 1006, 4000, 4001, 4002, 4003, 4005, 4008] {
+            assert_eq!(close_kind(code), Close::Resume, "{code}");
+        }
+        for code in [4007, 4009, 4015, 4016] {
+            assert_eq!(close_kind(code), Close::Identify, "{code}");
+        }
+        for code in 4010..=4014 {
+            assert_eq!(close_kind(code), Close::Fatal, "{code}");
+        }
+        assert_eq!(close_kind(4004), Close::AuthFailed);
+        assert_eq!(gateway_close_text(4009, ""), "Session timed out (4009)");
+        assert!(is_unauthorized(&error_text(401, &json!({ "message": "401: Unauthorized", "code": 0 }))));
+        assert!(!is_unauthorized(&error_text(403, &json!({ "message": "Missing Access", "code": 50001 }))));
+    }
+
+    #[test]
+    fn pins_parse_both_the_new_and_the_deprecated_shape() {
+        let message = |id: &str| json!({ "id": id, "channel_id": "c", "author": { "id": "u" } });
+        let new = json!({ "items": [{ "pinned_at": "2026-01-01T00:00:00Z", "message": message("2") }, { "pinned_at": "x", "message": message("1") }], "has_more": false });
+        assert_eq!(parse_pins(&new).iter().map(|m| m.id.as_str()).collect::<Vec<_>>(), ["2", "1"]);
+        assert_eq!(parse_pins(&json!([message("3")])).len(), 1);
     }
 
     #[test]

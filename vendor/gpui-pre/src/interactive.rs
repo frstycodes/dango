@@ -800,6 +800,42 @@ pub enum PlatformInput {
 }
 
 impl PlatformInput {
+    // Dango patch: platform positions are window points; a zoomed window lays out in points / zoom.
+    pub(crate) fn unzoomed(mut self, zoom: f32) -> Self {
+        let at = |p: &mut Point<Pixels>| *p = p.map(|v| v / zoom);
+        match &mut self {
+            PlatformInput::MouseDown(e) => at(&mut e.position),
+            PlatformInput::MouseUp(e) => at(&mut e.position),
+            PlatformInput::MouseMove(e) => at(&mut e.position),
+            PlatformInput::MousePressure(e) => at(&mut e.position),
+            PlatformInput::MouseExited(e) => at(&mut e.position),
+            PlatformInput::Pinch(e) => at(&mut e.position),
+            PlatformInput::ScrollWheel(e) => {
+                at(&mut e.position);
+                if let ScrollDelta::Pixels(delta) = &mut e.delta {
+                    at(delta);
+                }
+            }
+            PlatformInput::LongPress(e) => {
+                at(&mut e.start_position);
+                at(&mut e.position);
+            }
+            PlatformInput::TouchDrag(e) => {
+                at(&mut e.start_position);
+                at(&mut e.position);
+            }
+            PlatformInput::FileDrop(FileDropEvent::Entered { position, .. } | FileDropEvent::Pending { position } | FileDropEvent::Submit { position }) => at(position),
+            PlatformInput::Touch(e) => {
+                at(&mut e.position);
+                if let Some(p) = &mut e.predicted_position {
+                    at(p);
+                }
+            }
+            PlatformInput::KeyDown(_) | PlatformInput::KeyUp(_) | PlatformInput::ModifiersChanged(_) | PlatformInput::FileDrop(_) => {}
+        }
+        self
+    }
+
     pub(crate) fn mouse_event(&self) -> Option<&dyn Any> {
         match self {
             PlatformInput::KeyDown { .. } => None,
