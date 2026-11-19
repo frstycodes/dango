@@ -9,7 +9,7 @@ pub const MARK_WHITE: &str = "brand/dango-mark-white.svg";
 // Reicon (MIT, github.com/dqev/reicon) in its filled weight, like Discord's chrome, plus Dango's own glyphs
 // (muted, deafened, camera off, GIF...), all written to assets/icons/reicon/ by tools/reicon.py, which also
 // keeps these paths in step with its map (design/icons.html). Order matches `Glyph`.
-const GLYPHS: [(&str, &[u8]); 146] = [
+const GLYPHS: [(&str, &[u8]); 147] = [
     ("icons/hashtag.svg", include_bytes!("../assets/icons/reicon/hashtag2.svg")),
     ("icons/hashtag-lock.svg", include_bytes!("../assets/icons/reicon/lock2.svg")),
     ("icons/volume-high.svg", include_bytes!("../assets/icons/reicon/volume-high.svg")),
@@ -157,6 +157,8 @@ const GLYPHS: [(&str, &[u8]); 146] = [
     ("icons/filter.svg", include_bytes!("../assets/icons/reicon/filter.svg")),
     // Reicon has no moon; drawn to match its filled weight.
     ("icons/moon.svg", include_bytes!("../assets/icons/moon.svg")),
+    // Reicon has no sticker; drawn to match its filled weight.
+    ("icons/sticker.svg", include_bytes!("../assets/icons/sticker.svg")),
 ];
 
 const BRAND: [(&str, &[u8]); 4] = [
@@ -315,6 +317,7 @@ pub enum Glyph {
     Calendar,
     Filter,
     Moon,
+    Sticker,
 }
 
 impl IconNamed for Glyph {

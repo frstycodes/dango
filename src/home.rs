@@ -112,6 +112,7 @@ impl Rustcord {
 
     pub(crate) fn open_gifs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.gif_picker = Some(None);
+        self.picker_tab = crate::stickers::PickerTab::Gifs;
         self.gif_search.update(cx, |state, cx| {
             state.set_value("", window, cx);
             state.focus(window, cx);

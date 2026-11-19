@@ -40,7 +40,7 @@ User complaints about Discord and how Dango answers them: [docs/better.md](docs/
 
 ### Regular
 - [x] GIF picker (Discord's Tenor search)
-- [ ] Stickers: picker, sending and rendering (`sticker_items` isn't parsed)
+- [~] Stickers: sent from a Stickers tab beside GIFs and Emoji (recent, your servers, Discord's packs, search by name and tags) and drawn at 160px, APNG animated; Lottie stickers (most of Discord's own packs) show a placeholder because there's no Lottie player
 - [x] Pins popover from the header
 - [~] Inbox from the title bar: Mentions tab only; the Unreads tab and Mentions filters are missing
 - [x] Threads: thread chips under messages, joined threads nested under their channel, a Threads popout in the header, Create Thread, Discord's thread menu (join, close, lock, mute, notifications, delete, leave)
@@ -104,7 +104,7 @@ Tokens: `docs/discord-tokens.json` (Discord web, Midnight, read 2026-11-14).
 - [ ] Category rows: "+ Create Channel" on hover is missing (rare, skip)
 - [ ] Channel row hover: "Invite" and "Edit Channel" icons on the right (rare, skip)
 - [ ] Rail bottom: "Add a Server" and "Discover" buttons (rare, skip)
-- [ ] Composer right side: Gift, GIF, Sticker, Emoji and Apps buttons (Emoji and GIF are features above)
+- [~] Composer right side: GIF, Sticker and Emoji buttons open one tabbed picker and show which is open; Gift and Apps are missing
 - [x] User panel: device chevrons beside mic and headphones
 - [ ] Member row: Discord shows the activity icon (a game controller) before the text
 - [ ] Member list group header "Council — 3": spacing check

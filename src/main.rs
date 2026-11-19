@@ -37,6 +37,7 @@ mod overlays;
 mod overwrites;
 mod playback;
 mod status_menu;
+mod stickers;
 mod memory;
 mod menu;
 mod message_menu;
@@ -694,6 +695,10 @@ pub struct Rustcord {
     inbox_page: bool,
     // The GIF picker: None closed, Some(None) loading, Some(Some(..)) results.
     gif_picker: Option<Option<Result<Vec<Gif>, SharedString>>>,
+    // Which tab the GIF picker shows; stickers share its frame.
+    picker_tab: stickers::PickerTab,
+    sticker_packs: Option<Result<Vec<discord::StickerPack>, SharedString>>,
+    sticker_search: Entity<SearchState>,
     gif_search: Entity<SearchState>,
     // The channel open when Rustcord last quit, reopened once the gateway is ready.
     restore: Option<(Option<String>, String)>,
@@ -821,6 +826,8 @@ impl Rustcord {
         let switcher_input = cx.new(|cx| SearchState::new(window, cx).placeholder("Where would you like to go?"));
         let gif_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search Tenor"));
         cx.subscribe_in(&gif_search, window, Self::on_gif_search).detach();
+        let sticker_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search stickers"));
+        cx.subscribe_in(&sticker_search, window, Self::on_sticker_search).detach();
         cx.subscribe_in(&switcher_input, window, Self::on_switcher_input).detach();
         let settings_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search settings"));
         let dialog_input = cx.new(|cx| SearchState::new(window, cx));
@@ -950,6 +957,9 @@ impl Rustcord {
             popover_at: gpui_kit::Point::default(),
             inbox_page: false,
             gif_picker: None,
+            picker_tab: stickers::PickerTab::default(),
+            sticker_packs: None,
+            sticker_search,
             gif_search,
             restore: None,
             editing: None,
@@ -1857,7 +1867,10 @@ impl Rustcord {
             return self.start_upload(nonce, cx);
         }
         cx.spawn(async move |this, cx| {
-            let result = client.send_message(&message.channel_id, &message.content, &nonce, message.reply_to.as_deref(), true).await;
+            let result = match message.stickers.first() {
+                Some(sticker) => client.send_sticker(&message.channel_id, &sticker.id, &nonce, message.reply_to.as_deref(), true).await,
+                None => client.send_message(&message.channel_id, &message.content, &nonce, message.reply_to.as_deref(), true).await,
+            };
             this.update(cx, |this, cx| this.settle(&message.channel_id, &nonce, result, cx)).ok();
         })
         .detach();

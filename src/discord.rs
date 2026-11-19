@@ -161,6 +161,7 @@ pub struct Guild {
     pub roles: Vec<Role>,
     pub voice_states: Vec<VoiceState>,
     pub emojis: Vec<Emoji>,
+    pub stickers: Vec<Sticker>,
     pub owner_id: Option<String>,
     // The server's own notification default (0 all messages, 1 only mentions), used until we pick one.
     pub default_notifications: u8,
@@ -583,6 +584,69 @@ pub struct Message {
     // A DM call's record (message type 3): drawn as one line, not a message.
     #[serde(default)]
     pub call: Option<CallRecord>,
+    #[serde(default)]
+    pub stickers: Vec<Sticker>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum StickerFormat {
+    #[default]
+    Png,
+    Apng,
+    Lottie,
+    Gif,
+}
+
+/// A sticker as messages, servers and packs carry it.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Sticker {
+    pub id: String,
+    pub name: String,
+    pub format: StickerFormat,
+    // Discord's related emoji or keywords, comma-separated; search matches them too.
+    #[serde(default)]
+    pub tags: String,
+}
+
+impl Sticker {
+    fn parse(v: &Value) -> Option<Self> {
+        let format = match v["format_type"].as_u64() {
+            Some(2) => StickerFormat::Apng,
+            Some(3) => StickerFormat::Lottie,
+            Some(4) => StickerFormat::Gif,
+            _ => StickerFormat::Png,
+        };
+        Some(Sticker { id: v["id"].as_str()?.to_owned(), name: v["name"].as_str().unwrap_or_default().to_owned(), format, tags: v["tags"].as_str().unwrap_or_default().to_owned() })
+    }
+
+    /// The picture at `size`, or None for Lottie: the CDN serves those only as JSON, which gpui can't draw.
+    /// APNG comes as an animated WebP, which gpui plays (checked against the media proxy, 2026-11-19).
+    // Not verified: GIF stickers at `.gif` (no GIF sticker was at hand to fetch).
+    pub fn url(&self, size: u32) -> Option<String> {
+        let id = &self.id;
+        match self.format {
+            StickerFormat::Lottie => None,
+            StickerFormat::Gif => Some(format!("https://media.discordapp.net/stickers/{id}.gif?size={size}")),
+            StickerFormat::Apng => Some(format!("https://media.discordapp.net/stickers/{id}.webp?size={size}&animated=true")),
+            StickerFormat::Png => Some(format!("https://media.discordapp.net/stickers/{id}.png?size={size}")),
+        }
+    }
+
+    pub fn animated(&self) -> bool {
+        self.format != StickerFormat::Png
+    }
+
+    pub fn matches(&self, query: &str) -> bool {
+        let query = query.to_lowercase();
+        self.name.to_lowercase().contains(&query) || self.tags.to_lowercase().contains(&query)
+    }
+}
+
+/// One of Discord's own sticker packs (`GET /sticker-packs`).
+#[derive(Clone, Debug)]
+pub struct StickerPack {
+    pub name: String,
+    pub stickers: Vec<Sticker>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -894,6 +958,26 @@ impl Client {
         let body = message_body(content, nonce, reply_to, ping_author, &[]);
         let req = self.request(reqwest::Method::POST, &format!("/channels/{channel_id}/messages")).json(&body);
         self.run(req).await.and_then(|v| parse_message(&v).ok_or_else(|| "Unexpected response".into()))
+    }
+
+    /// A message that is one sticker, as Discord's picker sends it: no text.
+    pub async fn send_sticker(&self, channel_id: &str, sticker_id: &str, nonce: &str, reply_to: Option<&str>, ping_author: bool) -> Result<Message, String> {
+        let mut body = message_body("", nonce, reply_to, ping_author, &[]);
+        body["sticker_ids"] = json!([sticker_id]);
+        let req = self.request(reqwest::Method::POST, &format!("/channels/{channel_id}/messages")).json(&body);
+        self.run(req).await.and_then(|v| parse_message(&v).ok_or_else(|| "Unexpected response".into()))
+    }
+
+    /// Discord's own packs, for everyone.
+    pub async fn sticker_packs(&self) -> Result<Vec<StickerPack>, String> {
+        let body = self.run(self.request(reqwest::Method::GET, "/sticker-packs")).await?;
+        Ok(body["sticker_packs"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|p| StickerPack { name: p["name"].as_str().unwrap_or_default().to_owned(), stickers: p["stickers"].as_array().into_iter().flatten().filter_map(Sticker::parse).collect() })
+            .filter(|p| !p.stickers.is_empty())
+            .collect())
     }
 
     /// One message carrying all the files, as Discord's own client sends it (docs.discord.food, Cloud
@@ -1684,6 +1768,8 @@ fn parse_guild(g: &Value) -> Option<Guild> {
         // Guild payloads leave out each voice state's guild_id.
         voice_states: g["voice_states"].as_array().into_iter().flatten().map(|v| VoiceState { guild_id: Some(id.to_owned()), ..parse_voice_state(v) }).collect(),
         emojis: g["emojis"].as_array().into_iter().flatten().map(parse_emoji).collect(),
+        // Not verified: READY's user-account guild objects carrying `stickers` the way bot GUILD_CREATE does.
+        stickers: g["stickers"].as_array().into_iter().flatten().filter_map(Sticker::parse).collect(),
         owner_id: props["owner_id"].as_str().or(g["owner_id"].as_str()).map(str::to_owned),
         default_notifications: props["default_message_notifications"].as_u64().or(g["default_message_notifications"].as_u64()).unwrap_or(0) as u8,
         threads: g["threads"].as_array().into_iter().flatten().filter_map(|t| parse_channel(t, id)).collect(),
@@ -1849,6 +1935,7 @@ pub fn parse_message(m: &Value) -> Option<Message> {
         pinned: m["pinned"].as_bool().unwrap_or(false),
         thread: m["thread"].is_object().then(|| parse_channel(&m["thread"], m["guild_id"].as_str().unwrap_or_default())).flatten(),
         call: (m["type"] == 3).then(|| CallRecord { participants: strings(&m["call"]["participants"]), ended: m["call"]["ended_timestamp"].as_str().map(str::to_owned) }),
+        stickers: m["sticker_items"].as_array().or(m["stickers"].as_array()).into_iter().flatten().filter_map(Sticker::parse).collect(),
     })
 }
 
@@ -2375,6 +2462,7 @@ mod tests {
             roles: vec![role("g", VIEW_CHANNEL), role("mods", 0), role("admins", perm::ADMINISTRATOR)],
             voice_states: Vec::new(),
             emojis: Vec::new(),
+            stickers: Vec::new(),
             owner_id: Some("owner".into()),
             premium_tier: 0,
             threads: Vec::new(),
@@ -2422,6 +2510,25 @@ mod tests {
         assert_eq!(m.media[1].kind, MediaKind::Gif { poster: "t.png".into() });
         assert_eq!(m.embeds.len(), 1);
         assert_eq!(m.embeds[0].provider.as_deref(), Some("YouTube"));
+    }
+
+    #[test]
+    fn stickers_parse_from_messages_and_pick_their_format() {
+        let m = parse_message(&json!({ "id": "1", "channel_id": "2", "author": { "id": "3" }, "sticker_items": [
+            { "id": "10", "name": "wave", "format_type": 1 },
+            { "id": "11", "name": "dance", "format_type": 4 },
+            { "id": "12", "name": "lottie", "format_type": 3 },
+            { "id": "13", "name": "bounce", "format_type": 2 },
+        ] }))
+        .expect("message");
+        let urls: Vec<_> = m.stickers.iter().map(|s| s.url(160)).collect();
+        assert_eq!(urls[0].as_deref(), Some("https://media.discordapp.net/stickers/10.png?size=160"));
+        assert_eq!(urls[1].as_deref(), Some("https://media.discordapp.net/stickers/11.gif?size=160"));
+        assert_eq!(urls[2], None);
+        assert_eq!(urls[3].as_deref(), Some("https://media.discordapp.net/stickers/13.webp?size=160&animated=true"));
+        assert!(!m.stickers[0].animated() && m.stickers[1].animated());
+        let tagged = Sticker { name: "Wumpus wave".into(), tags: "👋, hello".into(), ..Sticker::default() };
+        assert!(tagged.matches("wave") && tagged.matches("HELLO") && !tagged.matches("bye"));
     }
 
     #[test]
