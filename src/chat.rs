@@ -1002,7 +1002,7 @@ fn message_head(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> impl IntoE
                 .hover(|s| s.underline())
                 .child(ctx.name_of(&message.author)),
         )
-        .children(message.author.tag.clone().map(|tag| ui::badge(palette::selected(cx), palette::strong(cx)).h(px(18.)).px(px(6.)).gap(px(3.)).children(tag.badge.map(|b| img(b).size(px(12.)))).child(tag.text)))
+        .children(message.author.tag.as_ref().map(|tag| guild_tag(tag, cx)))
         .when(message.author.bot, |h| h.child(ui::badge(palette::accent_soft(cx), palette::accent_ink(cx)).h(px(18.)).px(px(6.)).gap(px(3.)).child(Icon::new(Glyph::Checkmark).size(px(11.))).child("APP")))
         .child(div().flex_none().relative().top(px(1.)).whitespace_nowrap().text_size(px(12.)).text_color(palette::faint(cx)).child(format_stamp(&message.timestamp)))
         .when(message.pinned, |h| h.child(div().flex_none().self_center().text_color(palette::muted(cx)).child(Icon::new(Glyph::Pin).size(px(14.)))))
@@ -1367,6 +1367,11 @@ fn hide_spoilers(text: &str, revealed: bool) -> String {
         }
     }
     out
+}
+
+// A user's server tag (Discord's guild tag): its badge and text, as it follows their name.
+pub(crate) fn guild_tag(tag: &crate::discord::GuildTag, cx: &App) -> Div {
+    ui::badge(palette::selected(cx), palette::strong(cx)).h(px(18.)).px(px(6.)).gap(px(3.)).children(tag.badge.clone().map(|b| img(b).size(px(12.)))).child(tag.text.clone())
 }
 
 // Not sent: the text stays, with why and the two ways out inline.
