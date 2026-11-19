@@ -9,6 +9,7 @@ use gpui_kit::{
 };
 use serde::{Deserialize, Serialize};
 
+mod advanced;
 mod profile;
 pub(crate) mod registry;
 mod updates;
@@ -775,7 +776,8 @@ impl Waffle {
             Page::Keybinds => self.keybinds_page(cx),
             Page::Appearance => self.appearance_page(window, cx),
             Page::Updates => self.updates_page(window, cx),
-            Page::ContentSocial | Page::Chat | Page::Advanced | Page::ActivityPrivacy => Vec::new(),
+            Page::Advanced => self.advanced_page(cx),
+            Page::ContentSocial | Page::Chat | Page::ActivityPrivacy => Vec::new(),
         };
         sections.extend(self.registry_sections(page, window, cx));
         // Groups follow the registry's order; an unkeyed section stays with the one before it.

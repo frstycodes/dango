@@ -147,6 +147,8 @@ pub static SETTINGS: &[Setting] = &[
     s("default-keybinds", Keybinds, "Default keybinds", "Default keybinds", None, &["shortcut", "hotkey", "keyboard"], Custom),
     // Advanced
     s("developer-mode", Advanced, "Developer", "Developer mode", Some("Adds Copy ID to the menus of servers, channels, people and messages"), &["copy id", "developer", "debug", "ids"], Switch(Toggle::DeveloperMode)),
+    // Listed while Developer mode is on.
+    s("crash-logs", Advanced, "Crash logs", "Crash logs", Some("Save a crash report to attach to a bug"), &["crash", "log", "report", "bug", "debug", "panic"], Custom),
     // Updates
     // One row holds the version, the status and its action (check, download, or restart to update).
     on_row(s("check-for-updates", Updates, "Waffle", "Check for updates", Some("The version you're on, and Restart to update once one is downloaded"), &["update", "version", "upgrade", "release", "about", "latest", "restart to update", "install", "restart"], Custom), "update-status"),

@@ -4,6 +4,8 @@
 mod accounts;
 mod attachments;
 mod app_keys;
+mod crash;
+mod create_channel;
 mod restart;
 mod feed_keys;
 mod auth;
@@ -110,6 +112,7 @@ static ALLOCATOR: memory::Counting = memory::Counting;
 static ALLOCATOR: dhat::Alloc = dhat::Alloc;
 
 fn main() {
+    crash::install();
     #[cfg(feature = "dhat-heap")]
     memory::start_heap_profile();
     memory::start_reporting();
