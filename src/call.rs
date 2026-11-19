@@ -76,6 +76,8 @@ fn tile_area(stage: (f32, f32)) -> (f32, f32, f32, f32) {
 enum Tile {
     User(VoiceState),
     Stream(VoiceState),
+    // A stream we watched that ended, kept in its place until closed (by its streamer's id).
+    Ended(String),
 }
 
 // How a tile is drawn: a 16:9 card of this width, or filling the stage edge to edge.
@@ -85,14 +87,17 @@ enum TileSize {
     Fill,
 }
 
-// The stage's fixed order: streams you watch or focus, other streams, cameras, then avatars. Within
-// each group people keep the order they joined in (`people` is in join order), so nothing moves when
-// someone speaks or joins.
-fn order_tiles(people: Vec<VoiceState>, opened: impl Fn(&str) -> bool, camera: impl Fn(&VoiceState) -> bool) -> Vec<Tile> {
+// The stage's fixed order: streams you watch or focus (and ended ones), other streams, cameras, then
+// avatars. Within each group people keep the order they joined in (`people` is in join order), so
+// nothing moves when someone speaks or joins. An ended stream whose streamer is live again has its
+// stream back instead.
+fn order_tiles(people: Vec<VoiceState>, ended: &[String], opened: impl Fn(&str) -> bool, camera: impl Fn(&VoiceState) -> bool) -> Vec<Tile> {
     let streams = people.iter().filter(|s| s.streaming).cloned().map(Tile::Stream);
-    let mut tiles: Vec<Tile> = streams.chain(people.iter().cloned().map(Tile::User)).collect();
+    let ended = ended.iter().filter(|id| !people.iter().any(|s| s.streaming && &s.user_id == *id)).cloned().map(Tile::Ended);
+    let mut tiles: Vec<Tile> = streams.chain(ended).chain(people.iter().cloned().map(Tile::User)).collect();
     tiles.sort_by_key(|tile| match tile {
         Tile::Stream(s) if opened(&s.user_id) => 0,
+        Tile::Ended(_) => 0,
         Tile::Stream(_) => 1,
         Tile::User(s) if camera(s) => 2,
         Tile::User(_) => 3,
@@ -104,7 +109,8 @@ fn order_tiles(people: Vec<VoiceState>, opened: impl Fn(&str) -> bool, camera: i
 fn tile_key(tile: &Tile) -> String {
     match tile {
         Tile::User(s) => format!("user:{}", s.user_id),
-        Tile::Stream(s) => format!("stream:{}", s.user_id),
+        // Shares its stream's key, so a focused stream that ends stays the big card.
+        Tile::Stream(VoiceState { user_id, .. }) | Tile::Ended(user_id) => format!("stream:{user_id}"),
     }
 }
 
@@ -598,6 +604,7 @@ impl Waffle {
         let me = self.me.as_ref().map(|m| m.id.as_str());
         order_tiles(
             self.participants(),
+            &call.ended,
             |id| call.watched(id).is_some() || focused.as_deref() == Some(id),
             |s| s.camera || call.cameras.contains_key(&s.user_id) || (me == Some(s.user_id.as_str()) && call.camera_on),
         )
@@ -668,16 +675,14 @@ impl Waffle {
     // .call: the stage, dark in both themes. The header, the tiles and the control bar; a focused
     // card instead fills the stage edge to edge under the header, the controls floating over it.
     pub(crate) fn render_call(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let call = self.call.as_ref()?;
+        self.call.as_ref()?;
         let tiles = self.ordered_tiles();
         // .call.autohide: 260ms out, drifting 6px toward its edge; any move brings it back.
         // With a stream focused the chrome steps aside, as Discord's does, while the pointer rests or
         // has left the stage.
         let rest = self.focused_stream().is_some() && self.call_idle();
         let shown = gpui_kit::base::transition("call-chrome", if rest { 0. } else { 1. }, gpui_kit::base::Transition::new(ui::DUR_PANEL), window, cx);
-        let watching = !call.watching.is_empty();
-        let ended = call.ended.clone().filter(|_| !watching);
-        let focused = self.call_focus.as_ref().and_then(|key| tiles.iter().find(|t| tile_key(t) == *key)).filter(|_| ended.is_none());
+        let focused = self.call_focus.as_ref().and_then(|key| tiles.iter().find(|t| tile_key(t) == *key));
         if let Some(big) = focused {
             return Some(self.focus_stage(big, &tiles, shown, cx));
         }
@@ -688,10 +693,7 @@ impl Waffle {
             false => (f32::from(viewport.width) - RAIL_WIDTH - self.channels_width - chat, f32::from(viewport.height) - 1.),
         };
         let (_, _, width, height) = tile_area(stage_size);
-        let body: AnyElement = match ended {
-            Some(streamer) => self.ended_stage(&streamer, width, height, cx),
-            None => self.card_stage(&tiles, (width, height), cx),
-        };
+        let body = self.card_stage(&tiles, (width, height), cx);
         let stage = div().flex_1().min_h_0().flex().flex_col().gap(px(STAGE_GAP)).pt(px(STAGE_GAP)).px(px(STAGE_PAD)).pb(px(STAGE_PAD));
         Some(
             self.stage_root(cx)
@@ -1028,45 +1030,88 @@ impl Waffle {
         cx.notify();
     }
 
-    // .tile.ended in the stream's place: that it ended, who stopped, and the way back to the call.
-    fn ended_stage(&self, streamer: &str, width: f32, height: f32, cx: &mut Context<Self>) -> AnyElement {
-        let mine = self.me.as_ref().is_some_and(|m| m.id == streamer);
-        let name = if mine { "You".to_owned() } else { self.user_name(streamer) };
-        let line = match self.activity_name(streamer) {
-            Some(app) => format!("{name} stopped sharing {app}"),
-            None => format!("{name} stopped sharing"),
+    // A watched stream that ended, in its card's place: that it ended and why, and Close stream to clear
+    // it. While it's up, the streamer going live again brings us back in as a viewer, as Discord's does.
+    fn ended_tile(&self, streamer: &str, size: TileSize, cx: &mut Context<Self>) -> AnyElement {
+        let (fill, w) = match size {
+            TileSize::Card(w) => (false, w),
+            TileSize::Fill => (true, f32::INFINITY),
         };
-        let w = width.min(height * 16. / 9.).min(720.);
-        div()
-            .size_full()
+        let radius = if fill { 0. } else { RADIUS_LG };
+        let small = w <= STRIP_TILE + 0.5;
+        let card = div()
+            .id(SharedString::from(format!("ended-{streamer}")))
+            .relative()
+            .map(|d| match size {
+                TileSize::Card(w) => d.w(px(w)).h(px(w * 9. / 16.)).flex_none().squircle(radius).overflow_hidden(),
+                TileSize::Fill => d.size_full(),
+            })
+            .bg(stage::ended())
             .flex()
+            .flex_col()
             .items_center()
             .justify_center()
-            .child(
-                div()
-                    .w(px(w))
-                    .h(px(w * 9. / 16.))
-                    .squircle(RADIUS_LG)
-                    .bg(stage::ended())
-                    .relative()
-                    .flex()
-                    .flex_col()
-                    .items_center()
-                    .justify_center()
-                    .gap(px(4.))
-                    .p(px(12.))
-                    .child(div().text_size(px(16.)).font_weight(FontWeight::MEDIUM).text_color(stage::strong()).child("Stream ended"))
-                    .child(div().text_size(px(12.)).text_color(stage::muted()).child(line))
-                    .child(div().mt(px(6.)).child(stage_button("ended-back", "Back to call").on_click(cx.listener(|this, _, _, cx| {
-                        if let Some(call) = &mut this.call {
-                            call.ended = None;
-                        }
-                        cx.notify();
-                    }))))
-                    .child(tile_ring(false, false, RADIUS_LG)),
-            )
-            .with_animation("ended-in", Animation::new(ui::DUR_PANEL), |d, t| d.opacity(t.min(1.)))
+            .gap(px(4.))
+            .p(px(12.))
+            .text_center();
+        if small {
+            return card.child(Icon::new(Glyph::ScreenOff).size(px(24.)).text_color(stage::muted())).child(tile_ring(false, false, radius)).into_any_element();
+        }
+        let name = self.user_name(streamer);
+        let line = match (self.participants().iter().any(|s| s.user_id == streamer), self.activity_name(streamer)) {
+            (false, _) => format!("{name} left the call"),
+            (true, Some(app)) => format!("{name} stopped sharing {app}"),
+            (true, None) => format!("{name} stopped streaming"),
+        };
+        let close = streamer.to_owned();
+        card.child(div().text_size(px(16.)).font_weight(FontWeight::MEDIUM).text_color(stage::strong()).child("Stream ended"))
+            .child(div().text_size(px(12.)).text_color(stage::muted()).child(line))
+            .child(div().mt(px(6.)).child(stage_button("ended-close", "Close stream").on_click(cx.listener(move |this, _, _, cx| {
+                cx.stop_propagation();
+                this.close_ended_stream(&close, cx);
+            }))))
+            .when(!fill, |d| d.child(tile_ring(false, false, radius)))
+            .with_animation(SharedString::from(format!("ended-in-{streamer}")), Animation::new(ui::DUR_PANEL), |d, t| d.opacity(t.min(1.)))
             .into_any_element()
+    }
+
+    fn close_ended_stream(&mut self, streamer: &str, cx: &mut Context<Self>) {
+        if let Some(call) = &mut self.call {
+            call.ended.retain(|id| id != streamer);
+        }
+        if self.focused_stream().as_deref() == Some(streamer) {
+            self.call_focus = None;
+        }
+        cx.notify();
+    }
+
+    // Over a stream not yet watched: Watch stream switches to it alone; while others play, the button
+    // beside it adds it to them, as Discord's.
+    fn watch_actions(&self, tile: &Tile, alongside: bool, cx: &mut Context<Self>) -> Div {
+        let (only, also) = (tile.clone(), tile.clone());
+        let switch = watch_button("Watch stream").id("watch-only").cursor_pointer().on_click(cx.listener(move |this, _, _, cx| {
+            cx.stop_propagation();
+            this.stop_watching(cx);
+            this.call_focus = None;
+            this.toggle_card(&only, cx);
+        }));
+        div().flex().items_center().gap(px(6.)).child(switch).when(alongside, |d| {
+            d.child(
+                watch_button_look()
+                    .id("watch-alongside")
+                    .w(px(30.))
+                    .justify_center()
+                    .cursor_pointer()
+                    .child(Icon::new(Glyph::Plus).size(px(16.)))
+                    .tooltip(|window, cx| ui::tip("Watch alongside", window, cx))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        cx.stop_propagation();
+                        if let Tile::Stream(state) = &also {
+                            this.watch_stream(state.user_id.clone(), cx);
+                        }
+                    })),
+            )
+        })
     }
 
     // .tile: a person (camera, or their avatar on their own tint) or someone's Go Live. Every card
@@ -1080,7 +1125,10 @@ impl Waffle {
             TileSize::Fill => (true, f32::INFINITY),
         };
         let radius = if fill { 0. } else { RADIUS_LG };
-        let (Tile::User(state) | Tile::Stream(state)) = tile;
+        let (Tile::User(state) | Tile::Stream(state)) = tile else {
+            let Tile::Ended(streamer) = tile else { unreachable!() };
+            return self.ended_tile(streamer, size, cx);
+        };
         let user = state.user.clone().unwrap_or_else(|| User {
             id: state.user_id.clone(),
             name: self.user_name(&state.user_id),
@@ -1178,7 +1226,7 @@ impl Waffle {
         let menu_user = state.user_id.clone();
         let card = tile.clone();
         let viewers = if is_stream { self.viewer_count(&state.user_id) } else { 0 };
-        let watch_label = if call.watching.is_empty() { "Watch stream" } else { "Watch too" };
+        let alongside = call.watching.iter().any(|w| w.streamer_id != state.user_id);
         div()
             .id(group.clone())
             .group(group.clone())
@@ -1193,7 +1241,7 @@ impl Waffle {
             .children(own_live)
             .when(viewers > 0, |d| d.child(viewer_chip(viewers)))
             .when(watchable && !small, |d| {
-                d.child(div().absolute().inset_0().when(!fill, |d| d.squircle(radius)).bg(gpui_kit::black().opacity(0.45)).flex().items_center().justify_center().child(watch_button(watch_label)))
+                d.child(div().absolute().inset_0().when(!fill, |d| d.squircle(radius)).bg(gpui_kit::black().opacity(0.45)).flex().items_center().justify_center().child(self.watch_actions(tile, alongside, cx)))
             })
             .child(name)
             .children(off_chip)
@@ -1269,7 +1317,15 @@ impl Waffle {
         let activities = control("call-activities", Glyph::ActivitiesFill, "Activities and soundboard", Control::Rest, connected)
             .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities and the soundboard aren't in Waffle yet", cx))));
         let more = control("call-more", Glyph::More, "More options", Control::Rest, true).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_call_more(e.position, cx)));
-        let leave = control("call-hang-up", Glyph::CallEnd, "Leave call", Control::Leave, true).w(px(68.)).on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx)));
+        // Watching the stream shown big, the red button stops watching it rather than leaving, as Discord's.
+        let me = self.me.as_ref().map(|m| m.id.as_str());
+        let leave = match self.focused_stream().filter(|id| call.watched(id).is_some() && me != Some(id.as_str())) {
+            Some(id) => control("call-stop-watching", Glyph::ScreenOff, "Stop watching", Control::Leave, true).w(px(68.)).on_click(cx.listener(move |this, _, _, cx| {
+                this.call_focus = None;
+                this.unwatch_stream(&id, cx);
+            })),
+            None => control("call-hang-up", Glyph::CallEnd, "Leave call", Control::Leave, true).w(px(68.)).on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx))),
+        };
         // Full screen at the bar's right end, as Discord's.
         let fullscreen = self.call_fullscreen;
         let fullscreen = stage_icon_button("call-fullscreen", if fullscreen { Glyph::FullscreenExit } else { Glyph::Fullscreen }, if fullscreen { "Exit full screen (Esc)" } else { "Full screen" }, false)
@@ -1755,20 +1811,20 @@ fn stage_button(id: &'static str, label: &'static str) -> Stateful<Div> {
 
 // .preview .watch: the light button over a dimmed stream.
 pub(crate) fn watch_button(label: &'static str) -> Div {
+    watch_button_look().px(px(10.)).gap(px(8.)).child(Icon::new(Glyph::Play).size(px(16.))).child(label)
+}
+
+fn watch_button_look() -> Div {
     div()
         .h(px(30.))
-        .px(px(10.))
         .squircle(RADIUS_SM)
         .flex()
         .items_center()
-        .gap(px(8.))
         .bg(stage::strong())
         .hover(|s| s.bg(gpui_kit::white()))
         .text_color(stage::on_ink())
         .text_size(px(14.))
         .font_weight(FontWeight::MEDIUM)
-        .child(Icon::new(Glyph::Play).size(px(16.)))
-        .child(label)
 }
 
 // A call control's state: .cbtn at rest, .off (coral), .on (light), .active (accent), the open
@@ -2096,12 +2152,17 @@ mod order_tests {
     fn streams_first_then_cameras_then_avatars_in_join_order() {
         // Joined in this order: a (avatar), b (streams), c (camera), d (streams, watched), e (avatar).
         let people = vec![person("a", false, false), person("b", true, false), person("c", false, true), person("d", true, false), person("e", false, false)];
-        let keys: Vec<String> = order_tiles(people.clone(), |id| id == "d", |s| s.camera).iter().map(tile_key).collect();
+        let keys: Vec<String> = order_tiles(people.clone(), &[], |id| id == "d", |s| s.camera).iter().map(tile_key).collect();
         assert_eq!(keys, ["stream:d", "stream:b", "user:c", "user:a", "user:b", "user:d", "user:e"]);
         // Someone speaking or a mute changes nothing; a new joiner lands at the end of their group.
         let mut joined = people;
         joined.push(person("f", true, false));
-        let keys: Vec<String> = order_tiles(joined, |id| id == "d", |s| s.camera).iter().map(tile_key).collect();
+        let keys: Vec<String> = order_tiles(joined.clone(), &[], |id| id == "d", |s| s.camera).iter().map(tile_key).collect();
         assert_eq!(keys, ["stream:d", "stream:b", "stream:f", "user:c", "user:a", "user:b", "user:d", "user:e", "user:f"]);
+        // An ended stream keeps a card up front until its streamer is live again; they may have left.
+        let keys: Vec<String> = order_tiles(joined.clone(), &["gone".into()], |_| false, |s| s.camera).iter().map(tile_key).collect();
+        assert_eq!(&keys[..2], ["stream:gone", "stream:b"]);
+        let keys: Vec<String> = order_tiles(joined, &["b".into()], |_| false, |s| s.camera).iter().map(tile_key).collect();
+        assert_eq!(keys.iter().filter(|k| *k == "stream:b").count(), 1, "live again: the stream, not the ended card");
     }
 }

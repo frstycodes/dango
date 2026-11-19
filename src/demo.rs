@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// WAFFLE_DEMO=chat | busy | message-focus | message-focus-menu | message-focus-delete | message-menu-theirs | user-menu-voice | user-menu-voice-denied | mention | mention-tab | mention-enter | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | home | home-presence | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
+// WAFFLE_DEMO=chat | busy | message-focus | message-focus-menu | message-focus-delete | message-menu-theirs | user-menu-voice | user-menu-voice-denied | mention | mention-tab | mention-enter | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | home | home-presence | folder | stream-card | call-streams | call-streams-ended | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -443,8 +443,9 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
             waffle.list_shareables(Ok(windows), Ok(vec![screen(1, "Screen 1"), screen(2, "Screen 2")]), cx);
         }
         // Three streams (one watched at 4:3, so focus letterboxes it; one unopened; our own) and two
-        // cameras: the grid's order, chips and Watch, focus and full screen.
-        "call-streams" | "call-streams-focus" | "call-streams-strip" | "call-streams-full" => {
+        // cameras: the grid's order, chips and Watch, focus and full screen. Ended adds two ended
+        // streams' cards: one streamer still in the call, one who left.
+        "call-streams" | "call-streams-ended" | "call-streams-focus" | "call-streams-strip" | "call-streams-full" => {
             demo_call(waffle);
             if let Some(guild) = waffle.guilds.iter_mut().find(|g| g.id == "1") {
                 for state in guild.voice_states.iter_mut() {
@@ -460,8 +461,11 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
                 call.self_view = Some((demo_frame(1280, 720, 200), std::time::Instant::now()));
                 call.cameras.insert("20971520".into(), demo_frame(640, 480, 120));
                 call.cameras.insert("8388608".into(), demo_frame(640, 360, 230));
+                if scene == "call-streams-ended" {
+                    call.ended = vec!["20971520".into(), "99".into()];
+                }
             }
-            if scene != "call-streams" {
+            if !matches!(scene, "call-streams" | "call-streams-ended") {
                 waffle.call_focus = Some("stream:12582912".into());
                 // Holds the chrome up for the first half minute, as if the pointer had just moved.
                 waffle.call_pointer_at = std::time::Instant::now() + std::time::Duration::from_secs(30);
@@ -630,7 +634,7 @@ fn demo_call(waffle: &mut Waffle) {
         camera_on: false,
         watching: Vec::new(),
         focus: None,
-        ended: None,
+        ended: Vec::new(),
         sharing: None,
         share_source: None, live_since: None, self_view: None, share_label: None,
         joined: std::time::Instant::now().checked_sub(std::time::Duration::from_secs(5047)).unwrap_or_else(std::time::Instant::now),
