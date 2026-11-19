@@ -27,7 +27,7 @@ use crate::{
 // .voicebar: 10px padding, a 38px status block (a 20px line over an 18px one), 8px gap, 32px
 // buttons, and its 1px hairline.
 pub const VOICE_HEIGHT: f32 = 99.;
-const PANEL_PAD: f32 = 10.;
+pub(crate) const PANEL_PAD: f32 = 10.;
 // The error bar is the voicebar without its buttons.
 const ERROR_HEIGHT: f32 = 59.;
 const PREVIEW_AGE: std::time::Duration = std::time::Duration::from_secs(60);
@@ -449,9 +449,8 @@ impl Waffle {
             .flex_col()
             .gap(px(8.))
             .rounded_t(px(RADIUS_MD)).corner_shape(ui::SQUIRCLE)
-            .bg(palette::surface(palette::Level::Rail, cx))
-            .border_b_1()
-            .border_color(palette::line(cx))
+            .relative()
+            .child(ui::inset_rule(PANEL_PAD, cx))
             .child(top)
             .child(div().flex().gap(px(6.)).child(camera).child(share).child(activities));
         Some(voice.into_any_element())
@@ -469,9 +468,8 @@ impl Waffle {
                 .items_center()
                 .gap(px(8.))
                 .rounded_t(px(RADIUS_MD)).corner_shape(ui::SQUIRCLE)
-                .bg(palette::surface(palette::Level::Rail, cx))
-                .border_b_1()
-                .border_color(palette::line(cx))
+                .relative()
+                .child(ui::inset_rule(PANEL_PAD, cx))
                 .child(
                     div()
                         .flex_1()

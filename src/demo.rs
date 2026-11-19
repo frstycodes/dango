@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// WAFFLE_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | notifications | content-social | chat-settings | settings-search | status | accounts | unread | home | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
+// WAFFLE_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | accounts | unread | home | home-presence | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -86,6 +86,19 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
         "emoji" => waffle.open_emoji_picker(crate::EmojiTarget::Composer, window, cx),
         "switcher" => waffle.open_switcher(window, cx),
         "status" => waffle.status_menu = true,
+        "status-custom" => {
+            waffle.custom_status = Some(demo_custom_status());
+            waffle.status_menu = true;
+        }
+        // The status menu with Do not disturb's durations open beside it.
+        "status-durations" => {
+            waffle.status_menu = true;
+            waffle.status_flyout = crate::status_menu::Flyout::opened(crate::discord::Status::Dnd);
+        }
+        "status-editor" => {
+            waffle.custom_status = Some(demo_custom_status());
+            waffle.open_status_editor(window, cx);
+        }
         "update-ready" => waffle.updates.status = crate::updater::Status::Ready(crate::updater::Staged::demo("0.8.0")),
         // The Updates page in each state the updater reports.
         "updates" | "updates-downloading" | "updates-ready" => {
@@ -112,6 +125,15 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
             }
         }
         "appearance" => waffle.open_settings(crate::settings::Page::Appearance, window, cx),
+        // The nav scrolled up under its header strip, where the traffic lights sit.
+        "appearance-scrolled" => {
+            waffle.open_settings(crate::settings::Page::Appearance, window, cx);
+            let nav = waffle.settings_nav_scroll.clone();
+            window.on_next_frame(move |window, _| {
+                nav.set_offset(gpui_kit::point(gpui_kit::px(0.), gpui_kit::px(-90.)));
+                window.refresh();
+            });
+        }
         "notifications" => waffle.open_settings(crate::settings::Page::Notifications, window, cx),
         "content-social" => waffle.open_settings(crate::settings::Page::ContentSocial, window, cx),
         "chat-settings" => waffle.open_settings(crate::settings::Page::Chat, window, cx),
@@ -187,6 +209,19 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
             waffle.restore = None;
             waffle.open_home(cx);
         }
+        // One DM per presence, so each status mark shows its cutout on the sidebar.
+        "home-presence" => {
+            for (id, name, status) in [("12582912", "moss lantern", Presence_::Idle), ("16777216", "toma reed", Presence_::Dnd), ("25165824", "ferris", Presence_::Offline)] {
+                let mut dm = waffle.dms[0].clone();
+                dm.id = format!("dm-{id}");
+                dm.name = name.into();
+                dm.recipient = Some(user(id, name));
+                waffle.dms.push(dm);
+                waffle.presences.insert(id.into(), Presence { status, ..Default::default() });
+            }
+            waffle.restore = None;
+            waffle.open_home(cx);
+        }
         "activity" | "activity-all" => {
             let ago = |hours: i64| chrono::Utc::now().timestamp_millis() - hours * 3_600_000;
             let entry = |author: &str, kind, title: &str, image: Option<&str>, live, at, streak_days| crate::discord::FeedEntry { author_id: author.into(), kind, title: title.into(), image: image.map(Into::into), live, at, streak_days };
@@ -236,6 +271,47 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
         }
         // Wren calls: the strip rings in her DM; "call-banner" takes the call while #general is open.
         "call-incoming" | "call-banner" | "call-joinable" => demo_dm_call(waffle, scene, window, cx),
+        // The foot of the sidebar stacked full (an update over the voice panel, then its disconnected
+        // state), with the channel list scrolled so rows run under the header's blur.
+        // The channel list resized back and forth, as if its edge were being dragged: the traffic lights
+        // must hold still.
+        "sidebar-resize" => {
+            cx.spawn(async move |this, cx| {
+                for step in 0.. {
+                    cx.background_executor().timer(std::time::Duration::from_millis(16)).await;
+                    let width = 240. + 80. * ((step as f32) / 30.).sin().abs();
+                    if this.update(cx, |this, cx| {
+                        this.channels_width = width;
+                        cx.notify();
+                    })
+                    .is_err()
+                    {
+                        return;
+                    }
+                }
+            })
+            .detach();
+        }
+        "sidebar-voice" | "sidebar-voice-error" | "sidebar-voice-solid" | "sidebar-voice-fullscreen" => {
+            waffle.prefs.native_sidebar = scene != "sidebar-voice-solid";
+            waffle.updates.status = crate::updater::Status::Ready(crate::updater::Staged::demo("0.8.0"));
+            match scene {
+                "sidebar-voice" | "sidebar-voice-solid" | "sidebar-voice-fullscreen" => demo_call(waffle),
+                _ => waffle.voice_error = Some("Moved to a voice channel Waffle can't show".into()),
+            }
+            if let Some(guild) = waffle.guilds.iter_mut().find(|g| g.id == "1") {
+                guild.channels.extend((1..=16).map(|n| channel(&format!("filler-{n}"), &format!("filler-{n}"), ChannelKind::Text, Some("c0"))));
+            }
+            // After the first layout: before it there is nothing to scroll, and the offset clamps to 0.
+            if scene == "sidebar-voice-fullscreen" {
+                window.toggle_fullscreen();
+            }
+            let list = waffle.channels_scroll.clone();
+            window.on_next_frame(move |window, _| {
+                list.set_offset(gpui_kit::point(gpui_kit::px(0.), gpui_kit::px(-40.)));
+                window.refresh();
+            });
+        }
         "dm-empty" | "group-empty" | "group-start" | "group-mention" => demo_dm_start(waffle, scene, window, cx),
         "stream-card" => {
             let key = "guild:1:lounge:12582912".to_owned();
@@ -1047,4 +1123,8 @@ fn hsl(h: f32, s: f32, l: f32) -> [u8; 3] {
     };
     let m = l - c / 2.;
     [((r + m) * 255.) as u8, ((g + m) * 255.) as u8, ((b + m) * 255.) as u8]
+}
+
+fn demo_custom_status() -> crate::discord::CustomStatus {
+    crate::discord::CustomStatus { text: "Reviewing the parity spec, back at 5".into(), emoji: Some(crate::discord::Emoji::unicode("🍡")), expires_at: None }
 }

@@ -36,6 +36,7 @@ mod os_image;
 mod overlays;
 mod overwrites;
 mod playback;
+mod status_menu;
 mod memory;
 mod menu;
 mod message_menu;
@@ -133,7 +134,7 @@ fn main() {
         // The design is drawn with `-webkit-font-smoothing: antialiased`; macOS smoothing would thicken every stroke.
         cx.text_system().set_font_smoothing(false);
         cx.set_http_client(std::sync::Arc::new(discord::Images::default()));
-        cx.set_reduce_motion(material::system_reduce_motion());
+        cx.set_reduce_motion(material::system_reduce_motion() || settings::Prefs::load().reduce_motion);
         settings::Prefs::load().app_icon.apply();
         // WAVE_DESIGN=1 opens only the design system gallery, no sign-in needed.
         if std::env::var_os("WAVE_DESIGN").is_some() {
@@ -191,8 +192,7 @@ fn open_main(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gp
         focus: splash.is_none(),
         window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(1280.), px(820.)), cx))),
         window_min_size: Some(size(px(940.), px(520.))),
-        // The traffic lights centre in the 36px title bar, leaving the first 72px to them.
-        titlebar: Some(TitlebarOptions { title: Some("Waffle".into()), appears_transparent: true, traffic_light_position: Some(gpui_kit::point(px(12.), px(18.))) }),
+        titlebar: Some(TitlebarOptions { title: Some("Waffle".into()), appears_transparent: true, traffic_light_position: Some(layout::TRAFFIC_LIGHTS) }),
         window_background: material::window_background(),
         ..Default::default()
     };
@@ -205,7 +205,7 @@ fn open_main(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gp
         cx.new(|cx| shell::Shell::new(window, splash, cx))
     })
     .expect("open window");
-    if material::NATIVE_SIDEBAR {
+    if material::setting_name().is_some() {
         // gpui-component's root paints the theme background over the whole window, hiding the native
         // material; Root's own style is applied last, so it can clear that.
         handle
@@ -311,19 +311,35 @@ fn release_caches(cx: &mut gpui_kit::App) {
 }
 
 // macOS: closing the window hides Waffle and keeps it signed in; the Dock icon or ⌘Tab brings it
-// back and ⌘Q quits. Minimized, hidden or fully covered, it frees its caches (there is no working set
-// to empty, the system compresses idle pages itself), unless a video is playing.
+// back and ⌘Q quits. Minimized, hidden or fully covered, it frees its caches and hands freed heap
+// pages back (there is no working set to empty, the system compresses idle pages itself), unless a
+// video is playing. Shown again, it redraws from scratch: the cached app view still points at the
+// freed images' atlas tiles.
 #[cfg(target_os = "macos")]
 fn keep_running_in_dock(window: &mut gpui_kit::Window, cx: &mut gpui_kit::App) {
     window.on_window_should_close(cx, |_, cx| {
         cx.hide();
         false
     });
+    let released = std::rc::Rc::new(std::cell::Cell::new(false));
     window
-        .observe_window_visibility(|visibility, _, cx| {
-            if !visibility.is_visible() && !video::is_playing(cx) {
-                release_caches(cx);
+        .observe_window_visibility(move |visibility, window, cx| {
+            if visibility.is_visible() {
+                if released.replace(false) {
+                    window.refresh();
+                }
+                return;
             }
+            if video::is_playing(cx) || released.replace(true) {
+                return;
+            }
+            release_caches(cx);
+            cx.spawn(async move |cx| {
+                // After the deferred image drops have run and the GPU has let go of the textures.
+                cx.background_executor().timer(Duration::from_millis(100)).await;
+                cx.background_executor().spawn(async { memory::compact() }).await;
+            })
+            .detach();
         })
         .detach();
 }
@@ -478,12 +494,15 @@ struct ProfileCard {
 enum EmojiTarget {
     Composer,
     Reaction(Box<Message>),
+    CustomStatus,
 }
 
 #[derive(Clone, Copy, PartialEq)]
 enum Edge {
     Channels,
     Panel,
+    // The nav column of the settings views (app, server, channel), one width for all three.
+    Settings,
 }
 
 struct Drag {
@@ -511,7 +530,13 @@ pub struct Waffle {
     _session: Option<Task<()>>,
     me: Option<User>,
     my_status: discord::Status,
-    custom_status: Option<String>,
+    custom_status: Option<discord::CustomStatus>,
+    // When a status picked "For 1 hour" and the like falls back to Online.
+    status_until: Option<chrono::DateTime<chrono::Local>>,
+    status_editor: Option<status_menu::StatusEditor>,
+    status_flyout: status_menu::Flyout,
+    status_input: Entity<SearchState>,
+    clear_after: status_menu::ClearAfter,
     guilds: Vec<Guild>,
     folders: Vec<Folder>,
     open_folders: HashSet<String>,
@@ -676,6 +701,7 @@ pub struct Waffle {
     autocomplete: Option<Autocomplete>,
     // The suggestion list's scroll, kept on the highlighted row.
     autocomplete_scroll: gpui_kit::ScrollHandle,
+    channels_scroll: gpui_kit::ScrollHandle,
     flash: Option<String>,
     muted: bool,
     deafened: bool,
@@ -716,6 +742,9 @@ pub struct Waffle {
     copied: Option<String>,
     focus: FocusHandle,
     channels_width: f32,
+    settings_width: f32,
+    // The settings views' nav list; one is open at a time.
+    settings_nav_scroll: gpui_kit::ScrollHandle,
     panel_width: f32,
     drag: Option<Drag>,
     back: Vec<(Option<String>, Channel)>,
@@ -794,6 +823,8 @@ impl Waffle {
         cx.subscribe_in(&switcher_input, window, Self::on_switcher_input).detach();
         let settings_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search settings"));
         let dialog_input = cx.new(|cx| SearchState::new(window, cx));
+        let status_input = cx.new(|cx| SearchState::new(window, cx).placeholder("What's on your mind?"));
+        cx.subscribe_in(&status_input, window, Self::on_status_input).detach();
         cx.subscribe(&settings_search, |this: &mut Self, _, _: &InputEvent, cx| {
             // A new query starts at its best result.
             if let Some(view) = this.settings.as_mut() {
@@ -810,6 +841,11 @@ impl Waffle {
             me: None,
             my_status: discord::Status::Online,
             custom_status: None,
+            status_until: None,
+            status_editor: None,
+            status_flyout: status_menu::Flyout::default(),
+            status_input,
+            clear_after: status_menu::ClearAfter::default(),
             guilds: Vec::new(),
             folders: Vec::new(),
             open_folders: HashSet::new(),
@@ -919,6 +955,7 @@ impl Waffle {
             mention_wire: HashMap::new(),
             autocomplete: None,
             autocomplete_scroll: gpui_kit::ScrollHandle::new(),
+            channels_scroll: gpui_kit::ScrollHandle::new(),
             flash: None,
             muted: false,
             deafened: false,
@@ -948,6 +985,8 @@ impl Waffle {
             copied: None,
             focus: cx.focus_handle(),
             channels_width: layout::CHANNELS_WIDTH,
+            settings_width: ui::SETTINGS_NAV_WIDTH,
+            settings_nav_scroll: gpui_kit::ScrollHandle::new(),
             panel_width: layout::PANEL_WIDTH,
             drag: None,
             back: Vec::new(),
@@ -1078,6 +1117,7 @@ impl Waffle {
                 self.remember_account(&ready.me);
                 self.me = Some(ready.me);
                 self.custom_status = ready.custom_status;
+                self.expire_custom_status_later(cx);
                 for channel in ready.guilds.iter().flat_map(|g| &g.channels).chain(&ready.dms) {
                     if let Some(id) = channel.last_message_id.as_deref().and_then(|id| id.parse().ok()) {
                         self.last_message.insert(channel.id.clone(), id);

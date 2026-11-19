@@ -2,15 +2,16 @@
 //
 // - Rust heap: every allocation goes through `Counting`, so `heap_bytes()` is exactly what Waffle's
 //   own data holds right now (messages, images, caches), and `heap_peak()` the most it ever held.
-// - Process totals (Windows): the private working set Task Manager shows as "Memory", the working
-//   set, committed private bytes, and GPU memory (dedicated and shared) from DXGI.
+// - Process totals: on Windows the private working set Task Manager shows as "Memory", the working
+//   set, committed private bytes, and GPU memory (dedicated and shared) from DXGI; on macOS the
+//   footprint Activity Monitor shows as "Memory", which already includes GPU memory (unified memory).
 // - Gauges: the caches that can grow (see `report`).
 //
 // `WAFFLE_MEMORY=1` logs a report every 10 s to stderr; `WAFFLE_MEMORY=<MB>` also sets the
 // budget (default 100 MB). Going over the budget is always logged, once per crossing.
 //
-// `trim()` hands memory Waffle no longer uses back to Windows: it compacts the process heaps and
-// empties the working set. Pages still in use fault back in when touched, so it's cheap to call when
+// `trim()` hands memory Waffle no longer uses back to the system: it compacts the process heaps and,
+// on Windows, empties the working set. Pages still in use fault back in when touched, so it's cheap to call when
 // the app goes to the background.
 use std::{
     alloc::{GlobalAlloc, Layout, System},
@@ -253,7 +254,7 @@ pub fn start_heap_profile() {
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Process {
-    // What Task Manager shows as the process's "Memory".
+    // What Task Manager (Windows) or Activity Monitor (macOS, the footprint) shows as "Memory".
     pub private_working_set: u64,
     pub working_set: u64,
     // Committed private memory, resident or paged out.
@@ -310,7 +311,21 @@ fn gpu_usage() -> (u64, u64) {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+pub fn process() -> Option<Process> {
+    let mut info = std::mem::MaybeUninit::<libc::rusage_info_v2>::zeroed();
+    // SAFETY: RUSAGE_INFO_V2 fills exactly a rusage_info_v2.
+    let status = unsafe { libc::proc_pid_rusage(std::process::id() as i32, libc::RUSAGE_INFO_V2, info.as_mut_ptr().cast()) };
+    if status != 0 {
+        return None;
+    }
+    // SAFETY: proc_pid_rusage succeeded, so it wrote the struct.
+    let info = unsafe { info.assume_init() };
+    // GPU memory is unified and already counted in the footprint, so the gpu fields stay 0.
+    Some(Process { private_working_set: info.ri_phys_footprint, working_set: info.ri_resident_size, private: info.ri_phys_footprint, gpu_dedicated: 0, gpu_shared: 0 })
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 pub fn process() -> Option<Process> {
     None
 }
@@ -333,7 +348,18 @@ pub fn compact() {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+// Returns malloc's free pages to the system; the allocator otherwise keeps them after a peak.
+#[cfg(target_os = "macos")]
+pub fn compact() {
+    unsafe extern "C" {
+        // <malloc/malloc.h>: a null zone means every zone, a goal of 0 as much as possible.
+        fn malloc_zone_pressure_relief(zone: *mut std::ffi::c_void, goal: usize) -> usize;
+    }
+    // SAFETY: documented to be callable at any time from any thread.
+    unsafe { malloc_zone_pressure_relief(std::ptr::null_mut(), 0) };
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 pub fn compact() {}
 
 // `compact`, then empties the working set: Task Manager's number drops to almost nothing, but every
@@ -360,7 +386,9 @@ pub fn trim() {
 }
 
 #[cfg(not(target_os = "windows"))]
-pub fn trim() {}
+pub fn trim() {
+    compact();
+}
 
 const MB: f64 = 1024. * 1024.;
 
@@ -483,6 +511,14 @@ mod tests {
         let report = largest_allocation().expect("caught");
         assert!(report.contains("300 MB") && report.contains("catches_huge_allocations"), "{report}");
         drop(block);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn reads_process_memory_macos() {
+        let p = process().expect("footprint");
+        assert!(p.private_working_set > 1024 * 1024 && p.working_set > 1024 * 1024, "{p:?}");
+        compact();
     }
 
     #[cfg(target_os = "windows")]

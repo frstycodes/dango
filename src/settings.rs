@@ -111,14 +111,21 @@ pub enum NoiseMode {
 
 // The interface fonts Appearance offers: (family as the OS names it, label), the first the default. Figtree and
 // Gabarito are bundled (Figtree's weights cut from its variable font, so gpui can pick each); the rest are macOS's.
-pub const UI_FONTS: [(&str, &str); 5] = [("Figtree", "Figtree"), ("Gabarito", "Gabarito"), (".SystemUIFont", "System (SF Pro)"), ("Helvetica Neue", "Helvetica Neue"), ("Avenir Next", "Avenir Next")];
+// The bundled faces (OFL, in assets/fonts), used until another installed font is picked.
+pub const UI_FONT: &str = "Figtree";
+pub const MONO_FONT: &str = "Roboto Mono";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Prefs {
     pub theme: ThemePref,
+    // The system's material behind the sidebar (Mica, Liquid Glass), where there is one.
+    pub native_sidebar: bool,
     // The interface's font family: Figtree (bundled) unless picked in Appearance.
     pub ui_font: String,
+    pub mono_font: String,
+    // On top of the system's own reduce-motion setting.
+    pub reduce_motion: bool,
     pub app_icon: crate::app_icon::AppIcon,
     pub input_device: Option<String>,
     pub output_device: Option<String>,
@@ -185,7 +192,10 @@ impl Default for Prefs {
     fn default() -> Self {
         Self {
             theme: ThemePref::System,
-            ui_font: UI_FONTS[0].0.into(),
+            native_sidebar: true,
+            ui_font: UI_FONT.into(),
+            mono_font: MONO_FONT.into(),
+            reduce_motion: false,
             app_icon: crate::app_icon::AppIcon::default(),
             input_device: None,
             output_device: None,
@@ -413,6 +423,8 @@ enum Select {
     Speaker,
     Camera,
     Action(usize),
+    UiFont,
+    MonoFont,
 }
 
 // The live drag payload for a slider; drawn as nothing.
@@ -553,6 +565,7 @@ impl Waffle {
         change(&mut self.prefs);
         self.prefs.save();
         self.apply_prefs();
+        cx.set_reduce_motion(crate::material::system_reduce_motion() || self.prefs.reduce_motion);
         cx.notify();
     }
 
@@ -776,7 +789,7 @@ impl Waffle {
             .child(div().size_full().relative().child(body).child(gpui_kit::component::scroll::Scrollbar::vertical(&scroll)).with_animation(SharedString::from(format!("set-page-{page:?}")), Animation::new(ui::DUR_POP).with_easing(|t| motion::ease_out().sample(t)), |el, t| el.top(px(-4. * (1. - t))).opacity(t)))
             .child(ui::settings_close("settings-close", cx.listener(|this, _, _, cx| this.close_settings(cx)), cx));
         let nav = self.settings_nav(&anchors, cx).into_any_element();
-        Some(ui::settings_window("settings", nav, main, cx).capture_key_down(cx.listener(Self::settings_search_key)).into_any_element())
+        Some(self.settings_frame("settings", nav, main, cx).capture_key_down(cx.listener(Self::settings_search_key)).into_any_element())
     }
 
     fn settings_nav(&self, anchors: &[usize], cx: &mut Context<Self>) -> impl IntoElement {
@@ -785,9 +798,9 @@ impl Waffle {
         let searching = !query.is_empty();
         // Search first, then you as the My account row, as macOS System Settings does: one compact row
         // instead of an identity block stacked over the field.
-        let search = div().flex_none().pb(px(12.)).child(ui::search_field("settings-search", &self.settings_search, cx));
+        let search = div().flex_none().pb(px(12.)).child(ui::search_field("settings-search", &self.settings_search, cx).on_sidebar());
         let me = (!searching).then(|| self.me.clone()).flatten().map(|me| {
-            let sidebar = palette::surface(Level::Sidebar, cx);
+            let sidebar = crate::material::sidebar_fill(cx);
             let avatar = div().relative().flex_none().child(ui::avatar(me.avatar.clone(), 32.)).child(div().absolute().right(px(-2.)).bottom(px(-2.)).child(ui::status_mark(self.my_status, 12., sidebar, cx)));
             let text = div()
                 .flex_1()
@@ -815,7 +828,7 @@ impl Waffle {
             }
         }
         let asking = view.asking == Some(Ask::LogOut);
-        ui::settings_sidebar("settings-nav", cx)
+        ui::settings_sidebar("settings-nav", &self.settings_nav_scroll, cx)
             .child(search)
             .children(me)
             .children(list)
@@ -964,7 +977,7 @@ impl Waffle {
         )]
     }
 
-    fn appearance_page(&self, window: &Window, cx: &mut Context<Self>) -> Vec<Section> {
+    fn appearance_page(&self, window: &mut Window, cx: &mut Context<Self>) -> Vec<Section> {
         let current = self.prefs.theme;
         let os_dark = matches!(window.appearance(), gpui_kit::WindowAppearance::Dark | gpui_kit::WindowAppearance::VibrantDark);
         let pick = |id: &'static str, pref: ThemePref, preview: AnyElement, label: &'static str, note: Option<&'static str>, cx: &mut Context<Self>| {
@@ -1013,39 +1026,42 @@ impl Waffle {
             .child(pick("theme-light", ThemePref::Light, mini_window(&MINI_LIGHT).into_any_element(), "Light", None, cx))
             .child(pick("theme-dark", ThemePref::Dark, mini_window(&MINI_DARK).into_any_element(), "Midnight", None, cx))
             .child(pick("theme-system", ThemePref::System, mini_sync(), "Sync with OS", Some(if os_dark { "Midnight now" } else { "Light now" }), cx));
-        let font = self.prefs.ui_font.clone();
-        let fonts = div().flex().flex_wrap().gap(px(8.)).children(UI_FONTS.map(|(family, label)| {
-            let on = font == family;
-            let hover = palette::hover(cx);
-            ui::pressable(div().id(SharedString::from(format!("font-{label}"))), 0.97)
-                .min_w(px(150.))
-                .flex_1()
-                .px(px(12.))
-                .py(px(10.))
-                .squircle(ui::RADIUS_LG)
-                .flex()
-                .flex_col()
-                .gap(px(2.))
-                .cursor_pointer()
-                .font_family(family)
-                .text_color(if on { palette::strong(cx) } else { palette::text(cx) })
-                .when(on, |d| d.bg(palette::selected(cx)))
-                .when(!on, |d| d.hover(move |s| s.bg(hover)))
-                .child(div().text_size(px(20.)).font_weight(FontWeight::MEDIUM).child("Aa"))
-                .child(div().text_size(px(13.)).child(label))
-                .on_click(cx.listener(move |this, _, window, cx| {
-                    this.update_prefs(cx, |prefs| prefs.ui_font = family.into());
-                    palette::sync(window, cx);
-                    window.refresh();
-                }))
-        }));
-        // GAP: the design's Message density and Chat font size groups have no setting in the
-        // app yet; they appear here once Prefs carries them.
-        vec![
+        let text = ui::settings_card(cx)
+            .child(self.font_row(Select::UiFont, "Interface font", Some("Menus, messages and everything else"), &self.prefs.ui_font, UI_FONT, false, cx))
+            .child(self.font_row(Select::MonoFont, "Code font", Some("Code blocks and inline code"), &self.prefs.mono_font, MONO_FONT, true, cx));
+        let motion = ui::settings_card(cx).child(self.switch_row(
+            SwitchRow { id: "set-reduce-motion", title: "Reduce motion", detail: Some("Fades instead of springs and slides"), on: self.prefs.reduce_motion, enabled: true, field: |p| &mut p.reduce_motion },
+            false,
+            window,
+            cx,
+        ));
+        let material = crate::material::setting_name().map(|name| {
+            let row = self.switch_row(SwitchRow { id: "set-native-sidebar", title: name, detail: None, on: self.prefs.native_sidebar, enabled: true, field: |p| &mut p.native_sidebar }, false, window, cx);
+            Section::keyed(
+                "Sidebar",
+                ui::settings_group("Sidebar", cx).child(ui::settings_card(cx).child(row)).child(ui::settings_caption("Lets your wallpaper's colour through the sidebar. In full screen the sidebar stays solid.", cx)),
+            )
+        });
+        let mut sections = vec![
             Section::keyed("Theme", ui::settings_group("Theme", cx).child(picks).child(ui::settings_caption("Midnight is the darkest theme, the one Waffle is built on.", cx))),
-            Section::keyed("Font", ui::settings_group("Font", cx).child(fonts).child(ui::settings_caption("The interface's typeface. Compare System with other Mac apps: if it looks heavier here, the rendering is the cause; if only Gabarito does, the font is.", cx))),
+            Section::keyed("Text", ui::settings_group("Text", cx).child(text).child(ui::settings_caption("Any font installed on this computer. Figtree and Roboto Mono come with Waffle.", cx))),
+            Section::keyed("Motion", ui::settings_group("Motion", cx).child(motion).child(ui::settings_caption("Your computer's own reduce-motion setting turns this on too.", cx))),
             Section::keyed("App icon", ui::settings_group("App icon", cx).child(self.app_icon_grid(cx)).child(ui::settings_caption("How Waffle looks in your Dock: the same waffle in different media. Changes right away; no restart.", cx))),
-        ]
+        ];
+        sections.splice(1..1, material);
+        sections
+    }
+
+    // A font setting: its name and detail, the chosen face's name set in that face, and the list of every
+    // installed font with Waffle's bundled default first.
+    #[allow(clippy::too_many_arguments)]
+    fn font_row(&self, select: Select, title: &'static str, detail: Option<&'static str>, chosen: &str, default: &'static str, line: bool, cx: &mut Context<Self>) -> AnyElement {
+        let options: Vec<(String, String)> = std::iter::once((default.to_owned(), format!("{default} (default)")))
+            .chain(installed_fonts(cx).iter().filter(|f| f.as_str() != default).map(|f| (f.clone(), f.clone())))
+            .collect();
+        let value: SharedString = if chosen == default { format!("{default} (default)").into() } else { chosen.to_owned().into() };
+        let field = div().w(px(240.)).flex_none().font_family(chosen.to_owned()).child(self.select_field(select, None, &options, chosen, value, 36., cx));
+        ui::settings_row(SharedString::from(format!("row-{select:?}")), line, cx).child(ui::settings_text(title, detail, cx)).child(field).into_any_element()
     }
 
     fn app_icon_grid(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -1708,16 +1724,32 @@ impl Waffle {
             cx.notify();
         }));
         let list = open.then(|| {
-            let this = cx.entity();
-            ui::select_options(SharedString::from(format!("options-{select:?}")), options, chosen, height, move |id, _, cx| this.update(cx, |this, cx| this.choose(select, &id, cx)), cx)
+            let (this, close) = (cx.entity(), cx.entity());
+            let dismiss = move |_: &mut Window, cx: &mut App| {
+                close.update(cx, |this, cx| {
+                    if let Some(s) = &mut this.settings {
+                        s.select = None;
+                    }
+                    cx.notify();
+                })
+            };
+            ui::select_options(SharedString::from(format!("options-{select:?}")), options, chosen, height, move |id, window, cx| this.update(cx, |this, cx| this.choose(select, &id, window, cx)), dismiss, cx)
         });
         div().relative().w_full().child(field).children(list).into_any_element()
     }
 
-    fn choose(&mut self, select: Select, id: &str, cx: &mut Context<Self>) {
+    fn choose(&mut self, select: Select, id: &str, window: &mut Window, cx: &mut Context<Self>) {
         let device = (!id.is_empty()).then(|| id.to_owned());
         if let Some(s) = &mut self.settings {
             s.select = None;
+        }
+        if matches!(select, Select::UiFont | Select::MonoFont) {
+            self.update_prefs(cx, |p| match select {
+                Select::UiFont => p.ui_font = id.to_owned(),
+                _ => p.mono_font = id.to_owned(),
+            });
+            palette::sync(window, cx);
+            return window.refresh();
         }
         self.update_prefs(cx, |p| match select {
             Select::Microphone => p.input_device = device,
@@ -1729,6 +1761,7 @@ impl Waffle {
                     bind.action = action;
                 }
             }
+            Select::UiFont | Select::MonoFont => {}
         });
     }
 
@@ -2117,7 +2150,9 @@ const MINI_LIGHT: Mini = Mini { rail: 0xDEE0E3, side: 0xECEEF0, page: 0xF8F9FB, 
 
 fn mini_window(m: &Mini) -> Div {
     let bar = |color: u32, width: f32| div().h(px(4.)).w(relative(width)).rounded_full().bg(rgb(color));
-    let rail = div()
+    // The rail runs along the window's rounded left edge, so it takes those corners: gpui clips only to
+    // rectangles, and a square rail poked out past them.
+    let rail = ui::edge(div(), ui::left(ui::RADIUS_MD))
         .w(relative(0.12))
         .h_full()
         .bg(rgb(m.rail))
@@ -2164,6 +2199,18 @@ fn mini_sync() -> AnyElement {
             .child(div().absolute().top_0().w(relative(2.)).when(left, |d| d.left_0()).when(!left, |d| d.right_0()).child(mini_window(m)))
     };
     div().relative().w_full().h(px(MINI_HEIGHT)).child(half(true, &MINI_LIGHT)).child(half(false, &MINI_DARK)).into_any_element()
+}
+
+// Every font family installed on this computer, once per run, alphabetical; names starting with a dot are
+// the system's private UI faces. GAP: a font installed while Waffle runs shows after a restart.
+fn installed_fonts(cx: &App) -> &'static Vec<String> {
+    static FONTS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    FONTS.get_or_init(|| {
+        let mut names: Vec<String> = cx.text_system().all_font_names().into_iter().filter(|n| !n.starts_with('.')).collect();
+        names.sort_by_key(|n| n.to_lowercase());
+        names.dedup();
+        names
+    })
 }
 
 // The collapsed accordion lists its first settings: three under Custom, two otherwise (Discord `tI`).

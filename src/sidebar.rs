@@ -144,7 +144,7 @@ impl Waffle {
             .on_click(cx.listener(|this, _, _, cx| this.open_inbox(cx)));
         // Under the traffic lights the tiles scroll up into the strip, which blurs and fades them (ui::scroll_edge).
         let lights = crate::layout::traffic_lights_shown(window);
-        let edge = lights.then(|| ui::scroll_edge_over(palette::surface(palette::Level::Sidebar, cx), 0., LIGHTS_STRIP, RAIL_GAP));
+        let edge = lights.then(|| ui::scroll_edge_over(crate::material::sidebar_fill(cx), 0., LIGHTS_STRIP, RAIL_GAP));
         div()
             .w(px(RAIL_WIDTH))
             .h_full()
@@ -356,8 +356,8 @@ impl Waffle {
             .child(div().absolute().left_0().top(px((TILE - pill_height) / 2.)).w(px(4.)).h(px(pill_height)).rounded_r(px(4.)).bg(palette::strong(cx)))
             // GAP: muted tiles skip the design's saturate(0.35): gpui has no element filters.
             .child(div().absolute().left(px(TILE_X)).top_0().when(muted, |f| f.opacity(0.55)).child(face))
-            .when(mentions > 0 && badge_scale > 0.01, |item| item.child(rail_count(mentions, badge_scale, rail)))
-            .when(in_voice && mentions == 0, |item| item.child(voice_mark(rail, cx)))
+            .when(mentions > 0 && badge_scale > 0.01, |item| item.child(rail_count(mentions, badge_scale, crate::material::behind_sidebar(rail))))
+            .when(in_voice && mentions == 0, |item| item.child(voice_mark(crate::material::behind_sidebar(rail), cx)))
             .children(drop_hint.map(drop_marker))
             .tooltip({
                 let name = name.clone();
@@ -568,16 +568,17 @@ impl Waffle {
             .flex_none()
             .flex()
             .flex_col()
-            .bg(palette::surface(palette::Level::Sidebar, cx))
+            .bg(crate::material::sidebar_fill(cx))
             .text_color(palette::muted(cx))
             .text_size(px(14.))
             // The list runs up under the header, which blurs and fades it (ui::scroll_edge), as the feed does.
-            .child(div().id("channels").flex_1().min_h_0().overflow_y_scrollbar().pt(px(crate::layout::HEADER_HEIGHT + 8.)).px_2().pb_2().flex().flex_col().gap(px(ROW_GAP)).children(rows))
+            .child(div().id("channels").track_scroll(&self.channels_scroll).flex_1().min_h_0().overflow_y_scrollbar().pt(px(crate::layout::HEADER_HEIGHT + 8.)).px_2().pb_2().flex().flex_col().gap(px(ROW_GAP)).children(rows))
             .child(banner)
             .child(div().flex_none().h(self.user_panel_clearance()))
             // The header row: 8px in, like the list below, so the name lines up with the channel rows.
             .child(
-                ui::scroll_edge(palette::surface(palette::Level::Sidebar, cx), 0.).child(
+                ui::scroll_edge(crate::material::sidebar_fill(cx), 0.)
+                .child(
                     div()
                         .h(px(crate::layout::HEADER_HEIGHT))
                         .px_2()
@@ -859,7 +860,7 @@ impl Waffle {
         present.sort_by_key(|v| !v.streaming);
         let avatar_of = |v: &crate::discord::VoiceState| v.user.as_ref().map(|u| u.avatar.clone()).unwrap_or_else(|| crate::discord::avatar_url(&v.user_id, None));
         if self.hidden_voice_names.contains(&channel.id) && !present.is_empty() {
-            let sidebar = palette::surface(palette::Level::Sidebar, cx);
+            let sidebar = crate::material::sidebar_fill(cx);
             return vec![div().h(px(30.)).pl(px(32.)).flex().items_center().child(ui::avatar_stack(present.iter().map(|v| avatar_of(v)), 22., sidebar)).into_any_element()];
         }
         let (hover, selected, text) = (palette::hover(cx), palette::selected(cx), palette::text(cx));
@@ -997,7 +998,10 @@ impl Waffle {
             .filter(|t| open.as_ref() == Some(&t.id) || t.thread.as_ref().is_some_and(|m| m.joined && !m.archived))
             .collect();
         let count = threads.len();
-        let line = ui::mix(palette::faint(cx), palette::surface(palette::Level::Sidebar, cx), 0.5);
+        let line = match crate::material::active() {
+            true => palette::faint(cx).opacity(0.5),
+            false => ui::mix(palette::faint(cx), palette::surface(palette::Level::Sidebar, cx), 0.5),
+        };
         threads
             .into_iter()
             .enumerate()
@@ -1032,7 +1036,7 @@ impl Waffle {
         let presence = channel.recipient.as_ref().map(|u| self.presences.get(&u.id).cloned().unwrap_or_default());
         let status = presence.as_ref().map(|p| p.status);
         let offline = status == Some(Status_::Offline);
-        let ring = palette::surface(palette::Level::Sidebar, cx);
+        let ring = crate::material::sidebar_fill(cx);
         let face = match &channel.recipient {
             Some(user) => avatar_with_status(&user.avatar, 32., status, ring),
             None => ui::dm_face(&channel.face(), 32., ring),
@@ -1379,10 +1383,10 @@ pub(crate) fn render_face(face: Face, size: f32, radius: f32, selected: bool, op
     let tile = || div().size(px(size)).flex_none().squircle(radius).flex().items_center().justify_center();
     match face {
         Face::Icon(url) => img(url).size(px(size)).flex_none().squircle(radius).into_any_element(),
-        Face::Person(face) => ui::dm_face(&face, size, palette::surface(palette::Level::Sidebar, cx)),
+        Face::Person(face) => ui::dm_face(&face, size, crate::material::sidebar_fill(cx)),
         Face::Letters(label) => letters_tile(&label, size, radius, cx).into_any_element(),
         Face::Home => tile()
-            .bg(if selected { palette::accent() } else { palette::surface(palette::Level::Raised, cx) })
+            .bg(if selected { palette::accent() } else { crate::material::lifted(palette::surface(palette::Level::Raised, cx), cx) })
             .child(svg().path(crate::icons::MARK).size(px(size / 2.)).text_color(if selected { palette::on_accent() } else { palette::logo_ink(cx) }))
             .into_any_element(),
         Face::Folder { tint, minis } => tile()
@@ -1395,7 +1399,7 @@ pub(crate) fn render_face(face: Face, size: f32, radius: f32, selected: bool, op
 }
 
 fn minis_grid(minis: Vec<Mini>, cx: &App) -> Div {
-    let sidebar = palette::surface(palette::Level::Raised, cx);
+    let sidebar = crate::material::lifted(palette::surface(palette::Level::Raised, cx), cx);
     let cells = (0..4).map(|i| match minis.get(i) {
         Some(Mini { icon: Some(url), .. }) => img(url.clone()).size(px(MINI)).squircle(ui::RADIUS_XS).into_any_element(),
         Some(Mini { letters, .. }) => letters_tile(letters, MINI, ui::RADIUS_XS, cx).into_any_element(),
@@ -1411,7 +1415,7 @@ fn letters_tile(label: &str, size: f32, radius: f32, cx: &App) -> Div {
         .size(px(size))
         .flex_none()
         .squircle(radius)
-        .bg(palette::surface(palette::Level::Raised, cx))
+        .bg(crate::material::lifted(palette::surface(palette::Level::Raised, cx), cx))
         .text_color(palette::strong(cx))
         // Minis keep a readable letter rather than scaling the tile's 14px down to nothing.
         .text_size(px((14. * size / TILE).max(8.)))
@@ -1462,7 +1466,7 @@ impl Render for ServerPreview {
 }
 
 fn rail_action(id: &'static str, icon: Icon, tooltip: &'static str, cx: &App) -> Stateful<Div> {
-    let (raised, strong) = (palette::surface(palette::Level::Raised, cx), palette::strong(cx));
+    let (raised, strong) = (crate::material::lifted(palette::surface(palette::Level::Raised, cx), cx), palette::strong(cx));
     div()
         .id(id)
         .size(px(TILE))
@@ -1472,7 +1476,7 @@ fn rail_action(id: &'static str, icon: Icon, tooltip: &'static str, cx: &App) ->
         .items_center()
         .justify_center()
         .cursor_pointer()
-        .bg(palette::surface(palette::Level::Raised, cx))
+        .bg(raised)
         .text_color(palette::muted(cx))
         .hover(move |s| s.bg(raised).text_color(strong))
         .child(icon.size(px(20.)))
@@ -1482,27 +1486,20 @@ fn rail_action(id: &'static str, icon: Icon, tooltip: &'static str, cx: &App) ->
 // The mention count on a tile's corner, ringed in the rail so it reads apart from the art.
 fn rail_count(count: u32, scale: f32, rail: Hsla) -> Div {
     let ring = 3.;
-    div()
-        .absolute()
-        .right(px(RAIL_WIDTH - TILE_X - TILE - 5. - ring))
-        .bottom(px(-4. - ring))
-        .p(px(ring))
-        .rounded_full()
-        .bg(rail)
+    ui::cut_out(div().absolute().right(px(RAIL_WIDTH - TILE_X - TILE - 5. - ring)).bottom(px(-4. - ring)).p(px(ring)).rounded_full(), rail)
         .scale(scale.max(0.))
         .child(ui::count_badge(count).min_w(px(18.)).h(px(18.)).px(px(5.)).text_size(px(12.)))
 }
 
 // Connected to voice here: the still wave in a rail-coloured capsule on the corner.
 fn voice_mark(rail: Hsla, cx: &App) -> Div {
-    div()
+    ui::cut_out(div(), rail)
         .absolute()
         .right(px(RAIL_WIDTH - TILE_X - TILE - 7.))
         .bottom(px(-6.))
         .h(px(22.))
         .px(px(7.))
         .rounded_full()
-        .bg(rail)
         .flex()
         .items_center()
         .child(ui::bars_still(palette::positive_ink(cx), 10.))

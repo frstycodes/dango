@@ -40,7 +40,7 @@ pub use control::{Control, Pressable, button, chip, hover_fade, icon_button, men
 pub use dialog::{dialog, dialog_body, modal};
 pub use feedback::{meter, meter_with, progress, progress_indeterminate, progress_live, ring, skeleton, skeleton_circle, slider_live, slider_track};
 pub use field::{code_cell, drop_zone, field, field_error, field_frame, field_hint, search_button, search_field, search_frame, select, select_options, stepper, text_area, text_field};
-pub use group::{settings_caption, settings_card, settings_choice, settings_close, settings_column, settings_group, SettingsHighlight, settings_nav_item, settings_page, SETTINGS_WIDTH, settings_row, settings_sidebar, settings_switch, settings_text, settings_title, settings_window};
+pub use group::{settings_caption, settings_card, settings_choice, settings_close, settings_column, settings_group, SettingsHighlight, settings_nav_item, settings_page, SETTINGS_NAV_WIDTH, SETTINGS_WIDTH, settings_row, settings_nav_edge, settings_sidebar, settings_switch, settings_text, settings_title, settings_window};
 pub use tabs::{Tab, pill_tabs, segmented_live, tabs};
 pub use tri::{Tri, tri_state};
 pub use tunnel::{TUNNEL_GRACE, Tunnel};
@@ -125,7 +125,17 @@ pub fn scroll_edge_over(surface: Hsla, fade_right: f32, bar: f32, tail: f32) -> 
         .left_0()
         .right_0()
         .h(px(height))
-        .child(div().absolute().inset_0().right(px(fade_right)).backdrop_blur(px(16.)).backdrop_fade(px(0.), px(0.), px(height * 0.8), px(0.)))
+        .child(
+            div()
+                .absolute()
+                .inset_0()
+                .right(px(fade_right))
+                .backdrop_blur(px(16.))
+                .backdrop_fade(px(0.), px(0.), px(height * 0.8), px(0.))
+                // A clear surface (the native sidebar) has no colour for the ramps to fade into, so the
+                // content itself fades out toward the top instead.
+                .when(surface.a == 0., |d| d.backdrop_clear_top(px(height))),
+        )
         .child(ramp(height))
         .child(ramp(bar * 0.75))
 }
@@ -461,7 +471,7 @@ pub fn dm_face(face: &crate::discord::DmFace, size: f32, ring: Hsla) -> AnyEleme
                 .flex_none()
                 .size(px(size))
                 .child(div().absolute().top_0().left_0().child(avatar(back.clone(), small)))
-                .child(div().absolute().right_0().bottom_0().size(px(small)).rounded_full().shadow(vec![shadow(ring, 0., 0., 0., gap, false)]).child(avatar(front.clone(), small)))
+                .child(div().absolute().right_0().bottom_0().size(px(small)).child(self::gap(ring, gap)).child(avatar(front.clone(), small)))
                 .into_any_element()
         }
     }
@@ -518,22 +528,38 @@ pub fn stacked(avatars: impl IntoIterator<Item = AnyElement>, size: f32, ring: H
     let step = size - 6.;
     let width = size + step * avatars.len().saturating_sub(1) as f32;
     div().relative().flex_none().w(px(width)).h(px(size)).children(avatars.into_iter().enumerate().map(move |(i, avatar)| {
-        div().absolute().top_0().left(px(step * i as f32)).size(px(size)).rounded_full().shadow(vec![shadow(ring, 0., 0., 0., 2., false)]).child(avatar)
+        div().absolute().top_0().left(px(step * i as f32)).size(px(size)).child(gap(ring, 2.)).child(avatar)
     }))
+}
+
+// Paints `el` in the surface colour it stands in for; over the native sidebar, where that colour is
+// clear, it cuts its shape out of whatever was painted under it instead, so the material shows through.
+pub fn cut_out(el: Div, surface: Hsla) -> Div {
+    match surface.a > 0. {
+        true => el.bg(surface),
+        false => el.backdrop_erase(),
+    }
+}
+
+// The gap `spread` wide around a round mark or an overlapping avatar, separating it from what's under
+// it. Goes first among the parent's children, so it paints before the mark.
+pub fn gap(surface: Hsla, spread: f32) -> Div {
+    cut_out(div().absolute().top(px(-spread)).left(px(-spread)).right(px(-spread)).bottom(px(-spread)).rounded_full(), surface)
 }
 
 // A presence mark for an avatar's corner. Never colour alone: online is a dot, idle a moon, do not
 // disturb a bar, offline a ring. `ring` is the surface it sits on: a 2px gap around the mark.
 pub fn status_mark(status: Status, size: f32, ring: Hsla, cx: &App) -> Div {
     let color = palette::status_in(status, cx);
-    let base = div().size(px(size)).flex_none().rounded_full().relative().shadow(vec![shadow(ring, 0., 0., 0., 2., false)]);
-    match status {
-        Status::Online => base.bg(color),
+    let mark = div().absolute().inset_0().rounded_full();
+    let mark = match status {
+        Status::Online => mark.bg(color),
         // The moon's bite runs past the disc's edge into the ring, which is the same colour.
-        Status::Idle => base.bg(color).child(div().absolute().top(px(size * (0.28 - 0.346))).left(px(size * (0.28 - 0.346))).size(px(size * 0.692)).rounded_full().bg(ring)),
-        Status::Dnd => base.bg(color).flex().items_center().justify_center().child(div().w(px(size * 0.55)).h(px(size * 0.22)).bg(ring)),
-        Status::Offline => base.bg(ring).child(div().size_full().rounded_full().border(px(2.5)).border_color(color)),
-    }
+        Status::Idle => mark.bg(color).child(cut_out(div().absolute().top(px(size * (0.28 - 0.346))).left(px(size * (0.28 - 0.346))).size(px(size * 0.692)).rounded_full(), ring)),
+        Status::Dnd => mark.bg(color).flex().items_center().justify_center().child(cut_out(div().w(px(size * 0.55)).h(px(size * 0.22)), ring)),
+        Status::Offline => mark.child(cut_out(div().absolute().inset_0().rounded_full(), ring)).child(div().absolute().inset_0().rounded_full().border(px(2.5)).border_color(color)),
+    };
+    div().size(px(size)).flex_none().relative().child(gap(ring, 2.)).child(mark)
 }
 
 // A floating surface (menu, popover, picker): rounded, ringed and shadowed, with its content inset so
@@ -678,6 +704,12 @@ pub fn divider(label: Option<&'static str>, cx: &App) -> Div {
         .when_some(label, |d, label| d.child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::faint(cx)).child(label)).child(line()))
 }
 
+// The hairline along a stacked section's foot, held in from the card's edges by `inset`. The section
+// must be `relative`.
+pub fn inset_rule(inset: f32, cx: &App) -> Div {
+    div().absolute().bottom_0().left(px(inset)).right(px(inset)).h(px(1.)).bg(palette::line(cx))
+}
+
 // A squircle holding an icon, for row leads and settings.
 pub fn icon_tile(glyph: Glyph, fill: Hsla, ink: Hsla) -> Div {
     div().size(px(36.)).flex_none().squircle(RADIUS_MD).bg(fill).text_color(ink).flex().items_center().justify_center().child(Icon::new(glyph).size(px(20.)))
@@ -724,6 +756,10 @@ pub fn all(radius: f32) -> Corners<Pixels> {
 
 pub fn top(radius: f32) -> Corners<Pixels> {
     Corners { top_left: px(radius), top_right: px(radius), bottom_left: px(0.), bottom_right: px(0.) }
+}
+
+pub fn left(radius: f32) -> Corners<Pixels> {
+    Corners { top_left: px(radius), top_right: px(0.), bottom_left: px(radius), bottom_right: px(0.) }
 }
 
 pub fn bottom(radius: f32) -> Corners<Pixels> {

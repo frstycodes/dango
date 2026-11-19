@@ -833,7 +833,7 @@ fn quick_reactions(quick: &[(Emoji, Act)], more: Act, cx: &mut Context<Waffle>) 
     div().h(px(EMOJI_ROW)).flex_none().pt(px(2.)).px(px(2.)).pb(px(4.)).flex().gap(px(4.)).children(faces).child(picker)
 }
 
-fn emoji_face(emoji: &Emoji, size: f32) -> AnyElement {
+pub(crate) fn emoji_face(emoji: &Emoji, size: f32) -> AnyElement {
     match emoji.url() {
         Some(url) => img(url).size(px(size)).into_any_element(),
         None => div().text_size(px(size)).line_height(px(size)).child(emoji.name.clone()).into_any_element(),

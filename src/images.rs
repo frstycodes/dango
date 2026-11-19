@@ -126,7 +126,9 @@ impl Images {
 
 fn free(item: Item, cx: &mut App) {
     if let Some(Ok(image)) = item.load.get() {
-        cx.drop_image(image, None);
+        // Deferred: gpui takes a window out of `App` while it renders or runs its callbacks, and
+        // `drop_image(_, None)` only reaches windows still in `App`, so its atlas pages would never be freed.
+        cx.defer(move |cx| cx.drop_image(image, None));
     }
 }
 
