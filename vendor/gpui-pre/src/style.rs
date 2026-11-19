@@ -754,7 +754,19 @@ impl Style {
         cx: &mut App,
         continuation: impl FnOnce(&mut Window, &mut App),
     ) {
-        let transformation = self.transformation(bounds, window);
+        self.paint_with(self.transformation(bounds, window), bounds, window, cx, continuation)
+    }
+
+    /// Like [`Style::paint`], under `transformation` (the one the element's prepaint used) instead of
+    /// this style's own.
+    pub(crate) fn paint_with(
+        &self,
+        transformation: Option<TransformationMatrix>,
+        bounds: Bounds<Pixels>,
+        window: &mut Window,
+        cx: &mut App,
+        continuation: impl FnOnce(&mut Window, &mut App),
+    ) {
         window.with_element_transformation(transformation, |window| {
             self.paint_untransformed(bounds, window, cx, continuation)
         });

@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    Context, Entity, MouseMoveEvent, Pixels, Point, ScrollDelta, ScrollWheelEvent, TestAppContext, TouchPhase,
-    VisualTestContext, Window, div, point, px,
+    Context, Entity, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, ScrollDelta, ScrollWheelEvent,
+    TestAppContext, TouchPhase, VisualTestContext, Window, div, point, px,
 };
 
 struct Row {
@@ -45,6 +45,33 @@ fn wheel_holds_hover_until_the_pointer_moves_or_the_scroll_ends(cx: &mut TestApp
     wheel(cx, TouchPhase::Moved);
     move_to(cx, point(px(60.), px(60.)));
     assert!(hovered(&row, cx), "hover back as soon as the pointer moves");
+}
+
+struct Button {
+    clicks: usize,
+}
+
+impl Render for Button {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        div().size_full().child(div().id("button").size(px(200.)).on_click(cx.listener(|this, _, _, cx| {
+            this.clicks += 1;
+            cx.notify();
+        })))
+    }
+}
+
+// A wheel or trackpad-inertia event between press and release used to leave the window scrolling, where
+// nothing counts as hovered, so the release missed the button and the click was dropped.
+#[gpui_kit::test]
+fn a_wheel_event_between_press_and_release_keeps_the_click(cx: &mut TestAppContext) {
+    let (button, cx) = cx.add_window_view(|_, _| Button { clicks: 0 });
+    let at = point(px(50.), px(50.));
+    move_to(cx, at);
+    cx.simulate_event(MouseDownEvent { position: at, button: MouseButton::Left, modifiers: Default::default(), click_count: 1, first_mouse: false });
+    wheel(cx, TouchPhase::Moved);
+    cx.simulate_event(MouseUpEvent { position: at, button: MouseButton::Left, modifiers: Default::default(), click_count: 1 });
+    cx.run_until_parked();
+    assert_eq!(button.read_with(cx, |b, _| b.clicks), 1);
 }
 
 fn wait(cx: &mut VisualTestContext) {

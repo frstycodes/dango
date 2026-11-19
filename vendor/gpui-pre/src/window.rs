@@ -1327,6 +1327,9 @@ pub struct Window {
     scroll_moved_in_frame: bool,
     long_press_capture: Option<EntityId>,
     pub(crate) refreshing: bool,
+    // Waffle patch: counts `draw` calls, so a cached view can tell whether its recorded ranges
+    // point into the frame just rendered (see `ViewElementState::painted_in` in view.rs).
+    pub(crate) draw_count: u64,
     pub(crate) activation_observers: SubscriberSet<(), AnyObserver>,
     pub(crate) focus: Option<FocusId>,
     focus_enabled: bool,
@@ -2240,6 +2243,7 @@ impl Window {
             scroll_moved_in_frame: false,
             long_press_capture: None,
             refreshing: false,
+            draw_count: 0,
             activation_observers: SubscriberSet::new(),
             focus: None,
             focus_enabled: true,
@@ -3535,6 +3539,7 @@ impl Window {
     /// the contents of the new [`Scene`], use [`Self::present`].
     #[profiling::function]
     pub fn draw(&mut self, cx: &mut App) -> ArenaClearNeeded {
+        self.draw_count += 1;
         // Drain every draw in profiler builds so a previous frame's
         // first-invalidation timestamp can't be attributed to this one.
         #[cfg(feature = "profiler")]
@@ -5885,7 +5890,9 @@ impl Window {
             {
                 old_modality
             }
-            PlatformInput::MouseMove(_) | PlatformInput::MouseDown(_) => InputModality::Mouse,
+            // Waffle patch: a release counts too. Left in `Scroll` (a wheel or inertia event between press
+            // and release), `is_hovered` would be false on mouse-up and the click would be dropped.
+            PlatformInput::MouseMove(_) | PlatformInput::MouseDown(_) | PlatformInput::MouseUp(_) => InputModality::Mouse,
             PlatformInput::Touch(_) => InputModality::Touch,
             PlatformInput::ScrollWheel(_) => InputModality::Scroll,
             _ => self.last_input_modality,

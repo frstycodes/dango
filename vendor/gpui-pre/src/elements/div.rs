@@ -2143,6 +2143,11 @@ pub struct Interactivity {
     /// was created for the interactive element.
     pub hovered: Option<bool>,
     pub(crate) tooltip_id: Option<TooltipId>,
+    // Waffle patch: the transformation prepaint placed this element's hitboxes and children under.
+    // Paint draws under the same one, so what's drawn and what's hit never disagree: prepaint can't see
+    // every interaction style paint applies (hover on an element without an id, drag-over styles).
+    // `None` until prepaint ran; `Some(None)` when it left the element untransformed.
+    pub(crate) prepaint_transformation: Option<Option<crate::TransformationMatrix>>,
     pub(crate) content_size: Size<Pixels>,
     pub(crate) key_context: Option<KeyContext>,
     pub(crate) focusable: bool,
@@ -2403,6 +2408,10 @@ impl Interactivity {
                 }
 
                 let transformation = style.transformation(bounds, window);
+                self.prepaint_transformation = Some(transformation);
+                // Waffle patch: opacity is only drawn in paint, but a cached view nested in here decides
+                // in prepaint whether it may replay, and its cache key holds the opacity it inherits.
+                window.with_element_opacity(style.opacity, |window| {
                 window.with_element_transformation(transformation, |window| {
                     window.with_text_style(style.text_style().cloned(), |window| {
                         window.with_content_mask(
@@ -2421,6 +2430,7 @@ impl Interactivity {
                             },
                         )
                     })
+                })
                 })
             },
         )
@@ -2573,7 +2583,8 @@ impl Interactivity {
                 }
 
                 window.with_element_opacity(style.opacity, |window| {
-                    style.paint(bounds, window, cx, |window: &mut Window, cx: &mut App| {
+                    let transformation = self.prepaint_transformation.unwrap_or_else(|| style.transformation(bounds, window));
+                    style.paint_with(transformation, bounds, window, cx, |window: &mut Window, cx: &mut App| {
                         window.with_text_style(style.text_style().cloned(), |window| {
                             window.with_content_mask(
                                 style.overflow_mask(bounds, window.rem_size()),

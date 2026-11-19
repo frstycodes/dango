@@ -4,7 +4,7 @@ use crate::{
     LayoutId, PaintIndex, Pixels, PrepaintStateIndex, Render, RenderOnce, Size, Style,
     StyleRefinement, TextStyle, WeakEntity,
 };
-use crate::{Empty, Window};
+use crate::{Empty, TransformationMatrix, Window};
 use anyhow::Result;
 use collections::FxHashSet;
 use refineable::Refineable;
@@ -317,12 +317,26 @@ struct ViewElementState {
     paint_range: Range<PaintIndex>,
     cache_key: ViewElementCacheKey,
     accessed_entities: FxHashSet<EntityId>,
+    // Waffle patch: the `Window::draw_count` of the draw that last recorded the ranges above. They
+    // index the frame that draw produced, so they are only valid to replay in the very next draw. A
+    // view nested in a cached view misses its update whenever the outer view replays as a whole, which
+    // leaves its ranges pointing into an older frame (wrong content, or a slice past the end).
+    painted_in: u64,
+    // Waffle patch: the draw that last prepainted this view. A view can be prepainted twice in one draw
+    // (a list rolls back its first pass and prepaints again); by then `prepaint_range` indexes the frame
+    // being built, not the one `reuse_prepaint` reads from, so only the first prepaint may replay.
+    prepainted_in: u64,
 }
 
 struct ViewElementCacheKey {
     bounds: Bounds<Pixels>,
     content_mask: ContentMask<Pixels>,
     text_style: TextStyle,
+    // Waffle patch: inherited state that painting bakes into primitives and hitboxes. Upstream re-renders
+    // every view inside one that re-renders, so it never needed these; a nested view that replays does.
+    opacity: f32,
+    transformation: TransformationMatrix,
+    rem_size: Pixels,
 }
 
 impl<V: View> Element for ViewElement<V> {
@@ -526,14 +540,23 @@ fn prepaint_view(
             |element_state, window| {
                 let content_mask = window.content_mask();
                 let text_style = window.text_style();
+                let opacity = window.element_opacity();
+                let transformation = window.element_transformation();
+                let rem_size = window.rem_size();
 
                 if let Some(mut element_state) = element_state
                     && element_state.cache_key.bounds == bounds
                     && element_state.cache_key.content_mask == content_mask
                     && element_state.cache_key.text_style == text_style
+                    && element_state.cache_key.opacity == opacity
+                    && element_state.cache_key.transformation == transformation
+                    && element_state.cache_key.rem_size == rem_size
                     && !window.dirty_views.contains(&entity_id)
                     && !window.refreshing
+                    && element_state.painted_in + 1 == window.draw_count
+                    && element_state.prepainted_in != window.draw_count
                 {
+                    element_state.prepainted_in = window.draw_count;
                     let prepaint_start = window.prepaint_index();
                     window.reuse_prepaint(element_state.prepaint_range.clone());
                     cx.entities
@@ -570,7 +593,12 @@ fn prepaint_view(
                             bounds,
                             content_mask,
                             text_style,
+                            opacity,
+                            transformation,
+                            rem_size,
                         },
+                        painted_in: 0,
+                        prepainted_in: window.draw_count,
                     },
                 )
             },
@@ -620,6 +648,7 @@ fn paint_view(
 
                     let paint_end = window.paint_index();
                     element_state.paint_range = paint_start..paint_end;
+                    element_state.painted_in = window.draw_count;
 
                     ((), element_state)
                 },
