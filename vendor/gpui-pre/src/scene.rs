@@ -282,7 +282,9 @@ impl Primitive {
             Primitive::MonochromeSprite(sprite) => sprite.transformation,
             Primitive::SubpixelSprite(sprite) => sprite.transformation,
             Primitive::PolychromeSprite(sprite) => sprite.transformation,
-            // GAP: backdrop blurs, paths and video surfaces are not transformed.
+            // Paths are transformed on the CPU and backdrop blurs before they're painted (see
+            // `BackdropFilter::transformed`), so their bounds are already in window space.
+            // GAP: video surfaces are not transformed.
             Primitive::Path(_) | Primitive::Surface(_) | Primitive::BackdropBlur(_) => TransformationMatrix::unit(),
         };
         transformation.transform_bounds(*self.bounds())
@@ -838,6 +840,13 @@ impl TransformationMatrix {
         *self == Self::unit()
     }
 
+    /// Each axis's scale when this transformation only scales (possibly mirroring) and
+    /// translates, keeping rectangles axis-aligned; `None` when it rotates or skews.
+    pub fn axis_aligned_scale(&self) -> Option<Size<f32>> {
+        let [[a, b], [c, d]] = self.rotation_scale;
+        (b == 0. && c == 0.).then(|| size(a.abs(), d.abs()))
+    }
+
     /// The transformation that undoes this one. Its entries are not finite when this
     /// transformation collapses the plane (a zero scale), so nothing maps back into bounds.
     pub(crate) fn inverse(&self) -> Self {
@@ -1157,6 +1166,108 @@ impl BackdropBlurPlan {
             corner_padding: [0.; 2],
         }
     }
+}
+
+/// Rounding level textures up lets an element that grows over a few frames reallocate rarely.
+const BACKDROP_BLUR_TEXTURE_GRANULARITY: u32 = 64;
+
+/// Drawn frames without a blur after which a renderer frees its blur level textures. Frames, not
+/// time, so it runs the same on every platform; an idle window that draws nothing keeps them until
+/// its next few frames.
+const BACKDROP_BLUR_RELEASE_AFTER_FRAMES: u32 = 30;
+
+/// Frames with blurs over which the largest size each level needed is measured, before a level
+/// allocated well above it is shrunk.
+const BACKDROP_BLUR_SHRINK_WINDOW_FRAMES: u32 = 120;
+
+/// Decides how big a renderer's backdrop blur level textures are, and when to shrink or free them,
+/// so a full-window blur doesn't hold tens of megabytes for the window's life. Each renderer keeps
+/// one with its level textures (`textures[level]`, level 0 first), asks it for each level's size
+/// as it draws a blur, then calls [`Self::end_frame`] once the frame is drawn.
+#[derive(Debug, Default)]
+pub struct BackdropBlurTextureBudget {
+    /// Whether a blur asked for textures this frame.
+    used_this_frame: bool,
+    frames_without_blurs: u32,
+    frames_in_window: u32,
+    /// Per level, the largest size needed this window.
+    window_peak: Vec<Size<DevicePixels>>,
+}
+
+impl BackdropBlurTextureBudget {
+    /// The size to (re)allocate `level` at so it holds `needed`, or `None` when `current`, its
+    /// allocated size, already does. Grows, never shrinks: [`Self::end_frame`] shrinks.
+    pub fn allocation_size(
+        &mut self,
+        level: usize,
+        needed: Size<DevicePixels>,
+        current: Option<Size<DevicePixels>>,
+    ) -> Option<Size<DevicePixels>> {
+        self.used_this_frame = true;
+        if self.window_peak.len() <= level {
+            self.window_peak.resize(level + 1, Size::default());
+        }
+        let peak = &mut self.window_peak[level];
+        *peak = size(peak.width.max(needed.width), peak.height.max(needed.height));
+
+        if current
+            .is_some_and(|current| current.width >= needed.width && current.height >= needed.height)
+        {
+            return None;
+        }
+        let current = current.unwrap_or_default();
+        let needed = backdrop_blur_allocation(needed);
+        Some(size(
+            needed.width.max(current.width),
+            needed.height.max(current.height),
+        ))
+    }
+
+    /// Call once a frame is drawn, with the sizes of the level textures allocated, level 0 first.
+    /// Returns how many of them to keep: the renderer frees the rest, and the next blur that needs
+    /// them allocates them again at the size it needs. Everything goes after a stretch of frames
+    /// without blurs; a level, and those after it, goes when the blurs of a whole window of
+    /// frames needed under a quarter of its area.
+    pub fn end_frame(&mut self, allocated: &[Size<DevicePixels>]) -> usize {
+        let used = std::mem::take(&mut self.used_this_frame);
+        if !used {
+            self.frames_without_blurs += 1;
+            if self.frames_without_blurs >= BACKDROP_BLUR_RELEASE_AFTER_FRAMES {
+                *self = Self::default();
+                return 0;
+            }
+            return allocated.len();
+        }
+
+        self.frames_without_blurs = 0;
+        self.frames_in_window += 1;
+        if self.frames_in_window < BACKDROP_BLUR_SHRINK_WINDOW_FRAMES {
+            return allocated.len();
+        }
+        let area = |size: Size<DevicePixels>| size.width.0 as i64 * size.height.0 as i64;
+        let keep = allocated
+            .iter()
+            .enumerate()
+            .position(|(level, &allocated)| {
+                let peak = self.window_peak.get(level).copied().unwrap_or_default();
+                // A level no blur needed this window has a zero peak.
+                area(peak) == 0 || area(allocated) > 4 * area(backdrop_blur_allocation(peak))
+            })
+            .unwrap_or(allocated.len());
+        self.frames_in_window = 0;
+        self.window_peak.clear();
+        keep
+    }
+}
+
+/// `needed` rounded up to whole granules, at least one.
+fn backdrop_blur_allocation(needed: Size<DevicePixels>) -> Size<DevicePixels> {
+    let round_up = |length: DevicePixels| {
+        DevicePixels(
+            (length.0.max(1) as u32).next_multiple_of(BACKDROP_BLUR_TEXTURE_GRANULARITY) as i32,
+        )
+    };
+    size(round_up(needed.width), round_up(needed.height))
 }
 
 fn extent(size: Size<DevicePixels>) -> [f32; 2] {

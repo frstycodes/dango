@@ -3353,10 +3353,15 @@ extern "C" fn step(view: *mut c_void) {
                 (None, FrameRequestSource::NativeCallback),
                 |(at, source)| (Some(at), source),
             );
+        // A frame that had to skip its backdrop blurs (its drawable was framebuffer-only) draws
+        // again, even when nothing changed, so an idle window doesn't stay without them.
+        let redraw = lock.renderer.take_needs_redraw();
         drop(lock);
         callback(RequestFrameOptions {
             signal_at,
             signal_source,
+            force_render: redraw,
+            require_presentation: redraw,
             ..Default::default()
         });
         window_state.lock().request_frame_callback = Some(callback);

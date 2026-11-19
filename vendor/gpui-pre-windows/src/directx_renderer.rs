@@ -28,7 +28,6 @@ const RENDER_TARGET_FORMAT: DXGI_FORMAT = DXGI_FORMAT_B8G8R8A8_UNORM;
 // This configuration is used for MSAA rendering on paths only, and it's guaranteed to be supported by DirectX 11.
 const PATH_MULTISAMPLE_COUNT: u32 = 4;
 const MAX_INSTANCE_BUFFER_SIZE: usize = 256 * 1024 * 1024;
-const BACKDROP_BLUR_TEXTURE_GRANULARITY: u32 = 64;
 
 pub(crate) struct FontInfo {
     pub gamma_ratios: [f32; 4],
@@ -81,8 +80,9 @@ struct DirectXResources {
     path_intermediate_msaa_view: Option<ID3D11RenderTargetView>,
 
     // Level 0 holds the region a backdrop blur reads; each later level is half the size of the
-    // one before. Allocated on first use and only ever grown.
+    // one before. Allocated on first use; `backdrop_blur_budget` shrinks and frees them.
     backdrop_blur_textures: Vec<BackdropBlurTexture>,
+    backdrop_blur_budget: BackdropBlurTextureBudget,
 
     // Cached viewport
     viewport: D3D11_VIEWPORT,
@@ -411,6 +411,10 @@ impl DirectXRenderer {
                     scene.surfaces.len(),
                 )
             })?;
+        }
+        // D3D11 keeps a released texture alive until the GPU is done with it.
+        if let Some(resources) = self.resources.as_mut() {
+            resources.trim_backdrop_blur_textures();
         }
         Ok(())
     }
@@ -1029,6 +1033,7 @@ impl DirectXResources {
             path_intermediate_msaa_view,
             path_intermediate_srv,
             backdrop_blur_textures: Vec::new(),
+            backdrop_blur_budget: BackdropBlurTextureBudget::default(),
             viewport,
         })
     }
@@ -1039,24 +1044,16 @@ impl DirectXResources {
         plan: &BackdropBlurPlan,
     ) -> Result<()> {
         for level in 0..=plan.level_count {
-            let needed = plan.level_size(level);
-            let current = self.backdrop_blur_textures.get(level);
-            if current.is_some_and(|texture| {
-                texture.size.width >= needed.width && texture.size.height >= needed.height
-            }) {
+            let current = self
+                .backdrop_blur_textures
+                .get(level)
+                .map(|texture| texture.size);
+            let Some(texture_size) =
+                self.backdrop_blur_budget
+                    .allocation_size(level, plan.level_size(level), current)
+            else {
                 continue;
-            }
-
-            // Rounding up lets an element that grows over a few frames reallocate rarely.
-            let round_up = |length: DevicePixels| {
-                DevicePixels(
-                    (length.0 as u32).next_multiple_of(BACKDROP_BLUR_TEXTURE_GRANULARITY) as i32,
-                )
             };
-            let texture_size = size(
-                round_up(needed.width).max(current.map_or(DevicePixels(0), |t| t.size.width)),
-                round_up(needed.height).max(current.map_or(DevicePixels(0), |t| t.size.height)),
-            );
             let texture = BackdropBlurTexture::new(device, texture_size)?;
             if level < self.backdrop_blur_textures.len() {
                 self.backdrop_blur_textures[level] = texture;
@@ -1065,6 +1062,17 @@ impl DirectXResources {
             }
         }
         Ok(())
+    }
+
+    /// Frees the blur level textures the budget no longer wants, once a frame is drawn.
+    fn trim_backdrop_blur_textures(&mut self) {
+        let allocated = self
+            .backdrop_blur_textures
+            .iter()
+            .map(|texture| texture.size)
+            .collect::<Vec<_>>();
+        let keep = self.backdrop_blur_budget.end_frame(&allocated);
+        self.backdrop_blur_textures.truncate(keep);
     }
 
     #[inline]
@@ -1171,7 +1179,7 @@ impl DirectXRenderPipelines {
             "backdrop_blur_composite_pipeline",
             ShaderModule::BackdropBlurComposite,
             1,
-            create_blend_state(device)?,
+            create_blend_state_for_backdrop_blur_composite(device)?,
         )?;
 
         Ok(Self {
@@ -1834,6 +1842,29 @@ fn create_blend_state_for_path_rasterization(device: &ID3D11Device) -> Result<ID
 fn create_blend_state_for_backdrop_blur_level(device: &ID3D11Device) -> Result<ID3D11BlendState> {
     let mut desc = D3D11_BLEND_DESC::default();
     desc.RenderTarget[0].BlendEnable = false.into();
+    desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL.0 as u8;
+    unsafe {
+        let mut state = None;
+        device.CreateBlendState(&desc, Some(&mut state))?;
+        Ok(state.unwrap())
+    }
+}
+
+/// Premultiplied dual-source blending: the composite outputs the masked blur (premultiplied), and
+/// the mask as the share of the pixel underneath it replaces, for color and alpha alike. The shared
+/// blend state's straight alpha and additive alpha would turn the blur of a transparent backdrop black.
+#[inline]
+fn create_blend_state_for_backdrop_blur_composite(
+    device: &ID3D11Device,
+) -> Result<ID3D11BlendState> {
+    let mut desc = D3D11_BLEND_DESC::default();
+    desc.RenderTarget[0].BlendEnable = true.into();
+    desc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    desc.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+    desc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC1_COLOR;
+    desc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+    desc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC1_ALPHA;
     desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL.0 as u8;
     unsafe {
         let mut state = None;
