@@ -879,8 +879,9 @@ pub enum Event {
     Ready(Box<Ready>),
     // Account settings changed here or in another client: only the changed fields.
     UserSettings(Value),
-    // Who is watching a Go Live stream, by its key.
-    StreamViewers { key: String, viewers: Vec<String> },
+    // A Go Live stream by its key: who is watching, and whether the streamer paused it (Not verified
+    // that `paused` is sent here; a stalled stream reads as Stalled without it).
+    StreamUpdate { key: String, viewers: Vec<String>, paused: bool },
     // When each voice channel's current session began (Unix seconds); `all` replaces the server's list.
     VoiceStartTimes { guild_id: String, times: Vec<(String, Option<u64>)>, all: bool },
     // A channel or thread created or changed in a server.
@@ -1697,7 +1698,7 @@ fn dispatch(kind: &str, d: &Value) -> Option<Event> {
             all: true,
         }),
         "VOICE_CHANNEL_START_TIME_UPDATE" => Some(Event::VoiceStartTimes { guild_id: s(&d["guild_id"]), times: vec![(s(&d["id"]), d["voice_start_time"].as_u64())], all: false }),
-        "STREAM_UPDATE" => Some(Event::StreamViewers { key: s(&d["stream_key"]), viewers: strings(&d["viewer_ids"]) }),
+        "STREAM_UPDATE" => Some(Event::StreamUpdate { key: s(&d["stream_key"]), viewers: strings(&d["viewer_ids"]), paused: d["paused"].as_bool().unwrap_or(false) }),
         "VOICE_SERVER_UPDATE" => Some(Event::VoiceServer(d.clone())),
         "CALL_CREATE" | "CALL_UPDATE" => Some(Event::Call { channel_id: s(&d["channel_id"]), ringing: strings(&d["ringing"]) }),
         "CALL_DELETE" => Some(Event::CallEnded { channel_id: s(&d["channel_id"]) }),

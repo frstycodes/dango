@@ -480,7 +480,21 @@ pub(crate) struct Watching {
     pub(crate) arrivals: std::collections::VecDeque<Instant>,
     // None for our own Go Live, shown from its local frames: watching it through Discord would
     // end it on stop, since leaving a stream and ending one are the same gateway op.
-    _watch: Option<voice::StreamWatch>,
+    watch: Option<voice::StreamWatch>,
+    // Times in a row this stream was rewatched after ending without a frame in between, so one that
+    // keeps failing while its streamer reads as live ends instead of retrying forever.
+    rejoins: u8,
+}
+
+// How long a restarting streamer gets to start the new stream (Waffle waits up to 3 s for the
+// old one's delete), and how often an ended stream is followed before giving up.
+const REJOIN_AFTER: Duration = Duration::from_secs(2);
+const MAX_REJOINS: u8 = 3;
+
+impl Watching {
+    fn ended(&self) -> bool {
+        self.watch.as_ref().is_some_and(voice::StreamWatch::ended)
+    }
 }
 
 // A profile popout opened from an avatar or name, at the click point.
@@ -655,6 +669,8 @@ pub struct Waffle {
     share_choice_label: Option<String>,
     // Who watches each Go Live we've heard of, by stream key (STREAM_UPDATE).
     stream_viewers: HashMap<String, Vec<String>>,
+    // Go Lives their streamer paused, by stream key (STREAM_UPDATE).
+    stream_paused: HashSet<String>,
     // When we first saw each Go Live by stream key; Discord sends no start time.
     stream_live_since: HashMap<String, Instant>,
     // When the pointer last moved over the call view; the bar and header fade out after a while.
@@ -940,6 +956,7 @@ impl Waffle {
             share_choice: None,
             share_choice_label: None,
             stream_viewers: HashMap::new(),
+            stream_paused: HashSet::new(),
             stream_live_since: HashMap::new(),
             call_pointer_at: Instant::now(),
             // Discord's focused view hides everyone else behind the pill on the stream's bottom edge.
@@ -1359,6 +1376,7 @@ impl Waffle {
                 });
                 let suffix = format!(":{}", state.user_id);
                 self.stream_live_since.retain(|key, _| !key.ends_with(&suffix) || Some(key) == live_key.as_ref());
+                self.stream_paused.retain(|key| !key.ends_with(&suffix) || Some(key) == live_key.as_ref());
                 if let Some(key) = live_key {
                     self.stream_live_since.entry(key).or_insert_with(Instant::now);
                 }
@@ -1382,7 +1400,11 @@ impl Waffle {
                     };
                 }
             }
-            Event::StreamViewers { key, viewers } => {
+            Event::StreamUpdate { key, viewers, paused } => {
+                match paused {
+                    true => self.stream_paused.insert(key.clone()),
+                    false => self.stream_paused.remove(&key),
+                };
                 let before = self.stream_viewers.get(&key).map_or(0, Vec::len);
                 if self.in_stream(&key)
                     && let Some(cue) = viewer_cue(before, viewers.len())
@@ -2544,8 +2566,14 @@ impl Waffle {
                     state.streaming = streaming;
                     state.camera = camera;
                 }
+                // A camera tile is drawn while it has a frame: without this, a camera turned off froze on its last one.
+                if !camera && let Some(frame) = call.cameras.remove(&user_id) {
+                    cx.drop_image(frame, None);
+                }
             }
-            voice::VoiceEvent::StreamFrame { user_id, source: voice::VideoSource::GoLive, frame } => {
+            voice::VoiceEvent::StreamFrame { user_id, source: voice::VideoSource::GoLive } => {
+                // Taken whatever happens next: an untaken frame holds back the next one's event.
+                let Some(frame) = call.session.take_frame(&user_id, voice::VideoSource::GoLive) else { return };
                 let mine = self.me.as_ref().is_some_and(|m| m.id == user_id);
                 let watching_self = call.watched(&user_id).is_some();
                 // The self-view runs at 15 fps: a full-rate copy of every frame isn't worth it for a thumbnail.
@@ -2553,14 +2581,15 @@ impl Waffle {
                     if call.self_view.as_ref().is_some_and(|(_, at)| at.elapsed() < SELF_VIEW_INTERVAL) {
                         return;
                     }
-                    let Some(image) = render_image(&frame) else { return };
+                    let Some(image) = render_image(frame) else { return };
                     if let Some((old, _)) = call.self_view.replace((image, Instant::now())) {
                         cx.drop_image(old, None);
                     }
                     return cx.notify();
                 }
                 let Some(watching) = call.watching.iter_mut().find(|w| w.streamer_id == user_id) else { return };
-                let Some(image) = render_image(&frame) else { return };
+                let Some(image) = render_image(frame) else { return };
+                watching.rejoins = 0;
                 watching.arrivals.push_back(Instant::now());
                 while watching.arrivals.len() > 120 {
                     watching.arrivals.pop_front();
@@ -2570,29 +2599,29 @@ impl Waffle {
                     cx.drop_image(old, None);
                 }
             }
-            voice::VoiceEvent::StreamFrame { user_id, source: voice::VideoSource::Camera, frame } => {
-                let Some(image) = render_image(&frame) else { return };
+            voice::VoiceEvent::StreamFrame { user_id, source: voice::VideoSource::Camera } => {
+                let Some(frame) = call.session.take_frame(&user_id, voice::VideoSource::Camera) else { return };
+                let Some(image) = render_image(frame) else { return };
                 if let Some(old) = call.cameras.insert(user_id, image) {
                     cx.drop_image(old, None);
                 }
             }
             voice::VoiceEvent::StreamEnded { user_id, reason } => {
-                if let Some(frame) = call.cameras.remove(&user_id) {
-                    cx.drop_image(frame, None);
+                if reason != "Stopped" && reason != "Stream ended" && reason != "user_requested" {
+                    eprintln!("voice: stream ended: {reason}");
                 }
-                if let Some(watch) = call.unwatch(&user_id) {
-                    sounds::play(sounds::Cue::StreamEnded);
-                    if let Some(frame) = watch.frame {
-                        cx.drop_image(frame, None);
+                // A stream that was replaced or watched again ends after its successor started; only the
+                // one whose own handle has ended is over.
+                if self.me.as_ref().is_some_and(|m| m.id == user_id) {
+                    if call.sharing.as_ref().is_some_and(voice::GoLive::ended) {
+                        self.end_share(cx);
                     }
-                    // The stage says who stopped; the reason only matters when it wasn't them.
-                    if call.watching.is_empty() {
-                        call.ended = Some(user_id);
-                    }
-                    if reason != "Stream ended" && reason != "user_requested" {
-                        eprintln!("voice: stream ended: {reason}");
-                    }
+                    return;
                 }
+                if !call.watched(&user_id).is_some_and(Watching::ended) {
+                    return;
+                }
+                return self.on_watch_ended(user_id, cx);
             }
             voice::VoiceEvent::Moved(channel_id) => return self.follow_voice_move(&channel_id, cx),
             voice::VoiceEvent::Disconnected(reason) => {
@@ -2633,7 +2662,59 @@ impl Waffle {
                 }
             },
         };
-        call.watching.push(Watching { streamer_id, frame: None, arrivals: Default::default(), _watch: watch });
+        call.watching.push(Watching { streamer_id, frame: None, arrivals: Default::default(), watch, rejoins: 0 });
+        cx.notify();
+    }
+
+    // A watched stream ended. Streamers end and restart a stream to change its quality, and Discord's
+    // client follows them into the new one; so does this one while their voice state says they're
+    // still live, after giving the new stream time to start. Otherwise it's over.
+    fn on_watch_ended(&mut self, streamer_id: String, cx: &mut Context<Self>) {
+        let live = self.participants().iter().any(|s| s.user_id == streamer_id && s.streaming);
+        let Some(watching) = self.call.as_mut().and_then(|c| c.watching.iter_mut().find(|w| w.streamer_id == streamer_id)) else { return };
+        if !live || watching.rejoins >= MAX_REJOINS {
+            return self.end_watch(streamer_id, cx);
+        }
+        // The stage shows the loader until the restarted stream's first frame.
+        if let Some(frame) = watching.frame.take() {
+            cx.drop_image(frame, None);
+        }
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(REJOIN_AFTER).await;
+            this.update(cx, |this, cx| this.rewatch(streamer_id, cx)).ok();
+        })
+        .detach();
+        cx.notify();
+    }
+
+    fn rewatch(&mut self, streamer_id: String, cx: &mut Context<Self>) {
+        let live = self.participants().iter().any(|s| s.user_id == streamer_id && s.streaming);
+        let Some(call) = &mut self.call else { return };
+        // Stopped or watched again by hand meanwhile.
+        let Some(watching) = call.watching.iter_mut().find(|w| w.streamer_id == streamer_id && w.ended()) else { return };
+        if !live {
+            return self.end_watch(streamer_id, cx);
+        }
+        match call.session.watch_stream(&streamer_id) {
+            Ok(watch) => {
+                watching.watch = Some(watch);
+                watching.rejoins += 1;
+                cx.notify();
+            }
+            Err(_) => self.end_watch(streamer_id, cx),
+        }
+    }
+
+    fn end_watch(&mut self, streamer_id: String, cx: &mut Context<Self>) {
+        let Some(call) = &mut self.call else { return };
+        if let Some(frame) = call.unwatch(&streamer_id).and_then(|w| w.frame) {
+            cx.drop_image(frame, None);
+        }
+        sounds::play(sounds::Cue::StreamEnded);
+        // The stage says who stopped.
+        if call.watching.is_empty() {
+            call.ended = Some(streamer_id);
+        }
         cx.notify();
     }
 
@@ -2664,20 +2745,27 @@ impl Waffle {
 
     /// Stops sharing, or opens Discord's picker of what to share: the whole screen, an app or a window.
     fn toggle_screen_share(&mut self, cx: &mut Context<Self>) {
-        let Some(call) = &mut self.call else { return };
-        if call.sharing.take().is_some() {
-            sounds::play(sounds::Cue::StreamEnded);
-            call.share_source = None;
-            call.live_since = None;
-            if let Some((frame, _)) = call.self_view.take() {
-                cx.drop_image(frame, None);
-            }
-            if let Some(me) = self.me.as_ref().map(|m| m.id.clone()) {
-                self.unwatch_stream(&me, cx);
-            }
-            return cx.notify();
+        let Some(call) = &self.call else { return };
+        if call.sharing.is_some() {
+            return self.end_share(cx);
         }
         self.open_share_picker(cx);
+    }
+
+    // Stops our Go Live, or clears it away once it ended on its own.
+    fn end_share(&mut self, cx: &mut Context<Self>) {
+        let Some(call) = &mut self.call else { return };
+        call.sharing = None;
+        call.share_source = None;
+        call.live_since = None;
+        if let Some((frame, _)) = call.self_view.take() {
+            cx.drop_image(frame, None);
+        }
+        sounds::play(sounds::Cue::StreamEnded);
+        if let Some(me) = self.me.as_ref().map(|m| m.id.clone()) {
+            self.unwatch_stream(&me, cx);
+        }
+        cx.notify();
     }
 
     fn start_share(&mut self, source: voice::ShareSource, cx: &mut Context<Self>) {
@@ -2776,8 +2864,11 @@ enum RailEntry {
 }
 
 // gpui's render images are BGRA, which is what the decoder produces, so the bytes go in as they are.
-fn render_image(frame: &voice::VideoFrame) -> Option<Arc<RenderImage>> {
-    let buffer = image::RgbaImage::from_raw(frame.width, frame.height, frame.bgra.clone())?;
+// Takes the pixels without a copy when nothing else holds the frame (a decoded remote picture).
+fn render_image(frame: Arc<voice::VideoFrame>) -> Option<Arc<RenderImage>> {
+    let (width, height) = (frame.width, frame.height);
+    let bgra = Arc::try_unwrap(frame).map_or_else(|shared| shared.bgra.clone(), |frame| frame.bgra);
+    let buffer = image::RgbaImage::from_raw(width, height, bgra)?;
     Some(Arc::new(RenderImage::new([image::Frame::new(buffer)])))
 }
 

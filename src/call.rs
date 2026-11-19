@@ -17,6 +17,7 @@ use crate::{
     discord::{self, User, VoiceState},
     icons::Glyph,
     layout::{HEADER_HEIGHT, RAIL_WIDTH},
+    mascot,
     menu::{Entry, item, submenu},
     palette::{self, stage},
     settings::Page,
@@ -35,6 +36,9 @@ const PREVIEW_AGE: std::time::Duration = std::time::Duration::from_secs(60);
 const PREVIEW_RETRY: std::time::Duration = std::time::Duration::from_secs(20);
 // The stage (.call): the 48px header line (FOCUS_HEAD) over a 32px header row, then 16px padding and gaps
 // around the tiles and 48px controls.
+// Longer than the 500 ms a still screen is repeated at, so a still screen never reads as stalled.
+// The stage redraws once a second during a call, so the loader shows within a second of this.
+const STALL_AFTER: Duration = Duration::from_secs(3);
 const STAGE_PAD: f32 = 16.;
 const STAGE_GAP: f32 = 16.;
 const HEAD_HEIGHT: f32 = 32.;
@@ -561,7 +565,7 @@ impl Waffle {
         cx.notify();
     }
 
-    fn participants(&self) -> Vec<VoiceState> {
+    pub(crate) fn participants(&self) -> Vec<VoiceState> {
         let Some(call) = &self.call else { return Vec::new() };
         let all = match &call.guild_id {
             Some(guild_id) => self.guilds.iter().find(|g| &g.id == guild_id).map(|g| g.voice_states.as_slice()).unwrap_or_default(),
@@ -912,6 +916,8 @@ impl Waffle {
         let health = watching.filter(|w| !several && !w.arrivals.is_empty()).map(|w| {
             let (health, fps) = stream_health(&w.arrivals, Instant::now());
             let (label, color) = match health {
+                // No frames because the streamer paused isn't a fault.
+                Health::Stalled if self.stream_paused(&w.streamer_id) => ("Paused", stage::muted()),
                 Health::Smooth => ("Smooth", stage::online()),
                 Health::Choppy => ("Choppy", stage::idle()),
                 Health::Stalled => ("Stalled", stage::dnd()),
@@ -982,6 +988,11 @@ impl Waffle {
     // The focused card's stream, if a stream is the one shown big.
     fn focused_stream(&self) -> Option<String> {
         self.call_focus.as_deref()?.strip_prefix("stream:").map(str::to_owned)
+    }
+
+    fn stream_paused(&self, streamer_id: &str) -> bool {
+        let suffix = format!(":{streamer_id}");
+        self.stream_paused.iter().any(|key| key.ends_with(&suffix))
     }
 
     // Everyone watching a streamer, other than the streamer.
@@ -1088,10 +1099,14 @@ impl Waffle {
         let media = is_stream || camera.is_some();
         // A stream card plays the stream once it's watched (our own from the local capture), and shows
         // Discord's preview still until then.
+        // A watched stream that stopped delivering goes back to the loader instead of freezing on its
+        // last frame; a paused one keeps it.
+        let stalled = !me && call.watched(&state.user_id).is_some_and(|w| w.arrivals.back().is_some_and(|at| at.elapsed() > STALL_AFTER)) && !self.stream_paused(&state.user_id);
         let live_frame = match me {
             true => call.self_view.as_ref().map(|(frame, _)| frame.clone()),
-            false => call.watched(&state.user_id).and_then(|w| w.frame.clone()),
+            false => call.watched(&state.user_id).and_then(|w| w.frame.clone()).filter(|_| !stalled),
         };
+        let loading = is_stream && live_frame.is_none() && (me || call.watched(&state.user_id).is_some());
         // Focused, the picture keeps its whole frame (bars on the axis that doesn't fit); a card is
         // cropped to fill.
         let fit = if fill { gpui_kit::ObjectFit::Contain } else { gpui_kit::ObjectFit::Cover };
@@ -1103,12 +1118,14 @@ impl Waffle {
                 div().size_full().squircle(radius).bg(gpui_kit::black()).flex().items_center().justify_center().child(Icon::new(Glyph::Screen).size(px(28.)).text_color(gpui_kit::white())).into_any_element()
             }
             // Playing, the picture letterboxes on black; the gradient only holds the place before it.
-            (true, _) => match fill || live_frame.is_some() {
+            (true, _) => match fill || live_frame.is_some() || loading {
                 true => div().relative().size_full().when(!fill, |d| d.squircle(radius)).bg(gpui_kit::black()),
                 false => stream_fill(radius).size_full(),
             }
             .map(|f| match live_frame {
                 Some(frame) => f.child(ui::media(ImageSource::Render(frame), ui::all(radius)).absolute().inset_0().size_full().object_fit(gpui_kit::ObjectFit::Contain)),
+                // Discord's preview is a stale, soft still: once we're waiting on the real picture, say so.
+                None if loading => f.flex().items_center().justify_center().child(mascot::loader(SharedString::from(format!("stream-loading-{}", state.user_id)), if fill { 64. } else { 40. }, palette::logo(), cx)),
                 None => f.children(self.stream_preview(&state.user_id).map(|url| ui::media(url, ui::all(radius)).absolute().inset_0().size_full().object_fit(fit))),
             })
             .into_any_element(),

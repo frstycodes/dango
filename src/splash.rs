@@ -69,7 +69,7 @@ impl Render for Splash {
                 .items_center()
                 .justify_center()
                 .gap(px(10.))
-                .child(mascot::loader("splash-loader", MARK, cx))
+                .child(mascot::loader("splash-loader", MARK, palette::logo_ink(cx), cx))
                 .child(div().mt(px(4.)).text_size(px(20.)).line_height(px(20.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child("Waffle"))
                 .child(div().max_w_full().truncate().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(self.stage.clone()))
                 .child(progress_bar(self.progress, cx)),

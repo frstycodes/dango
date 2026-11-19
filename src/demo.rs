@@ -372,7 +372,7 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
             waffle.presences.insert("12582912".into(), Presence { status: Presence_::Online, activity: Some(blender), rich: None });
             let since = std::time::Instant::now().checked_sub(std::time::Duration::from_secs(24 * 60)).unwrap_or_else(std::time::Instant::now);
             waffle.stream_live_since.insert(key.clone(), since);
-            waffle.on_event(Event::StreamViewers { key, viewers: vec!["8388608".into(), "16777216".into(), "20971520".into(), "4194304".into()] }, cx);
+            waffle.on_event(Event::StreamUpdate { key, viewers: vec!["8388608".into(), "16777216".into(), "20971520".into(), "4194304".into()], paused: false }, cx);
             waffle.stream_card_hover = Some("stream-12582912".into());
         }
         "user-menu" => {
@@ -432,7 +432,7 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
                 }
             }
             if let Some(call) = waffle.call.as_mut() {
-                call.watching.push(crate::Watching { streamer_id: "12582912".into(), frame: Some(demo_frame(1440, 1080, 40)), arrivals: Default::default(), _watch: None });
+                call.watching.push(crate::Watching { streamer_id: "12582912".into(), frame: Some(demo_frame(1440, 1080, 40)), arrivals: Default::default(), watch: None, rejoins: 0 });
                 call.self_view = Some((demo_frame(1280, 720, 200), std::time::Instant::now()));
                 call.cameras.insert("20971520".into(), demo_frame(640, 480, 120));
                 call.cameras.insert("8388608".into(), demo_frame(640, 360, 230));
@@ -456,7 +456,7 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
                     if let Some(call) = waffle.call.as_mut() {
                         // The PiP plays a 4:3 picture, to show it letterboxed inside its 16:9 frame.
                         let frame = (scene == "pip").then(|| demo_frame(1440, 1080, 40));
-                        call.watching.push(crate::Watching { streamer_id: "12582912".into(), frame, arrivals: Default::default(), _watch: None });
+                        call.watching.push(crate::Watching { streamer_id: "12582912".into(), frame, arrivals: Default::default(), watch: None, rejoins: 0 });
                     }
                     // Reading #general meanwhile: the stream floats as a picture-in-picture.
                     waffle.call_view = scene != "pip";

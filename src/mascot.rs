@@ -43,8 +43,8 @@ pub fn mascot_at(id: impl Into<ElementId>, mood: Mood, scale: f32, cx: &App) -> 
 }
 
 // The loader: the mark as it ships, its drips forming and falling one after another, a drop about every second.
-pub fn loader(id: impl Into<ElementId>, size: f32, cx: &App) -> AnyElement {
-    let ink = palette::logo_ink(cx);
+// `ink` suits the surface: `palette::logo_ink` on the theme's own, `palette::logo` on the always-dark stage.
+pub fn loader(id: impl Into<ElementId>, size: f32, ink: Hsla, cx: &App) -> AnyElement {
     if cx.reduce_motion() {
         return mark(size, ink, Pose::REST).into_any_element();
     }

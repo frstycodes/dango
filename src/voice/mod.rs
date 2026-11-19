@@ -15,6 +15,7 @@ mod capture;
 mod capture;
 mod dave;
 mod dsp;
+mod feedback;
 mod taps;
 #[cfg(test)]
 mod echo_check;
@@ -52,6 +53,9 @@ pub use dsp::NoiseSuppression;
 pub use video::VideoFrame;
 
 const SERVER_TIMEOUT: Duration = Duration::from_secs(10);
+// Every voice state in every guild passes through: a receiver more than this far behind misses
+// dispatches, and a missed STREAM_DELETE leaves a stream we watch frozen on its last frame.
+const DISPATCH_BACKLOG: usize = 1024;
 // How long a stopped stream waits for Discord to confirm its delete before a replacement starts anyway.
 const DELETE_TIMEOUT: Duration = Duration::from_secs(3);
 const STATS_EVERY: Duration = Duration::from_secs(2);
@@ -76,8 +80,9 @@ pub enum VoiceEvent {
     // A user in our channel turned Go Live or their camera on/off. Users already live when we
     // joined are in GUILD_CREATE `voice_states[].self_stream` / `self_video`, which the UI owns.
     VideoState { user_id: String, streaming: bool, camera: bool },
-    // Remote cameras and Go Lives, and our own camera (our user id) for the self-preview.
-    StreamFrame { user_id: String, source: VideoSource, frame: Arc<VideoFrame> },
+    // A new frame of a remote camera or Go Live, or our own camera or Go Live (our user id) for the
+    // self-preview: take it with `VoiceSession::take_frame`. Frames not taken yet are replaced.
+    StreamFrame { user_id: String, source: VideoSource },
     StreamEnded { user_id: String, reason: String },
     // Discord moved our session to this channel (someone with Move Members dragged us): the
     // session has ended without leaving, for the app to join it there.
@@ -85,7 +90,7 @@ pub enum VoiceEvent {
     Disconnected(String),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum VideoSource {
     Camera,
     GoLive,
@@ -313,7 +318,7 @@ pub struct GatewayHandle {
 impl GatewayHandle {
     pub fn new() -> (Self, mpsc::UnboundedReceiver<String>) {
         let (outbound, rx) = mpsc::unbounded();
-        (Self { outbound, dispatches: broadcast::channel(64).0 }, rx)
+        (Self { outbound, dispatches: broadcast::channel(DISPATCH_BACKLOG).0 }, rx)
     }
 
     pub fn dispatch(&self, kind: &str, d: &Value) {
@@ -349,14 +354,29 @@ pub struct VoiceSession {
 
 // Dropping it stops watching.
 pub struct StreamWatch {
-    _stop: oneshot::Sender<()>,
+    stop: oneshot::Sender<()>,
+}
+
+impl StreamWatch {
+    // The stream ended on its own. Already true when its `StreamEnded` arrives, which tells that
+    // event apart from the end of a watch this one replaced.
+    pub fn ended(&self) -> bool {
+        self.stop.is_canceled()
+    }
 }
 
 // Our Go Live; dropping it ends the stream.
 pub struct GoLive {
-    _stop: oneshot::Sender<()>,
+    stop: oneshot::Sender<()>,
     // Fires once Discord has deleted this stream, so a replacement under the same key can start.
     gone: oneshot::Receiver<()>,
+}
+
+impl GoLive {
+    // As `StreamWatch::ended`: a restarted stream's predecessor ends after it began.
+    pub fn ended(&self) -> bool {
+        self.stop.is_canceled()
+    }
 }
 
 struct Shared {
@@ -392,6 +412,10 @@ struct Shared {
     // Set when another channel's join replaces this session: it must not send the leave, which
     // can reach Discord after that join and disconnect us from the new channel.
     superseded: AtomicBool,
+    // The newest frame of each picture, until the UI takes it. Its event goes out only when the
+    // slot was empty, so frames the UI hasn't drawn are replaced, never queued behind each other
+    // (and ahead of every other voice event).
+    frames: Mutex<HashMap<(String, VideoSource), Arc<VideoFrame>>>,
 }
 
 // Spamming mute or deafen sent an update per press, and Discord rate-limits the gateway (about 120
@@ -471,6 +495,13 @@ impl Shared {
     fn emit(&self, event: VoiceEvent) {
         let _ = self.events.unbounded_send(event);
     }
+
+    fn publish_frame(&self, user_id: &str, source: VideoSource, frame: Arc<VideoFrame>) {
+        let Ok(mut frames) = self.frames.lock() else { return };
+        if frames.insert((user_id.to_owned(), source), frame).is_none() {
+            self.emit(VoiceEvent::StreamFrame { user_id: user_id.to_owned(), source });
+        }
+    }
 }
 
 // `guild_id` is None for DM / group calls. Safe to call from any thread; the work runs on
@@ -507,6 +538,7 @@ pub fn join(
         others_speaking: AtomicBool::new(false),
         input_detected: AtomicU8::new(0),
         superseded: AtomicBool::new(false),
+        frames: Mutex::default(),
     });
     if ATTENUATION_SUPPORTED {
         let weak = Arc::downgrade(&shared);
@@ -626,7 +658,12 @@ impl VoiceSession {
     // session's event stream, and `StreamEnded` when it stops. Needs `Connected` first.
     pub fn watch_stream(&self, streamer_id: &str) -> Result<StreamWatch, String> {
         let (stop, _) = self.start_stream(streamer_id, Role::Watch, None)?;
-        Ok(StreamWatch { _stop: stop })
+        Ok(StreamWatch { stop })
+    }
+
+    // The frame a `StreamFrame` announced; None if it was already taken.
+    pub fn take_frame(&self, user_id: &str, source: VideoSource) -> Option<Arc<VideoFrame>> {
+        self.shared.frames.lock().ok()?.remove(&(user_id.to_owned(), source))
     }
 
     // Share the main display (macOS) at 720p30 with sound. Our own `StreamEnded` reports when it stops.
@@ -647,7 +684,7 @@ impl VoiceSession {
     pub fn go_live_with_options(&self, source: ShareSource, options: GoLiveOptions, replaces: Option<GoLive>) -> Result<GoLive, String> {
         let after = replaces.map(|old| old.gone);
         let (stop, gone) = self.start_stream(&self.shared.user_id, Role::Broadcast(source, options), after)?;
-        Ok(GoLive { _stop: stop, gone })
+        Ok(GoLive { stop, gone })
     }
 
     fn start_stream(&self, streamer_id: &str, role: Role, after: Option<oneshot::Receiver<()>>) -> Result<(oneshot::Sender<()>, oneshot::Receiver<()>), String> {
@@ -818,7 +855,7 @@ struct Target {
 async fn await_voice_server(shared: &Shared, dispatches: &mut broadcast::Receiver<(String, Value)>) -> Result<(String, Server), String> {
     let (mut session_id, mut server) = (None, None);
     loop {
-        let (kind, d) = dispatches.recv().await.map_err(|e| e.to_string())?;
+        let (kind, d) = next_dispatch(dispatches).await.ok_or("Gateway closed")?;
         let for_us = d["guild_id"].as_str().or(d["channel_id"].as_str()) == Some(shared.server_id());
         match kind.as_str() {
             "VOICE_STATE_UPDATE" if d["user_id"].as_str() == Some(&shared.user_id) && for_us => {
@@ -875,8 +912,20 @@ async fn stream(shared: Arc<Shared>, role: Role, streamer: String, key: String, 
     shared.emit(VoiceEvent::StreamEnded { user_id: streamer, reason });
 }
 
+// The next VOICE_* / STREAM_* dispatch; None once the gateway handle is gone. A receiver that fell
+// behind skips what it missed instead of failing the join or stream waiting on it.
+async fn next_dispatch(dispatches: &mut broadcast::Receiver<(String, Value)>) -> Option<(String, Value)> {
+    loop {
+        match dispatches.recv().await {
+            Ok(dispatch) => return Some(dispatch),
+            Err(broadcast::error::RecvError::Lagged(missed)) => eprintln!("voice: missed {missed} gateway dispatches"),
+            Err(broadcast::error::RecvError::Closed) => return None,
+        }
+    }
+}
+
 async fn deleted(key: &str, dispatches: &mut broadcast::Receiver<(String, Value)>) {
-    while let Ok((kind, d)) = dispatches.recv().await {
+    while let Some((kind, d)) = next_dispatch(dispatches).await {
         if kind == "STREAM_DELETE" && d["stream_key"].as_str() == Some(key) {
             return;
         }
@@ -913,7 +962,7 @@ struct RtcIds {
 async fn await_stream_server(key: &str, dispatches: &mut broadcast::Receiver<(String, Value)>) -> Result<(RtcIds, Server), String> {
     let (mut rtc, mut server) = (None, None);
     loop {
-        let (kind, d) = dispatches.recv().await.map_err(|e| e.to_string())?;
+        let (kind, d) = next_dispatch(dispatches).await.ok_or("Gateway closed")?;
         if d["stream_key"].as_str() != Some(key) {
             continue;
         }
@@ -1050,7 +1099,7 @@ async fn serve(
                 Ok(None)
             }
             Some(msg) = out_rx.next() => sink.send(msg).await.map(|()| None).map_err(|e| e.to_string()),
-            Ok((kind, d)) = dispatches.recv() => match on_dispatch(&kind, &d) {
+            Some((kind, d)) = next_dispatch(dispatches) => match on_dispatch(&kind, &d) {
                 Some(reason) => return Err(reason),
                 None => Ok(None),
             },
@@ -1173,6 +1222,7 @@ async fn serve(
                         nonce: Default::default(),
                         keyframe: AtomicBool::new(true),
                         counters: counters.clone(),
+                        connection: media::connection_id(),
                     },
                     users.clone(),
                 )?);
@@ -1280,10 +1330,10 @@ fn select_protocol(address: &str, port: u16, mode: &str) -> Value {
     }})
 }
 
-// Op 12 names a user's audio, video and per-stream SSRCs; 0 means "none".
+// Op 12 names a user's audio, video, retransmission and per-stream SSRCs; 0 means "none".
 fn video_ssrcs(d: &Value) -> impl Iterator<Item = u32> + '_ {
-    let streams = d["streams"].as_array().into_iter().flatten().map(|s| &s["ssrc"]);
-    [&d["audio_ssrc"], &d["video_ssrc"]]
+    let streams = d["streams"].as_array().into_iter().flatten().flat_map(|s| [&s["ssrc"], &s["rtx_ssrc"]]);
+    [&d["audio_ssrc"], &d["video_ssrc"], &d["rtx_ssrc"]]
         .into_iter()
         .chain(streams)
         .filter_map(Value::as_u64)
@@ -1351,6 +1401,7 @@ mod tests {
             others_speaking: AtomicBool::new(false),
             input_detected: AtomicU8::new(0),
             superseded: AtomicBool::new(false),
+            frames: Mutex::default(),
         };
         (shared, rx)
     }
@@ -1369,8 +1420,8 @@ mod tests {
 
     #[test]
     fn op12_ssrcs_skip_zero() {
-        let d = json!({ "user_id": "1", "audio_ssrc": 5, "video_ssrc": 0, "streams": [{ "ssrc": 6 }, { "ssrc": 0 }] });
-        assert_eq!(video_ssrcs(&d).collect::<Vec<_>>(), [5, 6]);
+        let d = json!({ "user_id": "1", "audio_ssrc": 5, "video_ssrc": 0, "streams": [{ "ssrc": 6, "rtx_ssrc": 7 }, { "ssrc": 0 }] });
+        assert_eq!(video_ssrcs(&d).collect::<Vec<_>>(), [5, 6, 7]);
     }
 
     #[test]

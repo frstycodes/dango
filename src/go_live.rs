@@ -191,7 +191,7 @@ impl Waffle {
             let Some(first) = open else { return };
             sources.sort_by_key(|s| Some(*s) != first);
             let icons = cx.background_spawn(async move { pids.into_iter().filter_map(|pid| Some((pid, voice::app_icon(pid, 40)?))).collect::<Vec<_>>() }).await;
-            let icons: Vec<_> = icons.iter().filter_map(|(pid, frame)| Some((*pid, crate::render_image(frame)?))).collect();
+            let icons: Vec<_> = icons.into_iter().filter_map(|(pid, frame)| Some((pid, crate::render_image(Arc::new(frame))?))).collect();
             let kept = this.update(cx, |this, cx| {
                 let Some(picker) = &mut this.share_picker else { return false };
                 picker.icons.extend(icons.iter().cloned());
@@ -204,7 +204,7 @@ impl Waffle {
             }
             for source in sources {
                 let Ok(frame) = cx.background_spawn(async move { voice::thumbnail(source, 400) }).await else { continue };
-                let Some(image) = crate::render_image(&frame) else { continue };
+                let Some(image) = crate::render_image(Arc::new(frame)) else { continue };
                 let kept = this.update(cx, |this, cx| {
                     let Some(picker) = &mut this.share_picker else { return false };
                     picker.thumbs.push((source, image.clone()));
