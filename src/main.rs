@@ -679,9 +679,16 @@ pub struct Waffle {
     // The window is in front; notifications for the open channel are skipped then.
     window_active: bool,
     dialog: Option<menu::Dialog>,
+    create_channel: Option<create_channel::CreateChannel>,
     dialog_input: Entity<SearchState>,
     // A short notice at the bottom, e.g. why a moderation action failed.
     toast: Option<SharedString>,
+    // The Friends page's Add friend tab: the username field and how the last request went.
+    add_friend_input: Entity<SearchState>,
+    add_friend_note: Entity<TextareaState>,
+    add_friend_result: Option<Result<SharedString, SharedString>>,
+    // The gateway refused the token once and REST accepted it; set until the next READY.
+    auth_retried: bool,
     // The background updater: its status (a staged update installs on Restart or the next launch).
     updates: updater::Updates,
     // The Go Live picker: None closed, Some(None) loading, Some(Some(..)) listed.
@@ -976,8 +983,13 @@ impl Waffle {
             watch_on_connect: None,
             window_active: true,
             dialog: None,
+            create_channel: None,
             dialog_input,
             toast: None,
+            add_friend_input,
+            add_friend_note,
+            add_friend_result: None,
+            auth_retried: false,
             share_picker: None,
             share_choice: None,
             share_choice_label: None,
@@ -1126,6 +1138,34 @@ impl Waffle {
         cx.notify();
     }
 
+    // The gateway closed with 4004. Only a token the REST API also refuses is forgotten (that sends you to
+    // sign in); anything else, a network error included, reconnects with the same token.
+    fn verify_rejected_token(&mut self, cx: &mut Context<Self>) {
+        let (Some(client), Some(token)) = (self.client.clone(), self.token.clone()) else { return self.sign_in(cx) };
+        // A second 4004 before any READY: the token reads fine over REST but the gateway still refuses it.
+        if std::mem::replace(&mut self.auth_retried, true) {
+            self.forget_rejected_account();
+            return self.sign_in(cx);
+        }
+        self.status = Status::Reconnecting("Checking your sign-in…".into());
+        cx.spawn(async move |this, cx| {
+            let refused = client.call(reqwest::Method::GET, "/users/@me".into(), None).await.err().is_some_and(|e| crate::discord::is_unauthorized(&e));
+            this.update(cx, |this, cx| match refused {
+                true => {
+                    eprintln!("gateway: token refused (4004 and REST 401), signing out");
+                    this.forget_rejected_account();
+                    this.sign_in(cx);
+                }
+                false => {
+                    eprintln!("gateway: 4004 but the token still works, reconnecting");
+                    this.connect(token, cx);
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+
     fn sign_in(&mut self, cx: &mut Context<Self>) {
         // Signing in happens in the main window, so the splash steps aside.
         self.finish_splash(cx);
@@ -1175,6 +1215,7 @@ impl Waffle {
             Event::Ready(ready) => {
                 let ready = *ready;
                 self.channel_info_requested.clear();
+                self.auth_retried = false;
                 // Demo scenes set their own place; the last channel a real session saved would override it.
                 if self.me.is_none() && std::env::var_os("WAFFLE_DEMO").is_none() {
                     self.restore = home::load_last_channel(&ready.me.id);
@@ -1446,10 +1487,8 @@ impl Waffle {
                 self.splash_stage(0, "Reconnecting…", cx);
                 self.status = Status::Reconnecting(reason.into());
             }
-            Event::AuthFailed => {
-                self.forget_rejected_account();
-                return self.sign_in(cx);
-            }
+            Event::Resumed => self.status = Status::Online,
+            Event::AuthFailed => return self.verify_rejected_token(cx),
         }
         self.resolve_voice_users();
         self.refresh_stream_previews(cx);

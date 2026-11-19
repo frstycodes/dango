@@ -3,12 +3,11 @@ use std::{collections::HashMap, path::PathBuf, sync::OnceLock, time::Duration};
 use futures::{SinkExt, StreamExt, channel::mpsc};
 use serde_json::{Value, json};
 use tokio::runtime::Runtime;
-use tokio_tungstenite::tungstenite::{Message as WsMessage, protocol::frame::coding::CloseCode};
+use tokio_tungstenite::tungstenite::Message as WsMessage;
 
 const GATEWAY: &str = "wss://gateway.discord.gg/?v=10&encoding=json";
 pub const API: &str = "https://discord.com/api/v10";
 const CDN: &str = "https://cdn.discordapp.com";
-const AUTH_FAILED: u16 = 4004;
 pub(crate) const VIEW_CHANNEL: u64 = 1 << 10;
 
 // The user-account gateway and several fields below (nameplates, guild tags, member list ops,
@@ -952,6 +951,8 @@ pub enum Event {
     // Raw voice server info (endpoint, token) for the voice engine.
     VoiceServer(Value),
     Disconnected(String),
+    // A dropped connection picked its session back up: nothing to reload.
+    Resumed,
     AuthFailed,
 }
 
@@ -1552,7 +1553,6 @@ pub fn parse_invite(v: &Value) -> Option<Invite> {
     })
 }
 
-// ponytail: full re-identify after every drop; RESUME (session_id + seq) when reconnect churn matters.
 // What the app and the voice engine send through the gateway, and where voice dispatches go.
 struct Outbound {
     commands: mpsc::UnboundedReceiver<Value>,
@@ -1560,12 +1560,20 @@ struct Outbound {
     voice_out: mpsc::UnboundedReceiver<String>,
 }
 
+// A drop RESUMEs the session (its id, the URL READY named and the last sequence) so Discord replays
+// what was missed and keeps everything bound to it, a voice connection included: a fresh IDENTIFY
+// ends the old session, and the voice server closes with 4014. Only an invalid session identifies anew.
 async fn run_gateway(token: String, tx: mpsc::UnboundedSender<Event>, mut outbound: Outbound) {
+    let mut resume: Option<Resume> = None;
     loop {
-        let reason = match session(&token, &tx, &mut outbound).await {
+        let reason = match session(&token, &tx, &mut outbound, &mut resume).await {
             Ok(()) => return,
             Err(GatewayError::AuthFailed) => {
                 let _ = tx.unbounded_send(Event::AuthFailed);
+                return;
+            }
+            Err(GatewayError::Fatal(reason)) => {
+                let _ = tx.unbounded_send(Event::Disconnected(reason));
                 return;
             }
             Err(GatewayError::Dropped(reason)) => reason,
@@ -1573,36 +1581,110 @@ async fn run_gateway(token: String, tx: mpsc::UnboundedSender<Event>, mut outbou
         if tx.unbounded_send(Event::Disconnected(reason)).is_err() {
             return;
         }
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        // A resumable drop goes straight back; a fresh session waits, as Discord asks after op 9.
+        let wait = if resume.is_some() { Duration::from_millis(500) } else { Duration::from_secs(3) };
+        tokio::time::sleep(wait).await;
     }
+}
+
+struct Resume {
+    session_id: String,
+    url: String,
+    seq: Option<u64>,
+}
+
+impl Resume {
+    fn payload(&self, token: &str) -> String {
+        json!({ "op": 6, "d": { "token": token, "session_id": self.session_id, "seq": self.seq } }).to_string()
+    }
+}
+
+// What each gateway close code means for us, from Discord's close event code table (docs.discord.com,
+// Opcodes and Status Codes; 4015/4016 from docs.discord.food). Anything else, a network drop included,
+// resumes.
+#[derive(Debug, PartialEq, Eq)]
+enum Close {
+    Resume,
+    // The session is gone: identify anew.
+    Identify,
+    // 4004: the token was refused.
+    AuthFailed,
+    // Reconnecting can't help (bot-only shard and intent codes, wrong API version): stop and say so.
+    Fatal,
+}
+
+fn close_kind(code: u16) -> Close {
+    match code {
+        4004 => Close::AuthFailed,
+        // 4007 invalid seq and 4009 session timed out invalidate the session; 4015 too many sessions,
+        // 4016 connection request canceled.
+        4007 | 4009 | 4015 | 4016 => Close::Identify,
+        4010..=4014 => Close::Fatal,
+        _ => Close::Resume,
+    }
+}
+
+fn gateway_close_text(code: u16, reason: &str) -> String {
+    let what = match code {
+        4000 => "Unknown error",
+        4001 => "Unknown opcode",
+        4002 => "Decode error",
+        4003 => "Not authenticated",
+        4004 => "Authentication failed",
+        4005 => "Already authenticated",
+        4007 => "Invalid sequence",
+        4008 => "Rate limited",
+        4009 => "Session timed out",
+        4010 => "Invalid shard",
+        4011 => "Sharding required",
+        4012 => "Invalid API version",
+        4013 => "Invalid intents",
+        4014 => "Disallowed intents",
+        4015 => "Too many sessions",
+        4016 => "Connection request canceled",
+        _ if reason.is_empty() => "Connection closed",
+        _ => reason,
+    };
+    format!("{what} ({code})")
 }
 
 enum GatewayError {
     AuthFailed,
     Dropped(String),
+    Fatal(String),
 }
 
-async fn session(token: &str, tx: &mpsc::UnboundedSender<Event>, outbound: &mut Outbound) -> Result<(), GatewayError> {
+async fn session(token: &str, tx: &mpsc::UnboundedSender<Event>, outbound: &mut Outbound, resume: &mut Option<Resume>) -> Result<(), GatewayError> {
     let dropped = |e: &dyn std::fmt::Display| GatewayError::Dropped(e.to_string());
-    let (ws, _) = tokio_tungstenite::connect_async(GATEWAY).await.map_err(|e| {
+    let url = resume.as_ref().map(|r| format!("{}/?v=10&encoding=json", r.url.trim_end_matches('/'))).unwrap_or_else(|| GATEWAY.to_owned());
+    let (ws, _) = tokio_tungstenite::connect_async(url.as_str()).await.map_err(|e| {
         eprintln!("gateway: connect failed: {e}");
         dropped(&e)
     })?;
     let (mut sink, mut stream) = ws.split();
-    let mut seq: Option<u64> = None;
+    let mut seq: Option<u64> = resume.as_ref().and_then(|r| r.seq);
     let mut heartbeat = tokio::time::interval(Duration::from_secs(3600));
     heartbeat.tick().await;
+    // A beat with no ACK before the next one means a zombie socket (typically after sleep or a network
+    // change): Discord's guidance is to drop it and reconnect rather than wait for TCP to notice.
+    let mut acked = true;
+    let mut greeted = false;
 
     loop {
         tokio::select! {
             _ = heartbeat.tick() => {
+                if !acked {
+                    return Err(GatewayError::Dropped("No heartbeat ACK".into()));
+                }
+                acked = false;
                 let beat = json!({ "op": 1, "d": seq }).to_string();
                 sink.send(WsMessage::Text(beat)).await.map_err(|e| dropped(&e))?;
             }
-            Some(command) = outbound.commands.next() => {
+            // Held until IDENTIFY or RESUME is out: anything earlier is answered with a 4003 close.
+            Some(command) = outbound.commands.next(), if greeted => {
                 sink.send(WsMessage::Text(command.to_string())).await.map_err(|e| dropped(&e))?;
             }
-            Some(text) = outbound.voice_out.next() => {
+            Some(text) = outbound.voice_out.next(), if greeted => {
                 sink.send(WsMessage::Text(text)).await.map_err(|e| dropped(&e))?;
             }
             frame = stream.next() => {
@@ -1612,24 +1694,66 @@ async fn session(token: &str, tx: &mpsc::UnboundedSender<Event>, outbound: &mut 
                 };
                 let text = match frame {
                     WsMessage::Text(text) => text,
-                    WsMessage::Close(Some(close)) if close.code == CloseCode::from(AUTH_FAILED) => return Err(GatewayError::AuthFailed),
-                    WsMessage::Close(close) => return Err(GatewayError::Dropped(close.map(|c| c.reason.to_string()).unwrap_or_default())),
+                    WsMessage::Close(None) => return Err(GatewayError::Dropped("Connection closed".into())),
+                    WsMessage::Close(Some(close)) => {
+                        let code = u16::from(close.code);
+                        let text = gateway_close_text(code, &close.reason);
+                        eprintln!("gateway: closed {text}");
+                        return Err(match close_kind(code) {
+                            Close::AuthFailed => GatewayError::AuthFailed,
+                            Close::Fatal => GatewayError::Fatal(text),
+                            Close::Identify => {
+                                *resume = None;
+                                GatewayError::Dropped(text)
+                            }
+                            Close::Resume => GatewayError::Dropped(text),
+                        });
+                    }
                     _ => continue,
                 };
                 let payload: Value = serde_json::from_str(&text).map_err(|e| dropped(&e))?;
                 if let Some(s) = payload["s"].as_u64() {
                     seq = Some(s);
+                    if let Some(resume) = resume.as_mut() {
+                        resume.seq = seq;
+                    }
                 }
                 match payload["op"].as_u64() {
                     Some(10) => {
                         let ms = payload["d"]["heartbeat_interval"].as_u64().unwrap_or(41_250);
-                        heartbeat = tokio::time::interval(Duration::from_millis(ms));
-                        heartbeat.tick().await;
-                        sink.send(WsMessage::Text(identify(token))).await.map_err(|e| dropped(&e))?;
+                        // The first beat waits a random share of the interval (Discord's jitter), then every interval.
+                        let period = Duration::from_millis(ms);
+                        let first = period.mul_f64(rand::random::<f64>());
+                        heartbeat = tokio::time::interval_at(tokio::time::Instant::now() + first, period);
+                        // After a sleep, beats missed while asleep would fire back to back and fail the ACK check.
+                        heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+                        let hello = resume.as_ref().map(|r| r.payload(token)).unwrap_or_else(|| identify(token));
+                        sink.send(WsMessage::Text(hello)).await.map_err(|e| dropped(&e))?;
+                        greeted = true;
                     }
-                    Some(7) | Some(9) => return Err(GatewayError::Dropped("Gateway asked to reconnect".into())),
+                    Some(11) => acked = true,
+                    // The gateway asking for a beat now.
+                    Some(1) => sink.send(WsMessage::Text(json!({ "op": 1, "d": seq }).to_string())).await.map_err(|e| dropped(&e))?,
+                    Some(7) => return Err(GatewayError::Dropped("Gateway asked to reconnect".into())),
+                    // Invalid session: `d` says whether it can still be resumed.
+                    Some(9) => {
+                        if payload["d"].as_bool() != Some(true) {
+                            *resume = None;
+                        }
+                        return Err(GatewayError::Dropped("Session expired".into()));
+                    }
                     Some(0) => {
                         let kind = payload["t"].as_str().unwrap_or("");
+                        match kind {
+                            "READY" => {
+                                let d = &payload["d"];
+                                // No resume URL: resume through the regular gateway.
+                                let url = d["resume_gateway_url"].as_str().unwrap_or("wss://gateway.discord.gg").to_owned();
+                                *resume = d["session_id"].as_str().map(|id| Resume { session_id: id.to_owned(), url, seq });
+                            }
+                            "RESUMED" => _ = tx.unbounded_send(Event::Resumed),
+                            _ => {}
+                        }
                         outbound.voice.dispatch(kind, &payload["d"]);
                         let Some(event) = dispatch(kind, &payload["d"]) else { continue };
                         if tx.unbounded_send(event).is_err() {
