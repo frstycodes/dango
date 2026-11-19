@@ -163,6 +163,7 @@ pub struct Guild {
     pub roles: Vec<Role>,
     pub voice_states: Vec<VoiceState>,
     pub emojis: Vec<Emoji>,
+    pub stickers: Vec<Sticker>,
     pub owner_id: Option<String>,
     // The server's own notification default (0 all messages, 1 only mentions), used until we pick one.
     pub default_notifications: u8,
@@ -256,6 +257,8 @@ pub mod perm {
     pub const MANAGE_THREADS: u64 = 1 << 34;
     pub const CREATE_PUBLIC_THREADS: u64 = 1 << 35;
     pub const MODERATE_MEMBERS: u64 = 1 << 40;
+    pub const PIN_MESSAGES: u64 = 1 << 51;
+    pub const CONNECT: u64 = 1 << 20;
 }
 
 impl Guild {
@@ -300,9 +303,36 @@ impl Guild {
         bits
     }
 
+    // A channel or one of the threads we know of.
+    pub fn channel(&self, id: &str) -> Option<&Channel> {
+        self.channels.iter().chain(&self.threads).find(|c| c.id == id)
+    }
+
     /// Discord sends every channel in a server, including ones we can't open; fetching those is a 403.
     pub fn can_view(&self, me: &str, channel: &Channel) -> bool {
         self.channel_permissions(me, channel) & VIEW_CHANNEL != 0
+    }
+
+    // Discord's voice move rule (Modify Guild Member, and its menu code): moving ourselves is joining,
+    // which needs Connect; moving someone else needs Move members where they are and where they go,
+    // and Connect there. Its menus leave out full channels.
+    pub fn can_move(&self, me: &str, user_id: &str, to: &Channel) -> bool {
+        let present = self.voice_states.iter().filter(|v| v.channel_id.as_deref() == Some(to.id.as_str())).count();
+        if to.props.user_limit > 0 && present >= to.props.user_limit as usize {
+            return false;
+        }
+        let has = |channel: &Channel, bit: u64| self.channel_permissions(me, channel) & bit != 0;
+        if user_id == me {
+            return has(to, perm::CONNECT);
+        }
+        let from = self.voice_states.iter().find(|v| v.user_id == user_id).and_then(|v| self.channel(v.channel_id.as_deref()?));
+        from.is_some_and(|c| has(c, perm::MOVE_MEMBERS)) && has(to, perm::MOVE_MEMBERS) && has(to, perm::CONNECT)
+    }
+
+    // Where an invite is made: the first text channel we may invite from, one everyone sees if there is one.
+    pub fn invite_channel(&self, me: &str) -> Option<&Channel> {
+        let bits = VIEW_CHANNEL | perm::CREATE_INSTANT_INVITE;
+        self.channels.iter().filter(|c| c.kind == ChannelKind::Text && self.channel_permissions(me, c) & bits == bits).min_by_key(|c| c.private)
     }
 
     // The highest role we hold; Discord lets us manage only roles below it.
@@ -585,6 +615,69 @@ pub struct Message {
     // A DM call's record (message type 3): drawn as one line, not a message.
     #[serde(default)]
     pub call: Option<CallRecord>,
+    #[serde(default)]
+    pub stickers: Vec<Sticker>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum StickerFormat {
+    #[default]
+    Png,
+    Apng,
+    Lottie,
+    Gif,
+}
+
+/// A sticker as messages, servers and packs carry it.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Sticker {
+    pub id: String,
+    pub name: String,
+    pub format: StickerFormat,
+    // Discord's related emoji or keywords, comma-separated; search matches them too.
+    #[serde(default)]
+    pub tags: String,
+}
+
+impl Sticker {
+    fn parse(v: &Value) -> Option<Self> {
+        let format = match v["format_type"].as_u64() {
+            Some(2) => StickerFormat::Apng,
+            Some(3) => StickerFormat::Lottie,
+            Some(4) => StickerFormat::Gif,
+            _ => StickerFormat::Png,
+        };
+        Some(Sticker { id: v["id"].as_str()?.to_owned(), name: v["name"].as_str().unwrap_or_default().to_owned(), format, tags: v["tags"].as_str().unwrap_or_default().to_owned() })
+    }
+
+    /// The picture at `size`, or None for Lottie: the CDN serves those only as JSON, which gpui can't draw.
+    /// APNG comes as an animated WebP, which gpui plays (checked against the media proxy, 2026-11-19).
+    // Not verified: GIF stickers at `.gif` (no GIF sticker was at hand to fetch).
+    pub fn url(&self, size: u32) -> Option<String> {
+        let id = &self.id;
+        match self.format {
+            StickerFormat::Lottie => None,
+            StickerFormat::Gif => Some(format!("https://media.discordapp.net/stickers/{id}.gif?size={size}")),
+            StickerFormat::Apng => Some(format!("https://media.discordapp.net/stickers/{id}.webp?size={size}&animated=true")),
+            StickerFormat::Png => Some(format!("https://media.discordapp.net/stickers/{id}.png?size={size}")),
+        }
+    }
+
+    pub fn animated(&self) -> bool {
+        self.format != StickerFormat::Png
+    }
+
+    pub fn matches(&self, query: &str) -> bool {
+        let query = query.to_lowercase();
+        self.name.to_lowercase().contains(&query) || self.tags.to_lowercase().contains(&query)
+    }
+}
+
+/// One of Discord's own sticker packs (`GET /sticker-packs`).
+#[derive(Clone, Debug)]
+pub struct StickerPack {
+    pub name: String,
+    pub stickers: Vec<Sticker>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -899,6 +992,26 @@ impl Client {
         self.run(req).await.and_then(|v| parse_message(&v).ok_or_else(|| "Unexpected response".into()))
     }
 
+    /// A message that is one sticker, as Discord's picker sends it: no text.
+    pub async fn send_sticker(&self, channel_id: &str, sticker_id: &str, nonce: &str, reply_to: Option<&str>, ping_author: bool) -> Result<Message, String> {
+        let mut body = message_body("", nonce, reply_to, ping_author, &[]);
+        body["sticker_ids"] = json!([sticker_id]);
+        let req = self.request(reqwest::Method::POST, &format!("/channels/{channel_id}/messages")).json(&body);
+        self.run(req).await.and_then(|v| parse_message(&v).ok_or_else(|| "Unexpected response".into()))
+    }
+
+    /// Discord's own packs, for everyone.
+    pub async fn sticker_packs(&self) -> Result<Vec<StickerPack>, String> {
+        let body = self.run(self.request(reqwest::Method::GET, "/sticker-packs")).await?;
+        Ok(body["sticker_packs"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|p| StickerPack { name: p["name"].as_str().unwrap_or_default().to_owned(), stickers: p["stickers"].as_array().into_iter().flatten().filter_map(Sticker::parse).collect() })
+            .filter(|p| !p.stickers.is_empty())
+            .collect())
+    }
+
     /// One message carrying all the files, as Discord's own client sends it (docs.discord.food, Cloud
     /// Uploads): upload URLs for every file, a PUT of each to its URL, then the message naming them.
     /// Each file's `sent` counts its bytes as they go out.
@@ -907,8 +1020,9 @@ impl Client {
         let slots = self.run(req).await?;
         let slots = parse_upload_slots(&slots, files.len())?;
         for (file, (url, _)) in files.iter().zip(&slots) {
-            let put = runtime().spawn(put_file(self.http.clone(), url.clone(), file.path.clone(), file.sent.clone()));
-            put.await.map_err(|e| e.to_string())??;
+            // Cancel drops this future; the guard stops the PUT with it.
+            let mut put = AbortOnDrop(runtime().spawn(put_file(self.http.clone(), url.clone(), file.path.clone(), file.sent.clone())));
+            (&mut put.0).await.map_err(|e| e.to_string())??;
         }
         let uploaded: Vec<(String, String)> = files.iter().zip(slots).map(|(f, (_, name))| (f.name.clone(), name)).collect();
         let body = message_body(content, nonce, reply_to, ping_author, &uploaded);
@@ -1693,6 +1807,8 @@ fn parse_guild(g: &Value) -> Option<Guild> {
         // Guild payloads leave out each voice state's guild_id.
         voice_states: g["voice_states"].as_array().into_iter().flatten().map(|v| VoiceState { guild_id: Some(id.to_owned()), ..parse_voice_state(v) }).collect(),
         emojis: g["emojis"].as_array().into_iter().flatten().map(parse_emoji).collect(),
+        // Not verified: READY's user-account guild objects carrying `stickers` the way bot GUILD_CREATE does.
+        stickers: g["stickers"].as_array().into_iter().flatten().filter_map(Sticker::parse).collect(),
         owner_id: props["owner_id"].as_str().or(g["owner_id"].as_str()).map(str::to_owned),
         default_notifications: props["default_message_notifications"].as_u64().or(g["default_message_notifications"].as_u64()).unwrap_or(0) as u8,
         threads: g["threads"].as_array().into_iter().flatten().filter_map(|t| parse_channel(t, id)).collect(),
@@ -1858,6 +1974,7 @@ pub fn parse_message(m: &Value) -> Option<Message> {
         pinned: m["pinned"].as_bool().unwrap_or(false),
         thread: m["thread"].is_object().then(|| parse_channel(&m["thread"], m["guild_id"].as_str().unwrap_or_default())).flatten(),
         call: (m["type"] == 3).then(|| CallRecord { participants: strings(&m["call"]["participants"]), ended: m["call"]["ended_timestamp"].as_str().map(str::to_owned) }),
+        stickers: m["sticker_items"].as_array().or(m["stickers"].as_array()).into_iter().flatten().filter_map(Sticker::parse).collect(),
     })
 }
 
@@ -2390,6 +2507,7 @@ mod tests {
             roles: vec![role("g", VIEW_CHANNEL), role("mods", 0), role("admins", perm::ADMINISTRATOR)],
             voice_states: Vec::new(),
             emojis: Vec::new(),
+            stickers: Vec::new(),
             owner_id: Some("owner".into()),
             premium_tier: 0,
             threads: Vec::new(),
@@ -2405,6 +2523,89 @@ mod tests {
         let admin = Guild { my_roles: vec!["admins".into()], ..guild.clone() };
         assert_eq!(visible(&admin).len(), 5);
         assert!(guild.can_view("owner", &guild.channels[3]));
+    }
+
+    #[test]
+    fn manage_messages_follows_owner_admin_roles_and_overwrites() {
+        let role = |id: &str, permissions: u64| Role { id: id.into(), name: id.into(), color: 0, position: 0, permissions, managed: false };
+        let channel = |id: &str, overwrites: Value| parse_channel(&json!({ "id": id, "type": 0, "permission_overwrites": overwrites }), "g").unwrap();
+        let thread = parse_channel(&json!({ "id": "t", "type": 11, "parent_id": "locked", "thread_metadata": {} }), "g").unwrap();
+        let guild = Guild {
+            id: "g".into(),
+            name: "g".into(),
+            icon: None,
+            channels: vec![
+                channel("open", json!([])),
+                channel("locked", json!([{ "id": "mods", "type": 0, "allow": "0", "deny": "8192" }])),
+                channel("mine", json!([{ "id": "mods", "type": 0, "allow": "0", "deny": "8192" }, { "id": "me", "type": 1, "allow": "8192", "deny": "0" }])),
+                channel("everyone", json!([{ "id": "g", "type": 0, "allow": "8192", "deny": "0" }])),
+            ],
+            roles: vec![role("g", VIEW_CHANNEL), role("mods", perm::MANAGE_MESSAGES), role("admins", perm::ADMINISTRATOR)],
+            voice_states: Vec::new(),
+            emojis: Vec::new(),
+            stickers: Vec::new(),
+            owner_id: Some("owner".into()),
+            premium_tier: 0,
+            threads: vec![thread],
+            my_roles: Vec::new(),
+            default_notifications: Default::default(),
+        };
+        let can = |g: &Guild, me: &str, id: &str| g.channel_permissions(me, g.channel(id).unwrap()) & perm::MANAGE_MESSAGES != 0;
+        let all = ["open", "locked", "mine", "everyone", "t"];
+        let allowed = |g: &Guild, me: &str| all.iter().copied().filter(|id| can(g, me, id)).collect::<Vec<_>>();
+
+        assert_eq!(allowed(&guild, "me"), ["mine", "everyone"]);
+        assert_eq!(allowed(&guild, "owner"), all);
+        assert_eq!(allowed(&Guild { my_roles: vec!["admins".into()], ..guild.clone() }, "me"), all);
+        // The role grants it server-wide; a role overwrite takes it back, a member overwrite beats that, and threads follow their parent.
+        assert_eq!(allowed(&Guild { my_roles: vec!["mods".into()], ..guild.clone() }, "me"), ["open", "mine", "everyone"]);
+    }
+
+    #[test]
+    fn voice_moves_and_invites_follow_channel_permissions() {
+        let role = |id: &str, permissions: u64| Role { id: id.into(), name: id.into(), color: 0, position: 0, permissions, managed: false };
+        let channel = |id: &str, kind: u8, limit: u32, overwrites: Value| parse_channel(&json!({ "id": id, "type": kind, "user_limit": limit, "permission_overwrites": overwrites }), "g").unwrap();
+        let in_voice = |user: &str, channel: &str| VoiceState { user_id: user.into(), channel_id: Some(channel.into()), ..Default::default() };
+        let deny = |bits: u64| json!([{ "id": "mods", "type": 0, "allow": "0", "deny": bits.to_string() }]);
+        let guild = Guild {
+            id: "g".into(),
+            name: "g".into(),
+            icon: None,
+            channels: vec![
+                channel("rules", 0, 0, deny(perm::CREATE_INSTANT_INVITE)),
+                channel("chat", 0, 0, json!([])),
+                channel("a", 2, 0, json!([])),
+                channel("b", 2, 0, json!([])),
+                channel("full", 2, 1, json!([])),
+                channel("locked", 2, 0, deny(perm::MOVE_MEMBERS)),
+                channel("closed", 2, 0, deny(perm::CONNECT)),
+            ],
+            roles: vec![role("g", VIEW_CHANNEL | perm::CONNECT | perm::CREATE_INSTANT_INVITE), role("mods", perm::MOVE_MEMBERS)],
+            voice_states: vec![in_voice("them", "a"), in_voice("other", "full"), in_voice("held", "locked")],
+            emojis: Vec::new(),
+            stickers: Vec::new(),
+            owner_id: Some("owner".into()),
+            premium_tier: 0,
+            threads: Vec::new(),
+            my_roles: vec!["mods".into()],
+            default_notifications: Default::default(),
+        };
+        let to = |g: &Guild, me: &str, who: &str| ["b", "full", "locked", "closed"].into_iter().filter(|id| g.can_move(me, who, g.channel(id).unwrap())).collect::<Vec<_>>();
+
+        // Move members on both ends and Connect on the destination; full channels are out.
+        assert_eq!(to(&guild, "me", "them"), ["b"]);
+        // Not from a channel where Move members is denied.
+        assert_eq!(to(&guild, "me", "held"), Vec::<&str>::new());
+        // Without the role, nobody else moves.
+        assert_eq!(to(&Guild { my_roles: Vec::new(), ..guild.clone() }, "me", "them"), Vec::<&str>::new());
+        // Ourselves: Connect is enough.
+        assert_eq!(to(&guild, "me", "me"), ["b", "locked"]);
+        assert_eq!(to(&guild, "owner", "them"), ["b", "locked", "closed"]);
+
+        assert_eq!(guild.invite_channel("me").map(|c| c.id.as_str()), Some("chat"));
+        assert_eq!(guild.invite_channel("owner").map(|c| c.id.as_str()), Some("rules"));
+        let no_invites = Guild { roles: vec![role("g", VIEW_CHANNEL)], my_roles: Vec::new(), ..guild.clone() };
+        assert_eq!(no_invites.invite_channel("me").map(|c| c.id.as_str()), None);
     }
 
     #[test]
@@ -2437,6 +2638,25 @@ mod tests {
         assert_eq!(m.media[1].kind, MediaKind::Gif { poster: "t.png".into() });
         assert_eq!(m.embeds.len(), 1);
         assert_eq!(m.embeds[0].provider.as_deref(), Some("YouTube"));
+    }
+
+    #[test]
+    fn stickers_parse_from_messages_and_pick_their_format() {
+        let m = parse_message(&json!({ "id": "1", "channel_id": "2", "author": { "id": "3" }, "sticker_items": [
+            { "id": "10", "name": "wave", "format_type": 1 },
+            { "id": "11", "name": "dance", "format_type": 4 },
+            { "id": "12", "name": "lottie", "format_type": 3 },
+            { "id": "13", "name": "bounce", "format_type": 2 },
+        ] }))
+        .expect("message");
+        let urls: Vec<_> = m.stickers.iter().map(|s| s.url(160)).collect();
+        assert_eq!(urls[0].as_deref(), Some("https://media.discordapp.net/stickers/10.png?size=160"));
+        assert_eq!(urls[1].as_deref(), Some("https://media.discordapp.net/stickers/11.gif?size=160"));
+        assert_eq!(urls[2], None);
+        assert_eq!(urls[3].as_deref(), Some("https://media.discordapp.net/stickers/13.webp?size=160&animated=true"));
+        assert!(!m.stickers[0].animated() && m.stickers[1].animated());
+        let tagged = Sticker { name: "Wumpus wave".into(), tags: "👋, hello".into(), ..Sticker::default() };
+        assert!(tagged.matches("wave") && tagged.matches("HELLO") && !tagged.matches("bye"));
     }
 
     #[test]

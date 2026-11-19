@@ -6,7 +6,7 @@ use std::{collections::HashMap, f32::consts::TAU, rc::Rc, time::Duration};
 
 use chrono::{DateTime, Local, NaiveDate};
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, App, Context, Corners, Div, Focusable, FontWeight, HighlightStyle, Hsla, KeyDownEvent, Pixels, SharedString, Stateful, StyledText, WeakEntity, Window,
+    Animation, AnimationExt, AnyElement, App, Bounds, Context, Corners, Div, Focusable, FontWeight, HighlightStyle, Hsla, KeyDownEvent, Pixels, SharedString, Stateful, StyledText, WeakEntity, Window,
     WindowControlArea,
     component::{
         ActiveTheme, Icon, Sizable, Size,
@@ -25,6 +25,7 @@ use crate::{
     layout::HEADER_HEIGHT,
     mascot::Mood,
     motion,
+    overlays::ComposerPicker,
     palette::{self, Level},
     ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XS, Squircle},
 };
@@ -215,15 +216,23 @@ impl Waffle {
                 .into_any_element()
         };
         // The popover hangs from the field's right edge and rises from that corner.
+        // Deferred and absolute, the popover lies outside this element's bounds, so mouse-down-out fires on a
+        // press inside it too; its last drawn bounds let that press through instead of blurring and unmounting it.
+        let popover_bounds = window.use_keyed_state("search-popover-bounds", cx, |_, _| None::<Bounds<Pixels>>);
         let popover = focused.then(|| self.search_popover(cx)).flatten().map(|card| {
-            let card = div().absolute().top(px(46.)).right_0().child(card);
+            let bounds = popover_bounds.clone();
+            let card = div().absolute().top(px(46.)).right_0().on_children_prepainted(move |children, _, cx| bounds.update(cx, |b, _| *b = children.first().copied())).child(card);
             gpui_kit::deferred(ui::rise(card.transform_origin(ui::corner(true, false)), "search-popover-in", Duration::ZERO)).with_priority(2)
         });
+        if popover.is_none() {
+            popover_bounds.update(cx, |b, _| *b = None);
+        }
         div()
             .relative()
             .flex_none()
             .on_mouse_down_out(cx.listener(move |_, _, window, cx| {
-                if focused {
+                let in_popover = popover_bounds.read(cx).is_some_and(|b| b.contains(&window.mouse_position()));
+                if focused && !in_popover {
                     window.blur(cx);
                 }
             }))
@@ -414,14 +423,15 @@ impl Waffle {
             column,
             quick_reactions: self.prefs.frequent_emojis(3, &["💯", "😆", "💖"]),
             shift: self.shift_held,
-            manage_messages: self.guild().is_some_and(|g| self.me.as_ref().is_some_and(|me| g.can(&me.id, crate::discord::perm::MANAGE_MESSAGES))),
-            threads: self.guild_id.is_some() && channel.is_some_and(|c| c.kind == ChannelKind::Text),
+            manage_messages: channel.is_some_and(|c| self.can_in(&c.id, crate::discord::perm::MANAGE_MESSAGES)),
+            threads: channel.is_some_and(|c| c.kind == ChannelKind::Text && self.can_in(&c.id, crate::discord::perm::CREATE_PUBLIC_THREADS)),
         })
     }
 
     pub(crate) fn render_composer(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let focused = self.composer.read(cx).focus_handle(cx).is_focused(window);
         let (strong, muted) = (palette::strong(cx), palette::muted(cx));
+        let open_picker = self.composer_picker();
         let row = div()
             .min_h(px(48.))
             .py(px(7.))
@@ -432,8 +442,9 @@ impl Waffle {
             .child(ui::icon_button("attach", Glyph::PlusCircle, "Upload a File", cx).on_click(cx.listener(|this, _, window, cx| this.upload(window, cx))))
             // XSmall gives the editor 0/4px padding of its own; with these, the design's 4/6.
             .child(div().flex_1().min_w_0().child(Textarea::new(&self.composer).appearance(false).with_size(Size::XSmall).py(px(4.)).px(px(2.)).text_size(px(15.)).line_height(px(22.)).text_color(strong).token(mention_chip(cx))))
-            .child(ui::icon_button("composer-gif", Glyph::Gif, "Open GIF picker", cx).on_click(cx.listener(|this, _, window, cx| this.open_gifs(window, cx))))
-            .child(ui::icon_button("composer-emoji", Glyph::Emoji, "Select Emoji", cx).on_click(cx.listener(|this, _, window, cx| this.open_emoji_picker(EmojiTarget::Composer, window, cx))));
+            .children([(ComposerPicker::Gifs, "composer-gif", Glyph::Gif, "Open GIF picker"), (ComposerPicker::Stickers, "composer-sticker", Glyph::Sticker, "Open sticker picker"), (ComposerPicker::Emoji, "composer-emoji", Glyph::Emoji, "Select Emoji")].map(|(picker, id, glyph, label)| {
+                ui::icon_button(id, glyph, label, cx).toggled(open_picker == Some(picker), cx).on_click(cx.listener(move |this, _, window, cx| this.show_composer_picker(picker, window, cx)))
+            }));
         let card = div()
             .relative()
             .mx(px(16.))
@@ -856,6 +867,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .text_color(ink)
         .children(content(message, ctx, cx))
         .children(media.map(|m| div().when(pending, |d| d.opacity(0.6)).child(m)))
+        .children(message.stickers.iter().map(|s| div().when(pending, |d| d.opacity(0.6)).child(crate::stickers::in_chat(s, cx))))
         .children(message.embeds.iter().filter(|_| ctx.embeds).enumerate().map(|(i, e)| embed_card(e, format!("embed-{}-{i}", message.id), ctx, cx)))
         .children(link_cards(message, ctx, cx))
         .children(message.thread.as_ref().map(|t| thread_card(t, ctx, cx)))
@@ -1002,7 +1014,7 @@ fn message_head(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> impl IntoE
                 .hover(|s| s.underline())
                 .child(ctx.name_of(&message.author)),
         )
-        .children(message.author.tag.clone().map(|tag| ui::badge(palette::selected(cx), palette::strong(cx)).h(px(18.)).px(px(6.)).gap(px(3.)).children(tag.badge.map(|b| img(b).size(px(12.)))).child(tag.text)))
+        .children(message.author.tag.as_ref().map(|tag| guild_tag(tag, cx)))
         .when(message.author.bot, |h| h.child(ui::badge(palette::accent_soft(cx), palette::accent_ink(cx)).h(px(18.)).px(px(6.)).gap(px(3.)).child(Icon::new(Glyph::Checkmark).size(px(11.))).child("APP")))
         .child(div().flex_none().relative().top(px(1.)).whitespace_nowrap().text_size(px(12.)).text_color(palette::faint(cx)).child(format_stamp(&message.timestamp)))
         .when(message.pinned, |h| h.child(div().flex_none().self_center().text_color(palette::muted(cx)).child(Icon::new(Glyph::Pin).size(px(14.)))))
@@ -1130,12 +1142,16 @@ fn attachment_kind(message: &Message) -> &'static str {
         Some(MediaKind::Image) => "Image",
         Some(MediaKind::Video { .. }) => "Video",
         Some(MediaKind::Gif { .. }) => "GIF",
+        None if !message.stickers.is_empty() => "Sticker",
         None if !message.files.is_empty() => "File",
         None => "Attachment",
     }
 }
 
 fn attachment_glyph(message: &Message) -> Glyph {
+    if message.media.is_empty() && !message.stickers.is_empty() {
+        return Glyph::Sticker;
+    }
     match message.media.is_empty() && !message.files.is_empty() {
         true => Glyph::File,
         false => Glyph::Image,
@@ -1367,6 +1383,11 @@ fn hide_spoilers(text: &str, revealed: bool) -> String {
         }
     }
     out
+}
+
+// A user's server tag (Discord's guild tag): its badge and text, as it follows their name.
+pub(crate) fn guild_tag(tag: &crate::discord::GuildTag, cx: &App) -> Div {
+    ui::badge(palette::selected(cx), palette::strong(cx)).h(px(18.)).px(px(6.)).gap(px(3.)).children(tag.badge.clone().map(|b| img(b).size(px(12.)))).child(tag.text.clone())
 }
 
 // Not sent: the text stays, with why and the two ways out inline.
@@ -1713,14 +1734,18 @@ fn files(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Vec<AnyElemen
         .collect()
 }
 
-// The files of a message still uploading: each with its picture, and its bytes out of its size as a
-// bar, so a big file visibly moves.
+// The files of a message still uploading: each with its picture, its bytes out of its size as a bar so
+// a big file visibly moves, and Cancel, which drops the whole message as Discord's does.
 fn upload_cards(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Vec<AnyElement> {
+    if message.state == SendState::Sent {
+        return Vec::new();
+    }
     let Some(job) = message.nonce.as_ref().and_then(|n| ctx.uploads.get(n)) else { return Vec::new() };
     let (strong, faint) = (palette::strong(cx), palette::faint(cx));
     job.files
         .iter()
-        .map(|file| {
+        .enumerate()
+        .map(|(ix, file)| {
             let sent = file.sent.load(std::sync::atomic::Ordering::Relaxed).min(file.size);
             let fraction = if file.size == 0 { 1. } else { sent as f32 / file.size as f32 };
             let kind = crate::attachments::FileKind::of(&file.path);
@@ -1752,6 +1777,13 @@ fn upload_cards(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Vec<AnyEle
                         .child(div().flex().items_baseline().gap(px(8.)).child(div().flex_1().min_w_0().truncate().text_size(px(14.)).font_weight(FontWeight::MEDIUM).text_color(strong).child(file.name.clone())).child(div().flex_none().text_size(px(12.)).text_color(faint).child(status)))
                         .when(job.error.is_none(), |d| d.child(ui::progress(fraction, cx))),
                 )
+                .when(job.error.is_none(), |d| {
+                    let (this, cancel) = (ctx.this.clone(), message.clone());
+                    d.child(ui::icon_button(SharedString::from(format!("cancel-upload-{}-{ix}", message.id)), Glyph::X, "Cancel upload", cx).small().on_click(move |_, _, cx| {
+                        cx.stop_propagation();
+                        this.update(cx, |this, cx| this.delete(cancel.clone(), cx)).ok();
+                    }))
+                })
                 .into_any_element()
         })
         .collect()

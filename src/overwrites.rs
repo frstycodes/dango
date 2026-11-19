@@ -85,7 +85,6 @@ pub fn set_private(overwrites: &mut Vec<Overwrite>, everyone: &str, raw_type: u8
 const GENERAL: &[(u64, &str)] = &[(VIEW_CHANNEL, "View channel"), (perm::MANAGE_CHANNELS, "Manage channel"), (perm::MANAGE_ROLES, "Manage permissions"), (perm::MANAGE_WEBHOOKS, "Manage webhooks")];
 const MEMBERSHIP: &[(u64, &str)] = &[(perm::CREATE_INSTANT_INVITE, "Create invite")];
 const SEND_MESSAGES: u64 = 1 << 11;
-const CONNECT: u64 = 1 << 20;
 const TEXT: &[(u64, &str)] = &[
     (SEND_MESSAGES, "Send messages"),
     (1 << 38, "Send messages in threads"),
@@ -98,7 +97,7 @@ const TEXT: &[(u64, &str)] = &[
     (1 << 37, "Use external stickers"),
     (1 << 17, "Mention @everyone, @here and all roles"),
     (perm::MANAGE_MESSAGES, "Manage messages"),
-    (1 << 51, "Pin messages"),
+    (perm::PIN_MESSAGES, "Pin messages"),
     (1 << 52, "Bypass slowmode"),
     (perm::MANAGE_THREADS, "Manage threads"),
     (1 << 16, "Read message history"),
@@ -123,7 +122,7 @@ const VOICE_CHAT: &[(u64, &str)] = &[
     (1 << 49, "Create polls"),
 ];
 const VOICE: &[(u64, &str)] = &[
-    (CONNECT, "Connect"),
+    (perm::CONNECT, "Connect"),
     (1 << 21, "Speak"),
     (1 << 9, "Video"),
     (1 << 42, "Use soundboard"),
@@ -151,7 +150,7 @@ pub fn permission_groups(raw_type: u8) -> Vec<(&'static str, &'static [(u64, &'s
 
 // Private channel denies @everyone View channel, and Connect too where there's voice (Discord web's switch).
 pub fn private_bits(raw_type: u8) -> u64 {
-    if matches!(raw_type, 2 | 13) { VIEW_CHANNEL | CONNECT } else { VIEW_CHANNEL }
+    if matches!(raw_type, 2 | 13) { VIEW_CHANNEL | perm::CONNECT } else { VIEW_CHANNEL }
 }
 
 #[cfg(test)]
@@ -189,7 +188,7 @@ mod tests {
     fn private_voice_also_denies_connect() {
         let mut list = Vec::new();
         set_private(&mut list, "g", 2, true);
-        assert_eq!(list, vec![ow("g", 0, VIEW_CHANNEL | CONNECT)]);
+        assert_eq!(list, vec![ow("g", 0, VIEW_CHANNEL | perm::CONNECT)]);
         assert!(private(&list, "g"));
         set_private(&mut list, "g", 2, false);
         assert_eq!(list, vec![ow("g", 0, 0)]);
