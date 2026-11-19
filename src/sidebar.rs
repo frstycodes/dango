@@ -1246,8 +1246,8 @@ fn speaking_avatar(avatar: &str, talking: bool, cx: &App) -> Div {
         .when(talking, |a| a.child(div().absolute().top(px(-3.)).left(px(-3.)).size(px(28.)).rounded_full().border(px(2.)).border_color(palette::status_in(crate::discord::Status::Online, cx))))
 }
 
-// What a voice occupant's row shows at its end, most important first: server mute or deafen (red),
-// live, camera, then their own mute and deafen. Speaking shows as a ring on the avatar instead.
+// What a voice occupant's row shows at its end, as Discord's: their mute and deafen (server ones red),
+// then camera, then LIVE. Speaking shows as a ring on the avatar instead.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum VoiceMark {
     ServerMuted,
@@ -1261,23 +1261,20 @@ enum VoiceMark {
 // Deafening yourself also mutes you, so a self-deafen shows both marks, as Discord's list does; a
 // server deafen shows only its own.
 fn voice_marks(state: &crate::discord::VoiceState) -> Vec<VoiceMark> {
-    if state.server_deafened {
-        return vec![VoiceMark::ServerDeafened];
-    }
-    if state.server_muted {
-        return vec![VoiceMark::ServerMuted];
+    let mut marks = match (state.server_deafened, state.server_muted, state.muted, state.deafened) {
+        (true, ..) => vec![VoiceMark::ServerDeafened],
+        (_, true, ..) => vec![VoiceMark::ServerMuted],
+        (.., true) => vec![VoiceMark::Muted, VoiceMark::Deafened],
+        (_, _, true, false) => vec![VoiceMark::Muted],
+        _ => vec![],
+    };
+    if state.camera {
+        marks.push(VoiceMark::Camera);
     }
     if state.streaming {
-        return vec![VoiceMark::Live];
+        marks.push(VoiceMark::Live);
     }
-    if state.camera {
-        return vec![VoiceMark::Camera];
-    }
-    match (state.muted, state.deafened) {
-        (_, true) => vec![VoiceMark::Muted, VoiceMark::Deafened],
-        (true, false) => vec![VoiceMark::Muted],
-        (false, false) => vec![],
-    }
+    marks
 }
 
 fn voice_mark_for(state: &crate::discord::VoiceState, cx: &App) -> Option<AnyElement> {
@@ -1680,6 +1677,8 @@ mod tests {
         assert_eq!(voice_marks(&state(true, true, true, true)), [VoiceMark::ServerDeafened]);
         assert_eq!(voice_marks(&state(true, false, true, false)), [VoiceMark::ServerMuted]);
         assert!(voice_marks(&state(false, false, false, false)).is_empty());
+        let live = crate::discord::VoiceState { muted: true, deafened: true, camera: true, streaming: true, ..Default::default() };
+        assert_eq!(voice_marks(&live), [VoiceMark::Muted, VoiceMark::Deafened, VoiceMark::Camera, VoiceMark::Live], "live keeps the mute and deafen marks");
     }
 
     #[test]
