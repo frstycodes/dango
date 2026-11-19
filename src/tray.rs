@@ -1,7 +1,7 @@
 // Windows: closing the window keeps Waffle running in the notification area, like Discord. The
 // tray icon brings the window back (click or double-click); its menu offers Open and Quit. Calls,
 // Go Live and notifications carry on while the window is hidden.
-use std::{cell::RefCell, time::Duration};
+use std::{cell::RefCell, sync::OnceLock, time::Duration};
 
 use gpui_kit::{App, Window};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -9,14 +9,21 @@ use tray_icon::{
     Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent,
     menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem},
 };
-use windows::Win32::{
-    Foundation::HWND,
-    UI::WindowsAndMessaging::{IsIconic, SW_HIDE, SW_MINIMIZE, SW_RESTORE, SW_SHOW, SetForegroundWindow, ShowWindow},
+use windows::{
+    Win32::{
+        Foundation::{ERROR_ALREADY_EXISTS, GetLastError, HANDLE, HWND, WAIT_OBJECT_0},
+        System::Threading::{CreateEventW, SetEvent, WaitForSingleObject},
+        UI::WindowsAndMessaging::{ASFW_ANY, AllowSetForegroundWindow, IsIconic, IsWindowVisible, SW_HIDE, SW_MINIMIZE, SW_RESTORE, SW_SHOW, SetForegroundWindow, ShowWindow},
+    },
+    core::HSTRING,
 };
 
 const ICON_PX: u32 = 32;
 // Tray and menu events arrive on channels; checked this often on the main thread.
 const POLL: Duration = Duration::from_millis(120);
+
+// The running Waffle's activation event, as a raw handle (HANDLE isn't Sync).
+static ACTIVATE: OnceLock<usize> = OnceLock::new();
 
 thread_local! {
     // The tray icon lives as long as the app; it must stay on the UI thread that created it.
@@ -26,6 +33,7 @@ thread_local! {
 pub fn install(window: &mut Window, cx: &mut App) {
     let Some(hwnd) = hwnd(window) else { return };
     crate::presence::watch(hwnd);
+    watch_activation(hwnd, cx);
     // Registered before the tray is built: with no close handler gpui lets Windows destroy the window,
     // and closing the last window quits. The close button, Alt+F4 and the taskbar's Close all ask
     // here; Waffle hides to the tray, or minimizes when there is no tray icon to bring it back from.
@@ -80,6 +88,47 @@ pub fn install(window: &mut Window, cx: &mut App) {
                     TRAY.with(|t| t.borrow_mut().take());
                     cx.update(|cx| cx.quit());
                     return;
+                }
+            }
+        }
+    })
+    .detach();
+}
+
+// One Waffle per executable: a second launch (the taskbar pin while Waffle sits in the tray) signals
+// the running one to show its window, then exits. Keyed by the exe path, so a dev build runs beside
+// the installed one. Returns false when another Waffle took the hand-off. The event dies with the
+// process, and gpui's restart relaunches only after exit, so a restart is never turned away.
+pub fn claim_single_instance() -> bool {
+    let exe = std::env::current_exe().map(|p| p.to_string_lossy().to_lowercase().replace('\\', "/")).unwrap_or_default();
+    let name = HSTRING::from(format!("Local\\Waffle.Activate.{exe}"));
+    // SAFETY: plain Win32 calls; the handle is kept for the life of the process.
+    unsafe {
+        let Ok(event) = CreateEventW(None, false, false, &name) else { return true };
+        if GetLastError() != ERROR_ALREADY_EXISTS {
+            ACTIVATE.get_or_init(|| event.0 as usize);
+            return true;
+        }
+        // The running Waffle may only take the foreground if the launching process allows it.
+        let _ = AllowSetForegroundWindow(ASFW_ANY);
+        let _ = SetEvent(event);
+    }
+    false
+}
+
+fn watch_activation(hwnd: HWND, cx: &mut App) {
+    let Some(&event) = ACTIVATE.get() else { return };
+    cx.spawn(async move |cx| {
+        // Until the splash brings the main window forward it loads hidden behind it, and showing it
+        // early would put a half-loaded window on screen; the splash is already in view then.
+        let mut loaded = false;
+        loop {
+            cx.background_executor().timer(POLL).await;
+            // SAFETY: our own window, and the event handle stays open for the life of the process.
+            unsafe {
+                loaded |= IsWindowVisible(hwnd).as_bool();
+                if WaitForSingleObject(HANDLE(event as *mut _), 0) == WAIT_OBJECT_0 && loaded {
+                    show(hwnd);
                 }
             }
         }
