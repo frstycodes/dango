@@ -882,6 +882,13 @@ impl Waffle {
             });
             let stream_hover = cx.listener(move |this, hovered: &bool, window, cx| this.hover_stream_row(&hover_key, *hovered, window.mouse_position(), cx));
             let end = voice_mark_for(state, cx);
+            let game = self.playing(&state.user_id, cx).map(|game| {
+                div()
+                    .id(SharedString::from(format!("voice-game-{}", state.user_id)))
+                    .flex_none()
+                    .child(img(game.icon.clone()).size(px(16.)).squircle(4.))
+                    .tooltip(move |window, cx| Tooltip::new(game.label()).build(window, cx))
+            });
             let key = SharedString::from(format!("voice-{}", state.user_id));
             let carried = self.drag_motion.row(&key);
             let row = div().id(key.clone()).h(px(30.)).flex_none().squircle(ui::RADIUS_SM).children(self.drag_motion.spot(&key));
@@ -911,6 +918,7 @@ impl Waffle {
                     // You, in this call from another client (not this app): avatar and name faded, as Discord does.
                     .child(speaking_avatar(&avatar, talking, cx).when(elsewhere(&state.user_id), |a| a.opacity(0.45)))
                     .child(div().flex_1().min_w_0().truncate().when(elsewhere(&state.user_id), |n| n.opacity(0.45)).child(name.clone()))
+                    .children(game.map(|g| g.when(elsewhere(&state.user_id), |g| g.opacity(0.45))))
                     .children(end)
                     .on_mouse_down(gpui_kit::MouseButton::Right, {
                         let user_id = state.user_id.clone();

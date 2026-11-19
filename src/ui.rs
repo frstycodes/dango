@@ -181,9 +181,7 @@ pub fn truncating(key: impl Into<SharedString>, text: impl Into<SharedString>) -
 }
 
 pub fn live_badge() -> Div {
-    let white = gpui_kit::white();
-    let wave = div().h(px(9.)).flex().items_center().gap(px(1.5)).children([0.55_f32, 1., 0.7].map(|base| div().w(px(2.)).h(px(9. * base)).rounded_full().bg(white)));
-    badge(palette::live(), white).gap(px(5.)).child(wave).child("LIVE")
+    badge(palette::live(), gpui_kit::white()).child("LIVE")
 }
 
 // A small solid label (quality, tags, NEW). GAP: the design tracks these 0.04–0.06em; gpui text has no

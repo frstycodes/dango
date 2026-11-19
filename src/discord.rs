@@ -98,6 +98,7 @@ pub struct Presence {
 pub struct RichPresence {
     pub kind: ActivityKind,
     pub name: String,
+    pub app_id: Option<String>,
     pub details: Option<String>,
     pub state: Option<String>,
     pub image: Option<String>,
@@ -114,8 +115,9 @@ pub struct FeedEntry {
     pub author_id: String,
     pub kind: ActivityKind,
     pub title: String,
-    // Album art or a show's poster; games carry none here (GAP: their art needs an application lookup).
+    // Album art or a show's poster; a game has none here, only its application (for its icon).
     pub image: Option<String>,
+    pub app_id: Option<String>,
     pub live: bool,
     // Unix milliseconds: when it ended, else when it started, else when the entry was made.
     pub at: i64,
@@ -999,16 +1001,22 @@ impl Client {
 
     /// Changes your status everywhere: the gateway presence now, the saved setting for next time.
     /// `custom` rides along so the presence update doesn't wipe your custom status.
-    pub async fn set_status(&self, status: Status, custom: Option<&CustomStatus>) {
-        self.send_presence(status, custom);
+    pub async fn set_status(&self, status: Status, custom: Option<&CustomStatus>, game: Option<&crate::games::Game>) {
+        self.send_presence(status, custom, game);
         let req = self.request(reqwest::Method::PATCH, "/users/@me/settings").json(&json!({ "status": status_wire(status) }));
         let _ = self.run(req).await;
     }
 
-    // A custom status travels as a type-4 activity in the presence.
-    pub fn send_presence(&self, status: Status, custom: Option<&CustomStatus>) {
-        let activities: Vec<Value> = custom.map(CustomStatus::activity).into_iter().collect();
+    // A custom status travels as a type-4 activity in the presence, the game you're playing as type 0.
+    pub fn send_presence(&self, status: Status, custom: Option<&CustomStatus>, game: Option<&crate::games::Game>) {
+        let activities: Vec<Value> = custom.map(CustomStatus::activity).into_iter().chain(game.map(crate::games::Game::activity)).collect();
         self.gateway(json!({ "op": 3, "d": { "status": status_wire(status), "since": 0, "activities": activities, "afk": false } }));
+    }
+
+    /// An application's icon hash; `/rpc` is the public subset of the application, readable by anyone.
+    pub async fn app_icon(&self, app_id: &str) -> Result<Option<String>, String> {
+        let body = self.run(self.request(reqwest::Method::GET, &format!("/applications/{app_id}/rpc"))).await?;
+        Ok(body["icon"].as_str().map(str::to_owned))
     }
 
     /// Saves account settings: `patch` holds only the fields that changed.
@@ -2078,6 +2086,10 @@ fn parse_profile(user_id: &str, body: &Value) -> Profile {
     }
 }
 
+pub fn app_icon_url(app_id: &str, icon: &str) -> String {
+    format!("{CDN}/app-icons/{app_id}/{icon}.png?size=64")
+}
+
 // Large asset keys: "mp:…" is a media proxy path, anything else an app asset id.
 fn activity_image(a: &Value) -> Option<String> {
     let key = a["assets"]["large_image"].as_str()?;
@@ -2100,6 +2112,7 @@ fn parse_rich(a: &Value) -> Option<RichPresence> {
             _ => ActivityKind::Playing,
         },
         name: text("name")?,
+        app_id: text("application_id"),
         details: text("details"),
         state: text("state"),
         image: activity_image(a),
@@ -2191,6 +2204,7 @@ fn parse_feed_entry(c: &Value) -> Option<FeedEntry> {
         kind,
         title,
         image,
+        app_id: text(&extra["application_id"]),
         live: trait_of(3).is_some_and(|t| t["is_live"].as_bool() == Some(true)),
         at: time(&c["ended_at"]).or_else(|| time(&c["started_at"])).unwrap_or(made),
         streak_days: trait_of(8).and_then(|t| t["streak_count_days"].as_u64()).filter(|&d| d > 1),

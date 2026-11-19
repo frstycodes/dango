@@ -108,6 +108,7 @@ impl Waffle {
             }
             Toggle::ShareActivity => {
                 account.show_current_game = on;
+                self.publish_presence();
                 json!({ "show_current_game": on })
             }
             Toggle::DmsFromServerMembers => {
