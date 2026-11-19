@@ -147,7 +147,8 @@ fn main() -> Result<(), String> {
                             watching = session.watch_stream(&user_id).map_err(|e| println!("watch failed: {e}")).ok();
                         }
                     }
-                    Some(voice::VoiceEvent::StreamFrame { user_id, source, frame }) => {
+                    Some(voice::VoiceEvent::StreamFrame { user_id, source }) => {
+                        let Some(frame) = session.take_frame(&user_id, source) else { continue };
                         frames += 1;
                         if frames == 1 {
                             save_ppm(&frame, "stream-frame.ppm");

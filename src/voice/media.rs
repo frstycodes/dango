@@ -3,21 +3,35 @@
 // plain threads: cpal, Opus, OpenH264, capture callbacks and blocking UDP are all synchronous.
 
 use std::{
-    collections::{HashMap, hash_map::Entry},
+    collections::{HashMap, HashSet, hash_map::Entry},
     io::ErrorKind,
     net::UdpSocket,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicU32, Ordering},
-        mpsc::{self as std_mpsc, Receiver, RecvTimeoutError},
+        mpsc::{self as std_mpsc, Receiver, RecvTimeoutError, SyncSender},
     },
     thread,
     time::{Duration, Instant},
 };
 
+use ::rtp::{
+    codecs::h264::H264Payloader,
+    header::Header,
+    packet::Packet,
+    packetizer::Payloader,
+};
+use bytes::Bytes;
 use davey::{Codec, DaveSession, MediaType, OPUS_SILENCE_PACKET};
 use futures::channel::mpsc::UnboundedSender;
+use interceptor::Attributes;
 use opus::{Application, Channels, Encoder};
+use rtcp::{
+    payload_feedbacks::{full_intra_request::FullIntraRequest, picture_loss_indication::PictureLossIndication},
+    receiver_report::ReceiverReport,
+    reception_report::ReceptionReport,
+    sender_report::SenderReport,
+};
 use serde_json::json;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
@@ -25,9 +39,10 @@ use super::{
     GoLiveOptions, InputMode, MicLevel, QOS_TOS, Role, ShareSource, Shared, Ssrcs, VideoKind, VideoSource, VoiceEvent,
     audio::{AudioSettings, FRAME_LEN, FRAME_SAMPLES, Mixer, SAMPLE_RATE},
     camera::{self, CameraCapture},
-    rtp::{self, Cipher, Received},
+    feedback::{self, Feedback, RemoteVideo},
+    rtp::{self, Cipher},
     vad::{Gate, InputWatch, PreRoll},
-    video::{self, Depacketizer, VideoDecoder, VideoEncoder, VideoFrame},
+    video::{self, FrameAssembler, VideoDecoder, VideoEncoder, VideoFrame},
 };
 
 const DAVE_MARKER: [u8; 2] = [0xfa, 0xfa];
@@ -38,6 +53,17 @@ const QUIET_AFTER: Duration = Duration::from_millis(250);
 const POLL: Duration = Duration::from_millis(100);
 const CAMERA_POLL: Duration = Duration::from_millis(200);
 const KEYFRAME_REQUEST_GAP: Duration = Duration::from_secs(1);
+// The fewest keyframes we send while streaming, however many viewers ask.
+const KEYFRAME_MIN_GAP: Duration = Duration::from_millis(500);
+// libwebrtc's pacing factor (Not verified that it's still 2.5); bursts under PACING_SLACK go out unpaced.
+const PACING_FACTOR: f64 = 2.5;
+const PACING_SLACK: Duration = Duration::from_millis(5);
+const RECV_BUFFER: usize = 4 << 20;
+// Frames waiting for a picture's decoder, about 70 ms at 60 fps.
+const DECODE_QUEUE: usize = 4;
+// The access unit delimiter and filler NAL types. The H.264 payloader drops them, so they are taken
+// out before DAVE encrypts the frame: a viewer must reassemble exactly the bytes that were sealed.
+const UNSENT_NAL_TYPES: [u8; 2] = [9, 12];
 // A silence frame this often while not talking keeps the UDP path (NAT mapping) open.
 const KEEPALIVE: Duration = Duration::from_secs(5);
 // Mic level events go out every this many 20 ms frames (25 per second).
@@ -83,17 +109,31 @@ pub struct Link {
     // Set when a viewer asks for a keyframe (or when sending starts).
     pub keyframe: AtomicBool,
     pub counters: Arc<Counters>,
+    // From `connection_id`: tags this connection's tracks in the shared mixer.
+    pub connection: u32,
+}
+
+static CONNECTIONS: AtomicU32 = AtomicU32::new(1);
+
+pub fn connection_id() -> u32 {
+    CONNECTIONS.fetch_add(1, Ordering::Relaxed)
 }
 
 impl Link {
-    fn next_nonce(&self) -> u32 {
+    pub(super) fn next_nonce(&self) -> u32 {
         self.nonce.fetch_add(1, Ordering::Relaxed)
     }
 
-    // Mixer queues are shared by the voice and watch connections, whose SSRCs may collide.
+    // Mixer tracks are shared by the voice connection and every stream watched, whose SSRCs may collide.
     fn mix_key(&self, ssrc: u32) -> u64 {
-        let connection = if self.role == Role::Voice { 0 } else { 1 };
-        (connection << 32) | ssrc as u64
+        (u64::from(self.connection) << 32) | u64::from(ssrc)
+    }
+
+    // The sender of our video feedback (PLI, NACK). Discord's client uses its own video SSRC
+    // (`RemoteUser::CreateVideoReceiveStream` takes `LocalUser::VideoSsrc()`, read in
+    // discord_voice.node 0.0.422); the audio SSRC stands in if the server gave us none.
+    pub(super) fn feedback_ssrc(&self) -> u32 {
+        if self.video_ssrc == 0 { self.ssrc } else { self.video_ssrc }
     }
 }
 
@@ -143,6 +183,11 @@ impl Drop for Media {
 // Binds a UDP socket to the voice server and asks it for our public address.
 pub fn discover(ip: &str, port: u16, ssrc: u32) -> Result<(UdpSocket, (String, u16)), String> {
     let socket = UdpSocket::bind("0.0.0.0:0").map_err(|e| e.to_string())?;
+    // A keyframe arrives as hundreds of packets at once, more than a default receive buffer holds
+    // (Windows' is 64 KB, from memory; macOS's is 768 KB). The OS caps it at its own maximum.
+    if let Err(e) = socket2::SockRef::from(&socket).set_recv_buffer_size(RECV_BUFFER) {
+        eprintln!("voice: udp receive buffer: {e}");
+    }
     socket.connect((ip, port)).map_err(|e| e.to_string())?;
     socket.set_read_timeout(Some(Duration::from_secs(2))).map_err(|e| e.to_string())?;
     let mut buf = [0u8; 128];
@@ -163,20 +208,21 @@ impl Media {
         let rx_socket = link.socket.try_clone().map_err(|e| e.to_string())?;
         rx_socket.set_read_timeout(Some(POLL)).map_err(|e| e.to_string())?;
         let link = Arc::new(link);
+        let feedback = Feedback::new(&link)?;
 
         let devices: Devices = match link.role {
             Role::Broadcast(source, options) => {
                 let ScreenFeed { capture, frames, sound } = start_capture(source, options)?;
                 let (width, height) = go_live_size(options.resolution);
                 let bitrate = video_bitrate(width, height, options.fps);
-                let (l, s, fps) = (link.clone(), stop.clone(), options.fps);
-                spawn("waffle-golive-send", move || video_send_loop(&l, frames, fps, bitrate, &s))?;
+                let (l, f, s, fps) = (link.clone(), feedback.clone(), stop.clone(), options.fps);
+                spawn("waffle-golive-send", move || video_send_loop(&l, &f, frames, fps, bitrate, &s))?;
                 if let Some(sound) = sound {
                     let (l, s) = (link.clone(), stop.clone());
                     spawn("waffle-golive-audio", move || stream_audio_loop(&l, sound, &s))?;
                 }
-                let (l, s) = (link.clone(), stop.clone());
-                spawn("waffle-golive-rtcp", move || rtcp_loop(&l, &rx_socket, &s))?;
+                let (l, f, s) = (link.clone(), feedback.clone(), stop.clone());
+                spawn("waffle-golive-rtcp", move || rtcp_loop(&l, &f, &rx_socket, &s))?;
                 capture
             }
             Role::Voice => {
@@ -188,17 +234,17 @@ impl Media {
                 let (engine, pcm) = super::audio::start(shared.audio.clone(), shared.mixer.clone(), true)?;
                 let (l, s) = (link.clone(), stop.clone());
                 spawn("waffle-voice-send", move || send_loop(&l, pcm, &s))?;
-                let (l, s) = (link.clone(), stop.clone());
-                spawn("waffle-camera-control", move || camera_loop(&l, &s))?;
-                let (l, s, u) = (link.clone(), stop.clone(), users.clone());
-                spawn("waffle-voice-recv", move || recv_loop(&l, &rx_socket, &s, &u))?;
+                let (l, f, s) = (link.clone(), feedback.clone(), stop.clone());
+                spawn("waffle-camera-control", move || camera_loop(&l, &f, &s))?;
+                let (l, f, s, u) = (link.clone(), feedback, stop.clone(), users.clone());
+                spawn("waffle-voice-recv", move || recv_loop(&l, &f, &rx_socket, &s, &u))?;
                 Box::new(engine)
             }
             // Plays through the voice connection's mixer and speakers, so echo cancellation
             // sees everything that is played.
             Role::Watch => {
-                let (l, s, u) = (link.clone(), stop.clone(), users.clone());
-                spawn("waffle-watch-recv", move || recv_loop(&l, &rx_socket, &s, &u))?;
+                let (l, f, s, u) = (link.clone(), feedback, stop.clone(), users.clone());
+                spawn("waffle-watch-recv", move || recv_loop(&l, &f, &rx_socket, &s, &u))?;
                 Box::new(())
             }
         };
@@ -380,13 +426,13 @@ fn seal(link: &Link, out: &mut RtpOut, opus: &[u8]) -> Option<Vec<u8>> {
 }
 
 // Follows `Shared::camera`: starts and stops the camera, its encoder and the op 12 announcement.
-fn camera_loop(link: &Arc<Link>, stop: &AtomicBool) {
+fn camera_loop(link: &Arc<Link>, feedback: &Arc<Feedback>, stop: &AtomicBool) {
     let mut current: Option<(String, CameraCapture)> = None;
     while !stop.load(Ordering::Relaxed) {
         let want = link.shared.camera.lock().ok().and_then(|c| c.clone());
         if current.as_ref().map(|(id, _)| id) != want.as_ref() {
             let was_on = current.take().is_some();
-            match want.map(|id| start_camera(link, &id).map(|capture| (id, capture))) {
+            match want.map(|id| start_camera(link, feedback, &id).map(|capture| (id, capture))) {
                 Some(Ok(started)) => current = Some(started),
                 Some(Err(e)) => {
                     eprintln!("voice: camera: {e}");
@@ -408,37 +454,40 @@ fn camera_loop(link: &Arc<Link>, stop: &AtomicBool) {
 }
 
 // Frames go to the encoder (dropped if it lags) and back to the UI as our self-preview.
-fn start_camera(link: &Arc<Link>, id: &str) -> Result<CameraCapture, String> {
+fn start_camera(link: &Arc<Link>, feedback: &Arc<Feedback>, id: &str) -> Result<CameraCapture, String> {
     let (tx, frames) = std_mpsc::sync_channel::<Arc<VideoFrame>>(1);
-    let (events, me) = (link.events.clone(), link.my_id.clone());
+    let (shared, me) = (link.shared.clone(), link.my_id.clone());
     let capture = camera::start(id, CAMERA_SIZE, move |frame| {
         let frame = Arc::new(frame);
         let _ = tx.try_send(frame.clone());
-        let _ = events.unbounded_send(VoiceEvent::StreamFrame { user_id: me.clone(), source: VideoSource::Camera, frame });
+        shared.publish_frame(&me, VideoSource::Camera, frame);
     })?;
     link.keyframe.store(true, Ordering::Relaxed);
-    let l = link.clone();
+    let (l, f) = (link.clone(), feedback.clone());
     let bitrate = video_bitrate(CAMERA_SIZE.0, CAMERA_SIZE.1, CAMERA_FPS);
     // The loop ends when the capture is dropped (its frame sender goes with it).
-    spawn("waffle-camera-send", move || video_send_loop(&l, frames, CAMERA_FPS, bitrate, &AtomicBool::new(false)))?;
+    spawn("waffle-camera-send", move || video_send_loop(&l, &f, frames, CAMERA_FPS, bitrate, &AtomicBool::new(false)))?;
     Ok(capture)
 }
 
 // Audio goes into the speaker's jitter buffer in the mixer, which decodes it as the device plays.
-fn recv_loop(link: &Link, socket: &UdpSocket, stop: &AtomicBool, users: &Mutex<HashMap<u32, String>>) {
+// Video is reassembled here and decoded on a thread per picture (`VideoIn`).
+fn recv_loop(link: &Arc<Link>, feedback: &Arc<Feedback>, socket: &UdpSocket, stop: &AtomicBool, users: &Mutex<HashMap<u32, String>>) {
     let mut videos: HashMap<u32, VideoIn> = HashMap::new();
+    let mut tracks: HashSet<u64> = HashSet::new();
     let mut heard: HashMap<String, Instant> = HashMap::new();
     let mut buf = [0u8; 2048];
     let speaking_events = link.role == Role::Voice;
 
     while !stop.load(Ordering::Relaxed) {
         match socket.recv(&mut buf) {
-            Ok(n) if rtp::is_rtcp(&buf[..n]) => handle_rtcp(link, &buf[..n]),
+            Ok(n) if rtp::is_rtcp(&buf[..n]) => handle_rtcp(link, feedback, &buf[..n]),
             Ok(n) => {
                 let Some((user, packet)) = open(link, users, &buf[..n]) else { continue };
-                match packet.payload_type {
+                let ssrc = packet.header.ssrc;
+                match packet.header.payload_type {
                     rtp::OPUS_PAYLOAD_TYPE => {
-                        let Some(opus) = dave_open(link, &user, MediaType::AUDIO, packet.payload) else { continue };
+                        let Some(opus) = dave_open(link, &user, MediaType::AUDIO, packet.payload.to_vec()) else { continue };
                         // Closing silence frames still go to the buffer: they mark a talkspurt's end.
                         if opus != OPUS_SILENCE_PACKET && heard.insert(user.clone(), Instant::now()).is_none() && speaking_events {
                             let _ = link.events.unbounded_send(VoiceEvent::Speaking { user_id: user.clone(), speaking: true });
@@ -447,29 +496,39 @@ fn recv_loop(link: &Link, socket: &UdpSocket, stop: &AtomicBool, users: &Mutex<H
                             Role::Watch => link.shared.stream_gain(&user),
                             _ => link.shared.listening_gain(&user),
                         };
-                        link.shared.mixer.receive(link.mix_key(packet.ssrc), packet.sequence, packet.timestamp, opus, gain);
+                        let key = link.mix_key(ssrc);
+                        tracks.insert(key);
+                        link.shared.mixer.receive(key, packet.header.sequence_number, packet.header.timestamp, opus, gain);
                     }
                     rtp::H264_PAYLOAD_TYPE => {
-                        let video = match videos.entry(packet.ssrc) {
+                        let video = match videos.entry(ssrc) {
                             Entry::Occupied(e) => e.into_mut(),
-                            Entry::Vacant(e) => match VideoDecoder::new() {
-                                Ok(decoder) => e.insert(VideoIn { depacketizer: Depacketizer::default(), decoder, last_keyframe_request: None }),
+                            Entry::Vacant(e) => match VideoIn::start(link, feedback, user, ssrc) {
+                                Ok(video) => e.insert(video),
                                 Err(err) => {
                                     eprintln!("voice: h264 decoder: {err}");
                                     continue;
                                 }
                             },
                         };
-                        if let Some(frame) = video.receive(link, &user, &packet) {
-                            let event = VoiceEvent::StreamFrame { user_id: user, source: link.role.video_source(), frame: Arc::new(frame) };
-                            let _ = link.events.unbounded_send(event);
+                        video.receive(packet);
+                    }
+                    // Each user sends one picture per connection, so the user names the stream a
+                    // retransmission belongs to.
+                    rtp::H264_RTX_PAYLOAD_TYPE => {
+                        if let Some(video) = videos.values_mut().find(|v| v.user == user)
+                            && let Some(original) = feedback::unwrap_rtx(&packet, video.ssrc)
+                        {
+                            video.receive(original);
                         }
                     }
                     _ => {}
                 }
             }
             Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {}
-            Err(e) => return eprintln!("voice: udp receive: {e}"),
+            // A connected UDP socket reports ICMP errors (port unreachable) on the next receive. The
+            // link can recover, and ending the call is the gateway's call, not this thread's.
+            Err(e) => socket_error(link, &e),
         }
         heard.retain(|user, at| {
             let talking = at.elapsed() < QUIET_AFTER;
@@ -482,63 +541,117 @@ fn recv_loop(link: &Link, socket: &UdpSocket, stop: &AtomicBool, users: &Mutex<H
             link.shared.others_speaking.store(!heard.is_empty(), Ordering::Relaxed);
         }
     }
+    // Left in the mixer, a track would be decoded forever, and watching the same stream again
+    // would land in its stale jitter buffer.
+    for key in tracks {
+        link.shared.mixer.remove(key);
+    }
 }
 
-// Keyframe requests from viewers and the server's loss reports about what we send.
-fn handle_rtcp(link: &Link, packet: &[u8]) {
+fn socket_error(link: &Link, e: &std::io::Error) {
+    if super::debug() {
+        eprintln!("[{:?}] udp receive: {e}", link.role);
+    }
+    thread::sleep(POLL);
+}
+
+// Keyframe requests from viewers, NACKs (the responder resends what they name) and the server's
+// loss reports about what we send.
+fn handle_rtcp(link: &Link, feedback: &Feedback, packet: &[u8]) {
     let Some(rtcp) = link.cipher.open_rtcp(packet) else { return };
-    if rtp::is_pli(&rtcp) {
-        link.keyframe.store(true, Ordering::Relaxed);
-        if super::debug() {
-            eprintln!("[{:?}] viewer asked for a keyframe", link.role);
+    for packet in feedback.rtcp_in(rtcp.into()) {
+        let packet = packet.as_any();
+        if packet.is::<PictureLossIndication>() || packet.is::<FullIntraRequest>() {
+            link.keyframe.store(true, Ordering::Relaxed);
+            if super::debug() {
+                eprintln!("[{:?}] viewer asked for a keyframe", link.role);
+            }
         }
-    }
-    if let Some(loss) = rtp::reported_loss(&rtcp, link.ssrc) {
-        if super::debug() {
-            eprintln!("[{:?}] server reports {loss:.1}% loss of our audio", link.role);
+        let reports = match (packet.downcast_ref::<ReceiverReport>(), packet.downcast_ref::<SenderReport>()) {
+            (Some(receiver), _) => &receiver.reports,
+            (_, Some(sender)) => &sender.reports,
+            _ => continue,
+        };
+        if let Some(loss) = reported_loss(reports, link.ssrc) {
+            if super::debug() {
+                eprintln!("[{:?}] server reports {loss:.1}% loss of our audio", link.role);
+            }
+            link.counters.outbound_loss.store(loss.to_bits(), Ordering::Relaxed);
         }
-        link.counters.outbound_loss.store(loss.to_bits(), Ordering::Relaxed);
     }
 }
 
+// RTCP's fraction-lost byte for `ssrc`, as a percentage.
+fn reported_loss(reports: &[ReceptionReport], ssrc: u32) -> Option<f32> {
+    reports.iter().find(|r| r.ssrc == ssrc).map(|r| f32::from(r.fraction_lost) / 256.0 * 100.0)
+}
+
+// One remote picture. Packets are reassembled on the receive thread and frames decoded on their
+// own, so a slow decode never holds up the socket (or everyone's audio, on the voice connection).
 struct VideoIn {
-    depacketizer: Depacketizer,
-    decoder: VideoDecoder,
-    last_keyframe_request: Option<Instant>,
+    user: String,
+    ssrc: u32,
+    nacks: RemoteVideo,
+    frames: FrameAssembler,
+    units: SyncSender<Vec<u8>>,
+    // A frame was lost before reaching the decoder, which then waits for a keyframe.
+    lost: Arc<AtomicBool>,
 }
 
 impl VideoIn {
-    // DAVE encrypts whole encoded frames, so decryption happens after depacketization.
-    fn receive(&mut self, link: &Link, user: &str, packet: &Received) -> Option<VideoFrame> {
-        if !packet.marker {
-            self.depacketizer.push(packet.sequence, false, &packet.payload);
-            return None;
-        }
-        let unit = self.depacketizer.push(packet.sequence, true, &packet.payload);
-        let Some(unit) = unit.and_then(|unit| dave_open(link, user, MediaType::VIDEO, unit)) else {
-            self.decoder.frame_lost();
-            self.request_keyframe(link, packet.ssrc);
-            return None;
-        };
-        let frame = self.decoder.decode(&unit);
-        if self.decoder.awaiting_keyframe() {
-            self.request_keyframe(link, packet.ssrc);
-        }
-        frame
+    fn start(link: &Arc<Link>, feedback: &Arc<Feedback>, user: String, ssrc: u32) -> Result<Self, String> {
+        let decoder = VideoDecoder::new()?;
+        let (units, queued) = std_mpsc::sync_channel(DECODE_QUEUE);
+        let lost = Arc::new(AtomicBool::new(false));
+        let (l, u, flag) = (link.clone(), user.clone(), lost.clone());
+        spawn("waffle-video-decode", move || decode_loop(&l, &u, ssrc, decoder, &queued, &flag))?;
+        Ok(Self { user, ssrc, nacks: feedback.receive_video(ssrc), frames: FrameAssembler::default(), units, lost })
     }
 
-    // ponytail: PLI only; NACK/RTX retransmission would recover single lost packets without a keyframe.
-    fn request_keyframe(&mut self, link: &Link, media_ssrc: u32) {
-        if self.last_keyframe_request.is_some_and(|at| at.elapsed() < KEYFRAME_REQUEST_GAP) {
-            return;
+    fn receive(&mut self, packet: Packet) {
+        let Some(packet) = self.nacks.arrived(packet) else { return };
+        let now = Instant::now();
+        self.frames.push(packet, now);
+        while let Some(frame) = self.frames.pop(now) {
+            // A full queue means the decoder is behind: dropping a frame and catching up on the next
+            // keyframe beats falling further behind.
+            let queued = frame.is_ok_and(|unit| self.units.try_send(unit).is_ok());
+            if !queued {
+                self.lost.store(true, Ordering::Relaxed);
+            }
         }
-        self.last_keyframe_request = Some(Instant::now());
-        let pli = rtp::pli(link.ssrc, media_ssrc);
-        let (header, body) = pli.split_at(rtp::RTCP_HEADER_LEN);
-        if let Some(packet) = link.cipher.seal(header, body, link.next_nonce()) {
-            let _ = link.socket.send(&packet);
+    }
+}
+
+// Ends when the receive loop drops its `VideoIn`. DAVE encrypts whole encoded frames, so
+// decryption happens after reassembly.
+fn decode_loop(link: &Link, user: &str, ssrc: u32, mut decoder: VideoDecoder, units: &Receiver<Vec<u8>>, lost: &AtomicBool) {
+    let source = link.role.video_source();
+    let mut last_request: Option<Instant> = None;
+    loop {
+        let unit = match units.recv_timeout(POLL) {
+            Ok(unit) => Some(unit),
+            Err(RecvTimeoutError::Timeout) => None,
+            Err(RecvTimeoutError::Disconnected) => return,
+        };
+        if lost.swap(false, Ordering::Relaxed) {
+            decoder.frame_lost();
+        }
+        if let Some(unit) = unit {
+            match dave_open(link, user, MediaType::VIDEO, unit) {
+                Some(unit) => {
+                    if let Some(frame) = decoder.decode(&unit) {
+                        link.shared.publish_frame(user, source, Arc::new(frame));
+                    }
+                }
+                None => decoder.frame_lost(),
+            }
+        }
+        if decoder.awaiting_keyframe() && last_request.is_none_or(|at| at.elapsed() >= KEYFRAME_REQUEST_GAP) {
+            last_request = Some(Instant::now());
+            feedback::send_rtcp(link, &PictureLossIndication { sender_ssrc: link.feedback_ssrc(), media_ssrc: ssrc });
             if super::debug() {
-                eprintln!("[{:?}] video: requested keyframe for ssrc {media_ssrc}", link.role);
+                eprintln!("[{:?}] video: requested keyframe for ssrc {ssrc}", link.role);
             }
         }
     }
@@ -594,28 +707,35 @@ fn stream_audio_loop(link: &Link, sound: Receiver<Vec<f32>>, stop: &AtomicBool) 
     }
 }
 
-// Encodes frames as they come (camera or screen) and sends them on our video SSRC. Ends when
-// `stop` is set or the frame source is dropped.
-fn video_send_loop(link: &Link, frames: Receiver<Arc<VideoFrame>>, fps: u32, bitrate: u32, stop: &AtomicBool) {
+// Encodes frames as they come (camera or screen) and sends them on our video SSRC, through the
+// responder so viewers' NACKs can be answered. Ends when `stop` is set or the frame source is dropped.
+fn video_send_loop(link: &Arc<Link>, feedback: &Feedback, frames: Receiver<Arc<VideoFrame>>, fps: u32, bitrate: u32, stop: &AtomicBool) {
     let mut encoder = match VideoEncoder::new(fps, bitrate) {
         Ok(encoder) => encoder,
         Err(e) => return eprintln!("voice: h264 encoder: {e}"),
     };
+    let writer = feedback.send_video(link);
+    let mut payloader = H264Payloader::default();
     let started = Instant::now();
     let mut sequence: u16 = rand::random();
     let mut last: Option<(Arc<VideoFrame>, Instant)> = None;
+    let mut last_keyframe: Option<Instant> = None;
+    let mut pacer = Pacer::new(bitrate);
     while !stop.load(Ordering::Relaxed) {
+        // Every viewer's request forces one, and each is the largest frame there is: answering them
+        // all would flood the link and lose more packets, which brings more requests.
+        let keyframe_due = link.keyframe.load(Ordering::Relaxed) && last_keyframe.is_none_or(|at| at.elapsed() >= KEYFRAME_MIN_GAP);
         // ScreenCaptureKit only delivers frames when the screen changes; repeating the last one
         // keeps the stream alive and lets keyframe requests be answered on a still screen.
         let frame = match frames.recv_timeout(POLL) {
             // Our own Go Live comes back to the UI as its self-view, as the camera's does.
             Ok(frame) if matches!(link.role, Role::Broadcast(..)) => {
-                let _ = link.events.unbounded_send(VoiceEvent::StreamFrame { user_id: link.my_id.clone(), source: VideoSource::GoLive, frame: frame.clone() });
+                link.shared.publish_frame(&link.my_id, VideoSource::GoLive, frame.clone());
                 frame
             }
             Ok(frame) => frame,
             Err(RecvTimeoutError::Timeout) => match last.take() {
-                Some((frame, at)) if at.elapsed() >= IDLE_REPEAT || link.keyframe.load(Ordering::Relaxed) => frame,
+                Some((frame, at)) if at.elapsed() >= IDLE_REPEAT || keyframe_due => frame,
                 kept => {
                     last = kept;
                     continue;
@@ -623,23 +743,45 @@ fn video_send_loop(link: &Link, frames: Receiver<Arc<VideoFrame>>, fps: u32, bit
             },
             Err(RecvTimeoutError::Disconnected) => return,
         };
-        if link.keyframe.swap(false, Ordering::Relaxed) {
+        if keyframe_due {
+            link.keyframe.store(false, Ordering::Relaxed);
+            last_keyframe = Some(Instant::now());
             encoder.force_keyframe();
         }
         let unit = encoder.encode(&frame);
         last = Some((frame, Instant::now()));
         let Some(unit) = unit else { continue };
-        let Some(payload) = dave_seal_video(link, &unit) else { continue };
+        let Some(sealed) = dave_seal_video(link, &video::without_nal_types(&unit, &UNSENT_NAL_TYPES)) else { continue };
         let timestamp = (started.elapsed().as_micros() * VIDEO_CLOCK_HZ / 1_000_000) as u32;
-        let packets = video::packetize(&payload, VIDEO_MTU);
-        let last_index = packets.len().saturating_sub(1);
-        for (i, payload) in packets.iter().enumerate() {
-            let header = rtp::header(rtp::H264_PAYLOAD_TYPE, i == last_index, sequence, timestamp, link.video_ssrc);
+        let Ok(payloads) = payloader.payload(VIDEO_MTU, &Bytes::from(sealed)) else { continue };
+        let last_index = payloads.len().saturating_sub(1);
+        for (i, payload) in payloads.into_iter().enumerate() {
+            let header = Header { version: 2, marker: i == last_index, payload_type: rtp::H264_PAYLOAD_TYPE, sequence_number: sequence, timestamp, ssrc: link.video_ssrc, ..Default::default() };
             sequence = sequence.wrapping_add(1);
-            if let Some(packet) = link.cipher.seal(&header, payload, link.next_nonce()) {
-                let _ = link.socket.send(&packet);
-            }
+            pacer.wait(rtp::HEADER_LEN + payload.len());
+            feedback::run(writer.write(&Packet { header, payload }, &Attributes::new())).ok();
         }
+    }
+}
+
+// Spreads a frame's packets at PACING_FACTOR times the target bitrate instead of sending them in
+// one burst, which overflows send buffers and router queues on every keyframe.
+struct Pacer {
+    bits_per_second: f64,
+    next: Instant,
+}
+
+impl Pacer {
+    fn new(bitrate: u32) -> Self {
+        Self { bits_per_second: f64::from(bitrate) * PACING_FACTOR, next: Instant::now() }
+    }
+
+    fn wait(&mut self, bytes: usize) {
+        let now = Instant::now();
+        if self.next > now + PACING_SLACK {
+            thread::sleep(self.next - now);
+        }
+        self.next = self.next.max(now) + Duration::from_secs_f64(bytes as f64 * 8.0 / self.bits_per_second);
     }
 }
 
@@ -658,27 +800,29 @@ fn dave_seal_video(link: &Link, unit: &[u8]) -> Option<Vec<u8>> {
     Some(sealed.ok()?.into_owned())
 }
 
-// The broadcast socket only carries RTCP back to us: keyframe requests and loss reports.
-fn rtcp_loop(link: &Link, socket: &UdpSocket, stop: &AtomicBool) {
+// The broadcast socket only carries RTCP back to us: keyframe requests, NACKs and loss reports.
+fn rtcp_loop(link: &Link, feedback: &Feedback, socket: &UdpSocket, stop: &AtomicBool) {
     let mut buf = [0u8; 1500];
     while !stop.load(Ordering::Relaxed) {
-        let Ok(n) = socket.recv(&mut buf) else { continue };
-        if rtp::is_rtcp(&buf[..n]) {
-            handle_rtcp(link, &buf[..n]);
+        match socket.recv(&mut buf) {
+            Ok(n) if rtp::is_rtcp(&buf[..n]) => handle_rtcp(link, feedback, &buf[..n]),
+            Ok(_) => {}
+            Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {}
+            Err(e) => socket_error(link, &e),
         }
     }
 }
 
-fn open(link: &Link, users: &Mutex<HashMap<u32, String>>, packet: &[u8]) -> Option<(String, Received)> {
+fn open(link: &Link, users: &Mutex<HashMap<u32, String>>, packet: &[u8]) -> Option<(String, Packet)> {
     let Some(received) = link.cipher.open(packet) else {
         if super::debug() {
             eprintln!("[{:?}] udp: {} bytes failed transport decryption", link.role, packet.len());
         }
         return None;
     };
-    let user = users.lock().ok()?.get(&received.ssrc).cloned();
+    let user = users.lock().ok()?.get(&received.header.ssrc).cloned();
     if user.is_none() && super::debug() {
-        eprintln!("[{:?}] udp: unmapped ssrc {} pt {}", link.role, received.ssrc, received.payload_type);
+        eprintln!("[{:?}] udp: unmapped ssrc {} pt {}", link.role, received.header.ssrc, received.header.payload_type);
     }
     Some((user?, received))
 }

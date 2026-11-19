@@ -1,20 +1,26 @@
-// H.264 over RTP (RFC 6184): receive (depacketize → OpenH264 decode → BGRA frames) and send
-// (BGRA → OpenH264 encode → packetize).
+// H.264 video: frames reassembled from RTP (the rtp crate's RFC 6184 depacketizer, in our own
+// reorder buffer), OpenH264 decode to BGRA, and BGRA encode (OpenH264, or Media Foundation on
+// Windows). Sending packetizes with the rtp crate's payloader (media.rs).
 // ponytail: H.264 only, and it is the only video codec we advertise, so Discord should not send
 // VP8/VP9/AV1 to us. Add those decoders (libvpx, dav1d) if streams arrive in another codec.
 // ponytail: software encode (OpenH264, also portable to Windows/Linux); VideoToolbox hardware
 // encode on macOS if CPU use while streaming matters.
 
+use std::{
+    collections::BTreeMap,
+    time::{Duration, Instant},
+};
+
+use bytes::Bytes;
 use openh264::{
     OpenH264API,
     decoder::Decoder,
     encoder::{BitRate, Encoder, EncoderConfig, FrameRate, IntraFramePeriod, UsageType},
     formats::{BgraSliceU8, YUVBuffer, YUVSource},
 };
+use rtp::{codecs::h264::H264Packet, packet::Packet, packetizer::Depacketizer};
 
 const START_CODE: [u8; 4] = [0, 0, 0, 1];
-const STAP_A: u8 = 24;
-const FU_A: u8 = 28;
 const NAL_IDR: u8 = 5;
 
 // One decoded picture. Pixels are BGRA, the order GPUI's RenderImage expects.
@@ -24,61 +30,87 @@ pub struct VideoFrame {
     pub bgra: Vec<u8>,
 }
 
-// ponytail: any lost or reordered packet drops the whole frame and decoding waits for the next
-// keyframe; add a reorder buffer and RTCP PLI keyframe requests if streams freeze on lossy links.
+// How long a frame with a missing packet waits for its retransmission (RTX, after a NACK) before it
+// counts as lost and decoding waits for the next keyframe.
+const MAX_WAIT: Duration = Duration::from_millis(250);
+// A sequence this far behind the next frame means the sender restarted; nearer is a late duplicate.
+const RESTART_GAP: u64 = 1000;
+const MAX_PACKETS: usize = 4096;
+
+// A picture's RTP packets wait here, by sequence, until their frame is whole: reordering is absorbed
+// and a gap gets MAX_WAIT for its retransmission. A frame comes out as soon as its marker packet
+// closes a complete run, as in libwebrtc's packet buffer. (webrtc-media's SampleBuilder holds each
+// frame until the next one starts: a frame of latency, and up to the idle repeat on a still screen.)
 #[derive(Default)]
-pub struct Depacketizer {
-    unit: Vec<u8>,
-    last_sequence: Option<u16>,
-    broken: bool,
+pub struct FrameAssembler {
+    // By extended (unwrapped) sequence number, with arrival time.
+    packets: BTreeMap<u64, (Packet, Instant)>,
+    highest: Option<u64>,
+    // The first sequence of the next frame.
+    next: Option<u64>,
 }
 
-impl Depacketizer {
-    // Returns a complete access unit when the packet carrying the RTP marker bit arrives.
-    pub fn push(&mut self, sequence: u16, marker: bool, payload: &[u8]) -> Option<Vec<u8>> {
-        if self.last_sequence.is_some_and(|last| sequence != last.wrapping_add(1)) {
-            self.broken = true;
+#[derive(Debug, PartialEq, Eq)]
+pub struct Lost;
+
+impl FrameAssembler {
+    pub fn push(&mut self, packet: Packet, now: Instant) {
+        let seq = self.extend(packet.header.sequence_number);
+        if let Some(next) = self.next
+            && seq < next
+        {
+            if seq + RESTART_GAP < next {
+                *self = Self::default();
+                self.push(packet, now);
+            }
+            return;
         }
-        self.last_sequence = Some(sequence);
-        if !self.unpack(payload) {
-            self.broken = true;
+        self.highest = Some(self.highest.map_or(seq, |h| h.max(seq)));
+        self.next.get_or_insert(seq);
+        self.packets.entry(seq).or_insert((packet, now));
+        if self.packets.len() > MAX_PACKETS {
+            *self = Self::default();
         }
-        if !marker {
-            return None;
-        }
-        let unit = std::mem::take(&mut self.unit);
-        let broken = std::mem::replace(&mut self.broken, false);
-        (!broken && !unit.is_empty()).then_some(unit)
     }
 
-    fn unpack(&mut self, payload: &[u8]) -> bool {
-        let Some(&first) = payload.first() else { return false };
-        match first & 0x1f {
-            1..=23 => {
-                self.unit.extend_from_slice(&START_CODE);
-                self.unit.extend_from_slice(payload);
-            }
-            STAP_A => {
-                let mut rest = &payload[1..];
-                while let Some((size, tail)) = rest.split_first_chunk::<2>() {
-                    let Some((nal, next)) = tail.split_at_checked(u16::from_be_bytes(*size) as usize) else { return false };
-                    self.unit.extend_from_slice(&START_CODE);
-                    self.unit.extend_from_slice(nal);
-                    rest = next;
-                }
-            }
-            FU_A => {
-                let Some(&header) = payload.get(1) else { return false };
-                if header & 0x80 != 0 {
-                    self.unit.extend_from_slice(&START_CODE);
-                    self.unit.push((first & 0xe0) | (header & 0x1f));
-                }
-                self.unit.extend_from_slice(&payload[2..]);
-            }
-            _ => return false,
+    // The next frame in order, as Annex-B: Some(Ok) when whole, Some(Err) once given up on, None
+    // while waiting.
+    pub fn pop(&mut self, now: Instant) -> Option<Result<Vec<u8>, Lost>> {
+        let next = self.next?;
+        let end = self.packets.range(next..).find(|(_, (p, _))| p.header.marker).map(|(&seq, _)| seq)?;
+        let frame = self.packets.range(next..=end);
+        let whole = frame.clone().count() as u64 == end - next + 1;
+        if !whole && frame.clone().all(|(_, (_, at))| now.duration_since(*at) < MAX_WAIT) {
+            return None;
         }
-        true
+        let unit = whole.then(|| assemble(frame.map(|(_, (p, _))| &p.payload))).flatten();
+        self.packets.retain(|&seq, _| seq > end);
+        self.next = Some(end + 1);
+        Some(unit.ok_or(Lost))
     }
+
+    // The 16-bit sequence unwrapped against the highest one seen.
+    fn extend(&self, sequence: u16) -> u64 {
+        let Some(highest) = self.highest else { return 1 << 32 | sequence as u64 };
+        let delta = sequence.wrapping_sub(highest as u16) as i16;
+        highest.saturating_add_signed(delta as i64)
+    }
+}
+
+// One frame's payloads through the rtp crate's H.264 depacketizer. It doesn't check that a
+// fragmented NAL's first fragment was there, so a frame must start at a partition head: one that
+// doesn't is a NAL we joined halfway through.
+fn assemble<'a>(mut payloads: impl Iterator<Item = &'a Bytes>) -> Option<Vec<u8>> {
+    let mut depacketizer = H264Packet::default();
+    let first = payloads.next()?;
+    if !depacketizer.is_partition_head(first) {
+        return None;
+    }
+    let mut unit = depacketizer.depacketize(first).ok()?.to_vec();
+    for payload in payloads {
+        unit.extend_from_slice(&depacketizer.depacketize(payload).ok()?);
+    }
+    (!unit.is_empty()).then_some(unit)
 }
 
 pub struct VideoDecoder {
@@ -259,7 +291,6 @@ pub fn nal_types(unit: &[u8]) -> Vec<u8> {
 }
 
 /// The access unit rebuilt with 4-byte start codes, leaving out NALs of the given types.
-#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
 pub fn without_nal_types(unit: &[u8], drop: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(unit.len());
     for nal in nal_units(unit) {
@@ -269,28 +300,6 @@ pub fn without_nal_types(unit: &[u8], drop: &[u8]) -> Vec<u8> {
         }
     }
     out
-}
-
-// RTP payloads for one access unit: each NAL whole if it fits `mtu`, else as FU-A fragments.
-pub fn packetize(unit: &[u8], mtu: usize) -> Vec<Vec<u8>> {
-    let mut packets = Vec::new();
-    for nal in nal_units(unit) {
-        let Some((&header, body)) = nal.split_first() else { continue };
-        if nal.len() <= mtu {
-            packets.push(nal.to_vec());
-            continue;
-        }
-        let chunks: Vec<&[u8]> = body.chunks(mtu - 2).collect();
-        let last = chunks.len() - 1;
-        for (i, chunk) in chunks.into_iter().enumerate() {
-            let start = if i == 0 { 0x80 } else { 0 };
-            let end = if i == last { 0x40 } else { 0 };
-            let mut packet = vec![(header & 0xe0) | FU_A, start | end | (header & 0x1f)];
-            packet.extend_from_slice(chunk);
-            packets.push(packet);
-        }
-    }
-    packets
 }
 
 fn has_idr(unit: &[u8]) -> bool {
@@ -321,32 +330,64 @@ mod tests {
     use super::*;
 
     #[test]
-    fn depacketizes_single_stap_and_fragmented_nals() {
-        let mut d = Depacketizer::default();
-        assert_eq!(d.push(1, false, &[0x67, 1, 2]), None);
-        assert_eq!(d.push(2, false, &[0x18, 0, 2, 0x68, 9, 0, 1, 0x06]), None);
-        assert_eq!(d.push(3, false, &[0x7c, 0x85, 0xaa]), None);
-        let unit = d.push(4, true, &[0x7c, 0x45, 0xbb]).unwrap();
-        assert_eq!(
-            unit,
-            [0, 0, 0, 1, 0x67, 1, 2, 0, 0, 0, 1, 0x68, 9, 0, 0, 0, 1, 0x06, 0, 0, 0, 1, 0x65, 0xaa, 0xbb]
-        );
-        assert!(has_idr(&unit));
-        assert!(!has_idr(&[0, 0, 0, 1, 0x41, 0]));
-    }
-
-    #[test]
     fn drops_delimiter_and_filler_nals() {
         let unit = [0, 0, 0, 1, 0x09, 0xf0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x65, 2, 0, 0, 0, 1, 0x0c, 0xff, 0xff];
         assert_eq!(without_nal_types(&unit, &[9, 12]), [0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x65, 2]);
     }
 
+    // How media.rs sends a unit: delimiters and filler out, then the rtp crate's payloader.
+    fn send(unit: &[u8], mtu: usize, first_sequence: u16, timestamp: u32) -> Vec<Packet> {
+        use rtp::{codecs::h264::H264Payloader, header::Header, packetizer::Payloader};
+        let payloads = H264Payloader::default().payload(mtu, &Bytes::from(without_nal_types(unit, &[9, 12]))).unwrap();
+        let last = payloads.len() - 1;
+        let header = |n: usize| Header { version: 2, marker: n == last, payload_type: 101, sequence_number: first_sequence.wrapping_add(n as u16), timestamp, ssrc: 1, ..Default::default() };
+        payloads.into_iter().enumerate().map(|(n, payload)| Packet { header: header(n), payload }).collect()
+    }
+
+    fn receive(packets: impl IntoIterator<Item = Packet>, now: Instant) -> Vec<Result<Vec<u8>, Lost>> {
+        let mut frames = FrameAssembler::default();
+        let mut out = Vec::new();
+        for packet in packets {
+            frames.push(packet, now);
+            out.extend(std::iter::from_fn(|| frames.pop(now)));
+        }
+        out
+    }
+
+    fn single(sequence: u16, marker: bool, payload: &'static [u8]) -> Packet {
+        let header = rtp::header::Header { version: 2, marker, sequence_number: sequence, ..Default::default() };
+        Packet { header, payload: Bytes::from_static(payload) }
+    }
+
     #[test]
-    fn sequence_gap_drops_the_frame() {
-        let mut d = Depacketizer::default();
-        d.push(10, false, &[0x7c, 0x85, 1]);
-        assert_eq!(d.push(12, true, &[0x7c, 0x45, 2]), None);
-        assert!(d.push(13, true, &[0x41, 3]).is_some());
+    fn reordered_packets_make_the_frame_as_soon_as_it_is_whole() {
+        let mut unit = vec![0, 0, 0, 1, 0x67, 1, 2, 0, 0, 0, 1, 0x68, 3, 4, 0, 0, 0, 1, 0x65];
+        unit.extend(1..=40);
+        let mut packets = send(&unit, 20, 65_534, 0);
+        assert!(packets.len() > 3, "fragments, and wraps the sequence");
+        packets.swap(1, 2);
+        assert_eq!(receive(packets, Instant::now()), [Ok(unit)], "out the moment its last packet lands, not with the next frame");
+    }
+
+    #[test]
+    fn a_gap_that_isnt_filled_loses_only_its_frame() {
+        let (mut frames, now) = (FrameAssembler::default(), Instant::now());
+        frames.push(single(10, false, &[0x7c, 0x85, 1]), now);
+        frames.push(single(12, true, &[0x7c, 0x45, 2]), now);
+        frames.push(single(13, true, &[0x41, 3, 3]), now);
+        assert_eq!(frames.pop(now), None, "waits for 11");
+        let later = now + MAX_WAIT;
+        assert_eq!(frames.pop(later), Some(Err(Lost)));
+        assert_eq!(frames.pop(later), Some(Ok(vec![0, 0, 0, 1, 0x41, 3, 3])));
+        frames.push(single(11, false, &[0x7c, 0x05, 2]), later);
+        assert_eq!(frames.pop(later), None, "a late duplicate is ignored");
+    }
+
+    #[test]
+    fn joining_mid_nal_or_a_restarted_sender_recovers() {
+        let now = Instant::now();
+        let got = receive([single(5, true, &[0x7c, 0x45, 9]), single(60_000, true, &[0x41, 1, 1])], now);
+        assert_eq!(got, [Err(Lost), Ok(vec![0, 0, 0, 1, 0x41, 1, 1])], "a fragment without its start, then a sequence restarted far behind");
     }
 
     // A moving gradient so every frame differs, like scrolling content.
@@ -402,12 +443,9 @@ mod tests {
                 encoder.force_keyframe();
             }
             let Some(unit) = encoder.encode(&moving_frame(w, h, i)) else { continue };
-            let packets = packetize(&unit, 1200);
-            let mut depacketizer = Depacketizer::default();
-            let last = packets.len() - 1;
-            let rebuilt = packets.iter().enumerate().find_map(|(n, p)| depacketizer.push(n as u16, n == last, p)).unwrap();
-            assert_eq!(rebuilt, unit);
-            if decoder.decode(&rebuilt).is_some_and(|f| (f.width, f.height) == (w, h)) {
+            let [Ok(rebuilt)] = &receive(send(&unit, 1200, i as u16 * 100, i * 3000), Instant::now())[..] else { panic!("unit {i} didn't survive RTP") };
+            assert_eq!(rebuilt, &without_nal_types(&unit, &[9, 12]), "byte for byte, as DAVE needs");
+            if decoder.decode(rebuilt).is_some_and(|f| (f.width, f.height) == (w, h)) {
                 decoded += 1;
             }
             units.push(nal_types(&unit));
@@ -428,15 +466,13 @@ mod tests {
         let mut encoder = VideoEncoder::new(30, 500_000).unwrap();
         let unit = encoder.encode(&frame).unwrap();
 
-        let packets = packetize(&unit, 100);
-        assert!(packets.iter().all(|p| p.len() <= 100));
-        assert!(packets.iter().any(|p| p[0] & 0x1f == FU_A), "small MTU forces fragmentation");
-        let mut depacketizer = Depacketizer::default();
-        let last = packets.len() - 1;
-        let rebuilt = packets.iter().enumerate().find_map(|(i, p)| depacketizer.push(i as u16, i == last, p)).unwrap();
-        assert_eq!(rebuilt, unit, "Annex-B survives the RTP round trip byte for byte");
+        let packets = send(&unit, 100, 0, 0);
+        assert!(packets.iter().all(|p| p.payload.len() <= 100));
+        assert!(packets.iter().any(|p| p.payload[0] & 0x1f == 28), "small MTU forces FU-A fragmentation");
+        let [Ok(rebuilt)] = &receive(packets, Instant::now())[..] else { panic!("frame didn't survive RTP") };
+        assert_eq!(rebuilt, &unit, "Annex-B survives the RTP round trip byte for byte");
 
-        let decoded = VideoDecoder::new().unwrap().decode(&rebuilt).unwrap();
+        let decoded = VideoDecoder::new().unwrap().decode(rebuilt).unwrap();
         assert_eq!((decoded.width, decoded.height), (width, height));
     }
 
