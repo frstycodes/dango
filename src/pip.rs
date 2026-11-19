@@ -120,6 +120,8 @@ impl Waffle {
         let player = div()
             .id("stream-pip")
             .group("stream-pip")
+            // Floats over the app: what's under it must not take the hover or the click.
+            .occlude()
             .absolute()
             .w(px(WIDTH))
             .h(px(HEIGHT))
