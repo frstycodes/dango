@@ -170,7 +170,7 @@ impl Waffle {
             let invites: Vec<Entry> = self
                 .guilds
                 .iter()
-                .filter(|g| Some(g.id.as_str()) != guild_id && g.can(&me.id, perm::CREATE_INSTANT_INVITE))
+                .filter(|g| Some(g.id.as_str()) != guild_id && g.invite_channel(&me.id).is_some())
                 .map(|g| {
                     let (gid, uid) = (g.id.clone(), target.clone());
                     item(g.name.clone(), move |this, window, cx| this.invite_to_server(gid.clone(), uid.clone(), window, cx)).server(g.icon.clone(), g.name.clone()).entry()
@@ -273,11 +273,10 @@ impl Waffle {
             }
         }
         if let Some((guild, state)) = &voice {
-            let can_move = is_me || guild.can(&me.id, perm::MOVE_MEMBERS);
             let channels: Vec<Entry> = guild
                 .channels
                 .iter()
-                .filter(|c| c.kind == ChannelKind::Voice && state.channel_id.as_ref() != Some(&c.id))
+                .filter(|c| c.kind == ChannelKind::Voice && state.channel_id.as_ref() != Some(&c.id) && self.can_move_voice(&guild.id, &target, &c.id))
                 .map(|c| {
                     let (gid, uid, channel) = (guild.id.clone(), target.clone(), c.clone());
                     item(c.name.clone(), move |this, _, cx| {
@@ -293,7 +292,7 @@ impl Waffle {
                     .entry()
                 })
                 .collect();
-            if can_move && !channels.is_empty() {
+            if !channels.is_empty() {
                 out.push(submenu("Move to", channels).icon(Glyph::MoveTo).entry());
             }
         }
@@ -302,15 +301,17 @@ impl Waffle {
         // G8: moderation.
         if let Some((guild, state)) = &voice {
             let gid = guild.id.clone();
-            if guild.can(&me.id, perm::MUTE_MEMBERS) {
+            // Voice moderation is per channel: overwrites on the channel they're in apply.
+            let can = |bit| state.channel_id.as_ref().is_some_and(|c| self.can_in(c, bit));
+            if can(perm::MUTE_MEMBERS) {
                 let (gid, uid, on) = (gid.clone(), target.clone(), state.server_muted);
                 out.push(item("Server mute", move |this, _, cx| this.server_voice_optimistic(&gid, &uid, json!({ "mute": !on }), |v| v.server_muted = !v.server_muted, cx)).checked(on).hint(format!("Mutes {name} for everyone")).icon(Glyph::MicOff).entry());
             }
-            if guild.can(&me.id, perm::DEAFEN_MEMBERS) {
+            if can(perm::DEAFEN_MEMBERS) {
                 let (gid, uid, on) = (gid.clone(), target.clone(), state.server_deafened);
                 out.push(item("Server deafen", move |this, _, cx| this.server_voice_optimistic(&gid, &uid, json!({ "deaf": !on }), |v| v.server_deafened = !v.server_deafened, cx)).checked(on).icon(Glyph::HeadphonesOff).entry());
             }
-            if !is_me && guild.can(&me.id, perm::MOVE_MEMBERS) {
+            if !is_me && can(perm::MOVE_MEMBERS) {
                 let (gid, uid) = (gid.clone(), target.clone());
                 out.push(item("Disconnect", move |this, _, cx| this.server_voice_optimistic(&gid, &uid, json!({ "channel_id": null }), |v| v.channel_id = None, cx)).danger().icon(Glyph::PhoneDisconnect).entry());
             }
@@ -540,7 +541,8 @@ impl Waffle {
     // Discord's "Invite to Server": a single-use invite to that server, sent to their DMs.
     fn invite_to_server(&mut self, guild_id: String, user_id: String, _: &mut Window, cx: &mut Context<Self>) {
         let Some(client) = self.client.clone() else { return };
-        let Some(channel) = self.guilds.iter().find(|g| g.id == guild_id).and_then(|g| g.channels.iter().find(|c| c.kind == ChannelKind::Text && !c.private).map(|c| c.id.clone())) else { return };
+        let Some(me) = self.me.as_ref() else { return };
+        let Some(channel) = self.guilds.iter().find(|g| g.id == guild_id).and_then(|g| g.invite_channel(&me.id)).map(|c| c.id.clone()) else { return };
         cx.spawn(async move |this, cx| {
             let result = async {
                 let invite = client.call(Method::POST, format!("/channels/{channel}/invites"), Some(json!({ "max_uses": 1, "unique": true }))).await?;
