@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wave Flows: voice</title>
+<title>Waffle Flows: voice</title>
 <meta name="description" content="Joining voice, going live, watching streams and calls, end to end.">
-<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="icon" href="/assets/brand/icons/paper.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="css/community.css">
 <link rel="stylesheet" href="css/server-settings.css">
 <link rel="stylesheet" href="css/flows.css">
-<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<script>try{const p=JSON.parse(localStorage.getItem("waffle-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 <style>
 /* Frame-only layout for this page. Components are untouched; these size pieces to fit a storyboard frame. */
 .flow .call { flex: 1; border-radius: 0; padding: 12px; gap: 10px; align-content: center; grid-template-columns: minmax(0, 1fr); }
@@ -116,20 +116,20 @@
           <div class="flow-frame sidebar" style="--frame-h: 120px"><div class="flow-clip"><div class="fv-pad">
             <div class="toast" data-tone="undo"><i class="ph-fill ph-arrows-left-right"></i><p>Switched to Lounge<small>You left Ranked grind</small></p><button class="btn btn--sm">Go back</button></div>
           </div></div></div>
-          <p>Between server channels Wave switches at once and holds <b>Go back</b> for 6 seconds, so a misclick costs one click.</p>
+          <p>Between server channels Waffle switches at once and holds <b>Go back</b> for 6 seconds, so a misclick costs one click.</p>
           <div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Step 2, in Lounge</div></div>
         <div class="flow-edge"><span class="flow-if"><i class="ph-bold ph-git-branch"></i>In a DM call, or streaming</span>
           <div class="flow-frame center fv-scrim" style="--frame-h: 270px"><div class="flow-clip"><div class="fv-pad">
             <div class="dialog" role="dialog" aria-labelledby="jv-switch"><h4 id="jv-switch">Leave your call with Mira?</h4><p>Joining Lounge ends your call with Mira and stops your stream for 3 viewers.</p><footer><button class="btn">Stay in call</button><button class="btn btn--primary">Join Lounge</button></footer></div>
           </div></div></div>
-          <p>Wave only asks when leaving costs something: a DM call, or a stream people are watching. It names exactly what ends.</p>
+          <p>Waffle only asks when leaving costs something: a DM call, or a stream people are watching. It names exactly what ends.</p>
           <div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Join: step 2. Stay: nothing changes</div></div>
         <div class="flow-edge"><span class="flow-if warn"><i class="ph-bold ph-warning"></i>Channel is full</span>
           <div class="flow-frame sidebar" style="--frame-h: 170px"><div class="flow-clip">
             <div class="side"><div class="chlist"><div class="ch is-hover"><i class="ph ph-speaker-high"></i><a class="nm" href="#">Ranked grind</a><span class="meta"><span class="limit" aria-label="8 of 8 people">8/8</span></span></div></div></div>
             <div class="fv-pad" style="padding-top: 0"><div class="toast" data-tone="info"><i class="ph-fill ph-users-three"></i><p>Ranked grind is full<small>8 of 8 people. You'll join when a spot opens.</small></p><button class="btn btn--sm">Stop waiting</button></div></div>
           </div></div>
-          <p><b>Better than Discord:</b> instead of a refusal you have to retry, Wave waits in line for you and plays the join chime when you're in.</p>
+          <p><b>Better than Discord:</b> instead of a refusal you have to retry, Waffle waits in line for you and plays the join chime when you're in.</p>
           <div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Step 2 when someone leaves</div></div>
         <div class="flow-edge"><span class="flow-if bad"><i class="ph-bold ph-x-circle"></i>No permission to connect</span>
           <div class="flow-frame sidebar" style="--frame-h: 130px"><div class="flow-clip">
@@ -158,22 +158,22 @@
       <div class="flow-edges">
         <div class="flow-edge"><span class="flow-if"><i class="ph-bold ph-apple-logo"></i>First time: macOS asks for the mic</span>
           <div class="flow-frame center" style="--frame-h: 220px"><div class="flow-clip">
-            <div class="fv-os" role="alertdialog" aria-labelledby="os-mic"><span class="icontile"><i class="ph-fill ph-microphone"></i></span><b id="os-mic">“Wave” would like to access the microphone.</b><p>Wave uses your microphone for voice calls.</p><div class="acts"><button class="btn btn--sm">Don't Allow</button><button class="btn btn--sm btn--primary">Allow</button></div></div>
+            <div class="fv-os" role="alertdialog" aria-labelledby="os-mic"><span class="icontile"><i class="ph-fill ph-microphone"></i></span><b id="os-mic">“Waffle” would like to access the microphone.</b><p>Waffle uses your microphone for voice calls.</p><div class="acts"><button class="btn btn--sm">Don't Allow</button><button class="btn btn--sm btn--primary">Allow</button></div></div>
           </div></div>
           <p>The join doesn't wait on the prompt: you're connected and listening while macOS asks, and others see you as muted until you answer.</p>
           <div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Allow: step 3</div></div>
         <div class="flow-edge"><span class="flow-if bad"><i class="ph-bold ph-x-circle"></i>Mic access denied</span>
           <div class="flow-frame sidebar" style="--frame-h: 220px"><div class="flow-clip">
-            <div class="fv-pad start" style="padding-bottom: 8px"><div class="callout callout--danger"><i class="ph-fill ph-microphone-slash"></i><div><b>Wave can't use your mic</b>Turn on Wave in System Settings › Privacy &amp; Security › Microphone.</div></div><button class="btn btn--sm">Open System Settings</button></div>
-            <div class="me"><button class="who"><span class="av" data-av="You"><span class="status online"></span></span><div><b>you</b><span class="why">Mic blocked by macOS</span></div></button><button class="iconbtn on" disabled aria-label="Microphone blocked" title="macOS blocks the microphone for Wave"><i class="ph-bold ph-microphone-slash"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div>
+            <div class="fv-pad start" style="padding-bottom: 8px"><div class="callout callout--danger"><i class="ph-fill ph-microphone-slash"></i><div><b>Waffle can't use your mic</b>Turn on Waffle in System Settings › Privacy &amp; Security › Microphone.</div></div><button class="btn btn--sm">Open System Settings</button></div>
+            <div class="me"><button class="who"><span class="av" data-av="You"><span class="status online"></span></span><div><b>you</b><span class="why">Mic blocked by macOS</span></div></button><button class="iconbtn on" disabled aria-label="Microphone blocked" title="macOS blocks the microphone for Waffle"><i class="ph-bold ph-microphone-slash"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div>
           </div></div>
           <p>You stay in the call and can listen. Mute is locked with the reason under your name, and the fix is one click.</p>
           <div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>In the call, listening only</div></div>
         <div class="flow-edge"><span class="flow-if"><i class="ph-bold ph-git-branch"></i>Turned on in System Settings</span>
           <div class="flow-frame" style="--frame-h: 110px"><div class="flow-clip"><div class="fv-pad">
-            <div class="toast" data-tone="success"><i class="ph-fill ph-check-circle"></i><p>Your mic is on<small>Wave picked up the change. Nothing to rejoin.</small></p></div>
+            <div class="toast" data-tone="success"><i class="ph-fill ph-check-circle"></i><p>Your mic is on<small>Waffle picked up the change. Nothing to rejoin.</small></p></div>
           </div></div></div>
-          <p>Wave notices the permission change while you're still in the call and unlocks Mute.</p>
+          <p>Waffle notices the permission change while you're still in the call and unlocks Mute.</p>
           <div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Step 4, talking</div></div>
       </div>
     </div>
@@ -208,7 +208,7 @@
               <div class="top-line"><button class="status-btn" title="Click for connection details"><b><span class="bars"><i></i><i></i><i></i></span>Switching servers…</b><div class="why">Moving to Frankfurt, back in a second</div></button><button class="iconbtn" aria-label="Disconnect" title="Disconnect"><i class="ph-bold ph-phone-x"></i></button></div>
             </div>
           </div></div>
-          <p>A moderator changed the region. Wave hops servers without leaving the channel; everyone stays listed and the status line says why it went quiet.</p>
+          <p>A moderator changed the region. Waffle hops servers without leaving the channel; everyone stays listed and the status line says why it went quiet.</p>
           <div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Voice connected again</div></div>
       </div>
     </div>
@@ -239,7 +239,7 @@
             </div>
             <div class="me"><button class="who"><span class="av" data-av="You"><span class="status online"></span></span><div><b>you</b><span>Grinding ranked</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div>
           </div></div>
-          <p>The status line turns amber with the numbers; clicking it opens the <a href="voice.html#voice-panel">ping graph</a>. Wave lowers your bitrate before you cut out.</p>
+          <p>The status line turns amber with the numbers; clicking it opens the <a href="voice.html#voice-panel">ping graph</a>. Waffle lowers your bitrate before you cut out.</p>
           <div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Still talking</div></div>
         <div class="flow-edge"><span class="flow-if bad"><i class="ph-bold ph-x-circle"></i>Connection lost</span>
           <div class="flow-frame sidebar" style="--frame-h: 140px"><div class="flow-clip">
@@ -248,7 +248,7 @@
             </div>
             <div class="me"><button class="who"><span class="av" data-av="You"><span class="status online"></span></span><div><b>you</b><span>Grinding ranked</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div>
           </div></div>
-          <p>Retries after 1, 2 and 5 seconds, then every 10. Audio returns on its own; others see your tile as Reconnecting, not gone. After 2 minutes Wave gives up and says so.</p>
+          <p>Retries after 1, 2 and 5 seconds, then every 10. Audio returns on its own; others see your tile as Reconnecting, not gone. After 2 minutes Waffle gives up and says so.</p>
           <div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Back to talking, or out of voice</div></div>
         <div class="flow-edge"><span class="flow-if"><i class="ph-bold ph-git-branch"></i>Moved by a moderator</span>
           <div class="flow-frame sidebar" style="--frame-h: 190px"><div class="flow-clip">
@@ -339,7 +339,7 @@
           <div class="flow-frame" style="--frame-h: 80px"><div class="flow-clip"><div class="fv-pad start">
             <div class="set-rec" data-keys="=+Backspace" aria-label="Toggle mute keybind"><span class="v"><span class="keys"><kbd class="kbd">=</kbd><kbd class="kbd">Backspace</kbd></span></span><button class="btn btn--sm">Edit keybind</button></div>
           </div></div></div>
-          <p>Any combo records, plain keys included. Wave listens without swallowing keys, so = still types in a message; the combo fires only when both are down. Set up in <a href="settings.html#keybinds">Keybinds</a>.</p>
+          <p>Any combo records, plain keys included. Waffle listens without swallowing keys, so = still types in a message; the combo fires only when both are down. Set up in <a href="settings.html#keybinds">Keybinds</a>.</p>
           <div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Mutes from anywhere</div></div>
         <div class="flow-edge"><span class="flow-if bad"><i class="ph-bold ph-x-circle"></i>Another app owns the shortcut</span>
           <div class="flow-frame" style="--frame-h: 130px"><div class="flow-clip"><div class="fv-pad start">
@@ -349,10 +349,10 @@
           <div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Record a different one</div></div>
         <div class="flow-edge"><span class="flow-if warn"><i class="ph-bold ph-apple-logo"></i>macOS hasn't allowed key monitoring</span>
           <div class="flow-frame" style="--frame-h: 210px"><div class="flow-clip"><div class="fv-pad start">
-            <div class="callout callout--warning"><i class="ph-fill ph-keyboard"></i><div><b>Keybinds only work while Wave is in front</b>Allow Wave under Input Monitoring in System Settings so they work in games.</div></div>
+            <div class="callout callout--warning"><i class="ph-fill ph-keyboard"></i><div><b>Keybinds only work while Waffle is in front</b>Allow Waffle under Input Monitoring in System Settings so they work in games.</div></div>
             <button class="btn btn--sm" style="justify-self: start">Open System Settings</button>
           </div></div></div>
-          <p>Shown once, the first time a keybind fires outside Wave and nothing happens.</p>
+          <p>Shown once, the first time a keybind fires outside Waffle and nothing happens.</p>
           <div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Works everywhere once allowed</div></div>
       </div>
     </div>
@@ -400,7 +400,7 @@
     </div>
 
     <div class="flow-step">
-      <div class="flow-head"><span class="flow-n">5</span><b>Talk while muted</b><span>Wave hears voice on a muted mic and says so once. The hint fades 3 seconds after you stop.</span></div>
+      <div class="flow-head"><span class="flow-n">5</span><b>Talk while muted</b><span>Waffle hears voice on a muted mic and says so once. The hint fades 3 seconds after you stop.</span></div>
       <div class="flow-frame stage"><div class="flow-clip"><div class="call">
         <div class="tiles g2">
           <div class="tile" style="--hue: 300"><span class="av" data-av="You"></span><span class="name"><i class="ph-fill ph-microphone-slash"></i><span class="who">You</span></span></div>
@@ -465,15 +465,15 @@
       <div class="flow-edges">
         <div class="flow-edge"><span class="flow-if"><i class="ph-bold ph-apple-logo"></i>First time: macOS asks to record</span>
           <div class="flow-frame center" style="--frame-h: 240px"><div class="flow-clip">
-            <div class="fv-os" role="alertdialog" aria-labelledby="os-rec"><span class="icontile"><i class="ph-fill ph-monitor"></i></span><b id="os-rec">“Wave” would like to record this computer's screen and audio.</b><p>Grant access to this application in Privacy &amp; Security settings, located in System Settings.</p><div class="acts"><button class="btn btn--sm">Deny</button><button class="btn btn--sm btn--primary">Open System Settings</button></div></div>
+            <div class="fv-os" role="alertdialog" aria-labelledby="os-rec"><span class="icontile"><i class="ph-fill ph-monitor"></i></span><b id="os-rec">“Waffle” would like to record this computer's screen and audio.</b><p>Grant access to this application in Privacy &amp; Security settings, located in System Settings.</p><div class="acts"><button class="btn btn--sm">Deny</button><button class="btn btn--sm btn--primary">Open System Settings</button></div></div>
           </div></div>
-          <p>Wave opens the picker behind the prompt with a line saying macOS will ask once, so the system dialog never arrives cold.</p>
+          <p>Waffle opens the picker behind the prompt with a line saying macOS will ask once, so the system dialog never arrives cold.</p>
           <div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Allowed: restart needed</div></div>
         <div class="flow-edge"><span class="flow-if bad"><i class="ph-bold ph-x-circle"></i>Recording denied</span>
           <div class="flow-frame top fv-scrim" style="--frame-h: 310px"><div class="flow-clip"><div class="fv-pad start">
             <div class="dialog golive" role="dialog" aria-labelledby="gl-denied">
               <div class="head"><h4 id="gl-denied">Go live in Lounge</h4></div>
-              <div class="callout callout--danger"><i class="ph-fill ph-monitor"></i><div><b>Wave can't see your screen</b>Turn on Wave in System Settings › Privacy &amp; Security › Screen &amp; System Audio Recording.</div></div>
+              <div class="callout callout--danger"><i class="ph-fill ph-monitor"></i><div><b>Waffle can't see your screen</b>Turn on Waffle in System Settings › Privacy &amp; Security › Screen &amp; System Audio Recording.</div></div>
               <footer><button class="btn btn--ghost">Cancel</button><button class="btn">Open System Settings</button></footer>
             </div>
           </div></div></div>
@@ -483,8 +483,8 @@
           <div class="flow-frame top fv-scrim" style="--frame-h: 310px"><div class="flow-clip"><div class="fv-pad start">
             <div class="dialog golive" role="dialog" aria-labelledby="gl-restart">
               <div class="head"><h4 id="gl-restart">Go live in Lounge</h4></div>
-              <div class="callout callout--warning"><i class="ph-fill ph-arrow-clockwise"></i><div><b>Restart Wave to finish</b>macOS applies screen access after a restart. Wave reopens in Lounge with this picker open.</div></div>
-              <footer><button class="btn btn--ghost">Later</button><button class="btn btn--primary">Restart Wave</button></footer>
+              <div class="callout callout--warning"><i class="ph-fill ph-arrow-clockwise"></i><div><b>Restart Waffle to finish</b>macOS applies screen access after a restart. Waffle reopens in Lounge with this picker open.</div></div>
+              <footer><button class="btn btn--ghost">Later</button><button class="btn btn--primary">Restart Waffle</button></footer>
             </div>
           </div></div></div>
           <p><b>Better than Discord:</b> the restart brings you back into the call and the picker, not to an empty home screen.</p>
@@ -598,7 +598,7 @@
       <div class="flow-edges">
         <div class="flow-edge"><span class="flow-if warn"><i class="ph-bold ph-warning"></i>Upload too slow for the quality</span>
           <div class="flow-frame" style="--frame-h: 120px"><div class="flow-clip"><div class="fv-pad">
-            <div class="toast" data-tone="info"><i class="ph-fill ph-gauge"></i><p>Lowered to 720p at 30 fps<small>Your upload can't hold 1080p 60. Wave steps back up when it can.</small></p><button class="btn btn--sm">Keep 1080p</button></div>
+            <div class="toast" data-tone="info"><i class="ph-fill ph-gauge"></i><p>Lowered to 720p at 30 fps<small>Your upload can't hold 1080p 60. Waffle steps back up when it can.</small></p><button class="btn btn--sm">Keep 1080p</button></div>
           </div></div></div>
           <p><b>Better than Discord:</b> the downgrade is said, not silent, and you can overrule it if you'd rather drop frames.</p>
           <div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Still live, lower quality</div></div>
@@ -606,7 +606,7 @@
           <div class="flow-frame stage" style="--frame-h: 200px"><div class="flow-clip"><div class="call">
             <div class="tile ended"><div class="center"><b>Hades II closed</b><span>Viewers see your last frame, paused</span><button class="btn btn--sm"><i class="ph-bold ph-swap"></i>Change source</button></div></div>
           </div></div></div>
-          <p>Wave holds the stream for 30 seconds so you can pick another source, then stops it and tells viewers it ended.</p>
+          <p>Waffle holds the stream for 30 seconds so you can pick another source, then stops it and tells viewers it ended.</p>
           <div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Step 5, or stopped</div></div>
         <div class="flow-edge"><span class="flow-if bad"><i class="ph-bold ph-x-circle"></i>The stream crashes</span>
           <div class="flow-frame stage" style="--frame-h: 200px"><div class="flow-clip"><div class="call">
@@ -1241,7 +1241,7 @@
               <input id="fv-uvol3" class="range" type="range" min="0" max="200" value="185" step="5">
             </div>
           </div></div></div>
-          <p>Wave limits peaks above 150% so a quiet mic gets louder without a loud one distorting.</p>
+          <p>Waffle limits peaks above 150% so a quiet mic gets louder without a loud one distorting.</p>
           <div class="flow-to"><i class="ph ph-arrow-bend-down-right"></i>Louder, not clipped</div></div>
       </div>
     </div>
@@ -1315,13 +1315,13 @@
   <h2>Better than Discord</h2>
   <p class="lede">Where these flows differ from Discord on purpose. Discord's side is described from its current desktop app.</p>
   <div class="btd">
-    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
-    <div><p>A full voice channel refuses you; you keep clicking until someone leaves.</p><p><b><a href="#join-voice">Wait for a spot</a></b>Wave queues you and joins you with the chime when a spot opens, with Stop waiting.</p><p>The app can watch the count better than you can.</p></div>
+    <div><span>Discord does</span><span>Waffle does</span><span>Why</span></div>
+    <div><p>A full voice channel refuses you; you keep clicking until someone leaves.</p><p><b><a href="#join-voice">Wait for a spot</a></b>Waffle queues you and joins you with the chime when a spot opens, with Stop waiting.</p><p>The app can watch the count better than you can.</p></div>
     <div><p>Being moved or disconnected by a moderator plays a sound; you work out what happened.</p><p><b><a href="#join-voice">Named moves</a></b>A toast says who moved or disconnected you and from where, with Go back or Rejoin.</p><p>A change someone else made to you should say who and why.</p></div>
     <div><p>Leaving voice is final; getting back means finding the channel again.</p><p><b><a href="#join-voice">Rejoin</a></b>Leave and switch hold Rejoin or Go back for 6 seconds, keeping your mute state.</p><p>A slip costs one click.</p></div>
     <div><p>A blocked microphone shows a generic device error.</p><p><b><a href="#join-voice">Mic permission</a></b>Names the macOS pane, opens it, and picks up the change without rejoining.</p><p>An error says how to fix it, with the fix one click away.</p></div>
     <div><p>Server mute shows a red mic; your own mute choice is lost under it.</p><p><b><a href="#mute-deafen">Server mute</a></b>Says who muted you, locks only that, and hands back your own mute when lifted.</p><p>You know who to ask, and nothing changes behind your back.</p></div>
-    <div><p>After granting screen recording, a restart drops you out of the call.</p><p><b><a href="#go-live">Restart and return</a></b>Restart Wave reopens in the same call with the Go live picker open.</p><p>The permission dance shouldn't cost you the call.</p></div>
+    <div><p>After granting screen recording, a restart drops you out of the call.</p><p><b><a href="#go-live">Restart and return</a></b>Restart Waffle reopens in the same call with the Go live picker open.</p><p>The permission dance shouldn't cost you the call.</p></div>
     <div><p>Stream quality drops silently when the upload can't keep up.</p><p><b><a href="#go-live">Said downgrade</a></b>A toast names the new quality and offers Keep 1080p.</p><p>You can't fix what you aren't told about.</p></div>
     <div><p>Watching a stream joins voice with your mic live.</p><p><b><a href="#watch-stream">Watch muted</a></b>Joining to watch keeps your mic off, with Unmute in the toast.</p><p>Watching shouldn't broadcast your room.</p></div>
     <div><p>A declined DM call rings out like an unanswered one.</p><p><b><a href="#dm-call">Declined says so</a></b>Ringing stops at once with "Mira declined" and Leave call.</p><p>No waiting a minute for an answer that already came.</p></div>

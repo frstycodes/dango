@@ -114,7 +114,7 @@ pub fn classify(item: &ClipboardItem) -> Pasted {
 /// A pasted picture as a file to upload, named `image.png` like Discord's own paste. Formats Discord
 /// doesn't show inline (TIFF, BMP, SVG) are re-encoded as PNG.
 pub fn save_pasted_image(image: &gpui_kit::Image) -> Result<PathBuf, String> {
-    let dir = std::env::temp_dir().join(format!("dango-paste-{}", crate::nonce()));
+    let dir = std::env::temp_dir().join(format!("waffle-paste-{}", crate::nonce()));
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let (ext, bytes) = match image.format {
         ImageFormat::Png => ("png", image.bytes.clone()),

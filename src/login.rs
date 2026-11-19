@@ -5,12 +5,12 @@ use std::{rc::Rc, time::Duration};
 use gpui_kit::{
     Animation, AnimationExt, AnyElement, App, BoxShadow, Context, Corners, Div, ElementId, FontWeight, HighlightStyle, SharedString, StyledText, Window,
     component::Icon,
-    canvas, div, fill, img, linear_color_stop, linear_gradient, point, prelude::*, px, relative, rgb, size,
+    canvas, div, fill, linear_color_stop, linear_gradient, point, prelude::*, px, relative, rgb, size, svg,
 };
 use qrcode::{EcLevel, QrCode};
 
 use crate::{
-    Rustcord,
+    Waffle,
     discord::User,
     icons::{self, Glyph},
     mascot::{Mood, mascot_at},
@@ -52,12 +52,12 @@ impl Login {
 }
 
 // `back` is the signed-in account to return to while adding another.
-pub fn render(login: &Login, back: Option<crate::accounts::Account>, _: &mut Window, cx: &mut Context<Rustcord>) -> AnyElement {
+pub fn render(login: &Login, back: Option<crate::accounts::Account>, _: &mut Window, cx: &mut Context<Waffle>) -> AnyElement {
     let (phase, title, detail): (&str, SharedString, SharedString) = match login {
         Login::Preparing => ("preparing", "Sign in with your phone".into(), "Getting a fresh code from Discord\u{2026}".into()),
         Login::Qr(_) => ("qr", "Sign in with your phone".into(), "Scan with the Discord app on your phone.".into()),
         Login::Scanned(user) => ("scanned", format!("Hi, {}!", first_name(&user.name)).into(), "Approve the sign-in on your phone to finish.".into()),
-        Login::Captcha(_) => ("captcha", "One more step".into(), "Discord wants a quick check. Solve the captcha in your browser and Dango will finish signing in.".into()),
+        Login::Captcha(_) => ("captcha", "One more step".into(), "Discord wants a quick check. Solve the captcha in your browser and Waffle will finish signing in.".into()),
         Login::Failed(_) => ("failed", "Sign-in didn't finish".into(), "Sign-in stopped before it was approved. Get a new code and scan it again.".into()),
     };
     let lead = match login {
@@ -139,7 +139,7 @@ pub fn render(login: &Login, back: Option<crate::accounts::Account>, _: &mut Win
                 .text_size(px(12.))
                 .text_color(muted)
                 .child(Icon::new(Glyph::HashtagLock).size(px(14.)))
-                .child("Dango never sees your password."),
+                .child("Waffle never sees your password."),
         )
         .into_any_element()
 }
@@ -176,7 +176,7 @@ fn blank_card(cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-// Graphite ink squircles on white, finder patterns as rounded rings, the dango mark in the cleared centre.
+// Graphite ink squircles on white, finder patterns as rounded rings, the waffle mark in the cleared centre.
 fn qr_card(modules: Rc<Modules>, cx: &App) -> AnyElement {
     let inner = QR_SIDE - 2. * QR_PAD;
     let module = inner / modules.width as f32;
@@ -217,7 +217,7 @@ fn qr_card(modules: Rc<Modules>, cx: &App) -> AnyElement {
         .bg(gpui_kit::white())
         .shadow(shadow)
         .child(code)
-        .child(div().absolute().inset_0().flex().items_center().justify_center().child(img(icons::MARK).size(px(mark))))
+        .child(div().absolute().inset_0().flex().items_center().justify_center().child(svg().path(icons::MARK).size(px(mark)).text_color(palette::logo_on_light())))
         .into_any_element()
 }
 

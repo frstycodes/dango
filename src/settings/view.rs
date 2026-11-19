@@ -9,12 +9,12 @@ use super::{
     Section,
     registry::{self, Choice, Control, Setting, Toggle},
 };
-use crate::{Rustcord, icons::Glyph, palette, ui};
+use crate::{Waffle, icons::Glyph, palette, ui};
 
 // How long a jumped-to row keeps its highlight.
 const HIGHLIGHT_FOR: Duration = Duration::from_millis(1600);
 
-impl Rustcord {
+impl Waffle {
     // A section per group on `page` whose rows the registry draws (no `Custom` setting in it).
     pub(super) fn registry_sections(&mut self, page: super::Page, window: &mut Window, cx: &mut Context<Self>) -> Vec<Section> {
         let mut out = Vec::new();

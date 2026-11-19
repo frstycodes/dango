@@ -1,6 +1,6 @@
-// Dango's launch window (design/names.html): a small Graphite card on the app's own surface with the dango loader, the
+// Waffle's launch window (design/names.html): a small Graphite card on the app's own surface with the waffle loader, the
 // name, one line naming the real loading stage and a bar for how far along it is, shown while the hidden
-// main window signs in and loads. `Rustcord` advances it and closes it, then brings the main window forward.
+// main window signs in and loads. `Waffle` advances it and closes it, then brings the main window forward.
 use gpui_kit::{
     App, AppContext, Bounds, Context, FontWeight, IntoElement, ParentElement, Render, SharedString, Styled, Window, WindowBackgroundAppearance, WindowBounds, WindowHandle, WindowKind, WindowOptions,
     component::ActiveTheme, div, px, rgb, size,
@@ -12,7 +12,7 @@ use crate::{
     ui::{self, Squircle, shadow},
 };
 
-// Signing in, loading your servers, opening Dango.
+// Signing in, loading your servers, opening Waffle.
 pub const STAGES: usize = 3;
 
 const MARK: f32 = 56.;
@@ -72,7 +72,7 @@ impl Render for Splash {
                 .justify_center()
                 .gap(px(10.))
                 .child(mascot::loader("splash-loader", MARK, loader, cx))
-                .child(div().mt(px(4.)).text_size(px(20.)).line_height(px(20.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child("Dango"))
+                .child(div().mt(px(4.)).text_size(px(20.)).line_height(px(20.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child("Waffle"))
                 .child(div().max_w_full().truncate().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(self.stage.clone()))
                 .child(progress_bar(self.progress, cx)),
         )
@@ -83,8 +83,8 @@ fn progress_bar(progress: f32, cx: &App) -> gpui_kit::Div {
     div().w(px(TRACK)).h(px(6.)).rounded(px(3.)).bg(palette::track(cx)).child(div().h_full().w(px(TRACK * progress)).rounded(px(3.)).bg(palette::accent()))
 }
 
-// The mark's materials, the same on any surface: light chili on dark, the logo's chili on light.
-const MARK_DARK: u32 = 0xFF9A82;
+// The mark's materials, the same on any surface: honey on dark, a deeper honey on light.
+const MARK_DARK: u32 = 0xEFA831;
 const STICK_DARK: u32 = 0x8C7A6A;
-const MARK_LIGHT: u32 = 0xE25B26;
+const MARK_LIGHT: u32 = 0xBF7D06;
 const STICK_LIGHT: u32 = 0xC9A27A;

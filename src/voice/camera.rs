@@ -55,7 +55,7 @@ pub fn start(id: &str, max_size: (u32, u32), on_frame: impl Fn(VideoFrame) + Sen
     let (ready_tx, ready_rx) = mpsc::channel();
     let (index, flag) = (parse_index(id), stop.clone());
     thread::Builder::new()
-        .name("rustcord-camera".into())
+        .name("waffle-camera".into())
         .spawn(move || {
             let camera = ensure_permission().and_then(|()| open(index));
             let mut camera = match camera {

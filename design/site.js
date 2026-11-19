@@ -7,6 +7,8 @@ const PAGES = [
   ["index.html", "Overview"],
   ["better.html", "Better than Discord"],
   ["foundations.html", "Foundations"],
+  ["accent-candidates.html", "Accent candidates"],
+  ["waffle.html", "Waffle"],
   ["icons.html", "Icons"],
   ["window-chrome.html", "Window frame"],
   ["primitives.html", "Primitives"],
@@ -31,15 +33,16 @@ const PAGES = [
   ["flows-community.html", "Flows: people and servers"],
 ];
 const FONTS = [["Figtree", "Figtree"], ["Gabarito", "Gabarito"], ["Onest", "Onest"], ["Rubik", "Rubik"], ["gg sans", "gg sans (current)"]];
-const LOGO = `<svg width="22" height="22" viewBox="0 0 64 66" aria-hidden="true"><g fill="#e8326f"><rect x="2" y="21" width="8" height="24" rx="4"/><rect x="15" y="10.5" width="8" height="45" rx="4"/><rect x="28" y="1" width="8" height="64" rx="4"/><rect x="41" y="13.5" width="8" height="39" rx="4"/><rect x="54" y="22" width="8" height="22" rx="4"/></g></svg>`;
+// The mark, tinted with --logo (honey, deeper on light) through a mask, from the file the app ships.
+const LOGO = `<span aria-hidden="true" style="display:inline-block;width:24px;height:24px;background:var(--logo);-webkit-mask:url(/assets/brand/waffle-mark.svg) center/contain no-repeat;mask:url(/assets/brand/waffle-mark.svg) center/contain no-repeat"></span>`;
 
-const prefs = (() => { try { return JSON.parse(localStorage.getItem("wave-ds") || "{}"); } catch { return {}; } })();
+const prefs = (() => { try { return JSON.parse(localStorage.getItem("waffle-ds") || "{}"); } catch { return {}; } })();
 // ?theme=light|dark wins, so headless screenshots can pick a theme.
 const forced = new URLSearchParams(location.search).get("theme");
 if (forced) { prefs.theme = forced; root.dataset.theme = forced; }
 function save(key, value) {
   prefs[key] = value;
-  try { localStorage.setItem("wave-ds", JSON.stringify(prefs)); } catch {}
+  try { localStorage.setItem("waffle-ds", JSON.stringify(prefs)); } catch {}
   document.dispatchEvent(new CustomEvent("wave:prefs"));
 }
 
@@ -47,7 +50,7 @@ function save(key, value) {
 const here = location.pathname.split("/").pop() || "index.html";
 $("#top").className = "top";
 $("#top").innerHTML = `
-  <a class="brand" href="index.html">${LOGO}Wave <span>Design system</span></a>
+  <a class="brand" href="index.html">${LOGO}Waffle <span>Design system</span></a>
   <div class="tools">
     <div class="seg" role="group" aria-label="Theme" id="theme">${[["", "System"], ["light", "Light"], ["dark", "Dark"]].map(([v, n]) => `<button aria-pressed="${(prefs.theme || "") === v}" data-v="${v}">${n}</button>`).join("")}</div>
     <select class="select" id="font" aria-label="Typeface">${FONTS.map(([v, n]) => `<option value="${v}" ${prefs.font === v ? "selected" : ""}>${n}</option>`).join("")}</select>

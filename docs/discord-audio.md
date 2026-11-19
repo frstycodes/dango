@@ -1,6 +1,6 @@
 # Discord's voice processing, as read from Discord's own code
 
-Mapped 2026-11-14 for Rustcord's parity work (`src/voice/`). Only code was read; no message
+Mapped 2026-11-14 for Waffle's parity work (`src/voice/`). Only code was read; no message
 content, tokens or account data.
 
 ## Sources and limits
@@ -16,7 +16,7 @@ content, tokens or account data.
   made from Finder (`app-0.0.422`, 2026-11-19) was read: `discord_voice.node` (arm64 slice, C++
   symbols intact) through `nm`, `objdump` and REA (Hopper). Only the native engine's code was read;
   Krisp's `.kef` models were not loaded, copied or called, and neither was `discord_krisp.node`.
-  Rustcord uses DeepFilterNet3 in Krisp's place.
+  Waffle uses DeepFilterNet3 in Krisp's place.
 - Where behaviour lives only in code that wasn't read, it's marked *Not verified*.
 
 ## Settings: names, defaults, options
@@ -121,7 +121,7 @@ Advanced Voice Activity show only under Custom. Push-to-talk is hidden under Stu
 - **APM rate and post filter**: `PostFilter::CreateIfNeeded` (`0x6ace98`) builds a filter only at
   48 kHz: four biquads (`kPostFilterCoefficients48kHz`, `0xc9f97c`) forming a low-pass at
   19.2 kHz (-3 dB), -20 dB by 19.5 kHz, flat below 18 kHz. So Discord's APM processes at 48 kHz.
-  It isn't in upstream WebRTC as far as known; Rustcord doesn't copy it.
+  It isn't in upstream WebRTC as far as known; Waffle doesn't copy it.
 - **Krisp on web**: the worklet is registered from a runtime blob as `"processor"`, with models
   `model_8`, `model_16`, `model_32` from `cdn.discordapp.com/assets/krisp_browser_models/` and
   `modelName: "model32"` in a 48 kHz context. In a voice call on Chrome 157 with a fake mic, the
@@ -130,7 +130,7 @@ Advanced Voice Activity show only under Custom. Push-to-talk is hidden under Stu
   inactive in that setup.
 - **Krisp models** (`eo`, `@11353727`): `krisp-nc-o-nb-v2.kef` (8 kHz), `krisp-nc-o-lite-v1.kef`
   (16 kHz), `krisp-nc-o-med-v7-fp16.kef` (up to 96 kHz). Suppression level from
-  `getSuppressionLevel() ?? 100`. Not used by Rustcord.
+  `getSuppressionLevel() ?? 100`. Not used by Waffle.
 - **Web VAD** (`class F`, `@1104582`): every 20 ms it takes the loudest FFT bin (fftSize 512,
   smoothing 0.1). Speech is on while any of the last 10 ticks was over the threshold, plus 10 more
   ticks. That's roughly 200–400 ms of hangover. Web's default threshold is `-40`.
@@ -156,9 +156,9 @@ of its first 3 visible settings under Custom, or 2 otherwise. Mic test notice wh
 "Discord isn't detecting any input from your mic." / "Please check that you've selected the right
 input device." (`bgn75v`, `MA+OZh`).
 
-## How Rustcord maps it (`src/voice/`)
+## How Waffle maps it (`src/voice/`)
 
-| Discord | Rustcord |
+| Discord | Waffle |
 |---|---|
 | Krisp noise cancellation | DeepFilterNet3 (bundled model, tract, 48 kHz, 10 ms hops) on its own worker thread, both stages always on (thresholds -15/35/35 dB; libDF's defaults hard-mute blocks it rates below -10 dB). RNNoise covers while it loads and replaces it for the call if it averages over 8 ms per 10 ms block (Discord's overuse rule) |
 | Standard noise suppression | WebRTC NS (`sonora`), Moderate. *Not verified*: Discord's level |

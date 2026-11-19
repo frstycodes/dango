@@ -14,7 +14,7 @@ use reqwest::Method;
 use serde_json::{Value, json};
 
 use crate::{
-    Rustcord,
+    Waffle,
     discord::{Channel, MediaKind, Message, parse_message, parse_thread},
     icons::Glyph,
     mascot::Mood,
@@ -32,7 +32,7 @@ pub struct ForumState {
     error: Option<SharedString>,
 }
 
-impl Rustcord {
+impl Waffle {
     // The forum's posts: active ones we know of, then archived ones, newest activity first.
     fn forum_posts(&self, forum_id: &str) -> Vec<Channel> {
         let mut posts: Vec<Channel> = self.guilds.iter().flat_map(|g| g.threads.iter()).filter(|t| t.parent_id.as_deref() == Some(forum_id)).cloned().collect();

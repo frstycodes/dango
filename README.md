@@ -1,6 +1,6 @@
-# Dango
+# Waffle
 
-A lightweight Discord client in Rust and gpui (the crate and data folders still use its first name, Rustcord).
+A lightweight Discord client in Rust and gpui (the crate and data folders still use its first name, Waffle).
 
 A lightweight Discord desktop client in Rust and [gpui](https://www.gpui.rs): messaging, voice, video and Go Live.
 
@@ -26,12 +26,12 @@ Not yet built or tested on Windows. Expected needs:
 - [CMake](https://cmake.org/download/) on `PATH` (Opus is built from source)
 
 Known gaps on Windows: Go Live (screen capture is macOS-only), sound cues (macOS-only), and debug sign-ins are
-saved under `%APPDATA%\Rustcord`.
+saved under `%APPDATA%\Waffle`.
 
 ## How to release
 
 Release builds update themselves at launch from this repository's GitHub Releases (debug builds and
-`CHORD_DEMO` runs never do).
+`WAFFLE_DEMO` runs never do).
 
 1. Bump `version` in `Cargo.toml` (e.g. `0.2.0`), run `cargo check` so `Cargo.lock` follows, and commit.
 2. Tag that commit with the same version and push it:
@@ -44,8 +44,8 @@ Release builds update themselves at launch from this repository's GitHub Release
 `.github/workflows/release.yml` checks the tag matches `Cargo.toml`, creates the release, and attaches, each with
 a `.sha256`:
 
-- installers: `dango-macos-aarch64.dmg`, `dango-macos-x86_64.dmg`, `dango-windows-x86_64-setup.exe` (per-user, no admin)
-- what the updater downloads: `dango-macos-*.zip` (zipped `Dango.app`) and `dango-windows-x86_64.exe`
+- installers: `waffle-macos-aarch64.dmg`, `waffle-macos-x86_64.dmg`, `waffle-windows-x86_64-setup.exe` (per-user, no admin)
+- what the updater downloads: `waffle-macos-*.zip` (zipped `Waffle.app`) and `waffle-windows-x86_64.exe`
 
 Running copies older than the tag download theirs on next launch and restart into it.
 

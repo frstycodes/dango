@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wave Overlays</title>
+<title>Waffle Overlays</title>
 <meta name="description" content="Tooltips, menus, popovers, toasts and dialogs.">
-<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="icon" href="/assets/brand/icons/paper.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="css/community.css">
 <link rel="stylesheet" href="css/server-settings.css">
 <link rel="stylesheet" href="css/flows.css">
-<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<script>try{const p=JSON.parse(localStorage.getItem("waffle-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 </head>
 <body>
 <header id="top"></header>
@@ -46,7 +46,7 @@
       <span class="tooltip" data-side="top">Mute<kbd class="kbd">=</kbd><kbd class="kbd">Backspace</kbd></span>
       <span class="tooltip" data-side="top">Search<kbd class="kbd">⌘</kbd><kbd class="kbd">F</kbd></span>
       <span class="tooltip" data-side="right">Pinned messages<small>3 pins in #clips. Pin a message from its menu.</small></span>
-      <span class="tooltip" data-side="bottom">Start video<small>Wave can't see a camera. Plug one in or allow access in System Settings.</small></span>
+      <span class="tooltip" data-side="bottom">Start video<small>Waffle can't see a camera. Plug one in or allow access in System Settings.</small></span>
     </div>
     <div>
       <h3 style="margin-top: 0">Live: hover or Tab across the bar</h3>
@@ -56,7 +56,7 @@
         <button class="iconbtn" aria-label="Pinned messages" data-tip="Pinned messages"><i class="ph ph-push-pin"></i></button>
         <button class="iconbtn" aria-label="Member list" data-tip="Hide member list" data-tip-keys="⌘ U"><i class="ph ph-users"></i></button>
         <button class="iconbtn" aria-label="Search" data-tip="Search" data-tip-keys="⌘ F"><i class="ph ph-magnifying-glass"></i></button>
-        <button class="iconbtn" aria-label="Start video" aria-disabled="true" style="opacity: 0.45; cursor: not-allowed" data-tip="Start video" data-tip-desc="Wave can't see a camera. Plug one in or allow access."><i class="ph ph-video-camera"></i></button>
+        <button class="iconbtn" aria-label="Start video" aria-disabled="true" style="opacity: 0.45; cursor: not-allowed" data-tip="Start video" data-tip-desc="Waffle can't see a camera. Plug one in or allow access."><i class="ph ph-video-camera"></i></button>
       </div>
     </div>
     <p class="note">Shows after 500ms of rest, then instantly while moving between items (warm for 300ms after the last one hides). Fades and scales from 0.95 toward the trigger over 150ms. Inverted ink, radius 8, max width 240, 12px semibold. Arrow sits on the side facing the trigger; 8px gap.</p>
@@ -296,7 +296,7 @@
   <h2>Banners</h2>
   <p class="lede">App-level notices span the top of the window above everything else. One at a time; the most urgent wins. A banner that needs you carries one action.</p>
   <div class="board stack" style="gap: var(--space-4)">
-    <div style="border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--line)"><div class="banner banner--update" role="status"><i class="ph-fill ph-arrow-circle-up"></i>Wave 0.5 is ready to install.<button class="btn btn--primary btn--sm">Restart now</button><button class="iconbtn x" aria-label="Remind me later"><i class="ph ph-x"></i></button></div></div>
+    <div style="border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--line)"><div class="banner banner--update" role="status"><i class="ph-fill ph-arrow-circle-up"></i>Waffle 0.5 is ready to install.<button class="btn btn--primary btn--sm">Restart now</button><button class="iconbtn x" aria-label="Remind me later"><i class="ph ph-x"></i></button></div></div>
     <div style="border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--line)"><div class="banner banner--lost" role="status"><span class="bars"><i></i><i></i><i></i></span>Connection lost. Reconnecting in 4s…<button class="btn btn--sm">Reconnect now</button></div></div>
     <div style="border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--line)"><div class="banner banner--offline" role="status"><i class="ph-bold ph-wifi-slash"></i>You're offline. Messages you write send when you're back.</div></div>
     <p class="note">36px, centred, 14px medium. Tone tints the rail colour at 14%; the icon carries the tone. Update: accent, dismissible. Reconnecting: neutral with the mini wave. Offline: warning, not dismissible while it lasts.</p>
@@ -465,14 +465,14 @@
     </div>
     <div class="dialog" role="dialog" aria-labelledby="dlg6">
       <div class="dhead"><h4 id="dlg6">Invite friends to Night Shift</h4><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
-      <div class="dstate" role="alert"><i class="ph-fill ph-cloud-x"></i><b>Couldn't load your friends</b><p>Wave lost the connection while loading. Your invites weren't sent.</p><button class="btn" data-loading="Loading…"><i class="ph-bold ph-arrow-clockwise"></i>Try again</button></div>
+      <div class="dstate" role="alert"><i class="ph-fill ph-cloud-x"></i><b>Couldn't load your friends</b><p>Waffle lost the connection while loading. Your invites weren't sent.</p><button class="btn" data-loading="Loading…"><i class="ph-bold ph-arrow-clockwise"></i>Try again</button></div>
     </div>
   </div>
   <h3>Full-screen image viewer</h3>
   <div class="board" style="padding: 0; overflow: hidden">
     <figure class="viewer" data-live="dlg-viewer" data-live-class="viewer-dlg">
       <div class="vbar"><div><b>riso.png</b><span>Mira · 184 KB · 1024 × 1024</span></div><a class="vlink" href="/assets/brand/icons/riso.png" target="_blank" rel="noopener"><i class="ph-bold ph-arrow-square-out"></i>Open original</a><button class="iconbtn" aria-label="Download"><i class="ph ph-download-simple"></i></button><button class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
-      <div class="vimg"><img src="/assets/brand/icons/riso.png" alt="The Wave logo printed in riso pink and teal" style="max-height: 320px"></div>
+      <div class="vimg"><img src="/assets/brand/icons/riso.png" alt="The Waffle logo printed in riso pink and teal" style="max-height: 320px"></div>
       <figcaption>new icon test print, the riso one is my favourite</figcaption>
     </figure>
   </div>
@@ -581,13 +581,13 @@
 
 <section id="permissions">
   <h2>Permission prompts</h2>
-  <p class="lede">macOS asks once per permission, in its own words. Wave speaks first, where the need comes up, so the system's dialog is never a surprise; if you say no, Wave names the exact setting and picks up the change without a restart.</p>
+  <p class="lede">macOS asks once per permission, in its own words. Waffle speaks first, where the need comes up, so the system's dialog is never a surprise; if you say no, Waffle names the exact setting and picks up the change without a restart.</p>
   <h3>Microphone: the first time you join voice</h3>
   <div class="board osflow">
     <div>
-      <span class="note">1. Wave asks first, beside Join voice</span>
+      <span class="note">1. Waffle asks first, beside Join voice</span>
       <div class="preprompt" role="dialog" aria-labelledby="pp-mic">
-        <h4 id="pp-mic"><span class="icontile"><i class="ph-fill ph-microphone"></i></span>Wave needs your microphone</h4>
+        <h4 id="pp-mic"><span class="icontile"><i class="ph-fill ph-microphone"></i></span>Waffle needs your microphone</h4>
         <p>So people in Lounge can hear you. macOS asks next. You can join and listen without it.</p>
         <div class="preprompt-acts"><button class="btn">Listen only</button><button class="btn btn--primary">Turn on microphone</button></div>
       </div>
@@ -595,11 +595,11 @@
     <div>
       <span class="note">2. macOS asks</span>
       <div class="osalert-frame">
-        <span class="osalert-label"><i class="ph-fill ph-apple-logo"></i>macOS system dialog, not Wave's</span>
+        <span class="osalert-label"><i class="ph-fill ph-apple-logo"></i>macOS system dialog, not Waffle's</span>
         <div class="osalert" role="alertdialog" aria-labelledby="os-mic" aria-describedby="os-mic-d">
-          <img src="/assets/brand/icons/glass.png" alt="">
-          <b id="os-mic">“Wave” would like to access the microphone.</b>
-          <p id="os-mic-d">Wave uses the microphone for voice calls and the mic test.</p>
+          <img src="/assets/brand/icons/paper.png" alt="">
+          <b id="os-mic">“Waffle” would like to access the microphone.</b>
+          <p id="os-mic-d">Waffle uses the microphone for voice calls and the mic test.</p>
           <div class="osalert-acts"><button class="osbtn">Don't Allow</button><button class="osbtn osbtn--default">Allow</button></div>
         </div>
       </div>
@@ -607,8 +607,8 @@
     <div>
       <span class="note">3. If you choose Don't Allow</span>
       <div class="preprompt" role="dialog" aria-labelledby="pp-mic-off">
-        <h4 id="pp-mic-off"><span class="icontile is-off"><i class="ph-fill ph-microphone-slash"></i></span>Microphone is off for Wave</h4>
-        <p>You're in Lounge and can hear everyone. To talk, turn Wave on here:</p>
+        <h4 id="pp-mic-off"><span class="icontile is-off"><i class="ph-fill ph-microphone-slash"></i></span>Microphone is off for Waffle</h4>
+        <p>You're in Lounge and can hear everyone. To talk, turn Waffle on here:</p>
         <div class="ospath"><span>System Settings</span><i class="ph-bold ph-caret-right"></i><span>Privacy &amp; Security</span><i class="ph-bold ph-caret-right"></i><b>Microphone</b></div>
         <div class="preprompt-acts"><button class="btn">Keep listening</button><button class="btn btn--primary">Open System Settings</button></div>
       </div>
@@ -617,20 +617,20 @@
   <h3>Screen recording: the first time you go live</h3>
   <div class="board osflow">
     <div>
-      <span class="note">1. Wave asks first, from Go live</span>
+      <span class="note">1. Waffle asks first, from Go live</span>
       <div class="preprompt" role="dialog" aria-labelledby="pp-rec">
-        <h4 id="pp-rec"><span class="icontile"><i class="ph-fill ph-screencast"></i></span>Wave needs to record your screen</h4>
-        <p>To go live in Lounge, macOS sends you to System Settings to allow it. Wave then restarts and puts you back in Lounge with the picker open.</p>
+        <h4 id="pp-rec"><span class="icontile"><i class="ph-fill ph-screencast"></i></span>Waffle needs to record your screen</h4>
+        <p>To go live in Lounge, macOS sends you to System Settings to allow it. Waffle then restarts and puts you back in Lounge with the picker open.</p>
         <div class="preprompt-acts"><button class="btn">Not now</button><button class="btn btn--primary">Set up screen recording</button></div>
       </div>
     </div>
     <div>
       <span class="note">2. macOS asks</span>
       <div class="osalert-frame">
-        <span class="osalert-label"><i class="ph-fill ph-apple-logo"></i>macOS system dialog, not Wave's</span>
+        <span class="osalert-label"><i class="ph-fill ph-apple-logo"></i>macOS system dialog, not Waffle's</span>
         <div class="osalert" role="alertdialog" aria-labelledby="os-rec" aria-describedby="os-rec-d">
-          <img src="/assets/brand/icons/glass.png" alt="">
-          <b id="os-rec">“Wave” would like to record this computer's screen and audio.</b>
+          <img src="/assets/brand/icons/paper.png" alt="">
+          <b id="os-rec">“Waffle” would like to record this computer's screen and audio.</b>
           <p id="os-rec-d">Grant access to this application in Privacy &amp; Security settings, located in System Settings.</p>
           <div class="osalert-acts osalert-acts--stack"><button class="osbtn osbtn--default">Open System Settings</button><button class="osbtn">Deny</button></div>
         </div>
@@ -639,29 +639,29 @@
     <div>
       <span class="note">3. Allowed in System Settings</span>
       <div class="preprompt" role="dialog" aria-labelledby="pp-rec-done">
-        <h4 id="pp-rec-done"><span class="icontile"><i class="ph-bold ph-arrow-clockwise"></i></span>Restart Wave to finish</h4>
-        <p>macOS turns screen recording on after a restart. Wave reopens in Lounge with the Go live picker open, and your call reconnects on its own.</p>
-        <div class="preprompt-acts"><button class="btn">Later</button><button class="btn btn--primary" data-loading="Restarting…">Restart Wave</button></div>
+        <h4 id="pp-rec-done"><span class="icontile"><i class="ph-bold ph-arrow-clockwise"></i></span>Restart Waffle to finish</h4>
+        <p>macOS turns screen recording on after a restart. Waffle reopens in Lounge with the Go live picker open, and your call reconnects on its own.</p>
+        <div class="preprompt-acts"><button class="btn">Later</button><button class="btn btn--primary" data-loading="Restarting…">Restart Waffle</button></div>
       </div>
     </div>
   </div>
-  <h3>Input monitoring: push to talk outside Wave</h3>
+  <h3>Input monitoring: push to talk outside Waffle</h3>
   <div class="board osflow">
     <div>
-      <span class="note">1. Wave asks first, in Keybinds</span>
+      <span class="note">1. Waffle asks first, in Keybinds</span>
       <div class="preprompt" role="dialog" aria-labelledby="pp-keys">
         <h4 id="pp-keys"><span class="icontile"><i class="ph-fill ph-keyboard"></i></span>Push to talk in every app</h4>
-        <p>Right now your push-to-talk key works only while Wave is in front. To hear it in games too, macOS has to let Wave watch the keyboard. Wave only acts on keys you bind.</p>
-        <div class="preprompt-acts"><button class="btn">Keep it in Wave</button><button class="btn btn--primary">Set up key monitoring</button></div>
+        <p>Right now your push-to-talk key works only while Waffle is in front. To hear it in games too, macOS has to let Waffle watch the keyboard. Waffle only acts on keys you bind.</p>
+        <div class="preprompt-acts"><button class="btn">Keep it in Waffle</button><button class="btn btn--primary">Set up key monitoring</button></div>
       </div>
     </div>
     <div>
       <span class="note">2. macOS asks</span>
       <div class="osalert-frame">
-        <span class="osalert-label"><i class="ph-fill ph-apple-logo"></i>macOS system dialog, not Wave's</span>
+        <span class="osalert-label"><i class="ph-fill ph-apple-logo"></i>macOS system dialog, not Waffle's</span>
         <div class="osalert" role="alertdialog" aria-labelledby="os-keys" aria-describedby="os-keys-d">
-          <img src="/assets/brand/icons/glass.png" alt="">
-          <b id="os-keys">“Wave” would like to receive keystrokes from any application.</b>
+          <img src="/assets/brand/icons/paper.png" alt="">
+          <b id="os-keys">“Waffle” would like to receive keystrokes from any application.</b>
           <p id="os-keys-d">Grant access to this application in Privacy &amp; Security settings, located in System Settings.</p>
           <div class="osalert-acts osalert-acts--stack"><button class="osbtn osbtn--default">Open System Settings</button><button class="osbtn">Deny</button></div>
         </div>
@@ -670,9 +670,9 @@
     <div>
       <span class="note">3. Waiting while you're in System Settings</span>
       <div class="preprompt" role="dialog" aria-labelledby="pp-keys-wait">
-        <h4 id="pp-keys-wait"><span class="icontile"><i class="ph-fill ph-keyboard"></i></span>Turn Wave on in System Settings</h4>
+        <h4 id="pp-keys-wait"><span class="icontile"><i class="ph-fill ph-keyboard"></i></span>Turn Waffle on in System Settings</h4>
         <div class="ospath"><span>System Settings</span><i class="ph-bold ph-caret-right"></i><span>Privacy &amp; Security</span><i class="ph-bold ph-caret-right"></i><b>Input Monitoring</b></div>
-        <p class="preprompt-wait" role="status"><span class="bars"><i></i><i></i><i></i></span>Push to talk switches over as soon as Wave is on. No restart.</p>
+        <p class="preprompt-wait" role="status"><span class="bars"><i></i><i></i><i></i></span>Push to talk switches over as soon as Waffle is on. No restart.</p>
         <div class="preprompt-acts"><button class="btn">Cancel</button><button class="btn">Open System Settings again</button></div>
       </div>
     </div>
@@ -686,32 +686,32 @@
     <p class="note">Join Lounge, then Turn on microphone. The system stand-in appears; either answer leads to its real outcome. Reload to start over.</p>
   </div>
   <div class="preprompt" popover id="os-pre" role="dialog" aria-labelledby="os-pre-h" style="--origin: top left; position-anchor: --os-join; top: anchor(bottom); left: anchor(left); margin-top: 6px; position-try-fallbacks: flip-block, flip-inline">
-    <h4 id="os-pre-h"><span class="icontile"><i class="ph-fill ph-microphone"></i></span><span data-os-title>Wave needs your microphone</span></h4>
+    <h4 id="os-pre-h"><span class="icontile"><i class="ph-fill ph-microphone"></i></span><span data-os-title>Waffle needs your microphone</span></h4>
     <p data-os-body>So people in Lounge can hear you. macOS asks next. You can join and listen without it.</p>
     <div class="ospath" data-os-path hidden><span>System Settings</span><i class="ph-bold ph-caret-right"></i><span>Privacy &amp; Security</span><i class="ph-bold ph-caret-right"></i><b>Microphone</b></div>
-    <p class="preprompt-wait" data-os-wait hidden><span class="bars"><i></i><i></i><i></i></span>Wave unmutes you as soon as it's on.</p>
+    <p class="preprompt-wait" data-os-wait hidden><span class="bars"><i></i><i></i><i></i></span>Waffle unmutes you as soon as it's on.</p>
     <div class="preprompt-acts"><button class="btn" data-os-listen>Listen only</button><button class="btn btn--primary" data-os-ask>Turn on microphone</button></div>
   </div>
   <dialog class="real" id="os-sys" aria-labelledby="os-sys-h">
     <div class="osalert-frame">
-      <span class="osalert-label" style="color: var(--text-strong)"><i class="ph-fill ph-apple-logo"></i>macOS system dialog, not Wave's</span>
+      <span class="osalert-label" style="color: var(--text-strong)"><i class="ph-fill ph-apple-logo"></i>macOS system dialog, not Waffle's</span>
       <div class="osalert">
-        <img src="/assets/brand/icons/glass.png" alt="">
-        <b id="os-sys-h">“Wave” would like to access the microphone.</b>
-        <p>Wave uses the microphone for voice calls and the mic test.</p>
+        <img src="/assets/brand/icons/paper.png" alt="">
+        <b id="os-sys-h">“Waffle” would like to access the microphone.</b>
+        <p>Waffle uses the microphone for voice calls and the mic test.</p>
         <div class="osalert-acts"><button class="osbtn" data-os-deny>Don't Allow</button><button class="osbtn osbtn--default" data-os-allow>Allow</button></div>
       </div>
     </div>
   </dialog>
-  <p class="note">Anatomy: the pre-prompt is Wave's popover (radius 14, overlay surface, icon tile beside the title, one primary). The stand-in uses the app icon, no accent, neutral buttons and a dashed frame with the "macOS system dialog" label, so nobody mistakes it for Wave's UI or ports it as a component; the real one is drawn by macOS. Wave shows a pre-prompt only before the first system ask: once you've answered, macOS won't ask again and Wave goes straight to the off state with the settings path. Not verified: the system's exact wording and button labels for screen recording and input monitoring differ between macOS versions; check them on the oldest macOS Wave supports.</p>
+  <p class="note">Anatomy: the pre-prompt is Waffle's popover (radius 14, overlay surface, icon tile beside the title, one primary). The stand-in uses the app icon, no accent, neutral buttons and a dashed frame with the "macOS system dialog" label, so nobody mistakes it for Waffle's UI or ports it as a component; the real one is drawn by macOS. Waffle shows a pre-prompt only before the first system ask: once you've answered, macOS won't ask again and Waffle goes straight to the off state with the settings path. Not verified: the system's exact wording and button labels for screen recording and input monitoring differ between macOS versions; check them on the oldest macOS Waffle supports.</p>
 </section>
 
 <section id="better-than-discord">
   <h2>Better than Discord</h2>
   <p class="lede">Where these overlays differ from Discord's on purpose. Discord's side is as observed in its desktop client, not read from its code.</p>
   <div class="btd">
-    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
-    <div><p>The macOS prompt appears the moment you join voice or go live, with no word from Discord first; after Don't Allow, voice shows a generic input error.</p><p><b><a href="#permissions">Permission prompts</a></b>A pre-prompt says what the permission is for and what happens next; a no names the exact System Settings pane and Wave picks up the change on its own.</p><p>A system dialog you didn't expect gets denied, and a denied permission is a dead end unless you know where macOS keeps it.</p></div>
+    <div><span>Discord does</span><span>Waffle does</span><span>Why</span></div>
+    <div><p>The macOS prompt appears the moment you join voice or go live, with no word from Discord first; after Don't Allow, voice shows a generic input error.</p><p><b><a href="#permissions">Permission prompts</a></b>A pre-prompt says what the permission is for and what happens next; a no names the exact System Settings pane and Waffle picks up the change on its own.</p><p>A system dialog you didn't expect gets denied, and a denied permission is a dead end unless you know where macOS keeps it.</p></div>
     <div><p>Places you can't post in are left out of the forward list, so a channel you expected just isn't there.</p><p><b><a href="#dialogs">Forward a message</a></b>They stay listed with a lock and the reason: read only, slowmode with the time left, DMs from friends only.</p><p>A missing row looks like a bug or a typo in your search; the reason tells you it's the channel.</p></div>
     <div><p>A private channel's access step lists roles and members by name only.</p><p><b><a href="#dialogs">Create channel</a></b>Each role shows its member count, rows that always see it stay listed and locked with why, and the footer counts the people who'll see it.</p><p>"Mod" could be 6 people or 600; privacy decisions need the number.</p></div>
   </div>
@@ -1037,14 +1037,14 @@ document.addEventListener("click", e => {
   if (pick.closest("[data-picklist=audience]")) syncAudience(pick.closest(".picklist"));
 });
 
-// Permission prompt, live: Wave's pre-prompt, then the system stand-in, then the real outcome of either answer.
+// Permission prompt, live: Waffle's pre-prompt, then the system stand-in, then the real outcome of either answer.
 const osPre = document.getElementById("os-pre"), osSys = document.getElementById("os-sys"), osState = document.getElementById("os-state");
 const osSet = (sel, prop, v) => { osPre.querySelector(sel)[prop] = v; };
 let osDenied = false;
 osPre.querySelector("[data-os-ask]").addEventListener("click", () => {
   if (osDenied) {
     osSet("[data-os-wait]", "hidden", false);
-    setTimeout(() => { osPre.hidePopover(); osState.textContent = "In Lounge with your mic on. Wave noticed the change; no restart."; }, 2400);
+    setTimeout(() => { osPre.hidePopover(); osState.textContent = "In Lounge with your mic on. Waffle noticed the change; no restart."; }, 2400);
     return;
   }
   osPre.hidePopover();
@@ -1063,8 +1063,8 @@ osSys.querySelector("[data-os-deny]").addEventListener("click", () => {
   osSys.close();
   osDenied = true;
   osState.textContent = "In Lounge, listening only. macOS won't ask again.";
-  osSet("[data-os-title]", "textContent", "Microphone is off for Wave");
-  osSet("[data-os-body]", "textContent", "You're in Lounge and can hear everyone. To talk, turn Wave on here:");
+  osSet("[data-os-title]", "textContent", "Microphone is off for Waffle");
+  osSet("[data-os-body]", "textContent", "You're in Lounge and can hear everyone. To talk, turn Waffle on here:");
   osSet("[data-os-path]", "hidden", false);
   osSet("[data-os-listen]", "textContent", "Keep listening");
   osSet("[data-os-ask]", "textContent", "Open System Settings");

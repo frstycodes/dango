@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wave Navigation</title>
+<title>Waffle Navigation</title>
 <meta name="description" content="Server rail, channel sidebar, direct messages and member list.">
-<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="icon" href="/assets/brand/icons/paper.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="css/community.css">
 <link rel="stylesheet" href="css/server-settings.css">
 <link rel="stylesheet" href="css/flows.css">
-<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<script>try{const p=JSON.parse(localStorage.getItem("waffle-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 </head>
 <body>
 <header id="top"></header>
@@ -58,7 +58,7 @@
 <!-- Title bar -->
 <section id="title-bar">
   <h2>Title bar</h2>
-  <p class="lede">The window's own chrome, drawn by Wave on every platform. History arrows lead, the current place sits centred, inbox and help close the bar. The whole bar drags the window.</p>
+  <p class="lede">The window's own chrome, drawn by Waffle on every platform. History arrows lead, the current place sits centred, inbox and help close the bar. The whole bar drags the window.</p>
   <h3>macOS</h3>
   <div class="nd-frame"><div class="titlebar">
     <div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -74,7 +74,7 @@
 
   <h3>Windows</h3>
   <div class="nd-frame"><div class="titlebar">
-    <span class="tb-brand"><svg width="18" height="18" viewBox="0 0 64 66" aria-hidden="true"><g fill="#e8326f"><rect x="2" y="21" width="8" height="24" rx="4"/><rect x="15" y="10.5" width="8" height="45" rx="4"/><rect x="28" y="1" width="8" height="64" rx="4"/><rect x="41" y="13.5" width="8" height="39" rx="4"/><rect x="54" y="22" width="8" height="22" rx="4"/></g></svg><span>Wave</span></span>
+    <span class="tb-brand"><svg width="18" height="18" viewBox="0 0 64 66" aria-hidden="true"><g fill="#e8326f"><rect x="2" y="21" width="8" height="24" rx="4"/><rect x="15" y="10.5" width="8" height="45" rx="4"/><rect x="28" y="1" width="8" height="64" rx="4"/><rect x="41" y="13.5" width="8" height="39" rx="4"/><rect x="54" y="22" width="8" height="22" rx="4"/></g></svg><span>Waffle</span></span>
     <button class="iconbtn" aria-label="Back" title="Back"><i class="ph ph-arrow-left"></i></button>
     <button class="iconbtn" aria-label="Forward" title="Forward"><i class="ph ph-arrow-right"></i></button>
     <div class="tb-title"><span class="srv-mini a2"></span><span>Pixel Club</span></div>
@@ -530,7 +530,7 @@
         <span class="role" style="--role: #71368a"><span class="role-ink">Old guard</span></span>
         <span class="role" style="--role: #e91e63"><span class="role-ink">Mod</span></span>
       </div>
-      <p class="note">The dot is the colour the server picked; the label is what Wave draws. Same hue, lightness clamped per theme: 0.72 to 0.92 in dark, 0.30 to 0.45 in light, chroma capped at 0.16. Every pick clears 4.5:1 on sidebar, page, popover and the selected fill in both themes.</p>
+      <p class="note">The dot is the colour the server picked; the label is what Waffle draws. Same hue, lightness clamped per theme: 0.72 to 0.92 in dark, 0.30 to 0.45 in light, chroma capped at 0.16. Every pick clears 4.5:1 on sidebar, page, popover and the selected fill in both themes.</p>
       <p class="note">CSS: <code>oklch(from var(--role) clamp(lo, l, hi) min(c, 0.16) h)</code>. The port does the same in OKLCH, then gamut-maps by lowering chroma.</p>
     </div>
   </div>
@@ -652,9 +652,9 @@
 <!-- Better than Discord -->
 <section id="better-than-discord">
   <h2>Better than Discord</h2>
-  <p class="lede">Where Wave's navigation parts ways with Discord's, and why.</p>
+  <p class="lede">Where Waffle's navigation parts ways with Discord's, and why.</p>
   <div class="btd">
-    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
+    <div><span>Discord does</span><span>Waffle does</span><span>Why</span></div>
     <div><p>Add Friend is its own tab that replaces your friends list.</p><p><b><a href="#friends">A field above the list</a></b>The header button opens it in place; a sent request shows under Pending right below.</p><p>You see the result land instead of switching tabs to check.</p></div>
     <div><p>Most failures share one line: it didn't work, double-check the username.</p><p><b><a href="#friends">Each outcome says what happened</a></b>Not found, already friends, you blocked them, rate limited, that's you, each with its next step. A block against you stays word for word the "not taking requests" line.</p><p>Errors say how to fix them; privacy still holds.</p></div>
     <div><p>A pasted <code>@name</code> or old <code>name#1234</code> fails as not found.</p><p><b><a href="#friends">Tidy on paste</a></b>Strips the @, spaces, capitals and the old tag, says what it removed, with Undo.</p><p>The common copy-paste mistake fixes itself, visibly.</p></div>

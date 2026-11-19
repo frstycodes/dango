@@ -6,7 +6,7 @@ use reqwest::Method;
 use serde_json::{Value, json};
 
 use crate::{
-    Rustcord,
+    Waffle,
     discord::{Channel, ChannelKind, GuildSettings, parse_guild_settings, perm},
     icons::Glyph,
     menu::{Entry, HeadLead, header, item, submenu},
@@ -21,7 +21,7 @@ const TEXT: u64 = 0;
 const VOICE: u64 = 2;
 const CATEGORY: u64 = 4;
 
-impl Rustcord {
+impl Waffle {
     // Our settings for a server, with "use the server's default" resolved to that default, as
     // Discord shows it when we've never changed anything there.
     pub(crate) fn settings_for(&self, guild_key: &str) -> GuildSettings {
@@ -184,7 +184,7 @@ impl Rustcord {
     }
 
     // Mute and its six lengths, or Unmute with when it ends: the same shape for channels and servers.
-    fn mute_entry(&self, label: &str, unmute: &str, muted: bool, end: Option<&str>, apply: impl Fn(&mut Rustcord, Value, &mut Context<Rustcord>) + Clone + 'static) -> Entry {
+    fn mute_entry(&self, label: &str, unmute: &str, muted: bool, end: Option<&str>, apply: impl Fn(&mut Waffle, Value, &mut Context<Waffle>) + Clone + 'static) -> Entry {
         if muted {
             let hint = end.and_then(|e| chrono::DateTime::parse_from_rfc3339(e).ok()).map(|e| format!("Muted until {}", until(e.with_timezone(&chrono::Local), chrono::Local::now())));
             let apply = apply.clone();
@@ -211,7 +211,7 @@ impl Rustcord {
         submenu(label.to_owned(), lengths).icon(Glyph::BellSlash).entry()
     }
 
-    fn notification_radios(&self, current: u8, inherited: Option<(&'static str, u8)>, apply: impl Fn(&mut Rustcord, u8, &mut Context<Rustcord>) + Clone + 'static) -> Vec<Entry> {
+    fn notification_radios(&self, current: u8, inherited: Option<(&'static str, u8)>, apply: impl Fn(&mut Waffle, u8, &mut Context<Waffle>) + Clone + 'static) -> Vec<Entry> {
         let mut options: Vec<(&'static str, Option<&'static str>, u8)> = Vec::new();
         if let Some((label, value)) = inherited {
             options.push((label, Some(notification_label(value)), 3));
@@ -691,7 +691,7 @@ impl Rustcord {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     // Discord's thread menu (navId "thread-context"): read state, join, close, lock, mute and
     // notifications for the thread, delete, leave, and its ID.
     pub(crate) fn open_thread_menu(&mut self, thread: Channel, guild_id: String, at: Point<Pixels>, cx: &mut Context<Self>) {
@@ -872,7 +872,7 @@ fn merge_settings(settings: &mut GuildSettings, body: &Value) {
     }
 }
 
-fn set_joined(this: &mut Rustcord, thread_id: &str, joined: bool) {
+fn set_joined(this: &mut Waffle, thread_id: &str, joined: bool) {
     for meta in this.guilds.iter_mut().flat_map(|g| g.threads.iter_mut()).filter(|t| t.id == thread_id).filter_map(|t| t.thread.as_mut()) {
         meta.joined = joined;
     }

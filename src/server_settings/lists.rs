@@ -21,7 +21,7 @@ use super::{
     view::{Select, failed, link_out, loading_line, mime_of, plural, sentence_spans, snowflake_time},
 };
 use crate::{
-    Rustcord,
+    Waffle,
     channel_settings::{Load, expires_label},
     discord::{ChannelKind, avatar_url, perm},
     icons::Glyph,
@@ -117,7 +117,7 @@ pub struct Lists {
 }
 
 impl Lists {
-    pub fn new(window: &mut Window, cx: &mut Context<Rustcord>) -> Self {
+    pub fn new(window: &mut Window, cx: &mut Context<Waffle>) -> Self {
         let mut input = |placeholder: &'static str| {
             let state = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder));
             cx.subscribe(&state, |_, _, _: &InputEvent, cx| cx.notify()).detach();
@@ -243,7 +243,7 @@ pub fn custom_words(text: &str) -> Vec<String> {
 
 const PRUNE_DAYS: [u8; 4] = [1, 7, 14, 30];
 
-impl Rustcord {
+impl Waffle {
     fn lists(&mut self) -> Option<&mut Lists> {
         self.server_settings.as_mut().map(|v| &mut v.lists)
     }
@@ -735,7 +735,7 @@ impl Rustcord {
         // Low stakes and reversible: flips at once, flips back if Discord refuses.
         ui::settings_choice(row, cx)
             .on_click(cx.listener(move |this, _, _, cx| {
-                let flip = |this: &mut Rustcord, on: bool| {
+                let flip = |this: &mut Waffle, on: bool| {
                     if let Some(Load::Ready(rules)) = this.lists().map(|l| &mut l.rules)
                         && let Some(r) = rules.iter_mut().find(|r| r.id == id) {
                             r.enabled = on;
@@ -943,7 +943,7 @@ impl Rustcord {
                 .child(ui::settings_row("ss-onboarding-prompts", true, cx).child(ui::settings_text("Questions", Some(plural(prompts, "question", "questions")), cx)))
                 .child(ui::settings_row("ss-onboarding-defaults", true, cx).child(ui::settings_text("Default channels", Some(plural(defaults, "channel", "channels")), cx)))
                 .into_any_element(),
-            link_out("onboarding-edit", "Edit questions and channels on Discord", "Onboarding's question builder isn't in Dango yet.", "https://discord.com/app", cx),
+            link_out("onboarding-edit", "Edit questions and channels on Discord", "Onboarding's question builder isn't in Waffle yet.", "https://discord.com/app", cx),
         ]
     }
 

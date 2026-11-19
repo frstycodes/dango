@@ -1,4 +1,4 @@
-// Discord sometimes answers a sign-in with "captcha-required" instead of a token. Dango has no web
+// Discord sometimes answers a sign-in with "captcha-required" instead of a token. Waffle has no web
 // view, so the challenge is shown in the user's own browser: a one-shot server on 127.0.0.1 serves a
 // page with the hCaptcha widget, and the page posts the solved key back. The user solves it; nothing
 // here tries to answer it.
@@ -137,11 +137,11 @@ const PAGE: &str = r#"<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dango sign-in</title>
+<title>Waffle sign-in</title>
 <style>
-  /* Dango's look, from design/auth.html (.au-bpage, .au-ccard): the page on the sidebar tone, the card
+  /* Waffle's look, from design/auth.html (.au-bpage, .au-ccard): the page on the sidebar tone, the card
      raised, Graphite neutrals following the system theme. Values mirror src/palette.rs. */
-  :root { color-scheme: light dark; --page: #eceef0; --card: #fdfdfe; --line: rgb(43 46 50 / .10); --line-strong: rgb(43 46 50 / .18); --strong: #14161a; --muted: #55585e; --faint: #5d6166; --logo: #e25b26; --ok: #00723b; --bad: #b0182f; }
+  :root { color-scheme: light dark; --page: #eceef0; --card: #fdfdfe; --line: rgb(43 46 50 / .10); --line-strong: rgb(43 46 50 / .18); --strong: #14161a; --muted: #55585e; --faint: #5d6166; --logo: #e09a22; --ok: #00723b; --bad: #b0182f; }
   @media (prefers-color-scheme: dark) { :root { --page: #111213; --card: #202224; --line: rgb(255 255 255 / .08); --line-strong: rgb(255 255 255 / .14); --strong: #f3f5f8; --muted: #a0a5ac; --faint: #8b8f97; --ok: #59d38c; --bad: #ff8068; } }
   * { box-sizing: border-box; corner-shape: superellipse(1.4); }
   .mascot i, .bars i { corner-shape: round; }
@@ -173,7 +173,7 @@ const PAGE: &str = r#"<!doctype html>
 <main id="card">
   <div class="mascot" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
   <h1 id="title">One more step</h1>
-  <p id="why">Discord wants a quick check before signing Dango in.</p>
+  <p id="why">Discord wants a quick check before signing Waffle in.</p>
   <div id="box"><div class="slot"><svg width="22" height="22" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.26,47,25.53a8,8,0,0,0,4.2,0c1-.27,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0ZM82.34,141.66a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32l-56,56a8,8,0,0,1-11.32,0Z"/></svg><span>The check loads here</span></div></div>
   <div id="status" role="status"></div>
 </main>
@@ -184,17 +184,17 @@ const PAGE: &str = r#"<!doctype html>
   const BARS = '<span class="bars" aria-hidden="true"><i></i><i></i><i></i></span>';
   function say(text, kind, busy) { status.innerHTML = busy ? BARS : ''; status.append(text); status.className = kind || ''; }
   async function solved(key) {
-    say('Sending to Dango…', '', true);
+    say('Sending to Waffle…', '', true);
     try {
       const res = await fetch(location.pathname + '/done', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: key });
       if (!res.ok) throw new Error(res.status);
       document.getElementById('card').classList.add('done');
       document.getElementById('title').textContent = 'You’re all set';
-      document.getElementById('why').textContent = 'Dango is finishing your sign-in.';
-      // GAP: the design's "Return to Dango" button needs a URL scheme the app doesn't register yet.
+      document.getElementById('why').textContent = 'Waffle is finishing your sign-in.';
+      // GAP: the design's "Return to Waffle" button needs a URL scheme the app doesn't register yet.
       say('Done. You can close this tab.', 'ok');
     } catch (e) {
-      say('Couldn’t reach Dango. Make sure it’s still open, then solve the check again.', 'bad');
+      say('Couldn’t reach Waffle. Make sure it’s still open, then solve the check again.', 'bad');
     }
   }
   function ready() {

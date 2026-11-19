@@ -3,7 +3,7 @@
 // streaming). Voice, watching a Go Live and the stream ops 19/20 were checked against Discord
 // live; going live (main ops 18/22, voice op 12, soundshare speaking flag) and sending a camera
 // are from memory of what official clients send — Not verified.
-// `RUSTCORD_VOICE_DEBUG=1` logs gateway traffic and undecodable packets to stderr.
+// `WAFFLE_VOICE_DEBUG=1` logs gateway traffic and undecodable packets to stderr.
 
 mod attenuation;
 mod audio;
@@ -218,7 +218,7 @@ impl Role {
 }
 
 // What a Go Live shares. Audio follows the source, as in Discord: the whole screen sends all
-// system audio except Rustcord's own; an app or window sends only that app's sound.
+// system audio except Waffle's own; an app or window sends only that app's sound.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShareSource {
     // One display, by `ShareableScreen::id`.
@@ -498,7 +498,7 @@ pub fn join(
     });
     if ATTENUATION_SUPPORTED {
         let weak = Arc::downgrade(&shared);
-        let _ = thread::Builder::new().name("rustcord-attenuation".into()).spawn(move || duck_other_apps(&weak));
+        let _ = thread::Builder::new().name("waffle-attenuation".into()).spawn(move || duck_other_apps(&weak));
     }
     let (leave_tx, leave_rx) = oneshot::channel();
     crate::discord::runtime().spawn(run(shared.clone(), leave_rx));
@@ -713,7 +713,7 @@ pub fn mic_test(device: Option<String>, settings: &VoiceSettings) -> Result<(Mic
     let stop = Arc::new(AtomicBool::new(false));
     let flag = stop.clone();
     thread::Builder::new()
-        .name("rustcord-mic-test".into())
+        .name("waffle-mic-test".into())
         .spawn(move || media::mic_test_loop(&audio, &mixer, &pcm, input_mode, &levels_tx, &flag))
         .map_err(|e| e.to_string())?;
     Ok((MicTest { stop, _engine: engine }, levels))
@@ -1184,10 +1184,10 @@ fn close_reason(close: Option<&tungstenite::protocol::CloseFrame>) -> String {
     close.map_or_else(|| "Voice gateway closed".to_owned(), |c| format!("Voice gateway closed: {} {}", u16::from(c.code), c.reason))
 }
 
-// RUSTCORD_VOICE_DEBUG=1 logs voice-gateway traffic and unroutable UDP packets to stderr.
+// WAFFLE_VOICE_DEBUG=1 logs voice-gateway traffic and unroutable UDP packets to stderr.
 pub(crate) fn debug() -> bool {
     static DEBUG: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *DEBUG.get_or_init(|| std::env::var_os("RUSTCORD_VOICE_DEBUG").is_some())
+    *DEBUG.get_or_init(|| std::env::var_os("WAFFLE_VOICE_DEBUG").is_some())
 }
 
 struct Ssrcs {

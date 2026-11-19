@@ -1,10 +1,10 @@
-# Rustcord ↔ Discord parity
+# Waffle ↔ Discord parity
 
 Reference: the user's Discord desktop client (Midnight theme), captured 2026-11-14.
 Order: features first (most used at the top), then polish. `[x]` done, `[~]` partial, `[ ]` open.
 
 Missing features, with how Discord's UX works for each: [docs/discord-parity-gaps.md](docs/discord-parity-gaps.md).
-User complaints about Discord and how Dango answers them: [docs/better.md](docs/better.md).
+User complaints about Discord and how Waffle answers them: [docs/better.md](docs/better.md).
 
 ## Features
 

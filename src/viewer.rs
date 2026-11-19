@@ -9,7 +9,7 @@ use gpui_kit::{
 };
 
 use crate::{
-    Rustcord,
+    Waffle,
     discord::{self, Media, MediaKind},
     icons::Glyph,
     layout::TITLE_HEIGHT,
@@ -39,7 +39,7 @@ pub(crate) struct Viewer {
     loaded: Cell<Range<usize>>,
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn open_viewer(&mut self, url: &str, window: &mut Window, cx: &mut Context<Self>) {
         let Some(feed) = self.channel.as_ref().and_then(|c| self.feeds.get(&c.id)) else { return };
         let items: Vec<Media> = feed.messages.iter().flat_map(|m| m.media.iter().cloned()).collect();

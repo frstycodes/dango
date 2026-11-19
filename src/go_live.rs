@@ -11,7 +11,7 @@ use gpui_kit::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Rustcord,
+    Waffle,
     icons::Glyph,
     palette,
     ui::{self, Squircle},
@@ -87,7 +87,7 @@ pub fn keybind_move(in_call: bool, live: bool, remembered: bool) -> KeybindMove 
     }
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn toggle_share_keybind(&mut self, cx: &mut Context<Self>) {
         let in_call = self.call.as_ref().is_some_and(|c| c.connected);
         let live = self.call.as_ref().is_some_and(|c| c.sharing.is_some());
@@ -172,7 +172,7 @@ impl SharePicker {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     // Opens the picker, lists what can be shared, preselects the last source (or Screen 1), then fills
     // in icons and thumbnails off the UI thread, the preselected source's first.
     pub(crate) fn open_share_picker(&mut self, cx: &mut Context<Self>) {
@@ -434,7 +434,7 @@ impl Rustcord {
     // The sound switch, saying whose sound viewers get.
     fn share_audio(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let what = match (self.share_choice, &self.share_choice_label) {
-            (Some(ShareSource::Screen(_)) | None, _) => "Viewers hear everything except Dango".to_owned(),
+            (Some(ShareSource::Screen(_)) | None, _) => "Viewers hear everything except Waffle".to_owned(),
             (Some(_), Some(label)) => format!("Viewers hear {label}, not your other apps"),
             (Some(_), None) => "Viewers hear this app, not your other apps".to_owned(),
         };

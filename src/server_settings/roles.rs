@@ -19,7 +19,7 @@ use super::{
     view::{failed, loading_line, plural},
 };
 use crate::{
-    Rustcord,
+    Waffle,
     channel_settings::Load,
     discord::perm,
     icons::Glyph,
@@ -78,7 +78,7 @@ pub struct RolesView {
 }
 
 impl RolesView {
-    pub fn new(window: &mut Window, cx: &mut Context<Rustcord>) -> Self {
+    pub fn new(window: &mut Window, cx: &mut Context<Waffle>) -> Self {
         let mut input = |placeholder: &'static str| {
             let state = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder));
             cx.subscribe(&state, |_, _, _: &InputEvent, cx| cx.notify()).detach();
@@ -88,7 +88,7 @@ impl RolesView {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn load_roles(&mut self, cx: &mut Context<Self>) {
         let Some(guild_id) = self.server_settings.as_ref().map(|v| v.guild_id.clone()) else { return };
         self.server_call(api::roles(&guild_id), |this, result, _| {

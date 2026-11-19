@@ -94,7 +94,7 @@
 .au-err, .au-login > .au-err { display: flex; align-items: flex-start; gap: 6px; color: var(--danger-ink); font-size: var(--text-sm); font-weight: var(--weight-medium); text-align: left; max-width: 34ch; }
 .au-err i { font-size: 16px; flex: none; margin-top: 2px; }
 
-/* Browser frame: Wave's captcha page as it opens in the system browser */
+/* Browser frame: Waffle's captcha page as it opens in the system browser */
 .au-browser { display: flex; flex-direction: column; min-width: 0; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--line-strong); background: var(--bg-page); }
 .au-bbar { display: flex; align-items: center; gap: var(--space-3); height: 44px; padding: 0 var(--space-3); background: var(--bg-rail); }
 .au-bbar .tb-lights { width: auto; }

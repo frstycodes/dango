@@ -2,11 +2,11 @@
 
 Pages and fields read from Discord web's server settings on 2026-11-18 (an owned server, settings layer only, nothing changed). Endpoints from discord-api-docs (`developers/resources/*`, read the same day); rows marked *user client* use routes Discord's own app calls that the docs don't list (not verified live).
 
-Status: **Built** = in the app's server settings window (`src/server_settings/`), against the endpoint shown; **Link-out** = the page opens Discord, because a user account can't do it through the public API; **Not built** = left out, with the reason. `CHORD_DEMO=server-settings…` scenes show each page with made-up data.
+Status: **Built** = in the app's server settings window (`src/server_settings/`), against the endpoint shown; **Link-out** = the page opens Discord, because a user account can't do it through the public API; **Not built** = left out, with the reason. `WAFFLE_DEMO=server-settings…` scenes show each page with made-up data.
 
 Gating (`src/server_settings/access.rs`): a page shows when the member holds any of its permissions; owner and Administrator see everything. Roles at or above your highest role, and permissions you don't hold, are locked as in Discord.
 
-| Discord page | Field / action | Endpoint | Needs | Dango |
+| Discord page | Field / action | Endpoint | Needs | Waffle |
 |---|---|---|---|---|
 | **Server profile** | Name, icon, banner (BANNER), description | `PATCH /guilds/{id}` `name icon banner description` | Manage Server | Built |
 | | Traits (up to 5), games, private profile | *user client* profile fields | Manage Server | Not built: undocumented shape |

@@ -1,4 +1,4 @@
-// Dango's frame (design/navigation.html): the rail, channel list, chat and side panel run to the window's
+// Waffle's frame (design/navigation.html): the rail, channel list, chat and side panel run to the window's
 // top, each column's own header doubling as the title bar; the user area sits at the foot of the channel list.
 use gpui_kit::{
     Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent, NavigationDirection,
@@ -8,7 +8,7 @@ use gpui_kit::{
 };
 
 use crate::{
-    Rustcord, Drag, Edge, Status,
+    Waffle, Drag, Edge, Status,
     discord,
     icons::Glyph,
     login, palette,
@@ -31,7 +31,7 @@ const UPDATE_HEIGHT: f32 = 42.;
 const CHANNELS_RANGE: (f32, f32) = (200., 440.);
 const PANEL_RANGE: (f32, f32) = (200., 380.);
 
-impl Render for Rustcord {
+impl Render for Waffle {
     // Everything draws through the app's image cache, which frees images that are no longer drawn.
     // The shell (shell.rs) caches this view's drawing, so this runs only when the app changed; GIFs
     // placed while it runs are played by the GIF layer beside it.
@@ -43,13 +43,13 @@ impl Render for Rustcord {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     fn render_root(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         // Before the rows draw, so a row just let go of draws as landing rather than as a hole.
         self.settle_carry(cx);
         let theme = cx.theme().clone();
         let root = div()
-            .id("chord")
+            .id("waffle")
             .track_focus(&self.focus)
             .size_full()
             .flex()
@@ -145,7 +145,7 @@ impl Rustcord {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     fn on_root_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         let keystroke = &event.keystroke;
         if self.record_keystroke(keystroke, cx) {
@@ -384,7 +384,7 @@ impl Rustcord {
         let restart = ui::button("restart-to-update", ui::Tone::Primary, cx)
             .small()
             .child("Restart")
-            .tooltip(|window, cx| ui::tip("Installs the update and reopens Dango", window, cx))
+            .tooltip(|window, cx| ui::tip("Installs the update and reopens Waffle", window, cx))
             .on_click(cx.listener(|this, _, _, cx| this.request_restart(this.updates.staged().cloned(), cx)));
         let row = div()
             .h(px(UPDATE_HEIGHT))
@@ -397,7 +397,7 @@ impl Rustcord {
             .border_b_1()
             .border_color(palette::line(cx))
             .child(Icon::new(Glyph::Download).size(px(16.)).flex_none().text_color(palette::accent_ink(cx)))
-            .child(div().flex_1().min_w_0().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(format!("Dango {} is ready", staged.version)))
+            .child(div().flex_1().min_w_0().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(format!("Waffle {} is ready", staged.version)))
             .child(restart);
         Some(row.into_any_element())
     }

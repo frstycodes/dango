@@ -170,13 +170,13 @@ impl Media {
                 let (width, height) = go_live_size(options.resolution);
                 let bitrate = video_bitrate(width, height, options.fps);
                 let (l, s, fps) = (link.clone(), stop.clone(), options.fps);
-                spawn("rustcord-golive-send", move || video_send_loop(&l, frames, fps, bitrate, &s))?;
+                spawn("waffle-golive-send", move || video_send_loop(&l, frames, fps, bitrate, &s))?;
                 if let Some(sound) = sound {
                     let (l, s) = (link.clone(), stop.clone());
-                    spawn("rustcord-golive-audio", move || stream_audio_loop(&l, sound, &s))?;
+                    spawn("waffle-golive-audio", move || stream_audio_loop(&l, sound, &s))?;
                 }
                 let (l, s) = (link.clone(), stop.clone());
-                spawn("rustcord-golive-rtcp", move || rtcp_loop(&l, &rx_socket, &s))?;
+                spawn("waffle-golive-rtcp", move || rtcp_loop(&l, &rx_socket, &s))?;
                 capture
             }
             Role::Voice => {
@@ -187,18 +187,18 @@ impl Media {
                 }
                 let (engine, pcm) = super::audio::start(shared.audio.clone(), shared.mixer.clone(), true)?;
                 let (l, s) = (link.clone(), stop.clone());
-                spawn("rustcord-voice-send", move || send_loop(&l, pcm, &s))?;
+                spawn("waffle-voice-send", move || send_loop(&l, pcm, &s))?;
                 let (l, s) = (link.clone(), stop.clone());
-                spawn("rustcord-camera-control", move || camera_loop(&l, &s))?;
+                spawn("waffle-camera-control", move || camera_loop(&l, &s))?;
                 let (l, s, u) = (link.clone(), stop.clone(), users.clone());
-                spawn("rustcord-voice-recv", move || recv_loop(&l, &rx_socket, &s, &u))?;
+                spawn("waffle-voice-recv", move || recv_loop(&l, &rx_socket, &s, &u))?;
                 Box::new(engine)
             }
             // Plays through the voice connection's mixer and speakers, so echo cancellation
             // sees everything that is played.
             Role::Watch => {
                 let (l, s, u) = (link.clone(), stop.clone(), users.clone());
-                spawn("rustcord-watch-recv", move || recv_loop(&l, &rx_socket, &s, &u))?;
+                spawn("waffle-watch-recv", move || recv_loop(&l, &rx_socket, &s, &u))?;
                 Box::new(())
             }
         };
@@ -420,7 +420,7 @@ fn start_camera(link: &Arc<Link>, id: &str) -> Result<CameraCapture, String> {
     let l = link.clone();
     let bitrate = video_bitrate(CAMERA_SIZE.0, CAMERA_SIZE.1, CAMERA_FPS);
     // The loop ends when the capture is dropped (its frame sender goes with it).
-    spawn("rustcord-camera-send", move || video_send_loop(&l, frames, CAMERA_FPS, bitrate, &AtomicBool::new(false)))?;
+    spawn("waffle-camera-send", move || video_send_loop(&l, frames, CAMERA_FPS, bitrate, &AtomicBool::new(false)))?;
     Ok(capture)
 }
 

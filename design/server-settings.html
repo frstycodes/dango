@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wave Server Settings</title>
+<title>Waffle Server Settings</title>
 <meta name="description" content="Everything a server owner or moderator configures.">
-<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="icon" href="/assets/brand/icons/paper.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
@@ -25,7 +25,7 @@
 <link rel="stylesheet" href="css/profile.css">
 <link rel="stylesheet" href="css/community.css">
 <link rel="stylesheet" href="css/server-settings.css">
-<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<script>try{const p=JSON.parse(localStorage.getItem("waffle-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 </head>
 <body>
 <header id="top"></header>
@@ -216,7 +216,7 @@
               <div class="ss-cprev ss-cprev--light"><span class="av" data-av="Mira" style="--size: 32px"></span><b><span>Mira</span><small>Light</small></b><p>brackets are up for saturday</p></div>
             </div>
           </div>
-          <p class="set-cap" data-contrast>Names keep the hue you pick; Wave deepens or lightens them per theme until they read at 4.5:1.</p>
+          <p class="set-cap" data-contrast>Names keep the hue you pick; Waffle deepens or lightens them per theme until they read at 4.5:1.</p>
         </div>
         <div class="set-group">
           <h5>Role icon</h5>
@@ -334,7 +334,7 @@
 
 <section id="view-as">
   <h2>View server as role</h2>
-  <p class="lede">Check a role by looking through its eyes. The whole window carries a warning-tone banner while you do, and Wave lists what the role can't see and which rule hides it, instead of silently dropping channels.</p>
+  <p class="lede">Check a role by looking through its eyes. The whole window carries a warning-tone banner while you do, and Waffle lists what the role can't see and which rule hides it, instead of silently dropping channels.</p>
   <div class="board set-sheet">
     <div class="ss-page">
       <div class="ss-viewas">
@@ -418,7 +418,7 @@
               <ol class="ss-steps"><li class="is-decides"><span>Server roles</span><span>Member, Streamers and Muted don't allow it</span><em>Decides</em></li><li class="is-skip"><span>Clips category</span><span>No change</span><em></em></li><li class="is-skip"><span>#clips</span><span>No change</span><em></em></li></ol></details>
           </div>
         </div>
-        <p class="set-cap">Order Wave checks, top to bottom: server roles, then @everyone on the channel, then roles on the channel, then the member. The last rule that says something decides. Owners and Administrator skip all of it.</p>
+        <p class="set-cap">Order Waffle checks, top to bottom: server roles, then @everyone on the channel, then roles on the channel, then the member. The last rule that says something decides. Owners and Administrator skip all of it.</p>
       </div>
     </div>
   </div>
@@ -717,7 +717,7 @@
           <div class="set-row"><span class="icontile"><i class="ph ph-at"></i></span><div class="t"><b>Mention spam</b><span>More than 5 mentions in a message · Times out for 10 minutes</span></div><div class="ctl"><button class="btn btn--sm" data-goto="automod-edit">Edit</button><button class="switch" role="switch" aria-checked="true" aria-label="Mention spam"></button></div></div>
           <div class="set-row"><span class="icontile"><i class="ph ph-copy"></i></span><div class="t"><b>Spam content</b><span>Repeated links and copy-paste floods</span></div><div class="ctl"><button class="btn btn--sm" data-goto="automod-edit">Edit</button><button class="switch" role="switch" aria-checked="true" aria-label="Spam content"></button></div></div>
           <div class="set-row"><span class="icontile"><i class="ph ph-link-break"></i></span><div class="t"><b>Scam links</b><span>Blocks 41 domains</span><span class="restart"><i class="ph-fill ph-warning"></i>Its alert channel #mod-alerts was deleted. Pick a new one.</span></div><div class="ctl"><button class="btn btn--sm" data-goto="automod-edit">Pick channel</button><button class="switch" role="switch" aria-checked="true" aria-label="Scam links"></button></div></div>
-          <div class="set-row"><span class="icontile"><i class="ph ph-flag"></i></span><div class="t"><b>Commonly flagged words</b><span>Wave's lists for slurs, sexual content and insults</span></div><div class="ctl"><button class="btn btn--sm" data-goto="automod-edit">Edit</button><button class="switch" role="switch" aria-checked="false" aria-label="Commonly flagged words"></button></div></div>
+          <div class="set-row"><span class="icontile"><i class="ph ph-flag"></i></span><div class="t"><b>Commonly flagged words</b><span>Waffle's lists for slurs, sexual content and insults</span></div><div class="ctl"><button class="btn btn--sm" data-goto="automod-edit">Edit</button><button class="switch" role="switch" aria-checked="false" aria-label="Commonly flagged words"></button></div></div>
         </div>
       </div>
     </div>
@@ -832,16 +832,16 @@
           <div class="set-row is-done"><i class="ph-fill ph-check-circle"></i><div class="t"><b>Verified email to chat</b><span>Safety setup, verification level Low</span></div></div>
           <div class="set-row is-done"><i class="ph-fill ph-check-circle"></i><div class="t"><b>Scan images from everyone</b><span>Safety setup, explicit image filter</span></div></div>
           <div class="set-row is-done"><i class="ph-fill ph-check-circle"></i><div class="t"><b>Rules channel</b><span>#rules</span></div></div>
-          <div class="set-row"><i class="ph ph-circle"></i><div class="t"><b>Updates channel</b><span>Where Wave posts notices for moderators</span></div><button class="btn btn--sm">Pick channel</button></div>
+          <div class="set-row"><i class="ph ph-circle"></i><div class="t"><b>Updates channel</b><span>Where Waffle posts notices for moderators</span></div><button class="btn btn--sm">Pick channel</button></div>
           <div class="set-row"><i class="ph ph-circle"></i><div class="t"><b>Default notifications to @mentions only</b><span>Now All messages</span></div><button class="btn btn--sm">Switch to @mentions</button></div>
         </div>
-        <p class="set-cap">You can enable it now; Wave offers to fix the two open steps in the same go.</p>
+        <p class="set-cap">You can enable it now; Waffle offers to fix the two open steps in the same go.</p>
       </div>
       <div class="row"><button class="btn btn--primary" data-open="dlg-community"><i class="ph-bold ph-users-three"></i>Enable Community</button></div>
     </div>
   </div>
   <dialog class="real" id="dlg-community"><form class="dialog dialog--md" onsubmit="return false" aria-labelledby="dcm">
-    <div class="dhead"><h4 id="dcm">Enable Community</h4><p>Two steps aren't done yet. Wave can do both now.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+    <div class="dhead"><h4 id="dcm">Enable Community</h4><p>Two steps aren't done yet. Waffle can do both now.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
     <div class="set-card">
       <div class="set-row"><div class="t"><b>Updates channel</b><span>Create #mod-updates, visible to Moderators</span></div><span class="switch" role="switch" aria-checked="true"></span></div>
       <div class="set-row"><div class="t"><b>Default notifications</b><span>All messages, changing to Only @mentions</span></div><span class="switch" role="switch" aria-checked="true"></span></div>
@@ -1012,7 +1012,7 @@
         <div class="set-card" role="radiogroup" aria-label="Verification level">
           <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div class="t"><b>Anyone</b><span>No checks</span></div></button>
           <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="true"></span><div class="t"><b>Verified email</b><span>Their account has a confirmed email</span></div></button>
-          <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div class="t"><b>Verified email, on Wave 5 minutes</b></div></button>
+          <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div class="t"><b>Verified email, on Waffle 5 minutes</b></div></button>
           <button class="set-row choice" data-toggle="radio"><span class="radio" role="radio" aria-checked="false"></span><div class="t"><b>Verified email, here 10 minutes</b><span>Slows down raids the most</span></div></button>
         </div>
       </div>
@@ -1023,7 +1023,7 @@
       <div class="set-group">
         <h5>Raids and moderators</h5>
         <div class="set-card">
-          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Pause invites when a raid starts</b><span>Wave alerts #mod-log and you can resume with one click</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
+          <button class="set-row choice" data-toggle="switch"><div class="t"><b>Pause invites when a raid starts</b><span>Waffle alerts #mod-log and you can resume with one click</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
           <button class="set-row choice" data-toggle="switch"><div class="t"><b>Require 2FA for moderator actions</b><span>Mods without it can't kick, ban or delete messages</span></div><span class="switch" role="switch" aria-checked="true"></span></button>
         </div>
       </div>
@@ -1055,14 +1055,14 @@
 
 <section id="better-than-discord">
   <h2>Better than Discord</h2>
-  <p class="lede">Where Discord's server settings get in the way, and what Wave does instead. Discord's side is from how its desktop client behaves today, described from memory.</p>
+  <p class="lede">Where Discord's server settings get in the way, and what Waffle does instead. Discord's side is from how its desktop client behaves today, described from memory.</p>
   <div class="btd">
-    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
+    <div><span>Discord does</span><span>Waffle does</span><span>Why</span></div>
     <div><p>An unsaved-changes bar blocks leaving the page and shakes until you save or reset.</p><p><b><a href="#window">Window</a></b>The draft rides along between pages with a dot on each page that has one; the bar lists what changed and only closing asks.</p><p>Moving around a settings window is not a mistake to punish.</p></div>
     <div><p>Roles above yours just won't move or open, with no reason given.</p><p><b><a href="#roles">Roles</a></b>They stay at full ink with a lock and a line saying which role outranks you.</p><p>A disabled thing that says why saves a trip to ask an admin.</p></div>
     <div><p>A wall of 40-odd permission toggles, with a few marked in red text.</p><p><b><a href="#role-editor">Role editor</a></b>A plain-language summary up top, search with highlights, and each dangerous permission says what it really allows, in the warning tone.</p><p>People grant Administrator because the list is too long to read.</p></div>
     <div><p>Clearing permissions is instant and final.</p><p><b><a href="#role-editor">Role editor</a></b>Clear permissions offers Undo in place.</p><p>Optimistic with Undo beats a confirm, and beats losing a role's setup to a misclick.</p></div>
-    <div><p>Role colours can be anything, unreadable on the light theme.</p><p><b><a href="#role-editor">Role editor</a></b>Previews in both themes; Wave deepens or lightens the name per theme until it reads at 4.5:1.</p><p>Names are read thousands of times; the hue is the owner's, legibility is Wave's job.</p></div>
+    <div><p>Role colours can be anything, unreadable on the light theme.</p><p><b><a href="#role-editor">Role editor</a></b>Previews in both themes; Waffle deepens or lightens the name per theme until it reads at 4.5:1.</p><p>Names are read thousands of times; the hue is the owner's, legibility is Waffle's job.</p></div>
     <div><p>Overrides are a grid of ✕, / and ✓ where / never says what it inherits.</p><p><b><a href="#overrides">Overrides</a></b>Every row names what it inherits and from where, and changes to "Allowed for Streamers here" when set.</p><p>The middle state is where every permissions bug hides.</p></div>
     <div><p>No way to ask why a member can or can't do something in a channel.</p><p><b><a href="#overrides">Check a member</a></b>Check a member: each permission's verdict, the rule that decides, the full chain on open, and a one-click fix.</p><p>Answers the question moderators actually have, instead of making them run the resolution order in their heads.</p></div>
     <div><p>View as role hides channels silently, with a small bar at the top.</p><p><b><a href="#view-as">View as role</a></b>Hidden channels stay listed and struck through with the rule that hides them, under a warning-tone banner.</p><p>An elevated mode stays visible, and absence is explained, not implied.</p></div>
@@ -1073,7 +1073,7 @@
     <div><p>Invite revoke is a small hover X with no undo.</p><p><b><a href="#invites">Invites</a></b>A visible Revoke with Undo, and pausing takes a length.</p><p>Nothing reachable only by hover; a pause nobody remembers is an outage.</p></div>
     <div><p>AutoMod rules can only be tested by posting for real.</p><p><b><a href="#automod">AutoMod</a></b>A test box shows which rule fires, the matched words and every action that would run.</p><p>Mods tune filters without spamming their own server or timing themselves out.</p></div>
     <div><p>A webhook's form expands inside the list, and its alert channel can vanish silently.</p><p><b><a href="#integrations">Integrations</a></b>The form is a dialog; a rule or app that needs you says why on its row.</p><p>A list never jumps under the pointer, and broken things announce themselves.</p></div>
-    <div><p>Community can't be enabled until every requirement is met.</p><p><b><a href="#community-setup">Community</a></b>Enable any time; Wave offers to fix the open steps in the same dialog.</p><p>Never lock a choice behind a blocker; resolve it where it's asked.</p></div>
+    <div><p>Community can't be enabled until every requirement is met.</p><p><b><a href="#community-setup">Community</a></b>Enable any time; Waffle offers to fix the open steps in the same dialog.</p><p>Never lock a choice behind a blocker; resolve it where it's asked.</p></div>
     <div><p>Delete server asks for the name, without saying what goes.</p><p><b><a href="#delete-server">Delete server</a></b>The dialog counts what's lost: members, channels, messages, emoji, webhooks.</p><p>Destructive confirmations name exactly what goes.</p></div>
   </div>
 </section>

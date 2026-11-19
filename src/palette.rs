@@ -4,18 +4,20 @@ use gpui_kit::{
     rgb,
 };
 
-// Dango's colours, ported from the design system (design/tokens.css, Graphite neutrals). The OKLCH
+// Waffle's colours, ported from the design system (design/tokens.css, Graphite neutrals). The OKLCH
 // tokens there are converted to sRGB here; keep the two in step.
 //
-// Chili is the one accent: primary actions, current selection and focus. The fill is a shade deeper
-// than the logo's #E25B26 so white on it clears 4.5:1. What asks for you (counts, LIVE, Do Not
-// Disturb) is a true red, oklch(0.58 0.21 25), since chili beside it read as orange. Danger is crimson,
-// a clearly different hue, so Delete never looks like the primary action.
-const ACCENT: u32 = 0xC8471A;
-// The mark's own chili, brighter than the fill: only for the logo and mascot, never behind text.
-const LOGO: u32 = 0xE25B26;
-const ACCENT_HOVER: u32 = 0xB23C14;
-const ACCENT_PRESS: u32 = 0x9A330F;
+// Honey is the one accent: primary actions, current selection and focus. It is light, so what sits on
+// it is dark (ON_ACCENT, 7.8:1), never white. What asks for you (counts, LIVE, Do Not Disturb) is a true
+// red, oklch(0.58 0.21 25), and danger is crimson, so Delete never looks like the primary action.
+// GAP: idle and warning are a yellow close to honey; elevated-mode banners can read as the accent.
+const ACCENT: u32 = 0xEFA831;
+const ACCENT_HOVER: u32 = 0xE29A1D;
+const ACCENT_PRESS: u32 = 0xD68D0A;
+const ON_ACCENT: u32 = 0x2A1C00;
+// The mark's honey. On light surfaces it deepens (LOGO_ON_LIGHT, 3.2:1) so the mark still holds.
+const LOGO: u32 = 0xEFA831;
+const LOGO_ON_LIGHT: u32 = 0xBF7D06;
 const DANGER: u32 = 0xC21F3A;
 const DANGER_HOVER: u32 = 0xA8172F;
 const SUCCESS: u32 = 0x00753E;
@@ -74,7 +76,7 @@ const DARK: Tokens = Tokens {
     text: 0xD4D8DD,
     muted: 0xA0A5AC,
     faint: 0x8B8F97,
-    accent_ink: 0xFF8A57,
+    accent_ink: 0xF6B84D,
     danger_ink: 0xFF7A8C,
     online: 0x3EC87D,
     online_ink: 0x59D38C,
@@ -88,7 +90,7 @@ const DARK: Tokens = Tokens {
     selected: 0.08,
     line: 0.08,
     line_strong: 0.14,
-    accent_soft: (0xF2652E, 0.14),
+    accent_soft: (0xEFA831, 0.16),
     shade: 0x000000,
     shimmer: (0xFFFFFF, 0.06),
     seg_track: (0x000000, 0.3),
@@ -107,7 +109,7 @@ const LIGHT: Tokens = Tokens {
     text: 0x2B2E32,
     muted: 0x55585E,
     faint: 0x5D6166,
-    accent_ink: 0xA83A12,
+    accent_ink: 0x8A5601,
     danger_ink: 0xB0182F,
     online: 0x00A159,
     online_ink: 0x00723B,
@@ -121,7 +123,7 @@ const LIGHT: Tokens = Tokens {
     selected: 0.09,
     line: 0.1,
     line_strong: 0.18,
-    accent_soft: (0xD9531F, 0.1),
+    accent_soft: (0xEFA831, 0.14),
     shade: 0x2B2E32,
     shimmer: (0xFFFFFF, 0.6),
     seg_track: (0x2B2E32, 0.1),
@@ -144,14 +146,14 @@ pub fn sync(window: &mut Window, cx: &mut App) {
         crate::settings::ThemePref::System => {}
     }
     #[cfg(debug_assertions)]
-    if let Ok(mode) = std::env::var("CHORD_THEME") {
+    if let Ok(mode) = std::env::var("WAFFLE_THEME") {
         let mode = if mode == "dark" { ThemeMode::Dark } else { ThemeMode::Light };
         Theme::change(mode, Some(window), cx);
     }
     apply(cx);
 }
 
-// Paints Dango's tokens onto the current theme mode (call after `Theme::change`).
+// Paints Waffle's tokens onto the current theme mode (call after `Theme::change`).
 pub fn apply(cx: &mut App) {
     let t = tokens(cx);
     // `update`, not `global_mut`: gpui-component's own widgets paint from `theme.tokens`, which only
@@ -181,7 +183,7 @@ pub fn apply(cx: &mut App) {
         theme.primary = accent();
         theme.primary_hover = accent_hover();
         theme.primary_active = hex(ACCENT_PRESS);
-        theme.primary_foreground = gpui_kit::white();
+        theme.primary_foreground = on_accent();
         theme.ring = hex(t.accent_ink);
         theme.selection = accent().opacity(0.3);
         theme.link = hex(t.accent_ink);
@@ -206,6 +208,21 @@ pub fn accent() -> Hsla {
 
 pub fn logo() -> Hsla {
     hex(LOGO)
+}
+
+// The mark on the current theme's surfaces: honey on dark, a deeper honey on light.
+pub fn logo_ink(cx: &App) -> Hsla {
+    if cx.theme().mode.is_dark() { logo() } else { logo_on_light() }
+}
+
+// The mark on a surface that's light whatever the theme (the sign-in QR card).
+pub fn logo_on_light() -> Hsla {
+    hex(LOGO_ON_LIGHT)
+}
+
+// Text and icons on an accent fill.
+pub fn on_accent() -> Hsla {
+    hex(ON_ACCENT)
 }
 
 pub fn accent_hover() -> Hsla {
@@ -558,13 +575,17 @@ mod tests {
                 }
             }
         }
-        for fill in [ACCENT, ALERT, DANGER, SUCCESS] {
+        for fill in [ALERT, DANGER, SUCCESS] {
             assert!(contrast(0xFFFFFF, fill) >= 4.5, "white on {fill:06X}");
         }
+        for fill in [ACCENT, ACCENT_HOVER, ACCENT_PRESS] {
+            assert!(contrast(ON_ACCENT, fill) >= 4.5, "{ON_ACCENT:06X} on {fill:06X}");
+        }
+        assert!(contrast(LOGO_ON_LIGHT, LIGHT.page) >= 3., "the mark on a light page");
     }
 
     // Graphite is the only neutral: a near-grey with a warm cast (the old ink-and-bone or plum ramps)
-    // anywhere in src/ fails here. The dango's stick colours are the mark's own material, so they stay.
+    // anywhere in src/ fails here. The waffle's stick colours are the mark's own material, so they stay.
     #[test]
     fn no_warm_neutrals_in_src() {
         const MARK_STICKS: [u32; 3] = [0x8C7A6A, 0xC9A27A, 0xC79A6B];

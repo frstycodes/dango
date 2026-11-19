@@ -6,7 +6,7 @@
 use gpui_kit::{AnyElement, App, Context, FontWeight, SharedString, WeakEntity, div, prelude::*, px, relative};
 
 use crate::{
-    Rustcord,
+    Waffle,
     chat::emphasised,
     discord::{Channel, ChannelKind, DmFace, Relation, Status, User},
     icons::Glyph,
@@ -61,7 +61,7 @@ pub(crate) fn next_step(relation: Option<Relation>, bot: bool) -> Next {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     // A 1:1 DM's username and mutual servers come from the person's profile: read from disk or fetched
     // once as the DM opens.
     pub(crate) fn load_dm_profile(&mut self, channel: &Channel, cx: &mut Context<Self>) {
@@ -109,7 +109,7 @@ fn mutual_servers(count: usize) -> String {
     }
 }
 
-pub(crate) fn dm_start_header(start: &DmStart, this: WeakEntity<Rustcord>, cx: &App) -> AnyElement {
+pub(crate) fn dm_start_header(start: &DmStart, this: WeakEntity<Waffle>, cx: &App) -> AnyElement {
     let page = palette::surface(Level::Page, cx);
     let face = match (&start.face, start.person.is_some()) {
         (DmFace::One(url), true) => decorated_avatar(url, None, FACE, start.status, page),
@@ -134,10 +134,10 @@ pub(crate) fn dm_start_header(start: &DmStart, this: WeakEntity<Rustcord>, cx: &
         .into_any_element()
 }
 
-fn actions(start: &DmStart, this: WeakEntity<Rustcord>, cx: &App) -> Option<AnyElement> {
+fn actions(start: &DmStart, this: WeakEntity<Waffle>, cx: &App) -> Option<AnyElement> {
     let person = start.person.clone()?;
     let row = div().mt(px(12.)).flex().flex_wrap().items_center().gap(px(8.));
-    let act = move |id: &'static str, tone: Tone, label: &'static str, glyph: Option<Glyph>, run: fn(&mut Rustcord, User, &mut Context<Rustcord>)| {
+    let act = move |id: &'static str, tone: Tone, label: &'static str, glyph: Option<Glyph>, run: fn(&mut Waffle, User, &mut Context<Waffle>)| {
         let (this, person) = (this.clone(), person.clone());
         ui::button(id, tone, cx)
             .small()

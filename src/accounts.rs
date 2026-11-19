@@ -4,7 +4,7 @@ use gpui_kit::{Context, Window};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Rustcord, auth,
+    Waffle, auth,
     discord::{Status, User},
     settings::Prefs,
 };
@@ -22,9 +22,9 @@ pub struct Account {
     pub status: Status,
 }
 
-// The token to start with: DISCORD_TOKEN, else the last-used account's, else the one stored before accounts.
+// The token to start with: DISCORD_TOKEN, else the last-used account's.
 pub fn startup_token(prefs: &Prefs) -> Option<String> {
-    std::env::var("DISCORD_TOKEN").ok().filter(|t| !t.trim().is_empty()).or_else(|| prefs.account.as_deref().and_then(auth::stored_token)).or_else(|| prefs.accounts.is_empty().then(auth::legacy_token).flatten())
+    std::env::var("DISCORD_TOKEN").ok().filter(|t| !t.trim().is_empty()).or_else(|| prefs.account.as_deref().and_then(auth::stored_token))
 }
 
 fn from_env(token: &str) -> bool {
@@ -45,13 +45,10 @@ pub fn remove(accounts: &mut Vec<Account>, id: &str) -> Option<String> {
     accounts.first().map(|a| a.id.clone())
 }
 
-impl Rustcord {
+impl Waffle {
     // On READY: files the token under this user and makes them the account to restart into.
     pub(crate) fn remember_account(&mut self, me: &User) {
         let Some(token) = self.token.as_deref().filter(|t| !from_env(t)) else { return };
-        if self.prefs.accounts.is_empty() {
-            auth::forget_legacy_token();
-        }
         auth::store_token(&me.id, token);
         let account = Account { id: me.id.clone(), name: me.name.clone(), avatar: me.avatar.clone(), status: self.my_status };
         upsert(&mut self.prefs.accounts, account);
@@ -64,7 +61,7 @@ impl Rustcord {
         if self.token.as_deref().is_none_or(from_env) {
             return;
         }
-        let Some(id) = self.prefs.account.take() else { return auth::forget_legacy_token() };
+        let Some(id) = self.prefs.account.take() else { return };
         auth::forget_token(&id);
         remove(&mut self.prefs.accounts, &id);
         self.prefs.account = self.prefs.accounts.first().map(|a| a.id.clone());
@@ -142,7 +139,7 @@ impl Rustcord {
 
     // The demo's accounts are fixtures: acting on them would write them into the real settings and keyring.
     fn demo_guard(&mut self, cx: &mut Context<Self>) -> bool {
-        if !(cfg!(debug_assertions) && std::env::var_os("CHORD_DEMO").is_some()) {
+        if !(cfg!(debug_assertions) && std::env::var_os("WAFFLE_DEMO").is_some()) {
             return false;
         }
         self.status_menu = false;

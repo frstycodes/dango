@@ -70,7 +70,7 @@
         "rule": "bounce-easing",
         "value": "var(--ease-spring)",
         "createdAt": "2026-11-14T18:57:59.546Z",
-        "reason": "User taste for Wave (ui skill project notes): touch-driven springs overshoot about 0.3 and settle within 250ms; the token is that spring"
+        "reason": "User taste for Waffle (ui skill project notes): touch-driven springs overshoot about 0.3 and settle within 250ms; the token is that spring"
       },
       {
         "rule": "cramped-padding",
@@ -1322,6 +1322,15 @@
         ],
         "createdAt": "2026-11-18T13:27:01.587Z",
         "reason": "agent: .skeleton sweep is the shared loading shimmer from css/primitives.css, a sweep-then-rest the project's taste rules ask for"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/waffle.html"
+        ],
+        "createdAt": "2026-11-19T10:14:14.847Z",
+        "reason": "agent triage: the only infinite translateX is the skeleton loading shimmer (sweep) in the shared css/primitives.css, unused on this page; no auto-scrolling content"
       }
     ]
   }

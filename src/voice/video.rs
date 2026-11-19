@@ -121,7 +121,7 @@ impl VideoDecoder {
 }
 
 // On Windows the first frame opens a Media Foundation hardware encoder (video_mf.rs) at that size;
-// OpenH264 takes over if there is none, it fails, or RUSTCORD_VIDEO_ENCODER=software. A size change
+// OpenH264 takes over if there is none, it fails, or WAFFLE_VIDEO_ENCODER=software. A size change
 // reopens the hardware encoder; OpenH264 follows size changes by itself.
 pub struct VideoEncoder {
     // Reopening an encoder after a size change or a hardware failure, which only Windows does.
@@ -144,7 +144,7 @@ enum Backend {
 impl VideoEncoder {
     pub fn new(fps: u32, bitrate: u32) -> Result<Self, String> {
         #[cfg(target_os = "windows")]
-        let backend = if std::env::var("RUSTCORD_VIDEO_ENCODER").as_deref() == Ok("software") { Backend::Software(Box::new(software(fps, bitrate)?)) } else { Backend::Undecided };
+        let backend = if std::env::var("WAFFLE_VIDEO_ENCODER").as_deref() == Ok("software") { Backend::Software(Box::new(software(fps, bitrate)?)) } else { Backend::Undecided };
         #[cfg(not(target_os = "windows"))]
         let backend = Backend::Software(Box::new(software(fps, bitrate)?));
         Ok(Self { fps, bitrate, backend, keyframe_pending: false })
@@ -356,7 +356,7 @@ mod tests {
     }
 
     // `cargo test --release --example voice_join -- --ignored bench_ --nocapture`. On Windows set
-    // RUSTCORD_VIDEO_ENCODER=software to time OpenH264 instead of the hardware encoder.
+    // WAFFLE_VIDEO_ENCODER=software to time OpenH264 instead of the hardware encoder.
     #[test]
     #[ignore]
     fn bench_720p_encode() {

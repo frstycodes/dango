@@ -6,14 +6,14 @@ use gpui_kit::{AnyElement, App, Context, FontWeight, IntoElement, Window, Parent
 
 use super::Section;
 use crate::{
-    Rustcord,
+    Waffle,
     icons::Glyph,
     palette,
     ui::{self, Tone},
     updater::{CURRENT, Command, Status},
 };
 
-impl Rustcord {
+impl Waffle {
     pub(super) fn updates_page(&self, window: &mut Window, cx: &mut Context<Self>) -> Vec<Section> {
         let status = &self.updates.status;
         let notes_version = status.version().unwrap_or(CURRENT).to_owned();
@@ -23,7 +23,7 @@ impl Rustcord {
         let checked = self.updates.checked_at.map_or_else(|| "Not yet".to_owned(), |at| crate::panel::ago(elapsed_ms(at)));
         let last_checked = ui::settings_row("last-checked", true, cx).child(ui::settings_text("Last checked", None::<&str>, cx)).child(div().text_color(palette::muted(cx)).child(checked));
         let card = ui::settings_card(cx).child(self.update_status_row(window, cx)).child(notes).child(last_checked);
-        vec![Section::keyed("Dango", ui::settings_group("Dango", cx).child(card).child(ui::settings_caption("Dango checks for a new version about every hour.", cx)))]
+        vec![Section::keyed("Waffle", ui::settings_group("Waffle", cx).child(card).child(ui::settings_caption("Waffle checks for a new version about every hour.", cx)))]
     }
 
     // The app icon, the version, where the updater is, and the action that moves it on.
@@ -40,7 +40,7 @@ impl Rustcord {
             .flex()
             .flex_col()
             .gap(px(2.))
-            .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(format!("Dango {CURRENT}")))
+            .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(format!("Waffle {CURRENT}")))
             .child(div().text_size(px(12.)).line_height(px(17.)).text_color(palette::muted(cx)).child(status_line(status, self.updates.updater.is_some())))
             .children(progress.map(|bar| div().mt(px(6.)).child(bar)));
         ui::settings_row("update-status", false, cx).child(img(self.prefs.app_icon.asset()).size(px(48.)).flex_none()).child(text).child(self.update_action(cx)).into_any_element()
@@ -94,12 +94,12 @@ fn status_line(status: &Status, enabled: bool) -> String {
         Status::Idle => "Not checked yet".into(),
         Status::Checking => "Checking for updates…".into(),
         Status::UpToDate => "Up to date".into(),
-        Status::Available(version) => format!("Dango {version} is available"),
+        Status::Available(version) => format!("Waffle {version} is available"),
         Status::Downloading { version, done, total: Some(total) } => format!("Downloading {version}… {}%", done * 100 / (*total).max(1)),
         Status::Downloading { version, done, total: None } => format!("Downloading {version}… {} MB", done >> 20),
-        Status::Ready(staged) => format!("Dango {} is ready to install", staged.version),
-        Status::CheckFailed => "Couldn't reach GitHub. Dango will try again within the hour.".into(),
-        Status::DownloadFailed(version) => format!("Couldn't download {version}. Dango will try again within the hour."),
+        Status::Ready(staged) => format!("Waffle {} is ready to install", staged.version),
+        Status::CheckFailed => "Couldn't reach GitHub. Waffle will try again within the hour.".into(),
+        Status::DownloadFailed(version) => format!("Couldn't download {version}. Waffle will try again within the hour."),
     }
 }
 
@@ -114,6 +114,6 @@ mod tests {
         assert_eq!(status_line(&Status::Downloading { version: "0.8.0".into(), done: 42, total: Some(100) }, true), "Downloading 0.8.0… 42%");
         assert_eq!(status_line(&Status::Downloading { version: "0.8.0".into(), done: 3 << 20, total: None }, true), "Downloading 0.8.0… 3 MB");
         assert_eq!(status_line(&Status::Downloading { version: "0.8.0".into(), done: 0, total: Some(0) }, true), "Downloading 0.8.0… 0%");
-        assert_eq!(status_line(&Status::Available("0.8.0".into()), true), "Dango 0.8.0 is available");
+        assert_eq!(status_line(&Status::Available("0.8.0".into()), true), "Waffle 0.8.0 is available");
     }
 }

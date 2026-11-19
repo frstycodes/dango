@@ -4,7 +4,7 @@
 use gpui_kit::{AnyElement, App, Context, Div, FontWeight, MouseButton, SharedString, Window, component::Icon, div, prelude::*, px};
 
 use crate::{
-    RightPanel, Rustcord,
+    RightPanel, Waffle,
     discord::{Message, SearchPage},
     icons::Glyph,
     menu, palette,
@@ -55,7 +55,7 @@ impl Results {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     fn results(&mut self) -> Option<&mut Results> {
         match &mut self.right_panel {
             RightPanel::Search(results) => Some(results),

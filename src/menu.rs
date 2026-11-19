@@ -1,8 +1,8 @@
-// Dango's context menus (design/menus.html, design/css/overlays.css `.menu`, `.mi`): a 248px overlay
+// Waffle's context menus (design/menus.html, design/css/overlays.css `.menu`, `.mi`): a 248px overlay
 // card, 34px rows with a muted leading icon, a faint line under the label for what the row says
 // about itself, checkboxes on the right, radio rows that take a fill instead of a dot, one accent row
 // and red danger rows that fill solid on hover, and submenus that fly out beside their row. Every
-// right-click in Dango opens one of these.
+// right-click in Waffle opens one of these.
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use gpui_kit::{
@@ -12,7 +12,7 @@ use gpui_kit::{
 };
 
 use crate::{
-    Rustcord,
+    Waffle,
     discord::{Emoji, Status},
     icons::Glyph,
     motion, palette,
@@ -20,10 +20,10 @@ use crate::{
     ui::{self, RADIUS_LG, RADIUS_SM, RADIUS_XS, SURFACE_INSET, Squircle},
 };
 
-pub type Act = Rc<dyn Fn(&mut Rustcord, &mut Window, &mut Context<Rustcord>)>;
-type Build = Rc<dyn Fn(&Rustcord) -> Vec<Entry>>;
-type OnConfirm = Rc<dyn Fn(&mut Rustcord, String, &mut Window, &mut Context<Rustcord>)>;
-type SetValue = Rc<dyn Fn(&mut Rustcord, f32, &mut Context<Rustcord>)>;
+pub type Act = Rc<dyn Fn(&mut Waffle, &mut Window, &mut Context<Waffle>)>;
+type Build = Rc<dyn Fn(&Waffle) -> Vec<Entry>>;
+type OnConfirm = Rc<dyn Fn(&mut Waffle, String, &mut Window, &mut Context<Waffle>)>;
+type SetValue = Rc<dyn Fn(&mut Waffle, f32, &mut Context<Waffle>)>;
 
 pub(crate) const WIDTH: f32 = 248.;
 // Room for key caps beside the longest label ("Copy message ID" with ⇧⌘C).
@@ -101,7 +101,7 @@ pub struct Item {
     shortcut: Option<&'static str>,
 }
 
-pub fn item(label: impl Into<SharedString>, act: impl Fn(&mut Rustcord, &mut Window, &mut Context<Rustcord>) + 'static) -> Item {
+pub fn item(label: impl Into<SharedString>, act: impl Fn(&mut Waffle, &mut Window, &mut Context<Waffle>) + 'static) -> Item {
     Item { label: label.into(), hint: None, tone: Tone::Plain, mark: None, lead: None, sub: Vec::new(), act: Some(Rc::new(act)), disabled: false, shortcut: None }
 }
 
@@ -109,7 +109,7 @@ pub fn submenu(label: impl Into<SharedString>, entries: Vec<Entry>) -> Item {
     Item { label: label.into(), hint: None, tone: Tone::Plain, mark: None, lead: None, sub: entries, act: None, disabled: false, shortcut: None }
 }
 
-pub fn slider(label: impl Into<SharedString>, key: impl Into<SharedString>, value: f32, on_set: impl Fn(&mut Rustcord, f32, &mut Context<Rustcord>) + 'static) -> Entry {
+pub fn slider(label: impl Into<SharedString>, key: impl Into<SharedString>, value: f32, on_set: impl Fn(&mut Waffle, f32, &mut Context<Waffle>) + 'static) -> Entry {
     Entry::Slider { label: label.into(), key: key.into(), value, on_set: Rc::new(on_set) }
 }
 
@@ -309,13 +309,13 @@ pub struct Dialog {
     on_confirm: OnConfirm,
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn open_menu(&mut self, at: Point<Pixels>, entries: Vec<Entry>, cx: &mut Context<Self>) {
         self.open_live_menu(at, move |_| entries.clone(), cx);
     }
 
     // A menu built from state each time it's drawn, e.g. one whose checkboxes change.
-    pub(crate) fn open_live_menu(&mut self, at: Point<Pixels>, build: impl Fn(&Rustcord) -> Vec<Entry> + 'static, cx: &mut Context<Self>) {
+    pub(crate) fn open_live_menu(&mut self, at: Point<Pixels>, build: impl Fn(&Waffle) -> Vec<Entry> + 'static, cx: &mut Context<Self>) {
         self.menu = Some(OpenMenu { at, build: Rc::new(move |this| tidy(build(this))), sub: Vec::new(), cursor: None, focus: cx.focus_handle(), restore: RefCell::new(None), cards: RefCell::default(), tunnel: ui::Tunnel::default(), pending: None });
         cx.notify();
     }
@@ -394,7 +394,7 @@ impl Rustcord {
         body: impl Into<SharedString>,
         value: &str,
         confirm: impl Into<SharedString>,
-        on_confirm: impl Fn(&mut Rustcord, String, &mut Window, &mut Context<Rustcord>) + 'static,
+        on_confirm: impl Fn(&mut Waffle, String, &mut Window, &mut Context<Waffle>) + 'static,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -412,7 +412,7 @@ impl Rustcord {
         title: impl Into<SharedString>,
         body: impl Into<SharedString>,
         confirm: impl Into<SharedString>,
-        on_confirm: impl Fn(&mut Rustcord, &mut Window, &mut Context<Rustcord>) + 'static,
+        on_confirm: impl Fn(&mut Waffle, &mut Window, &mut Context<Waffle>) + 'static,
         cx: &mut Context<Self>,
     ) {
         self.menu = None;
@@ -436,7 +436,7 @@ impl Rustcord {
         title: impl Into<SharedString>,
         body: impl Into<SharedString>,
         confirm: impl Into<SharedString>,
-        on_confirm: impl Fn(&mut Rustcord, &mut Window, &mut Context<Rustcord>) + 'static,
+        on_confirm: impl Fn(&mut Waffle, &mut Window, &mut Context<Waffle>) + 'static,
         cx: &mut Context<Self>,
     ) {
         self.confirm(title, body, confirm, on_confirm, cx);
@@ -802,7 +802,7 @@ pub(crate) fn server_icon(icon: Option<&str>, name: &str, size: f32, radius: f32
         .into_any_element()
 }
 
-fn quick_reactions(quick: &[(Emoji, Act)], more: Act, cx: &mut Context<Rustcord>) -> Div {
+fn quick_reactions(quick: &[(Emoji, Act)], more: Act, cx: &mut Context<Waffle>) -> Div {
     let (fill, press, muted, strong) = (palette::selected(cx), palette::press(cx), palette::muted(cx), palette::strong(cx));
     let cell = |id: SharedString, ink: Hsla| {
         ui::pressable(div().id(id), 0.97)
@@ -846,14 +846,14 @@ fn field(cx: &App) -> Div {
     ui::field_frame(cx).border_color(palette::accent()).shadow(vec![ring])
 }
 
-impl Rustcord {
+impl Waffle {
     // Runs a REST call in the background; a failure shows as a toast, success runs `then`.
     pub(crate) fn rest(
         &mut self,
         method: reqwest::Method,
         path: String,
         body: Option<serde_json::Value>,
-        then: impl FnOnce(&mut Rustcord, &mut Context<Rustcord>) + 'static,
+        then: impl FnOnce(&mut Waffle, &mut Context<Waffle>) + 'static,
         cx: &mut Context<Self>,
     ) {
         let Some(client) = self.client.clone() else { return };
@@ -878,8 +878,8 @@ impl Rustcord {
         method: reqwest::Method,
         path: String,
         body: Option<serde_json::Value>,
-        apply: impl FnOnce(&mut Rustcord),
-        revert: impl FnOnce(&mut Rustcord) + 'static,
+        apply: impl FnOnce(&mut Waffle),
+        revert: impl FnOnce(&mut Waffle) + 'static,
         cx: &mut Context<Self>,
     ) {
         apply(self);
@@ -948,7 +948,7 @@ mod tests {
 
     #[test]
     fn keyboard_steps_over_separators_and_disabled_rows_and_wraps() {
-        let noop = |_: &mut Rustcord, _: &mut Window, _: &mut Context<Rustcord>| {};
+        let noop = |_: &mut Waffle, _: &mut Window, _: &mut Context<Waffle>| {};
         let entries = vec![item("a", noop).entry(), Entry::Separator, item("b", noop).disabled().entry(), item("c", noop).entry()];
         assert_eq!(step(&entries, None, true), Some(0));
         assert_eq!(step(&entries, Some(0), true), Some(3));
@@ -959,7 +959,7 @@ mod tests {
 
     #[test]
     fn tidy_drops_stray_separators() {
-        let noop = |_: &mut Rustcord, _: &mut Window, _: &mut Context<Rustcord>| {};
+        let noop = |_: &mut Waffle, _: &mut Window, _: &mut Context<Waffle>| {};
         let entries = vec![Entry::Separator, item("a", noop).entry(), Entry::Separator, Entry::Separator, item("b", noop).entry(), Entry::Separator];
         let kinds: Vec<bool> = tidy(entries).iter().map(|e| matches!(e, Entry::Separator)).collect();
         assert_eq!(kinds, [false, true, false]);

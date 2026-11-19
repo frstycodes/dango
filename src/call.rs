@@ -13,7 +13,7 @@ use gpui_kit::{
 };
 
 use crate::{
-    Rustcord,
+    Waffle,
     discord::{self, User, VoiceState},
     icons::Glyph,
     layout::{HEADER_HEIGHT, RAIL_WIDTH},
@@ -187,7 +187,7 @@ fn quality_word(ping: u32) -> &'static str {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     // Discord's stream thumbnails (GET /streams/{key}/preview) for everyone live in the open server
     // and our call, refetched when older than a minute.
     pub(crate) fn refresh_stream_previews(&mut self, cx: &mut Context<Self>) {
@@ -210,7 +210,7 @@ impl Rustcord {
             let client = client.clone();
             cx.spawn(async move |this, cx| {
                 let result = client.call(reqwest::Method::GET, format!("/streams/{key}/preview"), None).await;
-                if cfg!(debug_assertions) && std::env::var_os("RUSTCORD_STREAM_DEBUG").is_some() {
+                if cfg!(debug_assertions) && std::env::var_os("WAFFLE_STREAM_DEBUG").is_some() {
                     eprintln!("stream preview {key}: {:?}", result.as_ref().map(|b| b.to_string()));
                 }
                 let url = match &result {
@@ -228,7 +228,7 @@ impl Rustcord {
                     .ok();
                     return;
                 };
-                if std::env::var_os("RUSTCORD_STREAM_DEBUG").is_some() {
+                if std::env::var_os("WAFFLE_STREAM_DEBUG").is_some() {
                     eprintln!("stream preview fetched for {key}");
                 }
                 this.update(cx, |this, cx| {
@@ -295,7 +295,7 @@ impl Rustcord {
                         if let Err(e) = &result {
                             eprintln!("stream preview upload {key} failed: {e}");
                         } else {
-                            if std::env::var_os("RUSTCORD_STREAM_DEBUG").is_some() {
+                            if std::env::var_os("WAFFLE_STREAM_DEBUG").is_some() {
                                 eprintln!("stream preview uploaded for {key}");
                             }
                             // Show our own new preview right away rather than at the next refresh.
@@ -434,13 +434,13 @@ impl Rustcord {
         let share = match sharing {
             true => panel_action("panel-share", Glyph::ShareScreen, "Stream options", true, cx)
                 .bg(palette::accent())
-                .text_color(gpui_kit::white())
+                .text_color(palette::on_accent())
                 .hover(|s| s.bg(palette::accent_hover()))
                 .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stream_menu(e.position, cx))),
             false => panel_action("panel-share", Glyph::ShareScreen, ready("Share your screen"), connected, cx).when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx)))),
         };
         let activities = panel_action("panel-activities", Glyph::Activities, ready("Activities and soundboard"), connected, cx)
-            .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities and the soundboard aren't in Dango yet", cx))));
+            .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities and the soundboard aren't in Waffle yet", cx))));
         let voice = div()
             .h(px(VOICE_HEIGHT))
             .flex_none()
@@ -1255,7 +1255,7 @@ impl Rustcord {
             false => control("call-share", Glyph::ShareScreenFill, "Share your screen", Control::Rest, connected).when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx)))),
         };
         let activities = control("call-activities", Glyph::ActivitiesFill, "Activities and soundboard", Control::Rest, connected)
-            .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities and the soundboard aren't in Dango yet", cx))));
+            .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities and the soundboard aren't in Waffle yet", cx))));
         let more = control("call-more", Glyph::More, "More options", Control::Rest, true).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_call_more(e.position, cx)));
         let leave = control("call-hang-up", Glyph::CallEnd, "Leave call", Control::Leave, true).w(px(68.)).on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx)));
         // Full screen at the bar's right end, as Discord's.
@@ -1295,7 +1295,7 @@ impl Rustcord {
                     let channel = call.channel.id.clone();
                     entries.push(item("Invite to voice", move |this, window, cx| this.show_invite(guild.clone(), channel.clone(), window, cx)).icon(Glyph::GroupPlus).entry());
                 }
-                entries.push(item("Soundboard", |this, _, cx| this.show_toast("The soundboard isn't in Dango yet", cx)).icon(Glyph::Soundboard).entry());
+                entries.push(item("Soundboard", |this, _, cx| this.show_toast("The soundboard isn't in Waffle yet", cx)).icon(Glyph::Soundboard).entry());
                 if this.call_focus.is_some() {
                     let hidden = this.call_strip_hidden;
                     entries.push(
@@ -1561,11 +1561,11 @@ impl Rustcord {
     }
 
     // .mslider: the label and its percentage over the slider; click or drag anywhere on it.
-    fn call_menu_slider(&self, key: SharedString, label: &'static str, fraction: f32, ink: &Inks, on_set: impl Fn(&mut Rustcord, f32, &mut Context<Rustcord>) + Clone + 'static, cx: &mut Context<Self>) -> Div {
+    fn call_menu_slider(&self, key: SharedString, label: &'static str, fraction: f32, ink: &Inks, on_set: impl Fn(&mut Waffle, f32, &mut Context<Waffle>) + Clone + 'static, cx: &mut Context<Self>) -> Div {
         let bounds = self.slider_bounds.clone();
         let record = bounds.clone();
         let (down_key, move_key, record_key) = (key.clone(), key.clone(), key.clone());
-        let set = move |this: &mut Rustcord, key: &SharedString, x: Pixels, cx: &mut Context<Rustcord>| {
+        let set = move |this: &mut Waffle, key: &SharedString, x: Pixels, cx: &mut Context<Waffle>| {
             let Some(b) = bounds.borrow().get(key).copied() else { return };
             on_set(this, ((x - b.left()) / b.size.width).clamp(0., 1.), cx);
         };
@@ -1636,7 +1636,7 @@ impl Rustcord {
     }
 }
 
-fn call_backdrop(id: &'static str, cx: &mut Context<Rustcord>) -> Stateful<Div> {
+fn call_backdrop(id: &'static str, cx: &mut Context<Waffle>) -> Stateful<Div> {
     div().id(id).absolute().inset_0().occlude().on_mouse_down(
         MouseButton::Left,
         cx.listener(|this, _, _, cx| {
@@ -1780,7 +1780,7 @@ fn control(id: &'static str, glyph: Glyph, tip: &'static str, state: Control, en
         Control::Rest => (stage::wash(0.1), stage::wash(0.16), gpui_kit::white()),
         Control::Off => (stage::off(false), stage::off(true), stage::off_ink()),
         Control::On => (stage::on(false), stage::on(true), stage::on_ink()),
-        Control::Active => (palette::accent(), palette::accent_hover(), gpui_kit::white()),
+        Control::Active => (palette::accent(), palette::accent_hover(), palette::on_accent()),
         Control::Open => (stage::wash(0.2), stage::wash(0.2), gpui_kit::white()),
         Control::Leave => (palette::danger(), palette::danger_hover(), gpui_kit::white()),
     };
@@ -2005,7 +2005,7 @@ mod tests {
     }
 }
 
-// "1080p 60" or "Source 30", how Rustcord names a stream's quality.
+// "1080p 60" or "Source 30", how Waffle names a stream's quality.
 fn quality_label(resolution: u32, fps: u32) -> String {
     match resolution {
         0 => format!("Source {fps}"),

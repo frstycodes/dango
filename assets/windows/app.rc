@@ -11,10 +11,10 @@ BEGIN
     BLOCK "040904B0"
     BEGIN
       VALUE "CompanyName",      "frstycodes"
-      VALUE "FileDescription",  "Dango"
-      VALUE "ProductName",      "Dango"
-      VALUE "InternalName",     "dango"
-      VALUE "OriginalFilename", "Dango.exe"
+      VALUE "FileDescription",  "Waffle"
+      VALUE "ProductName",      "Waffle"
+      VALUE "InternalName",     "waffle"
+      VALUE "OriginalFilename", "Waffle.exe"
       VALUE "FileVersion",      VERSION_STRING
       VALUE "ProductVersion",   VERSION_STRING
     END
