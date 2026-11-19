@@ -225,6 +225,26 @@ fn open_main(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gp
     }
     cx.activate(true);
     background_watch(cx);
+    idle_sweep(cx);
+}
+
+// In view, images are only swept when a column redraws, so what was browsed before the window went
+// still would stay decoded. Sweeps on a timer and hands freed heap pages back when it let go of any.
+const IDLE_SWEEP: Duration = Duration::from_secs(15);
+
+fn idle_sweep(cx: &mut gpui_kit::App) {
+    cx.spawn(async move |cx| {
+        loop {
+            cx.background_executor().timer(IDLE_SWEEP).await;
+            if !cx.update(images::sweep_all) {
+                continue;
+            }
+            // After the deferred image drops have run and the GPU has let go of the textures.
+            cx.background_executor().timer(Duration::from_millis(100)).await;
+            cx.background_executor().spawn(async { memory::compact() }).await;
+        }
+    })
+    .detach();
 }
 
 // Background mode, unless a video is playing: minimized or closed to the tray, the app gives memory
