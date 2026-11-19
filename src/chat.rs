@@ -1615,8 +1615,8 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
     });
     let link = embed.url.clone();
     let title = embed.title.clone().map(|title| {
-        div()
         let this = ctx.this.clone();
+        div()
             .id(SharedString::from(format!("{key}-title")))
             .text_size(px(14.))
             .font_weight(FontWeight::MEDIUM)
