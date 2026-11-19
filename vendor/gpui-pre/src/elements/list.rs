@@ -1287,6 +1287,7 @@ impl StateInner {
                 .set_extent(point(px(0.), scroll_max), bounds.size);
             if self.overscroll.tick(Instant::now()) {
                 window.request_animation_frame();
+                window.note_scroll_motion();
             }
 
             // Only paint the visible items, if there is actually any space for them (taking padding into account)

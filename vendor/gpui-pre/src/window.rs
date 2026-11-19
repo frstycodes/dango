@@ -5,7 +5,7 @@ use crate::Inspector;
 #[cfg(feature = "profiler")]
 use crate::profiler;
 use crate::{
-    Action, AnyDrag, AnyElement, AnyImageCache, AnyTooltip, AnyView, App, AppContext, Arena, Asset,
+    Action, TouchPhase, AnyDrag, AnyElement, AnyImageCache, AnyTooltip, AnyView, App, AppContext, Arena, Asset,
     AsyncWindowContext, AtlasTile, AvailableSpace, BackdropBlur, BackdropFilter, Background, BorderStyle, Bounds, BoxShadow,
     Capslock, Context, CornerShape, Corners, CursorHideMode, CursorStyle, Decorations,
     DevicePixels, DispatchActionListener, DispatchNodeId, DispatchTree, DisplayId, Edges, Effect,
@@ -787,7 +787,7 @@ impl HitboxId {
         if window.captured_hitbox == Some(self) {
             return true;
         }
-        if window.last_input_was_keyboard() {
+        if window.last_input_was_keyboard() || window.last_input_modality == InputModality::Scroll {
             return false;
         }
         self.hit_test(window)
@@ -1235,7 +1235,15 @@ enum InputModality {
     Mouse,
     Keyboard,
     Touch,
+    /// Wheel scrolling under a still pointer. As in browsers, hover is held until the pointer moves
+    /// or the scroll ends (finger lifted, momentum and rebound done), so rows don't flash as they pass.
+    Scroll,
 }
+
+// Momentum and mouse wheels have no end event: the scroll is over once neither a wheel event nor a
+// rebound frame has arrived for this long. Momentum events arrive every frame, so this only has to
+// outlast a dropped frame or two.
+const SCROLL_END_GAP: Duration = Duration::from_millis(100);
 
 /// Holds the state for a specific window.
 pub struct Window {
@@ -1309,6 +1317,9 @@ pub struct Window {
     touch_gestures: TouchGestureRecognizer,
     touch_prediction_enabled: bool,
     long_press_timer: Option<Task<()>>,
+    scroll_settle_timer: Option<Task<()>>,
+    scroll_finger_down: bool,
+    scroll_moved_in_frame: bool,
     long_press_capture: Option<EntityId>,
     pub(crate) refreshing: bool,
     pub(crate) activation_observers: SubscriberSet<(), AnyObserver>,
@@ -2217,6 +2228,9 @@ impl Window {
             ),
             touch_prediction_enabled: true,
             long_press_timer: None,
+            scroll_settle_timer: None,
+            scroll_finger_down: false,
+            scroll_moved_in_frame: false,
             long_press_capture: None,
             refreshing: false,
             activation_observers: SubscriberSet::new(),
@@ -3774,6 +3788,9 @@ impl Window {
         }
 
         self.mouse_hit_test = self.next_frame.hit_test(self.mouse_position);
+        if mem::take(&mut self.scroll_moved_in_frame) && self.last_input_modality == InputModality::Scroll {
+            self.schedule_scroll_settle(cx);
+        }
 
         // Now actually paint the elements.
         #[cfg(feature = "profiler")]
@@ -5791,12 +5808,33 @@ impl Window {
         let old_modality = self.last_input_modality;
         self.last_input_modality = match &event {
             PlatformInput::KeyDown(_) => InputModality::Keyboard,
+            // A move that doesn't change the position is the platform echoing a scroll, not the user.
+            PlatformInput::MouseMove(mouse_move)
+                if old_modality == InputModality::Scroll && mouse_move.position == self.mouse_position =>
+            {
+                old_modality
+            }
             PlatformInput::MouseMove(_) | PlatformInput::MouseDown(_) => InputModality::Mouse,
             PlatformInput::Touch(_) => InputModality::Touch,
+            PlatformInput::ScrollWheel(_) => InputModality::Scroll,
             _ => self.last_input_modality,
         };
+        if let PlatformInput::ScrollWheel(wheel) = &event {
+            match wheel.touch_phase {
+                TouchPhase::Started => self.scroll_finger_down = true,
+                TouchPhase::Ended | TouchPhase::Cancelled => self.scroll_finger_down = false,
+                TouchPhase::Moved => {}
+            }
+        }
         if self.last_input_modality != old_modality {
             self.refresh();
+        }
+        match self.last_input_modality {
+            InputModality::Scroll => self.schedule_scroll_settle(cx),
+            _ => {
+                self.scroll_settle_timer = None;
+                self.scroll_finger_down = false;
+            }
         }
 
         // Handlers may set this to false by calling `stop_propagation`.
@@ -6105,6 +6143,27 @@ impl Window {
             })
             .log_err();
         }));
+    }
+
+    fn schedule_scroll_settle(&mut self, cx: &mut App) {
+        self.scroll_settle_timer = Some(self.spawn(cx, async move |cx| {
+            cx.background_executor.timer(SCROLL_END_GAP).await;
+            cx.update(|window, _| {
+                window.scroll_settle_timer.take();
+                // A resting finger hasn't ended the scroll; its lift arrives as a wheel event and re-arms this.
+                if window.last_input_modality == InputModality::Scroll && !window.scroll_finger_down {
+                    window.last_input_modality = InputModality::Mouse;
+                    window.refresh();
+                }
+            })
+            .log_err();
+        }));
+    }
+
+    /// Called by scroll containers on frames where their content moves without a wheel event (the
+    /// rubber-band rebound), so hover stays held until it lands.
+    pub(crate) fn note_scroll_motion(&mut self) {
+        self.scroll_moved_in_frame = true;
     }
 
     fn schedule_touch_momentum_tick(&mut self) {

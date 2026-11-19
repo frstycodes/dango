@@ -2519,6 +2519,7 @@ impl Interactivity {
             overscroll.set_extent(scroll_max, bounds.size);
             if overscroll.tick(Instant::now()) {
                 window.request_animation_frame();
+                window.note_scroll_motion();
             }
             *scroll_offset + overscroll.offset()
         } else {
