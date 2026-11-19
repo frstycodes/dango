@@ -38,7 +38,8 @@ pub fn sync_sidebar_material(window: &mut gpui_kit::Window, width: f32, dark: bo
     }
     let on = enabled && !window.is_fullscreen();
     ACTIVE.set(on);
-    apply(window, on, width, dark);
+    // `width` is in layout units; AppKit's sidebar is sized in window points, which zoom scales.
+    apply(window, on, width * window.zoom(), dark);
 }
 
 pub fn sidebar_fill(cx: &gpui_kit::App) -> gpui_kit::Hsla {
@@ -120,7 +121,7 @@ fn apply(window: &mut gpui_kit::Window, on: bool, width: f32, dark: bool) {
                 let ns_window: *mut AnyObject = msg_send![native.content, window];
                 let _: () = msg_send![ns_window, layoutIfNeeded];
             }
-            window.set_traffic_light_position(crate::layout::TRAFFIC_LIGHTS);
+            window.set_traffic_light_position(crate::layout::traffic_lights(window.zoom()));
         }
         if native.dark != dark {
             match_theme(window, dark);

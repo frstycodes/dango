@@ -530,8 +530,36 @@ pub fn status_mark(status: discord::Status, dot: f32, surface: Hsla) -> AnyEleme
     .into_any_element()
 }
 
-/// Where the traffic lights sit: centred in the 36px title strip, leaving the first 72px to them.
+/// Where the traffic lights sit at 100%: centred in the 36px title strip, leaving the first 72px to them.
 pub const TRAFFIC_LIGHTS: gpui_kit::Point<gpui_kit::Pixels> = gpui_kit::point(px(12.), px(18.));
+
+/// The traffic lights at `zoom`. They are AppKit's and never scale, so their offset follows the zoomed
+/// header instead: down by half the header's growth so they stay centred on it, across by half the
+/// rail's so they stay centred in its slot; never closer than 8pt to the window's edges.
+pub fn traffic_lights(zoom: f32) -> gpui_kit::Point<gpui_kit::Pixels> {
+    let grow = zoom - 1.;
+    gpui_kit::point(px((12. + crate::layout::RAIL_WIDTH / 2. * grow).max(8.)), px((18. + HEADER_HEIGHT / 2. * grow).max(8.)))
+}
+
+// AppKit's three traffic lights and the gaps between them, in points; they keep this size at any zoom.
+const LIGHTS_WIDTH: f32 = 54.;
+
+/// How far the traffic lights reach past the rail into the channel list's header, in layout px: none at
+/// 100% and above, more as zoom shrinks the rail they sit over.
+pub fn traffic_lights_overhang(window: &Window) -> f32 {
+    if !traffic_lights_shown(window) {
+        return 0.;
+    }
+    let zoom = window.zoom();
+    let right = (f32::from(traffic_lights(zoom).x) + LIGHTS_WIDTH) / zoom + 2.;
+    (right - RAIL_WIDTH).max(0.)
+}
+
+/// Zooms the window and moves the traffic lights with it (a no-op for them off macOS).
+pub fn apply_zoom(window: &mut Window, zoom: f32, cx: &mut gpui_kit::App) {
+    window.set_zoom(zoom, cx);
+    window.set_traffic_light_position(traffic_lights(zoom));
+}
 
 /// Whether macOS draws its traffic lights in the window: windowed, not full screen. They take the rail's slot
 /// in the header row; everywhere else that slot holds the Home tile.

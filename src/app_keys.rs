@@ -36,7 +36,11 @@ fn set_zoom(cx: &mut App, next: impl Fn(f32) -> Option<f32>) {
         this.prefs.save();
         this.show_toast(format!("Zoom {}%", (zoom * 100.).round()), cx);
     });
-    for window in cx.windows() {
-        window.update(cx, |_, window, cx| window.set_zoom(zoom, cx)).ok();
-    }
+    // The shortcut's window is checked out of the app while its key event dispatches, so updating it
+    // here fails; the zoom lands once dispatch returns.
+    cx.defer(move |cx| {
+        for window in cx.windows() {
+            window.update(cx, |_, window, cx| crate::layout::apply_zoom(window, zoom, cx)).ok();
+        }
+    });
 }

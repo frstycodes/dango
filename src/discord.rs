@@ -211,6 +211,8 @@ pub struct Guild {
     pub my_roles: Vec<String>,
     // Server boost level 0-3: sets the highest voice bitrate.
     pub premium_tier: u8,
+    // People idling here don't count as voice activity (Discord's server icon badge skips it).
+    pub afk_channel_id: Option<String>,
 }
 
 // Your notification settings for one server, or for DMs under the key "@me" (Discord's
@@ -2037,6 +2039,7 @@ fn parse_guild(g: &Value) -> Option<Guild> {
         threads: g["threads"].as_array().into_iter().flatten().filter_map(|t| parse_channel(t, id)).collect(),
         my_roles: Vec::new(),
         premium_tier: props["premium_tier"].as_u64().or(g["premium_tier"].as_u64()).unwrap_or(0) as u8,
+        afk_channel_id: props["afk_channel_id"].as_str().or(g["afk_channel_id"].as_str()).map(str::to_owned),
     })
 }
 
@@ -2799,6 +2802,7 @@ mod tests {
             stickers: Vec::new(),
             owner_id: Some("owner".into()),
             premium_tier: 0,
+            afk_channel_id: None,
             threads: Vec::new(),
             my_roles: Vec::new(),
             default_notifications: Default::default(),
@@ -2835,6 +2839,7 @@ mod tests {
             stickers: Vec::new(),
             owner_id: Some("owner".into()),
             premium_tier: 0,
+            afk_channel_id: None,
             threads: vec![thread],
             my_roles: Vec::new(),
             default_notifications: Default::default(),
@@ -2875,6 +2880,7 @@ mod tests {
             stickers: Vec::new(),
             owner_id: Some("owner".into()),
             premium_tier: 0,
+            afk_channel_id: None,
             threads: Vec::new(),
             my_roles: vec!["mods".into()],
             default_notifications: Default::default(),
