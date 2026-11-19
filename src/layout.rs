@@ -292,7 +292,7 @@ impl Rustcord {
         let status_line: AnyElement = match (server_muted, sharing) {
             (true, _) => div().truncate().text_color(danger).child("Server muted by a moderator").into_any_element(),
             (false, true) => div().flex().items_center().gap_1().child(Icon::new(Glyph::Screen).size(px(13.)).text_color(palette::positive_ink(cx))).child(div().truncate().child("Sharing their screen")).into_any_element(),
-            (false, false) => ui::truncating("me-status", self.custom_status.clone().unwrap_or_else(|| self.my_status.label().into())).into_any_element(),
+            (false, false) => ui::truncating("me-status", self.status_line()).into_any_element(),
         };
         let mic = me_button("mic", if muted { Nav::MicOff } else { Nav::Mic }, muted, if server_muted { "A moderator muted you here. Only they can unmute you." } else if muted { "Unmute" } else { "Mute" }, cx)
             .when(!server_muted, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_mute(cx))))
@@ -330,10 +330,7 @@ impl Rustcord {
             .cursor_pointer()
             .hover(move |s| s.bg(hover))
             .when(self.status_menu, |w| w.bg(hover))
-            .on_click(cx.listener(|this, _, _, cx| {
-                this.status_menu = !this.status_menu;
-                cx.notify();
-            }))
+            .on_click(cx.listener(|this, _, _, cx| this.toggle_status_menu(cx)))
             .child(decorated_avatar(&me.avatar, me.decoration.as_deref(), 32., Some(self.my_status), ring))
             .child(
                 div()

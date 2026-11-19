@@ -43,7 +43,6 @@ const GLYPHS: [(&str, &[u8]); 146] = [
     ("icons/stream.svg", include_bytes!("../assets/icons/reicon/signal-stream.svg")),
     ("icons/pin.svg", include_bytes!("../assets/icons/reicon/thumbtack.svg")),
     ("icons/inbox.svg", include_bytes!("../assets/icons/reicon/inbox-tray.svg")),
-    ("icons/help.svg", include_bytes!("../assets/icons/reicon/help-circle.svg")),
     ("icons/gif.svg", include_bytes!("../assets/icons/reicon/gif.svg")),
     ("icons/bell.svg", include_bytes!("../assets/icons/reicon/bell.svg")),
     ("icons/keyboard.svg", include_bytes!("../assets/icons/reicon/keyboard.svg")),
@@ -156,6 +155,8 @@ const GLYPHS: [(&str, &[u8]); 146] = [
     ("icons/media-locked.svg", include_bytes!("../assets/icons/reicon/media-locked.svg")),
     ("icons/calendar.svg", include_bytes!("../assets/icons/reicon/calendar.svg")),
     ("icons/filter.svg", include_bytes!("../assets/icons/reicon/filter.svg")),
+    // Reicon has no moon; drawn to match its filled weight.
+    ("icons/moon.svg", include_bytes!("../assets/icons/moon.svg")),
 ];
 
 const BRAND: [(&str, &[u8]); 4] = [
@@ -201,7 +202,6 @@ pub enum Glyph {
     Stream,
     Pin,
     Inbox,
-    Help,
     Gif,
     Bell,
     Keyboard,
@@ -314,6 +314,7 @@ pub enum Glyph {
     MediaLocked,
     Calendar,
     Filter,
+    Moon,
 }
 
 impl IconNamed for Glyph {

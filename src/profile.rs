@@ -22,8 +22,8 @@ const BORDER: f32 = 2.;
 // Discord banners are 5:2; at that height a cover fit crops nothing.
 const BANNER: f32 = WIDTH * 0.4;
 const BANNER_PLAIN: f32 = 64.;
-const AVATAR: f32 = 80.;
-const AVATAR_RING: f32 = 6.;
+pub(crate) const AVATAR: f32 = 80.;
+pub(crate) const AVATAR_RING: f32 = 6.;
 // Used only to place the card before it is laid out; its max height keeps it inside the window either way.
 const ESTIMATED_HEIGHT: f32 = 560.;
 const MAX_BADGES: usize = 6;
@@ -103,7 +103,7 @@ impl Rustcord {
         let y = f32::from(card.at.y).clamp(top, (f32::from(viewport.height) - ESTIMATED_HEIGHT - 8.).max(top));
         let max_height = f32::from(viewport.height) - y - 8.;
         let is_me = self.me.as_ref().is_some_and(|me| me.id == card.user.id);
-        let inner_radius = if ink.border.is_some() { RADIUS_LG - BORDER } else { RADIUS_LG };
+        let inner_radius = inner_radius(ink);
         let body = div()
             .id("profile-body")
             .min_h_0()
@@ -120,24 +120,17 @@ impl Rustcord {
             .children(game_collection(&profile.games, ink))
             .children(self.presences.get(&card.user.id).and_then(|p| p.rich.as_ref()).map(|rich| self.activity_card(card, rich, ink, cx)))
             .children(self.roles_row(card, &profile, ink, cx));
-        let inner = div()
-            .flex()
-            .flex_col()
-            .max_h(px(max_height - if ink.border.is_some() { 2. * BORDER } else { 0. }))
-            .squircle(inner_radius)
-            .bg(linear_gradient(180., linear_color_stop(ink.top, 0.), linear_color_stop(ink.bottom, 1.)))
+        let (outer, inner) = themed_card(ink, max_height, cx);
+        let inner = inner
             .child(self.profile_header(card, &profile, is_me, inner_radius, ink, cx))
             .child(body)
             .when(!is_me, |c| c.child(message_field(&card.user, ink, cx)));
-        let card_el = div()
+        let card_el = outer
             .id("profile-card")
             .absolute()
             .left(px(x))
             .top(px(y))
             .w(px(WIDTH))
-            .squircle(RADIUS_LG)
-            .shadow(ui::shadow_pop(cx))
-            .when_some(ink.border, |c, (from, to)| c.p(px(BORDER)).bg(linear_gradient(180., linear_color_stop(from, 0.), linear_color_stop(to, 1.))))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(inner);
         // It rises from the corner nearest where it was asked for: pushed in from an edge, from that side.
@@ -150,12 +143,7 @@ impl Rustcord {
     fn profile_header(&self, card: &ProfileCard, profile: &Profile, is_me: bool, radius: f32, ink: Ink, cx: &mut Context<Self>) -> Div {
         let user = &card.user;
         let status = self.presences.get(&user.id).map(|p| p.status).or(is_me.then_some(self.my_status));
-        let banner = match (&profile.banner, ink.border, profile.accent) {
-            (Some(url), _, _) => ui::media(url.clone(), ui::top(radius)).w_full().h(px(BANNER)).object_fit(gpui_kit::ObjectFit::Cover).into_any_element(),
-            (None, Some((color, _)), _) => banner_fill(color, radius).into_any_element(),
-            (None, None, Some(accent)) => banner_fill(rgb(accent).into(), radius).into_any_element(),
-            (None, None, None) => banner_fill(palette::selected(cx), radius).into_any_element(),
-        };
+        let (banner, _) = banner(profile, ink, radius, cx);
         let decoration = user.decoration.clone().or(profile.decoration.clone());
         let avatar = div().p(px(AVATAR_RING)).rounded_full().bg(ink.top).child(decorated_avatar(&user.avatar, decoration.as_deref(), AVATAR, status, ink.top));
         let edit = is_me.then(|| {
@@ -290,18 +278,18 @@ impl Rustcord {
 // The card's colours. Themed: the user's two colours washed toward the theme's ground for the body,
 // raw for the border, with ink picked by the body's luminance. Otherwise the plain overlay surface.
 #[derive(Clone, Copy)]
-struct Ink {
-    top: Hsla,
-    bottom: Hsla,
-    border: Option<(Hsla, Hsla)>,
-    strong: Hsla,
-    text: Hsla,
-    muted: Hsla,
-    tile: Hsla,
+pub(crate) struct Ink {
+    pub(crate) top: Hsla,
+    pub(crate) bottom: Hsla,
+    pub(crate) border: Option<(Hsla, Hsla)>,
+    pub(crate) strong: Hsla,
+    pub(crate) text: Hsla,
+    pub(crate) muted: Hsla,
+    pub(crate) tile: Hsla,
 }
 
 impl Ink {
-    fn new(theme: Option<(u32, u32)>, cx: &App) -> Self {
+    pub(crate) fn new(theme: Option<(u32, u32)>, cx: &App) -> Self {
         let Some((from, to)) = theme else {
             let surface = palette::surface(palette::Level::Overlay, cx);
             return Ink { top: surface, bottom: surface, border: None, strong: palette::strong(cx), text: palette::text(cx), muted: palette::muted(cx), tile: palette::selected(cx) };
@@ -318,6 +306,36 @@ impl Ink {
 fn luminance(color: Hsla) -> f32 {
     let c = gpui_kit::Rgba::from(color);
     0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
+}
+
+// The banner with its height: the picture at 5:2, else a strip of the theme or accent colour.
+pub(crate) fn banner(profile: &Profile, ink: Ink, radius: f32, cx: &App) -> (AnyElement, f32) {
+    match (&profile.banner, ink.border, profile.accent) {
+        (Some(url), _, _) => (ui::media(url.clone(), ui::top(radius)).w_full().h(px(BANNER)).object_fit(gpui_kit::ObjectFit::Cover).into_any_element(), BANNER),
+        (None, Some((color, _)), _) => (banner_fill(color, radius).into_any_element(), BANNER_PLAIN),
+        (None, None, Some(accent)) => (banner_fill(rgb(accent).into(), radius).into_any_element(), BANNER_PLAIN),
+        (None, None, None) => (banner_fill(palette::selected(cx), radius).into_any_element(), BANNER_PLAIN),
+    }
+}
+
+// The card in the profile's colours: its gradient body inside the gradient border when the profile has a
+// theme. Returns (outer, inner); content goes in the inner.
+pub(crate) fn themed_card(ink: Ink, max_height: f32, cx: &App) -> (Div, Div) {
+    let inner = div()
+        .flex()
+        .flex_col()
+        .max_h(px(max_height - if ink.border.is_some() { 2. * BORDER } else { 0. }))
+        .squircle(inner_radius(ink))
+        .bg(linear_gradient(180., linear_color_stop(ink.top, 0.), linear_color_stop(ink.bottom, 1.)));
+    let outer = div()
+        .squircle(RADIUS_LG)
+        .shadow(ui::shadow_pop(cx))
+        .when_some(ink.border, |c, (from, to)| c.p(px(BORDER)).bg(linear_gradient(180., linear_color_stop(from, 0.), linear_color_stop(to, 1.))));
+    (outer, inner)
+}
+
+pub(crate) fn inner_radius(ink: Ink) -> f32 {
+    if ink.border.is_some() { RADIUS_LG - BORDER } else { RADIUS_LG }
 }
 
 fn banner_fill(color: Hsla, radius: f32) -> Div {
@@ -345,7 +363,7 @@ fn menu_surface(in_guild: bool) -> Surface {
 }
 
 // Display name, then "username • pronouns" with the guild tag chip on that line.
-fn name_block(user: &User, profile: &Profile, ink: Ink) -> Div {
+pub(crate) fn name_block(user: &User, profile: &Profile, ink: Ink) -> Div {
     let handle = [Some(profile.username.clone()).filter(|u| !u.is_empty()), profile.pronouns.clone()].into_iter().flatten().collect::<Vec<_>>().join(" • ");
     let tag = user.tag.as_ref().map(|tag| {
         div()
