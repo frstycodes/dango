@@ -659,7 +659,15 @@ fn demo_dm_call(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut 
 }
 
 fn user(id: &str, name: &str) -> User {
-    User { id: id.into(), name: name.into(), avatar: avatar_url(id, None), ..Default::default() }
+    // Display-name styles: fonts show everywhere, the effects' colours only outside servers.
+    use crate::discord::{NameEffect, NameStyle};
+    let name_style = match id {
+        "8388608" => Some(NameStyle { font: 12, effect: NameEffect::Gradient, colors: vec![0x2AAEA6, 0xFFC490] }),
+        "12582912" => Some(NameStyle { font: 3, effect: NameEffect::Gummy, colors: vec![] }),
+        "16777216" => Some(NameStyle { font: 14, effect: NameEffect::Solid, colors: vec![0x47BAE7] }),
+        _ => None,
+    };
+    User { id: id.into(), name: name.into(), avatar: avatar_url(id, None), name_style, ..Default::default() }
 }
 
 fn channel(id: &str, name: &str, kind: ChannelKind, parent: Option<&str>) -> Channel {

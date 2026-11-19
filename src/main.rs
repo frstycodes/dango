@@ -40,6 +40,7 @@ mod playback;
 mod status_menu;
 mod stickers;
 mod memory;
+mod name_fonts;
 mod menu;
 mod message_menu;
 mod motion;
@@ -133,6 +134,7 @@ fn main() {
                 .to_vec(),
             )
             .expect("bundled fonts");
+        name_fonts::start(cx);
         // The design is drawn with `-webkit-font-smoothing: antialiased`; macOS smoothing would thicken every stroke.
         cx.text_system().set_font_smoothing(false);
         cx.set_http_client(std::sync::Arc::new(discord::Images::default()));

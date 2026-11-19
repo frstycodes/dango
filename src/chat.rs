@@ -20,7 +20,7 @@ use gpui_motion_kit::core::{Motion, Target};
 
 use crate::{
     EmojiTarget, Feed, RightPanel, Waffle,
-    discord::{Channel, ChannelKind, Embed, Emoji, MediaKind, Message, SendState, User},
+    discord::{Channel, ChannelKind, Embed, Emoji, MediaKind, Message, NameEffect, NameStyle, SendState, User},
     icons::Glyph,
     layout::HEADER_HEIGHT,
     mascot::Mood,
@@ -400,6 +400,8 @@ impl Waffle {
                 .chain(self.guild_id.as_ref().and_then(|g| self.members.get(g)).into_iter().flat_map(|m| m.values()))
                 .map(|u| (u.id.clone(), u.name.clone()))
                 .collect(),
+            // In a server Discord keeps the role colour and draws only the style's font.
+            style_ground: self.guild_id.is_none().then(|| palette::surface(palette::Level::Page, cx)),
             colors: messages.iter().filter_map(|m| Some((m.author.id.clone(), self.role_color(m.guild_id.as_ref().or(self.guild_id.as_ref()), &m.author.id, m.roles.as_ref(), cx.theme().is_dark())?))).collect(),
             mentions_me: messages.iter().filter(|m| self.mentions_me(m)).map(|m| m.id.clone()).collect(),
             channel_names: self.guild().map(|g| g.channels.iter().map(|c| (c.id.clone(), c.name.clone())).collect()).unwrap_or_default(),
@@ -794,6 +796,8 @@ pub(crate) struct RowContext {
     embeds: bool,
     reactions: bool,
     names: HashMap<String, String>,
+    // The chat's surface, for drawing authors' display-name styles on; None in a server.
+    style_ground: Option<Hsla>,
     colors: HashMap<String, Hsla>,
     mentions_me: std::collections::HashSet<String>,
     channel_names: HashMap<String, String>,
@@ -996,6 +1000,8 @@ fn inset(row: AnyElement, flush: bool) -> AnyElement {
 // Name in its top role's colour, tags, the time, and a pin when pinned.
 fn message_head(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> impl IntoElement + use<> {
     let name_color = ctx.colors.get(&message.author.id).copied().unwrap_or(palette::strong(cx));
+    let name = ctx.name_of(&message.author);
+    let runs = ctx.style_ground.zip(message.author.name_style.as_ref()).map(|(ground, style)| name_runs(&name, style, ground)).unwrap_or_default();
     // GAP: gpui text reports no baseline to taffy, so `items_baseline` would line up box bottoms and
     // lift the name. One 22px line box, centred, with the smaller time nudged 1px, shares a baseline.
     div()
@@ -1005,14 +1011,10 @@ fn message_head(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> impl IntoE
         .min_w_0()
         .line_height(px(22.))
         .child(
-            profile_trigger(format!("name-{}", message.id), &message.author, ctx)
-                .min_w_0()
-                .truncate()
-                .text_size(px(16.))
-                .font_weight(FontWeight::MEDIUM)
+            crate::name_fonts::styled(profile_trigger(format!("name-{}", message.id), &message.author, ctx).min_w_0().truncate().text_size(px(16.)).font_weight(FontWeight::MEDIUM), message.author.name_style.as_ref())
                 .text_color(name_color)
                 .hover(|s| s.underline())
-                .child(ctx.name_of(&message.author)),
+                .child(StyledText::new(name).with_highlights(runs)),
         )
         .children(message.author.tag.as_ref().map(|tag| guild_tag(tag, cx)))
         .when(message.author.bot, |h| h.child(ui::badge(palette::accent_soft(cx), palette::accent_ink(cx)).h(px(18.)).px(px(6.)).gap(px(3.)).child(Icon::new(Glyph::Checkmark).size(px(11.))).child("APP")))
@@ -1388,6 +1390,73 @@ fn hide_spoilers(text: &str, revealed: bool) -> String {
 // A user's server tag (Discord's guild tag): its badge and text, as it follows their name.
 pub(crate) fn guild_tag(tag: &crate::discord::GuildTag, cx: &App) -> Div {
     ui::badge(palette::selected(cx), palette::strong(cx)).h(px(18.)).px(px(6.)).gap(px(3.)).children(tag.badge.clone().map(|b| img(b).size(px(12.)))).child(tag.text.clone())
+}
+
+// A display name in its Discord style's colours, one run per character, each colour stepped in lightness
+// until it reads on `ground` as Discord's client does (3:1, 2.5:1 for the multi-colour fills). GAP: gpui
+// text has no gradient fill, stroke or glow, so gradients and prisms step per character and neon, toon
+// and pop draw in their main colour; the style's font isn't drawn yet.
+pub(crate) fn name_runs(name: &str, style: &NameStyle, ground: Hsla) -> Vec<(std::ops::Range<usize>, HighlightStyle)> {
+    let colors = match style.colors.is_empty() {
+        true => default_name_colors(style.effect),
+        false => style.colors.as_slice(),
+    };
+    let ratio = if matches!(style.effect, NameEffect::Gradient | NameEffect::Glow | NameEffect::Prism) { 2.5 } else { 3. };
+    let inks: Vec<Hsla> = colors.iter().map(|c| readable_on(gpui_kit::rgb(*c).into(), ground, ratio)).collect();
+    if inks.is_empty() {
+        return Vec::new();
+    }
+    let count = name.chars().count().max(1) as f32;
+    let mut letter = 0;
+    name.char_indices()
+        .enumerate()
+        .map(|(i, (at, ch))| {
+            let along = (i as f32 + 0.5) / count;
+            let ink = match style.effect {
+                NameEffect::Gummy => inks[letter % inks.len()],
+                // Stops spread over 10%..90%, as Discord lays them.
+                NameEffect::Gradient | NameEffect::Glow => along_stops(&inks, ((along - 0.1) / 0.8).clamp(0., 1.)),
+                // One cycle through every colour and back to the first.
+                NameEffect::Prism => along_stops(&[inks.as_slice(), &inks[..1]].concat(), along),
+                NameEffect::Solid | NameEffect::Neon | NameEffect::Toon | NameEffect::Pop => inks[0],
+            };
+            letter += usize::from(!ch.is_whitespace());
+            (at..at + ch.len_utf8(), HighlightStyle { color: Some(ink), ..Default::default() })
+        })
+        .collect()
+}
+
+// A style sent without colours draws its effect's defaults (Discord's web client, 2026-11-19); solid's is
+// the theme's own text colour.
+fn default_name_colors(effect: NameEffect) -> &'static [u32] {
+    match effect {
+        NameEffect::Solid => &[],
+        NameEffect::Gradient | NameEffect::Glow => &[0x2AAEA6, 0xFFC490],
+        NameEffect::Gummy => &[0xE9A9D5, 0xA9DDF0, 0xB9A7EE, 0xB9EACB],
+        NameEffect::Prism => &[0xFE9242, 0x35EC7E, 0xFFE047, 0xFF4CD2, 0x5865F2],
+        NameEffect::Toon => &[0xF42098],
+        NameEffect::Neon => &[0x691DED],
+        NameEffect::Pop => &[0x0FCF86],
+    }
+}
+
+// The colour at `t` (0..1) along evenly spaced stops.
+fn along_stops(stops: &[Hsla], t: f32) -> Hsla {
+    let span = t * (stops.len() - 1) as f32;
+    let from = (span.floor() as usize).min(stops.len() - 1);
+    ui::mix(stops[from], stops[(from + 1).min(stops.len() - 1)], span - from as f32)
+}
+
+// Discord's clamp: 0.05 lighter (on a dark ground) or darker per step, at most ten steps.
+fn readable_on(mut ink: Hsla, ground: Hsla, ratio: f32) -> Hsla {
+    let lighten = palette::luminance(ground) <= 0.5;
+    for _ in 0..10 {
+        if palette::contrast(ink, ground) >= ratio || (lighten && ink.l >= 0.95) || (!lighten && ink.l <= 0.05) {
+            break;
+        }
+        ink.l += if lighten { 0.05 } else { -0.05 };
+    }
+    ink
 }
 
 // Not sent: the text stays, with why and the two ways out inline.
@@ -2352,6 +2421,24 @@ fn crumb(id: &'static str, cx: &App) -> Stateful<Div> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn name_styles_colour_per_letter_and_stay_readable() {
+        use crate::discord::{NameEffect, NameStyle};
+        let (dark, light): (gpui_kit::Hsla, gpui_kit::Hsla) = (gpui_kit::rgb(0x1E1F22).into(), gpui_kit::rgb(0xFFFFFF).into());
+        let inks = |name: &str, effect, colors: Vec<u32>, ground| super::name_runs(name, &NameStyle { font: 11, effect, colors }, ground).into_iter().map(|(r, h)| (r, h.color.unwrap())).collect::<Vec<_>>();
+        let gummy = inks("a bé", NameEffect::Gummy, vec![0xFF0000, 0x0000FF], dark);
+        assert_eq!(gummy.iter().map(|(r, _)| r.clone()).collect::<Vec<_>>(), [0..1, 1..2, 2..3, 3..5], "one run per character, by byte");
+        assert_eq!(gummy[0].1, gummy[3].1, "letters alternate colours, spaces skipped");
+        assert_ne!(gummy[0].1, gummy[2].1);
+        let gradient = inks("Wren", NameEffect::Gradient, vec![0x2AAEA6, 0xFFC490], dark);
+        assert_ne!(gradient[0].1, gradient[3].1, "the ends differ");
+        for (_, ink) in inks("Wren", NameEffect::Solid, vec![0xFFFF00], light) {
+            assert!(crate::palette::contrast(ink, light) >= 3., "yellow darkened on white");
+        }
+        assert!(inks("Wren", NameEffect::Solid, vec![], dark).is_empty(), "solid without colours keeps the theme's");
+        assert_eq!(inks("Wren", NameEffect::Neon, vec![], dark).len(), 4, "other effects fall back to Discord's defaults");
+    }
+
     #[test]
     fn inlines_custom_emoji_only() {
         let out = inline_emoji("hi <a:aWonUwu:1328465377218269257> <@1> <:x:2> <unclosed");

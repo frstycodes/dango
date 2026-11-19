@@ -2,7 +2,7 @@
 use std::time::Duration;
 
 use gpui_kit::{
-    AnyElement, App, Context, Div, FontWeight, Hsla, MouseButton, Pixels, Point, SharedString, Stateful, Window,
+    AnyElement, App, Context, Div, FontWeight, Hsla, MouseButton, Pixels, Point, SharedString, Stateful, StyledText, Window,
     component::{ActiveTheme, Icon, text::TextView, tooltip::Tooltip},
     div, img, linear_color_stop, linear_gradient, prelude::*, px, rgb,
 };
@@ -364,6 +364,7 @@ fn menu_surface(in_guild: bool) -> Surface {
 
 // Display name, then "username • pronouns" with the guild tag chip on that line.
 pub(crate) fn name_block(user: &User, profile: &Profile, ink: Ink) -> Div {
+    let name = user.name_style.as_ref().map(|style| crate::chat::name_runs(&user.name, style, ui::mix(ink.top, ink.bottom, 0.5))).unwrap_or_default();
     let handle = [Some(profile.username.clone()).filter(|u| !u.is_empty()), profile.pronouns.clone()].into_iter().flatten().collect::<Vec<_>>().join(" • ");
     let tag = user.tag.as_ref().map(|tag| {
         div()
@@ -385,7 +386,7 @@ pub(crate) fn name_block(user: &User, profile: &Profile, ink: Ink) -> Div {
         .flex()
         .flex_col()
         .gap(px(2.))
-        .child(div().truncate().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::SEMIBOLD).text_color(ink.strong).child(user.name.clone()))
+        .child(crate::name_fonts::styled(div().truncate().text_size(px(20.)).line_height(px(24.)).font_weight(FontWeight::SEMIBOLD), user.name_style.as_ref()).text_color(ink.strong).child(StyledText::new(user.name.clone()).with_highlights(name)))
         .when(!handle.is_empty() || tag.is_some(), |b| {
             b.child(div().flex().flex_wrap().items_center().gap_x(px(6.)).gap_y(px(4.)).text_size(px(14.)).text_color(ink.text).when(!handle.is_empty(), |l| l.child(div().min_w_0().truncate().child(handle))).children(tag))
         })

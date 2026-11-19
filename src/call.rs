@@ -1085,10 +1085,7 @@ impl Waffle {
             id: state.user_id.clone(),
             name: self.user_name(&state.user_id),
             avatar: discord::avatar_url(&state.user_id, None),
-            bot: false,
-            tag: None,
-            nameplate: None,
-            decoration: None,
+            ..Default::default()
         });
         let me = self.me.as_ref().is_some_and(|m| m.id == state.user_id);
         let (muted, deafened) = if me { (self.muted || self.deafened, self.deafened) } else { (state.muted, state.deafened) };
@@ -1618,10 +1615,7 @@ impl Waffle {
             id: user_id.to_owned(),
             name: self.user_name(user_id),
             avatar: discord::avatar_url(user_id, None),
-            bot: false,
-            tag: None,
-            nameplate: None,
-            decoration: None,
+            ..Default::default()
         });
         // Anyone in voice, server or DM call, gets Discord's voice items (volume, local mute).
         let surface = crate::user_menu::Surface::ServerVoice;
