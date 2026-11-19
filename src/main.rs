@@ -48,6 +48,7 @@ mod presence;
 mod profile;
 mod notify;
 mod panel;
+mod part;
 mod rail_drag;
 mod sidebar;
 mod search;
@@ -307,8 +308,7 @@ async fn release_memory(cx: &mut gpui_kit::AsyncApp) {
 // Decoded images and their GPU textures; GIF players see them go and drop their frames. Whatever is
 // on screen decodes again from the download cache when next drawn.
 fn release_caches(cx: &mut gpui_kit::App) {
-    let images = images::cache(cx);
-    images.update(cx, |images, cx| images.clear(cx));
+    images::clear_all(cx);
 }
 
 // macOS: closing the window hides Waffle and keeps it signed in; the Dock icon or ⌘Tab brings it
@@ -759,6 +759,7 @@ pub struct Waffle {
     rail_dms_shown: Option<Vec<(Channel, u32)>>,
     // Live messages pop in; history never animates. Shared with the list's row closure.
     arrivals: Rc<RefCell<Arrivals>>,
+    parts: part::Parts,
 }
 
 #[derive(Default)]
@@ -1002,6 +1003,7 @@ impl Waffle {
             motions: Motions::new(),
             rail_dms_shown: None,
             arrivals: Rc::default(),
+            parts: part::Parts::default(),
         };
         let weak = cx.weak_entity();
         waffle.list.set_scroll_handler(move |event, _, cx| {
@@ -2716,7 +2718,7 @@ impl Waffle {
         let mut placed: HashSet<&str> = HashSet::new();
         let mut entries = Vec::new();
         for folder in &self.folders {
-            let guilds: Vec<Guild> = folder.guild_ids.iter().filter_map(|id| self.guilds.iter().find(|g| &g.id == id).cloned()).collect();
+            let guilds: Vec<usize> = folder.guild_ids.iter().filter_map(|id| self.guilds.iter().position(|g| &g.id == id)).collect();
             placed.extend(folder.guild_ids.iter().map(String::as_str));
             match (folder.id.is_empty() || folder.id == "0", guilds.len()) {
                 (_, 0) => {}
@@ -2724,7 +2726,7 @@ impl Waffle {
                 (false, _) => entries.push(RailEntry::Folder(folder.clone(), guilds)),
             }
         }
-        entries.extend(self.guilds.iter().filter(|g| !placed.contains(g.id.as_str())).cloned().map(RailEntry::Guild));
+        entries.extend(self.guilds.iter().enumerate().filter(|(_, g)| !placed.contains(g.id.as_str())).map(|(i, _)| RailEntry::Guild(i)));
         entries
     }
 
@@ -2738,9 +2740,11 @@ impl Waffle {
     }
 }
 
+// Servers by their index in `Waffle::guilds`: the rail is built every frame, and a cloned `Guild`
+// carries all its channels.
 enum RailEntry {
-    Guild(Guild),
-    Folder(Folder, Vec<Guild>),
+    Guild(usize),
+    Folder(Folder, Vec<usize>),
 }
 
 // gpui's render images are BGRA, which is what the decoder produces, so the bytes go in as they are.

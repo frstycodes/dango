@@ -544,7 +544,11 @@ fn prepaint_view(
                     return (None, element_state);
                 }
 
-                let refreshing = mem::replace(&mut window.refreshing, true);
+                // Waffle patch: upstream sets `refreshing` here, so every cached view inside one that
+                // re-renders re-renders too, and a view nested in another can never replay. The cache key
+                // above already holds what a nested view takes from the views around it; a real refresh
+                // (`Window::refresh`) still re-renders everything.
+                let refreshing = window.refreshing;
                 let prepaint_start = window.prepaint_index();
                 let (element, accessed_entities) = cx.detect_accessed_entities(|cx| {
                     let mut element = render(window, cx);

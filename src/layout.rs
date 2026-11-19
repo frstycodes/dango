@@ -2,7 +2,7 @@
 // top, each column's own header doubling as the title bar; the user area sits at the foot of the channel list.
 use gpui_kit::{
     Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent, NavigationDirection,
-    ObjectFit, Render, SharedString, Stateful, Window,
+    ObjectFit, Render, SharedString, Stateful, StyleRefinement, Window,
     component::{ActiveTheme, Icon, tooltip::Tooltip},
     div, img, linear_color_stop, linear_gradient, prelude::*, px,
 };
@@ -12,6 +12,7 @@ use crate::{
     discord,
     icons::Glyph,
     login, palette,
+    part::Column,
     sidebar::Nav,
     ui::{self, Squircle},
 };
@@ -111,17 +112,9 @@ impl Waffle {
         let body = if self.settings_open() {
             body
         } else {
-            body.child(self.render_nav(window, cx))
-            .child(match self.call_view.then(|| self.render_call_with_chat(window, cx)).flatten() {
-                Some(call) => div().flex_1().min_w_0().h_full().child(call).into_any_element(),
-                None if self.inbox_page => self.render_inbox_page(cx),
-                None if self.guild_id.is_none() && self.channel.is_none() => self.render_home(window, cx),
-                None if self.channel.as_ref().is_some_and(|c| c.kind == discord::ChannelKind::Forum) => {
-                    let forum = self.channel.clone().expect("checked above");
-                    self.render_forum(forum, cx)
-                }
-                None => self.render_chat(window, cx).into_any_element(),
-            })
+            let nav = self.part(Column::Nav, StyleRefinement::default().w(px(sidebar_width)).h_full().flex_none(), cx);
+            let main = self.part(Column::Main, StyleRefinement::default().flex_1().min_w_0().h_full(), cx);
+            body.child(nav).child(main)
         };
         // Anything drawn over the chat pauses its GIFs (the GIF layer paints above the whole app).
         let (overlays, call_overlays) = (self.render_overlays(window, cx), self.render_call_overlays(window, cx));
@@ -152,6 +145,21 @@ impl Waffle {
 }
 
 impl Waffle {
+    // The column beside the sidebar: the call, the inbox, home, a forum or the chat (a part, see part.rs).
+    pub(crate) fn render_main(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        crate::gif::begin_inline_layout();
+        match self.call_view.then(|| self.render_call_with_chat(window, cx)).flatten() {
+            Some(call) => div().flex_1().min_w_0().h_full().child(call).into_any_element(),
+            None if self.inbox_page => self.render_inbox_page(cx),
+            None if self.guild_id.is_none() && self.channel.is_none() => self.render_home(window, cx),
+            None if self.channel.as_ref().is_some_and(|c| c.kind == discord::ChannelKind::Forum) => {
+                let forum = self.channel.clone().expect("checked above");
+                self.render_forum(forum, cx)
+            }
+            None => self.render_chat(window, cx).into_any_element(),
+        }
+    }
+
     fn on_root_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         let keystroke = &event.keystroke;
         if self.record_keystroke(keystroke, cx) {
@@ -378,7 +386,7 @@ impl Waffle {
     }
 
     // The rail and the channel list, with the user area floating across the foot of both.
-    fn render_nav(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    pub(crate) fn render_nav(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let user_panel = self.me.clone().map(|me| self.user_panel(me, cx));
         div()
             .relative()

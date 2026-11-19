@@ -265,13 +265,14 @@ impl Waffle {
         }
     }
 
-    fn guild_item(&mut self, guild: Guild, badge_scale: f32, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let tile = self.guild_tile(&guild, badge_scale);
+    fn guild_item(&mut self, guild: usize, badge_scale: f32, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let tile = self.guild_tile(&self.guilds[guild], badge_scale);
         self.rail_item(tile, window, cx)
     }
 
     // A folder: closed, a tile of its first four servers; open, a tinted column holding them all.
-    fn folder_item(&mut self, folder: Folder, guilds: Vec<Guild>, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    fn folder_item(&mut self, folder: Folder, indices: Vec<usize>, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let guilds: Vec<&Guild> = indices.iter().map(|&i| &self.guilds[i]).collect();
         let open = self.open_folders.contains(&folder.id);
         let key = format!("folder-{}", folder.id);
         let motion = FolderMotion::frame(&key, open, window, cx);
@@ -279,7 +280,7 @@ impl Waffle {
         let (unread, mentions) = guilds.iter().map(|g| self.guild_badge(g)).fold((false, 0), |(u, m), (gu, gm)| (u || gu, m + gm));
         let has_selected = guilds.iter().any(|g| self.guild_id.as_ref() == Some(&g.id));
         let name: SharedString = folder.name.clone().unwrap_or_else(|| guilds.iter().map(|g| g.name.as_str()).take(3).collect::<Vec<_>>().join(", ")).into();
-        let minis: Vec<Mini> = guilds.iter().map(mini).collect();
+        let minis: Vec<Mini> = guilds.iter().map(|g| mini(g)).collect();
         let head = RailTile {
             key: key.clone(),
             name,
@@ -308,11 +309,11 @@ impl Waffle {
                 }
                 cx.notify();
             }));
-        let count = guilds.len();
+        let count = indices.len();
         let landed = motion.trip >= 1.;
         let servers: Vec<AnyElement> = match (motion.trip > 0., landed) {
             (false, _) => Vec::new(),
-            (true, true) => guilds.into_iter().enumerate().map(|(i, g)| div().absolute().left_0().top(px(slot_y(i))).child(self.guild_item(g, motion.child_badge, window, cx)).into_any_element()).collect(),
+            (true, true) => indices.into_iter().enumerate().map(|(i, g)| div().absolute().left_0().top(px(slot_y(i))).child(self.guild_item(g, motion.child_badge, window, cx)).into_any_element()).collect(),
             (true, false) => minis.iter().enumerate().map(|(i, m)| flying_tile(m, i, motion.trip, cx)).collect(),
         };
         div()

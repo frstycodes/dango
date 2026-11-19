@@ -77,7 +77,7 @@ impl Waffle {
             .child(div().relative().flex_1().min_h_0().child(body).children(unread_bar).child(self.render_composer(window, cx)));
         // The feed runs up under the header, which blurs and fades it (scroll_edge); the members column beside
         // it runs to the window's top with a header of its own on the same line.
-        let panel = self.render_panel(window, cx);
+        let panel = self.panel_column_width().map(|w| self.part(crate::part::Column::Panel, gpui_kit::StyleRefinement::default().w(px(w)).h_full().flex_none(), cx));
         // After the header: its scroll-edge fade runs past its bar and would veil the strip.
         let strip = strip.map(|s| div().absolute().top(px(HEADER_HEIGHT)).left_0().right_0().px(px(16.)).child(s));
         let drop_zone = self.drop_zone(&channel, cx);

@@ -44,8 +44,8 @@ const MIN_FRAME: Duration = Duration::from_millis(66);
 // A broken clip that reports no length would otherwise loop as fast as it decodes.
 const MIN_LOOP: Duration = Duration::from_millis(100);
 
-// Where the app's last layout put each GIF. Rebuilt whenever the app renders; kept while gpui
-// replays its cached drawing, which means the layout didn't change.
+// Where the app's last layout put each GIF. Rebuilt whenever the part holding them renders; kept while
+// gpui replays its cached drawing, which means the layout didn't change.
 #[derive(Clone)]
 struct Slot {
     url: String,
@@ -108,12 +108,18 @@ thread_local! {
     static LAYER: RefCell<Option<WeakEntity<GifLayer>>> = const { RefCell::new(None) };
 }
 
-/// The app is about to lay itself out again: forget where GIFs were.
+/// The app is about to lay itself out again: forget where its overlays' GIFs were.
 pub fn begin_layout() {
     APP_RENDERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    LAYOUT.with(|l| l.borrow_mut().slots.retain(|_, slot| !slot.top));
+}
+
+/// The main column (part.rs) is about to lay itself out again: forget where its GIFs were. It draws
+/// apart from the app, so each forgets only its own; a replayed drawing keeps its slots.
+pub fn begin_inline_layout() {
     LAYOUT.with(|l| {
         let mut layout = l.borrow_mut();
-        layout.slots.clear();
+        layout.slots.retain(|_, slot| slot.top);
         layout.chat = None;
     });
 }

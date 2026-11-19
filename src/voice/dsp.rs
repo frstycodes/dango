@@ -77,6 +77,8 @@ impl Default for Block {
 
 pub struct Processor {
     state: Mutex<State>,
+    // Read every frame by the UI, so not behind `state`, which capture holds while it runs the model.
+    degraded: Arc<AtomicBool>,
     render_tx: SyncSender<[f32; BLOCK]>,
     echo: AtomicBool,
     noise: AtomicU8,
@@ -104,7 +106,8 @@ impl Processor {
         let front = AudioProcessing::builder().config(front_config(echo, noise)).capture_config(mono).render_config(mono).build();
         let back = AudioProcessing::builder().config(back_config(gain)).capture_config(mono).render_config(mono).build();
         let (render_tx, render_rx) = sync_channel(RENDER_QUEUE_BLOCKS);
-        let mut neural = Neural::new();
+        let degraded = Arc::new(AtomicBool::new(false));
+        let mut neural = Neural::new(degraded.clone());
         if noise == NoiseSuppression::Advanced {
             neural.load();
         }
@@ -120,7 +123,7 @@ impl Processor {
             pcm: [0; BLOCK],
             taps: Taps::from_env(),
         };
-        Self { state: Mutex::new(state), render_tx, echo: AtomicBool::new(echo), noise: AtomicU8::new(noise as u8), gain: AtomicBool::new(gain) }
+        Self { state: Mutex::new(state), degraded, render_tx, echo: AtomicBool::new(echo), noise: AtomicU8::new(noise as u8), gain: AtomicBool::new(gain) }
     }
 
     pub fn set(&self, echo: Option<bool>, noise: Option<NoiseSuppression>, gain: Option<bool>) {
@@ -150,7 +153,7 @@ impl Processor {
 
     // True once DeepFilterNet fell behind real time and RNNoise took over for this session.
     pub fn degraded(&self) -> bool {
-        self.state.lock().is_ok_and(|s| s.neural.degraded)
+        self.degraded.load(Ordering::Relaxed)
     }
 
     // What is about to be played, as interleaved 48 kHz stereo (whole 10 ms blocks). Called from the
@@ -257,7 +260,7 @@ struct Neural {
     rnnoise: Box<DenoiseState<'static>>,
     dfn: Option<Worker>,
     overrun: Overrun,
-    degraded: bool,
+    degraded: Arc<AtomicBool>,
 }
 
 struct Worker {
@@ -267,12 +270,12 @@ struct Worker {
 }
 
 impl Neural {
-    fn new() -> Self {
-        Self { rnnoise: DenoiseState::new(), dfn: None, overrun: Overrun::default(), degraded: false }
+    fn new(degraded: Arc<AtomicBool>) -> Self {
+        Self { rnnoise: DenoiseState::new(), dfn: None, overrun: Overrun::default(), degraded }
     }
 
     fn load(&mut self) {
-        if self.dfn.is_some() || self.degraded {
+        if self.dfn.is_some() || self.degraded.load(Ordering::Relaxed) {
             return;
         }
         let ready = Arc::new(AtomicBool::new(false));
@@ -302,7 +305,7 @@ impl Neural {
         let enhanced = worker.requests.send(*mono).ok().and_then(|()| worker.replies.recv().ok().flatten());
         let Some(enhanced) = enhanced else {
             self.dfn = None;
-            self.degraded = true;
+            self.degraded.store(true, Ordering::Relaxed);
             return false;
         };
         // Tests measure DeepFilterNet itself; on a loaded test machine the switch would make them
@@ -310,7 +313,7 @@ impl Neural {
         if !cfg!(test) && self.overrun.record(started.elapsed()) {
             eprintln!("voice: DeepFilterNet can't keep up on this CPU; switching to RNNoise");
             self.dfn = None;
-            self.degraded = true;
+            self.degraded.store(true, Ordering::Relaxed);
         }
         *out = enhanced;
         true

@@ -33,20 +33,27 @@ impl Waffle {
         }
     }
 
-    pub fn render_panel(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
-        // A DM has no member list; its side panel is only ever search results.
-        if !self.panel_shown() {
-            return None;
+    // The side panel's width while it shows. A DM has no member list; its side panel is only ever search results.
+    pub fn panel_column_width(&self) -> Option<f32> {
+        match &self.right_panel {
+            _ if !self.panel_shown() => None,
+            RightPanel::Hidden => None,
+            RightPanel::Members | RightPanel::Activity => Some(self.panel_width),
+            RightPanel::Search(_) => Some(crate::search_results::PANEL_WIDTH),
         }
+    }
+
+    pub fn render_panel(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let width = self.panel_column_width()?;
         // Its header sits on the window's top line beside the channel header's: "Members", or the search's
         // query with a way back to the members.
-        let (head, body, foot, width): (Div, AnyElement, Option<AnyElement>, f32) = match &self.right_panel {
+        let (head, body, foot): (Div, AnyElement, Option<AnyElement>) = match &self.right_panel {
             RightPanel::Hidden => return None,
-            RightPanel::Members => (self.panel_head("Members".into(), false, cx), self.member_list(window, cx), None, self.panel_width),
-            RightPanel::Activity => (self.panel_head("Activity".into(), true, cx), self.activity_cards(usize::MAX, cx), None, self.panel_width),
+            RightPanel::Members => (self.panel_head("Members".into(), false, cx), self.member_list(window, cx), None),
+            RightPanel::Activity => (self.panel_head("Activity".into(), true, cx), self.activity_cards(usize::MAX, cx), None),
             RightPanel::Search(results) => {
                 let head = self.panel_frame(cx).child(self.search_head(results, self.back_button(cx), cx));
-                (head, self.search_body(results, cx), self.search_pager(results, cx), crate::search_results::PANEL_WIDTH)
+                (head, self.search_body(results, cx), self.search_pager(results, cx))
             }
         };
         let line = palette::line(cx);
