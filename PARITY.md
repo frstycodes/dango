@@ -3,13 +3,16 @@
 Reference: the user's Discord desktop client (Midnight theme), captured 2026-11-14.
 Order: features first (most used at the top), then polish. `[x]` done, `[~]` partial, `[ ]` open.
 
+Missing features, with how Discord's UX works for each: [docs/discord-parity-gaps.md](docs/discord-parity-gaps.md).
+User complaints about Discord and how Dango answers them: [docs/better.md](docs/better.md).
+
 ## Features
 
 ### Everyday (build first)
 - [x] Right-click context menus: message (reply, react, edit, delete, copy text, copy link, pin, mark unread), channel (mark as read, mute, copy link), server (mark as read, mute, leave), user (profile, mention, message, copy ID)
 - [x] User profile popout on avatar/name click: banner, avatar + status, display name, username, tag, roles, "Message @x" box
 - [x] Emoji picker: composer button and "add reaction" with search, categories, recents and server emoji
-- [x] Status picker from the user panel: Online, Idle, Do Not Disturb, Invisible, custom status
+- [~] Status picker from the user panel: Online, Idle, Do Not Disturb, Invisible; custom status is shown but can't be set (`set_status` sends `activities: []`)
 - [x] Quick switcher (Ctrl/Cmd+K)
 - [x] "NEW" unread divider in the transcript, plus a "You're viewing older messages / Jump to present" bar
 - [x] Markdown parity (timestamps, spoilers, subtext): spoilers `||x||`, block quotes `>`, headers `#`, subtext `-#`, timestamps `<t:…:R>`, masked links, lists
@@ -36,9 +39,10 @@ Order: features first (most used at the top), then polish. `[x]` done, `[~]` par
 - [ ] Sound cues on Windows/Linux (rodio)
 
 ### Regular
-- [x] GIF picker (Discord's Tenor search) and sticker picker
+- [x] GIF picker (Discord's Tenor search)
+- [ ] Stickers: picker, sending and rendering (`sticker_items` isn't parsed)
 - [x] Pins popover from the header
-- [x] Inbox (mentions, unreads) from the title bar
+- [~] Inbox from the title bar: Mentions tab only; the Unreads tab and Mentions filters are missing
 - [x] Threads: thread chips under messages, joined threads nested under their channel, a Threads popout in the header, Create Thread, Discord's thread menu (join, close, lock, mute, notifications, delete, leave)
 - [ ] Threads open in the main view with a breadcrumb; Discord opens them in a split pane beside the channel
 - [ ] Threads popout lists active threads only; Discord also searches older and archived ones
