@@ -67,12 +67,12 @@ fn window_choice(window: &ShareableWindow) -> (ShareSource, String) {
     (ShareSource::Window(window.id), window.title.clone())
 }
 
-// What the Toggle Screen Share keybind shares: the app in front when it's pressed (the game being
-// played, as Discord's Go Live does), else the remembered source. None opens the picker. Waffle in front
+// What the Toggle Screen Share keybind shares: the detected game, else the app in front when it's
+// pressed (as Discord's Go Live does), else the remembered source. None opens the picker. Waffle in front
 // has no windows on offer, so it falls through. Takes the app's first listed window: a game that keeps a
 // launcher window open may need picking by size instead.
-pub fn keybind_source(front_pid: Option<i32>, last: Option<&LastShare>, windows: &[ShareableWindow], screens: &[ShareableScreen]) -> Option<(ShareSource, String)> {
-    front_pid.and_then(|pid| windows.iter().find(|w| w.pid == pid)).map(window_choice).or_else(|| last.and_then(|l| l.find(windows, screens)))
+pub fn keybind_source(game_pid: Option<i32>, last: Option<&LastShare>, windows: &[ShareableWindow], screens: &[ShareableScreen]) -> Option<(ShareSource, String)> {
+    game_pid.and_then(|pid| windows.iter().find(|w| w.pid == pid)).map(window_choice).or_else(|| last.and_then(|l| l.find(windows, screens)))
 }
 
 #[derive(Debug, PartialEq)]
@@ -101,10 +101,10 @@ impl Waffle {
         }
     }
 
-    // The app in front is read now, at the key press; listing windows takes tens of milliseconds, so it
+    // The game, or the app in front, is read now at the key press; listing windows takes tens of milliseconds, so it
     // runs off the UI thread, and the call may have changed by the time it's back.
     fn share_from_keybind(&mut self, cx: &mut Context<Self>) {
-        let front = voice::frontmost_pid();
+        let game = crate::games::running_pid().map(|pid| pid as i32).or_else(voice::frontmost_pid);
         let last = self.prefs.last_share.clone();
         let listing = cx.background_spawn(async { (voice::shareable_windows().unwrap_or_default(), voice::screens().unwrap_or_default()) });
         cx.spawn(async move |this, cx| {
@@ -114,7 +114,7 @@ impl Waffle {
                 if !ready {
                     return;
                 }
-                match keybind_source(front, last.as_ref(), &windows, &screens) {
+                match keybind_source(game, last.as_ref(), &windows, &screens) {
                     Some((source, label)) => this.share_and_remember(source, label, &windows, cx),
                     None => this.open_share_picker(cx),
                 }

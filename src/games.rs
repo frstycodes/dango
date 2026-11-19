@@ -72,7 +72,6 @@ impl Playing {
 static RUNNING: Mutex<Option<Game>> = Mutex::new(None);
 
 /// The detected game's process, for Go Live's share bind to prefer over the frontmost app.
-#[allow(dead_code)]
 pub fn running_pid() -> Option<u32> {
     RUNNING.lock().ok()?.as_ref().map(|g| g.pid)
 }
