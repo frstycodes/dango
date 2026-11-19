@@ -310,19 +310,35 @@ fn release_caches(cx: &mut gpui_kit::App) {
 }
 
 // macOS: closing the window hides Dango and keeps it signed in; the Dock icon or ⌘Tab brings it
-// back and ⌘Q quits. Minimized, hidden or fully covered, it frees its caches (there is no working set
-// to empty, the system compresses idle pages itself), unless a video is playing.
+// back and ⌘Q quits. Minimized, hidden or fully covered, it frees its caches and hands freed heap
+// pages back (there is no working set to empty, the system compresses idle pages itself), unless a
+// video is playing. Shown again, it redraws from scratch: the cached app view still points at the
+// freed images' atlas tiles.
 #[cfg(target_os = "macos")]
 fn keep_running_in_dock(window: &mut gpui_kit::Window, cx: &mut gpui_kit::App) {
     window.on_window_should_close(cx, |_, cx| {
         cx.hide();
         false
     });
+    let released = std::rc::Rc::new(std::cell::Cell::new(false));
     window
-        .observe_window_visibility(|visibility, _, cx| {
-            if !visibility.is_visible() && !video::is_playing(cx) {
-                release_caches(cx);
+        .observe_window_visibility(move |visibility, window, cx| {
+            if visibility.is_visible() {
+                if released.replace(false) {
+                    window.refresh();
+                }
+                return;
             }
+            if video::is_playing(cx) || released.replace(true) {
+                return;
+            }
+            release_caches(cx);
+            cx.spawn(async move |cx| {
+                // After the deferred image drops have run and the GPU has let go of the textures.
+                cx.background_executor().timer(Duration::from_millis(100)).await;
+                cx.background_executor().spawn(async { memory::compact() }).await;
+            })
+            .detach();
         })
         .detach();
 }
