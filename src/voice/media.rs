@@ -32,7 +32,8 @@ use super::{
 
 const DAVE_MARKER: [u8; 2] = [0xfa, 0xfa];
 const SILENCE_FRAMES: u8 = 5;
-const BITRATE: i32 = 64_000;
+pub const BITRATE: i32 = 64_000;
+const EXPECTED_LOSS_PERCENT: i32 = 5;
 const QUIET_AFTER: Duration = Duration::from_millis(250);
 const POLL: Duration = Duration::from_millis(100);
 const CAMERA_POLL: Duration = Duration::from_millis(200);
@@ -226,6 +227,10 @@ fn send_loop(link: &Link, pcm: Receiver<Vec<f32>>, stop: &AtomicBool) {
         Err(e) => return eprintln!("voice: opus encoder: {e}"),
     };
     let _ = encoder.set_bitrate(opus::Bitrate::Bits(BITRATE));
+    // Discord negotiates useinbandfec=1; Opus only adds the FEC copy when it expects loss.
+    // TODO(voice): feed the loss from RTCP receiver reports instead of a fixed guess.
+    let _ = encoder.set_inband_fec(true);
+    let _ = encoder.set_packet_loss_perc(EXPECTED_LOSS_PERCENT);
     let mut out = RtpOut { sequence: rand::random(), timestamp: rand::random() };
     let mut pending: Vec<f32> = Vec::with_capacity(FRAME_LEN * 2);
     let mut frame = [0f32; FRAME_LEN];

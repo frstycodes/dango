@@ -44,7 +44,7 @@ openh264 = "0.9"
 mp4 = "0.14"
 notify-rust = "4"
 sonora = "0.3"
-# Already in the tree through sonora; the residual echo suppressor works in the frequency domain.
+# Already in the tree through sonora; the offline echo check measures in the frequency domain.
 rustfft = "6.4"
 nokhwa = { version = "0.10", features = ["input-native", "output-threaded"] }
 nnnoiseless = { version = "0.5.2", default-features = false }

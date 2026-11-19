@@ -15,9 +15,11 @@ mod capture;
 mod capture;
 mod dave;
 mod dsp;
-mod echo_suppressor;
+mod taps;
 #[cfg(test)]
 mod echo_check;
+#[cfg(test)]
+mod chain_check;
 #[cfg(test)]
 mod fixtures;
 mod jitter;
