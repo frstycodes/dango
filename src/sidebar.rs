@@ -1305,15 +1305,21 @@ enum VoiceMark {
 }
 
 // Deafening yourself also mutes you, so a self-deafen shows both marks, as Discord's list does; a
-// server deafen shows only its own.
+// server deafen alone shows only its own, and a server mute and deafen together show both.
 fn voice_marks(state: &crate::discord::VoiceState) -> Vec<VoiceMark> {
-    let mut marks = match (state.server_deafened, state.server_muted, state.muted, state.deafened) {
-        (true, ..) => vec![VoiceMark::ServerDeafened],
-        (_, true, ..) => vec![VoiceMark::ServerMuted],
-        (.., true) => vec![VoiceMark::Muted, VoiceMark::Deafened],
-        (_, _, true, false) => vec![VoiceMark::Muted],
-        _ => vec![],
+    // The mic slot and the headphones slot fill on their own, so a server mute shows beside a server
+    // deafen. `muted` and `deafened` include the server's flags, so only a self-deafen fills the mic slot.
+    let mic = match (state.server_muted, state.muted || (state.deafened && !state.server_deafened)) {
+        (true, _) => Some(VoiceMark::ServerMuted),
+        (false, true) => Some(VoiceMark::Muted),
+        _ => None,
     };
+    let ears = match (state.server_deafened, state.deafened) {
+        (true, _) => Some(VoiceMark::ServerDeafened),
+        (false, true) => Some(VoiceMark::Deafened),
+        _ => None,
+    };
+    let mut marks: Vec<VoiceMark> = mic.into_iter().chain(ears).collect();
     if state.camera {
         marks.push(VoiceMark::Camera);
     }
