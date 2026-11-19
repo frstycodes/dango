@@ -869,8 +869,9 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .flex_col()
         .line_height(gpui_kit::relative(1.45))
         // Mentioning you: the tint and a 2px accent bar down the left edge, square like Discord's.
-        .when(mention, |r| r.rounded(px(0.)).bg(rest.unwrap_or(soft)).hover(move |s| s.bg(rest.unwrap_or(mention_hover))).child(div().absolute().left_0().top_0().bottom_0().w(px(2.)).bg(palette::accent())))
-        .when(!mention, |r| r.when(held || focused, |r| r.bg(rest.unwrap_or(hover))).hover(move |s| s.bg(rest.unwrap_or(hover))))
+        // `hovered` too: the toolbar occludes the row, so the row's own `.hover` drops while the pointer is on it.
+        .when(mention, |r| r.rounded(px(0.)).bg(rest.unwrap_or(if hovered { mention_hover } else { soft })).hover(move |s| s.bg(rest.unwrap_or(mention_hover))).child(div().absolute().left_0().top_0().bottom_0().w(px(2.)).bg(palette::accent())))
+        .when(!mention, |r| r.when(held || focused || hovered, |r| r.bg(rest.unwrap_or(hover))).hover(move |s| s.bg(rest.unwrap_or(hover))))
         .on_hover(track_message_hover(message, ctx));
     // Last, so it paints over the message's own content where it overlaps it.
     let toolbar = hovered.then(|| actions(message, mine, ctx, cx));
@@ -1021,16 +1022,27 @@ fn profile_trigger(id: String, user: &User, ctx: &Rc<RowContext>) -> Stateful<Di
 
 fn track_message_hover(message: &Message, ctx: &Rc<RowContext>) -> impl Fn(&bool, &mut Window, &mut App) + 'static {
     let (this, id) = (ctx.this.clone(), message.id.clone());
-    move |hovered, _, cx| {
-        this.update(cx, |this, cx| {
-            if !*hovered && this.hovered_message.as_ref() != Some(&id) {
-                return;
-            }
-            this.hovered_message = hovered.then(|| id.clone());
-            cx.notify();
-        })
-        .ok();
+    move |hovered, window, cx| {
+        // The row and its toolbar both report, and moving between them fires a leave and an enter in either
+        // order: leaves apply now, enters after the event, so the enter always wins.
+        if *hovered {
+            let (this, id) = (this.clone(), id.clone());
+            window.defer(cx, move |_, cx| set_hovered_message(&this, Some(id), cx));
+            return;
+        }
+        let leaving = this.read_with(cx, |this, _| this.hovered_message.as_ref() == Some(&id)).unwrap_or(false);
+        if leaving {
+            set_hovered_message(&this, None, cx);
+        }
     }
+}
+
+fn set_hovered_message(this: &WeakEntity<Rustcord>, id: Option<String>, cx: &mut App) {
+    this.update(cx, |this, cx| {
+        this.hovered_message = id;
+        cx.notify();
+    })
+    .ok();
 }
 
 // Right-click opens the message menu; a plain click on the row's own space focuses it. Controls inside
@@ -1871,6 +1883,11 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, cx: &App) -> Any
     let sent = message.state == SendState::Sent;
     let shifted = ctx.shift && (mine || ctx.manage_messages);
     let mut bar = div()
+        .id(SharedString::from(format!("actions-{}", message.id)))
+        // Rides 18px into the row above: occlude it there and keep this row hovered, or the pointer hands
+        // the hover (and the bar) to that row.
+        .occlude()
+        .on_hover(track_message_hover(message, ctx))
         .absolute()
         .top(px(-18.))
         // A flush mention row is 8px wider each side; the bar stays where it sits on other rows.
