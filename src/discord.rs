@@ -1396,16 +1396,59 @@ pub fn demo_media(url: &str) -> Option<bytes::Bytes> {
     DEMO_MEDIA.get()?(url)
 }
 
+// Discord's HTTP failures (docs.discord.com, Opcodes and Status Codes, HTTP): 429 waits out
+// `retry_after` and tries again; a 5xx is retried once, only for methods that are safe to repeat, so a
+// message never sends twice; 401 means the token is no longer accepted. Every other failure shows
+// Discord's own message (its JSON `message`, field errors included).
 pub async fn send(req: reqwest::RequestBuilder) -> Result<Value, String> {
-    let res = req.send().await.map_err(|e| e.to_string())?;
-    let status = res.status();
-    let url = res.url().path().to_owned();
-    let body: Value = res.json().await.unwrap_or(Value::Null);
-    if status.is_success() {
-        return Ok(body);
+    let idempotent = req.try_clone().and_then(|r| r.build().ok()).is_some_and(|r| matches!(*r.method(), reqwest::Method::GET | reqwest::Method::PUT | reqwest::Method::DELETE | reqwest::Method::HEAD));
+    let mut req = req;
+    let mut retries = 0;
+    loop {
+        // None for a streamed body (uploads): those aren't retried.
+        let again = req.try_clone();
+        let res = req.send().await.map_err(|e| e.to_string())?;
+        let status = res.status();
+        let url = res.url().path().to_owned();
+        let header_wait = res.headers().get(reqwest::header::RETRY_AFTER).and_then(|v| v.to_str().ok()?.parse::<f64>().ok());
+        let body: Value = res.json().await.unwrap_or(Value::Null);
+        if status.is_success() {
+            return Ok(body);
+        }
+        if let (Some(wait), Some(next)) = (retry_wait(status.as_u16(), &body, header_wait, idempotent, retries), again) {
+            eprintln!("http: {status} {url}, retrying in {wait:?}");
+            tokio::time::sleep(wait).await;
+            req = next;
+            retries += 1;
+            continue;
+        }
+        eprintln!("http: {status} {url} (code {}): {body}", body["code"]);
+        return Err(error_text(status.as_u16(), &body));
     }
-    eprintln!("http: {status} {url}: {body}");
-    Err(api_error(&body).unwrap_or_else(|| status.to_string()))
+}
+
+// Longer than this and the caller hears "rate limited" instead of a frozen action.
+const MAX_RETRY_WAIT: f64 = 10.;
+
+fn retry_wait(status: u16, body: &Value, header_wait: Option<f64>, idempotent: bool, retries: u32) -> Option<Duration> {
+    match status {
+        429 if retries < 2 => {
+            let secs = body["retry_after"].as_f64().or(header_wait).unwrap_or(1.);
+            (secs <= MAX_RETRY_WAIT).then(|| Duration::from_secs_f64(secs.max(0.)))
+        }
+        500 | 502 | 503 | 504 if idempotent && retries == 0 => Some(Duration::from_secs(1)),
+        _ => None,
+    }
+}
+
+const SESSION_EXPIRED: &str = "Your session has expired. Sign in again.";
+
+fn error_text(status: u16, body: &Value) -> String {
+    match status {
+        401 => SESSION_EXPIRED.to_owned(),
+        // 40002 (verify your account), 50035 (invalid form) and the rest read as Discord words them.
+        _ => api_error(body).unwrap_or_else(|| reqwest::StatusCode::from_u16(status).map_or_else(|_| status.to_string(), |s| s.to_string())),
+    }
 }
 
 // A file on its way to Discord. `name` is what the message shows, `SPOILER_` included.
@@ -1498,6 +1541,11 @@ async fn put_file(http: reqwest::Client, url: String, path: PathBuf, sent: std::
 
 // Discord's refusal in its own words. "Invalid Form Body" says nothing alone, so the first field's
 // message follows it: "Invalid Form Body: name: Must be between 1 and 100 in length."
+/// A REST error that means the token itself was refused (HTTP 401).
+pub fn is_unauthorized(error: &str) -> bool {
+    error == SESSION_EXPIRED
+}
+
 fn api_error(body: &Value) -> Option<String> {
     fn first_field(errors: &Value, path: &str) -> Option<String> {
         if let Some(message) = errors["_errors"][0]["message"].as_str() {
@@ -2518,6 +2566,48 @@ mod tests {
 
     fn upload(name: &str, size: u64) -> Upload {
         Upload { path: PathBuf::from(format!("/tmp/{name}")), name: name.into(), size, sent: Default::default() }
+    }
+
+    #[test]
+    fn http_failures_retry_only_where_discord_allows() {
+        let limited = json!({ "message": "You are being rate limited.", "retry_after": 0.5, "global": false });
+        assert_eq!(retry_wait(429, &limited, None, false, 0), Some(Duration::from_millis(500)), "429 retries even a POST");
+        assert_eq!(retry_wait(429, &limited, None, false, 2), None, "two retries at most");
+        assert_eq!(retry_wait(429, &json!({ "retry_after": 60.0 }), None, true, 0), None, "too long to wait");
+        assert_eq!(retry_wait(429, &Value::Null, Some(2.), true, 0), Some(Duration::from_secs(2)), "Retry-After header");
+        assert_eq!(retry_wait(502, &Value::Null, None, true, 0), Some(Duration::from_secs(1)));
+        assert_eq!(retry_wait(502, &Value::Null, None, false, 0), None, "a POST never repeats on 5xx");
+        assert_eq!(retry_wait(502, &Value::Null, None, true, 1), None);
+        for status in [400, 401, 403, 404, 405] {
+            assert_eq!(retry_wait(status, &Value::Null, None, true, 0), None, "{status}");
+        }
+        assert_eq!(error_text(403, &json!({ "message": "Missing Permissions", "code": 50013 })), "Missing Permissions");
+        assert_eq!(error_text(404, &Value::Null), "404 Not Found");
+    }
+
+    #[test]
+    fn every_gateway_close_code_has_its_documented_outcome() {
+        for code in [1000, 1001, 1006, 4000, 4001, 4002, 4003, 4005, 4008] {
+            assert_eq!(close_kind(code), Close::Resume, "{code}");
+        }
+        for code in [4007, 4009, 4015, 4016] {
+            assert_eq!(close_kind(code), Close::Identify, "{code}");
+        }
+        for code in 4010..=4014 {
+            assert_eq!(close_kind(code), Close::Fatal, "{code}");
+        }
+        assert_eq!(close_kind(4004), Close::AuthFailed);
+        assert_eq!(gateway_close_text(4009, ""), "Session timed out (4009)");
+        assert!(is_unauthorized(&error_text(401, &json!({ "message": "401: Unauthorized", "code": 0 }))));
+        assert!(!is_unauthorized(&error_text(403, &json!({ "message": "Missing Access", "code": 50001 }))));
+    }
+
+    #[test]
+    fn pins_parse_both_the_new_and_the_deprecated_shape() {
+        let message = |id: &str| json!({ "id": id, "channel_id": "c", "author": { "id": "u" } });
+        let new = json!({ "items": [{ "pinned_at": "2026-01-01T00:00:00Z", "message": message("2") }, { "pinned_at": "x", "message": message("1") }], "has_more": false });
+        assert_eq!(parse_pins(&new).iter().map(|m| m.id.as_str()).collect::<Vec<_>>(), ["2", "1"]);
+        assert_eq!(parse_pins(&json!([message("3")])).len(), 1);
     }
 
     #[test]
