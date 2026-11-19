@@ -3,9 +3,9 @@ use anyhow::{Context as _, Result};
 use block2::RcBlock;
 use core_graphics::geometry::CGSize;
 use gpui::{
-    AtlasTextureId, BackdropBlur, BackdropBlurPass, BackdropBlurPlan, Background, Bounds,
-    ContentMask, DevicePixels, PaintSurface, Path, Point, PrimitiveBatch, ScaledPixels, Scene,
-    Size, point, size,
+    AtlasTextureId, BackdropBlur, BackdropBlurPass, BackdropBlurPlan, BackdropBlurTextureBudget,
+    Background, Bounds, ContentMask, DevicePixels, PaintSurface, Path, Point, PrimitiveBatch,
+    ScaledPixels, Scene, Size, point, size,
 };
 #[cfg(any(test, feature = "bench-support", feature = "test-support"))]
 use image::RgbaImage;
@@ -39,7 +39,6 @@ const PATH_SAMPLE_COUNT: u32 = 4;
 /// Metal requires the offset a buffer is bound at to be 256-byte aligned.
 const INSTANCE_BUFFER_ALIGNMENT: usize = 256;
 const MAX_INSTANCE_BUFFER_SIZE: usize = 256 * 1024 * 1024;
-const BACKDROP_BLUR_TEXTURE_GRANULARITY: u64 = 64;
 
 pub type Context = Arc<Mutex<InstanceBufferPool>>;
 pub type Renderer = MetalRenderer;
@@ -138,8 +137,12 @@ pub struct MetalRenderer {
     path_intermediate_msaa_texture: Option<metal::Texture>,
     path_sample_count: u32,
     /// Level 0 holds the region a backdrop blur reads; each later level is half the size of the
-    /// one before. Allocated on first use and only ever grown.
+    /// one before. Allocated on first use; `backdrop_blur_budget` shrinks and frees them.
     backdrop_blur_textures: Vec<metal::Texture>,
+    backdrop_blur_budget: BackdropBlurTextureBudget,
+    /// Set when a frame skipped its blurs because its drawable couldn't be read, so the window
+    /// draws again with a readable one rather than idling without them.
+    skipped_backdrop_blurs: bool,
     /// Offscreen render target reused across `render_scene` calls when
     /// rendering headlessly without reading pixels back.
     #[cfg(any(test, feature = "bench-support", feature = "test-support"))]
@@ -443,6 +446,8 @@ impl MetalRenderer {
             path_intermediate_msaa_texture: None,
             path_sample_count: PATH_SAMPLE_COUNT,
             backdrop_blur_textures: Vec::new(),
+            backdrop_blur_budget: BackdropBlurTextureBudget::default(),
+            skipped_backdrop_blurs: false,
             #[cfg(any(test, feature = "bench-support", feature = "test-support"))]
             headless_render_target: None,
         }
@@ -835,6 +840,9 @@ impl MetalRenderer {
                 ),
                 PrimitiveBatch::BackdropBlurs(range) => {
                     if !can_read_texture {
+                        // The layer only just stopped being framebuffer-only; the next
+                        // drawable can be read.
+                        self.skipped_backdrop_blurs = true;
                         continue;
                     }
                     for blur in &scene.backdrop_blurs[range] {
@@ -862,8 +870,16 @@ impl MetalRenderer {
         }
 
         command_encoder.end_encoding();
+        // The command buffer retains the textures it uses, so freeing them here is safe.
+        self.trim_backdrop_blur_textures();
 
         Ok(command_buffer.to_owned())
+    }
+
+    /// Whether the last frame skipped backdrop blurs it can draw next frame, so the window should
+    /// draw again even if nothing changed. Clears the flag.
+    pub fn take_needs_redraw(&mut self) -> bool {
+        std::mem::take(&mut self.skipped_backdrop_blurs)
     }
 
     fn draw_paths_to_intermediate(
@@ -1448,25 +1464,19 @@ impl MetalRenderer {
 
     fn ensure_backdrop_blur_textures(&mut self, plan: &BackdropBlurPlan) {
         for level in 0..=plan.level_count {
-            let needed = plan.level_size(level);
-            let current = self.backdrop_blur_textures.get(level);
-            if current.is_some_and(|texture| {
-                texture.width() >= needed.width.0 as u64
-                    && texture.height() >= needed.height.0 as u64
-            }) {
+            let current = self
+                .backdrop_blur_textures
+                .get(level)
+                .map(|texture| texture_size(texture));
+            let Some(allocation) =
+                self.backdrop_blur_budget
+                    .allocation_size(level, plan.level_size(level), current)
+            else {
                 continue;
-            }
-
-            // Rounding up lets an element that grows over a few frames reallocate rarely.
-            let width = (needed.width.0 as u64)
-                .next_multiple_of(BACKDROP_BLUR_TEXTURE_GRANULARITY)
-                .max(current.map_or(0, |texture| texture.width()));
-            let height = (needed.height.0 as u64)
-                .next_multiple_of(BACKDROP_BLUR_TEXTURE_GRANULARITY)
-                .max(current.map_or(0, |texture| texture.height()));
+            };
             let texture_descriptor = metal::TextureDescriptor::new();
-            texture_descriptor.set_width(width);
-            texture_descriptor.set_height(height);
+            texture_descriptor.set_width(allocation.width.0 as u64);
+            texture_descriptor.set_height(allocation.height.0 as u64);
             texture_descriptor.set_pixel_format(MTLPixelFormat::BGRA8Unorm);
             texture_descriptor.set_storage_mode(metal::MTLStorageMode::Private);
             texture_descriptor.set_usage(
@@ -1479,6 +1489,17 @@ impl MetalRenderer {
                 self.backdrop_blur_textures.push(texture);
             }
         }
+    }
+
+    /// Frees the level textures the budget no longer wants, once a frame is encoded.
+    fn trim_backdrop_blur_textures(&mut self) {
+        let allocated = self
+            .backdrop_blur_textures
+            .iter()
+            .map(|texture| texture_size(texture))
+            .collect::<Vec<_>>();
+        let keep = self.backdrop_blur_budget.end_frame(&allocated);
+        self.backdrop_blur_textures.truncate(keep);
     }
 }
 

@@ -440,6 +440,48 @@ impl BackdropFilter {
     pub fn is_identity(&self) -> bool {
         self.blur_radius <= Pixels::ZERO && self.saturation == 1. && self.clear_top <= Pixels::ZERO
     }
+
+    /// Maps an element's `bounds`, `corner_radii` and this filter through `transformation` (in
+    /// scaled pixels, like [`Window::element_transformation`]), so the filter lands where the
+    /// transformed element is drawn. Renderers blur axis-aligned rounded rectangles in window
+    /// space, so a transformation that only scales and translates maps exactly, lengths along
+    /// each axis scaling with it. `None` when it rotates or skews: the element is no longer such
+    /// a rectangle, and the filter is skipped rather than blurring the wrong area.
+    pub fn transformed(
+        self,
+        bounds: Bounds<Pixels>,
+        corner_radii: Corners<Pixels>,
+        transformation: TransformationMatrix,
+        scale_factor: f32,
+    ) -> Option<(Bounds<Pixels>, Corners<Pixels>, Self)> {
+        if transformation.is_unit() {
+            return Some((bounds, corner_radii, self));
+        }
+        let scale = transformation.axis_aligned_scale()?;
+        let transformed = transformation.transform_bounds(bounds.scale(scale_factor));
+        let bounds = Bounds {
+            origin: transformed.origin.map(|value| px(value.0 / scale_factor)),
+            size: transformed.size.map(|value| px(value.0 / scale_factor)),
+        };
+        let [top, right, bottom, left] = self.fade;
+        let filter = Self {
+            blur_radius: self.blur_radius * (scale.width * scale.height).sqrt(),
+            saturation: self.saturation,
+            fade: [
+                top * scale.height,
+                right * scale.width,
+                bottom * scale.height,
+                left * scale.width,
+            ],
+            clear_top: self.clear_top * scale.height,
+        };
+        let corner_scale = scale.width.min(scale.height);
+        Some((
+            bounds,
+            corner_radii.map(|radius| *radius * corner_scale),
+            filter,
+        ))
+    }
 }
 
 impl Default for BackdropFilter {
@@ -783,9 +825,20 @@ impl Style {
             .to_pixels(rem_size)
             .clamp_radii_for_quad_size(bounds.size);
 
-        window.with_corner_shape(self.corner_shape, |window| {
-            window.paint_backdrop_filter(bounds, corner_radii, self.backdrop_filter)
-        });
+        // Backdrop blurs are drawn in window space, so map the element's transformation into
+        // where the blur goes; one that rotates or skews skips the blur.
+        if let Some((filter_bounds, filter_corner_radii, filter)) =
+            self.backdrop_filter.transformed(
+                bounds,
+                corner_radii,
+                window.element_transformation(),
+                window.scale_factor(),
+            )
+        {
+            window.with_corner_shape(self.corner_shape, |window| {
+                window.paint_backdrop_filter(filter_bounds, filter_corner_radii, filter)
+            });
+        }
         window.with_corner_shape(self.corner_shape, |window| {
             window.paint_drop_shadows(bounds, corner_radii, &self.box_shadow);
         });
