@@ -100,10 +100,14 @@ mod platform {
 
     static TAP: AtomicPtr<c_void> = AtomicPtr::new(null_mut());
 
-    // Asks for Input Monitoring once, then retries until it's granted; the tap can't be made before.
+    // Asks for Input Monitoring once, then waits until it's granted. Without it the tap is still made, but
+    // macOS strips key presses from it and it hears only modifiers, so a made tap doesn't mean listening.
     pub fn listen() {
         if !unsafe { CGPreflightListenEventAccess() } {
             unsafe { CGRequestListenEventAccess() };
+        }
+        while !unsafe { CGPreflightListenEventAccess() } {
+            std::thread::sleep(Duration::from_secs(2));
         }
         let mask = (1 << KEY_DOWN) | (1 << KEY_UP) | (1 << FLAGS_CHANGED);
         let tap = loop {

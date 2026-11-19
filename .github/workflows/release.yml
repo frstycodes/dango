@@ -111,7 +111,9 @@ jobs:
             <key>NSCameraUsageDescription</key><string>Waffle uses the camera for video calls.</string>
           </dict></plist>
           EOF
-            codesign --force --deep --sign - $app
+            # An ad-hoc signature's default requirement is its cdhash, so each release looked like a new app
+            # to macOS and lost Input Monitoring. Requiring only the bundle id keeps the grant across updates.
+            codesign --force --deep --sign - -r='designated => identifier "com.frstycodes.waffle"' $app
             ditto -c -k --keepParent $app waffle-macos-$arch.zip
             dmg=build-$arch/dmg
             mkdir $dmg && cp -R $app $dmg/ && ln -s /Applications $dmg/Applications
