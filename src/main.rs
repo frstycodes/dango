@@ -112,6 +112,10 @@ static ALLOCATOR: memory::Counting = memory::Counting;
 static ALLOCATOR: dhat::Alloc = dhat::Alloc;
 
 fn main() {
+    #[cfg(target_os = "windows")]
+    if !tray::claim_single_instance() {
+        return;
+    }
     crash::install();
     #[cfg(feature = "dhat-heap")]
     memory::start_heap_profile();
