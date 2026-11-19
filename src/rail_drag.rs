@@ -3,7 +3,7 @@
 // tile itself is carried like any dragged row (drag.rs).
 use gpui_kit::Context;
 
-use crate::{Rustcord, discord::Folder};
+use crate::{Waffle, discord::Folder};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Drop {
@@ -31,7 +31,7 @@ pub struct RailDrag {
     pub key: String,
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn drop_on_rail(&mut self, moved: &str, target: &str, drop: Drop, cx: &mut Context<Self>) {
         self.rail_drop = None;
         let mut folders = normalize(&self.folders, self.guilds.iter().map(|g| g.id.as_str()));

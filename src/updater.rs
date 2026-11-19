@@ -23,9 +23,9 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 
-const LATEST: &str = "https://api.github.com/repos/frstycodes/dango/releases/latest";
+const LATEST: &str = "https://api.github.com/repos/frstycodes/waffle/releases/latest";
 pub const CURRENT: &str = env!("CARGO_PKG_VERSION");
-const RELEASES: &str = "https://github.com/frstycodes/dango/releases/tag";
+const RELEASES: &str = "https://github.com/frstycodes/waffle/releases/tag";
 const CHECK_TIMEOUT: Duration = Duration::from_secs(10);
 // A download that sends nothing for this long is given up (and resumed on the next check); a slow but
 // moving one is not.
@@ -34,10 +34,10 @@ const FIRST_CHECK: Duration = Duration::from_secs(30);
 const INTERVAL: Duration = Duration::from_secs(60 * 60);
 // Points the updater at another release JSON (same shape as GitHub's), e.g. a local server for testing.
 // It also stages under the temp dir, so a test never leaves a build for a real install to pick up.
-const FEED_VAR: &str = "DANGO_UPDATE_FEED";
+const FEED_VAR: &str = "WAFFLE_UPDATE_FEED";
 
 pub fn enabled() -> bool {
-    std::env::var_os(FEED_VAR).is_some() || (!cfg!(debug_assertions) && std::env::var_os("CHORD_DEMO").is_none())
+    std::env::var_os(FEED_VAR).is_some() || (!cfg!(debug_assertions) && std::env::var_os("WAFFLE_DEMO").is_none())
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -48,7 +48,7 @@ pub struct Staged {
 
 #[cfg(debug_assertions)]
 impl Staged {
-    // For `CHORD_DEMO=update-ready`: shows the row; Restart fails to install and says so.
+    // For `WAFFLE_DEMO=update-ready`: shows the row; Restart fails to install and says so.
     pub fn demo(version: &str) -> Self {
         Self { version: version.into(), path: PathBuf::new() }
     }
@@ -78,14 +78,14 @@ fn feed() -> String {
 
 fn dir() -> Option<PathBuf> {
     if std::env::var_os(FEED_VAR).is_some() {
-        return Some(std::env::temp_dir().join("dango-updates-test"));
+        return Some(std::env::temp_dir().join("waffle-updates-test"));
     }
     Some(crate::data_dir()?.join("updates"))
 }
 
 fn http() -> reqwest::Client {
     // GitHub's API rejects requests without a User-Agent.
-    reqwest::Client::builder().user_agent(concat!("Dango/", env!("CARGO_PKG_VERSION"))).connect_timeout(CHECK_TIMEOUT).read_timeout(STALL_TIMEOUT).build().unwrap_or_default()
+    reqwest::Client::builder().user_agent(concat!("Waffle/", env!("CARGO_PKG_VERSION"))).connect_timeout(CHECK_TIMEOUT).read_timeout(STALL_TIMEOUT).build().unwrap_or_default()
 }
 
 // A verified update for a newer version, if one is staged. Clears everything else out of the staging dir.
@@ -125,7 +125,7 @@ impl Status {
 pub struct Updates {
     pub status: Status,
     pub checked_at: Option<SystemTime>,
-    // None where updates are off (debug and demo builds without `DANGO_UPDATE_FEED`).
+    // None where updates are off (debug and demo builds without `WAFFLE_UPDATE_FEED`).
     pub updater: Option<Updater>,
 }
 
@@ -405,10 +405,9 @@ fn version(tag: &str) -> Option<(u64, u64, u64)> {
     parts.next().is_none().then_some(version)
 }
 
-// Must match the names the release workflow uploads. v0.4.0 and older fetch `dango-windows-x86_64.exe`,
-// which the workflow still publishes for them.
+// Must match the names the release workflow uploads.
 fn asset_name(os: &str, arch: &str) -> Option<String> {
-    matches!(os, "macos" | "windows").then(|| format!("dango-{os}-{arch}.zip"))
+    matches!(os, "macos" | "windows").then(|| format!("waffle-{os}-{arch}.zip"))
 }
 
 fn pick(release: &Release, os: &str, arch: &str) -> Option<Update> {
@@ -447,10 +446,10 @@ fn swap(target: &Path, staged: &Path) -> Result<(), String> {
     Ok(())
 }
 
-// Unpacks `zip` into a fresh `.dango-update` beside `target`, hands its contents to `place`, then
+// Unpacks `zip` into a fresh `.waffle-update` beside `target`, hands its contents to `place`, then
 // removes the folder whatever happened.
 fn unpacked(target: &Path, zip: &Path, unpack: impl FnOnce(&Path, &Path) -> Result<(), String>, place: impl FnOnce(&Path) -> Result<(), String>) -> Result<(), String> {
-    let staging = target.with_file_name(".dango-update");
+    let staging = target.with_file_name(".waffle-update");
     std::fs::remove_dir_all(&staging).ok();
     std::fs::create_dir_all(&staging).map_err(|e| e.to_string())?;
     let result = unpack(zip, &staging).and_then(|()| place(&staging));
@@ -474,11 +473,11 @@ mod platform {
         exe.to_path_buf()
     }
 
-    // The asset is a zip holding `Dango.exe`. Windows' own bsdtar (10 1803+) reads zips; it's called by
+    // The asset is a zip holding `Waffle.exe`. Windows' own bsdtar (10 1803+) reads zips; it's called by
     // full path because a GNU tar earlier on PATH (Git for Windows) can't.
     pub fn put_in_place(exe: &Path, zip: &Path) -> Result<(), String> {
         let tar = PathBuf::from(std::env::var_os("SystemRoot").unwrap_or_else(|| "C:\\Windows".into())).join("System32\\tar.exe");
-        super::unpacked(exe, zip, |zip, staging| super::run(Command::new(&tar).arg("-xf").arg(zip).arg("-C").arg(staging)), |staging| super::swap(exe, &staging.join("Dango.exe")))
+        super::unpacked(exe, zip, |zip, staging| super::run(Command::new(&tar).arg("-xf").arg(zip).arg("-C").arg(staging)), |staging| super::swap(exe, &staging.join("Waffle.exe")))
     }
 }
 
@@ -499,11 +498,11 @@ mod platform {
         (app.extension()? == "app").then(|| app.to_path_buf())
     }
 
-    // The asset is a zipped `Dango.app`; `ditto` unpacks it keeping permissions and symlinks.
+    // The asset is a zipped `Waffle.app`; `ditto` unpacks it keeping permissions and symlinks.
     pub fn put_in_place(exe: &Path, zip: &Path) -> Result<(), String> {
         let target = target(exe);
         super::unpacked(&target, zip, |zip, staging| super::run(Command::new("ditto").arg("-x").arg("-k").arg(zip).arg(staging)), |staging| {
-            let app = staging.join("Dango.app");
+            let app = staging.join("Waffle.app");
             let staged = if bundle(exe).is_some() { app } else { app.join("Contents/MacOS").join(exe.file_name().unwrap_or_default()) };
             // We downloaded it ourselves, so it shouldn't carry quarantine; clear it anyway so Gatekeeper
             // never blocks the relaunch. Failure here is harmless.
@@ -541,7 +540,7 @@ mod tests {
     }
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("dango-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("waffle-{name}-{}", std::process::id()));
         std::fs::remove_dir_all(&dir).ok();
         std::fs::create_dir_all(&dir).unwrap();
         dir
@@ -593,7 +592,7 @@ mod tests {
 
     #[test]
     fn release_notes_link_the_tag() {
-        assert_eq!(release_notes("0.8.0"), "https://github.com/frstycodes/dango/releases/tag/v0.8.0");
+        assert_eq!(release_notes("0.8.0"), "https://github.com/frstycodes/waffle/releases/tag/v0.8.0");
         assert_eq!(Status::Downloading { version: "0.8.0".into(), done: 0, total: None }.version(), Some("0.8.0"));
         assert_eq!(Status::UpToDate.version(), None);
     }
@@ -613,20 +612,20 @@ mod tests {
 
     #[test]
     fn picks_this_platforms_zip_and_its_checksum() {
-        let r = release("v0.4.0", &["dango-macos-aarch64.zip", "dango-macos-aarch64.zip.sha256", "dango-windows-x86_64.exe", "dango-windows-x86_64.exe.sha256", "dango-windows-x86_64.zip", "dango-windows-x86_64.zip.sha256"]);
+        let r = release("v0.4.0", &["waffle-macos-aarch64.zip", "waffle-macos-aarch64.zip.sha256", "waffle-windows-x86_64.exe", "waffle-windows-x86_64.exe.sha256", "waffle-windows-x86_64.zip", "waffle-windows-x86_64.zip.sha256"]);
         let mac = pick(&r, "macos", "aarch64").unwrap();
-        assert_eq!((mac.version.as_str(), mac.url.as_str(), mac.checksum_url.as_str()), ("0.4.0", "https://dl/dango-macos-aarch64.zip", "https://dl/dango-macos-aarch64.zip.sha256"));
-        assert_eq!(pick(&r, "windows", "x86_64").unwrap().url, "https://dl/dango-windows-x86_64.zip", "the compressed build, not the bare .exe");
+        assert_eq!((mac.version.as_str(), mac.url.as_str(), mac.checksum_url.as_str()), ("0.4.0", "https://dl/waffle-macos-aarch64.zip", "https://dl/waffle-macos-aarch64.zip.sha256"));
+        assert_eq!(pick(&r, "windows", "x86_64").unwrap().url, "https://dl/waffle-windows-x86_64.zip", "the compressed build, not the bare .exe");
         assert!(pick(&r, "macos", "x86_64").is_none());
         assert!(pick(&r, "linux", "x86_64").is_none());
-        assert!(pick(&release("v0.4.0", &["dango-windows-x86_64.zip"]), "windows", "x86_64").is_none(), "no checksum, no update");
+        assert!(pick(&release("v0.4.0", &["waffle-windows-x86_64.zip"]), "windows", "x86_64").is_none(), "no checksum, no update");
     }
 
     #[test]
     fn rejects_a_checksum_mismatch() {
         let sum = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
         let digest = Sha256::digest(b"hello");
-        assert!(verify(&digest, &format!("{sum}  dango-windows-x86_64.zip\n")).is_ok());
+        assert!(verify(&digest, &format!("{sum}  waffle-windows-x86_64.zip\n")).is_ok());
         assert!(verify(&digest, &sum.to_uppercase()).is_ok());
         assert!(verify(&Sha256::digest(b"hellO"), sum).is_err());
         assert!(verify(&digest, "").is_err());
@@ -672,7 +671,7 @@ mod tests {
     #[test]
     fn swap_replaces_the_target_and_sets_the_old_one_aside() {
         let dir = temp_dir("swap");
-        let (target, staged) = (dir.join("dango"), dir.join("dango.new"));
+        let (target, staged) = (dir.join("waffle"), dir.join("waffle.new"));
         std::fs::write(&target, "old").unwrap();
         std::fs::write(&staged, "new").unwrap();
         swap(&target, &staged).unwrap();
@@ -719,7 +718,7 @@ mod tests {
         let dir = temp_dir("stage");
         let body: Vec<u8> = (0..200_000u32).map(|i| (i % 251) as u8).collect();
         let sum: String = Sha256::digest(&body).iter().map(|b| format!("{b:02x}")).collect();
-        let base = serve(body.clone(), format!("{sum}  dango-macos-aarch64.zip\n"), 70_000).await;
+        let base = serve(body.clone(), format!("{sum}  waffle-macos-aarch64.zip\n"), 70_000).await;
         let update = Update { version: "0.4.0".into(), url: format!("{base}/zip"), checksum_url: format!("{base}/sum") };
         let client = reqwest::Client::new();
 

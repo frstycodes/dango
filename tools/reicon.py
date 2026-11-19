@@ -1,4 +1,4 @@
-"""Builds design/icons-data.js for design/icons.html: every icon Dango draws (Rust glyphs, sidebar glyphs
+"""Builds design/icons-data.js for design/icons.html: every icon Waffle draws (Rust glyphs, sidebar glyphs
 and the spec's Phosphor names), mapped to its Reicon replacement, with the Reicon SVGs it needs. Then writes
 the app's own SVGs to assets/icons/reicon/ (Reicon's filled weight, line-only glyphs as lines, and the
 custom glyphs drawn here) and points src/icons.rs and src/sidebar.rs at them.

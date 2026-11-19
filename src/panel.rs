@@ -11,7 +11,7 @@ use gpui_kit::{
 use gpui_motion_kit::core::{Motion, Target};
 
 use crate::{
-    Part, Rustcord, Edge, RightPanel,
+    Part, Waffle, Edge, RightPanel,
     discord::{ActivityKind, FeedEntry, ListItem, Member, Status},
     icons::Glyph,
     layout::{decorated_avatar, nameplate},
@@ -23,7 +23,7 @@ use crate::{
 // The section shows this many cards; its chevron opens the rest.
 const ACTIVITY_SHOWN: usize = 3;
 
-impl Rustcord {
+impl Waffle {
     // Whether the side panel is on screen: a server's (unless hidden), or search results anywhere.
     pub(crate) fn panel_shown(&self) -> bool {
         match self.right_panel {

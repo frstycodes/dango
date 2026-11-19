@@ -78,7 +78,7 @@ impl Hotkeys {
         (Self::default(), rx)
     }
 
-    // Replaces every binding; returns the keybinds whose keys Dango doesn't know.
+    // Replaces every binding; returns the keybinds whose keys Waffle doesn't know.
     pub fn bind(&mut self, keybinds: &[Keybind]) -> Vec<String> {
         self.binds.clear();
         let mut unknown = Vec::new();
@@ -135,7 +135,7 @@ fn same_keys(a: &[&str], b: &[&str]) -> bool {
     a.len() == b.len() && a.iter().all(|k| b.contains(k))
 }
 
-// A saved keybind as key names, or None if any part isn't a key Dango can listen for.
+// A saved keybind as key names, or None if any part isn't a key Waffle can listen for.
 pub fn parse(keys: &str) -> Option<Vec<&'static str>> {
     keys.split('+').map(key_named).collect()
 }

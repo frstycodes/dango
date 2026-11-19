@@ -20,7 +20,7 @@ use reqwest::Method;
 use serde_json::json;
 
 use crate::{
-    Rustcord,
+    Waffle,
     discord::{Channel, ChannelKind, perm},
     icons::Glyph,
     palette,
@@ -238,7 +238,7 @@ pub fn hole<E: Styled>(place: E, cx: &App) -> E {
 // Starts a carry as gpui starts the drag: the ghost is the drag's view, and the app keeps a hand on
 // it to land it once let go. `size` is the row's; `lifted` and `lean` as for `Carry`.
 pub fn pick_up<T: 'static>(
-    this: WeakEntity<Rustcord>,
+    this: WeakEntity<Waffle>,
     key: SharedString,
     look: Look,
     size: Point<Pixels>,
@@ -347,7 +347,7 @@ fn tag_chip(tag: SharedString, cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-impl Rustcord {
+impl Waffle {
     // Once gpui has let go of a drag (dropped on a target or on nothing), what was carried lands
     // on its row: in its new place if the drop moved it, back home if not.
     pub(crate) fn settle_carry(&mut self, cx: &App) {
@@ -404,7 +404,7 @@ pub enum Place {
     Into,
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn can_move_people(&self, guild_id: &str) -> bool {
         let (Some(me), Some(guild)) = (self.me.as_ref(), self.guilds.iter().find(|g| g.id == guild_id)) else { return false };
         guild.can(&me.id, perm::MOVE_MEMBERS)

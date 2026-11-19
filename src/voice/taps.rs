@@ -1,4 +1,4 @@
-// Debug recording of the mic chain: `RUSTCORD_VOICE_TAPS=<dir>` writes one 48 kHz mono float WAV per
+// Debug recording of the mic chain: `WAFFLE_VOICE_TAPS=<dir>` writes one 48 kHz mono float WAV per
 // stage (mic, front, denoise, agc, ...) when the processor drops, so a call can be replayed
 // stage by stage to find where an artifact starts. Grows without bound while enabled; debug only.
 
@@ -13,7 +13,7 @@ pub struct Taps {
 
 impl Taps {
     pub fn from_env() -> Option<Self> {
-        std::env::var_os("RUSTCORD_VOICE_TAPS").map(|dir| Self::new(dir.into()))
+        std::env::var_os("WAFFLE_VOICE_TAPS").map(|dir| Self::new(dir.into()))
     }
 
     pub fn new(dir: PathBuf) -> Self {

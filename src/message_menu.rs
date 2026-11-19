@@ -1,11 +1,11 @@
 // Discord's message context menu (navId "message"), item-for-item from its menu code
-// (docs/discord-menus-user-message.md §5). Items for features Rustcord doesn't have yet (forward,
+// (docs/discord-menus-user-message.md §5). Items for features Waffle doesn't have yet (forward,
 // threads, translate, bookmarks, reminders, apps, reports) are left out.
 use gpui_kit::{Context, Pixels, Point};
 use reqwest::Method;
 
 use crate::{
-    EmojiTarget, Rustcord,
+    EmojiTarget, Waffle,
     discord::{Emoji, Message, SendState, perm},
     icons::Glyph,
     menu::{Entry, item, submenu},
@@ -14,7 +14,7 @@ use crate::{
 // Discord's padding for the frequent-emoji rows when there's no history yet.
 pub const QUICK_PAD: [&str; 12] = ["👍", "❤️", "😂", "💯", "😆", "💖", "🔥", "😭", "🙏", "👀", "😮", "🎉"];
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn open_message_menu(&mut self, message: Message, at: Point<Pixels>, cx: &mut Context<Self>) {
         self.open_live_menu(at, move |this| this.message_menu(&message), cx);
     }
@@ -42,10 +42,10 @@ impl Rustcord {
         // G3: reactions.
         let react = |emoji: Emoji, m: &Message| {
             let m = m.clone();
-            move |this: &mut Rustcord, _: &mut gpui_kit::Window, cx: &mut Context<Rustcord>| this.toggle_reaction(&m, emoji.clone(), cx)
+            move |this: &mut Waffle, _: &mut gpui_kit::Window, cx: &mut Context<Waffle>| this.toggle_reaction(&m, emoji.clone(), cx)
         };
         let picker = message.clone();
-        let open_picker = move |this: &mut Rustcord, window: &mut gpui_kit::Window, cx: &mut Context<Rustcord>| this.open_emoji_picker(EmojiTarget::Reaction(Box::new(picker.clone())), window, cx);
+        let open_picker = move |this: &mut Waffle, window: &mut gpui_kit::Window, cx: &mut Context<Waffle>| this.open_emoji_picker(EmojiTarget::Reaction(Box::new(picker.clone())), window, cx);
         let quick: Vec<_> = self.prefs.frequent_emojis(4, &QUICK_PAD).into_iter().map(|e| (e.clone(), std::rc::Rc::new(react(e, message)) as crate::menu::Act)).collect();
         out.push(Entry::Emojis { quick, more: std::rc::Rc::new(open_picker.clone()) });
         let mut more: Vec<Entry> = self.prefs.frequent_emojis(12, &QUICK_PAD).into_iter().map(|e| item(shortcode(&e), react(e.clone(), message)).emoji(e).entry()).collect();
@@ -156,9 +156,9 @@ impl MessageAction {
         }
     }
 
-    // Keys in Dango's saved-keybind form, with `secondary` for ⌘ on macOS and Ctrl elsewhere; the first
+    // Keys in Waffle's saved-keybind form, with `secondary` for ⌘ on macOS and Ctrl elsewhere; the first
     // is the one the menu shows. Discord's own (support article 1500000056121): e, r, +, Backspace, p,
-    // ⌘/Ctrl+C, Alt+Enter. The rest aren't in it: d (Dango's own delete, and d again confirms it), a, t, c,
+    // ⌘/Ctrl+C, Alt+Enter. The rest aren't in it: d (Waffle's own delete, and d again confirms it), a, t, c,
     // Delete, ⇧ to skip the delete confirm, ⇧⌘C.
     pub const fn keys(self) -> &'static [&'static str] {
         match self {
@@ -179,7 +179,7 @@ impl MessageAction {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn message_facts(&self, message: &Message) -> Facts {
         let in_text = self.guilds.iter().flat_map(|g| g.channels.iter()).any(|c| c.id == message.channel_id && c.kind == crate::discord::ChannelKind::Text);
         let can_thread = message.guild_id.as_ref().and_then(|g| self.guilds.iter().find(|x| &x.id == g)).zip(self.me.as_ref()).is_some_and(|(g, me)| g.can(&me.id, perm::CREATE_PUBLIC_THREADS));
@@ -253,7 +253,7 @@ impl Rustcord {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     // Removing reactions shows at once (`keep` decides which stay); they come back if refused.
     fn reactions_optimistic(&mut self, message: &Message, path: String, keep: impl Fn(&crate::discord::Reaction) -> bool + 'static, cx: &mut Context<Self>) {
         let before = self.message_mut(&message.channel_id, &message.id).map(|m| m.reactions.clone()).unwrap_or_default();

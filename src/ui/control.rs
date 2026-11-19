@@ -473,7 +473,7 @@ fn tone_look(tone: Tone, cx: &App) -> Look {
     let white = gpui_kit::white();
     let clear = gpui_kit::transparent_black();
     let (rest, hover, press, ink) = match tone {
-        Tone::Primary => (palette::accent(), palette::accent_hover(), palette::accent_press(), white),
+        Tone::Primary => (palette::accent(), palette::accent_hover(), palette::accent_press(), palette::on_accent()),
         Tone::Secondary => (palette::selected(cx), palette::press(cx), palette::press(cx), palette::strong(cx)),
         Tone::Ghost => (clear, palette::hover(cx), palette::press(cx), palette::text(cx)),
         Tone::Danger => (palette::danger(), palette::danger_hover(), palette::danger_hover(), white),

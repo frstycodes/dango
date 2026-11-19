@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Better than Discord</title>
-<meta name="description" content="Every place Wave departs from Discord's UX, and why.">
-<link rel="icon" href="/assets/brand/icons/glass.png">
+<meta name="description" content="Every place Waffle departs from Discord's UX, and why.">
+<link rel="icon" href="/assets/brand/icons/paper.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="css/community.css">
 <link rel="stylesheet" href="css/server-settings.css">
 <link rel="stylesheet" href="css/flows.css">
-<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<script>try{const p=JSON.parse(localStorage.getItem("waffle-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 <style>.better-list { display: grid; gap: 8px; padding-left: 20px; max-width: 76ch; } .better-list li { color: var(--text); text-wrap: pretty; } .better-list li::marker { color: var(--accent-ink); } .better-list i { font-size: 13px; color: var(--text-faint); vertical-align: -1px; }</style>
 </head>
 <body>
@@ -36,12 +36,12 @@
 <main>
 <section id="intro">
   <h1>Better than Discord</h1>
-  <p class="lede">Wave copies Discord's features, not its weak spots. These 153 changes are gathered from every page; each page's own "Better than Discord" section shows them beside their demos. Discord's side is described from memory, not re-checked against the current client.</p>
+  <p class="lede">Waffle copies Discord's features, not its weak spots. These 153 changes are gathered from every page; each page's own "Better than Discord" section shows them beside their demos. Discord's side is described from memory, not re-checked against the current client.</p>
 </section>
 <section id="flows">
   <h2>Flows</h2>
   <p class="lede">3 changes. <a class="btn btn--link" href="lead#better-than-discord">See them with their demos</a></p>
-  <ul class="better-list"><li>Over-limit message: Discord blocks with a modal <i class="ph ph-arrow-right" aria-hidden="true"></i> Wave turns it into a .txt attachment in one click.</li><li>Delete own message: Discord confirms <i class="ph ph-arrow-right" aria-hidden="true"></i> Wave deletes at once with Undo (Shift skips toast).</li><li>Offline sends: queue in order and send on reconnect.</li></ul>
+  <ul class="better-list"><li>Over-limit message: Discord blocks with a modal <i class="ph ph-arrow-right" aria-hidden="true"></i> Waffle turns it into a .txt attachment in one click.</li><li>Delete own message: Discord confirms <i class="ph ph-arrow-right" aria-hidden="true"></i> Waffle deletes at once with Undo (Shift skips toast).</li><li>Offline sends: queue in order and send on reconnect.</li></ul>
 </section>
 <section id="context-menus">
   <h2>Context menus</h2>
@@ -51,7 +51,7 @@
 <section id="sign-in-and-states">
   <h2>Sign in and states</h2>
   <p class="lede">14 changes. <a class="btn btn--link" href="auth.html#better-than-discord">See them with their demos</a></p>
-  <ul class="better-list"><li>Splash names the real stage, never longer than 25s; no tips or endless spinner.</li><li>QR says where the scanner is (Settings, then Scan QR Code).</li><li>Failed sign-in: plain explanation, Discord&#x27;s reason verbatim, Try again.</li><li>2FA: six boxes, paste works, checks on the last digit, no submit button.</li><li>Token sign-in behind a disclosure with the warning before the field.</li><li>Account switcher from your panel with status and mention counts; log out instant with Undo.</li><li>Channel welcome header names the channel once, then topic and creator.</li><li>Connection lost: chat stays readable, what you write queues.</li><li>Offline at launch: opens Wave by itself when the network returns.</li><li>Rate limit: countdown on the composer, text kept.</li><li>No permission: names the role that can read the channel.</li><li>Outage explained in the main view.</li><li>Updates download in background and wait for a call to end.</li><li>Failed edit/delete toasts say what happened and offer the fix.</li></ul>
+  <ul class="better-list"><li>Splash names the real stage, never longer than 25s; no tips or endless spinner.</li><li>QR says where the scanner is (Settings, then Scan QR Code).</li><li>Failed sign-in: plain explanation, Discord&#x27;s reason verbatim, Try again.</li><li>2FA: six boxes, paste works, checks on the last digit, no submit button.</li><li>Token sign-in behind a disclosure with the warning before the field.</li><li>Account switcher from your panel with status and mention counts; log out instant with Undo.</li><li>Channel welcome header names the channel once, then topic and creator.</li><li>Connection lost: chat stays readable, what you write queues.</li><li>Offline at launch: opens Waffle by itself when the network returns.</li><li>Rate limit: countdown on the composer, text kept.</li><li>No permission: names the role that can read the channel.</li><li>Outage explained in the main view.</li><li>Updates download in background and wait for a call to end.</li><li>Failed edit/delete toasts say what happened and offer the fix.</li></ul>
 </section>
 <section id="servers-and-invites">
   <h2>Servers and invites</h2>
@@ -91,7 +91,7 @@
 <section id="flows-account">
   <h2>Flows: account</h2>
   <p class="lede">10 changes. <a class="btn btn--link" href="flows-account.html#better-than-discord">See them with their demos</a></p>
-  <ul class="better-list"><li>Expired session shows nothing private and clears saved data.</li><li>Offline relaunch opens what Wave saved.</li><li>Log out has Undo, even from the last account.</li><li>Switching account during a call asks first, in place.</li><li>A pasted token is confirmed with a two-factor code.</li><li>Talking without the push-to-talk key held shows a hint.</li><li>A denied mic keeps you in the call, listening.</li><li>Avatar size and type checked before upload.</li><li>Username change limit locks the field and names the time.</li><li>Closing without saving backup codes asks once.</li></ul>
+  <ul class="better-list"><li>Expired session shows nothing private and clears saved data.</li><li>Offline relaunch opens what Waffle saved.</li><li>Log out has Undo, even from the last account.</li><li>Switching account during a call asks first, in place.</li><li>A pasted token is confirmed with a two-factor code.</li><li>Talking without the push-to-talk key held shows a hint.</li><li>A denied mic keeps you in the call, listening.</li><li>Avatar size and type checked before upload.</li><li>Username change limit locks the field and names the time.</li><li>Closing without saving backup codes asks once.</li></ul>
 </section>
 <section id="flows-messaging">
   <h2>Flows: messaging</h2>
@@ -121,7 +121,7 @@
 <section id="overlays-and-menus-round">
   <h2>Overlays and menus, round 2</h2>
   <p class="lede">5 changes. <a class="btn btn--link" href="overlays.html#better-than-discord">See them with their demos</a></p>
-  <ul class="better-list"><li>macOS permission prompts get Wave&#x27;s explanation first, and a no names the exact System Settings pane.</li><li>Forward lists places you can&#x27;t post in, locked with the reason; a limit of 5 says so.</li><li>Private channel setup shows member counts per role and the total who can see it.</li><li>Radio rows fill the chosen row instead of a dot.</li><li>Owners keep Leave server, which opens the transfer step.</li></ul>
+  <ul class="better-list"><li>macOS permission prompts get Waffle&#x27;s explanation first, and a no names the exact System Settings pane.</li><li>Forward lists places you can&#x27;t post in, locked with the reason; a limit of 5 says so.</li><li>Private channel setup shows member counts per role and the total who can see it.</li><li>Radio rows fill the chosen row instead of a dot.</li><li>Owners keep Leave server, which opens the transfer step.</li></ul>
 </section>
 <section id="dragging-people-and-channels">
   <h2>Dragging people and channels</h2>

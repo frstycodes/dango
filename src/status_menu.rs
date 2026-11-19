@@ -15,7 +15,7 @@ use gpui_kit::{
 };
 
 use crate::{
-    EmojiTarget, Rustcord,
+    EmojiTarget, Waffle,
     discord::{CustomStatus, Emoji, Profile, Status},
     icons::Glyph,
     layout::avatar_with_status,
@@ -38,7 +38,7 @@ const PRESENCES: [(Status, &str, &str); 4] = [
     (Status::Online, "Online", ""),
     (Status::Idle, "Idle", ""),
     (Status::Dnd, "Do not disturb", "Mutes notifications. Mentions still count up."),
-    (Status::Offline, "Invisible", "You look offline but can use Dango as normal"),
+    (Status::Offline, "Invisible", "You look offline but can use Waffle as normal"),
 ];
 // What Discord offers for Idle, Do not disturb and Invisible, in minutes.
 const DURATIONS: [(&str, Option<i64>); 6] = [("For 15 minutes", Some(15)), ("For 1 hour", Some(60)), ("For 8 hours", Some(480)), ("For 24 hours", Some(1440)), ("For 3 days", Some(4320)), ("Forever", None)];
@@ -141,7 +141,7 @@ fn local(at: DateTime<Utc>) -> NaiveDateTime {
     at.with_timezone(&Local).naive_local()
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn toggle_status_menu(&mut self, cx: &mut Context<Self>) {
         self.status_menu = !self.status_menu;
         self.status_flyout = Flyout::default();
@@ -185,8 +185,8 @@ impl Rustcord {
     }
 
     // `minutes` None keeps it until changed.
-    // GAP: the fall back to Online runs only while Dango is open; Discord's own clients keep the expiry in
-    // the protobuf settings, which Dango doesn't write (not verified).
+    // GAP: the fall back to Online runs only while Waffle is open; Discord's own clients keep the expiry in
+    // the protobuf settings, which Waffle doesn't write (not verified).
     pub(crate) fn set_status(&mut self, status: Status, minutes: Option<i64>, cx: &mut Context<Self>) {
         self.my_status = status;
         self.status_menu = false;
@@ -245,7 +245,7 @@ impl Rustcord {
         }
     }
 
-    fn run_at(&self, at: DateTime<Local>, then: impl FnOnce(&mut Rustcord, &mut Context<Rustcord>) + 'static, cx: &mut Context<Self>) {
+    fn run_at(&self, at: DateTime<Local>, then: impl FnOnce(&mut Waffle, &mut Context<Waffle>) + 'static, cx: &mut Context<Self>) {
         let wait = (at - Local::now()).to_std().unwrap_or_default();
         cx.spawn(async move |this, cx| {
             cx.background_executor().timer(wait).await;
@@ -551,7 +551,7 @@ impl Rustcord {
 }
 
 // A presence to pick in the dialog: its mark, name and what it does, the radio at the end.
-fn presence_choice(status: Status, label: &'static str, detail: &'static str, on: bool, cx: &mut Context<Rustcord>) -> gpui_kit::Stateful<Div> {
+fn presence_choice(status: Status, label: &'static str, detail: &'static str, on: bool, cx: &mut Context<Waffle>) -> gpui_kit::Stateful<Div> {
     let row = div()
         .id(SharedString::from(format!("status-choice-{label}")))
         .min_h(px(44.))

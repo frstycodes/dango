@@ -5,16 +5,16 @@
 // again only when it changes itself.
 use gpui_kit::{Context, Entity, Render, StyleRefinement, Window, div, prelude::*};
 
-use crate::{Rustcord, gif::GifLayer};
+use crate::{Waffle, gif::GifLayer};
 
 pub struct Shell {
-    app: Entity<Rustcord>,
+    app: Entity<Waffle>,
     gifs: Entity<GifLayer>,
 }
 
 impl Shell {
     pub fn new(window: &mut Window, splash: Option<gpui_kit::WindowHandle<crate::splash::Splash>>, cx: &mut Context<Self>) -> Self {
-        let app = cx.new(|cx| Rustcord::new(window, splash, cx));
+        let app = cx.new(|cx| Waffle::new(window, splash, cx));
         let gifs = cx.new(GifLayer::new);
         Self { app, gifs }
     }

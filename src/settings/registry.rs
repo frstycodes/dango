@@ -119,7 +119,7 @@ pub static SETTINGS: &[Setting] = &[
     s("ui-font", Appearance, "Text", "Interface font", Some("Menus, messages and everything else"), &["font", "typeface", "text", "figtree", "type"], Custom),
     s("mono-font", Appearance, "Text", "Code font", Some("Code blocks and inline code"), &["font", "monospace", "mono", "code", "roboto mono", "typeface"], Custom),
     s("reduce-motion", Appearance, "Motion", "Reduce motion", Some("Fades instead of springs and slides"), &["animation", "motion", "accessibility", "springs"], Custom),
-    s("app-icon", Appearance, "App icon", "App icon", Some("How Dango looks in your Dock"), &["dock icon", "logo", "icon"], Custom),
+    s("app-icon", Appearance, "App icon", "App icon", Some("How Waffle looks in your Dock"), &["dock icon", "logo", "icon"], Custom),
     // Voice and video
     s("input-device", VoiceVideo, "Voice", "Input device", None, &["mic", "microphone", "input"], Custom),
     s("output-device", VoiceVideo, "Voice", "Output device", None, &["speaker", "headphones", "audio", "output"], Custom),
@@ -149,10 +149,10 @@ pub static SETTINGS: &[Setting] = &[
     s("developer-mode", Advanced, "Developer", "Developer mode", Some("Adds Copy ID to the menus of servers, channels, people and messages"), &["copy id", "developer", "debug", "ids"], Switch(Toggle::DeveloperMode)),
     // Updates
     // One row holds the version, the status and its action (check, download, or restart to update).
-    on_row(s("check-for-updates", Updates, "Dango", "Check for updates", Some("The version you're on, and Restart to update once one is downloaded"), &["update", "version", "upgrade", "release", "about", "latest", "restart to update", "install", "restart"], Custom), "update-status"),
-    s("whats-new", Updates, "Dango", "What's new", Some("Release notes on GitHub"), &["release notes", "changelog", "release", "version", "update"], Custom),
-    s("last-checked", Updates, "Dango", "Last checked", None, &["update", "check", "version"], Custom),
-    s("auto-download-updates", Updates, "Automatic updates", "Download updates automatically", Some("Off, Dango still checks and tells you, then downloads when you ask"), &["update", "upgrade", "auto update", "background", "download", "release"], Switch(Toggle::AutoDownloadUpdates)),
+    on_row(s("check-for-updates", Updates, "Waffle", "Check for updates", Some("The version you're on, and Restart to update once one is downloaded"), &["update", "version", "upgrade", "release", "about", "latest", "restart to update", "install", "restart"], Custom), "update-status"),
+    s("whats-new", Updates, "Waffle", "What's new", Some("Release notes on GitHub"), &["release notes", "changelog", "release", "version", "update"], Custom),
+    s("last-checked", Updates, "Waffle", "Last checked", None, &["update", "check", "version"], Custom),
+    s("auto-download-updates", Updates, "Automatic updates", "Download updates automatically", Some("Off, Waffle still checks and tells you, then downloads when you ask"), &["update", "upgrade", "auto update", "background", "download", "release"], Switch(Toggle::AutoDownloadUpdates)),
     // Activity privacy
     s("share-activity", ActivityPrivacy, "Activity status", "Share your activity status", Some("What you're playing or listening to, as Discord's apps detect it"), &["game", "playing", "spotify", "rich presence", "status", "activity"], Switch(Toggle::ShareActivity)),
 ];

@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wave Context menus</title>
-<meta name="description" content="Every right-click and overflow menu in Wave, their submenus, and the dialogs they open.">
-<link rel="icon" href="/assets/brand/icons/glass.png">
+<title>Waffle Context menus</title>
+<meta name="description" content="Every right-click and overflow menu in Waffle, their submenus, and the dialogs they open.">
+<link rel="icon" href="/assets/brand/icons/paper.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="css/community.css">
 <link rel="stylesheet" href="css/server-settings.css">
 <link rel="stylesheet" href="css/flows.css">
-<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<script>try{const p=JSON.parse(localStorage.getItem("waffle-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 </head>
 <body>
 <header id="top"></header>
@@ -35,7 +35,7 @@
 <main>
 <section id="intro">
   <h1>Context menus</h1>
-  <p class="lede">Every right-click and overflow menu in Wave, their submenus, and the dialogs they open.</p>
+  <p class="lede">Every right-click and overflow menu in Waffle, their submenus, and the dialogs they open.</p>
   <p class="note cm-note">The menu card, rows, submenus, slider rows and dialog shell are the primitives on <a href="overlays.html#menus">Overlays: menus</a> and <a href="overlays.html#dialogs">dialogs</a>. This page is their content. Rows that open a dialog open the live one here: click them. Every menu takes the keyboard too.</p>
 </section>
 
@@ -769,7 +769,7 @@
     </form>
 
     <form class="dialog" role="dialog" aria-labelledby="t-fnick" data-live="d-friendnick" onsubmit="return false">
-      <div class="dhead"><h4 id="t-fnick">Add friend nickname</h4><p>A name only you see for Mira, everywhere Wave shows her.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
+      <div class="dhead"><h4 id="t-fnick">Add friend nickname</h4><p>A name only you see for Mira, everywhere Waffle shows her.</p><button type="button" class="iconbtn" aria-label="Close" data-close><i class="ph ph-x"></i></button></div>
       <div class="field"><label for="fn-name">Nickname</label><div class="input"><input id="fn-name" value="Mimi" placeholder="mira.wav" maxlength="32" data-count></div><span class="hint"><span>Mira isn't told</span><span></span></span></div>
       <footer><button type="button" class="btn" data-close>Cancel</button><button class="btn btn--primary" data-loading="Saving…">Save nickname</button></footer>
     </form>
@@ -850,7 +850,7 @@
   <h2>Toasts</h2>
   <p class="lede">Menu actions apply at once. A toast follows only when something failed or can be taken back; copies and toggles stay silent.</p>
   <div class="board" style="display: grid; gap: var(--space-3); justify-items: start">
-    <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>Couldn't create the thread<small>Wave lost the connection. Your thread name is kept.</small></p><button class="btn btn--sm" data-loading="Creating…">Try again</button></div>
+    <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>Couldn't create the thread<small>Waffle lost the connection. Your thread name is kept.</small></p><button class="btn btn--sm" data-loading="Creating…">Try again</button></div>
     <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>You can't invite people here<small>Night Shift needs the Create invite permission. Ask a mod for a link.</small></p><button class="iconbtn" aria-label="Dismiss"><i class="ph ph-x"></i></button></div>
     <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>Couldn't move #clips<small>It's back in Highlights. Check your connection and try again.</small></p><button class="btn btn--sm" data-loading="Moving…">Try again</button></div>
     <div class="toast" data-tone="error"><i class="ph-fill ph-warning-circle"></i><p>Couldn't give Mira the Mod role<small>Mod is above your highest role now. Ask an admin.</small></p><button class="iconbtn" aria-label="Dismiss"><i class="ph ph-x"></i></button></div>
@@ -862,9 +862,9 @@
 
 <section id="better-than-discord">
   <h2>Better than Discord</h2>
-  <p class="lede">Where these menus differ from Discord's on purpose. Discord's side is read from Wave's Rust port of its menus (<code>src/*_menu.rs</code>), which mirrors Discord's menu code.</p>
+  <p class="lede">Where these menus differ from Discord's on purpose. Discord's side is read from Waffle's Rust port of its menus (<code>src/*_menu.rs</code>), which mirrors Discord's menu code.</p>
   <div class="btd">
-    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
+    <div><span>Discord does</span><span>Waffle does</span><span>Why</span></div>
     <div><p>Mute lengths say how long, not until when. Once muted, the row reads "Muted until 11/15/2026, 9:41 PM".</p><p><b><a href="#cm-mute">Cm mute</a></b>Each length shows its end ("Until 11:41 PM"); muted reads "Muted until 9:41 PM" or "tomorrow at…".</p><p>You pick a mute by when you'll be back, and today's date is noise.</p></div>
     <div><p>Rows you can't use are greyed with no reason (Mark as read, Mute thread before joining, roles above yours).</p><p><b><a href="#cm-thread">Cm thread</a></b>Every disabled row has a second line saying why: "Join the thread to mute it", "Above your highest role", "It's here now".</p><p>A grey row with no reason looks broken; the reason tells you what to do.</p></div>
     <div><p>Moving a channel is two levels deep: Move to… › Category › list. Server moves offer only first or last in the list, or a folder.</p><p><b><a href="#moving">Folders and moving</a></b>One submenu: Move to category, or Move server with top, bottom, after any server, or into a folder. The current spot is marked.</p><p>Fewer hover hops, and you can put a server anywhere without dragging.</p></div>

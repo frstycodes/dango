@@ -23,7 +23,7 @@ use super::{
     roles::RolesView,
 };
 use crate::{
-    Rustcord,
+    Waffle,
     channel_settings::Load,
     discord::ChannelKind,
     icons::Glyph,
@@ -106,7 +106,7 @@ pub struct ServerSettings {
     pub delete_name: Entity<InputState>,
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn server_me(&self, guild_id: &str) -> Option<(String, bool, u64, i64)> {
         let me = self.me.as_ref()?;
         let guild = self.guilds.iter().find(|g| g.id == guild_id)?;
@@ -191,7 +191,7 @@ impl Rustcord {
     }
 
     // Runs a call off the UI thread and hands its result back, Discord's error text untouched.
-    pub(crate) fn server_call(&mut self, call: Call, then: impl FnOnce(&mut Rustcord, Result<Value, String>, &mut Context<Rustcord>) + 'static, cx: &mut Context<Self>) {
+    pub(crate) fn server_call(&mut self, call: Call, then: impl FnOnce(&mut Waffle, Result<Value, String>, &mut Context<Waffle>) + 'static, cx: &mut Context<Self>) {
         let Some(client) = self.client.clone() else {
             return then(self, Err("Not connected to Discord.".into()), cx);
         };
@@ -774,7 +774,7 @@ impl ImageField {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn image_row(id: &'static str, title: &'static str, detail: &'static str, has: bool, open: bool, field: ImageField, line: bool, cx: &mut Context<Rustcord>) -> gpui_kit::Stateful<Div> {
+fn image_row(id: &'static str, title: &'static str, detail: &'static str, has: bool, open: bool, field: ImageField, line: bool, cx: &mut Context<Waffle>) -> gpui_kit::Stateful<Div> {
     let upload = ui::button(SharedString::from(format!("{id}-upload")), Tone::Secondary, cx).small().disabled(!open).child(Icon::new(Glyph::Upload).size(px(16.))).child(if has { "Change" } else { "Upload" }).on_click(cx.listener(move |this, _, _, cx| this.pick_image(field, cx)));
     let remove = has.then(|| ui::button(SharedString::from(format!("{id}-remove")), Tone::Ghost, cx).small().child("Remove").on_click(cx.listener(move |this, _, _, cx| this.edit_server_draft(cx, |d| *field.slot(d) = None))));
     ui::settings_row(id, line, cx).child(ui::settings_text(title, Some(detail), cx)).child(div().flex().gap(px(8.)).flex_none().child(upload).children(remove))
@@ -835,7 +835,7 @@ pub fn failed(title: &'static str, error: &str, cx: &App) -> AnyElement {
 }
 
 // A row that sends the member to Discord for what a user client can't do through the API.
-pub fn link_out(id: &'static str, title: &'static str, detail: &'static str, url: impl Into<String>, cx: &mut Context<Rustcord>) -> AnyElement {
+pub fn link_out(id: &'static str, title: &'static str, detail: &'static str, url: impl Into<String>, cx: &mut Context<Waffle>) -> AnyElement {
     let url = url.into();
     let open = ui::button(SharedString::from(format!("{id}-open")), Tone::Secondary, cx).small().child("Open Discord").child(Icon::new(Glyph::Open).size(px(14.))).on_click(move |_, _, cx| cx.open_url(&url));
     ui::settings_card(cx).child(ui::settings_row(id, false, cx).child(ui::settings_text(title, Some(detail), cx)).child(open)).into_any_element()

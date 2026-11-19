@@ -6,12 +6,12 @@ use gpui_kit::{
     Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, Radians, SharedString, Stateful, Window,
     base::{Transition as Tween, transition},
     component::{ActiveTheme, Icon, tooltip::Tooltip},
-    div, img, point, prelude::*, px, relative, rgb,
+    div, img, point, prelude::*, px, relative, rgb, svg,
 };
 use gpui_motion_kit::core::{Bezier, Easing, Motion, Target, Transition};
 
 use crate::{
-    Rustcord, Edge, Part, RailEntry, Status,
+    Waffle, Edge, Part, RailEntry, Status,
     discord::{ActivityKind, Channel, ChannelKind, Folder, Guild, Status as Status_},
     drag::{RowDrag, hole},
     icons::Glyph,
@@ -75,7 +75,7 @@ struct RailTile {
     open: f32,
 }
 
-impl Rustcord {
+impl Waffle {
     pub fn render_rail(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if !cx.has_active_drag() {
             self.rail_drop = None;
@@ -1387,7 +1387,7 @@ pub(crate) fn render_face(face: Face, size: f32, radius: f32, selected: bool, op
         Face::Letters(label) => letters_tile(&label, size, radius, cx).into_any_element(),
         Face::Home => tile()
             .bg(if selected { palette::accent() } else { crate::material::lifted(palette::surface(palette::Level::Raised, cx), cx) })
-            .child(img(if selected { crate::icons::MARK_WHITE } else { crate::icons::MARK }).size(px(size / 2.)))
+            .child(svg().path(crate::icons::MARK).size(px(size / 2.)).text_color(if selected { palette::on_accent() } else { palette::logo_ink(cx) }))
             .into_any_element(),
         Face::Folder { tint, minis } => tile()
             .relative()
@@ -1704,7 +1704,7 @@ mod tests {
 }
 
 // The open server's name as one button that drops the server menu, heading the channel list.
-pub(crate) fn server_name_button(name: SharedString, cx: &mut Context<Rustcord>) -> Stateful<Div> {
+pub(crate) fn server_name_button(name: SharedString, cx: &mut Context<Waffle>) -> Stateful<Div> {
     let hover = palette::hover(cx);
     div()
         .id("server-header")

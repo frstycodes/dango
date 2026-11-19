@@ -1,16 +1,16 @@
 // Memory profiling and trimming.
 //
-// - Rust heap: every allocation goes through `Counting`, so `heap_bytes()` is exactly what Rustcord's
+// - Rust heap: every allocation goes through `Counting`, so `heap_bytes()` is exactly what Waffle's
 //   own data holds right now (messages, images, caches), and `heap_peak()` the most it ever held.
 // - Process totals: on Windows the private working set Task Manager shows as "Memory", the working
 //   set, committed private bytes, and GPU memory (dedicated and shared) from DXGI; on macOS the
 //   footprint Activity Monitor shows as "Memory", which already includes GPU memory (unified memory).
 // - Gauges: the caches that can grow (see `report`).
 //
-// `RUSTCORD_MEMORY=1` logs a report every 10 s to stderr; `RUSTCORD_MEMORY=<MB>` also sets the
+// `WAFFLE_MEMORY=1` logs a report every 10 s to stderr; `WAFFLE_MEMORY=<MB>` also sets the
 // budget (default 100 MB). Going over the budget is always logged, once per crossing.
 //
-// `trim()` hands memory Rustcord no longer uses back to the system: it compacts the process heaps and,
+// `trim()` hands memory Waffle no longer uses back to the system: it compacts the process heaps and,
 // on Windows, empties the working set. Pages still in use fault back in when touched, so it's cheap to call when
 // the app goes to the background.
 use std::{
@@ -52,11 +52,11 @@ impl Tally {
 
 static HEAP: Tally = Tally::new();
 
-// Large-allocation sites (`RUSTCORD_MEMORY_SITES=1`): every live allocation of `BIG` bytes or more
+// Large-allocation sites (`WAFFLE_MEMORY_SITES=1`): every live allocation of `BIG` bytes or more
 // keeps the return addresses of its call stack, so the report can say which code holds the memory.
 // Images, video frames and buffers are all this size; small allocations aren't tracked, which keeps
 // the cost to a stack walk per large allocation. Names are only looked up when a report is printed.
-// The smallest allocation tracked; RUSTCORD_MEMORY_SITES=<KB> lowers or raises it.
+// The smallest allocation tracked; WAFFLE_MEMORY_SITES=<KB> lowers or raises it.
 static BIG: AtomicUsize = AtomicUsize::new(256 << 10);
 const DEPTH: usize = 24;
 static SITES: AtomicBool = AtomicBool::new(false);
@@ -239,11 +239,11 @@ pub fn heap_peak() -> usize {
     HEAP.peak.load(Ordering::Relaxed)
 }
 
-// Records allocation sites for RUSTCORD_DHAT_SECS (default 60) seconds, then writes dhat-heap.json in
+// Records allocation sites for WAFFLE_DHAT_SECS (default 60) seconds, then writes dhat-heap.json in
 // the working directory. Use the app normally meanwhile; the file shows what held memory at the peak.
 #[cfg(feature = "dhat-heap")]
 pub fn start_heap_profile() {
-    let secs = std::env::var("RUSTCORD_DHAT_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(60);
+    let secs = std::env::var("WAFFLE_DHAT_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(60);
     let profiler = dhat::Profiler::new_heap();
     let _ = std::thread::Builder::new().name("heap-profile".into()).spawn(move || {
         std::thread::sleep(Duration::from_secs(secs));
@@ -330,7 +330,7 @@ pub fn process() -> Option<Process> {
     None
 }
 
-// Gives memory Rustcord has freed back to the system without paging anything out: cheap, and
+// Gives memory Waffle has freed back to the system without paging anything out: cheap, and
 // nothing has to come back from disk afterwards.
 #[cfg(target_os = "windows")]
 pub fn compact() {
@@ -420,13 +420,13 @@ pub fn report() -> String {
 }
 
 fn budget() -> (bool, u64) {
-    match std::env::var("RUSTCORD_MEMORY") {
+    match std::env::var("WAFFLE_MEMORY") {
         Ok(v) => (true, v.trim().parse::<u64>().ok().filter(|mb| *mb > 1).unwrap_or(100)),
         Err(_) => (false, 100),
     }
 }
 
-// The biggest holders of large allocations, one per line (`RUSTCORD_MEMORY_SITES=1`).
+// The biggest holders of large allocations, one per line (`WAFFLE_MEMORY_SITES=1`).
 pub fn sites_report(top: usize) -> String {
     let sites = sites();
     let total: usize = sites.iter().map(|s| s.0).sum();
@@ -440,7 +440,7 @@ pub fn sites_report(top: usize) -> String {
 // Runs for the life of the app on a plain thread (sampling is a few syscalls every 10 s; with sites
 // on, every 30 s it also prints where the large allocations are).
 pub fn start_reporting() {
-    let sites = std::env::var("RUSTCORD_MEMORY_SITES").ok();
+    let sites = std::env::var("WAFFLE_MEMORY_SITES").ok();
     if let Some(kb) = sites.as_deref().and_then(|v| v.trim().parse::<usize>().ok()).filter(|kb| *kb > 1) {
         BIG.store(kb << 10, Ordering::Relaxed);
     }

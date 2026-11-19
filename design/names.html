@@ -132,8 +132,8 @@ p { margin: 4px 0 0; color: var(--muted); font-size: 14px; text-wrap: pretty; }
 <main>
   <header>
     <div>
-      <h1 id="title">Dango</h1>
-      <p>Four names, each with its own mark, and four food accents. Pick a name and an accent; everything below follows.</p>
+      <h1 id="title">Waffle</h1>
+      <p>The names explored before Waffle was picked, each with its own mark. Pick a name; everything below follows.</p>
     </div>
     <div class="segments theme" role="group" aria-label="Theme">
       <button type="button" data-theme-pick="light">Light</button>
@@ -183,17 +183,39 @@ p { margin: 4px 0 0; color: var(--muted); font-size: 14px; text-wrap: pretty; }
 
 <script>
 const ACCENTS = [
-  { id: "magenta", name: "Magenta", c: "#E8326F", deep: "#9C1748", light: "#FF86B4", fg: "#fff", note: "Today's accent. Nothing else in the design system changes." },
-  { id: "chili", name: "Chili", c: "#E0533A", deep: "#8F2A17", light: "#FF9A82", fg: "#fff", note: "Warm chili oil red-orange: hungry and loud, still friendly." },
-  { id: "matcha", name: "Matcha", c: "#5C9A3C", deep: "#305A1B", light: "#A9D683", fg: "#fff", note: "Fresh matcha green. Status greens (online, speaking) would need a different hue." },
-  { id: "yuzu", name: "Yuzu", c: "#E9A800", deep: "#7A4E00", light: "#FFD45C", fg: "#2A1C00", note: "Sunny citrus yellow. Buttons take dark text, since white on yellow fails contrast." },
+  { id: "ramune", name: "Ramune", c: "#0B9BA8", deep: "#015259", light: "#56D2DF", fg: "#fff", note: "Today's accent: soda-glass teal." },
+  { id: "chili", name: "Chili", c: "#E25B26", deep: "#8F2A17", light: "#FF9A82", fg: "#fff", note: "The previous accent, for comparison." },
 ];
 
 const NAMES = [
-  { id: "dango", name: "Dango", hint: "Three dumplings on a skewer, like a typing indicator", accent: "magenta" },
-  { id: "momo", name: "Momo", hint: "A plump pleated dumpling, steam rising", accent: "chili" },
-  { id: "bao", name: "Bao", hint: "A fluffy bun with a swirl on top", accent: "magenta" },
-  { id: "yuzu", name: "Yuzu", hint: "A citrus slice, its segments like a little sun", accent: "yuzu" },
+  { id: "pickle", name: "Pickle", hint: "English: a gherkin; also a playful little mess", accent: "ramune" },
+  { id: "peanut", name: "Peanut", hint: "English: two in one shell; a pet name for a little one", accent: "ramune" },
+  { id: "waffle", name: "Waffle", hint: "Belgian: a grid of pockets; also, to chat on and on", accent: "ramune" },
+  { id: "olive", name: "Olive", hint: "Mediterranean: the pimento is its eye", accent: "ramune" },
+  { id: "nugget", name: "Nugget", hint: "English: a small lump of something good", accent: "ramune" },
+  { id: "toast", name: "Toast", hint: "English: a slice of bread; also raising a glass to someone", accent: "ramune" },
+  { id: "macaron", name: "Macaron", hint: "French: two shells and a filling", accent: "ramune" },
+  { id: "churro", name: "Churro", hint: "Spanish: a ridged fried stick rolled in sugar", accent: "ramune" },
+  { id: "ladoo", name: "Ladoo", hint: "Indian: a round sweet made of tiny pearls", accent: "ramune" },
+  { id: "blip", name: "Blip", hint: "English: a small flash or sound on a screen, like a new message", accent: "ramune" },
+  { id: "tofu", name: "Tofu", hint: "A soft, slightly slumped block with one eye, Mochi's sibling", accent: "ramune" },
+  { id: "musubi", name: "Musubi", hint: "Rice ball; also Japanese for tying together, a bond", accent: "ramune" },
+  { id: "taiyaki", name: "Taiyaki", hint: "Fish-shaped cake, warm from the iron", accent: "ramune" },
+  { id: "maki", name: "Maki", hint: "A sushi roll, cut: the filling is its eye", accent: "ramune" },
+  { id: "mikan", name: "Mikan", hint: "Winter mandarin with a leaf on top", accent: "ramune" },
+  { id: "uni", name: "Uni", hint: "Sea urchin: spiky outside, soft inside", accent: "ramune" },
+  { id: "tama", name: "Tama", hint: "Egg, or a little ball; a classic cat name", accent: "ramune" },
+  { id: "inari", name: "Inari", hint: "A sweet fried-tofu pouch, rice peeking out", accent: "ramune" },
+  { id: "miso", name: "Miso", hint: "A bowl of miso soup, a cube of tofu bobbing", accent: "ramune" },
+  { id: "ramune", name: "Ramune", hint: "Marble soda: the pinched bottle with its glass marble", accent: "ramune" },
+  { id: "awa", name: "Awa", hint: "Japanese for bubble: three rising, like a typing indicator", accent: "ramune" },
+  { id: "marble", name: "Marble", hint: "The ramune marble: one glass sphere with a swirl", accent: "ramune" },
+  { id: "kori", name: "Kori", hint: "Japanese for ice: a shaved-ice mound in a cup", accent: "ramune" },
+  { id: "kumo", name: "Kumo", hint: "Japanese for cloud: soft, and shaped like a chat bubble", accent: "ramune" },
+  { id: "mame", name: "Mame", hint: "Japanese for bean: three in a pod, like a typing indicator", accent: "ramune" },
+  { id: "tako", name: "Tako", hint: "Octopus: eight arms for eight conversations", accent: "ramune" },
+  { id: "purin", name: "Purin", hint: "Japanese custard pudding, caramel on top", accent: "ramune" },
+  { id: "umi", name: "Umi", hint: "Japanese for sea: three waves rolling in", accent: "ramune" },
 ];
 
 let uid = 0;
@@ -207,46 +229,76 @@ function shine(cx, cy, r, opacity = 0.5) {
 // backdrop colour, for separations), `stick` the secondary shade.
 function markSvg(id, { ink, on, stick }) {
   switch (id) {
-    case "dango": {
-      const balls = [[36, 64], [50, 50], [64, 36]], r = 15;
-      let out = `<line x1="20" y1="80" x2="80" y2="20" stroke="${stick}" stroke-width="6" stroke-linecap="round"/>`;
-      balls.forEach(([x, y]) => {
-        out += `<circle cx="${x}" cy="${y}" r="${r + 2.5}" fill="${on}"/><circle cx="${x}" cy="${y}" r="${r}" fill="${ink}"/>` + shine(x, y, r, 0.55);
-      });
-      return out;
-    }
-    case "momo":
-      return `<path d="M36 22c-4-4 4-7 0-12M64 22c-4-4 4-7 0-12" fill="none" stroke="${ink}" stroke-width="4" stroke-linecap="round" opacity="0.45"/>` +
-        `<path d="M14 70c0-22 16-38 36-38s36 16 36 38c0 9-7 14-16 14H30c-9 0-16-5-16-14z" fill="${ink}"/>` +
-        `<path d="M50 36c-8 6-16 18-20 34M50 36c-3 8-6 22-6 36M50 36c3 8 6 22 6 36M50 36c8 6 16 18 20 34" fill="none" stroke="${on}" stroke-width="3.2" stroke-linecap="round" opacity="0.55"/>` +
-        `<circle cx="50" cy="33" r="6" fill="${ink}"/>` + shine(40, 52, 16, 0.35);
-    case "bao":
-      return `<path d="M12 62c0-24 17-38 38-38s38 14 38 38c0 15-14 22-38 22S12 77 12 62z" fill="${ink}"/>` +
-        baoPleats(50, 38, on) + `<circle cx="50" cy="38" r="3.2" fill="${on}" opacity="0.6"/>` +
-        shine(34, 54, 16, 0.32);
-    case "yuzu": {
-      let out = `<circle cx="50" cy="50" r="40" fill="${ink}"/><circle cx="50" cy="50" r="33" fill="${on}"/>`;
-      const n = 7, r1 = 8, r2 = 27, gap = 0.12;
-      const p = (r, a) => `${(50 + r * Math.cos(a)).toFixed(2)} ${(50 + r * Math.sin(a)).toFixed(2)}`;
-      for (let i = 0; i < n; i++) {
-        const a0 = (i / n) * Math.PI * 2 + gap - Math.PI / 2, a1 = ((i + 1) / n) * Math.PI * 2 - gap - Math.PI / 2;
-        out += `<path d="M${p(r1, a0)}L${p(r2, a0)}A${r2} ${r2} 0 0 1 ${p(r2, a1)}L${p(r1, a1)}Z" fill="${ink}" stroke="${ink}" stroke-width="4" stroke-linejoin="round" opacity="0.72"/>`;
+    case "tofu":
+      return `<path d="M24 44C24 34 28 30 37 30C47 30 56 28 64 29C73 30 77 35 77 44L80 72C80 78 76 81 70 81H30C24 81 20 78 20 72Z" fill="${ink}"/>` + eye(58, 48, ink, on);
+    case "musubi":
+      return `<path d="M50 16C56 16 60 20 63 26L83 64C89 76 83 85 70 85H30C17 85 11 76 17 64L37 26C40 20 44 16 50 16Z" fill="${ink}"/>` +
+        `<path d="M34 62H66V85H34Z" fill="${stick}"/>` + eye(57, 44, ink, on);
+    case "taiyaki":
+      return `<path d="M12 52C18 33 44 25 62 32L80 21C85 18 89 22 88 27L83 51L88 75C89 80 85 84 80 81L62 70C44 77 18 71 12 52Z" fill="${ink}"/>` +
+        `<g fill="none" stroke="${on}" stroke-width="2.6" stroke-linecap="round" opacity="0.4"><path d="M46 42Q50 48 46 54"/><path d="M54 40Q58 48 54 56"/><path d="M46 56Q50 62 46 66"/></g>` + eye(30, 46, ink, on);
+    case "maki":
+      return `<circle cx="50" cy="50" r="38" fill="${ink}"/><circle cx="50" cy="50" r="30" fill="${on}"/>` +
+        `<circle cx="56" cy="45" r="11" fill="${ink}"/><circle cx="59.5" cy="41.5" r="3.4" fill="${on}"/>`;
+    case "mikan":
+      return `<circle cx="50" cy="56" r="32" fill="${ink}"/>` +
+        `<path d="M50 25V17" stroke="${stick}" stroke-width="4" stroke-linecap="round"/><path d="M51 20C56 10 68 9 74 14C68 22 58 24 51 20Z" fill="${stick}"/>` + eye(60, 50, ink, on) + shine(50, 56, 32, 0.3);
+    case "uni": {
+      const pts = [];
+      for (let i = 0; i < 32; i++) {
+        const a = (i / 32) * Math.PI * 2, r = i % 2 ? 29 : 39;
+        pts.push(`${(50 + r * Math.cos(a)).toFixed(1)} ${(52 + r * Math.sin(a)).toFixed(1)}`);
       }
-      return out + shine(36, 34, 20, 0.35);
+      return `<path d="M${pts.join("L")}Z" fill="${ink}" stroke="${ink}" stroke-width="3" stroke-linejoin="round"/>` + eye(58, 46, ink, on);
     }
+    case "tama":
+      return `<path d="M50 14C68 14 80 40 80 60C80 78 66 88 50 88C34 88 20 78 20 60C20 40 32 14 50 14Z" fill="${ink}"/>` + eye(58, 50, ink, on);
+    case "inari":
+      return `<path d="M18 52C18 38 30 32 50 32C70 32 82 38 82 52V70C82 80 72 84 50 84C28 84 18 80 18 70Z" fill="${ink}"/>` +
+        `<path d="M22 48C22 34 34 26 50 26C66 26 78 34 78 48C66 42 34 42 22 48Z" fill="${on}" stroke="${ink}" stroke-width="3.5" stroke-linejoin="round"/>` + eye(60, 62, ink, on);
+    case "miso":
+      return `<rect x="56" y="30" width="16" height="14" rx="3" fill="${on}" stroke="${ink}" stroke-width="3.5" transform="rotate(10 64 37)"/>` +
+        `<path d="M14 44H86C86 68 70 86 50 86C30 86 14 68 14 44Z" fill="${ink}"/>` +
+        `<rect x="12" y="40" width="76" height="7" rx="3.5" fill="${stick}"/>` + eye(58, 62, ink, on);
+    case "ramune":
+      return `<rect x="41" y="7" width="18" height="7" rx="3" fill="${stick}"/>` +
+        `<path d="M28 78V58C28 49 40 45 40 39C40 35 43 33 43 30C43 27 40 25 40 21V17Q40 13 44 13H56Q60 13 60 17V21C60 25 57 27 57 30C57 33 60 35 60 39C60 45 72 49 72 58V78Q72 90 60 90H40Q28 90 28 78Z" fill="${ink}"/>` +
+        `<circle cx="50" cy="38" r="6.5" fill="${on}" opacity="0.9"/>` +
+        `<path d="M28 66H72" stroke="${on}" stroke-width="3" opacity="0.4"/>` + shine(40, 74, 12, 0.4);
+    case "awa":
+      return [[34, 66, 20], [62, 42, 13], [76, 20, 8]].map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${ink}"/>` + shine(x, y, r, 0.55)).join("");
+    case "marble":
+      return `<circle cx="50" cy="50" r="38" fill="${ink}"/>` +
+        `<path d="M20 57C34 38 46 71 62 48C68 40 74 40 80 44" fill="none" stroke="${on}" stroke-width="8" stroke-linecap="round" opacity="0.7"/>` +
+        `<path d="M26 70C40 58 52 80 70 66" fill="none" stroke="${on}" stroke-width="4" stroke-linecap="round" opacity="0.35"/>` + shine(50, 50, 38, 0.45);
+    case "kori":
+      return `<path d="M20 62C20 38 34 20 50 20C66 20 80 38 80 62Z" fill="${ink}"/>` +
+        `<path d="M50 20C46 30 47 40 52 48" fill="none" stroke="${on}" stroke-width="3.5" stroke-linecap="round" opacity="0.45"/>` +
+        `<path d="M24 64H76L68 87Q67 90 64 90H36Q33 90 32 87Z" fill="${stick}"/>` +
+        `<rect x="22" y="61" width="56" height="6" rx="3" fill="${on}"/>` + shine(40, 44, 18, 0.4);
+    case "kumo":
+      return `<g transform="translate(50 50) scale(1.25) translate(-50 -60)"><path d="M30 78H70A16 16 0 0 0 72 46A22 22 0 0 0 30 42A18 18 0 0 0 30 78Z" fill="${ink}"/>` +
+        `<circle cx="22" cy="86" r="5" fill="${ink}"/>` + shine(46, 52, 20, 0.45) + `</g>`;
+    case "mame":
+      return `<line x1="74" y1="26" x2="85" y2="15" stroke="${stick}" stroke-width="5" stroke-linecap="round"/>` +
+        `<line x1="28" y1="72" x2="72" y2="28" stroke="${ink}" stroke-width="32" stroke-linecap="round"/>` +
+        [[33, 67], [50, 50], [67, 33]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="9" fill="${on}" opacity="0.35"/>` + shine(x, y, 9, 0.6)).join("");
+    case "tako":
+      return `<g fill="none" stroke="${ink}" stroke-width="8" stroke-linecap="round"><path d="M30 54C28 66 22 70 18 78"/><path d="M43 56C42 68 38 76 36 86"/><path d="M57 56C58 68 62 76 64 86"/><path d="M70 54C72 66 78 70 82 78"/></g>` +
+        `<path d="M24 58C24 34 36 18 50 18C64 18 76 34 76 58Z" fill="${ink}"/>` +
+        `<circle cx="41" cy="44" r="4" fill="${on}"/><circle cx="59" cy="44" r="4" fill="${on}"/>` + shine(44, 36, 16, 0.4);
+    case "purin":
+      return `<g transform="translate(50 50) scale(1.3) translate(-50 -60)">` + `<rect x="16" y="82" width="68" height="7" rx="3.5" fill="${stick}" opacity="0.6"/>` +
+        `<path d="M28 82L34 40Q35 33 42 33H58Q65 33 66 40L72 82Z" fill="${ink}"/>` +
+        `<path d="M34 40Q35 33 42 33H58Q65 33 66 40L67.2 49Q50 56 32.8 49Z" fill="${stick}"/>` + shine(44, 60, 14, 0.4) + `</g>`;
+    case "umi":
+      return [[36, 1], [54, 0.65], [72, 0.35]].map(([y, o]) => `<path d="M14 ${y}C22 ${y - 12} 34 ${y - 12} 42 ${y}S62 ${y + 12} 70 ${y}S84 ${y - 10} 88 ${y - 4}" fill="none" stroke="${ink}" stroke-width="10" stroke-linecap="round" opacity="${o}"/>`).join("");
   }
 }
 
-// Pleats twisting out from the bun's top, like a xiaolongbao.
-function baoPleats(cx, cy, color) {
-  let out = "";
-  for (let k = 0; k < 7; k++) {
-    const a = (k / 7) * Math.PI * 2, r = 17;
-    const ctrl = [cx + 10 * Math.cos(a), cy + 7 * Math.sin(a)];
-    const end = [cx + r * Math.cos(a + 0.9), cy + r * 0.62 * Math.sin(a + 0.9)];
-    out += `<path d="M${cx} ${cy}Q${ctrl[0].toFixed(1)} ${ctrl[1].toFixed(1)} ${end[0].toFixed(1)} ${end[1].toFixed(1)}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" opacity="0.55"/>`;
-  }
-  return out;
+// The one eye every character wears; the glint keeps it an eye rather than a dot or a die's pip.
+function eye(x, y, ink, on, r = 6.25) {
+  return `<circle cx="${x}" cy="${y}" r="${r}" fill="${on}"/><circle cx="${x + r * 0.35}" cy="${y - r * 0.35}" r="${r * 0.3}" fill="${ink}"/>`;
 }
 
 // iOS-like continuous corners: a superellipse with exponent 5.
@@ -265,7 +317,7 @@ const TILES = {
   graphite: a => ({ bg: ["#3A3438", "#17131A"], ink: a.light, on: "#221D22", stick: "#8C7A6A", label: "Graphite" }),
 };
 
-const state = { name: "dango", accent: "magenta" };
+const state = { name: "tofu", accent: "ramune" };
 const current = () => NAMES.find(n => n.id === state.name);
 
 function icon(markId, accent, tile, px) {

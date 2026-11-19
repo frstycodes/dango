@@ -15,7 +15,7 @@ use gpui_kit::{
 };
 
 use crate::{
-    RightPanel, Rustcord, SearchState,
+    RightPanel, Waffle, SearchState,
     discord::ChannelKind,
     icons::Glyph,
     palette,
@@ -65,7 +65,7 @@ impl Menu {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn search_menu(&self, cx: &App) -> Menu {
         let state = self.search_input.read(cx);
         let text = state.value();

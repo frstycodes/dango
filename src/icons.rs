@@ -2,11 +2,11 @@ use std::borrow::Cow;
 
 use gpui_kit::{AssetSource, Result, SharedString, assets::IconNamed};
 
-// Dango's own mark, three dumplings on a skewer, in chili and in white.
-pub const MARK: &str = "brand/dango-mark.svg";
-pub const MARK_WHITE: &str = "brand/dango-mark-white.svg";
+// Waffle's own mark: a tilted waffle with honey dripping off its edge, one colour, tinted where it's drawn.
+// Written by tools/app_icons.py from design/waffle.html.
+pub const MARK: &str = "brand/waffle-mark.svg";
 
-// Reicon (MIT, github.com/dqev/reicon) in its filled weight, like Discord's chrome, plus Dango's own glyphs
+// Reicon (MIT, github.com/dqev/reicon) in its filled weight, like Discord's chrome, plus Waffle's own glyphs
 // (muted, deafened, camera off, GIF...), all written to assets/icons/reicon/ by tools/reicon.py, which also
 // keeps these paths in step with its map (design/icons.html). Order matches `Glyph`.
 const GLYPHS: [(&str, &[u8]); 146] = [
@@ -159,9 +159,8 @@ const GLYPHS: [(&str, &[u8]); 146] = [
     ("icons/moon.svg", include_bytes!("../assets/icons/moon.svg")),
 ];
 
-const BRAND: [(&str, &[u8]); 4] = [
-    (MARK, include_bytes!("../assets/brand/dango-mark.svg")),
-    (MARK_WHITE, include_bytes!("../assets/brand/dango-mark-white.svg")),
+const BRAND: [(&str, &[u8]); 3] = [
+    (MARK, include_bytes!("../assets/brand/waffle-mark.svg")),
     // Stand-in art for the demo's profile scene, which stays offline.
     ("demo/decoration.png", include_bytes!("../assets/demo/decoration.png")),
     ("demo/banner.png", include_bytes!("../assets/demo/banner.png")),
@@ -323,7 +322,7 @@ impl IconNamed for Glyph {
     }
 }
 
-// Serves Rustcord's glyphs and brand art, then falls back to gpui-kit's own assets so its components keep their icons.
+// Serves Waffle's glyphs and brand art, then falls back to gpui-kit's own assets so its components keep their icons.
 pub struct Assets;
 
 impl AssetSource for Assets {

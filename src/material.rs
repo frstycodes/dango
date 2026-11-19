@@ -10,7 +10,7 @@ thread_local! {
     static ACTIVE: Cell<bool> = const { Cell::new(false) };
 }
 
-// What the system calls its sidebar material, or None where Dango can't show one (the setting is hidden).
+// What the system calls its sidebar material, or None where Waffle can't show one (the setting is hidden).
 pub fn setting_name() -> Option<&'static str> {
     if !supported() {
         return None;

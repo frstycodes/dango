@@ -1,4 +1,4 @@
-// Whether Rustcord is in front of the user, and which parts of its window can actually be seen.
+// Whether Waffle is in front of the user, and which parts of its window can actually be seen.
 //
 // On Windows a thread listens for the system's own events: our window minimized or restored, hidden
 // (closed to the tray) or shown, and the foreground window changing. Each one is handled at once.

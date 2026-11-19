@@ -1,6 +1,6 @@
 /target
 *.ppm
-/chord-*.png
+/waffle-*.png
 .claude/settings.local.json
 .DS_Store
 .claude/worktrees/

@@ -5,7 +5,7 @@ use base64::Engine;
 use gpui_kit::{AnyElement, AppContext, Context, Entity, Focusable, IntoElement, ParentElement, SharedString, Styled, Window, component::input::{InputEvent, InputState}, div, prelude::FluentBuilder, px};
 use serde_json::{Value, json};
 
-use crate::{Rustcord, palette, ui};
+use crate::{Waffle, palette, ui};
 
 const DISCORD: &str = "https://discord.com/app";
 
@@ -29,7 +29,7 @@ pub(crate) enum ProfileImage {
     Banner,
 }
 
-impl Rustcord {
+impl Waffle {
     pub(super) fn start_profile_edit(&mut self, field: ProfileField, window: &mut Window, cx: &mut Context<Self>) {
         let value = match field {
             ProfileField::DisplayName => self.my_account.global_name.clone().or_else(|| self.me.as_ref().map(|m| m.name.clone())).unwrap_or_default(),
@@ -192,7 +192,7 @@ fn image_data_uri(path: &std::path::Path) -> Result<(String, bool), String> {
 mod tests {
     #[test]
     fn images_become_data_uris_and_gifs_count_as_animated() {
-        let dir = std::env::temp_dir().join(format!("dango-profile-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("waffle-profile-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let png = dir.join("a.PNG");
         std::fs::write(&png, [1u8, 2, 3]).unwrap();

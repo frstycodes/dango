@@ -13,7 +13,7 @@ use std::{
 use gpui_kit::{Animation, AnimationExt, AnyElement, App, Context, FontWeight, SharedString, Stateful, WeakEntity, Window, component::Icon, div, img, prelude::*, px};
 
 use crate::{
-    Rustcord,
+    Waffle,
     discord::{Invite, MediaKind, Message, Status},
     icons::Glyph,
     palette::{self, Level},
@@ -113,7 +113,7 @@ pub fn channel_chips(text: &str, names: &HashMap<String, String>) -> String {
         let url = word.trim_end_matches(['.', ',', '!', '?', ')', ';', ':', '*', '_', '~', '|']);
         let wrapped = before.ends_with(['<', '(']);
         let chip = match parse(url) {
-            Some(DiscordLink::Channel { channel, .. }) if !wrapped => names.get(&channel).map(|name| format!("[#{name}](rustcord://channel/{channel})")),
+            Some(DiscordLink::Channel { channel, .. }) if !wrapped => names.get(&channel).map(|name| format!("[#{name}](waffle://channel/{channel})")),
             _ => None,
         };
         match chip {
@@ -140,7 +140,7 @@ impl DiscordLink {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     // Fetches a preview unless a fresh one is cached; the card that asked redraws when it lands.
     pub(crate) fn load_link_preview(&mut self, link: DiscordLink, cx: &mut Context<Self>) {
         let Some(key) = link.key() else { return };
@@ -234,7 +234,7 @@ impl Rustcord {
 
 // What a card needs from the row drawing it.
 pub struct CardContext<'a> {
-    pub this: WeakEntity<Rustcord>,
+    pub this: WeakEntity<Waffle>,
     pub previews: &'a Previews,
     pub joined: &'a HashSet<String>,
     pub channel_names: &'a HashMap<String, String>,
@@ -463,8 +463,8 @@ mod tests {
     #[test]
     fn channel_and_invite_links() {
         assert_eq!(parse("https://discord.com/channels/1/22"), Some(DiscordLink::Channel { guild: "1".into(), channel: "22".into() }));
-        for url in ["https://discord.gg/dango-hall", "https://discord.com/invite/dango-hall", "https://canary.discord.com/invite/dango-hall/", "https://discord.gg/dango-hall?event=4"] {
-            assert_eq!(parse(url), Some(DiscordLink::Invite("dango-hall".into())), "{url}");
+        for url in ["https://discord.gg/waffle-hall", "https://discord.com/invite/waffle-hall", "https://canary.discord.com/invite/waffle-hall/", "https://discord.gg/waffle-hall?event=4"] {
+            assert_eq!(parse(url), Some(DiscordLink::Invite("waffle-hall".into())), "{url}");
         }
     }
 
@@ -497,7 +497,7 @@ mod tests {
     #[test]
     fn known_channel_links_become_chips() {
         let names = HashMap::from([("22".to_string(), "general".to_string())]);
-        assert_eq!(channel_chips("over in https://discord.com/channels/1/22.", &names), "over in [#general](rustcord://channel/22).");
+        assert_eq!(channel_chips("over in https://discord.com/channels/1/22.", &names), "over in [#general](waffle://channel/22).");
         let kept = "https://discord.com/channels/1/99 <https://discord.com/channels/1/22> [here](https://discord.com/channels/1/22) https://discord.com/channels/1/22/333 http";
         assert_eq!(channel_chips(kept, &names), kept, "unknown, suppressed, masked and message links stay as written");
     }
@@ -505,7 +505,7 @@ mod tests {
     #[test]
     fn keys_fit_the_cache() {
         assert_eq!(message("1").unwrap().key().as_deref(), Some("m-22-333"));
-        assert_eq!(DiscordLink::Invite("dango-hall".into()).key().as_deref(), Some("i-dango-hall"));
+        assert_eq!(DiscordLink::Invite("waffle-hall".into()).key().as_deref(), Some("i-waffle-hall"));
         assert_eq!(DiscordLink::Channel { guild: "1".into(), channel: "2".into() }.key(), None);
     }
 

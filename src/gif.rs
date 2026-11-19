@@ -90,13 +90,13 @@ pub fn draws_since_last() -> (usize, usize) {
     (APP_RENDERS.swap(0, Relaxed), LAYER_DRAWS.swap(0, Relaxed))
 }
 
-// RUSTCORD_GIF_FORCE=1 (debugging): GIFs play and the window draws even when unfocused or covered.
+// WAFFLE_GIF_FORCE=1 (debugging): GIFs play and the window draws even when unfocused or covered.
 pub fn forced() -> bool {
-    std::env::var_os("RUSTCORD_GIF_FORCE").is_some()
+    std::env::var_os("WAFFLE_GIF_FORCE").is_some()
 }
 
 fn debug() -> bool {
-    std::env::var_os("RUSTCORD_GIF_DEBUG").is_some()
+    std::env::var_os("WAFFLE_GIF_DEBUG").is_some()
 }
 
 thread_local! {

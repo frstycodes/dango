@@ -4,7 +4,8 @@ use gpui_kit::{Animation, AnimationExt, AnyElement, App, ElementId, Hsla, Radian
 
 use crate::palette;
 
-// Dango's mascot is its own logo come alive: three dumplings on a skewer, moving with the mood.
+// The mascot: three dumplings on a skewer, moving with the mood.
+// GAP: still the previous identity's dumplings; to be redrawn from the waffle mark (assets/brand/waffle-mark.svg).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Mood {
     // Breathes gently.
@@ -16,7 +17,7 @@ pub enum Mood {
 }
 
 // Dumplings in a 100-unit box, drawn 64px wide at scale 1. Spaced just apart rather than overlapping
-// like the mark (assets/brand/dango-mark.svg): a moving mascot can't cut gaps into whatever is behind it.
+// like the mark (assets/brand/waffle-mark.svg): a moving mascot can't cut gaps into whatever is behind it.
 const CENTERS: [(f32, f32); 3] = [(28., 72.), (50., 50.), (72., 28.)];
 const RADIUS: f32 = 14.5;
 const STICK: (f32, f32) = (113., 6.);
@@ -95,7 +96,7 @@ fn poses(mood: Mood, t: f32) -> [Pose; 3] {
     out
 }
 
-// The loader: the mark as drawn in assets/brand/dango-mark.svg, its dumplings overlapping and each cut
+// The loader: three overlapping dumplings, each cut
 // from the one behind by a ring of `ring` (the backdrop's colour). They step down the skewer: the
 // bottom one slides off the end and shrinks away while a new one grows in at the top.
 pub fn loader(id: impl Into<ElementId>, size: f32, colors: LoaderColors, cx: &App) -> AnyElement {

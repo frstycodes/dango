@@ -1,30 +1,31 @@
-// Dango's app icon choices: the three dumplings in many media, picked in Settings › Appearance.
+// Waffle's app icon choices: the mark in several media (design/waffle.html), picked in Settings › Appearance.
+// The PNGs are written by tools/app_icons.py.
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AppIcon {
-    Brand,
-    Graphite,
-    Sticker,
     Peek,
-    // Last because it also takes any icon no longer offered (glass, riso, …), so an old pick can't fail
-    // the whole prefs file, and serde wants that catch-all at the end.
+    Sticker,
+    Riso,
+    Blueprint,
+    // Last because it also takes any icon no longer offered, so an old pick can't fail the whole prefs
+    // file, and serde wants that catch-all at the end.
     #[default]
     #[serde(other)]
-    Bone,
+    Paper,
 }
 
 impl AppIcon {
-    pub const ALL: [AppIcon; 5] = [AppIcon::Bone, AppIcon::Brand, AppIcon::Graphite, AppIcon::Sticker, AppIcon::Peek];
+    pub const ALL: [AppIcon; 5] = [AppIcon::Paper, AppIcon::Peek, AppIcon::Sticker, AppIcon::Riso, AppIcon::Blueprint];
 
     pub fn label(self) -> &'static str {
         match self {
-            AppIcon::Bone => "Bone",
-            AppIcon::Brand => "Chili",
-            AppIcon::Graphite => "Graphite",
-            AppIcon::Sticker => "Sticker",
+            AppIcon::Paper => "Paper",
             AppIcon::Peek => "Peek",
+            AppIcon::Sticker => "Sticker",
+            AppIcon::Riso => "Riso",
+            AppIcon::Blueprint => "Blueprint",
         }
     }
 
@@ -51,11 +52,11 @@ impl AppIcon {
 
 // Order matches `AppIcon`.
 pub const BRAND_ICONS: [(&str, &[u8]); 5] = [
-    ("brand/icons/brand.png", include_bytes!("../assets/brand/icons/brand.png")),
-    ("brand/icons/graphite.png", include_bytes!("../assets/brand/icons/graphite.png")),
-    ("brand/icons/sticker.png", include_bytes!("../assets/brand/icons/sticker.png")),
     ("brand/icons/peek.png", include_bytes!("../assets/brand/icons/peek.png")),
-    ("brand/icons/bone.png", include_bytes!("../assets/brand/icons/bone.png")),
+    ("brand/icons/sticker.png", include_bytes!("../assets/brand/icons/sticker.png")),
+    ("brand/icons/riso.png", include_bytes!("../assets/brand/icons/riso.png")),
+    ("brand/icons/blueprint.png", include_bytes!("../assets/brand/icons/blueprint.png")),
+    ("brand/icons/paper.png", include_bytes!("../assets/brand/icons/paper.png")),
 ];
 
 #[cfg(target_os = "macos")]
@@ -97,7 +98,7 @@ mod tests {
 
     #[test]
     fn a_retired_icon_falls_back_to_the_default() {
-        let saved: AppIcon = serde_json::from_str("\"riso\"").unwrap();
+        let saved: AppIcon = serde_json::from_str("\"bone\"").unwrap();
         assert_eq!(saved, AppIcon::default());
     }
 }

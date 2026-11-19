@@ -1,5 +1,5 @@
 // DM and group calls (design/flows-call.html): the strip that holds a voice call above the DM's chat,
-// the banner that rings anywhere else in Dango, and the gateway's CALL_* events behind them. Video
+// the banner that rings anywhere else in Waffle, and the gateway's CALL_* events behind them. Video
 // still opens the call stage (call.rs).
 //
 // GAP: the mock's Add people popover, resizable video stage and mini player aren't built yet.
@@ -8,7 +8,7 @@ use std::time::Duration;
 use gpui_kit::{Animation, AnimationExt, AnyElement, Context, FontWeight, Hsla, SharedString, component::Icon, div, prelude::*, px};
 
 use crate::{
-    Rustcord,
+    Waffle,
     discord::{Channel, ChannelKind, VoiceState},
     icons::Glyph,
     palette::{self, Level},
@@ -44,7 +44,7 @@ pub(crate) fn strip_state(ringing_me: bool, in_it: bool, others: usize, ringing:
     }
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn on_dm_call(&mut self, channel_id: String, ringing: Vec<String>, cx: &mut Context<Self>) {
         let rings_me = ringing.iter().any(|id| id == self.my_id());
         let in_it = self.call.as_ref().is_some_and(|c| c.channel.id == channel_id);

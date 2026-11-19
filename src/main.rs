@@ -143,7 +143,7 @@ fn main() {
         }
 
         #[cfg(debug_assertions)]
-        if std::env::var("CHORD_DEMO").as_deref() == Ok("updating") {
+        if std::env::var("WAFFLE_DEMO").as_deref() == Ok("updating") {
             demo::updating_splash(cx);
             return;
         }
@@ -154,14 +154,14 @@ fn main() {
             return;
         }
         // Signed in: a small splash window shows while the main window loads hidden behind it.
-        let demo = cfg!(debug_assertions) && std::env::var_os("CHORD_DEMO").is_some();
+        let demo = cfg!(debug_assertions) && std::env::var_os("WAFFLE_DEMO").is_some();
         let splash = if signed_in && !demo { splash::open("Signing in…", cx) } else { None };
         open_main(splash, cx);
     });
 }
 
 // An update downloaded in the background last run goes in before anything signs in, then this run
-// relaunches as the new build. A failed install opens Dango as usual.
+// relaunches as the new build. A failed install opens Waffle as usual.
 fn install_then_open(staged: updater::Staged, signed_in: bool, cx: &mut gpui_kit::App) {
     let splash = splash::open(format!("Installing {}…", staged.version), cx);
     cx.spawn(async move |cx| {
@@ -192,7 +192,7 @@ fn open_main(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gp
         focus: splash.is_none(),
         window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(1280.), px(820.)), cx))),
         window_min_size: Some(size(px(940.), px(520.))),
-        titlebar: Some(TitlebarOptions { title: Some("Dango".into()), appears_transparent: true, traffic_light_position: Some(layout::TRAFFIC_LIGHTS) }),
+        titlebar: Some(TitlebarOptions { title: Some("Waffle".into()), appears_transparent: true, traffic_light_position: Some(layout::TRAFFIC_LIGHTS) }),
         window_background: material::window_background(),
         ..Default::default()
     };
@@ -296,7 +296,7 @@ async fn release_memory(cx: &mut gpui_kit::AsyncApp) {
             let before = memory::process().map_or(0, |p| p.private_working_set);
             memory::trim();
             let after = memory::process().map_or(0, |p| p.private_working_set);
-            if std::env::var_os("RUSTCORD_MEMORY").is_some() {
+            if std::env::var_os("WAFFLE_MEMORY").is_some() {
                 eprintln!("background: gave back memory, {} MB -> {} MB", before >> 20, after >> 20);
             }
         })
@@ -310,7 +310,7 @@ fn release_caches(cx: &mut gpui_kit::App) {
     images.update(cx, |images, cx| images.clear(cx));
 }
 
-// macOS: closing the window hides Dango and keeps it signed in; the Dock icon or ⌘Tab brings it
+// macOS: closing the window hides Waffle and keeps it signed in; the Dock icon or ⌘Tab brings it
 // back and ⌘Q quits. Minimized, hidden or fully covered, it frees its caches and hands freed heap
 // pages back (there is no working set to empty, the system compresses idle pages itself), unless a
 // video is playing. Shown again, it redraws from scratch: the cached app view still points at the
@@ -394,17 +394,16 @@ struct Autocomplete {
     selected: usize,
 }
 
-// Where Dango keeps its files: Application Support on macOS, %APPDATA% on Windows,
-// $XDG_DATA_HOME (or ~/.local/share) elsewhere. The folders keep the app's first name, Rustcord, so
-// existing sign-ins and settings carry over.
+// Where Waffle keeps its files: Application Support on macOS, %APPDATA% on Windows,
+// $XDG_DATA_HOME (or ~/.local/share) elsewhere.
 fn data_dir() -> Option<std::path::PathBuf> {
     let var = |name| std::env::var_os(name).map(std::path::PathBuf::from);
     let dir = if cfg!(target_os = "macos") {
-        var("HOME")?.join("Library/Application Support/Rustcord")
+        var("HOME")?.join("Library/Application Support/Waffle")
     } else if cfg!(target_os = "windows") {
-        var("APPDATA")?.join("Rustcord")
+        var("APPDATA")?.join("Waffle")
     } else {
-        var("XDG_DATA_HOME").or_else(|| var("HOME").map(|h| h.join(".local/share")))?.join("rustcord")
+        var("XDG_DATA_HOME").or_else(|| var("HOME").map(|h| h.join(".local/share")))?.join("waffle")
     };
     Some(dir)
 }
@@ -523,7 +522,7 @@ enum Part {
 
 type ComposerState = TextareaState;
 
-pub struct Rustcord {
+pub struct Waffle {
     status: Status,
     client: Option<Client>,
     // The connected account's token, filed under its id once READY names the user.
@@ -695,7 +694,7 @@ pub struct Rustcord {
     // The GIF picker: None closed, Some(None) loading, Some(Some(..)) results.
     gif_picker: Option<Option<Result<Vec<Gif>, SharedString>>>,
     gif_search: Entity<SearchState>,
-    // The channel open when Rustcord last quit, reopened once the gateway is ready.
+    // The channel open when Waffle last quit, reopened once the gateway is ready.
     restore: Option<(Option<String>, String)>,
     editing: Option<Message>,
     mention_wire: HashMap<String, String>,
@@ -766,7 +765,7 @@ struct Arrivals {
     motions: Motions<String>,
 }
 
-impl Rustcord {
+impl Waffle {
     fn new(window: &mut Window, splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut Context<Self>) -> Self {
         cx.observe_window_appearance(window, |_, window, cx| palette::sync(window, cx)).detach();
         cx.observe_window_activation(window, |this: &mut Self, window, cx| {
@@ -775,33 +774,33 @@ impl Rustcord {
         })
         .detach();
         #[allow(unused_mut)]
-        let mut chord = Self::build(window, splash, cx);
+        let mut waffle = Self::build(window, splash, cx);
         let main = restart::Main(cx.entity().downgrade());
         cx.set_global(main);
-        chord.watch_for_updates(cx);
-        cx.on_focus_out(&chord.feed_focus, window, |this, _, _, cx| {
+        waffle.watch_for_updates(cx);
+        cx.on_focus_out(&waffle.feed_focus, window, |this, _, _, cx| {
             this.focused_message = None;
             cx.notify();
         })
         .detach();
         #[cfg(debug_assertions)]
-        if let Ok(scene) = std::env::var("CHORD_DEMO") {
-            demo::load(&mut chord, &scene, window, cx);
-            return chord;
+        if let Ok(scene) = std::env::var("WAFFLE_DEMO") {
+            demo::load(&mut waffle, &scene, window, cx);
+            return waffle;
         }
-        chord.start_hotkeys(cx);
-        match accounts::startup_token(&chord.prefs) {
-            Some(token) => chord.connect(token, cx),
-            None => chord.sign_in(cx),
+        waffle.start_hotkeys(cx);
+        match accounts::startup_token(&waffle.prefs) {
+            Some(token) => waffle.connect(token, cx),
+            None => waffle.sign_in(cx),
         }
-        if chord.splash.is_some() {
+        if waffle.splash.is_some() {
             cx.spawn(async move |this, cx| {
                 cx.background_executor().timer(SPLASH_LIMIT).await;
                 this.update(cx, |this, cx| this.finish_splash(cx)).ok();
             })
             .detach();
         }
-        chord
+        waffle
     }
 
     // Everything one signed-in session owns; switching accounts builds it afresh.
@@ -834,7 +833,7 @@ impl Rustcord {
             cx.notify();
         })
         .detach();
-        let mut chord = Self {
+        let mut waffle = Self {
             status: Status::Connecting,
             client: None,
             token: None,
@@ -999,7 +998,7 @@ impl Rustcord {
             arrivals: Rc::default(),
         };
         let weak = cx.weak_entity();
-        chord.list.set_scroll_handler(move |event, _, cx| {
+        waffle.list.set_scroll_handler(move |event, _, cx| {
             let away = chat::away_from_present(event.visible_range.end, event.count);
             weak.update(cx, |this, cx| {
                 if this.scrolled_up != away {
@@ -1009,8 +1008,8 @@ impl Rustcord {
             })
             .ok();
         });
-        chord.apply_prefs();
-        chord
+        waffle.apply_prefs();
+        waffle
     }
 
     fn splash_stage(&mut self, step: usize, stage: &'static str, cx: &mut Context<Self>) {
@@ -1019,7 +1018,7 @@ impl Rustcord {
         }
     }
 
-    // Servers are in: say so, then open Dango a beat later so the step registers.
+    // Servers are in: say so, then open Waffle a beat later so the step registers.
     fn splash_ready(&mut self, cx: &mut Context<Self>) {
         if self.splash.is_none() {
             return;
@@ -1027,7 +1026,7 @@ impl Rustcord {
         self.splash_stage(1, "Loading your servers…", cx);
         cx.spawn(async move |this, cx| {
             cx.background_executor().timer(SPLASH_BEAT).await;
-            this.update(cx, |this, cx| this.splash_stage(2, "Opening Dango…", cx)).ok();
+            this.update(cx, |this, cx| this.splash_stage(2, "Opening Waffle…", cx)).ok();
             cx.background_executor().timer(SPLASH_BEAT).await;
             this.update(cx, |this, cx| this.finish_splash(cx)).ok();
         })
@@ -1111,7 +1110,7 @@ impl Rustcord {
                 let ready = *ready;
                 self.channel_info_requested.clear();
                 // Demo scenes set their own place; the last channel a real session saved would override it.
-                if self.me.is_none() && std::env::var_os("CHORD_DEMO").is_none() {
+                if self.me.is_none() && std::env::var_os("WAFFLE_DEMO").is_none() {
                     self.restore = home::load_last_channel(&ready.me.id);
                 }
                 self.my_status = ready.status;
@@ -1124,7 +1123,7 @@ impl Rustcord {
                         self.last_message.insert(channel.id.clone(), id);
                     }
                 }
-                if cfg!(debug_assertions) && std::env::var_os("RUSTCORD_STREAM_DEBUG").is_some() {
+                if cfg!(debug_assertions) && std::env::var_os("WAFFLE_STREAM_DEBUG").is_some() {
                     for guild in &ready.guilds {
                         let (voice, live) = (guild.voice_states.len(), guild.voice_states.iter().filter(|v| v.streaming).count());
                         if voice > 0 {
@@ -2364,7 +2363,7 @@ impl Rustcord {
                     client.voice.leave_voice(guild_id.as_deref(), self.muted, self.deafened);
                 }
                 self.leave_voice(cx);
-                self.voice_error = Some("Moved to a voice channel Dango can't show".into());
+                self.voice_error = Some("Moved to a voice channel Waffle can't show".into());
             }
         }
     }

@@ -719,7 +719,7 @@ impl MyAccount {
     }
 }
 
-// The account-wide settings Dango shows, from the legacy `user_settings` object (READY, USER_SETTINGS_UPDATE).
+// The account-wide settings Waffle shows, from the legacy `user_settings` object (READY, USER_SETTINGS_UPDATE).
 // Field names are Discord's; `default_guilds_restricted` and the friend sources are inverted or split in the UI.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AccountSettings {
@@ -1204,7 +1204,7 @@ impl gpui_kit::http_client::HttpClient for Images {
                 Ok::<_, reqwest::Error>((res.status().as_u16(), res.bytes().await?))
             }));
             let (status, bytes) = (&mut fetch.0).await??;
-            if cfg!(debug_assertions) && std::env::var_os("RUSTCORD_IMAGE_DEBUG").is_some() && status >= 400 {
+            if cfg!(debug_assertions) && std::env::var_os("WAFFLE_IMAGE_DEBUG").is_some() && status >= 400 {
                 eprintln!("image {status} {url}");
             }
             if status == 200 {
@@ -1223,7 +1223,7 @@ impl<T> Drop for AbortOnDrop<T> {
     }
 }
 
-// Made-up media a CHORD_DEMO scene serves in place of the network (debug builds only).
+// Made-up media a WAFFLE_DEMO scene serves in place of the network (debug builds only).
 pub static DEMO_MEDIA: OnceLock<fn(&str) -> Option<bytes::Bytes>> = OnceLock::new();
 
 pub fn demo_media(url: &str) -> Option<bytes::Bytes> {
@@ -1497,7 +1497,7 @@ fn identify(token: &str) -> String {
         "d": {
             "token": token,
             "capabilities": 0,
-            "properties": { "os": std::env::consts::OS, "browser": "Dango", "device": "" },
+            "properties": { "os": std::env::consts::OS, "browser": "Waffle", "device": "" },
             "presence": { "status": "online", "since": 0, "activities": [], "afk": false },
             "compress": false,
         }
@@ -2165,7 +2165,7 @@ fn permission(v: &Value) -> u64 {
 
 // `GET /content-inventory/users/@me` answers `{ entries: [{ content }] }`; each content is a Content
 // Inventory Entry as discord-userdoccers documents it (resources/components). Not verified against a
-// live response: Dango never signs in for development.
+// live response: Waffle never signs in for development.
 pub fn parse_activity_feed(body: &Value) -> Vec<FeedEntry> {
     body["entries"].as_array().into_iter().flatten().filter_map(|e| parse_feed_entry(&e["content"])).collect()
 }
@@ -2504,7 +2504,7 @@ mod tests {
 
     #[test]
     fn invites_read_their_server_and_counts() {
-        let body = json!({ "code": "dango", "guild": { "id": "9", "name": "Dumpling Hall", "icon": "ff" }, "approximate_member_count": 8311, "approximate_presence_count": 1204 });
+        let body = json!({ "code": "waffle", "guild": { "id": "9", "name": "Dumpling Hall", "icon": "ff" }, "approximate_member_count": 8311, "approximate_presence_count": 1204 });
         let invite = parse_invite(&body).unwrap();
         assert_eq!(invite, Invite { guild_id: "9".into(), name: "Dumpling Hall".into(), icon: Some("https://cdn.discordapp.com/icons/9/ff.png?size=96".into()), online: Some(1204), members: Some(8311) });
         assert_eq!(parse_invite(&json!({ "code": "gdm", "channel": { "id": "5", "type": 3 } })), None, "a group DM invite has no server card");
