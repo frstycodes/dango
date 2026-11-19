@@ -593,8 +593,8 @@ impl Waffle {
                 item(name, move |this, _, cx| this.drop_on_rail(&gid, &target, crate::rail_drag::Drop::Into, cx)).icon(Glyph::Folder).entry()
             })
             .collect();
-        let first = entries.first().map(rail_key);
-        let last = entries.last().map(rail_key);
+        let first = entries.first().map(|e| rail_key(e, &self.guilds));
+        let last = entries.last().map(|e| rail_key(e, &self.guilds));
         let (gid, gid2, gid3) = (guild_id.to_owned(), guild_id.to_owned(), guild_id.to_owned());
         let last_loose = last.clone();
         let no_folder = item("No folder", move |this, _, cx| {
@@ -639,7 +639,7 @@ impl Waffle {
         entries.push(if unread { read } else { read.disabled() }.entry());
         entries.push(Entry::Separator);
         let rail = self.rail_entries();
-        let (first, last) = (rail.first().map(rail_key), rail.last().map(rail_key));
+        let (first, last) = (rail.first().map(|e| rail_key(e, &self.guilds)), rail.last().map(|e| rail_key(e, &self.guilds)));
         let key = format!("folder-{folder_id}");
         let (k1, k2) = (key.clone(), key.clone());
         entries.push(
@@ -882,9 +882,9 @@ fn set_joined(this: &mut Waffle, thread_id: &str, joined: bool) {
     }
 }
 
-fn rail_key(entry: &crate::RailEntry) -> String {
+fn rail_key(entry: &crate::RailEntry, guilds: &[crate::discord::Guild]) -> String {
     match entry {
-        crate::RailEntry::Guild(g) => g.id.clone(),
+        crate::RailEntry::Guild(i) => guilds[*i].id.clone(),
         crate::RailEntry::Folder(f, _) => format!("folder-{}", f.id),
     }
 }

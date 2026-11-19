@@ -8,7 +8,8 @@
 // and a burst of frames (scrolling) shouldn't drop what was just scrolled past. Reloading an evicted
 // image skips the network when its file is still in discord::Images' download cache.
 //
-// `clear()` drops everything; the app calls it when it goes out of sight (see main.rs).
+// Each of the window's parts (part.rs) has a cache of its own; the app's own drawing (overlays) uses
+// `cache`. `clear_all()` drops everything; the app calls it when it goes out of sight (see main.rs).
 use std::{
     collections::HashMap,
     hash::{Hash, Hasher},
@@ -16,7 +17,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use gpui_kit::{App, AppContext, Entity, Global, ImageCache, ImageCacheError, ImageCacheItem, RenderImage, Resource, Window};
+use gpui_kit::{App, AppContext, Entity, Global, ImageCache, ImageCacheError, ImageCacheItem, RenderImage, Resource, WeakEntity, Window};
 
 const KEEP_FRAMES: u64 = 120;
 const KEEP_FOR: Duration = Duration::from_secs(10);
@@ -27,6 +28,8 @@ pub struct Images {
     items: HashMap<u64, Item>,
     frame: u64,
     swept_at: Instant,
+    // This cache's place in `LAST`.
+    slot: usize,
 }
 
 struct Item {
@@ -35,18 +38,38 @@ struct Item {
     drawn_at: Instant,
 }
 
-struct Shared(Entity<Images>);
+#[derive(Default)]
+struct Shared {
+    app: Option<Entity<Images>>,
+    all: Vec<WeakEntity<Images>>,
+}
 
 impl Global for Shared {}
 
-// The app's image cache, created on first use.
+// The app's own image cache, created on first use.
 pub fn cache(cx: &mut App) -> Entity<Images> {
-    if let Some(shared) = cx.try_global::<Shared>() {
-        return shared.0.clone();
+    if let Some(images) = cx.default_global::<Shared>().app.clone() {
+        return images;
     }
-    let images = cx.new(|_| Images { items: HashMap::new(), frame: 0, swept_at: Instant::now() });
-    cx.set_global(Shared(images.clone()));
+    let images = new_cache(cx);
+    cx.global_mut::<Shared>().app = Some(images.clone());
     images
+}
+
+// A cache of its own, for a part of the window that draws apart from the rest.
+pub fn new_cache(cx: &mut App) -> Entity<Images> {
+    let slot = cx.default_global::<Shared>().all.len();
+    let images = cx.new(|_| Images { items: HashMap::new(), frame: 0, swept_at: Instant::now(), slot });
+    cx.global_mut::<Shared>().all.push(images.downgrade());
+    images
+}
+
+// Frees every cache's images.
+pub fn clear_all(cx: &mut App) {
+    let all: Vec<Entity<Images>> = cx.default_global::<Shared>().all.iter().filter_map(WeakEntity::upgrade).collect();
+    for images in all {
+        images.update(cx, |images, cx| images.clear(cx));
+    }
 }
 
 pub struct Stats {
@@ -54,17 +77,21 @@ pub struct Stats {
     pub decoded_bytes: usize,
 }
 
-// The last sweep's numbers, for the memory report (which runs off the UI thread).
-static LAST: std::sync::Mutex<Stats> = std::sync::Mutex::new(Stats { images: 0, decoded_bytes: 0 });
+// Each cache's last sweep, for the memory report (which runs off the UI thread).
+static LAST: std::sync::Mutex<Vec<Stats>> = std::sync::Mutex::new(Vec::new());
 
 pub fn last_stats() -> Stats {
-    LAST.lock().map(|s| Stats { images: s.images, decoded_bytes: s.decoded_bytes }).unwrap_or(Stats { images: 0, decoded_bytes: 0 })
+    let sum = |all: &Vec<Stats>| Stats { images: all.iter().map(|s| s.images).sum(), decoded_bytes: all.iter().map(|s| s.decoded_bytes).sum() };
+    LAST.lock().map(|all| sum(&all)).unwrap_or(Stats { images: 0, decoded_bytes: 0 })
 }
 
 impl Images {
     fn publish(&self) {
         if let Ok(mut last) = LAST.lock() {
-            *last = self.stats();
+            if last.len() <= self.slot {
+                last.resize_with(self.slot + 1, || Stats { images: 0, decoded_bytes: 0 });
+            }
+            last[self.slot] = self.stats();
         }
     }
 }

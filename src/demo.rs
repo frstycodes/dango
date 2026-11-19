@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// WAFFLE_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | message-menu-theirs | user-menu-voice | user-menu-voice-denied | mention | mention-tab | mention-enter | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | home | home-presence | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
+// WAFFLE_DEMO=chat | busy | message-focus | message-focus-menu | message-focus-delete | message-menu-theirs | user-menu-voice | user-menu-voice-denied | mention | mention-tab | mention-enter | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | home | home-presence | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -24,13 +24,18 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
         "failed" => return waffle.status = Status::SignedOut(Login::Failed("Invalid ticket".into())),
         _ => {}
     }
+    let load = scene == "load";
     waffle.on_event(Event::Ready(Box::new(ready(me))), cx);
-    waffle.on_event(Event::MemberList { guild_id: "1".into(), groups: vec![("r1".into(), 2), ("online".into(), 3), ("offline".into(), 1)], ops: vec![ListOp::Sync { start: 0, items: members() }] }, cx);
+    if load {
+        load_guilds(waffle);
+    }
+    let (groups, items) = if load { load_members() } else { (vec![("r1".into(), 2), ("online".into(), 3), ("offline".into(), 1)], members()) };
+    waffle.on_event(Event::MemberList { guild_id: "1".into(), groups, ops: vec![ListOp::Sync { start: 0, items }] }, cx);
     waffle.guild_id = Some("1".into());
     if scene == "empty" {
         return;
     }
-    let messages = messages();
+    let messages = if load { load_messages() } else { messages() };
     waffle.feeds.insert("general".into(), Feed { messages: std::sync::Arc::new(messages), loaded: true, ..Default::default() });
     let general = waffle.guild().and_then(|g| g.channels.iter().find(|c| c.id == "general").cloned());
     if let Some(channel) = general {
@@ -38,6 +43,25 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
     }
     waffle.on_event(Event::Typing { channel_id: "general".into(), user_id: "8388608".into(), name: Some("Wren".into()) }, cx);
     match scene {
+        // An account big enough that the rail, the channel list and the member list all scroll.
+        "busy" => {
+            let servers: Vec<Guild> = (1..=24u8).map(|n| {
+                let mut guild = waffle.guilds[0].clone();
+                guild.id = format!("busy-{n}");
+                guild.name = format!("Server {}", char::from(b'A' + n - 1));
+                guild
+            }).collect();
+            waffle.guilds.extend(servers);
+            if let Some(guild) = waffle.guilds.iter_mut().find(|g| g.id == "1") {
+                guild.channels.extend((1..=30).map(|n| channel(&format!("busy-{n}"), &format!("channel-{n}"), ChannelKind::Text, Some("c0"))));
+            }
+            let mut items = members();
+            items.extend((0..80).map(|n| {
+                let user = user(&(30_000_000 + n).to_string(), &format!("member {n}"));
+                ListItem::Member(Member { user, roles: Vec::new(), presence: Presence { status: Presence_::Offline, activity: None, rich: None } })
+            }));
+            waffle.on_event(Event::MemberList { guild_id: "1".into(), groups: vec![("r1".into(), 2), ("online".into(), 3), ("offline".into(), 81)], ops: vec![ListOp::Sync { start: 0, items }] }, cx);
+        }
         "gallery" => waffle.open_viewer(&avatar_url("3", None), window, cx),
         // Twenty made-up pictures and clips on one message, the viewer open at the tenth.
         "viewer" | "viewer-video" => {
@@ -766,6 +790,89 @@ fn ready(me: User) -> Ready {
             Relationship { user: user("16777216", "toma reed"), kind: Relation::Incoming },
         ],
     }
+}
+
+// `load`: an account the size of a busy real one, for frame timing. 60 more servers of 100 channels, each
+// channel with role overwrites, and none owned by us, so every permission check runs in full; 80 more
+// channels in Night Owls; 300 members; 600 messages.
+const LOAD_SERVERS: usize = 60;
+const LOAD_CHANNELS: usize = 100;
+const LOAD_ROLES: usize = 25;
+
+fn load_guilds(waffle: &mut Waffle) {
+    let view = crate::discord::VIEW_CHANNEL;
+    let roles: Vec<Role> = (0..LOAD_ROLES).map(|r| Role { id: format!("lr{r}"), name: format!("role {r}"), color: 0x5865F2 + r as u32 * 0x0A0A, position: r as i64, permissions: if r == 0 { view } else { 0 }, managed: false }).collect();
+    let overwrites = |c: usize| (0..4).map(|o| crate::discord::Overwrite { id: format!("lr{}", (c + o) % LOAD_ROLES), allow: if o == 0 { view } else { 0 }, deny: 0, member: false }).collect::<Vec<_>>();
+    let channels = |g: usize, count: usize| -> Vec<Channel> {
+        (0..count)
+            .map(|c| {
+                let (kind, parent) = match c % 10 {
+                    0 => (ChannelKind::Category, None),
+                    9 => (ChannelKind::Voice, Some(format!("l{g}-{}", c - c % 10))),
+                    _ => (ChannelKind::Text, Some(format!("l{g}-{}", c - c % 10))),
+                };
+                let mut channel = channel(&format!("l{g}-{c}"), &format!("channel-{c}-of-server-{g}"), kind, parent.as_deref());
+                channel.position = c as i64;
+                channel.overwrites = overwrites(c);
+                channel.last_message_id = Some("900".into());
+                channel
+            })
+            .collect()
+    };
+    for g in 0..LOAD_SERVERS {
+        waffle.guilds.push(Guild {
+            id: format!("l{g}"),
+            name: format!("Server {g} with a longer name"),
+            icon: None,
+            channels: channels(g, LOAD_CHANNELS),
+            roles: roles.clone(),
+            voice_states: Vec::new(),
+            threads: Vec::new(),
+            default_notifications: 1,
+            owner_id: Some("1".into()),
+            my_roles: (0..LOAD_ROLES).step_by(3).map(|r| format!("lr{r}")).collect(),
+            emojis: Vec::new(),
+            stickers: Vec::new(),
+            premium_tier: 1,
+        });
+    }
+    if let Some(guild) = waffle.guilds.iter_mut().find(|g| g.id == "1") {
+        guild.channels.extend(channels(0, 80).into_iter().map(|mut c| {
+            c.id = format!("owl-{}", c.id);
+            c.parent_id = c.parent_id.map(|p| format!("owl-{p}"));
+            c.overwrites.clear();
+            c
+        }));
+    }
+}
+
+fn load_members() -> (Vec<(String, u32)>, Vec<ListItem>) {
+    let groups = [("r1", Presence_::Online, 20), ("online", Presence_::Online, 150), ("offline", Presence_::Offline, 130)];
+    let mut items = Vec::new();
+    for (group, status, count) in groups {
+        items.push(ListItem::Group { id: group.into(), count });
+        for n in 0..count {
+            let id = format!("{}", 30_000_000 + items.len());
+            let activity = (n % 3 == 0).then(|| Activity { kind: ActivityKind::Playing, text: format!("Game number {n}"), more: 0 });
+            items.push(ListItem::Member(Member { user: user(&id, &format!("{group} member {n}")), roles: vec!["r2".into()], presence: Presence { status, activity, rich: None } }));
+        }
+    }
+    (groups.iter().map(|(g, _, c)| ((*g).into(), *c)).collect(), items)
+}
+
+// The fixture's messages over and over, with their own ids and times, so the list has a real length.
+fn load_messages() -> Vec<Message> {
+    let base = messages();
+    (0..600)
+        .map(|n| {
+            let mut message = base[n % base.len()].clone();
+            message.id = format!("{}", 10_000 + n);
+            message.timestamp = format!("2026-11-{:02}T{:02}:{:02}:00Z", 1 + n / 60, (n / 4) % 24, n % 60);
+            message.reply = None;
+            message.reply_to = None;
+            message
+        })
+        .collect()
 }
 
 fn members() -> Vec<ListItem> {

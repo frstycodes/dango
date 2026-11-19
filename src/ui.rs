@@ -19,7 +19,9 @@ use std::time::Duration;
 
 use gpui_kit::{
     Animation, AnimationElement, AnimationExt, AnyElement, App, BoxShadow, Corners, Div, ElementId, FontWeight, Hsla, ImageSource, Img, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels, SharedString, SizeRefinement,
-    Stateful, Styled, Window,
+    StatefulInteractiveElement, Stateful, Styled, Window,
+    base::InteractiveElementExt as _,
+    component::scroll::ScrollableElement as _,
     base::{Transition, transition},
     component::Icon,
     div, img, linear_color_stop, linear_gradient, point, prelude::FluentBuilder, px, relative,
@@ -102,7 +104,7 @@ pub fn split(main: Control, options: Control) -> Div {
 /// dissolves towards the window's top, with no band or hairline. gpui can't give an element an alpha mask,
 /// but the content sits on the solid `surface`, so fading it out is fading it into that exact tone; the
 /// curve runs from fully gone at the top edge, through ~90% at the bar's text, to clear just below the bar.
-/// The blur under it eases off on the same curve. `fade_right` keeps it off a column at the right.
+/// `fade_right` keeps it off a column at the right.
 pub fn scroll_edge(surface: Hsla, fade_right: f32) -> Div {
     scroll_edge_over(surface, fade_right, crate::layout::HEADER_HEIGHT, 24.)
 }
@@ -125,20 +127,59 @@ pub fn scroll_edge_over(surface: Hsla, fade_right: f32, bar: f32, tail: f32) -> 
         .left_0()
         .right_0()
         .h(px(height))
-        .child(
-            div()
-                .absolute()
-                .inset_0()
-                .right(px(fade_right))
-                .backdrop_blur(px(16.))
-                .backdrop_fade(px(0.), px(0.), px(height * 0.8), px(0.))
-                // A clear surface (the native sidebar) has no colour for the ramps to fade into, so the
-                // content itself fades out toward the top instead.
-                .when(surface.a == 0., |d| d.backdrop_clear_top(px(height))),
-        )
+        // A clear surface (the native sidebar) has no colour for the ramps to fade into, so the content itself
+        // fades out toward the top instead.
+        .when(surface.a == 0., |d| {
+            d.child(div().absolute().inset_0().right(px(fade_right)).backdrop_clear_top(px(height)))
+        })
         .child(ramp(height))
         .child(ramp(bar * 0.75))
 }
+
+/// Whether a list has scrolled down from its top. A pull on a list with no room to scroll still dips the offset below 0.
+pub fn scrolled(scroll: &gpui_kit::ScrollHandle) -> bool {
+    scroll.max_offset().y > px(0.) && scroll.offset().y < px(0.)
+}
+
+/// A header with a hard edge over the list below it: a faint hairline along that edge shows once the list has scrolled
+/// under it. `scrolled` is asked as the frame paints, after the list's layout: asked while rendering, it answers for
+/// the frame before, and a list that settles without a re-render (a pull with no room to scroll) leaves it stale.
+pub fn hard_edge(scrolled: impl Fn() -> bool + 'static, cx: &App) -> Div {
+    let line = palette::line(cx);
+    let rule = gpui_kit::canvas(|_, _, _| {}, move |bounds, _, window, _| {
+        if scrolled() {
+            window.paint_quad(gpui_kit::fill(bounds, line));
+        }
+    });
+    div().relative().flex_none().w_full().child(rule.absolute().bottom_0().left_0().right_0().h(px(1.)))
+}
+
+/// A header over content that scrolls under it: frosted glass in the surface's tone, so the content stays faintly there
+/// instead of being cut off. Denser than the composer's glass (72%), which read as too see-through on a bar of text.
+/// The rows under it keep scrolling but take no hover or clicks through it.
+pub fn glass_header(surface: Hsla) -> Div {
+    div()
+        .absolute()
+        .top_0()
+        .left_0()
+        .right_0()
+        .block_mouse_except_scroll()
+        .bg(surface.opacity(0.9))
+        .backdrop_blur(px(24.))
+        .backdrop_saturate(1.6)
+}
+
+/// A vertical scroll area moving `list` on `scroll`, with the kit's scrollbar over it. Not `overflow_y_scrollbar`: that
+/// tracks a handle of its own, which nothing outside can read.
+pub fn scroll_area(list: Stateful<Div>, scroll: &gpui_kit::ScrollHandle) -> Div {
+    div()
+        .relative()
+        .flex_1()
+        .min_h_0()
+        .child(list.size_full().overflow_y_scroll().lock_scroll_axis().track_scroll(scroll))
+        .vertical_scrollbar(scroll)
+}
+
 
 thread_local! {
     // Labels whose text overflowed their box when last painted, by key; they show the full text on hover.
