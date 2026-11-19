@@ -142,7 +142,12 @@ jobs:
             hdiutil create -volname Waffle -srcfolder $dmg -format UDRW -ov build-$arch/rw.dmg
             hdiutil attach -nobrowse -mountpoint build-$arch/mnt build-$arch/rw.dmg
             SetFile -a C build-$arch/mnt
-            hdiutil detach build-$arch/mnt
+            # Spotlight can still hold the fresh volume ("couldn't eject … Resource busy"): retry, then force.
+            for try in 1 2 3 4 5; do
+              hdiutil detach build-$arch/mnt && break
+              [ "$try" = 5 ] && hdiutil detach -force build-$arch/mnt
+              sleep 3
+            done
             hdiutil convert build-$arch/rw.dmg -format UDZO -ov -o waffle-macos-$arch.dmg
             # Only the zip and dmg are kept; the read-write image is the size of the app.
             rm -rf build-$arch
