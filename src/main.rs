@@ -819,6 +819,9 @@ impl Waffle {
         let emoji_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Find the perfect emoji"));
         cx.subscribe_in(&emoji_search, window, Self::on_emoji_search).detach();
         let feed_focus = cx.focus_handle();
+        // Esc closing a focused popup (search, ⌘K) leaves nothing focused, and app keys only reach the root
+        // through the focus path, so take focus back.
+        cx.on_focus_lost(window, |this, window, cx| this.focus.focus(window, cx)).detach();
         let switcher_input = cx.new(|cx| SearchState::new(window, cx).placeholder("Where would you like to go?"));
         let gif_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search Tenor"));
         cx.subscribe_in(&gif_search, window, Self::on_gif_search).detach();
