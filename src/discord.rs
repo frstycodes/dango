@@ -1106,10 +1106,12 @@ impl Client {
         Ok(parse_activity_feed(&body))
     }
 
-    /// Newest pin first.
+    /// Newest pin first. Discord moved pins to `/messages/pins`, which wraps each as `{ pinned_at, message }`;
+    /// the old `/pins` route is deprecated.
+    // ponytail: first page only (50); page with `before` = the last `pinned_at` if a channel needs more.
     pub async fn pins(&self, channel_id: &str) -> Result<Vec<Message>, String> {
-        let body = self.run(self.request(reqwest::Method::GET, &format!("/channels/{channel_id}/pins"))).await?;
-        Ok(body.as_array().into_iter().flatten().filter_map(parse_message).collect())
+        let body = self.run(self.request(reqwest::Method::GET, &format!("/channels/{channel_id}/messages/pins?limit=50"))).await?;
+        Ok(parse_pins(&body))
     }
 
     pub async fn edit_message(&self, channel_id: &str, id: &str, content: &str) -> Result<(), String> {
@@ -2122,6 +2124,14 @@ fn parse_dm(c: &Value, users: &Value) -> Option<Channel> {
         overwrites: Vec::new(),
         props: Default::default(),
     })
+}
+
+// `/messages/pins` lists `{ items: [{ pinned_at, message }] }`; the deprecated `/pins` a bare message array.
+fn parse_pins(body: &Value) -> Vec<Message> {
+    match body["items"].as_array() {
+        Some(items) => items.iter().filter_map(|pin| parse_message(&pin["message"])).collect(),
+        None => body.as_array().into_iter().flatten().filter_map(parse_message).collect(),
+    }
 }
 
 pub fn parse_message(m: &Value) -> Option<Message> {
