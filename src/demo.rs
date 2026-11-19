@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// WAFFLE_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | accounts | unread | home | home-presence | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
+// WAFFLE_DEMO=chat | message-focus | message-focus-menu | message-focus-delete | mention | mention-tab | mention-enter | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | accounts | unread | home | home-presence | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -153,17 +153,32 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
         "unread" => waffle.unread_marker = Some(103),
         // A bare `@` in the composer: every member, in the suggestion popup.
         // Typed once the window is up: the composer's events aren't wired while the app is being built.
-        "mention" => cx
-            .spawn_in(window, async move |this, cx| {
+        // "-tab" / "-enter": the first one accepted through that key's own action, then an x typed at the caret.
+        "mention" | "mention-tab" | "mention-enter" => {
+            let accept: Option<Box<dyn gpui_kit::Action>> = match scene {
+                "mention-tab" => Some(Box::new(gpui_kit::component::input::IndentInline)),
+                "mention-enter" => Some(Box::new(gpui_kit::component::input::Enter { secondary: false, shift: false })),
+                _ => None,
+            };
+            cx.spawn_in(window, async move |this, cx| {
                 cx.background_executor().timer(std::time::Duration::from_millis(500)).await;
                 this.update_in(cx, |this, window, cx| {
-                    this.composer.update(cx, |state, cx| state.set_value("@", window, cx));
+                    this.composer.update(cx, |state, cx| {
+                        state.set_value("@", window, cx);
+                        state.focus(window, cx);
+                    });
                     this.autocomplete = this.suggest("@");
                     cx.notify();
                 })
                 .ok();
+                let Some(accept) = accept else { return };
+                cx.background_executor().timer(std::time::Duration::from_millis(700)).await;
+                this.update_in(cx, |_, window, cx| window.dispatch_action(accept, cx)).ok();
+                cx.background_executor().timer(std::time::Duration::from_millis(300)).await;
+                this.update_in(cx, |this, window, cx| this.composer.update(cx, |state, cx| state.insert("x", window, cx))).ok();
             })
-            .detach(),
+            .detach()
+        }
         "hover" => waffle.hovered_message = Some("105".into()),
         // Keyboard focus on the code message; "-menu" also opens your own message's menu, with its key caps.
         // "-delete": D on your own message, its confirm up with the D cap.

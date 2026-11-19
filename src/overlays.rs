@@ -65,14 +65,17 @@ impl Waffle {
         .detach();
     }
 
-    /// Puts "@name " in the composer, sent as a real mention.
+    /// Puts an @name chip at the end of the composer, sent as a real mention.
     pub(crate) fn mention_user(&mut self, user: &User, window: &mut Window, cx: &mut Context<Self>) {
-        let shown = format!("@{}", user.name);
-        self.mention_wire.insert(shown.clone(), format!("<@{}>", user.id));
-        let text = self.composer.read(cx).value().to_string();
-        let joined = if text.is_empty() || text.ends_with(' ') { format!("{text}{shown} ") } else { format!("{text} {shown} ") };
+        let chip = gpui_kit::component::input::InlineToken::new(format!("<@{}>", user.id), format!("@{}", user.name));
         self.composer.update(cx, |state, cx| {
-            state.set_value(joined, window, cx);
+            let text = state.value();
+            let end = text.len();
+            state.set_selected_range(end..end, cx);
+            if !text.is_empty() && !text.ends_with(' ') {
+                state.insert(" ", window, cx);
+            }
+            crate::complete_mention(state, "", chip, window, cx);
             state.focus(window, cx);
         });
         self.has_draft = true;
@@ -154,9 +157,11 @@ impl Waffle {
                     }
                     None => emoji.name.clone(),
                 };
-                let text = self.composer.read(cx).value().to_string();
+                // insert, not set_value: that would drop the draft's mention chips and put the caret first.
                 self.composer.update(cx, |state, cx| {
-                    state.set_value(format!("{text}{shown}"), window, cx);
+                    let end = state.value().len();
+                    state.set_selected_range(end..end, cx);
+                    state.insert(shown, window, cx);
                     state.focus(window, cx);
                 });
                 self.has_draft = true;

@@ -431,7 +431,7 @@ impl Waffle {
             .gap(px(4.))
             .child(ui::icon_button("attach", Glyph::PlusCircle, "Upload a File", cx).on_click(cx.listener(|this, _, window, cx| this.upload(window, cx))))
             // XSmall gives the editor 0/4px padding of its own; with these, the design's 4/6.
-            .child(div().flex_1().min_w_0().child(Textarea::new(&self.composer).appearance(false).with_size(Size::XSmall).py(px(4.)).px(px(2.)).text_size(px(15.)).line_height(px(22.)).text_color(strong)))
+            .child(div().flex_1().min_w_0().child(Textarea::new(&self.composer).appearance(false).with_size(Size::XSmall).py(px(4.)).px(px(2.)).text_size(px(15.)).line_height(px(22.)).text_color(strong).token(mention_chip(cx))))
             .child(ui::icon_button("composer-gif", Glyph::Gif, "Open GIF picker", cx).on_click(cx.listener(|this, _, window, cx| this.open_gifs(window, cx))))
             .child(ui::icon_button("composer-emoji", Glyph::Emoji, "Select Emoji", cx).on_click(cx.listener(|this, _, window, cx| this.open_emoji_picker(EmojiTarget::Composer, window, cx))));
         let card = div()
@@ -489,6 +489,13 @@ impl Waffle {
             .flex()
             .flex_col()
             .capture_key_down(cx.listener(Self::on_composer_key))
+            // Before the text field's own Tab, which indents and would never reach on_composer_key.
+            .capture_action(cx.listener(|this, _: &gpui_kit::component::input::IndentInline, window, cx| {
+                if this.autocomplete.is_some() {
+                    this.accept_suggestion(window, cx);
+                    cx.stop_propagation();
+                }
+            }))
             // Before the text field's own Paste, which drops anything that isn't text.
             .capture_action(cx.listener(|this, _: &gpui_kit::component::input::Paste, window, cx| {
                 if this.paste_files(window, cx) {
@@ -682,14 +689,13 @@ impl Waffle {
             .child(card)
     }
 
-    // Arrows and Tab drive the suggestion list; Esc cancels a reply or edit; Up in an empty box edits your last message.
+    // Arrows drive the suggestion list (Tab and Enter accept elsewhere); Esc cancels a reply or edit; Up in an empty box edits your last message.
     fn on_composer_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         let key = event.keystroke.key.as_str();
         if self.autocomplete.is_some() {
             match key {
                 "up" => self.move_suggestion(-1, cx),
                 "down" => self.move_suggestion(1, cx),
-                "tab" => self.accept_suggestion(window, cx),
                 "escape" => self.autocomplete = None,
                 _ => return,
             }
@@ -1255,23 +1261,27 @@ impl MarkdownPlugin for MentionBadges {
     fn render_inline(&self, node: &MarkdownNode, _: &InlineRenderContext, _: &mut Window, _: &mut App) -> Option<InlineElement> {
         let mention = node.data::<Mention>()?.clone();
         let (this, hover) = (self.this.clone(), self.hover);
-        let badge = div()
+        let badge = mention_badge(mention.label.into(), self.fill, self.ink)
             .id(SharedString::from(format!("at-{}", mention.url)))
-            .px(px(3.))
-            .rounded(px(4.))
-            .bg(self.fill)
-            .text_color(self.ink)
-            .font_weight(FontWeight::MEDIUM)
-            .whitespace_nowrap()
             .cursor_pointer()
             .hover(move |s| s.bg(hover))
-            .child(mention.label)
             .on_click(move |event, window, cx| { cx.stop_propagation();
                 let url = mention.url.clone();
                 this.update(cx, |this, cx| this.open_mention(&url, event.position(), window, cx)).ok();
             });
         Some(InlineElement::new(badge))
     }
+}
+
+// A mention as messages draw it; the composer's mention chips wear the same.
+fn mention_badge(label: SharedString, fill: Hsla, ink: Hsla) -> Div {
+    div().px(px(3.)).rounded(px(4.)).bg(fill).text_color(ink).font_weight(FontWeight::MEDIUM).whitespace_nowrap().child(label)
+}
+
+// The composer's mention tokens, in the message badge; the hover fill marks one inside the selection.
+fn mention_chip(cx: &App) -> impl Fn(&gpui_kit::component::input::InlineTokenContext, &mut Window, &mut App) -> Div + 'static {
+    let (fill, selected, ink) = (palette::accent_soft(cx), palette::accent().opacity(0.26), palette::accent_ink(cx));
+    move |token, _, _| mention_badge(token.token().label().clone(), if token.is_selected() { selected } else { fill }, ink).h(token.line_height()).flex().items_center()
 }
 
 // Discord markdown with mentions, channel links and code copy buttons; messages and embeds share it.
