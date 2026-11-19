@@ -61,6 +61,13 @@ tract-hir = "=0.21.4"
 # without Advanced Voice Activity (vadAutoThreshold = VERY_AGGRESSIVE). 0.1 is the WebRTC port.
 earshot = "=0.1.0"
 socket2 = "0.6"
+# webrtc-rs (a Rust port of Pion): RTP/RTCP packets, H.264 (de)packetization and NACK, the
+# generic layer Discord's client gets from libwebrtc.
+rtp = "0.17"
+rtcp = "0.17"
+interceptor = "0.17"
+webrtc-util = { version = "0.17", default-features = false, features = ["marshal"] }
+async-trait = "0.1"
 rodio = { version = "0.23.0", default-features = false, features = ["playback", "mp3", "symphonia-aac"] }
 
 [dev-dependencies]
@@ -120,7 +127,6 @@ wasapi = "0.27"
 tray-icon = "0.26"
 raw-window-handle = "0.6"
 windows = { version = "0.62", features = [
-    "Wdk_System_SystemServices",
     "Win32_Foundation",
     "Win32_Media_Audio",
     "Win32_Graphics_Dwm",

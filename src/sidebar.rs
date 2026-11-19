@@ -756,7 +756,7 @@ impl Waffle {
         let (target, name, drop_target) = (channel.id.clone(), channel.name.clone(), channel.clone());
         zone.on_drag_move::<crate::drag::VoiceDrag>(cx.listener(move |this, e: &gpui_kit::DragMoveEvent<crate::drag::VoiceDrag>, _, cx| {
             let claim = Some((target.clone(), part.clone()));
-            let inside = e.bounds.contains(&e.event.position);
+            let inside = e.bounds.contains(&e.event.position) && this.can_move_voice(&e.drag(cx).guild_id, &e.drag(cx).user_id, &target);
             match (inside, this.drag_motion.voice_target == claim) {
                 (true, false) => {
                     let joining = this.me.as_ref().is_some_and(|me| me.id == e.drag(cx).user_id);
@@ -859,7 +859,7 @@ impl Waffle {
         let speaking = self.call.as_ref().filter(|_| in_call).map(|c| c.speaking.clone()).unwrap_or_default();
         let watching: Vec<String> = self.call.as_ref().map(|c| c.watching.iter().map(|w| w.streamer_id.clone()).collect()).unwrap_or_default();
         let connected = self.call.as_ref().is_some_and(|c| c.connected && in_call);
-        let can_drag_people = self.can_move_people(&guild.id);
+        let can_drag_people = self.can_in(&channel.id, crate::discord::perm::MOVE_MEMBERS);
         let mut present: Vec<&crate::discord::VoiceState> = guild.voice_states.iter().filter(|v| v.channel_id.as_ref() == Some(&channel.id)).collect();
         // Whoever is streaming leads the list; the rest keep their order (a stable sort).
         present.sort_by_key(|v| !v.streaming);

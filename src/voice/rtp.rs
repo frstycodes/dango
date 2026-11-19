@@ -39,52 +39,9 @@ pub fn header(payload_type: u8, marker: bool, sequence: u16, timestamp: u32, ssr
     h
 }
 
+// rtpsize RTCP: these 8 header bytes are the AAD, left in the clear (Discord's `HeaderLength`,
+// read in discord_voice.node 0.0.422).
 pub const RTCP_HEADER_LEN: usize = 8;
-
-// RTCP picture loss indication (RFC 4585 §6.3.1): asks the sender of `media_ssrc` for a keyframe.
-// Sealed like RTP under rtpsize, with the 8-byte RTCP header as AAD — Not verified for Discord.
-pub fn pli(sender_ssrc: u32, media_ssrc: u32) -> [u8; 12] {
-    let mut p = [0u8; 12];
-    p[0] = 0x81;
-    p[1] = 206;
-    p[2..4].copy_from_slice(&2u16.to_be_bytes());
-    p[4..8].copy_from_slice(&sender_ssrc.to_be_bytes());
-    p[8..12].copy_from_slice(&media_ssrc.to_be_bytes());
-    p
-}
-
-// The loss (percent) a sender or receiver report gives for `ssrc`: RTCP's fraction-lost byte.
-pub fn reported_loss(rtcp: &[u8], ssrc: u32) -> Option<f32> {
-    compound(rtcp).find_map(|packet| {
-        let blocks_at = match packet.get(1)? {
-            200 => 28,
-            201 => 8,
-            _ => return None,
-        };
-        let count = (packet[0] & 0x1f) as usize;
-        (0..count).find_map(|i| {
-            let block = packet.get(blocks_at + i * 24..blocks_at + i * 24 + 24)?;
-            (u32::from_be_bytes(block[..4].try_into().ok()?) == ssrc).then(|| block[4] as f32 / 256.0 * 100.0)
-        })
-    })
-}
-
-// The packets inside a compound RTCP packet.
-fn compound(rtcp: &[u8]) -> impl Iterator<Item = &[u8]> {
-    let mut rest = rtcp;
-    std::iter::from_fn(move || {
-        let [_, _, hi, lo, ..] = *rest else { return None };
-        let len = ((u16::from_be_bytes([hi, lo]) as usize) + 1) * 4;
-        let (packet, next) = rest.split_at_checked(len)?;
-        rest = next;
-        Some(packet)
-    })
-}
-
-// Any picture loss indication in a (possibly compound) RTCP packet.
-pub fn is_pli(rtcp: &[u8]) -> bool {
-    compound(rtcp).any(|p| p[1] == 206 && p[0] & 0x1f == 1)
-}
 
 pub fn is_rtcp(packet: &[u8]) -> bool {
     // RFC 5761: RTCP packet types occupy 192–223 in the byte where RTP keeps marker + payload type.
@@ -94,15 +51,6 @@ pub fn is_rtcp(packet: &[u8]) -> bool {
 pub enum Cipher {
     Aes(Box<Aes256Gcm>),
     XChaCha(Box<XChaCha20Poly1305>),
-}
-
-pub struct Received {
-    pub ssrc: u32,
-    pub payload_type: u8,
-    pub marker: bool,
-    pub sequence: u16,
-    pub timestamp: u32,
-    pub payload: Vec<u8>,
 }
 
 impl Cipher {
@@ -125,8 +73,9 @@ impl Cipher {
         Some(packet)
     }
 
-    // The RTP extension header (4 bytes) is part of the AAD; its body is encrypted and stripped here.
-    pub fn open(&self, packet: &[u8]) -> Option<Received> {
+    // The RTP extension header (4 bytes) is part of the AAD; its body is encrypted and stripped here,
+    // so the rtp crate's header parser (which reads the body) can't take this header as it arrives.
+    pub fn open(&self, packet: &[u8]) -> Option<::rtp::packet::Packet> {
         if packet.len() < HEADER_LEN + NONCE_SUFFIX_LEN || packet[0] >> 6 != 2 {
             return None;
         }
@@ -154,14 +103,16 @@ impl Cipher {
             }
             plain.drain(..words * 4);
         }
-        Some(Received {
-            ssrc: u32::from_be_bytes(packet[8..12].try_into().ok()?),
-            payload_type: packet[1] & 0x7f,
+        let header = ::rtp::header::Header {
+            version: 2,
             marker: packet[1] & 0x80 != 0,
-            sequence: u16::from_be_bytes([packet[2], packet[3]]),
+            payload_type: packet[1] & 0x7f,
+            sequence_number: u16::from_be_bytes([packet[2], packet[3]]),
             timestamp: u32::from_be_bytes(packet[4..8].try_into().ok()?),
-            payload: plain,
-        })
+            ssrc: u32::from_be_bytes(packet[8..12].try_into().ok()?),
+            ..Default::default()
+        };
+        Some(::rtp::packet::Packet { header, payload: plain.into() })
     }
 
     // RTCP under rtpsize: the 8-byte RTCP header is the AAD. Returns header + decrypted body.
@@ -220,25 +171,15 @@ mod tests {
     }
 
     #[test]
-    fn pli_layout_seal_and_detect() {
-        let p = pli(0x0102_0304, 0x0a0b_0c0d);
-        assert_eq!(p, [0x81, 206, 0, 2, 1, 2, 3, 4, 0x0a, 0x0b, 0x0c, 0x0d]);
-        assert!(is_rtcp(&p));
-
+    fn rtcp_seals_with_its_header_in_the_clear() {
+        use webrtc_util::Marshal;
+        let pli = rtcp::payload_feedbacks::picture_loss_indication::PictureLossIndication { sender_ssrc: 1, media_ssrc: 2 }.marshal().unwrap();
+        assert!(is_rtcp(&pli));
         let cipher = Cipher::new(MODES[0], &[3u8; 32]).unwrap();
-        let (header, body) = p.split_at(RTCP_HEADER_LEN);
-        let opened = cipher.open_rtcp(&cipher.seal(header, body, 7).unwrap()).unwrap();
-        assert_eq!(opened, p);
-
-        let receiver_report = [0x80, 201, 0, 1, 0, 0, 0, 9];
-        let mut rr = vec![0x81, 201, 0, 7, 0, 0, 0, 9];
-        rr.extend_from_slice(&42u32.to_be_bytes());
-        rr.push(64);
-        rr.extend_from_slice(&[0; 19]);
-        assert_eq!(reported_loss(&rr, 42), Some(25.0), "fraction lost 64/256");
-        assert_eq!(reported_loss(&rr, 7), None);
-        assert!(is_pli(&[&receiver_report[..], &p[..]].concat()), "PLI found inside a compound packet");
-        assert!(!is_pli(&receiver_report));
+        let (header, body) = pli.split_at(RTCP_HEADER_LEN);
+        let sealed = cipher.seal(header, body, 7).unwrap();
+        assert_eq!(&sealed[..RTCP_HEADER_LEN], header, "the header travels unencrypted");
+        assert_eq!(cipher.open_rtcp(&sealed).unwrap(), pli);
     }
 
     #[test]
@@ -247,8 +188,8 @@ mod tests {
             let cipher = Cipher::new(mode, &[7u8; 32]).unwrap();
             let packet = cipher.seal(&header(OPUS_PAYLOAD_TYPE, false, 9, 960, 42), b"opus", 5).unwrap();
             let got = cipher.open(&packet).unwrap();
-            assert_eq!((got.ssrc, got.payload_type, got.marker, got.sequence), (42, OPUS_PAYLOAD_TYPE, false, 9));
-            assert_eq!(got.payload, b"opus");
+            assert_eq!((got.header.ssrc, got.header.payload_type, got.header.marker, got.header.sequence_number), (42, OPUS_PAYLOAD_TYPE, false, 9));
+            assert_eq!(&got.payload[..], b"opus");
 
             let mut tampered = packet.clone();
             tampered[3] ^= 1;
@@ -262,7 +203,7 @@ mod tests {
         let mut aad = header(OPUS_PAYLOAD_TYPE, false, 1, 2, 3).to_vec();
         aad[0] |= 0x20;
         let packet = cipher.seal(&aad, &[b'h', b'i', 0, 0, 3], 0).unwrap();
-        assert_eq!(cipher.open(&packet).unwrap().payload, b"hi");
+        assert_eq!(&cipher.open(&packet).unwrap().payload[..], b"hi");
     }
 
     #[test]
@@ -272,6 +213,6 @@ mod tests {
         aad[0] |= 0x10;
         aad.extend_from_slice(&[0xbe, 0xde, 0, 1]);
         let packet = cipher.seal(&aad, &[0xaa, 0xbb, 0xcc, 0xdd, b'h', b'i'], 0).unwrap();
-        assert_eq!(cipher.open(&packet).unwrap().payload, b"hi");
+        assert_eq!(&cipher.open(&packet).unwrap().payload[..], b"hi");
     }
 }

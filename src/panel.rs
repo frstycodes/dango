@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use gpui_kit::{
-    AnyElement, App, Context, Div, FontWeight, Radians, SharedString, Window,
+    AnyElement, App, Context, Div, FontWeight, Radians, SharedString, Window, linear_color_stop, linear_gradient, relative,
     component::{ActiveTheme, Icon},
     div, img, prelude::*, px,
 };
@@ -13,7 +13,7 @@ use crate::{
     Part, Waffle, Edge, RightPanel,
     discord::{ActivityKind, FeedEntry, ListItem, Member, Status},
     icons::Glyph,
-    layout::{decorated_avatar, nameplate},
+    layout::{decorated_avatar, nameplate_art, nameplate_tint},
     motion, palette,
     sidebar::{Nav, activity_glyph, category_head, hover_ease},
     ui::{self, Squircle},
@@ -271,43 +271,48 @@ impl Waffle {
             false => self.role_color(self.guild_id.as_ref(), &member.user.id, Some(&member.roles), dark).unwrap_or(strong),
         };
         let surface = palette::surface(palette::Level::Sidebar, cx);
-        let plate = member.user.nameplate.as_ref().map(|plate| nameplate(plate, surface, surface, [ui::RADIUS_SM; 4], true, dark));
         let owner = self.guild().is_some_and(|g| g.owner_id.as_ref() == Some(&member.user.id));
         let selected = self.profile_card.as_ref().is_some_and(|p| p.user.id == member.user.id);
         let crown = ui::mix(palette::status_in(Status::Idle, cx), strong, 0.4);
+        let name_line = |key: String| {
+            div()
+                .flex()
+                .items_center()
+                .gap(px(6.))
+                .min_w_0()
+                .child(ui::truncating(key, member.user.name.clone()).font_weight(FontWeight::NORMAL).text_color(name_ink))
+                .children(member.user.tag.as_ref().map(|tag| crate::chat::guild_tag(tag, cx)))
+                .when(owner, |r| r.child(Icon::new(Glyph::Crown).size(px(14.)).flex_none().text_color(crown)))
+                .when(member.user.bot, |r| r.child(ui::tag("App", cx)))
+        };
+        let names = |key: String| div().min_w_0().flex().flex_col().child(name_line(key)).children(member.presence.activity.as_ref().filter(|_| !offline).map(|a| activity_line(a, cx)));
+        // The row's fill in each state, laid solid over the panel, for the nameplate's mask to wash in.
+        let fill = |wash: gpui_kit::Hsla| ui::mix(surface, wash.opacity(1.), wash.a);
+        let fills = match selected {
+            true => (fill(palette::selected(cx)), None),
+            false => (surface, Some(fill(hover))),
+        };
+        let plate = member.user.nameplate.as_ref().map(|plate| member_nameplate(plate, names(format!("member-name-mask-{}", member.user.id)), fills, self.panel_width - MEMBER_LIST_INSET, selected, dark));
+        let plated = plate.is_some();
         div()
             .id(SharedString::from(format!("member-{}", member.user.id)))
             .relative()
-            .h(px(44.))
+            .h(px(MEMBER_ROW))
             .flex_none()
             .px_2()
+            // Discord's room for the art: names stop 32px short of a nameplated row's end.
+            .when(plated, |r| r.pr(px(NAMEPLATE_END)))
             .flex()
             .items_center()
             .gap(px(10.))
             .squircle(ui::RADIUS_SM)
+            .group(MEMBER_ROW_GROUP)
             .cursor_pointer()
             .when(selected, |r| r.bg(palette::selected(cx)))
             .when(!selected, |r| r.hover(move |s| s.bg(hover)))
             .children(plate)
             .child(div().when(offline, |a| a.opacity(0.5)).child(decorated_avatar(&member.user.avatar, member.user.decoration.as_deref(), 32., Some(member.presence.status), surface)))
-            .child(
-                div()
-                    .relative()
-                    .flex_1()
-                    .min_w_0()
-                    .flex()
-                    .flex_col()
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap(px(6.))
-                            .child(ui::truncating(format!("member-name-{}", member.user.id), member.user.name.clone()).font_weight(FontWeight::NORMAL).text_color(name_ink))
-                            .when(owner, |r| r.child(Icon::new(Glyph::Crown).size(px(14.)).flex_none().text_color(crown)))
-                            .when(member.user.bot, |r| r.child(ui::tag("App", cx))),
-                    )
-                    .children(member.presence.activity.as_ref().filter(|_| !offline).map(|a| activity_line(a, cx))),
-            )
+            .child(names(format!("member-name-{}", member.user.id)).relative().flex_1())
             .on_click({
                 let user = member.user.clone();
                 cx.listener(move |this, event: &gpui_kit::ClickEvent, _, cx| this.open_profile(user.clone(), event.position() - gpui_kit::point(px(320.), px(0.)), cx))
@@ -318,6 +323,74 @@ impl Waffle {
             })
             .into_any_element()
     }
+}
+
+const MEMBER_ROW: f32 = 44.;
+const MEMBER_ROW_GROUP: &str = "member-row";
+const NAMEPLATE_END: f32 = 32.;
+// The member list's padding on both sides: a row is the panel's width less this.
+const MEMBER_LIST_INSET: f32 = 16.;
+
+// A nameplate behind a member row, as Discord draws it there: the palette colour fading in from nothing
+// (8% from a fifth of the way to halfway, 20% at the end), and over it the art pinned right at 60% (90%
+// while selected), masked to 30% up to 2px past the names (name line and activity, whichever is wider)
+// and rising to full over the next 50px. gpui has no masks, so the mask is laid over the art instead: the
+// row as it looks without art (its fill, `fills`: at rest and on hover, under the tint) at 70% to the
+// names' end, fading out over 50px. Every layer rounds itself, so nothing has to paint the corners off.
+fn member_nameplate(plate: &crate::discord::Nameplate, names: Div, fills: (gpui_kit::Hsla, Option<gpui_kit::Hsla>), row_width: f32, selected: bool, dark: bool) -> AnyElement {
+    let tint = nameplate_tint(plate, dark);
+    let r = px(ui::RADIUS_SM);
+    let left = gpui_kit::Corners { top_left: r, bottom_left: r, ..Default::default() };
+    // gpui gradients take two stops, so the four-stop tint is three pieces side by side.
+    let piece = |width: f32, from: f32, to: f32| div().h_full().w(relative(width)).bg(linear_gradient(90., linear_color_stop(tint.opacity(from), 0.), linear_color_stop(tint.opacity(to), 1.)));
+    let tint_layer = || {
+        div()
+            .absolute()
+            .top_0()
+            .bottom_0()
+            .left_0()
+            .flex()
+            .child(ui::edge(piece(0.2, 0., 0.08), left))
+            .child(piece(0.3, 0.08, 0.08))
+            .child(ui::edge(piece(0.5, 0.08, 0.2), gpui_kit::Corners { top_right: r, bottom_right: r, ..Default::default() }))
+    };
+    let (rest, hovered) = fills;
+    // Past the names the tint sits near its flat 8%, so the fade's colour is the fill under that.
+    let under = |fill: gpui_kit::Hsla| ui::mix(fill, tint, 0.08);
+    let fade = move |fill: gpui_kit::Hsla| linear_gradient(90., linear_color_stop(under(fill).opacity(0.7), 0.), linear_color_stop(under(fill).opacity(0.), 1.));
+    let ramp = div()
+        .absolute()
+        .top_0()
+        .bottom_0()
+        .left(relative(1.))
+        .w(px(50.))
+        .bg(fade(rest))
+        .when_some(hovered, |d, h| d.group_hover(MEMBER_ROW_GROUP, move |s| s.bg(fade(h))));
+    // The mask ends where the names do: an invisible copy of them, laid out as the row lays out the real
+    // ones (and stopping as short of the end), sizes the held part, which shows the row's own fill and
+    // tint at the row's width, clipped to that part.
+    let backdrop = ui::edge(tint_layer().w(px(row_width)).bg(rest), left).when_some(hovered, |d, h| d.group_hover(MEMBER_ROW_GROUP, move |s| s.bg(h)));
+    let held = div()
+        .relative()
+        .flex()
+        .items_center()
+        .min_w_0()
+        .overflow_hidden()
+        .opacity(0.7)
+        .pl_2()
+        .child(backdrop)
+        // The avatar and the gap after it.
+        .child(div().w(px(42.)).flex_none())
+        .child(names.opacity(0.))
+        .child(div().w(px(2.)).flex_none());
+    div()
+        .absolute()
+        .inset_0()
+        .child(tint_layer().right_0())
+        .child(nameplate_art(plate, MEMBER_ROW, r, r).opacity(if selected { 0.9 } else { 0.6 }))
+        // Clipped to the row: on a long name the fade runs past its end.
+        .child(div().absolute().inset_0().overflow_hidden().flex().pr(px(NAMEPLATE_END - 2.)).child(div().relative().flex().min_w_0().child(held).child(ramp)))
+        .into_any_element()
 }
 
 // A group heading (.cat): "Online · 4".

@@ -190,7 +190,7 @@ mod tests {
         let sent = Message { content: "hi".into(), state: SendState::Sent, ..Default::default() };
         let theirs_in_server = Facts::default();
         let mine = Facts { mine: true, ..Default::default() };
-        let moderator = Facts { manage: true, threads: true, ..Default::default() };
+        let moderator = Facts { manage: true, pin: true, threads: true, ..Default::default() };
         let dm = Facts { in_dm: true, ..Default::default() };
 
         assert!(!MessageAction::Edit.allowed(&sent, &theirs_in_server));

@@ -19,12 +19,6 @@ impl Waffle {
         self.open_live_menu(at, move |this| this.message_menu(&message), cx);
     }
 
-    // In a server, whether we may moderate messages here (server-wide permission; channel overwrites aside).
-    fn can_manage_messages(&self, message: &Message) -> bool {
-        let (Some(me), Some(guild)) = (self.me.as_ref(), message.guild_id.as_ref().and_then(|g| self.guilds.iter().find(|x| &x.id == g))) else { return false };
-        guild.can(&me.id, perm::MANAGE_MESSAGES)
-    }
-
     pub(crate) fn message_menu(&self, message: &Message) -> Vec<Entry> {
         if message.state == SendState::Failed {
             let (retry, delete) = (message.clone(), message.clone());
@@ -36,7 +30,7 @@ impl Waffle {
         if message.state != SendState::Sent {
             return Vec::new();
         }
-        let manage = self.can_manage_messages(message);
+        let manage = self.can_in(&message.channel_id, perm::MANAGE_MESSAGES);
         let mut out = Vec::new();
 
         // G3: reactions.
@@ -131,6 +125,7 @@ pub(crate) enum MessageAction {
 pub(crate) struct Facts {
     pub mine: bool,
     pub manage: bool,
+    pub pin: bool,
     pub in_dm: bool,
     pub threads: bool,
     pub developer: bool,
@@ -150,7 +145,7 @@ impl MessageAction {
             Self::Reply | Self::React | Self::MarkUnread => true,
             Self::Thread => facts.threads && message.thread.is_none(),
             Self::CopyText => !message.content.is_empty(),
-            Self::Pin => facts.in_dm || facts.manage,
+            Self::Pin => facts.in_dm || facts.pin,
             Self::Delete => facts.mine || facts.manage,
             Self::CopyId => facts.developer,
         }
@@ -182,12 +177,13 @@ impl MessageAction {
 impl Waffle {
     pub(crate) fn message_facts(&self, message: &Message) -> Facts {
         let in_text = self.guilds.iter().flat_map(|g| g.channels.iter()).any(|c| c.id == message.channel_id && c.kind == crate::discord::ChannelKind::Text);
-        let can_thread = message.guild_id.as_ref().and_then(|g| self.guilds.iter().find(|x| &x.id == g)).zip(self.me.as_ref()).is_some_and(|(g, me)| g.can(&me.id, perm::CREATE_PUBLIC_THREADS));
+        let can = |bit| self.can_in(&message.channel_id, bit);
         Facts {
             mine: self.me.as_ref().is_some_and(|me| me.id == message.author.id),
-            manage: self.can_manage_messages(message),
-            in_dm: message.guild_id.is_none(),
-            threads: in_text && can_thread,
+            manage: can(perm::MANAGE_MESSAGES),
+            pin: can(perm::PIN_MESSAGES),
+            in_dm: self.dms.iter().any(|c| c.id == message.channel_id),
+            threads: in_text && can(perm::CREATE_PUBLIC_THREADS),
             developer: self.developer_mode,
         }
     }

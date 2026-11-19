@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// WAFFLE_DEMO=chat | busy | message-focus | message-focus-menu | message-focus-delete | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | accounts | unread | home | home-presence | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
+// WAFFLE_DEMO=chat | busy | message-focus | message-focus-menu | message-focus-delete | message-menu-theirs | user-menu-voice | user-menu-voice-denied | mention | mention-tab | mention-enter | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | home | home-presence | folder | stream-card | call-streams | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -119,6 +119,13 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
             waffle.status_menu = true;
             waffle.status_flyout = crate::status_menu::Flyout::opened(crate::discord::Status::Dnd);
         }
+        // Sticker messages (an animated one, a Lottie one that can't play) and the picker on its Stickers tab.
+        "stickers" | "stickers-chat" => {
+            demo_stickers(waffle);
+            if scene == "stickers" {
+                waffle.open_stickers(window, cx);
+            }
+        }
         "status-editor" => {
             waffle.custom_status = Some(demo_custom_status());
             waffle.open_status_editor(window, cx);
@@ -177,17 +184,32 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
         "unread" => waffle.unread_marker = Some(103),
         // A bare `@` in the composer: every member, in the suggestion popup.
         // Typed once the window is up: the composer's events aren't wired while the app is being built.
-        "mention" => cx
-            .spawn_in(window, async move |this, cx| {
+        // "-tab" / "-enter": the first one accepted through that key's own action, then an x typed at the caret.
+        "mention" | "mention-tab" | "mention-enter" => {
+            let accept: Option<Box<dyn gpui_kit::Action>> = match scene {
+                "mention-tab" => Some(Box::new(gpui_kit::component::input::IndentInline)),
+                "mention-enter" => Some(Box::new(gpui_kit::component::input::Enter { secondary: false, shift: false })),
+                _ => None,
+            };
+            cx.spawn_in(window, async move |this, cx| {
                 cx.background_executor().timer(std::time::Duration::from_millis(500)).await;
                 this.update_in(cx, |this, window, cx| {
-                    this.composer.update(cx, |state, cx| state.set_value("@", window, cx));
+                    this.composer.update(cx, |state, cx| {
+                        state.set_value("@", window, cx);
+                        state.focus(window, cx);
+                    });
                     this.autocomplete = this.suggest("@");
                     cx.notify();
                 })
                 .ok();
+                let Some(accept) = accept else { return };
+                cx.background_executor().timer(std::time::Duration::from_millis(700)).await;
+                this.update_in(cx, |_, window, cx| window.dispatch_action(accept, cx)).ok();
+                cx.background_executor().timer(std::time::Duration::from_millis(300)).await;
+                this.update_in(cx, |this, window, cx| this.composer.update(cx, |state, cx| state.insert("x", window, cx))).ok();
             })
-            .detach(),
+            .detach()
+        }
         "hover" => waffle.hovered_message = Some("105".into()),
         // Keyboard focus on the code message; "-menu" also opens your own message's menu, with its key caps.
         // "-delete": D on your own message, its confirm up with the D cap.
@@ -202,6 +224,32 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
                 if let Some(message) = mine {
                     waffle.open_message_menu(message, gpui_kit::point(gpui_kit::px(560.), gpui_kit::px(120.)), cx);
                 }
+            }
+        }
+        // Wren's voice menu. As owner, Move to lists study-hall; "-denied" makes us a Council moderator whose
+        // role study-hall denies Move members, so Move to is gone while mute, deafen and disconnect stay.
+        "user-menu-voice" | "user-menu-voice-denied" => {
+            use crate::discord::{Overwrite, VIEW_CHANNEL, perm};
+            if scene == "user-menu-voice-denied"
+                && let Some(guild) = waffle.guilds.iter_mut().find(|g| g.id == "1")
+            {
+                guild.owner_id = Some("8388608".into());
+                guild.my_roles = vec!["r1".into()];
+                for role in guild.roles.iter_mut().filter(|r| r.id == "r1") {
+                    role.permissions = VIEW_CHANNEL | perm::CONNECT | perm::MOVE_MEMBERS | perm::MUTE_MEMBERS | perm::DEAFEN_MEMBERS;
+                }
+                for hub in guild.channels.iter_mut().filter(|c| c.id == "hub") {
+                    hub.overwrites.push(Overwrite { id: "r1".into(), allow: 0, deny: perm::MOVE_MEMBERS, member: false });
+                }
+            }
+            waffle.open_user_menu(user("8388608", "Wren"), Some("1".into()), crate::user_menu::Surface::ServerVoice, gpui_kit::point(gpui_kit::px(300.), gpui_kit::px(300.)), cx);
+        }
+        // As the server's owner, someone else's message as REST history loads it (no guild_id): Delete, Pin
+        // and the reaction removals are on offer.
+        "message-menu-theirs" => {
+            let theirs = waffle.feeds.get("general").and_then(|f| f.messages.iter().find(|m| m.id == "102").cloned());
+            if let Some(message) = theirs {
+                waffle.open_message_menu(Message { guild_id: None, ..message }, gpui_kit::point(gpui_kit::px(560.), gpui_kit::px(120.)), cx);
             }
         }
         "search" | "search-from" | "search-date" => demo_search(waffle, scene, window, cx),
@@ -348,7 +396,7 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
             waffle.presences.insert("12582912".into(), Presence { status: Presence_::Online, activity: Some(blender), rich: None });
             let since = std::time::Instant::now().checked_sub(std::time::Duration::from_secs(24 * 60)).unwrap_or_else(std::time::Instant::now);
             waffle.stream_live_since.insert(key.clone(), since);
-            waffle.on_event(Event::StreamViewers { key, viewers: vec!["8388608".into(), "16777216".into(), "20971520".into(), "4194304".into()] }, cx);
+            waffle.on_event(Event::StreamUpdate { key, viewers: vec!["8388608".into(), "16777216".into(), "20971520".into(), "4194304".into()], paused: false }, cx);
             waffle.stream_card_hover = Some("stream-12582912".into());
         }
         "user-menu" => {
@@ -408,7 +456,7 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
                 }
             }
             if let Some(call) = waffle.call.as_mut() {
-                call.watching.push(crate::Watching { streamer_id: "12582912".into(), frame: Some(demo_frame(1440, 1080, 40)), arrivals: Default::default(), _watch: None });
+                call.watching.push(crate::Watching { streamer_id: "12582912".into(), frame: Some(demo_frame(1440, 1080, 40)), arrivals: Default::default(), watch: None, rejoins: 0 });
                 call.self_view = Some((demo_frame(1280, 720, 200), std::time::Instant::now()));
                 call.cameras.insert("20971520".into(), demo_frame(640, 480, 120));
                 call.cameras.insert("8388608".into(), demo_frame(640, 360, 230));
@@ -432,7 +480,7 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
                     if let Some(call) = waffle.call.as_mut() {
                         // The PiP plays a 4:3 picture, to show it letterboxed inside its 16:9 frame.
                         let frame = (scene == "pip").then(|| demo_frame(1440, 1080, 40));
-                        call.watching.push(crate::Watching { streamer_id: "12582912".into(), frame, arrivals: Default::default(), _watch: None });
+                        call.watching.push(crate::Watching { streamer_id: "12582912".into(), frame, arrivals: Default::default(), watch: None, rejoins: 0 });
                     }
                     // Reading #general meanwhile: the stream floats as a picture-in-picture.
                     waffle.call_view = scene != "pip";
@@ -683,6 +731,7 @@ fn ready(me: User) -> Ready {
         owner_id: Some("4194304".into()),
         my_roles: Vec::new(),
         emojis: Vec::new(),
+        stickers: Vec::new(),
         premium_tier: 1,
     };
     let lounge_states = vec![
@@ -783,6 +832,7 @@ fn load_guilds(waffle: &mut Waffle) {
             owner_id: Some("1".into()),
             my_roles: (0..LOAD_ROLES).step_by(3).map(|r| format!("lr{r}")).collect(),
             emojis: Vec::new(),
+            stickers: Vec::new(),
             premium_tier: 1,
         });
     }
@@ -1258,4 +1308,30 @@ fn hsl(h: f32, s: f32, l: f32) -> [u8; 3] {
 
 fn demo_custom_status() -> crate::discord::CustomStatus {
     crate::discord::CustomStatus { text: "Reviewing the parity spec, back at 5".into(), emoji: Some(crate::discord::Emoji::unicode("🍡")), expires_at: None }
+}
+
+// Real ids from Discord's own packs (animated APNG), so the pictures load; Lottie ones stand in for the
+// format Waffle can't play.
+fn demo_stickers(waffle: &mut Waffle) {
+    use crate::discord::{Sticker, StickerFormat, StickerPack};
+    let sticker = |id: &str, name: &str, format| Sticker { id: id.into(), name: name.into(), format, tags: String::new() };
+    let choco = vec![
+        sticker("781291131828699156", "Wave", StickerFormat::Apng),
+        sticker("781291442961383434", "Sing", StickerFormat::Apng),
+        sticker("781291606493495306", "On My Way", StickerFormat::Apng),
+        sticker("781321379546398740", "Eating", StickerFormat::Apng),
+        sticker("781321874650562560", "Roll", StickerFormat::Apng),
+    ];
+    let hammy = vec![sticker("809207198856904764", "Cheer", StickerFormat::Apng), sticker("809207919115239525", "Laugh", StickerFormat::Apng), sticker("809208197235343410", "Sleep", StickerFormat::Apng)];
+    if let Some(guild) = waffle.guilds.iter_mut().find(|g| g.id == "1") {
+        guild.stickers = vec![sticker("818597707132043285", "Love", StickerFormat::Apng), sticker("818597355619483688", "OMG", StickerFormat::Apng), sticker("818597454483161098", "Money", StickerFormat::Apng)];
+    }
+    waffle.sticker_packs = Some(Ok(vec![StickerPack { name: "Cheerful Choco".into(), stickers: choco.clone() }, StickerPack { name: "Hammy Ham".into(), stickers: hammy }]));
+    let mut wave = Message { id: "190".into(), channel_id: "general".into(), guild_id: Some("1".into()), author: user("8388608", "Wren"), timestamp: "2026-11-14T14:10:00Z".into(), ..Default::default() };
+    wave.stickers = vec![choco[0].clone()];
+    let lottie = Message { id: "191".into(), author: user("12582912", "moss lantern"), stickers: vec![sticker("749044136589393960", "Smile", StickerFormat::Lottie)], timestamp: "2026-11-14T14:11:00Z".into(), ..wave.clone() };
+    if let Some(feed) = waffle.feeds.get_mut("general") {
+        std::sync::Arc::make_mut(&mut feed.messages).extend([wave, lottie]);
+    }
+    waffle.list.reset(waffle.feeds.get("general").map_or(0, |f| f.messages.len()));
 }

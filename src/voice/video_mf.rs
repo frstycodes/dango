@@ -15,6 +15,7 @@ use std::{collections::VecDeque, ffi::c_void, mem::ManuallyDrop, time::{Duration
 use windows::{
     Win32::{
         Foundation::VARIANT_TRUE,
+        Graphics::Dxgi::{CreateDXGIFactory1, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IDXGIAdapter1, IDXGIFactory6},
         Media::MediaFoundation::*,
         System::{
             Com::{COINIT_MULTITHREADED, CoInitializeEx, CoTaskMemFree},
@@ -51,7 +52,7 @@ pub struct MfEncoder {
 impl MfEncoder {
     pub fn new(width: u32, height: u32, fps: u32, bitrate: u32) -> Result<Self, String> {
         // SAFETY: plain COM / Media Foundation calls on this thread; every pointer passed in lives
-        // for the call, and the array MFTEnumEx returns is freed below after its entries are taken.
+        // for the call, and the enumerated activates are owned Vec entries.
         unsafe {
             // S_FALSE / RPC_E_CHANGED_MODE just mean COM is already set up on this thread.
             let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
@@ -68,21 +69,21 @@ impl MfEncoder {
 
     unsafe fn open(width: u32, height: u32, fps: u32, bitrate: u32) -> Result<Self, String> {
         let err = |what: &'static str| move |e: windows::core::Error| format!("{what}: {e}");
-        let input = MFT_REGISTER_TYPE_INFO { guidMajorType: MFMediaType_Video, guidSubtype: MFVideoFormat_NV12 };
-        let output = MFT_REGISTER_TYPE_INFO { guidMajorType: MFMediaType_Video, guidSubtype: MFVideoFormat_H264 };
-        let mut list: *mut Option<IMFActivate> = std::ptr::null_mut();
-        let mut count = 0u32;
-        unsafe { MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER, MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER, Some(&input), Some(&output), &mut list, &mut count) }
-            .map_err(err("MFTEnumEx"))?;
-        let activates: Vec<IMFActivate> = if list.is_null() {
-            Vec::new()
-        } else {
-            let found = unsafe { std::slice::from_raw_parts_mut(list, count as usize) }.iter_mut().filter_map(Option::take).collect();
-            unsafe { CoTaskMemFree(Some(list as *const c_void)) };
-            found
+        // On a laptop with an iGPU and a dedicated GPU, the unfiltered list may lead with the iGPU's
+        // encoder; ask for the high-performance adapter's first and take any adapter's otherwise.
+        let on_preferred = unsafe { high_performance_adapter() }.and_then(|(luid, adapter)| {
+            let found = unsafe { hardware_encoders(Some(luid)) }.ok()?;
+            (!found.is_empty()).then_some((found, adapter))
+        });
+        let (activates, adapter) = match on_preferred {
+            Some(found) => found,
+            None => (unsafe { hardware_encoders(None) }.map_err(err("MFTEnumEx"))?, "any adapter".to_owned()),
         };
         let activate = activates.first().ok_or("No hardware H.264 encoder")?;
         let name = unsafe { friendly_name(activate) }.unwrap_or_else(|| "hardware H.264 encoder".into());
+        if super::debug() {
+            eprintln!("voice: hardware encoder {name} on {adapter}");
+        }
         let transform: IMFTransform = unsafe { activate.ActivateObject() }.map_err(err("ActivateObject"))?;
 
         let attributes = unsafe { transform.GetAttributes() }.ok();
@@ -289,6 +290,43 @@ impl Drop for MfEncoder {
             let _ = MFShutdown();
         }
     }
+}
+
+// Hardware H.264 encoders taking NV12, best first; limited to one adapter when its LUID is given.
+unsafe fn hardware_encoders(adapter_luid: Option<u64>) -> windows::core::Result<Vec<IMFActivate>> {
+    let input = MFT_REGISTER_TYPE_INFO { guidMajorType: MFMediaType_Video, guidSubtype: MFVideoFormat_NV12 };
+    let output = MFT_REGISTER_TYPE_INFO { guidMajorType: MFMediaType_Video, guidSubtype: MFVideoFormat_H264 };
+    let flags = MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER;
+    let mut list: *mut Option<IMFActivate> = std::ptr::null_mut();
+    let mut count = 0u32;
+    match adapter_luid {
+        Some(luid) => {
+            let mut attributes = None;
+            unsafe { MFCreateAttributes(&mut attributes, 1) }?;
+            if let Some(attributes) = &attributes {
+                unsafe { attributes.SetUINT64(&MFT_ENUM_ADAPTER_LUID, luid) }?;
+            }
+            unsafe { MFTEnum2(MFT_CATEGORY_VIDEO_ENCODER, flags, Some(&input), Some(&output), attributes.as_ref(), &mut list, &mut count) }?;
+        }
+        None => unsafe { MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER, flags, Some(&input), Some(&output), &mut list, &mut count) }?,
+    }
+    if list.is_null() {
+        return Ok(Vec::new());
+    }
+    let found = unsafe { std::slice::from_raw_parts_mut(list, count as usize) }.iter_mut().filter_map(Option::take).collect();
+    unsafe { CoTaskMemFree(Some(list as *const c_void)) };
+    Ok(found)
+}
+
+// The adapter Windows ranks first for high performance (the dedicated GPU when there is one), as
+// (LUID packed the way MFT_ENUM_ADAPTER_LUID wants it, description). None before Windows 10 1803.
+unsafe fn high_performance_adapter() -> Option<(u64, String)> {
+    let factory: IDXGIFactory6 = unsafe { CreateDXGIFactory1() }.ok()?;
+    let adapter: IDXGIAdapter1 = unsafe { factory.EnumAdapterByGpuPreference(0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE) }.ok()?;
+    let desc = unsafe { adapter.GetDesc1() }.ok()?;
+    let luid = (u64::from(desc.AdapterLuid.HighPart as u32) << 32) | u64::from(desc.AdapterLuid.LowPart);
+    let len = desc.Description.iter().position(|&c| c == 0).unwrap_or(desc.Description.len());
+    Some((luid, String::from_utf16_lossy(&desc.Description[..len])))
 }
 
 unsafe fn video_type(subtype: GUID, width: u32, height: u32, fps: u32) -> windows::core::Result<IMFMediaType> {

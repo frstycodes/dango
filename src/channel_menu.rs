@@ -37,9 +37,13 @@ impl Waffle {
         }
     }
 
-    fn can_guild(&self, guild_id: &str, bit: u64) -> bool {
-        let (Some(me), Some(guild)) = (self.me.as_ref(), self.guilds.iter().find(|g| g.id == guild_id)) else { return false };
-        guild.can(&me.id, bit)
+    // A permission in one server channel or thread, overwrites applied. Found by channel id because
+    // messages from REST history carry no guild_id; the open channel covers threads not in `threads`.
+    pub(crate) fn can_in(&self, channel_id: &str, bit: u64) -> bool {
+        let Some(me) = self.me.as_ref() else { return false };
+        let open = self.channel.as_ref().filter(|c| c.id == channel_id).zip(self.guild());
+        let found = self.guilds.iter().find_map(|g| Some((g.channel(channel_id)?, g))).or(open);
+        found.is_some_and(|(channel, guild)| guild.channel_permissions(&me.id, channel) & bit != 0)
     }
 
     // Saves part of our notification settings for a server ("@me" for DMs). The change shows at
@@ -242,7 +246,7 @@ impl Waffle {
         let voice = channel.kind == ChannelKind::Voice;
         let settings = self.settings_for(guild_id);
         let overrides = settings.channels.get(&channel.id).cloned().unwrap_or_default();
-        let manage = self.can_guild(guild_id, perm::MANAGE_CHANNELS);
+        let manage = self.can_in(&channel.id, perm::MANAGE_CHANNELS);
         let mut out = vec![self.channel_menu_header(channel, guild_id)];
 
         let id = channel.id.clone();
@@ -377,7 +381,7 @@ impl Waffle {
             let (gid, ch) = (guild_id.to_owned(), category.clone());
             out.push(item("Edit category", move |this, window, cx| this.open_channel_settings(ch.clone(), gid.clone(), window, cx)).icon(Glyph::Pen).entry());
         }
-        if self.can_guild(guild_id, perm::MANAGE_CHANNELS) {
+        if self.can_in(&category.id, perm::MANAGE_CHANNELS) {
             out.push(self.delete_channel_entry(category, "Delete category"));
             out.push(Entry::Separator);
         }
@@ -488,8 +492,7 @@ impl Waffle {
         let settings = self.settings_for(guild_id);
         let owner = guild.owner_id.as_deref() == Some(me.id.as_str());
         let manage_channels = guild.can(&me.id, perm::MANAGE_CHANNELS);
-        // A channel everyone can see, as Discord's default invite channel is.
-        let invite_channel = guild.channels.iter().find(|c| c.kind == ChannelKind::Text && !c.private).map(|c| c.id.clone());
+        let invite_channel = guild.invite_channel(&me.id).map(|c| c.id.clone());
         let subtitle = owner.then(|| SharedString::from("You own this server"));
         let mut out = vec![header(HeadLead::Server { icon: guild.icon.clone(), name: guild.name.clone() }, guild.name.clone(), subtitle)];
 
@@ -706,7 +709,8 @@ impl Waffle {
         let (thread, guild_id) = (thread.clone(), guild_id.to_owned());
         let meta = thread.thread.clone().unwrap_or_default();
         let me = self.me.as_ref().map(|m| m.id.clone()).unwrap_or_default();
-        let manage = self.can_guild(&guild_id, perm::MANAGE_THREADS);
+        // From the thread itself: forum posts opened from the list may not be in the server's `threads`.
+        let manage = self.guilds.iter().find(|g| g.id == guild_id).is_some_and(|g| g.channel_permissions(&me, &thread) & perm::MANAGE_THREADS != 0);
         let owner = meta.owner_id.as_deref() == Some(me.as_str());
         let mut out = vec![self.channel_menu_header(&thread, &guild_id)];
 

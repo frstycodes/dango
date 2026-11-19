@@ -38,6 +38,7 @@ mod overlays;
 mod overwrites;
 mod playback;
 mod status_menu;
+mod stickers;
 mod memory;
 mod menu;
 mod message_menu;
@@ -88,7 +89,7 @@ use futures::StreamExt;
 use gpui_kit::{
     AppContext, Bounds, Context, Entity, FocusHandle, Hsla, RenderImage, ListAlignment, ListOffset, ListState, SharedString, Task, TitlebarOptions, Window, WindowBounds,
     WindowOptions,
-    component::input::{InputEvent, InputState as SearchState, TextareaState},
+    component::input::{InlineToken, InputContent, InputEvent, InputState as SearchState, TextareaState},
     px, size,
 };
 use gpui_motion_kit::Motions;
@@ -479,7 +480,21 @@ pub(crate) struct Watching {
     pub(crate) arrivals: std::collections::VecDeque<Instant>,
     // None for our own Go Live, shown from its local frames: watching it through Discord would
     // end it on stop, since leaving a stream and ending one are the same gateway op.
-    _watch: Option<voice::StreamWatch>,
+    watch: Option<voice::StreamWatch>,
+    // Times in a row this stream was rewatched after ending without a frame in between, so one that
+    // keeps failing while its streamer reads as live ends instead of retrying forever.
+    rejoins: u8,
+}
+
+// How long a restarting streamer gets to start the new stream (Waffle waits up to 3 s for the
+// old one's delete), and how often an ended stream is followed before giving up.
+const REJOIN_AFTER: Duration = Duration::from_secs(2);
+const MAX_REJOINS: u8 = 3;
+
+impl Watching {
+    fn ended(&self) -> bool {
+        self.watch.as_ref().is_some_and(voice::StreamWatch::ended)
+    }
 }
 
 // A profile popout opened from an avatar or name, at the click point.
@@ -582,6 +597,8 @@ pub struct Waffle {
     file_previews: HashMap<PathBuf, Option<Arc<RenderImage>>>,
     // Uploads in flight or failed, by the nonce of the message carrying them, kept for Resend.
     uploads: HashMap<String, UploadJob>,
+    // Each running upload's task by nonce; dropping it (Cancel, Delete) stops the bytes going out.
+    upload_tasks: HashMap<String, Task<()>>,
     talk_key_down: bool,
     prefs: settings::Prefs,
     settings: Option<settings::SettingsView>,
@@ -652,6 +669,8 @@ pub struct Waffle {
     share_choice_label: Option<String>,
     // Who watches each Go Live we've heard of, by stream key (STREAM_UPDATE).
     stream_viewers: HashMap<String, Vec<String>>,
+    // Go Lives their streamer paused, by stream key (STREAM_UPDATE).
+    stream_paused: HashSet<String>,
     // When we first saw each Go Live by stream key; Discord sends no start time.
     stream_live_since: HashMap<String, Instant>,
     // When the pointer last moved over the call view; the bar and header fade out after a while.
@@ -694,6 +713,10 @@ pub struct Waffle {
     inbox_page: bool,
     // The GIF picker: None closed, Some(None) loading, Some(Some(..)) results.
     gif_picker: Option<Option<Result<Vec<Gif>, SharedString>>>,
+    // Which tab the GIF picker shows; stickers share its frame.
+    picker_tab: stickers::PickerTab,
+    sticker_packs: Option<Result<Vec<discord::StickerPack>, SharedString>>,
+    sticker_search: Entity<SearchState>,
     gif_search: Entity<SearchState>,
     // The channel open when Waffle last quit, reopened once the gateway is ready.
     restore: Option<(Option<String>, String)>,
@@ -828,6 +851,8 @@ impl Waffle {
         let switcher_input = cx.new(|cx| SearchState::new(window, cx).placeholder("Where would you like to go?"));
         let gif_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search Tenor"));
         cx.subscribe_in(&gif_search, window, Self::on_gif_search).detach();
+        let sticker_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search stickers"));
+        cx.subscribe_in(&sticker_search, window, Self::on_sticker_search).detach();
         cx.subscribe_in(&switcher_input, window, Self::on_switcher_input).detach();
         let settings_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search settings"));
         let dialog_input = cx.new(|cx| SearchState::new(window, cx));
@@ -889,6 +914,7 @@ impl Waffle {
             pending_files: Vec::new(),
             file_previews: HashMap::new(),
             uploads: HashMap::new(),
+            upload_tasks: HashMap::new(),
             talk_key_down: false,
             prefs: settings::Prefs::load(),
             settings: None,
@@ -933,6 +959,7 @@ impl Waffle {
             share_choice: None,
             share_choice_label: None,
             stream_viewers: HashMap::new(),
+            stream_paused: HashSet::new(),
             stream_live_since: HashMap::new(),
             call_pointer_at: Instant::now(),
             // Discord's focused view hides everyone else behind the pill on the stream's bottom edge.
@@ -957,6 +984,9 @@ impl Waffle {
             popover_at: gpui_kit::Point::default(),
             inbox_page: false,
             gif_picker: None,
+            picker_tab: stickers::PickerTab::default(),
+            sticker_packs: None,
+            sticker_search,
             gif_search,
             restore: None,
             editing: None,
@@ -1352,6 +1382,7 @@ impl Waffle {
                 });
                 let suffix = format!(":{}", state.user_id);
                 self.stream_live_since.retain(|key, _| !key.ends_with(&suffix) || Some(key) == live_key.as_ref());
+                self.stream_paused.retain(|key| !key.ends_with(&suffix) || Some(key) == live_key.as_ref());
                 if let Some(key) = live_key {
                     self.stream_live_since.entry(key).or_insert_with(Instant::now);
                 }
@@ -1375,7 +1406,11 @@ impl Waffle {
                     };
                 }
             }
-            Event::StreamViewers { key, viewers } => {
+            Event::StreamUpdate { key, viewers, paused } => {
+                match paused {
+                    true => self.stream_paused.insert(key.clone()),
+                    false => self.stream_paused.remove(&key),
+                };
                 let before = self.stream_viewers.get(&key).map_or(0, Vec::len);
                 if self.in_stream(&key)
                     && let Some(cue) = viewer_cue(before, viewers.len())
@@ -1788,11 +1823,12 @@ impl Waffle {
     /// Enter in the composer: saves the edit in progress, otherwise sends (optimistically).
     fn submit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let (Some(client), Some(channel), Some(me)) = (self.client.clone(), self.channel.clone(), self.me.clone()) else { return };
-        let typed = self.composer.read(cx).value().trim().to_owned();
+        let typed = wire_text(&self.composer.read(cx).content());
+        let typed = typed.trim();
         if typed.is_empty() && self.pending_files.is_empty() {
             return;
         }
-        let content = self.to_wire(&typed);
+        let content = self.to_wire(typed);
         self.composer.update(cx, |state, cx| state.set_value("", window, cx));
         self.has_draft = false;
         self.send_error = None;
@@ -1842,15 +1878,19 @@ impl Waffle {
 
     // The REST reply and the gateway echo race; whichever lands first replaces the pending copy.
     fn settle(&mut self, channel_id: &str, nonce: &str, result: Result<Message, String>, cx: &mut Context<Self>) {
+        // Detached, not dropped: settle runs inside that task.
+        if let Some(task) = self.upload_tasks.remove(nonce) {
+            task.detach();
+        }
+        // Before the pending lookup: when the gateway echo landed first there is no pending copy left,
+        // and the job (with its upload cards) would stay forever.
+        if result.is_ok() {
+            self.forget_upload(nonce);
+        }
         let pending = self.feeds.get_mut(channel_id).and_then(|f| Arc::make_mut(&mut f.messages).iter_mut().find(|m| m.nonce.as_deref() == Some(nonce) && m.state != SendState::Sent));
         let Some(pending) = pending else { return };
         match result {
-            Ok(sent) => {
-                *pending = sent;
-                for file in self.uploads.remove(nonce).into_iter().flat_map(|job| job.files) {
-                    self.file_previews.remove(&file.path);
-                }
-            }
+            Ok(sent) => *pending = sent,
             Err(error) => {
                 pending.state = SendState::Failed;
                 match self.uploads.get_mut(nonce) {
@@ -1873,7 +1913,10 @@ impl Waffle {
             return self.start_upload(nonce, cx);
         }
         cx.spawn(async move |this, cx| {
-            let result = client.send_message(&message.channel_id, &message.content, &nonce, message.reply_to.as_deref(), true).await;
+            let result = match message.stickers.first() {
+                Some(sticker) => client.send_sticker(&message.channel_id, &sticker.id, &nonce, message.reply_to.as_deref(), true).await,
+                None => client.send_message(&message.channel_id, &message.content, &nonce, message.reply_to.as_deref(), true).await,
+            };
             this.update(cx, |this, cx| this.settle(&message.channel_id, &nonce, result, cx)).ok();
         })
         .detach();
@@ -1908,6 +1951,11 @@ impl Waffle {
         self.remove_message(&message.channel_id, &message.id);
         cx.notify();
         if message.state != SendState::Sent {
+            // Unsent: also how an upload is cancelled mid-flight.
+            if let Some(nonce) = message.nonce.as_deref() {
+                self.upload_tasks.remove(nonce);
+                self.forget_upload(nonce);
+            }
             return;
         }
         cx.spawn(async move |this, cx| {
@@ -2061,12 +2109,21 @@ impl Waffle {
             }
         })
         .detach();
-        cx.spawn(async move |this, cx| {
-            let result = client.upload(&job.channel_id, &job.files, &job.content, &nonce, job.reply_to.as_deref(), job.ping).await;
-            this.update(cx, |this, cx| this.settle(&job.channel_id, &nonce, result, cx)).ok();
-        })
-        .detach();
+        let task = cx.spawn({
+            let nonce = nonce.clone();
+            async move |this, cx| {
+                let result = client.upload(&job.channel_id, &job.files, &job.content, &nonce, job.reply_to.as_deref(), job.ping).await;
+                this.update(cx, |this, cx| this.settle(&job.channel_id, &nonce, result, cx)).ok();
+            }
+        });
+        self.upload_tasks.insert(nonce, task);
         cx.notify();
+    }
+
+    fn forget_upload(&mut self, nonce: &str) {
+        for file in self.uploads.remove(nonce).into_iter().flat_map(|job| job.files) {
+            self.file_previews.remove(&file.path);
+        }
     }
 
     fn remove_file(&mut self, index: usize, cx: &mut Context<Self>) {
@@ -2190,12 +2247,9 @@ impl Waffle {
 
     fn accept_suggestion(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(auto) = self.autocomplete.take() else { return };
-        let Some(pick) = auto.items.get(auto.selected).cloned() else { return };
-        let text = self.composer.read(cx).value().to_string();
-        let Some(head) = text.strip_suffix(auto.token.as_str()) else { return };
-        let replaced = format!("{head}{} ", pick.insert);
-        self.mention_wire.insert(pick.insert, pick.wire);
-        self.composer.update(cx, |state, cx| state.set_value(replaced, window, cx));
+        let Some(pick) = auto.items.get(auto.selected) else { return };
+        let chip = InlineToken::new(pick.wire.clone(), pick.insert.clone());
+        self.composer.update(cx, |state, cx| complete_mention(state, &auto.token, chip, window, cx));
         cx.notify();
     }
 
@@ -2518,8 +2572,14 @@ impl Waffle {
                     state.streaming = streaming;
                     state.camera = camera;
                 }
+                // A camera tile is drawn while it has a frame: without this, a camera turned off froze on its last one.
+                if !camera && let Some(frame) = call.cameras.remove(&user_id) {
+                    cx.drop_image(frame, None);
+                }
             }
-            voice::VoiceEvent::StreamFrame { user_id, source: voice::VideoSource::GoLive, frame } => {
+            voice::VoiceEvent::StreamFrame { user_id, source: voice::VideoSource::GoLive } => {
+                // Taken whatever happens next: an untaken frame holds back the next one's event.
+                let Some(frame) = call.session.take_frame(&user_id, voice::VideoSource::GoLive) else { return };
                 let mine = self.me.as_ref().is_some_and(|m| m.id == user_id);
                 let watching_self = call.watched(&user_id).is_some();
                 // The self-view runs at 15 fps: a full-rate copy of every frame isn't worth it for a thumbnail.
@@ -2527,14 +2587,15 @@ impl Waffle {
                     if call.self_view.as_ref().is_some_and(|(_, at)| at.elapsed() < SELF_VIEW_INTERVAL) {
                         return;
                     }
-                    let Some(image) = render_image(&frame) else { return };
+                    let Some(image) = render_image(frame) else { return };
                     if let Some((old, _)) = call.self_view.replace((image, Instant::now())) {
                         cx.drop_image(old, None);
                     }
                     return cx.notify();
                 }
                 let Some(watching) = call.watching.iter_mut().find(|w| w.streamer_id == user_id) else { return };
-                let Some(image) = render_image(&frame) else { return };
+                let Some(image) = render_image(frame) else { return };
+                watching.rejoins = 0;
                 watching.arrivals.push_back(Instant::now());
                 while watching.arrivals.len() > 120 {
                     watching.arrivals.pop_front();
@@ -2544,29 +2605,29 @@ impl Waffle {
                     cx.drop_image(old, None);
                 }
             }
-            voice::VoiceEvent::StreamFrame { user_id, source: voice::VideoSource::Camera, frame } => {
-                let Some(image) = render_image(&frame) else { return };
+            voice::VoiceEvent::StreamFrame { user_id, source: voice::VideoSource::Camera } => {
+                let Some(frame) = call.session.take_frame(&user_id, voice::VideoSource::Camera) else { return };
+                let Some(image) = render_image(frame) else { return };
                 if let Some(old) = call.cameras.insert(user_id, image) {
                     cx.drop_image(old, None);
                 }
             }
             voice::VoiceEvent::StreamEnded { user_id, reason } => {
-                if let Some(frame) = call.cameras.remove(&user_id) {
-                    cx.drop_image(frame, None);
+                if reason != "Stopped" && reason != "Stream ended" && reason != "user_requested" {
+                    eprintln!("voice: stream ended: {reason}");
                 }
-                if let Some(watch) = call.unwatch(&user_id) {
-                    sounds::play(sounds::Cue::StreamEnded);
-                    if let Some(frame) = watch.frame {
-                        cx.drop_image(frame, None);
+                // A stream that was replaced or watched again ends after its successor started; only the
+                // one whose own handle has ended is over.
+                if self.me.as_ref().is_some_and(|m| m.id == user_id) {
+                    if call.sharing.as_ref().is_some_and(voice::GoLive::ended) {
+                        self.end_share(cx);
                     }
-                    // The stage says who stopped; the reason only matters when it wasn't them.
-                    if call.watching.is_empty() {
-                        call.ended = Some(user_id);
-                    }
-                    if reason != "Stream ended" && reason != "user_requested" {
-                        eprintln!("voice: stream ended: {reason}");
-                    }
+                    return;
                 }
+                if !call.watched(&user_id).is_some_and(Watching::ended) {
+                    return;
+                }
+                return self.on_watch_ended(user_id, cx);
             }
             voice::VoiceEvent::Moved(channel_id) => return self.follow_voice_move(&channel_id, cx),
             voice::VoiceEvent::Disconnected(reason) => {
@@ -2607,7 +2668,59 @@ impl Waffle {
                 }
             },
         };
-        call.watching.push(Watching { streamer_id, frame: None, arrivals: Default::default(), _watch: watch });
+        call.watching.push(Watching { streamer_id, frame: None, arrivals: Default::default(), watch, rejoins: 0 });
+        cx.notify();
+    }
+
+    // A watched stream ended. Streamers end and restart a stream to change its quality, and Discord's
+    // client follows them into the new one; so does this one while their voice state says they're
+    // still live, after giving the new stream time to start. Otherwise it's over.
+    fn on_watch_ended(&mut self, streamer_id: String, cx: &mut Context<Self>) {
+        let live = self.participants().iter().any(|s| s.user_id == streamer_id && s.streaming);
+        let Some(watching) = self.call.as_mut().and_then(|c| c.watching.iter_mut().find(|w| w.streamer_id == streamer_id)) else { return };
+        if !live || watching.rejoins >= MAX_REJOINS {
+            return self.end_watch(streamer_id, cx);
+        }
+        // The stage shows the loader until the restarted stream's first frame.
+        if let Some(frame) = watching.frame.take() {
+            cx.drop_image(frame, None);
+        }
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(REJOIN_AFTER).await;
+            this.update(cx, |this, cx| this.rewatch(streamer_id, cx)).ok();
+        })
+        .detach();
+        cx.notify();
+    }
+
+    fn rewatch(&mut self, streamer_id: String, cx: &mut Context<Self>) {
+        let live = self.participants().iter().any(|s| s.user_id == streamer_id && s.streaming);
+        let Some(call) = &mut self.call else { return };
+        // Stopped or watched again by hand meanwhile.
+        let Some(watching) = call.watching.iter_mut().find(|w| w.streamer_id == streamer_id && w.ended()) else { return };
+        if !live {
+            return self.end_watch(streamer_id, cx);
+        }
+        match call.session.watch_stream(&streamer_id) {
+            Ok(watch) => {
+                watching.watch = Some(watch);
+                watching.rejoins += 1;
+                cx.notify();
+            }
+            Err(_) => self.end_watch(streamer_id, cx),
+        }
+    }
+
+    fn end_watch(&mut self, streamer_id: String, cx: &mut Context<Self>) {
+        let Some(call) = &mut self.call else { return };
+        if let Some(frame) = call.unwatch(&streamer_id).and_then(|w| w.frame) {
+            cx.drop_image(frame, None);
+        }
+        sounds::play(sounds::Cue::StreamEnded);
+        // The stage says who stopped.
+        if call.watching.is_empty() {
+            call.ended = Some(streamer_id);
+        }
         cx.notify();
     }
 
@@ -2638,20 +2751,27 @@ impl Waffle {
 
     /// Stops sharing, or opens Discord's picker of what to share: the whole screen, an app or a window.
     fn toggle_screen_share(&mut self, cx: &mut Context<Self>) {
-        let Some(call) = &mut self.call else { return };
-        if call.sharing.take().is_some() {
-            sounds::play(sounds::Cue::StreamEnded);
-            call.share_source = None;
-            call.live_since = None;
-            if let Some((frame, _)) = call.self_view.take() {
-                cx.drop_image(frame, None);
-            }
-            if let Some(me) = self.me.as_ref().map(|m| m.id.clone()) {
-                self.unwatch_stream(&me, cx);
-            }
-            return cx.notify();
+        let Some(call) = &self.call else { return };
+        if call.sharing.is_some() {
+            return self.end_share(cx);
         }
         self.open_share_picker(cx);
+    }
+
+    // Stops our Go Live, or clears it away once it ended on its own.
+    fn end_share(&mut self, cx: &mut Context<Self>) {
+        let Some(call) = &mut self.call else { return };
+        call.sharing = None;
+        call.share_source = None;
+        call.live_since = None;
+        if let Some((frame, _)) = call.self_view.take() {
+            cx.drop_image(frame, None);
+        }
+        sounds::play(sounds::Cue::StreamEnded);
+        if let Some(me) = self.me.as_ref().map(|m| m.id.clone()) {
+            self.unwatch_stream(&me, cx);
+        }
+        cx.notify();
     }
 
     fn start_share(&mut self, source: voice::ShareSource, cx: &mut Context<Self>) {
@@ -2752,8 +2872,11 @@ enum RailEntry {
 }
 
 // gpui's render images are BGRA, which is what the decoder produces, so the bytes go in as they are.
-fn render_image(frame: &voice::VideoFrame) -> Option<Arc<RenderImage>> {
-    let buffer = image::RgbaImage::from_raw(frame.width, frame.height, frame.bgra.clone())?;
+// Takes the pixels without a copy when nothing else holds the frame (a decoded remote picture).
+fn render_image(frame: Arc<voice::VideoFrame>) -> Option<Arc<RenderImage>> {
+    let (width, height) = (frame.width, frame.height);
+    let bgra = Arc::try_unwrap(frame).map_or_else(|shared| shared.bgra.clone(), |frame| frame.bgra);
+    let buffer = image::RgbaImage::from_raw(width, height, bgra)?;
     Some(Arc::new(RenderImage::new([image::Frame::new(buffer)])))
 }
 
@@ -2844,6 +2967,27 @@ fn upsert_voice_state(states: &mut Vec<discord::VoiceState>, state: discord::Voi
     }
 }
 
+// Swaps the `@`/`#` query that ends the draft for a mention chip, then a space, leaving the caret after both.
+pub(crate) fn complete_mention(state: &mut ComposerState, query: &str, chip: InlineToken, window: &mut Window, cx: &mut Context<ComposerState>) {
+    let end = state.value().len();
+    if !state.value().ends_with(query) {
+        return;
+    }
+    state.set_selected_range(end - query.len()..end, cx);
+    if state.replace_with_token(chip, window, cx).is_ok() {
+        state.insert(" ", window, cx);
+    }
+}
+
+// The draft as Discord takes it: each mention chip becomes its `<@id>` / `<#id>`, kept as the token's id.
+fn wire_text(content: &InputContent) -> String {
+    let mut text = content.text().to_string();
+    for span in content.tokens().iter().rev() {
+        text.replace_range(span.range(), span.token().id());
+    }
+    text
+}
+
 // One entry per person, in the order given, with you moved to the end.
 fn mention_order(users: impl Iterator<Item = User>, me: Option<&str>) -> Vec<User> {
     let mut seen = std::collections::HashSet::new();
@@ -2872,6 +3016,33 @@ mod tests {
     }
 
     use super::*;
+
+    struct Draft(Entity<ComposerState>);
+
+    impl gpui_kit::Render for Draft {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl gpui_kit::IntoElement {
+            gpui_kit::component::input::Textarea::new(&self.0)
+        }
+    }
+
+    #[gpui_kit::test]
+    fn a_picked_mention_becomes_a_chip_with_the_caret_after_its_space(cx: &mut gpui_kit::TestAppContext) {
+        cx.update(gpui_kit::component::init);
+        let (draft, cx) = cx.add_window_view(|window, cx| Draft(cx.new(|cx| ComposerState::new(window, cx))));
+        let state = cx.read(|cx| draft.read(cx).0.clone());
+        cx.update(|window, cx| {
+            state.update(cx, |state, cx| {
+                state.set_value("hi @fe", window, cx);
+                complete_mention(state, "@fe", InlineToken::new("<@42>", "@Ferris"), window, cx);
+            })
+        });
+        let (content, caret) = cx.read(|cx| (state.read(cx).content(), state.read(cx).cursor()));
+        assert_eq!(content.text().as_ref(), "hi @Ferris ");
+        assert_eq!(caret, "hi @Ferris ".len(), "caret after the chip and its space");
+        assert_eq!(content.tokens().len(), 1);
+        assert_eq!(content.tokens()[0].range(), 3..10);
+        assert_eq!(wire_text(&content), "hi <@42> ");
+    }
 
     #[test]
     fn mentions_list_you_last_once() {
