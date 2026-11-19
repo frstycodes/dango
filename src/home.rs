@@ -2,6 +2,7 @@
 // GIF picker actions, and reopening the last channel on launch.
 use std::time::Duration;
 
+use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::{
     AnyElement, App, Context, Div, Entity, FontWeight, Hsla, SharedString, Stateful, Window, WindowControlArea,
     component::{Icon, input::InputEvent, tooltip::Tooltip},
@@ -203,7 +204,7 @@ impl Rustcord {
             .text_color(palette::text(cx))
             .text_size(px(14.))
             .child(
-                div().id("inbox-page").flex_1().min_h_0().overflow_y_scroll().pt(px(crate::layout::HEADER_HEIGHT + 16.)).px_4().pb_6().child(
+                div().id("inbox-page").flex_1().min_h_0().overflow_y_scrollbar().pt(px(crate::layout::HEADER_HEIGHT + 16.)).px_4().pb_6().child(
                     div().w_full().max_w(px(760.)).mx_auto().child(self.mention_list(None, cx)),
                 ),
             )
@@ -295,7 +296,7 @@ impl Rustcord {
             .bg(page)
             .text_color(palette::text(cx))
             .text_size(px(14.))
-            .child(div().id("friends-list").flex_1().min_h_0().overflow_y_scroll().pt(px(crate::layout::HEADER_HEIGHT + 16.)).px_4().pb_6().child(body))
+            .child(div().id("friends-list").flex_1().min_h_0().overflow_y_scrollbar().pt(px(crate::layout::HEADER_HEIGHT + 16.)).px_4().pb_6().child(body))
             .child(ui::scroll_edge(page, 0.).child(header))
             .into_any_element()
     }

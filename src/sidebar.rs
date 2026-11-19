@@ -1,6 +1,7 @@
 // The server rail and the channel list (design/css/navigation.css: .rail, .srv, .folder, .side, .ch).
 use std::time::Duration;
 
+use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::{
     Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, Radians, SharedString, Stateful, Window,
     base::{Transition as Tween, transition},
@@ -523,7 +524,7 @@ impl Rustcord {
             .text_color(palette::muted(cx))
             .text_size(px(14.))
             // The list runs up under the header, which blurs and fades it (ui::scroll_edge), as the feed does.
-            .child(div().id("channels").flex_1().min_h_0().overflow_y_scroll().pt(px(crate::layout::HEADER_HEIGHT + 8.)).px_2().pb_2().flex().flex_col().gap(px(ROW_GAP)).children(rows))
+            .child(div().id("channels").flex_1().min_h_0().overflow_y_scrollbar().pt(px(crate::layout::HEADER_HEIGHT + 8.)).px_2().pb_2().flex().flex_col().gap(px(ROW_GAP)).children(rows))
             .child(banner)
             .child(div().flex_none().h(self.user_panel_clearance()))
             // The header row: 8px in, like the list below, so the name lines up with the channel rows.

@@ -346,6 +346,7 @@ impl Rustcord {
             .h_full()
             .bg(palette::surface(Level::Page, cx))
             .child(body)
+            .child(gpui_kit::component::scroll::Scrollbar::vertical(&scroll))
             .children(self.server_save_bar(cx))
             .child(ui::settings_close("server-settings-close", cx.listener(|this, _, _, cx| this.close_server_settings(false, cx)), cx));
         let nav = self.server_settings_nav(&guild_id, cx).into_any_element();

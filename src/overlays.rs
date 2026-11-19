@@ -2,6 +2,7 @@
 // actions the right-click menus run.
 use std::time::Duration;
 
+use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::{
     AnyElement, App, ClipboardItem, Context, Entity, FontWeight, HighlightStyle, KeyDownEvent, MouseButton, ScrollHandle, SharedString, StyledText, Window,
     component::{
@@ -295,7 +296,7 @@ impl Rustcord {
                         .max_h(px(560.))
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .child(div().px_4().py_3().flex().items_center().gap_2().child(Icon::new(Glyph::Inbox).size(px(20.))).child(div().font_weight(FontWeight::SEMIBOLD).child("Inbox")).child(div().text_color(theme.muted_foreground).child("Mentions")))
-                        .child(div().id("inbox-list").flex_1().min_h_0().overflow_y_scroll().px_3().pb_3().child(self.mention_list(Some(PREVIEW), cx)))
+                        .child(div().id("inbox-list").flex_1().min_h_0().overflow_y_scrollbar().px_3().pb_3().child(self.mention_list(Some(PREVIEW), cx)))
                         .child(see_all),
                 )
                 .into_any_element(),
@@ -393,7 +394,7 @@ impl Rustcord {
             .h(px(PICKER_SIZE.1 + 60.))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(div().p_2().child(ui::search_field("gif-search", &self.gif_search, cx)))
-            .child(div().id("gif-scroll").flex_1().min_h_0().overflow_y_scroll().px_2().pb_2().child(body));
+            .child(div().id("gif-scroll").flex_1().min_h_0().overflow_y_scrollbar().px_2().pb_2().child(body));
         Some(backdrop("gif-backdrop", cx).child(ui::rise(picker.transform_origin(ui::corner(true, true)), "gif-picker", Duration::ZERO)).into_any_element())
     }
 
@@ -451,7 +452,7 @@ impl Rustcord {
             .max_h(px(560.))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(div().px_4().py_3().flex().items_center().gap_2().child(Icon::new(Glyph::Pin).size(px(20.))).child(div().font_weight(FontWeight::SEMIBOLD).child("Pinned Messages")))
-            .child(div().id("pins-list").flex_1().min_h_0().overflow_y_scroll().px_3().pb_3().child(body));
+            .child(div().id("pins-list").flex_1().min_h_0().overflow_y_scrollbar().px_3().pb_3().child(body));
         // Under the header's pin button: its top-right corner just right of the click, kept in the window.
         let at = point(self.popover_at.x + px(16.), px(crate::layout::HEADER_HEIGHT - 2.));
         Some(backdrop("pins-backdrop", cx).child(anchored_at(at, gpui_kit::Anchor::TopRight, ui::rise(card.transform_origin(ui::corner(true, false)), "pins", Duration::ZERO))).into_any_element())
@@ -676,7 +677,7 @@ impl Rustcord {
             .flex_col()
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(head)
-            .child(div().flex_1().min_h_0().flex().child(rail).child(grid))
+            .child(div().flex_1().min_h_0().flex().child(rail).child(div().flex_1().min_w_0().h_full().flex().relative().child(grid).child(gpui_kit::component::scroll::Scrollbar::vertical(&scroll))))
             .child(foot);
         // From the composer's emoji button it sits just above the composer, at its right edge; for a reaction
         // it opens above and left of the click, kept in the window.

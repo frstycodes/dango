@@ -356,6 +356,7 @@ impl Rustcord {
             .relative()
             .size_full()
             .child(messages)
+            .child(gpui_kit::component::scroll::Scrollbar::vertical(&self.list))
             .child(
                 gpui_kit::canvas(|_, _, _| {}, move |bounds, _, _, _| {
                     let top = px(top).min(bounds.size.height);

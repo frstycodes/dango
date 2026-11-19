@@ -4,6 +4,7 @@
 // design/primitives.html (section ids as there), so a drift between the two shows up side by side.
 use std::time::{Duration, Instant};
 
+use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::{
     App, Context, Entity, Focusable, FontWeight, Hsla, InteractiveElement, IntoElement, ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, Window, WindowBounds, WindowOptions,
     base::{Easing, Transition, transition},
@@ -181,7 +182,7 @@ impl Render for DesignSystem {
         div()
             .id("design-system")
             .size_full()
-            .overflow_y_scroll()
+            .overflow_y_scrollbar()
             .bg(palette::surface(Level::Page, cx))
             .text_color(palette::text(cx))
             .font_family(cx.theme().font_family.clone())
