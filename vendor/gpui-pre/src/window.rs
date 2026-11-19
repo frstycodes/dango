@@ -4727,6 +4727,7 @@ impl Window {
             saturation: filter.saturation.max(0.),
             opacity,
             fade: filter.fade.map(|length| length.max(Pixels::ZERO).scale(scale_factor)),
+            clear_top: filter.clear_top.max(Pixels::ZERO).scale(scale_factor),
             corner_exponent: self.element_corner_shape.exponent(),
         });
     }

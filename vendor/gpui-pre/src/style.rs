@@ -429,6 +429,10 @@ pub struct BackdropFilter {
     /// How far in from each edge (top, right, bottom, left) the filter fades in from nothing,
     /// like a CSS `mask-image` gradient over the backdrop filter. Zero is a hard edge.
     pub fade: [Pixels; 4],
+    /// How far down from the top the content under the filter clears to transparent, so it fades
+    /// out rather than into a colour: for a transparent window, where there is no surface colour to
+    /// fade it into. Zero leaves the content's opacity alone.
+    pub clear_top: Pixels,
 }
 
 impl BackdropFilter {
@@ -444,6 +448,7 @@ impl Default for BackdropFilter {
             blur_radius: Pixels::ZERO,
             saturation: 1.,
             fade: [Pixels::ZERO; 4],
+            clear_top: Pixels::ZERO,
         }
     }
 }

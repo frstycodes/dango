@@ -772,6 +772,13 @@ pub trait Styled: Sized {
         self
     }
 
+    /// Clears the content under the backdrop filter to transparent toward the top edge, over the given
+    /// length: see [`crate::BackdropFilter::clear_top`].
+    fn backdrop_clear_top(mut self, length: impl Into<Pixels>) -> Self {
+        self.style().backdrop_filter.clear_top = Some(length.into());
+        self
+    }
+
     /// Sets the grid columns of this element.
     fn grid_cols(mut self, cols: u16) -> Self {
         self.style().grid_cols = Some(GridTemplate {

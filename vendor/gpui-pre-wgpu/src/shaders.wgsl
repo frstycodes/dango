@@ -1540,7 +1540,7 @@ struct BackdropBlurPass {
     opacity: f32,
     fade: vec4<f32>,
     corner_exponent: f32,
-    corner_padding_0: f32,
+    clear_top: f32,
     corner_padding_1: f32,
     corner_padding_2: f32,
 }

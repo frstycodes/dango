@@ -1564,7 +1564,14 @@ float backdrop_edge_fade(float2 position, Bounds_ScaledPixels bounds, float4 fad
   return ramp.x * ramp.y * ramp.z * ramp.w;
 }
 
-fragment float4 backdrop_blur_composite_fragment(
+// Two outputs for dual-source blending: the masked blur, and the mask itself as the weight the pixel
+// underneath keeps (1 - mask).
+struct BackdropBlurCompositeOutput {
+  float4 color [[color(0), index(0)]];
+  float4 weight [[color(0), index(1)]];
+};
+
+fragment BackdropBlurCompositeOutput backdrop_blur_composite_fragment(
     BackdropBlurVertexOutput input [[stage_in]],
     constant BackdropBlurPass *pass [[buffer(BackdropBlurInputIndex_Pass)]],
     texture2d<float> source [[texture(BackdropBlurInputIndex_Source)]]) {
@@ -1577,8 +1584,17 @@ fragment float4 backdrop_blur_composite_fragment(
 
   float distance = shaped_quad_sdf(input.position.xy, pass->bounds, pass->corner_radii,
                                    pass->corner_exponent);
-  float coverage = saturate(0.5 - distance) * pass->opacity *
+  float inside = saturate(0.5 - distance);
+  float coverage = inside * pass->opacity *
                    backdrop_edge_fade(input.position.xy, pass->bounds,
                                       float4(pass->fade[0], pass->fade[1], pass->fade[2], pass->fade[3]));
-  return float4(saturated, coverage);
+  float kept = pass->clear_top > 0.
+                   ? smoothstep(0., pass->clear_top, input.position.y - pass->bounds.origin.y)
+                   : 1.;
+  float cleared = inside * (1. - kept);
+  // Premultiplied, so the blur of clear pixels stays clear, and it replaces what's underneath by the mask
+  // rather than covering it: over a clear layer, sharp content can't show through its own blur. Then
+  // the cleared share of the result goes too.
+  float4 blurred = float4(min(saturated, float3(color.a)), color.a) * coverage * (1. - cleared);
+  return {blurred, float4(1. - (1. - coverage) * (1. - cleared))};
 }
