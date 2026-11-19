@@ -3,11 +3,11 @@
 // main window signs in and loads. `Waffle` advances it and closes it, then brings the main window forward.
 use gpui_kit::{
     App, AppContext, Bounds, Context, FontWeight, IntoElement, ParentElement, Render, SharedString, Styled, Window, WindowBackgroundAppearance, WindowBounds, WindowHandle, WindowKind, WindowOptions,
-    component::ActiveTheme, div, px, rgb, size,
+    component::ActiveTheme, div, px, size,
 };
 
 use crate::{
-    mascot::{self, LoaderColors},
+    mascot,
     palette::{self, Level},
     ui::{self, Squircle, shadow},
 };
@@ -53,9 +53,7 @@ pub fn open(stage: impl Into<SharedString>, cx: &mut App) -> Option<WindowHandle
 
 impl Render for Splash {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let dark = cx.theme().is_dark();
         let bg = palette::surface(Level::Raised, cx);
-        let loader = LoaderColors { ink: rgb(if dark { MARK_DARK } else { MARK_LIGHT }).into(), ring: bg, stick: rgb(if dark { STICK_DARK } else { STICK_LIGHT }).into() };
         // Opened without gpui-kit's root view, so the app font is set here.
         // GAP: the design's 0 18 40 drop shadow falls outside this borderless window's bounds.
         div().size_full().font_family(cx.theme().font_family.clone()).child(
@@ -71,7 +69,7 @@ impl Render for Splash {
                 .items_center()
                 .justify_center()
                 .gap(px(10.))
-                .child(mascot::loader("splash-loader", MARK, loader, cx))
+                .child(mascot::loader("splash-loader", MARK, cx))
                 .child(div().mt(px(4.)).text_size(px(20.)).line_height(px(20.)).font_weight(FontWeight::BOLD).text_color(palette::strong(cx)).child("Waffle"))
                 .child(div().max_w_full().truncate().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(palette::muted(cx)).child(self.stage.clone()))
                 .child(progress_bar(self.progress, cx)),
@@ -83,8 +81,3 @@ fn progress_bar(progress: f32, cx: &App) -> gpui_kit::Div {
     div().w(px(TRACK)).h(px(6.)).rounded(px(3.)).bg(palette::track(cx)).child(div().h_full().w(px(TRACK * progress)).rounded(px(3.)).bg(palette::accent()))
 }
 
-// The mark's materials, the same on any surface: honey on dark, a deeper honey on light.
-const MARK_DARK: u32 = 0xEFA831;
-const STICK_DARK: u32 = 0x8C7A6A;
-const MARK_LIGHT: u32 = 0xBF7D06;
-const STICK_LIGHT: u32 = 0xC9A27A;

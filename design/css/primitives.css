@@ -3,14 +3,18 @@
 *, *::before, *::after { corner-shape: superellipse(1.4); }
 .av, .status, .dot, .radio, .ring, .skeleton.circle, .mascot i, .bars i, .switch, .switch::after, .meter i { corner-shape: round; }
 
-/* Mascot: the logo's five bars, moving with a mood */
-.mascot { display: flex; align-items: center; gap: calc(5px * var(--s, 1)); height: calc(66px * var(--s, 1)); }
-.mascot i { display: block; width: calc(8px * var(--s, 1)); border-radius: 99px; background: var(--logo); height: calc(var(--h) * var(--s, 1)); animation: var(--mood) var(--period) ease-in-out infinite; animation-delay: calc(var(--n) * var(--lag)); }
-.mascot i:nth-child(1) { --h: 24px; --n: 0; } .mascot i:nth-child(2) { --h: 45px; --n: 1; } .mascot i:nth-child(3) { --h: 64px; --n: 2; } .mascot i:nth-child(4) { --h: 39px; --n: 3; } .mascot i:nth-child(5) { --h: 22px; --n: 4; }
-.mascot.idle { --mood: breathe; --period: 2.6s; --lag: -0.16s; }
-.mascot.waiting { --mood: ripple; --period: 2.2s; --lag: -0.32s; }
-.mascot.happy { --mood: speak; --period: 0.9s; --lag: -0.19s; }
-@keyframes breathe { 50% { transform: scaleY(0.78); } }
+/* Mascot: the mark come alive, moving with a mood. Idle breathes, waiting fills the pockets with honey in turn, happy hops. */
+.mascot { position: relative; width: calc(64px * var(--s, 1)); height: calc(64px * var(--s, 1)); animation: var(--mood) var(--period) ease-in-out infinite; }
+.mascot::before { content: ""; position: absolute; inset: 0; background: var(--logo); -webkit-mask: url(/assets/brand/waffle-mark.svg) center/contain no-repeat; mask: url(/assets/brand/waffle-mark.svg) center/contain no-repeat; }
+/* Honey drops at the pockets' centres in the mark's box (the lower two sit in what the lip leaves of theirs). */
+.mascot i { position: absolute; width: 10%; aspect-ratio: 1; margin: -5% 0 0 -5%; border-radius: 50%; background: var(--logo); transform: scale(0); }
+.mascot i:nth-child(1) { left: 33%; top: 32.6%; --n: 0; } .mascot i:nth-child(2) { left: 60.4%; top: 27.8%; --n: 1; } .mascot i:nth-child(3) { left: 64.3%; top: 49.9%; --n: 2; } .mascot i:nth-child(4) { left: 37.1%; top: 56.1%; --n: 3; } .mascot i:nth-child(5) { display: none; }
+.mascot.idle { --mood: breathe; --period: 2.6s; }
+.mascot.waiting i { animation: pocket 1.6s ease-in-out infinite; animation-delay: calc(var(--n) * 0.4s - 1.6s); }
+.mascot.happy { --mood: hop; --period: 1.2s; }
+@keyframes breathe { 50% { transform: scale(0.97); } }
+@keyframes pocket { 0%, 50%, 100% { transform: scale(0); } 25% { transform: scale(1); } }
+@keyframes hop { 0% { animation-timing-function: ease-out; } 27% { transform: translateY(-6.8%); animation-timing-function: ease-in; } 55%, 100% { transform: none; } }
 @keyframes ripple { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.42); } }
 @keyframes speak { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.35); } }
 /* Buttons */
