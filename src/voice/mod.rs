@@ -52,6 +52,8 @@ pub use dsp::NoiseSuppression;
 pub use video::VideoFrame;
 
 const SERVER_TIMEOUT: Duration = Duration::from_secs(10);
+// How long a stopped stream waits for Discord to confirm its delete before a replacement starts anyway.
+const DELETE_TIMEOUT: Duration = Duration::from_secs(3);
 const STATS_EVERY: Duration = Duration::from_secs(2);
 const PINGS_KEPT: usize = 20;
 // Stats ticks of outbound loss averaged: 15 × 2 s = 30 s.
@@ -353,6 +355,8 @@ pub struct StreamWatch {
 // Our Go Live; dropping it ends the stream.
 pub struct GoLive {
     _stop: oneshot::Sender<()>,
+    // Fires once Discord has deleted this stream, so a replacement under the same key can start.
+    gone: oneshot::Receiver<()>,
 }
 
 struct Shared {
@@ -621,35 +625,42 @@ impl VoiceSession {
     // Watch `streamer_id`'s Go Live. Frames arrive as `StreamFrame { source: GoLive, .. }` on this
     // session's event stream, and `StreamEnded` when it stops. Needs `Connected` first.
     pub fn watch_stream(&self, streamer_id: &str) -> Result<StreamWatch, String> {
-        Ok(StreamWatch { _stop: self.start_stream(streamer_id, Role::Watch)? })
+        let (stop, _) = self.start_stream(streamer_id, Role::Watch, None)?;
+        Ok(StreamWatch { _stop: stop })
     }
 
     // Share the main display (macOS) at 720p30 with sound. Our own `StreamEnded` reports when it stops.
     #[allow(dead_code, reason = "examples/voice_join.rs drives it; the app doesn't yet")]
     pub fn go_live(&self) -> Result<GoLive, String> {
         let main = screens()?.first().map(|s| s.id).ok_or("No display to share")?;
-        self.go_live_with_options(ShareSource::Screen(main), GoLiveOptions::default())
+        self.go_live_with_options(ShareSource::Screen(main), GoLiveOptions::default(), None)
     }
 
     // Share one app or window, with only its audio; see `shareable_windows` for the choices.
     #[allow(dead_code, reason = "examples/voice_join.rs drives it; the app doesn't yet")]
     pub fn go_live_with(&self, source: ShareSource) -> Result<GoLive, String> {
-        self.go_live_with_options(source, GoLiveOptions::default())
+        self.go_live_with_options(source, GoLiveOptions::default(), None)
     }
 
-    pub fn go_live_with_options(&self, source: ShareSource, options: GoLiveOptions) -> Result<GoLive, String> {
-        Ok(GoLive { _stop: self.start_stream(&self.shared.user_id, Role::Broadcast(source, options))? })
+    // Our streams share one key, so a stream that `replaces` another (new quality, another window) waits
+    // for Discord to delete the old one; otherwise that delete ends the new stream too.
+    pub fn go_live_with_options(&self, source: ShareSource, options: GoLiveOptions, replaces: Option<GoLive>) -> Result<GoLive, String> {
+        let after = replaces.map(|old| old.gone);
+        let (stop, gone) = self.start_stream(&self.shared.user_id, Role::Broadcast(source, options), after)?;
+        Ok(GoLive { _stop: stop, gone })
     }
 
-    fn start_stream(&self, streamer_id: &str, role: Role) -> Result<oneshot::Sender<()>, String> {
+    fn start_stream(&self, streamer_id: &str, role: Role, after: Option<oneshot::Receiver<()>>) -> Result<(oneshot::Sender<()>, oneshot::Receiver<()>), String> {
         let session_id = self.shared.session_id.lock().ok().and_then(|id| id.clone()).ok_or("Not connected to voice yet")?;
         let key = match &self.shared.guild_id {
             Some(guild) => format!("guild:{guild}:{}:{streamer_id}", self.shared.channel_id),
             None => format!("call:{}:{streamer_id}", self.shared.channel_id),
         };
         let (stop_tx, stop_rx) = oneshot::channel();
-        crate::discord::runtime().spawn(stream(self.shared.clone(), role, streamer_id.to_owned(), key, session_id, stop_rx));
-        Ok(stop_tx)
+        let (gone_tx, gone_rx) = oneshot::channel();
+        let ends = StreamEnds { stop: stop_rx, after, gone: gone_tx };
+        crate::discord::runtime().spawn(stream(self.shared.clone(), role, streamer_id.to_owned(), key, session_id, ends));
+        Ok((stop_tx, gone_rx))
     }
 
     #[allow(dead_code, reason = "examples/voice_join.rs drives it; the app doesn't yet")]
@@ -829,7 +840,20 @@ fn parse_server(d: &Value) -> Option<Server> {
 
 // Main-gateway stream ops: 18 create (go live), 19 delete (stop streaming or watching),
 // 20 watch, 22 set paused.
-async fn stream(shared: Arc<Shared>, role: Role, streamer: String, key: String, session_id: String, stop: oneshot::Receiver<()>) {
+// How a stream task starts and stops: `after` holds it until the stream it replaces is gone, `stop` ends
+// it, and `gone` tells whatever replaces it that Discord has deleted it.
+struct StreamEnds {
+    stop: oneshot::Receiver<()>,
+    after: Option<oneshot::Receiver<()>>,
+    gone: oneshot::Sender<()>,
+}
+
+async fn stream(shared: Arc<Shared>, role: Role, streamer: String, key: String, session_id: String, ends: StreamEnds) {
+    let StreamEnds { stop, after, gone } = ends;
+    if let Some(after) = after {
+        let _ = after.await;
+    }
+    // Subscribed only now, so the replaced stream's STREAM_DELETE isn't taken for ours.
     let mut dispatches = shared.gateway.dispatches.subscribe();
     if role.broadcasts() {
         let kind = if shared.guild_id.is_some() { "guild" } else { "call" };
@@ -838,12 +862,25 @@ async fn stream(shared: Arc<Shared>, role: Role, streamer: String, key: String, 
     } else {
         shared.gateway.send(20, json!({ "stream_key": key }));
     }
-    let reason = tokio::select! {
-        result = connect_stream(&shared, role, &key, session_id, &mut dispatches) => result.err().unwrap_or_else(|| "Stream connection closed".to_owned()),
-        _ = stop => "Stopped".to_owned(),
+    let (reason, stopped) = tokio::select! {
+        result = connect_stream(&shared, role, &key, session_id, &mut dispatches) => (result.err().unwrap_or_else(|| "Stream connection closed".to_owned()), false),
+        _ = stop => ("Stopped".to_owned(), true),
     };
     shared.gateway.send(19, json!({ "stream_key": key }));
+    // A stream that ended on its own was already deleted; one we stopped is gone once Discord says so.
+    if stopped && role.broadcasts() {
+        let _ = tokio::time::timeout(DELETE_TIMEOUT, deleted(&key, &mut dispatches)).await;
+    }
+    let _ = gone.send(());
     shared.emit(VoiceEvent::StreamEnded { user_id: streamer, reason });
+}
+
+async fn deleted(key: &str, dispatches: &mut broadcast::Receiver<(String, Value)>) {
+    while let Ok((kind, d)) = dispatches.recv().await {
+        if kind == "STREAM_DELETE" && d["stream_key"].as_str() == Some(key) {
+            return;
+        }
+    }
 }
 
 async fn connect_stream(
@@ -1256,6 +1293,20 @@ fn video_ssrcs(d: &Value) -> impl Iterator<Item = u32> + '_ {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_stopped_stream_is_gone_on_its_own_delete_only() {
+        use super::{Value, broadcast, deleted};
+        use serde_json::json;
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_time().build().unwrap();
+        let (tx, mut rx) = broadcast::channel::<(String, Value)>(8);
+        let waits = |rx: &mut broadcast::Receiver<(String, Value)>| runtime.block_on(async { tokio::time::timeout(std::time::Duration::from_millis(50), deleted("k", rx)).await }).is_ok();
+        tx.send(("STREAM_DELETE".into(), json!({ "stream_key": "other" }))).unwrap();
+        tx.send(("STREAM_CREATE".into(), json!({ "stream_key": "k" }))).unwrap();
+        assert!(!waits(&mut rx), "another stream's delete or our create isn't the delete");
+        tx.send(("STREAM_DELETE".into(), json!({ "stream_key": "k" }))).unwrap();
+        assert!(waits(&mut rx));
+    }
+
     use super::*;
 
     #[test]

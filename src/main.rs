@@ -2665,7 +2665,7 @@ impl Waffle {
     fn go_live(&mut self, source: voice::ShareSource, cx: &mut Context<Self>) -> bool {
         let Some(call) = &mut self.call else { return false };
         let options = voice::GoLiveOptions { resolution: self.prefs.stream_resolution, fps: self.prefs.stream_fps, audio: self.prefs.stream_audio };
-        match call.session.go_live_with_options(source, options) {
+        match call.session.go_live_with_options(source, options, call.sharing.take()) {
             Ok(live) => {
                 call.sharing = Some(live);
                 call.share_source = Some(source);
@@ -2682,7 +2682,7 @@ impl Waffle {
     // Quality and sound changes take effect by restarting the same stream; viewers rejoin it.
     pub(crate) fn restart_share(&mut self, cx: &mut Context<Self>) {
         let Some(call) = self.call.as_mut() else { return };
-        let Some(source) = call.share_source.filter(|_| call.sharing.take().is_some()) else { return };
+        let Some(source) = call.share_source.filter(|_| call.sharing.is_some()) else { return };
         self.go_live(source, cx);
         cx.notify();
     }
