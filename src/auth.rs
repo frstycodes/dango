@@ -18,9 +18,9 @@ use crate::{
 // Discord's QR sign-in ("remote auth"). Undocumented; the op names below are what the official
 // clients use as of v2 of the protocol. Not verified against a live server in this repo yet.
 const REMOTE_AUTH: &str = "wss://remote-auth-gateway.discord.gg/?v=2";
-const KEYRING_SERVICE: &str = "rustcord";
-// Before the rename the app was "Chord"; its Keychain entry and dev-token file are read once and moved.
-const OLD_KEYRING_SERVICE: &str = "chord";
+// Release builds only: debug builds keep tokens in files (see `stored_token`).
+#[cfg(not(debug_assertions))]
+const KEYRING_SERVICE: &str = "waffle";
 const KEYRING_USER: &str = "discord-token";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 
@@ -58,22 +58,6 @@ fn slot(user_id: &str) -> Option<String> {
     (!user_id.is_empty() && user_id.bytes().all(|b| b.is_ascii_digit())).then(|| format!("{KEYRING_USER}-{user_id}"))
 }
 
-// The single token kept before accounts, and before that by "Chord". Read once at startup when no
-// account is saved; the first READY files it under its user id and `forget_legacy_token` clears it.
-#[cfg(not(debug_assertions))]
-pub fn legacy_token() -> Option<String> {
-    [KEYRING_SERVICE, OLD_KEYRING_SERVICE].into_iter().find_map(|service| keyring::Entry::new(service, KEYRING_USER).ok()?.get_password().ok())
-}
-
-#[cfg(not(debug_assertions))]
-pub fn forget_legacy_token() {
-    for service in [KEYRING_SERVICE, OLD_KEYRING_SERVICE] {
-        if let Ok(entry) = keyring::Entry::new(service, KEYRING_USER) {
-            let _ = entry.delete_credential();
-        }
-    }
-}
-
 #[cfg(not(debug_assertions))]
 fn read(slot: &str) -> Option<String> {
     keyring::Entry::new(KEYRING_SERVICE, slot).ok()?.get_password().ok()
@@ -96,28 +80,6 @@ fn delete(slot: &str) {
 #[cfg(debug_assertions)]
 fn token_file(slot: &str) -> Option<std::path::PathBuf> {
     Some(crate::data_dir()?.join(slot.replace(KEYRING_USER, "dev-token")))
-}
-
-#[cfg(debug_assertions)]
-fn old_token_file() -> Option<std::path::PathBuf> {
-    Some(std::path::Path::new(&std::env::var_os("HOME")?).join("Library/Application Support/Chord/dev-token"))
-}
-
-#[cfg(debug_assertions)]
-pub fn legacy_token() -> Option<String> {
-    let from_files = [token_file(KEYRING_USER), old_token_file()].into_iter().flatten().find_map(|path| std::fs::read_to_string(path).ok().map(|t| t.trim().to_owned()).filter(|t| !t.is_empty()));
-    if from_files.is_some() {
-        return from_files;
-    }
-    // A release sign-in carries over from the Keychain (one password prompt).
-    [KEYRING_SERVICE, OLD_KEYRING_SERVICE].into_iter().find_map(|service| keyring::Entry::new(service, KEYRING_USER).ok()?.get_password().ok())
-}
-
-#[cfg(debug_assertions)]
-pub fn forget_legacy_token() {
-    for path in [token_file(KEYRING_USER), old_token_file()].into_iter().flatten() {
-        let _ = std::fs::remove_file(path);
-    }
 }
 
 #[cfg(debug_assertions)]

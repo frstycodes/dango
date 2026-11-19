@@ -27,7 +27,7 @@ use crate::{
 pub fn open(cx: &mut App) {
     let options = WindowOptions {
         window_bounds: Some(WindowBounds::Windowed(gpui_kit::Bounds::centered(None, size(px(1180.), px(860.)), cx))),
-        titlebar: Some(gpui_kit::TitlebarOptions { title: Some("Dango Design System".into()), ..Default::default() }),
+        titlebar: Some(gpui_kit::TitlebarOptions { title: Some("Waffle Design System".into()), ..Default::default() }),
         ..Default::default()
     };
     gpui_kit::open_window(options, cx, |window, cx| {
@@ -204,8 +204,8 @@ impl DesignSystem {
             .py(px(10.))
             .border_b_1()
             .border_color(palette::line(cx))
-            .child(svg().path(MARK).size(px(22.)).text_color(gpui_kit::rgb(0xE25B26)))
-            .child(div().text_size(px(17.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child("Dango"))
+            .child(svg().path(MARK).size(px(22.)).text_color(palette::logo_ink(cx)))
+            .child(div().text_size(px(17.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child("Waffle"))
             .child(div().text_size(px(17.)).font_weight(FontWeight::NORMAL).text_color(palette::faint(cx)).child("Design system"))
             .child(div().flex_1())
             .child(ui::segmented_live("theme", &["Light", "Dark"], dark as usize, move |i, window, cx| {
@@ -532,7 +532,7 @@ impl DesignSystem {
                     stack()
                         .child(ui::callout(Notice::Info, Glyph::InfoFill, "Slowmode is on", "You can send one message every 10 seconds.", cx))
                         .child(ui::callout(Notice::Warning, Glyph::Warning, "Your connection is unstable", "Others may hear you cut out. Try a wired connection.", cx).child(ui::button("cl-test", Tone::Secondary, cx).small().self_center().child("Run test")))
-                        .child(ui::callout(Notice::Danger, Glyph::XCircle, "Couldn't send 2 messages", "Dango lost the connection. They're kept below.", cx).child(ui::button("cl-retry", Tone::Secondary, cx).small().self_center().child("Retry all")))
+                        .child(ui::callout(Notice::Danger, Glyph::XCircle, "Couldn't send 2 messages", "Waffle lost the connection. They're kept below.", cx).child(ui::button("cl-retry", Tone::Secondary, cx).small().self_center().child("Retry all")))
                         .child(ui::callout(Notice::Success, Glyph::CheckCircle, "Two-factor is on", "Keep your backup codes somewhere safe.", cx))
                         .child(ui::callout(Notice::Accent, Glyph::AtFill, "3 mentions while you were away", "The oldest is in #looking-for-group.", cx).child(ui::button("cl-jump", Tone::Primary, cx).small().self_center().child("Jump to first"))),
                 )
@@ -659,7 +659,7 @@ fn colour(cx: &App) -> impl IntoElement {
             .child(edge_top(div().h(px(64.)).p(px(8.)).bg(color).flex().items_end().justify_end().when(white_text, |d| d.child(div().text_size(px(12.)).font_weight(FontWeight::MEDIUM).text_color(gpui_kit::white()).child(ratio(gpui_kit::white(), color))))))
             .child(div().px(px(10.)).py(px(8.)).text_size(px(12.)).child(div().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(token)).child(div().text_color(palette::faint(cx)).child(name)))
     };
-    section("Colour", "Restrained: Graphite neutrals plus one chili. Depth in the dark theme comes from lighter surfaces, never shadows. Contrast figures are measured live against the page.", cx)
+    section("Colour", "Restrained: Graphite neutrals plus one honey. Depth in the dark theme comes from lighter surfaces, never shadows. Contrast figures are measured live against the page.", cx)
         .child(h3("Surfaces, deepest to highest", cx))
         .child(
             div()
@@ -693,7 +693,7 @@ fn colour(cx: &App) -> impl IntoElement {
                 .gap(px(16.))
                 .child(swatch("--accent", "Accent · Primary buttons, counts, live", palette::accent(), true))
                 .child(swatch("--accent-hover", "Accent hover", palette::accent_hover(), true))
-                .child(swatch("--logo", "Logo · The mark only", gpui_kit::rgb(0xE25B26).into(), true))
+                .child(swatch("--logo", "Logo · The mark only", palette::logo(), true))
                 .child(swatch("--danger", "Danger · Leave, delete", palette::danger(), true))
                 .child(swatch("--online", "Online · Dot, voice connected", palette::status_in(Status::Online, cx), false))
                 .child(swatch("--idle", "Idle · Moon", palette::status_in(Status::Idle, cx), false))
@@ -911,7 +911,7 @@ fn layout(cx: &App) -> impl IntoElement {
                     .gap(px(16.))
                     .child(ui::icon_tile(Glyph::Hashtag, palette::selected(cx), palette::strong(cx)))
                     .child(ui::icon_tile(Glyph::VolumeHigh, palette::selected(cx), palette::strong(cx)))
-                    .child(ui::icon_tile(Glyph::Stream, palette::accent(), gpui_kit::white()))
+                    .child(ui::icon_tile(Glyph::Stream, palette::accent(), palette::on_accent()))
                     .child(ui::icon_tile(Glyph::Trash, palette::danger_tint().opacity(1.25), palette::danger_ink(cx))),
             )
             .child(

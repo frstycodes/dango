@@ -1,4 +1,4 @@
-// CHORD_DEMO scenes for server settings: made-up roles, bans, invites, rules and an audit log covering
+// WAFFLE_DEMO scenes for server settings: made-up roles, bans, invites, rules and an audit log covering
 // many action types, loaded in place of Discord's answers.
 use gpui_kit::{Context, Window};
 use serde_json::{Value, json};
@@ -11,10 +11,10 @@ use super::{
     roles::{self, RoleEdit, RoleTab},
     view::Info,
 };
-use crate::{Rustcord, channel_settings::Load};
+use crate::{Waffle, channel_settings::Load};
 
-pub fn open(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Context<Rustcord>) {
-    chord.open_server_settings("1".into(), window, cx);
+pub fn open(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Context<Waffle>) {
+    waffle.open_server_settings("1".into(), window, cx);
     let page = match scene {
         "server-settings-roles" | "server-settings-role" | "server-settings-role-perms" => Page::Roles,
         "server-settings-audit" => Page::AuditLog,
@@ -24,7 +24,7 @@ pub fn open(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         "server-settings-invites" => Page::Invites,
         _ => Page::Profile,
     };
-    let Some(view) = chord.server_settings.as_mut() else { return };
+    let Some(view) = waffle.server_settings.as_mut() else { return };
     let saved = Overview { name: "Night Owls".into(), description: Some("Late-night builders, gpui tinkerers and people who should be asleep.".into()), system_channel_id: Some("general".into()), afk_channel_id: Some("hub".into()), afk_timeout: 900, default_message_notifications: 1, verification_level: 1, explicit_content_filter: 2, premium_progress_bar_enabled: true, ..Default::default() };
     view.info = Load::Ready(Info { saved: saved.clone(), features: vec!["COMMUNITY".into(), "ENHANCED_ROLE_COLORS".into(), "INVITE_SPLASH".into()], premium_tier: 2, boosts: 9, vanity: None, rules_channel_id: Some("general".into()), updates_channel_id: Some("staff".into()) });
     view.draft = saved.clone();
@@ -38,7 +38,7 @@ pub fn open(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
     name.update(cx, |s, cx| s.set_value(saved.name.clone(), window, cx));
     description.update(cx, |s, cx| s.set_value(saved.description.clone().unwrap_or_default(), window, cx));
     if matches!(scene, "server-settings-role" | "server-settings-role-perms") {
-        let Some(view) = chord.server_settings.as_mut() else { return };
+        let Some(view) = waffle.server_settings.as_mut() else { return };
         let Load::Ready(list) = &view.roles.list else { return };
         let Some(row) = list.iter().find(|r| r.id == "r3").cloned() else { return };
         let tab = if scene == "server-settings-role-perms" { RoleTab::Permissions } else { RoleTab::Display };
@@ -46,7 +46,7 @@ pub fn open(chord: &mut Rustcord, scene: &str, window: &mut Window, cx: &mut Con
         view.roles.open = Some(RoleEdit { id: row.id.clone(), tab, saved: row.role.clone(), draft: row.role.clone(), members: Load::Ready(vec!["8388608".into(), "12582912".into()]), asking_delete: false });
     }
     if scene == "server-settings-dirty" {
-        let Some(view) = chord.server_settings.as_mut() else { return };
+        let Some(view) = waffle.server_settings.as_mut() else { return };
         view.name.update(cx, |s, cx| s.set_value("Night Owls Club", window, cx));
         view.draft.system_channel_flags = super::api::system_flags::SETUP_TIPS;
     }

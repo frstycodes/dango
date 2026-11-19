@@ -12,7 +12,7 @@ use gpui_kit::{
 };
 
 use crate::{
-    Rustcord,
+    Waffle,
     discord::{Message, SendState, Sticker},
     icons::Glyph,
     menu, palette,
@@ -56,7 +56,7 @@ impl Lead {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn open_stickers(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.gif_picker.is_none() {
             self.open_gifs(window, cx);
@@ -223,7 +223,7 @@ impl Rustcord {
     }
 }
 
-fn sticker_grid(sections: Vec<Section>, scroll: &ScrollHandle, hovered: &Entity<Option<(Sticker, SharedString)>>, cx: &mut Context<Rustcord>) -> impl IntoElement {
+fn sticker_grid(sections: Vec<Section>, scroll: &ScrollHandle, hovered: &Entity<Option<(Sticker, SharedString)>>, cx: &mut Context<Waffle>) -> impl IntoElement {
     div()
         .id("sticker-scroll")
         .flex_1()
@@ -248,7 +248,7 @@ fn sticker_grid(sections: Vec<Section>, scroll: &ScrollHandle, hovered: &Entity<
 }
 
 // Four to a row; animated ones carry a small play mark (the design's answer to "nothing says it moves").
-fn sticker_cell(sticker: &Sticker, pack: &SharedString, key: String, hovered: &Entity<Option<(Sticker, SharedString)>>, cx: &mut Context<Rustcord>) -> AnyElement {
+fn sticker_cell(sticker: &Sticker, pack: &SharedString, key: String, hovered: &Entity<Option<(Sticker, SharedString)>>, cx: &mut Context<Waffle>) -> AnyElement {
     let (picked, shown) = (sticker.clone(), (sticker.clone(), pack.clone()));
     let hovered = hovered.clone();
     let mark = sticker.animated().then(|| {

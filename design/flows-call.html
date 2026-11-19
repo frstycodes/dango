@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wave DM Calls</title>
+<title>Waffle DM Calls</title>
 <meta name="description" content="The DM call flow, step by step at real size: start, ring, answer, talk, leave, video, add people, missed calls, hang up, groups.">
-<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="icon" href="/assets/brand/icons/paper.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="css/community.css">
 <link rel="stylesheet" href="css/server-settings.css">
 <link rel="stylesheet" href="css/flows.css">
-<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<script>try{const p=JSON.parse(localStorage.getItem("waffle-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 <style>
 /* Proposal pieces. Once the flow is approved they move into voice.css (strip states, ring banner, mini player) and navigation.css (row and rail call marks). */
 
@@ -134,7 +134,7 @@
 
 .sys > i.miss { color: var(--danger-ink); }
 
-/* Dango in the background: a desktop with the system notification and the dock. Fixed materials, it's the OS. */
+/* Waffle in the background: a desktop with the system notification and the dock. Fixed materials, it's the OS. */
 .fc-desk { position: relative; height: 620px; min-width: 920px; overflow: hidden; color: oklch(0.98 0.004 60); background: radial-gradient(110% 80% at 15% 0%, oklch(0.74 0.1 55), transparent 60%), radial-gradient(90% 90% at 100% 100%, oklch(0.42 0.1 15), transparent 65%), oklch(0.38 0.06 35); }
 .fc-menubar { display: flex; align-items: center; gap: 18px; height: 26px; padding: 0 14px; background: oklch(0.2 0.02 35 / 0.3); font-size: 12px; font-weight: var(--weight-semibold); }
 .fc-menubar span:last-child { margin-left: auto; font-variant-numeric: tabular-nums; }
@@ -214,7 +214,7 @@ function rail({ at = "home", mark = "" } = {}) {
   const home = at === "home";
   const vc = mark === "call" ? `<span class="vc">${B()}</span>` : mark === "ring" ? `<span class="vc is-ring">${B("is-ringing")}</span>` : "";
   return `<nav class="rail" aria-label="Servers">
-    <button class="srv home${home ? " sel" : ""}" aria-label="Direct messages${mark === "ring" ? ", Mira is calling" : mark === "call" ? ", in a call" : ""}"${home ? ' aria-current="page"' : ""}><img src="../assets/brand/${home ? "dango-mark-white" : "dango-mark"}.svg" width="26" height="26" alt="">${vc}</button>
+    <button class="srv home${home ? " sel" : ""}" aria-label="Direct messages${mark === "ring" ? ", Mira is calling" : mark === "call" ? ", in a call" : ""}"${home ? ' aria-current="page"' : ""}><img src="../assets/brand/${home ? "waffle-mark-white" : "waffle-mark"}.svg" width="26" height="26" alt="">${vc}</button>
     <hr>
     <button class="srv a1${at === "ns" ? " sel" : ""}" aria-label="Night Shift"${at === "ns" ? ' aria-current="page"' : ""}>NS</button>
     <button class="srv a2 unread" aria-label="Pixel Club">PC</button>
@@ -304,8 +304,8 @@ const addMenu = `<div class="menu fc-add" role="dialog" aria-label="Add to call"
 
 const desk = `<div class="fc-desk">
   <div class="fc-menubar"><span>Finder</span><span>File</span><span>Edit</span><span>View</span><span>Wed 9:41 PM</span></div>
-  <div class="fc-note" role="alert"><img src="../assets/brand/icons/bone.png" alt=""><small>Dango · now</small><b>Mira is calling you</b><span>Voice call</span><div class="fc-note-acts"><button class="btn btn--sm">Decline</button><button class="btn btn--sm btn--primary">Accept</button></div></div>
-  <div class="fc-dock" aria-hidden="true"><span style="--h: 230"></span><span style="--h: 150"></span><span style="--h: 30"></span><span class="app"><img src="../assets/brand/icons/bone.png" alt=""></span><span style="--h: 300"></span><span style="--h: 80"></span></div>
+  <div class="fc-note" role="alert"><img src="../assets/brand/icons/paper.png" alt=""><small>Waffle · now</small><b>Mira is calling you</b><span>Voice call</span><div class="fc-note-acts"><button class="btn btn--sm">Decline</button><button class="btn btn--sm btn--primary">Accept</button></div></div>
+  <div class="fc-dock" aria-hidden="true"><span style="--h: 230"></span><span style="--h: 150"></span><span style="--h: 30"></span><span class="app"><img src="../assets/brand/icons/paper.png" alt=""></span><span style="--h: 300"></span><span style="--h: 80"></span></div>
 </div>`;
 
 const app = (railHtml, sideHtml, pane) => `<div class="fc-app">${railHtml}${sideHtml}<div class="fc-pane">${pane}</div></div>`;
@@ -330,14 +330,14 @@ const STEPS = [
     ] },
 
   { t: "Incoming", title: "When Mira calls you",
-    body: "Where you are decides the shape, never the size. In her DM the strip itself rings. Anywhere else in Dango a banner drops from the top of the pane; it never takes focus, so Enter in the composer still sends your message. The rail and her DM row say it too, so you can look away and still find it. In the background it's a system notification with Accept and Decline, and the dock icon bounces.",
+    body: "Where you are decides the shape, never the size. In her DM the strip itself rings. Anywhere else in Waffle a banner drops from the top of the pane; it never takes focus, so Enter in the composer still sends your message. The rail and her DM row say it too, so you can look away and still find it. In the background it's a system notification with Accept and Decline, and the dock icon bounces.",
     discord: "A card pops up over the app wherever you are, with the caller's avatar and Decline or Accept.",
     sound: "<code>call_ringing.mp3</code> loops for the 30 seconds it rings, on every device you're signed in on.",
     v: [
       ["In her DM", () => app(rail({ mark: "ring" }), dmSide({ rows: { mira: RING("Calling you…") } }), miraDM(strip.incoming("Mira", "Voice call · rang 0:06")))],
-      ["Elsewhere in Dango", () => app(rail({ at: "ns", mark: "ring" }), srvSide(), srvBar() + feed(...SERVER) + composer("#general") + ring("Mira", "Voice call · rang 0:06"))],
+      ["Elsewhere in Waffle", () => app(rail({ at: "ns", mark: "ring" }), srvSide(), srvBar() + feed(...SERVER) + composer("#general") + ring("Mira", "Voice call · rang 0:06"))],
       ["Already in a call", () => app(rail({ at: "ns", mark: "ring" }), srvSide({ call: voicebar("Lounge · Night Shift", "Go to Lounge"), lounge: `<div class="vp"><span class="av" data-av="You"></span>You</div><div class="vp speaking"><span class="av speaking" data-av="Theo"></span>Theo<span class="end"><span class="bars"><i></i><i></i><i></i></span></span></div>` }), srvBar() + feed(...SERVER) + composer("#general") + ring("Mira", "Voice call · accepting leaves Lounge"))],
-      ["Dango in the background", () => desk],
+      ["Waffle in the background", () => desk],
     ] },
 
   { t: "Talking", title: "In the call",

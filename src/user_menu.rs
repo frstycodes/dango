@@ -1,12 +1,12 @@
 // Discord's user context menus, built item-for-item from its own menu code (docs/discord-menus-user-
 // message.md, read from Discord web 2026-11-14). Each item carries Discord's show-condition; items
-// for features Rustcord doesn't have (activities, apps, stages, mod view, E2EE codes) are left out.
+// for features Waffle doesn't have (activities, apps, stages, mod view, E2EE codes) are left out.
 use gpui_kit::{Context, Pixels, Point, Window};
 use reqwest::Method;
 use serde_json::json;
 
 use crate::{
-    Rustcord,
+    Waffle,
     discord::{ChannelKind, Relation, User, perm},
     icons::Glyph,
     menu::{Entry, HeadLead, header, item, slider, submenu},
@@ -28,7 +28,7 @@ pub enum Surface {
 // Discord's timeout lengths, in seconds.
 const TIMEOUTS: [(&str, i64); 6] = [("60 seconds", 60), ("5 minutes", 300), ("10 minutes", 600), ("1 hour", 3600), ("1 day", 86_400), ("1 week", 604_800)];
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn open_user_menu(&mut self, user: User, guild_id: Option<String>, surface: Surface, at: Point<Pixels>, cx: &mut Context<Self>) {
         self.open_live_menu(at, move |this| this.user_menu(&user, guild_id.as_deref(), surface, at), cx);
     }
@@ -509,7 +509,7 @@ impl Rustcord {
     fn set_ignored(&mut self, user_id: String, ignore: bool, cx: &mut Context<Self>) {
         let method = if ignore { Method::PUT } else { Method::DELETE };
         let (a, b) = (user_id.clone(), user_id.clone());
-        let flip = |this: &mut Rustcord, id: String, on: bool| {
+        let flip = |this: &mut Waffle, id: String, on: bool| {
             match on {
                 true => this.ignored.insert(id),
                 false => this.ignored.remove(&id),

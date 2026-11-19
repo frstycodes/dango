@@ -1,16 +1,15 @@
 [package]
-name = "rustcord"
+name = "waffle"
 version = "0.8.0"
 edition = "2024"
 publish = false
 
-# The process people see is Dango; the package keeps its old name so profiles and paths stay put.
 [[bin]]
-name = "dango"
+name = "waffle"
 path = "src/main.rs"
 
 # `cargo build --release --features dhat-heap`: records where every allocation comes from and writes
-# dhat-heap.json after RUSTCORD_DHAT_SECS (default 60); open it at https://nnethercote.github.io/dh_view/dh_view.html
+# dhat-heap.json after WAFFLE_DHAT_SECS (default 60); open it at https://nnethercote.github.io/dh_view/dh_view.html
 [features]
 dhat-heap = ["dep:dhat"]
 
@@ -78,7 +77,7 @@ objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSRunningApplication", "NSImage", "NSImageRep", "NSBitmapImageRep", "NSGraphicsContext", "NSGraphics", "NSWorkspace", "objc2-core-foundation"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSGeometry", "NSString", "NSProcessInfo"] }
 screencapturekit = { version = "11", features = ["macos_14_0"] }
-# Process footprint for the memory report (proc_pid_rusage); already in the tree.
+# Process footprint for the memory report (proc_pid_rusage) and game detection (libproc, sysctl).
 libc = "0.2"
 # The sidebar's native material: the window's NSView, to put an NSVisualEffectView under it.
 raw-window-handle = "0.6"
@@ -91,9 +90,9 @@ opt-level = 2
 # /convt3/Conv.bias") although release builds run it fine; debug builds skip the check like release.
 [profile.dev.package.tract-core]
 debug-assertions = false
-# Function names for the memory report's allocation sites (RUSTCORD_MEMORY_SITES=1). On Windows they
+# Function names for the memory report's allocation sites (WAFFLE_MEMORY_SITES=1). On Windows they
 # go in a separate .pdb, so the exe doesn't grow; only the crates whose allocations matter.
-[profile.release.package.rustcord]
+[profile.release.package.waffle]
 debug = "line-tables-only"
 [profile.release.package.gpui-pre]
 debug = "line-tables-only"
@@ -135,7 +134,7 @@ windows = { version = "0.62", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 
-# Dango's gpui patches (transforms, squircle corners, backdrop blur), applied to vendored copies of the
+# Waffle's gpui patches (transforms, squircle corners, backdrop blur), applied to vendored copies of the
 # exact versions gpui-kit pins. Drop each crate here once upstream ships the same feature.
 [patch.crates-io]
 gpui-pre = { path = "vendor/gpui-pre" }

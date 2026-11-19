@@ -5,7 +5,7 @@
 // the content changes; media.rs repeats the last frame on a still screen. Frames are downscaled on
 // the CPU (area average, so text stays readable) to fit the stream size.
 // Audio: WASAPI process loopback (Windows 10 2004+). The whole screen captures every process except
-// Rustcord's own tree, so viewers don't hear the call echoed; an app or window captures only that
+// Waffle's own tree, so viewers don't hear the call echoed; an app or window captures only that
 // app's process tree.
 // ponytail: `ShareSource::App` captures the app's largest window (Windows.Graphics.Capture has no
 // "all windows of an app" item); its audio does cover the whole app.
@@ -253,7 +253,7 @@ fn downscale(src: &[u8], width: u32, height: u32, out_w: u32, out_h: u32) -> Vec
 
 #[derive(Clone, Copy)]
 enum AudioTarget {
-    // Everything the system plays except this process tree (Rustcord itself).
+    // Everything the system plays except this process tree (Waffle itself).
     AllExcept(u32),
     // Only this process tree.
     Only(u32),

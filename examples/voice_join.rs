@@ -1,4 +1,4 @@
-// Live check for src/voice: joins a voice channel with the token Rustcord stored in the Keychain,
+// Live check for src/voice: joins a voice channel with the token Waffle stored in the Keychain,
 // prints voice events, and leaves after the given number of seconds.
 //   cargo run --example voice_join -- <guild_id> <channel_id> [seconds] [--go-live]
 // `cargo test --example voice_join` runs the voice module's unit tests.
@@ -32,11 +32,9 @@ fn main() -> Result<(), String> {
     };
     let seconds: u64 = rest.iter().find_map(|s| s.parse().ok()).unwrap_or(30);
     let auto_go_live = rest.iter().any(|s| s == "--go-live");
-    // The app was renamed from Chord; it migrates the old entry, but read both in case it hasn't run yet.
-    let token = ["rustcord", "chord"]
-        .into_iter()
-        .find_map(|service| keyring::Entry::new(service, "discord-token").and_then(|e| e.get_password()).ok())
-        .ok_or("No token in Keychain (sign in with Rustcord first)")?;
+    let token = keyring::Entry::new("waffle", "discord-token")
+        .and_then(|e| e.get_password())
+        .map_err(|_| "No token in Keychain (sign in with Waffle first)")?;
 
     let (gateway, outbound) = voice::GatewayHandle::new();
     let (ready_tx, ready_rx) = std::sync::mpsc::channel();
@@ -233,7 +231,7 @@ async fn main_gateway(
                         let identify = json!({ "op": 2, "d": {
                             "token": token,
                             "capabilities": 0,
-                            "properties": { "os": std::env::consts::OS, "browser": "Rustcord", "device": "" },
+                            "properties": { "os": std::env::consts::OS, "browser": "Waffle", "device": "" },
                             "compress": false,
                         }});
                         sink.send(WsMessage::Text(identify.to_string())).await.map_err(|e| e.to_string())?;
@@ -242,7 +240,7 @@ async fn main_gateway(
                         let kind = payload["t"].as_str().unwrap_or_default();
                         if kind == "READY" {
                             let me = payload["d"]["user"]["id"].as_str().unwrap_or_default().to_owned();
-                            if std::env::var_os("CHORD_VOICE_DEBUG").is_some() {
+                            if std::env::var_os("WAFFLE_VOICE_DEBUG").is_some() {
                                 let guilds = payload["d"]["guilds"].as_array().map_or(0, Vec::len);
                                 let keys: Vec<&String> = payload["d"]["guilds"][0].as_object().map(|g| g.keys().collect()).unwrap_or_default();
                                 eprintln!("READY: {guilds} guilds; first guild keys: {keys:?}");

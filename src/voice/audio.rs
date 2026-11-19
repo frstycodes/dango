@@ -153,7 +153,7 @@ struct Track {
     // Arrival clock origin for the jitter buffer.
     created: Instant,
     frame: Vec<f32>,
-    // `RUSTCORD_VOICE_RECV_TAPS=<dir>`: what this speaker sent, as decoded, written when they leave.
+    // `WAFFLE_VOICE_RECV_TAPS=<dir>`: what this speaker sent, as decoded, written when they leave.
     // Allocates on the output callback; debug only.
     taps: Option<Taps>,
 }
@@ -181,7 +181,7 @@ impl Mixer {
         track.gain = gain;
         if track.jitter.is_none() {
             track.jitter = JitterBuffer::new();
-            track.taps = std::env::var_os("RUSTCORD_VOICE_RECV_TAPS").map(|dir| Taps::new(std::path::Path::new(&dir).join(format!("{key:x}"))));
+            track.taps = std::env::var_os("WAFFLE_VOICE_RECV_TAPS").map(|dir| Taps::new(std::path::Path::new(&dir).join(format!("{key:x}"))));
         }
         let arrival = track.created.elapsed();
         if let Some(jitter) = &mut track.jitter {
@@ -251,7 +251,7 @@ pub fn start(settings: Arc<AudioSettings>, mixer: Arc<Mixer>, capture: bool) -> 
     let (ready_tx, ready_rx) = mpsc::channel();
     let (stop, stop_rx) = mpsc::channel::<()>();
     thread::Builder::new()
-        .name("rustcord-audio".into())
+        .name("waffle-audio".into())
         .spawn(move || run_engine(&settings, &mixer, capture.then_some(pcm_tx), &ready_tx, &stop_rx))
         .map_err(|e| e.to_string())?;
     ready_rx.recv().map_err(|e| e.to_string())??;

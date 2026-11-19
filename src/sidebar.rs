@@ -6,12 +6,12 @@ use gpui_kit::{
     Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, Radians, SharedString, Stateful, Window,
     base::{Transition as Tween, transition},
     component::{ActiveTheme, Icon, tooltip::Tooltip},
-    div, img, point, prelude::*, px, relative, rgb,
+    div, img, point, prelude::*, px, relative, rgb, svg,
 };
 use gpui_motion_kit::core::{Bezier, Easing, Motion, Target, Transition};
 
 use crate::{
-    Rustcord, Edge, Part, RailEntry, Status,
+    Waffle, Edge, Part, RailEntry, Status,
     discord::{ActivityKind, Channel, ChannelKind, Folder, Guild, Status as Status_},
     drag::{RowDrag, hole},
     icons::Glyph,
@@ -75,7 +75,7 @@ struct RailTile {
     open: f32,
 }
 
-impl Rustcord {
+impl Waffle {
     pub fn render_rail(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if !cx.has_active_drag() {
             self.rail_drop = None;
@@ -882,6 +882,13 @@ impl Rustcord {
             });
             let stream_hover = cx.listener(move |this, hovered: &bool, window, cx| this.hover_stream_row(&hover_key, *hovered, window.mouse_position(), cx));
             let end = voice_mark_for(state, cx);
+            let game = self.playing(&state.user_id, cx).map(|game| {
+                div()
+                    .id(SharedString::from(format!("voice-game-{}", state.user_id)))
+                    .flex_none()
+                    .child(img(game.icon.clone()).size(px(16.)).squircle(4.))
+                    .tooltip(move |window, cx| Tooltip::new(game.label()).build(window, cx))
+            });
             let key = SharedString::from(format!("voice-{}", state.user_id));
             let carried = self.drag_motion.row(&key);
             let row = div().id(key.clone()).h(px(30.)).flex_none().squircle(ui::RADIUS_SM).children(self.drag_motion.spot(&key));
@@ -911,6 +918,7 @@ impl Rustcord {
                     // You, in this call from another client (not this app): avatar and name faded, as Discord does.
                     .child(speaking_avatar(&avatar, talking, cx).when(elsewhere(&state.user_id), |a| a.opacity(0.45)))
                     .child(div().flex_1().min_w_0().truncate().when(elsewhere(&state.user_id), |n| n.opacity(0.45)).child(name.clone()))
+                    .children(game.map(|g| g.when(elsewhere(&state.user_id), |g| g.opacity(0.45))))
                     .children(end)
                     .on_mouse_down(gpui_kit::MouseButton::Right, {
                         let user_id = state.user_id.clone();
@@ -1387,7 +1395,7 @@ pub(crate) fn render_face(face: Face, size: f32, radius: f32, selected: bool, op
         Face::Letters(label) => letters_tile(&label, size, radius, cx).into_any_element(),
         Face::Home => tile()
             .bg(if selected { palette::accent() } else { crate::material::lifted(palette::surface(palette::Level::Raised, cx), cx) })
-            .child(img(if selected { crate::icons::MARK_WHITE } else { crate::icons::MARK }).size(px(size / 2.)))
+            .child(svg().path(crate::icons::MARK).size(px(size / 2.)).text_color(if selected { palette::on_accent() } else { palette::logo_ink(cx) }))
             .into_any_element(),
         Face::Folder { tint, minis } => tile()
             .relative()
@@ -1704,7 +1712,7 @@ mod tests {
 }
 
 // The open server's name as one button that drops the server menu, heading the channel list.
-pub(crate) fn server_name_button(name: SharedString, cx: &mut Context<Rustcord>) -> Stateful<Div> {
+pub(crate) fn server_name_button(name: SharedString, cx: &mut Context<Waffle>) -> Stateful<Div> {
     let hover = palette::hover(cx);
     div()
         .id("server-header")

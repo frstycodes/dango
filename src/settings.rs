@@ -1,5 +1,5 @@
 // Settings, ported from design/settings.html: the whole window, the nav on the sidebar tone, one page
-// of titled groups on the right. Only settings Dango honours are shown.
+// of titled groups on the right. Only settings Waffle honours are shown.
 use std::{collections::HashMap, time::Duration};
 
 use gpui_kit::{
@@ -15,7 +15,7 @@ mod updates;
 mod view;
 
 use crate::{
-    Rustcord,
+    Waffle,
     hotkeys::{self, Action, Keybind},
     icons::Glyph,
     palette::{self, Level},
@@ -552,7 +552,7 @@ impl SettingsView {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn open_settings(&mut self, page: Page, window: &mut Window, cx: &mut Context<Self>) {
         self.settings = Some(SettingsView::new(page));
         self.settings_search.update(cx, |state, cx| state.set_value("", window, cx));
@@ -860,7 +860,7 @@ impl Rustcord {
                     .text_size(px(12.))
                     .line_height(px(18.))
                     .text_color(palette::muted(cx))
-                    .child(format!("Dango {} ({})", env!("CARGO_PKG_VERSION"), os_name())),
+                    .child(format!("Waffle {} ({})", env!("CARGO_PKG_VERSION"), os_name())),
             )
     }
 
@@ -894,7 +894,7 @@ impl Rustcord {
                         .text_size(px(14.))
                         .font_weight(FontWeight::NORMAL)
                         .text_color(palette::strong(cx))
-                        .child("Log out of Dango on this computer?")
+                        .child("Log out of Waffle on this computer?")
                         .child(div().mt(px(2.)).text_size(px(12.)).font_weight(FontWeight::NORMAL).text_color(palette::muted(cx)).child("You'll scan a new code with your phone to sign back in.")),
                 )
                 .child(buttons),
@@ -916,7 +916,7 @@ impl Rustcord {
             Some(url) => ui::edge(crate::chat::animated_image(url.clone()).size_full().object_fit(gpui_kit::ObjectFit::Cover), ui::top(ui::RADIUS_XL)).into_any_element(),
             None => ui::edge(banner_fill, ui::top(ui::RADIUS_XL)).into_any_element(),
         };
-        // Over a banner Dango doesn't choose, so its own scrim, not a theme fill.
+        // Over a banner Waffle doesn't choose, so its own scrim, not a theme fill.
         let banner_button = ui::button("change-banner", Tone::OnMedia, cx).small().child("Change banner").on_click(cx.listener(|this, _, _, cx| this.pick_profile_image(profile::ProfileImage::Banner, cx)));
         let banner = div().relative().h(px(120.)).child(banner_art).child(div().absolute().top(px(12.)).right(px(12.)).child(banner_button));
         let avatar = div()
@@ -989,7 +989,7 @@ impl Rustcord {
             "Sounds",
             ui::settings_group("Sounds", cx)
                 .child(ui::settings_card(cx).children(rows))
-                .child(ui::settings_caption("Sounds Dango plays for new direct messages and for mentions. Voice sounds are under Voice and video.", cx)),
+                .child(ui::settings_caption("Sounds Waffle plays for new direct messages and for mentions. Voice sounds are under Voice and video.", cx)),
         )]
     }
 
@@ -1059,17 +1059,17 @@ impl Rustcord {
             )
         });
         let mut sections = vec![
-            Section::keyed("Theme", ui::settings_group("Theme", cx).child(picks).child(ui::settings_caption("Midnight is the darkest theme, the one Dango is built on.", cx))),
-            Section::keyed("Text", ui::settings_group("Text", cx).child(text).child(ui::settings_caption("Any font installed on this computer. Figtree and Roboto Mono come with Dango.", cx))),
+            Section::keyed("Theme", ui::settings_group("Theme", cx).child(picks).child(ui::settings_caption("Midnight is the darkest theme, the one Waffle is built on.", cx))),
+            Section::keyed("Text", ui::settings_group("Text", cx).child(text).child(ui::settings_caption("Any font installed on this computer. Figtree and Roboto Mono come with Waffle.", cx))),
             Section::keyed("Motion", ui::settings_group("Motion", cx).child(motion).child(ui::settings_caption("Your computer's own reduce-motion setting turns this on too.", cx))),
-            Section::keyed("App icon", ui::settings_group("App icon", cx).child(self.app_icon_grid(cx)).child(ui::settings_caption("How Dango looks in your Dock: the same dango in different media. Changes right away; no restart.", cx))),
+            Section::keyed("App icon", ui::settings_group("App icon", cx).child(self.app_icon_grid(cx)).child(ui::settings_caption("How Waffle looks in your Dock: the same waffle in different media. Changes right away; no restart.", cx))),
         ];
         sections.splice(1..1, material);
         sections
     }
 
     // A font setting: its name and detail, the chosen face's name set in that face, and the list of every
-    // installed font with Dango's bundled default first.
+    // installed font with Waffle's bundled default first.
     #[allow(clippy::too_many_arguments)]
     fn font_row(&self, select: Select, title: &'static str, detail: Option<&'static str>, chosen: &str, default: &'static str, line: bool, cx: &mut Context<Self>) -> AnyElement {
         let options: Vec<(String, String)> = std::iter::once((default.to_owned(), format!("{default} (default)")))
@@ -1122,7 +1122,7 @@ impl Rustcord {
 
         let mut lines = Hairlines::default();
         let profiles = [
-            ("profile-isolation", "Voice isolation", "Just your beautiful voice: Dango cuts through the noise around you", InputProfile::VoiceIsolation),
+            ("profile-isolation", "Voice isolation", "Just your beautiful voice: Waffle cuts through the noise around you", InputProfile::VoiceIsolation),
             ("profile-studio", "Studio", "Pure audio: an open mic with no processing", InputProfile::Studio),
             ("profile-custom", "Custom", "Advanced mode: every button and dial, set your way", InputProfile::Custom),
         ];
@@ -1227,7 +1227,7 @@ impl Rustcord {
             ui::Notice::Warning,
             Glyph::MicOff,
             "No audio detected from your mic",
-            format!("Dango hears nothing from {mic}. Turn up Microphone volume above, pick another input, or let Dango use the microphone in System Settings."),
+            format!("Waffle hears nothing from {mic}. Turn up Microphone volume above, pick another input, or let Waffle use the microphone in System Settings."),
             actions,
             cx,
         )
@@ -1281,14 +1281,14 @@ impl Rustcord {
             let auto = prefs.sensitivity_auto;
             card = card
                 .child(self.switch_row(
-                    SwitchRow { id: "set-auto-sensitivity", title: "Set sensitivity automatically", detail: Some("Dango adjusts to the noise around you. When the bar fills, you're transmitting."), on: auto, enabled: true, field: |p| &mut p.sensitivity_auto },
+                    SwitchRow { id: "set-auto-sensitivity", title: "Set sensitivity automatically", detail: Some("Waffle adjusts to the noise around you. When the bar fills, you're transmitting."), on: auto, enabled: true, field: |p| &mut p.sensitivity_auto },
                     lines.next(),
                     window,
                     cx,
                 ))
                 .child(
                     stack_row("input-sensitivity", lines.next(), cx)
-                        .child(ui::settings_text("Input sensitivity", Some(if auto { "Your mic transmits when Dango hears your voice" } else { "Your mic transmits when the level passes the handle" }), cx))
+                        .child(ui::settings_text("Input sensitivity", Some(if auto { "Your mic transmits when Waffle hears your voice" } else { "Your mic transmits when the level passes the handle" }), cx))
                         .child(if auto { sensitivity_track(None, self.mic_level, cx).into_any_element() } else { self.slider(Slider::Sensitivity, Some(self.mic_level), cx) })
                         .when(!auto, |d| d.child(scale(&["\u{2212}100 dB", "0 dB"], cx))),
                 );
@@ -1425,7 +1425,7 @@ impl Rustcord {
         ]
     }
 
-    // macOS keeps keys from Dango until it's allowed Input Monitoring; the hook starts once it is.
+    // macOS keeps keys from Waffle until it's allowed Input Monitoring; the hook starts once it is.
     fn input_monitoring_notice(&self, cx: &mut Context<Self>) -> Option<Div> {
         if !self.keys_unheard() {
             return None;
@@ -1435,7 +1435,7 @@ impl Rustcord {
             ui::Notice::Warning,
             Glyph::Keyboard,
             "Keybinds need Input Monitoring",
-            "Turn on Dango in System Settings, under Privacy & Security, Input Monitoring. Keybinds start working as soon as you do.",
+            "Turn on Waffle in System Settings, under Privacy & Security, Input Monitoring. Keybinds start working as soon as you do.",
             div().mt(px(8.)).flex().child(open),
             cx,
         ))
@@ -1482,7 +1482,7 @@ impl Rustcord {
             .child(div().flex_grow(1.).flex_basis(px(0.)).min_w_0().child(action))
             .child(self.keybind_recorder(index, cx).flex_grow(1.25).flex_basis(px(0.)))
             .child(remove)
-            .children(unknown.then(|| error_line("Dango can't listen for this shortcut. Record it again.", cx).w_full()))
+            .children(unknown.then(|| error_line("Waffle can't listen for this shortcut. Record it again.", cx).w_full()))
             .into_any_element()
     }
 
@@ -1564,7 +1564,7 @@ impl Rustcord {
         }
         rows.push(
             self.switch_row(
-                SwitchRow { id: "set-silence-warning", title: "No audio detected warning", detail: Some("Warns you in a call when Dango hears nothing from your mic"), on: prefs.silence_warning, enabled: true, field: |p| &mut p.silence_warning },
+                SwitchRow { id: "set-silence-warning", title: "No audio detected warning", detail: Some("Warns you in a call when Waffle hears nothing from your mic"), on: prefs.silence_warning, enabled: true, field: |p| &mut p.silence_warning },
                 lines.next(),
                 window,
                 cx,
@@ -1597,7 +1597,7 @@ impl Rustcord {
                 SwitchRow {
                     id: "set-qos",
                     title: "Quality of service",
-                    detail: Some("Asks your router to send Dango's voice first. Turn it off if calls drop; some routers handle it badly."),
+                    detail: Some("Asks your router to send Waffle's voice first. Turn it off if calls drop; some routers handle it badly."),
                     on: prefs.qos,
                     enabled: true,
                     field: |p| &mut p.qos,
@@ -1789,14 +1789,14 @@ impl Rustcord {
         self.range(format!("{slider:?}").into(), slider.fraction(&self.prefs), fill, move |this, f, cx| this.update_prefs(cx, |p| slider.set(p, f)), cx)
     }
 
-    // Dango's slider: the done part, a gap, a tall narrow thumb, a gap, the rest; click or drag anywhere
+    // Waffle's slider: the done part, a gap, a tall narrow thumb, a gap, the rest; click or drag anywhere
     // on it. The sensitivity slider draws the live level under its handle instead.
     pub(crate) fn range(
         &self,
         key: SharedString,
         fraction: f32,
         fill: Fill,
-        on_set: impl Fn(&mut Rustcord, f32, &mut Context<Rustcord>) + Clone + 'static,
+        on_set: impl Fn(&mut Waffle, f32, &mut Context<Waffle>) + Clone + 'static,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let bounds = self.slider_bounds.clone();
@@ -1806,7 +1806,7 @@ impl Rustcord {
             Fill::Threshold(level) => sensitivity_track(Some(fraction), level.unwrap_or(crate::SILENCE_DB), cx).into_any_element(),
         };
         let (down_key, drag_key, move_key, record_key) = (key.clone(), key.clone(), key.clone(), key.clone());
-        let set = move |this: &mut Rustcord, key: &SharedString, x: Pixels, cx: &mut Context<Rustcord>| {
+        let set = move |this: &mut Waffle, key: &SharedString, x: Pixels, cx: &mut Context<Waffle>| {
             let Some(b) = bounds.borrow().get(key).copied() else { return };
             on_set(this, (x - b.left()) / b.size.width, cx);
         };
@@ -1926,12 +1926,12 @@ fn os_name() -> &'static str {
     }
 }
 
-fn nav_item(page: Page, selected: bool, cx: &mut Context<Rustcord>) -> impl IntoElement {
+fn nav_item(page: Page, selected: bool, cx: &mut Context<Waffle>) -> impl IntoElement {
     ui::settings_nav_item(SharedString::from(format!("nav-{page:?}")), page.glyph(), page.label(), selected, cx).on_click(cx.listener(move |this, _, window, cx| this.open_page(page, window, cx)))
 }
 
 // The open page's sections, listed under it in the nav.
-fn sub_items(page: Page, current: usize, anchors: &[usize], cx: &mut Context<Rustcord>) -> impl IntoElement {
+fn sub_items(page: Page, current: usize, anchors: &[usize], cx: &mut Context<Waffle>) -> impl IntoElement {
     let (strong, muted, hover) = (palette::strong(cx), palette::muted(cx), palette::hover(cx));
     let anchors = anchors.to_vec();
     div().pt(px(2.)).pb(px(4.)).flex().flex_col().gap(px(1.)).children(page.sections().iter().enumerate().map(move |(i, name)| {
@@ -2218,7 +2218,7 @@ fn mini_sync() -> AnyElement {
 }
 
 // Every font family installed on this computer, once per run, alphabetical; names starting with a dot are
-// the system's private UI faces. GAP: a font installed while Dango runs shows after a restart.
+// the system's private UI faces. GAP: a font installed while Waffle runs shows after a restart.
 fn installed_fonts(cx: &App) -> &'static Vec<String> {
     static FONTS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
     FONTS.get_or_init(|| {

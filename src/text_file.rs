@@ -12,7 +12,7 @@ use gpui_kit::{
 };
 
 use crate::{
-    Rustcord,
+    Waffle,
     discord::{File, runtime},
     icons::Glyph,
     palette::{self, Level},
@@ -91,7 +91,7 @@ fn fenced(text: &str) -> String {
     format!("{fence}\n{}\n{fence}", text.trim_end_matches('\n'))
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn load_text_file(&mut self, url: String, cx: &mut Context<Self>) {
         if self.text_files.borrow().files.contains_key(&url) {
             return;
@@ -155,7 +155,7 @@ impl Rustcord {
     }
 }
 
-pub fn inline(id: String, file: &File, state: Option<&TextFile>, expanded: bool, copied: bool, this: WeakEntity<Rustcord>, cx: &App) -> Stateful<Div> {
+pub fn inline(id: String, file: &File, state: Option<&TextFile>, expanded: bool, copied: bool, this: WeakEntity<Waffle>, cx: &App) -> Stateful<Div> {
     let text = match state {
         Some(TextFile::Ready { text, truncated }) => Some((text, *truncated)),
         _ => None,
@@ -176,7 +176,7 @@ struct Card<'a> {
     expanded: Option<bool>,
     copied: bool,
     full: bool,
-    this: WeakEntity<Rustcord>,
+    this: WeakEntity<Waffle>,
 }
 
 // The file's text over one hairline and a footer: expand, name, size, then Copy contents, Open full size, Download.

@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wave Sign in</title>
+<title>Waffle Sign in</title>
 <meta name="description" content="Signing in, and the app-wide empty, loading, error and offline states.">
-<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="icon" href="/assets/brand/icons/paper.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
@@ -23,7 +23,7 @@
 <link rel="stylesheet" href="css/media.css">
 <link rel="stylesheet" href="css/auth.css">
 <link rel="stylesheet" href="css/profile.css">
-<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<script>try{const p=JSON.parse(localStorage.getItem("waffle-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 </head>
 <body>
 <header id="top"></header>
@@ -38,34 +38,34 @@
 <!-- Splash -->
 <section id="splash">
   <h2>Splash</h2>
-  <p class="lede">The small borderless card Wave opens at launch while the hidden main window signs in and loads. The wave mark and the name are carved into it, and a progress bar tracks the real stage.</p>
+  <p class="lede">The small borderless card Waffle opens at launch while the hidden main window signs in and loads. The wave mark and the name are carved into it, and a progress bar tracks the real stage.</p>
   <div class="board stack" style="gap: var(--space-6)">
     <div class="stack" style="gap: var(--space-3)">
       <h3 style="margin: 0">Dark</h3>
       <div class="au-splashes">
-        <div class="au-splash" role="status" aria-label="Wave, signing in"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Signing in…</span><div class="au-progress" role="progressbar" aria-valuenow="33" aria-valuemin="0" aria-valuemax="100"><i style="width: 33%"></i></div></div>
-        <div class="au-splash" role="status" aria-label="Wave, loading your servers"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Loading your servers…</span><div class="au-progress" role="progressbar" aria-valuenow="67" aria-valuemin="0" aria-valuemax="100"><i style="width: 67%"></i></div></div>
-        <div class="au-splash" role="status" aria-label="Wave, opening"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Opening Wave…</span><div class="au-progress" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"><i style="width: 100%"></i></div></div>
-        <div class="au-splash" role="status" aria-label="Wave, updating"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Updating to 0.1.1…</span><div class="au-progress" role="progressbar" aria-valuenow="42" aria-valuemin="0" aria-valuemax="100"><i style="width: 42%"></i></div></div>
+        <div class="au-splash" role="status" aria-label="Waffle, signing in"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Waffle</b><span>Signing in…</span><div class="au-progress" role="progressbar" aria-valuenow="33" aria-valuemin="0" aria-valuemax="100"><i style="width: 33%"></i></div></div>
+        <div class="au-splash" role="status" aria-label="Waffle, loading your servers"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Waffle</b><span>Loading your servers…</span><div class="au-progress" role="progressbar" aria-valuenow="67" aria-valuemin="0" aria-valuemax="100"><i style="width: 67%"></i></div></div>
+        <div class="au-splash" role="status" aria-label="Waffle, opening"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Waffle</b><span>Opening Waffle…</span><div class="au-progress" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"><i style="width: 100%"></i></div></div>
+        <div class="au-splash" role="status" aria-label="Waffle, updating"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Waffle</b><span>Updating to 0.1.1…</span><div class="au-progress" role="progressbar" aria-valuenow="42" aria-valuemin="0" aria-valuemax="100"><i style="width: 42%"></i></div></div>
       </div>
     </div>
     <div class="stack" style="gap: var(--space-3)">
       <h3 style="margin: 0">Light</h3>
       <div class="au-splashes">
-        <div class="au-splash" data-tone="light" role="status" aria-label="Wave, signing in"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Signing in…</span><div class="au-progress" role="progressbar" aria-valuenow="33" aria-valuemin="0" aria-valuemax="100"><i style="width: 33%"></i></div></div>
-        <div class="au-splash" data-tone="light" role="status" aria-label="Wave, loading your servers"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Loading your servers…</span><div class="au-progress" role="progressbar" aria-valuenow="67" aria-valuemin="0" aria-valuemax="100"><i style="width: 67%"></i></div></div>
-        <div class="au-splash" data-tone="light" role="status" aria-label="Wave, opening"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Opening Wave…</span><div class="au-progress" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"><i style="width: 100%"></i></div></div>
-        <div class="au-splash" data-tone="light" role="status" aria-label="Wave, updating"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Wave</b><span>Updating to 0.1.1…</span><div class="au-progress" role="progressbar" aria-valuenow="42" aria-valuemin="0" aria-valuemax="100"><i style="width: 42%"></i></div></div>
+        <div class="au-splash" data-tone="light" role="status" aria-label="Waffle, signing in"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Waffle</b><span>Signing in…</span><div class="au-progress" role="progressbar" aria-valuenow="33" aria-valuemin="0" aria-valuemax="100"><i style="width: 33%"></i></div></div>
+        <div class="au-splash" data-tone="light" role="status" aria-label="Waffle, loading your servers"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Waffle</b><span>Loading your servers…</span><div class="au-progress" role="progressbar" aria-valuenow="67" aria-valuemin="0" aria-valuemax="100"><i style="width: 67%"></i></div></div>
+        <div class="au-splash" data-tone="light" role="status" aria-label="Waffle, opening"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Waffle</b><span>Opening Waffle…</span><div class="au-progress" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"><i style="width: 100%"></i></div></div>
+        <div class="au-splash" data-tone="light" role="status" aria-label="Waffle, updating"><div class="au-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Waffle</b><span>Updating to 0.1.1…</span><div class="au-progress" role="progressbar" aria-valuenow="42" aria-valuemin="0" aria-valuemax="100"><i style="width: 42%"></i></div></div>
       </div>
     </div>
-    <p class="note">220×248, radius 14 (--radius-md), no window controls, not movable. The card is the page neutral (graphite) with a hairline; dark and light follow the system theme. The mark (the logo's own bar proportions, static) and "Wave" (22, heavy) are carved: filled a step darker than the card, shaded along their upper inner edge and caught by light below. Stage 12 medium, muted, one line, truncated. The progress bar (120×4, accent on a faint track) moves a third per stage, and shows real download progress while an update installs. Stages advance 320ms apart once servers arrive; the card never outstays 25s. A drop during launch sets the line back to "Reconnecting…".</p>
+    <p class="note">220×248, radius 14 (--radius-md), no window controls, not movable. The card is the page neutral (graphite) with a hairline; dark and light follow the system theme. The mark (the logo's own bar proportions, static) and "Waffle" (22, heavy) are carved: filled a step darker than the card, shaded along their upper inner edge and caught by light below. Stage 12 medium, muted, one line, truncated. The progress bar (120×4, accent on a faint track) moves a third per stage, and shows real download progress while an update installs. Stages advance 320ms apart once servers arrive; the card never outstays 25s. A drop during launch sets the line back to "Reconnecting…".</p>
   </div>
 </section>
 
 <!-- Sign-in window -->
 <section id="sign-in">
   <h2>Sign-in window</h2>
-  <p class="lede">Signing in happens on your phone: Wave shows a code, Discord's app scans it, and you approve there. Each phase's card springs up into place so every step feels like it arrived. The whole window drags.</p>
+  <p class="lede">Signing in happens on your phone: Waffle shows a code, Discord's app scans it, and you approve there. Each phase's card springs up into place so every step feels like it arrived. The whole window drags.</p>
   <div class="board au-wins">
     <figure>
       <div class="au-win"><div class="titlebar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div></div>
@@ -74,7 +74,7 @@
           <h4>Sign in with your phone</h4>
           <p>Getting a fresh code from Discord…</p>
           <div class="au-card au-qr is-blank" role="img" aria-label="Sign-in code loading"></div>
-          <p class="au-promise"><i class="ph ph-lock-simple"></i>Wave never sees your password.</p>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Waffle never sees your password.</p>
         </div>
       </div>
       <figcaption class="au-cap"><b>Preparing.</b> The mascot ripples while the code card shimmers at its final size.</figcaption>
@@ -87,7 +87,7 @@
           <div class="au-card au-qr" data-qr role="img" aria-label="Sign-in code for the Discord app"></div>
           <ol class="au-how"><li><span>In Discord, open <b>Settings</b></span></li><li><span>Choose <b>Scan QR Code</b> and point it here</span></li></ol>
           <details class="au-alt"><summary><i class="ph-bold ph-caret-right"></i>Sign in with a token instead</summary><div class="au-altbody"><p class="note">Opened in the next section.</p></div></details>
-          <p class="au-promise"><i class="ph ph-lock-simple"></i>Wave never sees your password.</p>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Waffle never sees your password.</p>
         </div>
       </div>
       <figcaption class="au-cap"><b>Ready.</b> The code takes the mascot's place; the steps name where the scanner lives. A fresh code arrives on its own before this one expires.</figcaption>
@@ -100,7 +100,7 @@
           <p>Approve the sign-in on your phone to finish.</p>
           <span class="au-wait"><span class="bars"><i></i><i></i><i></i></span>Check your phone</span>
           <button class="btn btn--link" style="margin-top: var(--space-2)">Not you? Get a new code</button>
-          <p class="au-promise"><i class="ph ph-lock-simple"></i>Wave never sees your password.</p>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Waffle never sees your password.</p>
         </div>
       </div>
       <figcaption class="au-cap"><b>Scanned.</b> The account that scanned springs in (0.5 to 1 on --ease-spring) and replaces the mascot. First name only.</figcaption>
@@ -110,12 +110,12 @@
         <div class="au-login" role="status">
           <div class="mascot waiting" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
           <h4>One more step</h4>
-          <p>Discord wants a quick check. Solve the captcha in your browser and Wave will finish signing in.</p>
+          <p>Discord wants a quick check. Solve the captcha in your browser and Waffle will finish signing in.</p>
           <div class="au-card stack" style="align-items: center; gap: var(--space-3)">
             <span class="au-wait"><span class="bars"><i></i><i></i><i></i></span>Waiting for the captcha…</span>
             <button class="btn btn--primary"><i class="ph-bold ph-arrow-square-out"></i>Open captcha again</button>
           </div>
-          <p class="au-promise"><i class="ph ph-lock-simple"></i>Wave never sees your password.</p>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Waffle never sees your password.</p>
         </div>
       </div>
       <figcaption class="au-cap"><b>One more step.</b> The browser opened the check already; the button is for a tab you closed.</figcaption>
@@ -135,12 +135,12 @@
       <div class="au-win"><div class="titlebar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div></div>
         <div class="au-login">
           <h4>Sign in with your phone</h4>
-          <p>This code expired while Wave was in the background.</p>
+          <p>This code expired while Waffle was in the background.</p>
           <div class="au-card au-qr is-expired" data-qr>
             <div class="au-over"><i class="ph ph-clock-countdown"></i>Code expired<button class="btn btn--primary btn--sm" data-loading="Getting code…"><i class="ph-bold ph-arrow-clockwise"></i>Get a new code</button></div>
           </div>
           <ol class="au-how"><li><span>In Discord, open <b>Settings</b></span></li><li><span>Choose <b>Scan QR Code</b> and point it here</span></li></ol>
-          <p class="au-promise"><i class="ph ph-lock-simple"></i>Wave never sees your password.</p>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Waffle never sees your password.</p>
         </div>
       </div>
       <figcaption class="au-cap"><b>Expired.</b> Only when the window slept through a refresh. The old code blurs out of reach so no one scans it; the fix sits on top of it.</figcaption>
@@ -153,7 +153,7 @@
           <p>Discord ended the sign-in before it was approved. Get a new code and scan it again.</p>
           <p class="au-why">Discord said: <b>Invalid ticket</b></p>
           <button class="btn btn--primary au-card" data-loading="Getting code…"><i class="ph-bold ph-arrow-clockwise"></i>Try again</button>
-          <p class="au-promise"><i class="ph ph-lock-simple"></i>Wave never sees your password.</p>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Waffle never sees your password.</p>
         </div>
       </div>
       <figcaption class="au-cap"><b>Failed.</b> What happened in plain words, then Discord's own reason verbatim, then one way forward.</figcaption>
@@ -181,7 +181,7 @@
           </details>
         </div>
       </div>
-      <figcaption class="au-cap"><b>Token, open.</b> The code shrinks but stays scannable. Wave keeps the token in the system keychain.</figcaption>
+      <figcaption class="au-cap"><b>Token, open.</b> The code shrinks but stays scannable. Waffle keeps the token in the system keychain.</figcaption>
     </figure>
     <figure>
       <div class="au-win"><div class="titlebar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div></div>
@@ -210,9 +210,9 @@
             <div class="otp"><input inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="Digit 1 of 6" value="4"><input inputmode="numeric" maxlength="1" aria-label="Digit 2 of 6" value="8"><input inputmode="numeric" maxlength="1" aria-label="Digit 3 of 6" value="1"></div><i aria-hidden="true"></i>
             <div class="otp"><input inputmode="numeric" maxlength="1" aria-label="Digit 4 of 6" value="9"><input inputmode="numeric" maxlength="1" aria-label="Digit 5 of 6"><input inputmode="numeric" maxlength="1" aria-label="Digit 6 of 6"></div>
           </div>
-          <p class="au-why" data-otp-line role="status">Paste the whole code or type it; Wave checks it on the last digit.</p>
+          <p class="au-why" data-otp-line role="status">Paste the whole code or type it; Waffle checks it on the last digit.</p>
           <button type="button" class="btn btn--link">Use a backup code instead</button>
-          <p class="au-promise"><i class="ph ph-lock-simple"></i>Wave never sees your password.</p>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Waffle never sees your password.</p>
         </form>
       </div>
       <figcaption class="au-cap"><b>Two-factor, live.</b> Type or paste: focus advances, Backspace steps back, the sixth digit checks at once. No submit button.</figcaption>
@@ -229,7 +229,7 @@
           </div>
           <p class="au-err" id="otp-err" role="alert"><i class="ph-fill ph-warning-circle"></i>That code didn't work. Codes change every 30 seconds, so enter the newest one.</p>
           <button type="button" class="btn btn--link">Use a backup code instead</button>
-          <p class="au-promise"><i class="ph ph-lock-simple"></i>Wave never sees your password.</p>
+          <p class="au-promise"><i class="ph ph-lock-simple"></i>Waffle never sees your password.</p>
         </form>
       </div>
       <figcaption class="au-cap"><b>Two-factor, wrong code.</b> Digits stay and are selected, so typing replaces them.</figcaption>
@@ -241,7 +241,7 @@
 <!-- Captcha -->
 <section id="captcha">
   <h2>Captcha hand-off</h2>
-  <p class="lede">Wave can't host Discord's captcha, so it opens a one-off local page in your browser. The page wears Wave's look, says why it's there, and finishes the sign-in on its own.</p>
+  <p class="lede">Waffle can't host Discord's captcha, so it opens a one-off local page in your browser. The page wears Waffle's look, says why it's there, and finishes the sign-in on its own.</p>
   <div class="board au-wins" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr))">
     <figure>
       <div class="au-browser">
@@ -249,7 +249,7 @@
         <div class="au-bpage"><div class="au-ccard">
           <div class="mascot waiting" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
           <h4>One more step</h4>
-          <p>Discord wants a quick check before signing Wave in.</p>
+          <p>Discord wants a quick check before signing Waffle in.</p>
           <div class="au-challenge"><i class="ph ph-shield-check"></i><span>The hCaptcha check loads here</span></div>
           <div class="au-status" role="status"></div>
         </div></div>
@@ -262,21 +262,21 @@
         <div class="au-bpage"><div class="au-ccard">
           <div class="mascot happy" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
           <h4>You're all set</h4>
-          <p>Wave is finishing your sign-in.</p>
+          <p>Waffle is finishing your sign-in.</p>
           <div class="au-status is-ok" role="status"><i class="ph-fill ph-check-circle"></i>Done. You can close this tab.</div>
-          <button class="btn btn--primary"><i class="ph-bold ph-arrow-u-up-left"></i>Return to Wave</button>
+          <button class="btn btn--primary"><i class="ph-bold ph-arrow-u-up-left"></i>Return to Waffle</button>
         </div></div>
       </div>
-      <figcaption class="au-cap"><b>Solved.</b> Wave carries on by itself; the button only brings its window forward.</figcaption>
+      <figcaption class="au-cap"><b>Solved.</b> Waffle carries on by itself; the button only brings its window forward.</figcaption>
     </figure>
   </div>
   <h3>Status line</h3>
   <div class="board stack" style="gap: var(--space-3)">
-    <div class="au-status"><span class="bars"><i></i><i></i><i></i></span>Sending to Wave…</div>
+    <div class="au-status"><span class="bars"><i></i><i></i><i></i></span>Sending to Waffle…</div>
     <div class="au-status is-ok"><i class="ph-fill ph-check-circle"></i>Done. You can close this tab.</div>
     <div class="au-status is-bad"><i class="ph-fill ph-warning-circle"></i>The check expired. Solve it again.</div>
-    <div class="au-status is-bad"><i class="ph-fill ph-warning-circle"></i>Couldn't reach Wave. Make sure it's still open, then solve the check again.</div>
-    <p class="note">The page lives at a random path on 127.0.0.1 and answers once. GAP: "Return to Wave" needs a URL scheme the app doesn't register yet; until then the button is hidden and the line alone says to go back. The shipped page in src/captcha.rs still says "Rustcord" and uses its own colours; port these.</p>
+    <div class="au-status is-bad"><i class="ph-fill ph-warning-circle"></i>Couldn't reach Waffle. Make sure it's still open, then solve the check again.</div>
+    <p class="note">The page lives at a random path on 127.0.0.1 and answers once. GAP: "Return to Waffle" needs a URL scheme the app doesn't register yet; until then the button is hidden and the line alone says to go back. The shipped page in src/captcha.rs still says "Waffle" and uses its own colours; port these.</p>
   </div>
 </section>
 
@@ -384,9 +384,9 @@
     <div id="st-offline-at-launch">
       <h3>Offline at launch</h3>
       <div class="au-app"><div class="titlebar"><div class="tb-lights" aria-hidden="true"><span></span><span></span><span></span></div></div>
-        <div class="au-full" role="status"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>You're offline</b><p>Wave can't reach Discord. It opens by itself as soon as your connection is back.</p>
+        <div class="au-full" role="status"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>You're offline</b><p>Waffle can't reach Discord. It opens by itself as soon as your connection is back.</p>
           <div class="row"><span class="au-wait"><span class="bars"><i></i><i></i><i></i></span>Waiting for a connection</span><button class="btn" data-loading="Trying…"><i class="ph-bold ph-arrow-clockwise"></i>Retry</button></div></div></div>
-      <p class="au-cap">Full window, no countdown: Wave listens for the network instead of polling on a timer. The splash hands over here after a few seconds rather than sitting on "Signing in…".</p>
+      <p class="au-cap">Full window, no countdown: Waffle listens for the network instead of polling on a timer. The splash hands over here after a few seconds rather than sitting on "Signing in…".</p>
     </div>
     <div id="st-rate-limited">
       <h3>Rate limited</h3>
@@ -415,15 +415,15 @@
       <h3>Server unavailable</h3>
       <div class="au-app"><div class="au-appbody"><aside class="side"><header>Night Shift <i class="ph ph-cloud-slash" style="color: var(--warning-ink)" role="img" aria-label="Unavailable"></i></header><div class="chlist"><div class="cat">Channels</div><span class="skeleton line au-still" style="width: 70%; margin: 10px 8px"></span><span class="skeleton line au-still" style="width: 55%; margin: 10px 8px"></span><span class="skeleton line au-still" style="width: 62%; margin: 10px 8px"></span></div></aside>
         <div class="chat"><header></header>
-          <div class="empty" role="status"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Night Shift is unavailable</b><p>Discord is having an outage for this server. Wave opens it by itself when it's back; your other servers work as usual.</p><a class="btn btn--ghost" href="https://discordstatus.com" target="_blank" rel="noreferrer"><i class="ph-bold ph-arrow-square-out"></i>Check Discord status</a></div>
+          <div class="empty" role="status"><div class="mascot idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><b>Night Shift is unavailable</b><p>Discord is having an outage for this server. Waffle opens it by itself when it's back; your other servers work as usual.</p><a class="btn btn--ghost" href="https://discordstatus.com" target="_blank" rel="noreferrer"><i class="ph-bold ph-arrow-square-out"></i>Check Discord status</a></div>
         </div></div></div>
       <p class="au-cap">The server's rail icon dims and carries the same cloud mark, and says why on hover; clicking it lands here.</p>
     </div>
     <div id="st-update-ready">
       <h3>Update ready</h3>
       <div class="row" style="gap: var(--space-5); flex-wrap: wrap; align-items: flex-start">
-        <div style="width: 300px; border-radius: var(--radius-md); overflow: hidden; background: var(--bg-rail)"><div class="au-update" role="status"><i class="ph-fill ph-download-simple"></i><b>Dango 0.5.0 is ready</b><button class="btn btn--primary btn--sm" title="Installs the update and reopens Dango">Restart</button></div><div class="me" style="margin: 0; border-radius: 0 0 var(--radius-md) var(--radius-md)"><button class="who" aria-label="Your status and accounts"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>Online</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div></div>
-        <div style="width: 300px; border-radius: var(--radius-md); overflow: hidden; background: var(--bg-rail)"><div class="au-update" role="status"><i class="ph-fill ph-download-simple"></i><b>Dango 0.5.0 is ready</b><button class="btn btn--primary btn--sm" disabled title="Available once you leave the call. Otherwise Dango updates the next time it opens.">Restart</button></div><div class="me" style="margin: 0; border-radius: 0 0 var(--radius-md) var(--radius-md)"><button class="who" aria-label="Your status and accounts"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>Online</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div></div>
+        <div style="width: 300px; border-radius: var(--radius-md); overflow: hidden; background: var(--bg-rail)"><div class="au-update" role="status"><i class="ph-fill ph-download-simple"></i><b>Waffle 0.5.0 is ready</b><button class="btn btn--primary btn--sm" title="Installs the update and reopens Waffle">Restart</button></div><div class="me" style="margin: 0; border-radius: 0 0 var(--radius-md) var(--radius-md)"><button class="who" aria-label="Your status and accounts"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>Online</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div></div>
+        <div style="width: 300px; border-radius: var(--radius-md); overflow: hidden; background: var(--bg-rail)"><div class="au-update" role="status"><i class="ph-fill ph-download-simple"></i><b>Waffle 0.5.0 is ready</b><button class="btn btn--primary btn--sm" disabled title="Available once you leave the call. Otherwise Waffle updates the next time it opens.">Restart</button></div><div class="me" style="margin: 0; border-radius: 0 0 var(--radius-md) var(--radius-md)"><button class="who" aria-label="Your status and accounts"><span class="av" data-av="Mira"><span class="status online"></span></span><div><b>Mira</b><span>Online</span></div></button><button class="iconbtn" aria-label="Mute" title="Mute"><i class="ph-bold ph-microphone"></i></button><button class="iconbtn" aria-label="Deafen" title="Deafen"><i class="ph-bold ph-headphones"></i></button><button class="iconbtn" aria-label="User settings" title="User settings"><i class="ph-bold ph-gear-six"></i></button></div></div>
       </div>
       <p class="au-cap">Checked shortly after launch and about hourly; the build downloads in the background and only shows here once its checksum matches. One row tops the user card (above the voice panel in a call), naming the version and the one next step. Left alone, the next launch installs it behind the splash ("Installing 0.5.0…"), no network. In a call Restart waits (disabled, its tooltip says why) instead of dropping you. No toast, no dismiss: it's quiet and goes away on restart.</p>
     </div>
@@ -453,10 +453,10 @@
 <!-- Better than Discord -->
 <section id="better-than-discord">
   <h2>Better than Discord</h2>
-  <p class="lede">Where Discord's sign-in and states leave you guessing, Wave says what's happening and keeps the rest of the app working.</p>
+  <p class="lede">Where Discord's sign-in and states leave you guessing, Waffle says what's happening and keeps the rest of the app working.</p>
   <p class="note" style="margin-top: var(--space-3)">Discord's side is described from its desktop client as remembered, not re-checked for this page.</p>
   <div class="btd">
-    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
+    <div><span>Discord does</span><span>Waffle does</span><span>Why</span></div>
     <div><p>Launch shows a spinner, tips and "Checking for updates…", and can sit there with no end in sight.</p><p><b><a href="#splash">Splash</a></b>Names the real stage with a progress bar, and opens the main window after 25 seconds at most.</p><p>You can tell a slow network from a stuck app, and launch never waits on an update.</p></div>
     <div><p>"Scan this with the Discord mobile app", with no hint where the scanner is.</p><p><b><a href="#sign-in">Ready</a></b>Two short steps name the path: Settings, then Scan QR Code.</p><p>The scanner is buried in mobile settings; saying where saves the hunt.</p></div>
     <div><p>A failed QR sign-in falls back to a generic error.</p><p><b><a href="#sign-in">Failed</a></b>Says what happened in plain words, shows Discord's reason verbatim under it, and offers one Try again.</p><p>Errors say what happened and how to fix it; the verbatim reason is what support needs.</p></div>
@@ -465,10 +465,10 @@
     <div><p>Switch accounts is a dialog behind the user menu; it doesn't show which account has mentions, and logging out asks to confirm.</p><p><b><a href="#accounts">Accounts</a></b>A menu rising from your panel: status and mention count per account, signed-out accounts say so, and logging out is instant with Undo.</p><p>Switching takes a glance and a click; Undo beats a confirm for something reversible.</p></div>
     <div><p>A new channel opens on "Welcome to #clips! This is the start of the #clips channel", the name twice.</p><p><b><a href="#st-no-messages-yet">No messages yet</a></b>The name once, then the topic and who made it, then one line inviting the first message.</p><p>Every line says something new.</p></div>
     <div><p>A long drop puts a full-window "Connecting" screen over the chat you were reading.</p><p><b><a href="#st-connection-lost">Connection lost</a></b>The chat stays readable under a banner with the countdown and Reconnect now; what you send queues and goes out when you're back.</p><p>One part failing never blocks the rest, and what you typed is never lost.</p></div>
-    <div><p>Offline at launch, it stays on the splash.</p><p><b><a href="#st-offline-at-launch">Offline at launch</a></b>Opens a window that says you're offline and opens Wave by itself when the network returns; Retry for the impatient.</p><p>A wait says what it's waiting on.</p></div>
+    <div><p>Offline at launch, it stays on the splash.</p><p><b><a href="#st-offline-at-launch">Offline at launch</a></b>Opens a window that says you're offline and opens Waffle by itself when the network returns; Retry for the impatient.</p><p>A wait says what it's waiting on.</p></div>
     <div><p>Sending too fast gets a bot message, and the message can fail.</p><p><b><a href="#st-rate-limited">Rate limited</a></b>Counts down on the composer and keeps your text until you can send.</p><p>You know exactly when you can send, and nothing is lost.</p></div>
     <div><p>A link to a hidden channel lands on "no access" with no reason.</p><p><b><a href="#st-no-permission">No permission</a></b>Names the role that can read it and offers the way back.</p><p>Permission states explain themselves.</p></div>
-    <div><p>An unavailable server is a greyed icon that explains itself only in a hover tooltip.</p><p><b><a href="#st-server-unavailable">Server unavailable</a></b>The server opens to a page saying it's Discord's outage, that your other servers work, and that it reopens by itself.</p><p>Nothing is reachable only by hover, and you aren't left wondering whether Wave broke.</p></div>
+    <div><p>An unavailable server is a greyed icon that explains itself only in a hover tooltip.</p><p><b><a href="#st-server-unavailable">Server unavailable</a></b>The server opens to a page saying it's Discord's outage, that your other servers work, and that it reopens by itself.</p><p>Nothing is reachable only by hover, and you aren't left wondering whether Waffle broke.</p></div>
     <div><p>Updates download at launch before you can do anything.</p><p><b><a href="#st-update-ready">Update ready</a></b>Downloads in the background; a row atop the user card offers Restart, which waits while you're in a call, and otherwise the next launch installs it.</p><p>Launch is never held up, and an update never drops a call.</p></div>
     <div><p>A failed edit or delete can quietly snap back.</p><p><b><a href="#toasts">Error toasts</a></b>Each failure is a toast saying what happened, with its one action: Retry, Edit again, Try again, Edit search.</p><p>Optimistic actions need a visible way back when they fail.</p></div>
   </div>

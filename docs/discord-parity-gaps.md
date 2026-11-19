@@ -1,6 +1,6 @@
-# Discord features Dango doesn't have yet, and how Discord does them
+# Discord features Waffle doesn't have yet, and how Discord does them
 
-A build spec. Each gap gives what Dango has today, how Discord's desktop client does it (entry point, steps, options,
+A build spec. Each gap gives what Waffle has today, how Discord's desktop client does it (entry point, steps, options,
 limits, states, keys), and where we can do better. Complaints with evidence live in [better.md](better.md), cited as
 **B#n**. Audited 2026-11-19.
 
@@ -16,7 +16,7 @@ Every Discord fact carries one:
 | **[snip]** | search-result snippet only |
 | **[mem]** | memory of the client, not checked. Verify in the client before copying |
 
-Dango's status comes from reading `src/` and grepping for each feature's endpoint, gateway event and field. Nothing was
+Waffle's status comes from reading `src/` and grepping for each feature's endpoint, gateway event and field. Nothing was
 run.
 
 Mobbin wasn't used. It returns HTTP 403 to the in-app browser, and Claude in Chrome isn't connected in this session.
@@ -29,7 +29,7 @@ Order: most-noticed first within each section.
 
 ### 1.1 Stickers: missing
 
-**Dango:** nothing. `sticker_items` isn't parsed, there's no picker, and nothing is sent.
+**Waffle:** nothing. `sticker_items` isn't parsed, there's no picker, and nothing is sent.
 
 **Discord:**
 - **Entry:** the sticker button in the composer. Ctrl/Cmd+S opens it [snip]. The picker has GIF, Stickers and Emoji tabs
@@ -51,7 +51,7 @@ greying out; Lottie through a lightweight player, or a static frame plus a GIF f
 
 ### 1.2 `:` emoji autocomplete: missing
 
-**Dango:** the composer suggests `@` and `#` only (`main.rs` ~2108).
+**Waffle:** the composer suggests `@` and `#` only (`main.rs` ~2108).
 
 **Discord:**
 - **Trigger:** `:` plus 2 characters [snip].
@@ -65,7 +65,7 @@ the conversion inline instead of silently converting.
 
 ### 1.3 Custom status: shown, can't be set
 
-**Dango:** reads `user_settings.custom_status` from READY and shows it. `set_status` always sends `activities: []`.
+**Waffle:** reads `user_settings.custom_status` from READY and shows it. `set_status` always sends `activities: []`.
 
 **Discord:**
 - **Entry:** the profile icon at the bottom left, then **Add Status** [hc].
@@ -81,7 +81,7 @@ last Clear After choice; add a custom date and time. Never auto-set a status (**
 
 ### 1.4 Forwarding: missing both ways
 
-**Dango:** `message_snapshots` isn't parsed and there's no Forward action. The message menu header says it's left out.
+**Waffle:** `message_snapshots` isn't parsed and there's no Forward action. The message menu header says it's left out.
 
 **Discord:**
 - **Entry:** the **Forward** button on the hover bar, top right of the message [hc]. The F key on a highlighted
@@ -99,7 +99,7 @@ messaging)**. Show the original author when you can see the source channel. Show
 
 ### 1.5 Polls: missing
 
-**Dango:** nothing (no `poll` field and no `/polls` route). Only `has:poll` exists in search.
+**Waffle:** nothing (no `poll` field and no `/polls` route). Only `has:poll` exists in search.
 
 **Discord:**
 - **Entry:** the **+** in the composer, then **Poll** [hc].
@@ -117,7 +117,7 @@ messaging)**. Show the original author when you can see the source channel. Show
 
 ### 1.6 Slash commands and app interactions: missing
 
-**Dango:** nothing. No `/` picker, no `POST /interactions`, no components. This is the biggest gap in bot-heavy servers.
+**Waffle:** nothing. No `/` picker, no `POST /interactions`, no components. This is the biggest gap in bot-heavy servers.
 
 **Discord:**
 - **Entry:** type `/` at the start of the composer [hc]. The **App Launcher** button to the right of the composer also
@@ -146,7 +146,7 @@ show interaction failures inline with the app's name, instead of a red "This int
 
 ### 1.7 System messages: only call records render
 
-**Dango:** `type == 3` (call) only. Every other type is dropped or rendered raw.
+**Waffle:** `type == 3` (call) only. Every other type is dropped or rendered raw.
 
 **Discord:**
 - **Member join (type 7):** one of about 40 random lines ("X just slid into the server.") plus a **Wave to say hi!**
@@ -160,7 +160,7 @@ show interaction failures inline with the app's name, instead of a red "This int
 
 ### 1.8 Voice messages: missing
 
-**Dango:** no playback and no recording (no `flags`, `waveform` or `duration_secs`).
+**Waffle:** no playback and no recording (no `flags`, `waveform` or `duration_secs`).
 
 **Discord:**
 - **Desktop can only play them, not record** [hc]. Recording is mobile only: hold the mic, release to send, swipe up to
@@ -177,7 +177,7 @@ show interaction failures inline with the app's name, instead of a red "This int
 
 ### 1.9 Audio attachments: no player
 
-**Dango:** audio falls back to a file card.
+**Waffle:** audio falls back to a file card.
 
 **Discord:** an inline player with file name, size, play, a scrubber, time and volume [mem].
 
@@ -185,7 +185,7 @@ show interaction failures inline with the app's name, instead of a red "This int
 
 ### 1.10 Composer states: all missing
 
-**Dango:** slowmode is only a field in channel settings. There's no gate for permissions, timeouts or the age gate.
+**Waffle:** slowmode is only a field in channel settings. There's no gate for permissions, timeouts or the age gate.
 
 **Discord:**
 - **Slowmode:** after you send, the composer shows a countdown. "Slowmode is enabled, but you're immune." for members
@@ -205,7 +205,7 @@ show interaction failures inline with the app's name, instead of a red "This int
 
 ### 1.11 Reactions: no "who reacted", no super reactions
 
-**Dango:** add and remove are built. "All reactions" opens the picker.
+**Waffle:** add and remove are built. "All reactions" opens the picker.
 
 **Discord:**
 - **Who reacted:** right-click a reaction, or More, then **Reactions**. A dialog lists emoji on the left and users on the
@@ -220,7 +220,7 @@ effects can be turned off (**B#9**).
 
 ### 1.12 Blocked and ignored users: not filtered
 
-**Dango:** the ignore list loads but the transcript never reads it. Block exists.
+**Waffle:** the ignore list loads but the transcript never reads it. Block exists.
 
 **Discord:**
 - **Blocked:** a message shows as "1 blocked message — Show message" [mem].
@@ -231,7 +231,7 @@ effects can be turned off (**B#9**).
 
 ### 1.13 Per-channel drafts: missing
 
-**Dango:** switching channels loses what you typed.
+**Waffle:** switching channels loses what you typed.
 
 **Discord:** drafts are kept per channel, and since February 2026 they survive the app being force-closed [cl]. A
 channel with a draft shows a pencil in the DM list [mem].
@@ -240,7 +240,7 @@ channel with a draft shows a pencil in the DM list [mem].
 
 ### 1.14 Code highlighting: missing
 
-**Dango:** code blocks have a Copy button. gpui-kit's highlighter hook isn't used.
+**Waffle:** code blocks have a Copy button. gpui-kit's highlighter hook isn't used.
 
 **Discord:** highlight.js language tags (` ```rust `), monospace, and a copy button on hover [mem].
 
@@ -249,7 +249,7 @@ with a toggle.
 
 ### 1.15 Embeds: no suppress, no inline YouTube
 
-**Dango:** cards and link previews are built. Video embeds render as static cards.
+**Waffle:** cards and link previews are built. Video embeds render as static cards.
 
 **Discord:**
 - **Suppress:** flag `SUPPRESS_EMBEDS` (4) [api]. An ✕ on embeds on your own messages, and "Remove embeds" in the menu
@@ -263,7 +263,7 @@ show a thumbnail plus "Open".
 
 ### 1.16 Send options: missing
 
-**Dango:** none of the three.
+**Waffle:** none of the three.
 
 **Discord:**
 - **@everyone and @here:** a confirm dialog when a mention would notify many people [snip]. Whether the role is allowed
@@ -275,7 +275,7 @@ show a thumbnail plus "Open".
 
 ### 1.17 Mark unread and the Inbox: local only, Mentions only
 
-**Dango:** Mark Unread only moves the local marker (no ack is sent). The Inbox has Mentions only.
+**Waffle:** Mark Unread only moves the local marker (no ack is sent). The Inbox has Mentions only.
 
 **Discord:**
 - **Inbox:** the icon top right, desktop only [hc]. Tabs **Mentions** and **Unreads** [hc].
@@ -290,7 +290,7 @@ pill.
 
 ### 1.18 Alt text and spoiler on upload: missing
 
-**Dango:** `SPOILER_` uploads are built. No alt text.
+**Waffle:** `SPOILER_` uploads are built. No alt text.
 
 **Discord:**
 - **Alt text:** on the upload preview, the pencil (**Modify Attachment**), then **Description (Alt Text)**, then
@@ -302,7 +302,7 @@ pill.
 
 ### 1.19 Message Requests and Spam: missing
 
-**Dango:** nothing, and no privacy toggle.
+**Waffle:** nothing, and no privacy toggle.
 
 **Discord:**
 - **Tabs:** a Message Requests tab appears on the DM home only while a request is pending. **Spam** is a sub-tab
@@ -314,7 +314,7 @@ pill.
 
 ### 1.20 Small 2026 additions
 
-| Feature | Dango | Discord |
+| Feature | Waffle | Discord |
 |---|---|---|
 | Spellcheck | missing | Squiggles, with fixes in the right-click menu [mem] |
 | `@time` | missing | Inserts a `<t:…>` timestamp, desktop only, Feb 2026 [cl] |
@@ -333,7 +333,7 @@ pill.
 - **Buttons:** top left of the window, working "just like your web browser" [cl Mar 2026].
 - **Keys:** Alt+← goes back [hc]. Mouse buttons 4 and 5 [snip].
 
-**Dango plan:** a history stack of channel, thread and scroll anchor; caret buttons in the title bar strip.
+**Waffle plan:** a history stack of channel, thread and scroll anchor; caret buttons in the title bar strip.
 
 ### 2.2 Pinned DMs and pinned channels: missing
 
@@ -346,7 +346,7 @@ pill.
 
 ### 2.3 Group DMs: render only
 
-**Dango:** existing groups render. You can't create, add, remove, rename, set the icon or leave.
+**Waffle:** existing groups render. You can't create, add, remove, rename, set the icon or leave.
 
 **Discord:**
 - **Create:** Friends page, then the **New Group DM** icon top right. **Select Friends** has search and checkboxes,
@@ -368,7 +368,7 @@ owner is a step in Leave.
 
 ### 2.4 Friends: no Add Friend, no Active Now
 
-**Dango:** Online, All, Pending and Blocked tabs; befriend from a profile; remove, block and ignore.
+**Waffle:** Online, All, Pending and Blocked tabs; befriend from a profile; remove, block and ignore.
 
 **Discord:**
 - **Add Friend:** Discord logo, then the **Add Friend** tab. Type a username, then **Send Friend Request**. Check
@@ -403,7 +403,7 @@ owner is a step in Leave.
 
 ### 2.6 Create channel: text, voice and category only
 
-**Dango:** text, voice and category via `POST /guilds/{id}/channels`. No other types, and no private toggle.
+**Waffle:** text, voice and category via `POST /guilds/{id}/channels`. No other types, and no private toggle.
 
 **Discord:**
 - **Entry:** the **+** on a category on hover, or right-click the channel list [hc].
@@ -420,7 +420,7 @@ owner is a step in Leave.
 
 ### 2.7 Invite dialog: no friend list, fixed link settings
 
-**Dango:** 7-day, unlimited-use links; "Invite to Server" sends a single-use link to a DM.
+**Waffle:** 7-day, unlimited-use links; "Invite to Server" sends a single-use link to a DM.
 
 **Discord:**
 - **Entry:** **Create Invite** on a channel's hover, or the server menu's **Invite People** [hc].
@@ -439,7 +439,7 @@ owner is a step in Leave.
 
 ### 2.8 Threads: no split pane, no archived browser
 
-**Dango:** create, join and leave; threads open in the main view with a breadcrumb.
+**Waffle:** create, join and leave; threads open in the main view with a breadcrumb.
 
 **Discord:**
 - **Create:** the **…** on a message, then **Create Thread**. Optional title, then send [hc].
@@ -460,7 +460,7 @@ owner is a step in Leave.
 
 ### 2.9 Forums and media channels: no tags, sort or layout
 
-**Dango:** a list of posts, Load more, New Post, open as a thread.
+**Waffle:** a list of posts, Load more, New Post, open as a thread.
 
 **Discord:**
 - **Requirements:** Community servers only [hc].
@@ -476,7 +476,7 @@ owner is a step in Leave.
 
 ### 2.10 Announcement channels: missing
 
-**Dango:** type 5 is treated as plain text.
+**Waffle:** type 5 is treated as plain text.
 
 **Discord:**
 - **Publish:** after posting, a **Publish** button appears and sends the message to all following servers [hc].
@@ -505,7 +505,7 @@ owner is a step in Leave.
 
 ### 2.12 Joining a server: rules, onboarding, Channels & Roles, Server Guide
 
-**Dango:** none for members. Server settings only show a read-only onboarding summary.
+**Waffle:** none for members. Server settings only show a read-only onboarding summary.
 
 **Discord:**
 - **Rules Screening:** up to **16** rules. A bar in the composer asks you to agree, then **Submit** grants access [hc].
@@ -524,11 +524,11 @@ row (**B#95**).
 **Discord:** the Discover button at the bottom of the rail opens in-app Servers, Apps and Quests, with search and
 categories [mem].
 
-**Dango plan:** skip. Leave it as a link-out (low value, heavy UI).
+**Waffle plan:** skip. Leave it as a link-out (low value, heavy UI).
 
 ### 2.14 Notification settings: no dialog, no bell, no suppress toggles
 
-**Dango:** menus for per-server and per-channel levels, and mute durations. `suppress_everyone` and `suppress_roles` are
+**Waffle:** menus for per-server and per-channel levels, and mute durations. `suppress_everyone` and `suppress_roles` are
 read but never written.
 
 **Discord:**
@@ -554,7 +554,7 @@ offer to block [mem]. Since September 2026 there are report previews [cl].
 
 ### 2.16 Smaller navigation gaps
 
-| Feature | Dango | Discord |
+| Feature | Waffle | Discord |
 |---|---|---|
 | Favorites server | missing | A star rail item with channels you favourite from any server [mem] |
 | Show All Channels | missing | A server menu toggle that brings back opted-out channels [mem] |
@@ -569,7 +569,7 @@ offer to block [mem]. Since September 2026 there are report previews [cl].
 
 ### 3.1 Profile popout gaps
 
-**Dango has:** banner, avatar and status, names, roles, bio, pronouns, badges, mutual servers, notes, activity card,
+**Waffle has:** banner, avatar and status, names, roles, bio, pronouns, badges, mutual servers, notes, activity card,
 decoration.
 
 **Discord adds:**
@@ -587,7 +587,7 @@ decoration.
 
 ### 3.2 Editing your profile
 
-**Dango has:** display name, username, avatar and banner from a file, per-server nickname. Bio, pronouns, decoration,
+**Waffle has:** display name, username, avatar and banner from a file, per-server nickname. Bio, pronouns, decoration,
 effect and nameplate link out to Discord.
 
 **Discord:**
@@ -602,14 +602,14 @@ and privacy)**.
 
 ### 3.3 Rich presence
 
-**Dango:** parses other people's activities. Your own presence always sends `activities: []`.
+**Waffle:** parses other people's activities. Your own presence always sends `activities: []`.
 
 **Discord:**
 - Registered Games: detects running games from a process list, plus "Add it!" for any app [mem].
 - Activity privacy toggle [mem].
 - Spotify Listen Along: invite and join [mem].
 
-**Dango plan:** process detection on macOS (NSWorkspace) and Windows. Listen Along is a skip.
+**Waffle plan:** process detection on macOS (NSWorkspace) and Windows. Listen Along is a skip.
 
 ---
 
@@ -631,7 +631,7 @@ Servers and invites)**.
 
 ### 4.2 Soundboard playback: shows a toast
 
-**Dango:** management in Server Settings and per-user soundboard mute are built. You can't play sounds.
+**Waffle:** management in Server Settings and per-user soundboard mute are built. You can't play sounds.
 
 **Discord:**
 - **Entry:** the confetti/soundboard button in voice controls [hc]. Ctrl/Cmd+Shift+B [cl].
@@ -651,7 +651,7 @@ Servers and invites)**.
 - **Pop-out:** Activities open in a floating window [cl Sept 2025].
 - **Joining:** "Join Activity" on a voice channel's hover [snip].
 
-**Dango plan:** skip unless gpui can host a webview. Show who is in an Activity, with "Open in Discord".
+**Waffle plan:** skip unless gpui can host a webview. Show who is in an Activity, with "Open in Discord".
 
 ### 4.4 Text chat in voice channels: missing
 
@@ -663,7 +663,7 @@ Servers and invites)**.
 - **Permissions:** Send Messages and Read Message History [hc].
 - **2026:** works alongside PiP in stages [cl Oct 2026].
 
-**Dango plan:** the existing chat view, docked in the call's side panel.
+**Waffle plan:** the existing chat view, docked in the call's side panel.
 
 ### 4.5 Voice channel status: missing
 
@@ -672,7 +672,7 @@ character-limit warning [hc, cl]. Permission: **Voice Channel Status** [hc].
 
 ### 4.6 Camera, streams and the rest
 
-| Feature | Dango | Discord |
+| Feature | Waffle | Discord |
 |---|---|---|
 | Camera send | Code exists; marked not verified in `voice/mod.rs` | Camera button plus a device chevron; a sound plays on start [cl Sept 2025] |
 | Camera preview in settings | GAP | Preview tile in Voice & Video [mem] |
@@ -700,14 +700,14 @@ release delays for PTT and PTM, volume up to 400%, and a call timer.
 - **2FA:** Passkeys and Security Keys (recommended), Authenticator App (30-second TOTP), SMS (only after an
   authenticator app), and Backup Codes (one use each) [hc]. A passkey login uses the device prompt with no password
   [hc].
-- **Captcha:** hCaptcha [mem]. Dango already handles it.
+- **Captcha:** hCaptcha [mem]. Waffle already handles it.
 
 **Do better:** a six-box code that accepts paste and submits on the last digit **(design/better.html › Sign in and
 states)**.
 
 ### 5.2 Account security: links out
 
-**Dango:** email, password, phone, 2FA, devices, authorized apps and connections all open discord.com.
+**Waffle:** email, password, phone, 2FA, devices, authorized apps and connections all open discord.com.
 
 **Discord:** Settings › My Account (email, phone, password, 2FA with backup codes, Security Keys › **Add** [hc],
 disable or delete), plus Devices (sessions with "Log out all known devices") [mem].
@@ -717,7 +717,7 @@ the flow **(design/better.html)**.
 
 ### 5.3 Appearance: themes only
 
-**Dango:** Light, Midnight and Sync with OS, plus a font family.
+**Waffle:** Light, Midnight and Sync with OS, plus a font family.
 
 **Discord:**
 - Themes: Light, Ash, Dark, Onyx, Sync, and the original dark theme returned in September 2026 [cl]. Nitro gradient
@@ -726,7 +726,7 @@ the flow **(design/better.html)**.
 - Chat font scaling, zoom level, space between message groups [mem].
 - UI density: Compact, Default or Spacious [mem].
 
-**Dango plan:** compact mode and font, zoom and spacing sliders are the gaps users notice (**B#3–#4, #85**).
+**Waffle plan:** compact mode and font, zoom and spacing sliders are the gaps users notice (**B#3–#4, #85**).
 
 ### 5.4 Accessibility: none
 
@@ -739,12 +739,12 @@ the flow **(design/better.html)**.
 - **Sync profile themes**.
 - Reduced Motion, GIF autoplay and animated emoji, linked from this page.
 
-**Dango:** none of these. Screen-reader support is unknown: whether gpui exposes an accessibility tree is not verified
+**Waffle:** none of these. Screen-reader support is unknown: whether gpui exposes an accessibility tree is not verified
 (**B#82**).
 
 ### 5.5 Chat settings: one toggle
 
-**Dango:** RenderEmbeds only.
+**Waffle:** RenderEmbeds only.
 
 **Discord:**
 - Display images, videos and lolcats: when posted as links, and when uploaded.
@@ -758,10 +758,10 @@ the flow **(design/better.html)**.
 
 ### 5.6 Keyboard shortcuts
 
-**Dango has:** Cmd/Ctrl+K, Alt+↑/↓, Esc to mark read, Cmd/Ctrl+F, ↑ to edit your last message, message-focus
+**Waffle has:** Cmd/Ctrl+K, Alt+↑/↓, Esc to mark read, Cmd/Ctrl+F, ↑ to edit your last message, message-focus
 navigation with action keys, and Cmd/Ctrl+Q and R.
 
-**Discord has but Dango doesn't [hc]:**
+**Discord has but Waffle doesn't [hc]:**
 
 | Shortcut | Action |
 |---|---|
@@ -790,7 +790,7 @@ navigation with action keys, and Cmd/Ctrl+Q and R.
 
 ### 5.7 Other app gaps
 
-| Feature | Dango | Discord |
+| Feature | Waffle | Discord |
 |---|---|---|
 | Language | English only | About 30 locales [mem] |
 | Open on startup, start minimized | missing | Windows Settings page [mem] |
@@ -806,7 +806,7 @@ navigation with action keys, and Cmd/Ctrl+Q and R.
 
 Nitro purchase, boosting, gifts and the gift inventory, Shop and wishlists, Quests and Orbs, server subscriptions,
 linked roles, App Directory and adding bots, user-installed apps, Family Center, Trending Games, Wordle and `/share`,
-and WoW guild chat. **B#6–#8**: Dango shows no upsell or shop UI at all, which is a feature.
+and WoW guild chat. **B#6–#8**: Waffle shows no upsell or shop UI at all, which is a feature.
 
 ## Sources
 

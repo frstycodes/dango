@@ -6,7 +6,7 @@ use std::time::Duration;
 use gpui_kit::{Animation, AnimationExt, AnyElement, Context, FontWeight, MouseButton, Pixels, Point, SharedString, Window, div, prelude::*, px};
 
 use crate::{
-    Rustcord,
+    Waffle,
     ui::{self, RADIUS_MD, Squircle},
 };
 
@@ -86,7 +86,7 @@ fn anchored<E: Styled>(d: E, corner: Corner, insets: Insets) -> E {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn stream_pip(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let call = self.call.as_ref()?;
         let watching = call.focused()?;

@@ -2,11 +2,11 @@
 // arrows and act on it by key (`MessageAction`). Esc goes back to the composer, and so does typing.
 use gpui_kit::{Context, KeyDownEvent, Keystroke, Window};
 
-use crate::{Rustcord, discord::Message, message_menu::MessageAction};
+use crate::{Waffle, discord::Message, message_menu::MessageAction};
 
 const SECONDARY: &str = if cfg!(target_os = "macos") { "cmd" } else { "ctrl" };
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn focus_message(&mut self, id: String, window: &mut Window, cx: &mut Context<Self>) {
         self.focused_message = Some(id);
         window.focus(&self.feed_focus, cx);

@@ -1,10 +1,10 @@
-# Rustcord ↔ Discord parity
+# Waffle ↔ Discord parity
 
 Reference: the user's Discord desktop client (Midnight theme), captured 2026-11-14.
 Order: features first (most used at the top), then polish. `[x]` done, `[~]` partial, `[ ]` open.
 
 Missing features, with how Discord's UX works for each: [docs/discord-parity-gaps.md](docs/discord-parity-gaps.md).
-User complaints about Discord and how Dango answers them: [docs/better.md](docs/better.md).
+User complaints about Discord and how Waffle answers them: [docs/better.md](docs/better.md).
 
 ## Features
 
@@ -12,7 +12,7 @@ User complaints about Discord and how Dango answers them: [docs/better.md](docs/
 - [x] Right-click context menus: message (reply, react, edit, delete, copy text, copy link, pin, mark unread), channel (mark as read, mute, copy link), server (mark as read, mute, leave), user (profile, mention, message, copy ID)
 - [x] User profile popout on avatar/name click: banner, avatar + status, display name, username, tag, roles, "Message @x" box
 - [x] Emoji picker: composer button and "add reaction" with search, categories, recents and server emoji
-- [x] Status menu from the user panel: custom status, presence (Idle, Do not disturb and Invisible for 15 minutes to Forever from a hover submenu), accounts; "Set your status" with a live profile preview, emoji, text, Clear after and presence (timed statuses fall back to Online only while Dango is open)
+- [x] Status menu from the user panel: custom status, presence (Idle, Do not disturb and Invisible for 15 minutes to Forever from a hover submenu), accounts; "Set your status" with a live profile preview, emoji, text, Clear after and presence (timed statuses fall back to Online only while Waffle is open)
 - [x] Quick switcher (Ctrl/Cmd+K)
 - [x] "NEW" unread divider in the transcript, plus a "You're viewing older messages / Jump to present" bar
 - [x] Markdown parity (timestamps, spoilers, subtext): spoilers `||x||`, block quotes `>`, headers `#`, subtext `-#`, timestamps `<t:…:R>`, masked links, lists

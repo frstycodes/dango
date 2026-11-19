@@ -1,5 +1,5 @@
 // Screen and system-audio capture for Go Live: ScreenCaptureKit on macOS, delivering packed BGRA
-// frames and interleaved 48 kHz stereo audio. Rustcord's own output (voice chat) is excluded so
+// frames and interleaved 48 kHz stereo audio. Waffle's own output (voice chat) is excluded so
 // viewers don't hear the call echoed. Needs the Screen Recording permission; macOS asks the first time.
 
 use std::sync::{
@@ -70,7 +70,7 @@ fn shareable_content() -> Result<SCShareableContent, String> {
 }
 
 // Audio capture follows the filter: a whole-display filter hears every app, an app or window
-// filter only that app. Rustcord's own audio is excluded separately in the stream configuration.
+// filter only that app. Waffle's own audio is excluded separately in the stream configuration.
 fn content_filter(content: &SCShareableContent, source: ShareSource) -> Result<SCContentFilter, String> {
     let displays = content.displays();
     let builder = SCContentFilter::create();

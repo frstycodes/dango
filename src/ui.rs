@@ -1,4 +1,4 @@
-// Dango's shared controls, ported from the design system (design/css/primitives.css, overlays.css). Each
+// Waffle's shared controls, ported from the design system (design/css/primitives.css, overlays.css). Each
 // returns an element the caller keeps composing (`.on_click`, layout, extra children), so call sites never
 // restate a control's look. `design_system.rs` shows every one of them in both themes, section for
 // section with design/primitives.html.
@@ -75,7 +75,7 @@ pub const DUR_PANEL: Duration = Duration::from_millis(260);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Tone {
-    // Chili, the one accent: the action the surface is for.
+    // The accent: the action the surface is for.
     Primary,
     // The quiet fill: every other action.
     Secondary,
@@ -98,7 +98,6 @@ pub fn split(main: Control, options: Control) -> Div {
         .child(options.px(px(8.)).rounded_r(px(RADIUS_MD)).rounded_l(px(4.)))
 }
 
-// The LIVE badge: chili, with the mini wave at its own 2px weight.
 /// A header floating over content that scrolls under it, like iOS's scroll edge effect: the content
 /// dissolves towards the window's top, with no band or hairline. gpui can't give an element an alpha mask,
 /// but the content sits on the solid `surface`, so fading it out is fading it into that exact tone; the
@@ -182,9 +181,7 @@ pub fn truncating(key: impl Into<SharedString>, text: impl Into<SharedString>) -
 }
 
 pub fn live_badge() -> Div {
-    let white = gpui_kit::white();
-    let wave = div().h(px(9.)).flex().items_center().gap(px(1.5)).children([0.55_f32, 1., 0.7].map(|base| div().w(px(2.)).h(px(9. * base)).rounded_full().bg(white)));
-    badge(palette::live(), white).gap(px(5.)).child(wave).child("LIVE")
+    badge(palette::live(), gpui_kit::white()).child("LIVE")
 }
 
 // A small solid label (quality, tags, NEW). GAP: the design tracks these 0.04–0.06em; gpui text has no
@@ -311,7 +308,7 @@ fn knob_shadow() -> Vec<BoxShadow> {
     vec![shadow(black.opacity(0.22), 0., 2., 6., 0., false), shadow(black.opacity(0.06), 0., 0., 0., 0.5, false)]
 }
 
-// The switch: a wide pill with a capsule knob, chili when on (iOS-style). The knob springs across (300ms
+// The switch: a wide pill with a capsule knob, honey when on (iOS-style). The knob springs across (300ms
 // on the touch spring) while the track's fill fades to the accent, and while pressed it swells into glass.
 pub fn switch_live(id: impl Into<ElementId>, on: bool, window: &mut Window, cx: &mut App) -> Stateful<Div> {
     let id: ElementId = id.into();
@@ -385,7 +382,7 @@ pub fn check_live(id: impl Into<ElementId>, state: Check, window: &mut Window, c
     let tick = transition(control::part(&id, "tick"), if state == Check::On { 1. } else { 0. }, Transition::new(DUR_POP).easing(motion::ease_spring()), window, cx);
     let accent = palette::accent();
     check_box(state, mix(palette::line_strong(cx), accent, filled), accent.opacity(filled))
-        .when(state != Check::Mixed && tick > 0.01, |d| d.child(Icon::new(Glyph::Checkmark).size(px(13.)).scale(0.5 + 0.5 * tick).text_color(gpui_kit::white().opacity(tick.min(1.)))))
+        .when(state != Check::Mixed && tick > 0.01, |d| d.child(Icon::new(Glyph::Checkmark).size(px(13.)).scale(0.5 + 0.5 * tick).text_color(palette::on_accent().opacity(tick.min(1.)))))
 }
 
 fn check_box(state: Check, edge: Hsla, fill: Hsla) -> Div {
@@ -396,14 +393,14 @@ fn check_box(state: Check, edge: Hsla, fill: Hsla) -> Div {
         .border(px(1.5))
         .border_color(edge)
         .bg(fill)
-        .text_color(gpui_kit::white())
+        .text_color(palette::on_accent())
         .flex()
         .items_center()
         .justify_center()
-        .when(state == Check::Mixed, |d| d.child(div().w(px(10.)).h(px(2.)).squircle(1.).bg(gpui_kit::white())))
+        .when(state == Check::Mixed, |d| d.child(div().w(px(10.)).h(px(2.)).squircle(1.).bg(palette::on_accent())))
 }
 
-// Off: a thin ring. On: the ring thickens to a chili band around the surface's colour.
+// Off: a thin ring. On: the ring thickens to an accent band around the surface's colour.
 pub fn radio(on: bool, cx: &App) -> Div {
     radio_with(on, 20., palette::line_strong(cx))
 }

@@ -8,7 +8,7 @@ use gpui_kit::{
 };
 
 use crate::{
-    ProfileCard, Rustcord,
+    ProfileCard, Waffle,
     discord::{ActivityKind, Badge, Profile, Relation, RichPresence, User, perm},
     icons::Glyph,
     layout::{TITLE_HEIGHT, decorated_avatar},
@@ -29,7 +29,7 @@ const ESTIMATED_HEIGHT: f32 = 560.;
 const MAX_BADGES: usize = 6;
 const MAX_GAMES: usize = 3;
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn open_profile(&mut self, user: User, at: Point<Pixels>, cx: &mut Context<Self>) {
         let guild_id = self.guild_id.clone();
         // The last profile we fetched shows at once; a stale one refreshes underneath it.
@@ -483,10 +483,10 @@ fn ask_to_join(ink: Ink) -> Stateful<Div> {
         .opacity(0.7)
         .child(Icon::new(Glyph::Game).size(px(16.)))
         .child("Ask to Join")
-        .tooltip(|window, cx| Tooltip::new("Joining from Dango isn't supported yet").build(window, cx))
+        .tooltip(|window, cx| Tooltip::new("Joining from Waffle isn't supported yet").build(window, cx))
 }
 
-fn message_field(user: &User, ink: Ink, cx: &mut Context<Rustcord>) -> Div {
+fn message_field(user: &User, ink: Ink, cx: &mut Context<Waffle>) -> Div {
     let dm_user = user.id.clone();
     let field = div()
         .id("profile-message")

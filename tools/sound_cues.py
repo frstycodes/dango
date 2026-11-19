@@ -1,6 +1,6 @@
-# Synthesises Wave's sound cues into assets/sounds/*.mp3 (needs `lame`): python3 tools/sound_cues.py
+# Synthesises Waffle's sound cues into assets/sounds/*.mp3 (needs `lame`): python3 tools/sound_cues.py
 # Each plays Discord's own notes on Discord's timing (measured from its cues), so they read the same,
-# in Wave's own voice: every note glides into its pitch (a soft "bloop"), left and right sit a few
+# in Waffle's own voice: every note glides into its pitch (a soft "bloop"), left and right sit a few
 # cents apart, and a small room rings after.
 import math, os, struct, subprocess, tempfile, wave
 

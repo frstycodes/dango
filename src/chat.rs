@@ -19,7 +19,7 @@ use gpui_kit::{
 use gpui_motion_kit::core::{Motion, Target};
 
 use crate::{
-    EmojiTarget, Feed, RightPanel, Rustcord,
+    EmojiTarget, Feed, RightPanel, Waffle,
     discord::{Channel, ChannelKind, Embed, Emoji, MediaKind, Message, SendState, User},
     icons::Glyph,
     layout::HEADER_HEIGHT,
@@ -44,7 +44,7 @@ const REPLY_HEIGHT: f32 = 22.;
 
 // The floating stream player's width; its height keeps 16:9.
 
-impl Rustcord {
+impl Waffle {
     pub fn render_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let main = div().relative().flex_1().min_w_0().h_full().flex().flex_col().bg(palette::surface(Level::Page, cx));
         let Some(channel) = self.channel.clone() else {
@@ -509,11 +509,11 @@ impl Rustcord {
 
     // A mention badge's click: a person's profile beside it, or the channel it names.
     fn open_mention(&mut self, url: &str, at: gpui_kit::Point<Pixels>, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(id) = url.strip_prefix("rustcord://user/") {
+        if let Some(id) = url.strip_prefix("waffle://user/") {
             let Some(user) = self.known_users().into_iter().find(|u| u.id == id) else { return };
             return self.open_profile(user, at, cx);
         }
-        let Some(id) = url.strip_prefix("rustcord://channel/") else { return };
+        let Some(id) = url.strip_prefix("waffle://channel/") else { return };
         let channel = self.guild().and_then(|g| g.channels.iter().find(|c| c.id == id).cloned());
         if let Some(channel) = channel {
             self.open_channel(channel, window, cx);
@@ -679,7 +679,7 @@ impl Rustcord {
             .absolute()
             .inset_0()
             .p(px(12.))
-            .opacity(if cfg!(debug_assertions) && std::env::var("CHORD_DEMO").as_deref() == Ok("attachments-drop") { 1. } else { 0. })
+            .opacity(if cfg!(debug_assertions) && std::env::var("WAFFLE_DEMO").as_deref() == Ok("attachments-drop") { 1. } else { 0. })
             .drag_over::<gpui_kit::ExternalPaths>(|style, _, _, _| style.opacity(1.))
             .on_drop(cx.listener(|this, paths: &gpui_kit::ExternalPaths, window, cx| this.add_files(paths.paths().to_vec(), window, cx)))
             .child(card)
@@ -798,7 +798,7 @@ pub(crate) struct RowContext {
     // Servers you're in, so an invite to one reads "Joined".
     joined: std::collections::HashSet<String>,
     unread_marker: Option<u64>,
-    this: WeakEntity<Rustcord>,
+    this: WeakEntity<Waffle>,
     has_more: bool,
     dm_start: Option<crate::dm_start::DmStart>,
     // The toolbar's three quick reactions: most used, padded with 💯 😆 💖.
@@ -1042,7 +1042,7 @@ fn track_message_hover(message: &Message, ctx: &Rc<RowContext>) -> impl Fn(&bool
     }
 }
 
-fn set_hovered_message(this: &WeakEntity<Rustcord>, id: Option<String>, cx: &mut App) {
+fn set_hovered_message(this: &WeakEntity<Waffle>, id: Option<String>, cx: &mut App) {
     this.update(cx, |this, cx| {
         this.hovered_message = id;
         cx.notify();
@@ -1234,7 +1234,7 @@ fn content(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyEleme
 
 // Mentions, role and channel links draw as badges (messages.css `.at`): accent ink on the soft fill.
 struct MentionBadges {
-    this: WeakEntity<Rustcord>,
+    this: WeakEntity<Waffle>,
     fill: Hsla,
     hover: Hsla,
     ink: Hsla,
@@ -1253,7 +1253,7 @@ impl MarkdownPlugin for MentionBadges {
 
     fn parse(&self, node: &markdown_ast::Node, _: &MarkdownParseContext<'_>) -> Option<MarkdownNode> {
         let markdown_ast::Node::Link(link) = node else { return None };
-        if !link.url.starts_with("rustcord://") {
+        if !link.url.starts_with("waffle://") {
             return None;
         }
         let label = node.to_string();
@@ -1296,7 +1296,7 @@ fn markdown(id: SharedString, text: String, ctx: &RowContext) -> TextView {
         .code_block_actions(move |block, _, cx| copy_button(block.code().to_string(), copied.as_deref() == Some(block.code().as_ref()), copy_target.clone(), cx))
         .on_link_click(move |url, _, window, cx| {
             let url = url.to_string();
-            if let Some(channel_id) = url.strip_prefix("rustcord://channel/") {
+            if let Some(channel_id) = url.strip_prefix("waffle://channel/") {
                 this.update(cx, |this, cx| {
                     let channel = this.guild().and_then(|g| g.channels.iter().find(|c| c.id == channel_id).cloned());
                     if let Some(channel) = channel {
@@ -1306,7 +1306,7 @@ fn markdown(id: SharedString, text: String, ctx: &RowContext) -> TextView {
                 .ok();
                 return;
             }
-            if !url.starts_with("rustcord://") {
+            if !url.starts_with("waffle://") {
                 this.update(cx, |this, cx| this.open_link(&url, window, cx)).ok();
             }
         })
@@ -1818,7 +1818,7 @@ fn file_card(message: &Message, file: &crate::discord::File, cx: &App) -> AnyEle
 // Sits in the corner of every code block; it turns to a check, in the online ink, for a moment after.
 // GAP: the design gives code blocks a header line (language, then Copy with its label); TextView owns
 // that layout and only offers this corner slot, so the button stays icon-only.
-fn copy_button(code: String, copied: bool, this: WeakEntity<Rustcord>, cx: &App) -> AnyElement {
+fn copy_button(code: String, copied: bool, this: WeakEntity<Waffle>, cx: &App) -> AnyElement {
     let (hover, strong) = (palette::hover(cx), palette::strong(cx));
     div()
         .id(SharedString::from(format!("copy-{}", code.len())))
@@ -2002,11 +2002,11 @@ fn readable_with(content: &str, ctx: &RowContext, inline_emoji: bool) -> String 
         };
         let token = &tail[1..end];
         let replacement = if let Some(id) = token.strip_prefix("@&") {
-            ctx.role_names.get(id).map(|n| format!("[@{n}](rustcord://role/{id})"))
+            ctx.role_names.get(id).map(|n| format!("[@{n}](waffle://role/{id})"))
         } else if let Some(id) = token.strip_prefix("@!").or_else(|| token.strip_prefix('@')) {
-            Some(format!("[@{}](rustcord://user/{id})", ctx.names.get(id).map_or("unknown-user", String::as_str)))
+            Some(format!("[@{}](waffle://user/{id})", ctx.names.get(id).map_or("unknown-user", String::as_str)))
         } else if let Some(id) = token.strip_prefix('#') {
-            ctx.channel_names.get(id).map(|n| format!("[#{n}](rustcord://channel/{id})"))
+            ctx.channel_names.get(id).map(|n| format!("[#{n}](waffle://channel/{id})"))
         } else if let Some(stamp) = token.strip_prefix("t:") {
             discord_timestamp(stamp)
         } else if let Some(name) = token.strip_prefix("a:").or_else(|| token.strip_prefix(':')) {
@@ -2026,7 +2026,7 @@ fn readable_with(content: &str, ctx: &RowContext, inline_emoji: bool) -> String 
     out.push_str(rest);
     let out = crate::link_preview::channel_chips(&out, &ctx.channel_names);
     // ponytail: plain word match, like the tokens above it also matches inside code spans.
-    out.replace("@everyone", "[@everyone](rustcord://everyone)").replace("@here", "[@here](rustcord://here)")
+    out.replace("@everyone", "[@everyone](waffle://everyone)").replace("@here", "[@here](waffle://here)")
 }
 
 // One line of plain text for the reply quote: markdown markers and link targets dropped.
@@ -2358,7 +2358,7 @@ mod tests {
 
     #[test]
     fn reply_quotes_are_plain() {
-        assert_eq!(plain("the **new** [@Wren](rustcord://user/1) `list`\nok"), "the new @Wren list ok");
+        assert_eq!(plain("the **new** [@Wren](waffle://user/1) `list`\nok"), "the new @Wren list ok");
     }
 
     #[test]

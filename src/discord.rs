@@ -98,6 +98,7 @@ pub struct Presence {
 pub struct RichPresence {
     pub kind: ActivityKind,
     pub name: String,
+    pub app_id: Option<String>,
     pub details: Option<String>,
     pub state: Option<String>,
     pub image: Option<String>,
@@ -114,8 +115,9 @@ pub struct FeedEntry {
     pub author_id: String,
     pub kind: ActivityKind,
     pub title: String,
-    // Album art or a show's poster; games carry none here (GAP: their art needs an application lookup).
+    // Album art or a show's poster; a game has none here, only its application (for its icon).
     pub image: Option<String>,
+    pub app_id: Option<String>,
     pub live: bool,
     // Unix milliseconds: when it ended, else when it started, else when the entry was made.
     pub at: i64,
@@ -783,7 +785,7 @@ impl MyAccount {
     }
 }
 
-// The account-wide settings Dango shows, from the legacy `user_settings` object (READY, USER_SETTINGS_UPDATE).
+// The account-wide settings Waffle shows, from the legacy `user_settings` object (READY, USER_SETTINGS_UPDATE).
 // Field names are Discord's; `default_guilds_restricted` and the friend sources are inverted or split in the UI.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AccountSettings {
@@ -1083,16 +1085,22 @@ impl Client {
 
     /// Changes your status everywhere: the gateway presence now, the saved setting for next time.
     /// `custom` rides along so the presence update doesn't wipe your custom status.
-    pub async fn set_status(&self, status: Status, custom: Option<&CustomStatus>) {
-        self.send_presence(status, custom);
+    pub async fn set_status(&self, status: Status, custom: Option<&CustomStatus>, game: Option<&crate::games::Game>) {
+        self.send_presence(status, custom, game);
         let req = self.request(reqwest::Method::PATCH, "/users/@me/settings").json(&json!({ "status": status_wire(status) }));
         let _ = self.run(req).await;
     }
 
-    // A custom status travels as a type-4 activity in the presence.
-    pub fn send_presence(&self, status: Status, custom: Option<&CustomStatus>) {
-        let activities: Vec<Value> = custom.map(CustomStatus::activity).into_iter().collect();
+    // A custom status travels as a type-4 activity in the presence, the game you're playing as type 0.
+    pub fn send_presence(&self, status: Status, custom: Option<&CustomStatus>, game: Option<&crate::games::Game>) {
+        let activities: Vec<Value> = custom.map(CustomStatus::activity).into_iter().chain(game.map(crate::games::Game::activity)).collect();
         self.gateway(json!({ "op": 3, "d": { "status": status_wire(status), "since": 0, "activities": activities, "afk": false } }));
+    }
+
+    /// An application's icon hash; `/rpc` is the public subset of the application, readable by anyone.
+    pub async fn app_icon(&self, app_id: &str) -> Result<Option<String>, String> {
+        let body = self.run(self.request(reqwest::Method::GET, &format!("/applications/{app_id}/rpc"))).await?;
+        Ok(body["icon"].as_str().map(str::to_owned))
     }
 
     /// Saves account settings: `patch` holds only the fields that changed.
@@ -1288,7 +1296,7 @@ impl gpui_kit::http_client::HttpClient for Images {
                 Ok::<_, reqwest::Error>((res.status().as_u16(), res.bytes().await?))
             }));
             let (status, bytes) = (&mut fetch.0).await??;
-            if cfg!(debug_assertions) && std::env::var_os("RUSTCORD_IMAGE_DEBUG").is_some() && status >= 400 {
+            if cfg!(debug_assertions) && std::env::var_os("WAFFLE_IMAGE_DEBUG").is_some() && status >= 400 {
                 eprintln!("image {status} {url}");
             }
             if status == 200 {
@@ -1307,7 +1315,7 @@ impl<T> Drop for AbortOnDrop<T> {
     }
 }
 
-// Made-up media a CHORD_DEMO scene serves in place of the network (debug builds only).
+// Made-up media a WAFFLE_DEMO scene serves in place of the network (debug builds only).
 pub static DEMO_MEDIA: OnceLock<fn(&str) -> Option<bytes::Bytes>> = OnceLock::new();
 
 pub fn demo_media(url: &str) -> Option<bytes::Bytes> {
@@ -1581,7 +1589,7 @@ fn identify(token: &str) -> String {
         "d": {
             "token": token,
             "capabilities": 0,
-            "properties": { "os": std::env::consts::OS, "browser": "Dango", "device": "" },
+            "properties": { "os": std::env::consts::OS, "browser": "Waffle", "device": "" },
             "presence": { "status": "online", "since": 0, "activities": [], "afk": false },
             "compress": false,
         }
@@ -2165,6 +2173,10 @@ fn parse_profile(user_id: &str, body: &Value) -> Profile {
     }
 }
 
+pub fn app_icon_url(app_id: &str, icon: &str) -> String {
+    format!("{CDN}/app-icons/{app_id}/{icon}.png?size=64")
+}
+
 // Large asset keys: "mp:…" is a media proxy path, anything else an app asset id.
 fn activity_image(a: &Value) -> Option<String> {
     let key = a["assets"]["large_image"].as_str()?;
@@ -2187,6 +2199,7 @@ fn parse_rich(a: &Value) -> Option<RichPresence> {
             _ => ActivityKind::Playing,
         },
         name: text("name")?,
+        app_id: text("application_id"),
         details: text("details"),
         state: text("state"),
         image: activity_image(a),
@@ -2252,7 +2265,7 @@ fn permission(v: &Value) -> u64 {
 
 // `GET /content-inventory/users/@me` answers `{ entries: [{ content }] }`; each content is a Content
 // Inventory Entry as discord-userdoccers documents it (resources/components). Not verified against a
-// live response: Dango never signs in for development.
+// live response: Waffle never signs in for development.
 pub fn parse_activity_feed(body: &Value) -> Vec<FeedEntry> {
     body["entries"].as_array().into_iter().flatten().filter_map(|e| parse_feed_entry(&e["content"])).collect()
 }
@@ -2278,6 +2291,7 @@ fn parse_feed_entry(c: &Value) -> Option<FeedEntry> {
         kind,
         title,
         image,
+        app_id: text(&extra["application_id"]),
         live: trait_of(3).is_some_and(|t| t["is_live"].as_bool() == Some(true)),
         at: time(&c["ended_at"]).or_else(|| time(&c["started_at"])).unwrap_or(made),
         streak_days: trait_of(8).and_then(|t| t["streak_count_days"].as_u64()).filter(|&d| d > 1),
@@ -2611,7 +2625,7 @@ mod tests {
 
     #[test]
     fn invites_read_their_server_and_counts() {
-        let body = json!({ "code": "dango", "guild": { "id": "9", "name": "Dumpling Hall", "icon": "ff" }, "approximate_member_count": 8311, "approximate_presence_count": 1204 });
+        let body = json!({ "code": "waffle", "guild": { "id": "9", "name": "Dumpling Hall", "icon": "ff" }, "approximate_member_count": 8311, "approximate_presence_count": 1204 });
         let invite = parse_invite(&body).unwrap();
         assert_eq!(invite, Invite { guild_id: "9".into(), name: "Dumpling Hall".into(), icon: Some("https://cdn.discordapp.com/icons/9/ff.png?size=96".into()), online: Some(1204), members: Some(8311) });
         assert_eq!(parse_invite(&json!({ "code": "gdm", "channel": { "id": "5", "type": 3 } })), None, "a group DM invite has no server card");

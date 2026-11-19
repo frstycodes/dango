@@ -11,7 +11,7 @@ use gpui_kit::{
 use gpui_motion_kit::core::{Motion, Target};
 
 use crate::{
-    Part, Rustcord, Edge, RightPanel,
+    Part, Waffle, Edge, RightPanel,
     discord::{ActivityKind, FeedEntry, ListItem, Member, Status},
     icons::Glyph,
     layout::{decorated_avatar, nameplate},
@@ -23,7 +23,7 @@ use crate::{
 // The section shows this many cards; its chevron opens the rest.
 const ACTIVITY_SHOWN: usize = 3;
 
-impl Rustcord {
+impl Waffle {
     // Whether the side panel is on screen: a server's (unless hidden), or search results anywhere.
     pub(crate) fn panel_shown(&self) -> bool {
         match self.right_panel {
@@ -207,8 +207,9 @@ impl Rustcord {
             .children(activity_glyph(entry.kind).map(|icon| icon.size(px(14.)).flex_none().when(entry.live, |i| i.text_color(palette::status_in(Status::Online, cx)))))
             .child(div().flex_none().child(when))
             .when_some(entry.streak_days, |m, days| m.child(div().w(px(6.)).flex_none()).child(Icon::default().data(BOLT).size(px(14.)).flex_none()).child(div().truncate().child(format!("{days}× streak"))));
-        let art = match &entry.image {
-            Some(url) => img(url.clone()).size(px(56.)).flex_none().object_fit(gpui_kit::ObjectFit::Cover).squircle(ui::RADIUS_MD).into_any_element(),
+        let image = entry.image.clone().or_else(|| self.app_icon(entry.app_id.as_deref()?, cx));
+        let art = match image {
+            Some(url) => img(url).size(px(56.)).flex_none().object_fit(gpui_kit::ObjectFit::Cover).squircle(ui::RADIUS_MD).into_any_element(),
             None => div()
                 .size(px(56.))
                 .flex_none()

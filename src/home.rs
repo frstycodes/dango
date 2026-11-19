@@ -12,7 +12,7 @@ use reqwest::Method;
 use serde_json::json;
 
 use crate::{
-    Rustcord, SearchState,
+    Waffle, SearchState,
     discord::{Relation, Relationship, Status},
     icons::Glyph,
     layout::avatar_with_status,
@@ -55,7 +55,7 @@ pub fn save_last_channel(user_id: &str, guild_id: Option<&str>, channel_id: &str
     let _ = std::fs::write(path, format!("{} {channel_id}", guild_id.unwrap_or("@me")));
 }
 
-impl Rustcord {
+impl Waffle {
     /// Called on render: once the gateway has delivered servers and DMs, reopen the saved channel.
     pub(crate) fn restore_last_channel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.guilds.is_empty() && self.dms.is_empty() {

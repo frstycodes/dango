@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wave Voice</title>
+<title>Waffle Voice</title>
 <meta name="description" content="Voice panel, call stage, controls and streams.">
-<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="icon" href="/assets/brand/icons/paper.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="css/community.css">
 <link rel="stylesheet" href="css/server-settings.css">
 <link rel="stylesheet" href="css/flows.css">
-<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<script>try{const p=JSON.parse(localStorage.getItem("waffle-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 </head>
 <body>
 <header id="top"></header>
@@ -161,7 +161,7 @@
         <button class="mi" role="menuitemradio" aria-checked="true" aria-current="true"><span class="sdot"><span class="status online"></span></span><div><span>Online</span></div></button>
         <button class="mi" role="menuitemradio" aria-checked="false"><span class="sdot"><span class="status idle"></span></span><div><span>Idle</span></div></button>
         <button class="mi" role="menuitemradio" aria-checked="false"><span class="sdot"><span class="status dnd"></span></span><div><span>Do not disturb</span><small>You won't get notifications</small></div></button>
-        <button class="mi" role="menuitemradio" aria-checked="false"><span class="sdot"><span class="status offline"></span></span><div><span>Invisible</span><small>Look offline, keep using Wave</small></div></button>
+        <button class="mi" role="menuitemradio" aria-checked="false"><span class="sdot"><span class="status offline"></span></span><div><span>Invisible</span><small>Look offline, keep using Waffle</small></div></button>
       </div>
       <div class="menu statuspick" role="menu" aria-label="Set status">
         <button class="custom unset mi"><i class="ph ph-smiley"></i><div><span>Set a custom status</span></div></button>
@@ -169,7 +169,7 @@
         <button class="mi" role="menuitemradio" aria-checked="false"><span class="sdot"><span class="status online"></span></span><div><span>Online</span></div></button>
         <button class="mi" role="menuitemradio" aria-checked="false"><span class="sdot"><span class="status idle"></span></span><div><span>Idle</span></div></button>
         <button class="mi" role="menuitemradio" aria-checked="true" aria-current="true"><span class="sdot"><span class="status dnd"></span></span><div><span>Do not disturb</span><small>You won't get notifications</small></div></button>
-        <button class="mi" role="menuitemradio" aria-checked="false"><span class="sdot"><span class="status offline"></span></span><div><span>Invisible</span><small>Look offline, keep using Wave</small></div></button>
+        <button class="mi" role="menuitemradio" aria-checked="false"><span class="sdot"><span class="status offline"></span></span><div><span>Invisible</span><small>Look offline, keep using Waffle</small></div></button>
       </div>
     </div>
     <p class="note" style="margin-top: 12px">The current status is the filled row, never a check. Each status keeps its shape: dot, moon, bar, ring.</p>
@@ -726,7 +726,7 @@
   <h2>Better than Discord</h2>
   <p class="lede">Where voice and calls differ from Discord on purpose. Discord's side is described from its desktop app.</p>
   <div class="btd">
-    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
+    <div><span>Discord does</span><span>Waffle does</span><span>Why</span></div>
     <div><p>When nobody picks up, you sit alone in the call until you notice and hang up.</p><p><b><a href="#outgoing-call">Ringing ends the call</a></b>Declined, no answer and busy each close the call, say which, and offer Call again.</p><p>The outcome is the information; an empty call isn't.</p></div>
     <div><p>A declined call looks the same as one nobody saw.</p><p><b><a href="#outgoing-call">Declined says so</a></b>Ringing stops at once with "Mira declined", and busy says she stayed in another call.</p><p>No waiting a minute for an answer that already came.</p></div>
     <div><p>Muted for you, server muted and self muted are told apart by small icon differences.</p><p><b><a href="#mute-marks">Four mute shapes</a></b>Bare coral mic, filled red chip, neutral "Muted for you" chip, "Blocked, muted for you".</p><p>Whose choice it was decides who can undo it; the mark should say so without colour alone.</p></div>

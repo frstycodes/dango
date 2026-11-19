@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accent candidates</title>
+<meta name="description" content="Replacements for the chili accent, side by side in both themes.">
+<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<link rel="stylesheet" href="css/messages.css">
+<link rel="stylesheet" href="css/overlays.css">
+<script>try{const p=JSON.parse(localStorage.getItem("waffle-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<style id="accent-vars"></style>
+<style>
+.ac-grid { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 232px), 1fr)); }
+.ac-col { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-4); border-radius: var(--radius-lg); corner-shape: superellipse(1.4); background: var(--bg-raised); border: 1px solid var(--line); }
+.ac-col[aria-current="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.ac-head { display: flex; align-items: center; gap: var(--space-3); }
+.ac-head h3 { margin: 0; font-size: var(--text-md); color: var(--text-strong); }
+.ac-head small { display: block; font-size: var(--text-xs); color: var(--text-faint); font-family: var(--font-mono); }
+.ac-marks { display: flex; align-items: center; gap: var(--space-3); }
+.ac-ramp { display: flex; height: 24px; border-radius: var(--radius-xs); overflow: hidden; }
+.ac-ramp span { flex: 1; }
+.ac-mention { padding: 8px 12px; border-radius: var(--radius-sm); background: color-mix(in oklch, var(--accent-soft) 60%, transparent); box-shadow: inset 2px 0 var(--accent); font-size: var(--text-sm); color: var(--text); }
+.ac-presence { display: flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--text-muted); }
+.ac-presence .p { width: 8px; height: 8px; border-radius: 50%; }
+.ac-col .check[aria-checked="true"], .ac-ctx .check[aria-checked="true"] { color: var(--on-accent); }
+.ac-ctx { display: grid; gap: var(--space-4); grid-template-columns: minmax(0, 1fr) minmax(0, 360px); align-items: start; }
+@media (max-width: 860px) { .ac-ctx { grid-template-columns: minmax(0, 1fr); } }
+.ac-feed { border-radius: var(--radius-lg); corner-shape: superellipse(1.4); background: var(--bg-page); border: 1px solid var(--line); padding: 4px 0 12px; overflow: hidden; }
+.ac-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 10px 0; font-size: var(--text-sm); color: var(--text); }
+.ac-row + .ac-row { border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+<section id="candidates">
+  <h1>Accent candidates</h1>
+  <p class="lede">Ramune replaced chili (2026-11-19); the other candidates stay for reference. Every fill carries white text at 4.5:1 or better, every ink reads at 5.5:1 or better on the page in its theme. Counts stay alert red, Delete stays crimson and presence stays green, so each column shows whether the accent still reads apart from them. Flip the theme in the header.</p>
+  <h2>Side by side</h2>
+  <div class="ac-grid" id="grid"></div>
+</section>
+
+<section id="in-context">
+  <h2>In context</h2>
+  <p class="lede">The picked candidate across a chat and a settings dialog.</p>
+  <div class="seg" id="pick" role="group" aria-label="Accent" style="margin-bottom: var(--space-4)"></div>
+  <div class="ac-ctx" id="ctx">
+    <div class="ac-feed">
+      <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="time">Today at 9:41 PM</span></div><div class="body">anyone up for ranked after dinner? <a class="btn btn--link" href="#in-context">clips.example/ace</a></div></div></div>
+      <div class="msg first mention"><span class="av" data-av="Jun"></span><div><div class="head"><span class="name">Jun</span><span class="time">Today at 9:44 PM</span></div><div class="body"><span class="at">@you</span> send me the clip? I want it for the montage</div></div></div>
+      <div class="msg first"><span class="av" data-av="Mira"></span><div><div class="head"><span class="name">Mira</span><span class="tag">Host</span><span class="time">Today at 9:46 PM</span></div><div class="body">voice is open, hop in <span class="at">@Jun</span></div></div></div>
+      <div style="padding: 12px 24px 0"><div class="input"><i class="ph ph-plus-circle"></i><input aria-label="Message #general" placeholder="Message #general" value="on my way"></div></div>
+    </div>
+    <div class="dialog" style="--dw: 100%">
+      <h4 style="color: var(--text-strong)">Notifications</h4>
+      <div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="true">This server</button><button class="tab" role="tab" aria-selected="false">Everywhere</button></div>
+      <div>
+        <div class="ac-row">Desktop notifications<span class="switch" role="switch" aria-checked="true" aria-label="Desktop notifications"></span></div>
+        <div class="ac-row">Suppress @everyone<span class="switch" role="switch" aria-checked="false" aria-label="Suppress @everyone"></span></div>
+        <div class="ac-row">Mobile push<span class="check" role="checkbox" aria-checked="true" aria-label="Mobile push"><i class="ph-bold ph-check"></i></span></div>
+      </div>
+      <div class="row"><button class="chip" aria-pressed="true">All messages</button><button class="chip" aria-pressed="false">Mentions</button><button class="chip" aria-pressed="false">Nothing</button></div>
+      <footer><button class="btn btn--danger">Leave server</button><span style="flex: 1"></span><button class="btn btn--ghost">Cancel</button><button class="btn btn--primary">Save</button></footer>
+    </div>
+  </div>
+</section>
+</main>
+</div>
+<script>
+// Ramps from oklch: fill is the lightest step that keeps white at 4.5:1; hover and press step 0.05 and 0.10 L darker;
+// inks are solved against each theme's --bg-page; the logo sits 0.08 L above the fill.
+const CANDIDATES = [
+  { id: "chili", name: "Chili", note: "previous · h 45", logo: "#e25b26", accent: "#c8471a", hover: "#b23c14", press: "#9a330f",
+    dark: { ink: "#ff8a57", soft: "oklch(0.66 0.18 45 / 0.14)" }, light: { ink: "#a83a12", soft: "oklch(0.6 0.18 45 / 0.10)" } },
+  { id: "ube", name: "Ube", note: "purple yam · h 318", logo: "#bc6cd5", accent: "#a353ba", hover: "#9344aa", press: "#83349a",
+    dark: { ink: "#c783db", soft: "oklch(0.64 0.17 318 / 0.14)" }, light: { ink: "#9142a8", soft: "oklch(0.64 0.17 318 / 0.10)" } },
+  { id: "ramune", name: "Ramune", note: "picked · h 205", logo: "#0b9ba8", accent: "#0a818b", hover: "#06717a", press: "#036169",
+    dark: { ink: "#37acb8", soft: "oklch(0.61 0.12 205 / 0.16)" }, light: { ink: "#026f78", soft: "oklch(0.61 0.12 205 / 0.10)" } },
+  { id: "ume", name: "Ume", note: "pickled plum · h 355", logo: "#e06099", accent: "#c44681", hover: "#b33672", press: "#a22464",
+    dark: { ink: "#e87aa8", soft: "oklch(0.645 0.17 355 / 0.14)" }, light: { ink: "#b23471", soft: "oklch(0.645 0.17 355 / 0.10)" } },
+  // Ink-on-paper: the UI goes monochrome and the mark alone keeps chili. Fill flips per theme, so does its text.
+  { id: "sumi", name: "Sumi", note: "ink · mark keeps chili", logo: "#e25b26",
+    dark: { accent: "oklch(0.93 0.004 260)", hover: "oklch(0.87 0.004 260)", press: "oklch(0.81 0.004 260)", on: "oklch(0.18 0.004 260)", ink: "oklch(0.97 0.004 260)", soft: "oklch(1 0 0 / 0.10)" },
+    light: { accent: "oklch(0.24 0.006 260)", hover: "oklch(0.31 0.006 260)", press: "oklch(0.18 0.006 260)", on: "#fff", ink: "oklch(0.20 0.009 260)", soft: "oklch(0.3 0.008 260 / 0.08)" } },
+];
+
+const vars = (c, t) => {
+  const v = { ...c, ...c[t] };
+  return `--logo:${v.logo};--accent:${v.accent};--accent-hover:${v.hover};--accent-press:${v.press};--accent-ink:${v.ink};--accent-soft:${v.soft};--on-accent:${v.on ?? "#fff"};`;
+};
+document.getElementById("accent-vars").textContent = CANDIDATES.map(c => {
+  const s = `[data-accent="${c.id}"]`;
+  return `${s}{${vars(c, "dark")}}
+:root[data-theme="light"] ${s}{${vars(c, "light")}}
+@media (prefers-color-scheme: light){:root:not([data-theme]) ${s}{${vars(c, "light")}}}`;
+}).join("\n");
+
+const mark = (id, size) => `<svg width="${size}" height="${size}" viewBox="16 16 68 68" aria-hidden="true"><defs><mask id="m1-${id}-${size}" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100"><rect width="100" height="100" fill="#fff"/><circle cx="50" cy="50" r="17.5" fill="#000"/><circle cx="64" cy="36" r="17.5" fill="#000"/></mask><mask id="m2-${id}-${size}" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100"><rect width="100" height="100" fill="#fff"/><circle cx="64" cy="36" r="17.5" fill="#000"/></mask></defs><g mask="url(#m1-${id}-${size})"><line x1="20" y1="80" x2="80" y2="20" stroke="#C79A6B" stroke-width="6" stroke-linecap="round"/><circle cx="36" cy="64" r="15" style="fill:var(--logo)"/></g><g mask="url(#m2-${id}-${size})"><circle cx="50" cy="50" r="15" style="fill:var(--logo)"/></g><circle cx="64" cy="36" r="15" style="fill:var(--logo)"/><g fill="#fff" opacity="0.55"><ellipse cx="31.4" cy="58.7" rx="4.5" ry="3" transform="rotate(-30 31.4 58.7)"/><ellipse cx="45.4" cy="44.7" rx="4.5" ry="3" transform="rotate(-30 45.4 44.7)"/><ellipse cx="59.4" cy="30.7" rx="4.5" ry="3" transform="rotate(-30 59.4 30.7)"/></g></svg>`;
+
+document.getElementById("grid").innerHTML = CANDIDATES.map(c => `
+<article class="ac-col" data-accent="${c.id}">
+  <div class="ac-head">${mark(c.id, 40)}<div><h3>${c.name}</h3><small>${c.note}</small></div></div>
+  <div class="ac-ramp" aria-hidden="true"><span style="background:var(--logo)"></span><span style="background:var(--accent)"></span><span style="background:var(--accent-hover)"></span><span style="background:var(--accent-press)"></span><span style="background:var(--accent-ink)"></span><span style="background:var(--accent-soft)"></span></div>
+  <div class="ac-marks">${mark(c.id, 16)}${mark(c.id, 24)}<span class="dot"></span><span class="tag">Host</span><span class="count" aria-label="3 mentions">3</span></div>
+  <div class="row"><button class="btn btn--primary">Join server</button><button class="btn btn--danger btn--sm">Delete</button></div>
+  <div class="row"><span class="switch" role="switch" aria-checked="true" aria-label="On"></span><span class="check" role="checkbox" aria-checked="true" aria-label="Checked"><i class="ph-bold ph-check"></i></span><span class="radio" role="radio" aria-checked="true" aria-label="Selected"></span><button class="chip" aria-pressed="true">All</button></div>
+  <div class="input"><input aria-label="Focused field" value="Focused field"></div>
+  <div class="ac-mention"><span class="at">@you</span> send the clip? <a class="btn btn--link" href="#candidates">link</a></div>
+  <div class="progress" style="--v: 60%" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" aria-label="Upload"><span></span></div>
+  <div class="ac-presence"><span class="p" style="background:var(--online)"></span>Online<span class="p" style="background:var(--idle); margin-left:8px"></span>Idle<span class="p" style="background:var(--dnd); margin-left:8px"></span>DND</div>
+</article>`).join("");
+// Show the focus treatment without stealing focus.
+for (const el of document.querySelectorAll(".ac-col .input")) el.style.cssText = "border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft)";
+
+const ctx = document.getElementById("ctx"), pick = document.getElementById("pick");
+pick.innerHTML = CANDIDATES.map(c => `<button aria-pressed="false" data-id="${c.id}">${c.name}</button>`).join("");
+function choose(id) {
+  ctx.dataset.accent = id;
+  for (const b of pick.children) b.setAttribute("aria-pressed", b.dataset.id === id);
+  for (const col of document.querySelectorAll(".ac-col")) col.setAttribute("aria-current", col.dataset.accent === id);
+}
+pick.addEventListener("click", e => e.target.dataset.id && choose(e.target.dataset.id));
+choose(new URLSearchParams(location.search).get("accent") ?? "ramune");
+</script>
+<script src="site.js"></script>
+</body>
+</html>

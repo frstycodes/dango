@@ -14,7 +14,7 @@ use reqwest::Method;
 use serde_json::{Map, Value, json};
 
 use crate::{
-    Rustcord,
+    Waffle,
     discord::{Channel, ChannelKind, ChannelProps, Event, Overwrite, parse_channel, perm},
     icons::Glyph,
     palette::{self, Level},
@@ -300,7 +300,7 @@ impl ChannelSettings {
 }
 
 #[cfg(debug_assertions)]
-impl Rustcord {
+impl Waffle {
     pub(crate) fn demo_channel_search(&mut self, query: &str, window: &mut Window, cx: &mut Context<Self>) {
         let Some(view) = &self.channel_settings else { return };
         view.search.update(cx, |s, cx| s.set_value(query.to_owned(), window, cx));
@@ -314,7 +314,7 @@ impl Rustcord {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     fn channel_perms(&self, guild_id: &str, channel: &Channel) -> u64 {
         let (Some(me), Some(guild)) = (self.me.as_ref(), self.guilds.iter().find(|g| g.id == guild_id)) else { return 0 };
         guild.channel_permissions(&me.id, channel)

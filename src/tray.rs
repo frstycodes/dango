@@ -1,4 +1,4 @@
-// Windows: closing the window keeps Dango running in the notification area, like Discord. The
+// Windows: closing the window keeps Waffle running in the notification area, like Discord. The
 // tray icon brings the window back (click or double-click); its menu offers Open and Quit. Calls,
 // Go Live and notifications carry on while the window is hidden.
 use std::{cell::RefCell, time::Duration};
@@ -28,7 +28,7 @@ pub fn install(window: &mut Window, cx: &mut App) {
     crate::presence::watch(hwnd);
     // Registered before the tray is built: with no close handler gpui lets Windows destroy the window,
     // and closing the last window quits. The close button, Alt+F4 and the taskbar's Close all ask
-    // here; Dango hides to the tray, or minimizes when there is no tray icon to bring it back from.
+    // here; Waffle hides to the tray, or minimizes when there is no tray icon to bring it back from.
     window.on_window_should_close(cx, move |_, _| {
         let to = if TRAY.with(|t| t.borrow().is_some()) { SW_HIDE } else { SW_MINIMIZE };
         // SAFETY: `hwnd` is this window's handle, valid while the window exists (it isn't closed here).
@@ -38,13 +38,13 @@ pub fn install(window: &mut Window, cx: &mut App) {
         false
     });
 
-    let open = MenuItem::new("Open Dango", true, None);
-    let quit = MenuItem::new("Quit Dango", true, None);
+    let open = MenuItem::new("Open Waffle", true, None);
+    let quit = MenuItem::new("Quit Waffle", true, None);
     let menu = Menu::new();
     if menu.append_items(&[&open, &PredefinedMenuItem::separator(), &quit]).is_err() {
         return;
     }
-    let mut builder = TrayIconBuilder::new().with_tooltip("Dango").with_menu(Box::new(menu)).with_menu_on_left_click(false);
+    let mut builder = TrayIconBuilder::new().with_tooltip("Waffle").with_menu(Box::new(menu)).with_menu_on_left_click(false);
     if let Some(icon) = icon(crate::settings::Prefs::load().app_icon.bytes()) {
         builder = builder.with_icon(icon);
     }

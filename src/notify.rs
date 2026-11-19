@@ -3,7 +3,7 @@
 // over the server's, muted channels and servers notify only on mentions, and suppressed
 // @everyone / role mentions don't count.
 use crate::{
-    Rustcord,
+    Waffle,
     discord::{Message, Status},
 };
 
@@ -27,7 +27,7 @@ fn decide(dm: bool, level: u8, mentioned: bool, muted: bool) -> Notify {
     }
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn notify_kind(&self, message: &Message, focused_here: bool) -> Notify {
         let Some(me) = &self.me else { return Notify::None };
         if message.author.id == me.id || focused_here || self.my_status == Status::Dnd {

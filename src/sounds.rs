@@ -8,7 +8,7 @@ use std::{
 
 use rodio::Source;
 
-// Dango's sound cues (assets/sounds, made by tools/sound_cues.py), played where Discord plays its own.
+// Waffle's sound cues (assets/sounds, made by tools/sound_cues.py), played where Discord plays its own.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Cue {
     Mute,

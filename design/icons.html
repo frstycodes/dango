@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dango Icons</title>
-<meta name="description" content="Every icon Dango draws, moved from Phosphor to Reicon, plus the custom glyphs.">
-<link rel="icon" href="/assets/brand/icons/glass.png">
+<title>Waffle Icons</title>
+<meta name="description" content="Every icon Waffle draws, moved from Phosphor to Reicon, plus the custom glyphs.">
+<link rel="icon" href="/assets/brand/icons/paper.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="site.css">
 <link rel="stylesheet" href="css/primitives.css">
-<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<script>try{const p=JSON.parse(localStorage.getItem("waffle-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 <style>
 /* Each preview shows both themes side by side, whatever the page theme. */
 .ic-light { --tile: oklch(0.982 0.004 260); --ink: oklch(0.30 0.004 260); }
@@ -85,7 +85,7 @@ svg.ri { display: block; flex: none; fill: none; stroke: currentColor; stroke-wi
 <main>
 <section id="icons">
   <h1>Icons</h1>
-  <p class="lede">Reicon replaces Phosphor everywhere. Its outlines are soft and round-jointed, which suits the dumplings better than Phosphor's straight cuts. Chrome uses Reicon's filled weight, like Discord. Glyphs that are only lines (#, +, arrows) stay lines, because Reicon's filled form boxes them in a tile. The outline weight ships at 1.5 on a 24 grid and is thickened here to 2, matching Gabarito's stem at 16px. Each card shows the glyph at 16px and 40px on light and dark, the Phosphor glyph it replaces, and every place that uses it today.</p>
+  <p class="lede">Reicon replaces Phosphor everywhere. Its outlines are soft and round-jointed, which suits the waffle better than Phosphor's straight cuts. Chrome uses Reicon's filled weight, like Discord. Glyphs that are only lines (#, +, arrows) stay lines, because Reicon's filled form boxes them in a tile. The outline weight ships at 1.5 on a 24 grid and is thickened here to 2, matching Gabarito's stem at 16px. Each card shows the glyph at 16px and 40px on light and dark, the Phosphor glyph it replaces, and every place that uses it today.</p>
   <div class="stats" id="stats"></div>
   <div class="seg weight" role="group" aria-label="Icon weight" id="weight"><button data-v="filled" aria-pressed="true">Filled</button><button data-v="outline" aria-pressed="false">Outline</button></div>
   <div class="jump" id="jump"></div>
@@ -140,7 +140,7 @@ function slashed(base, on) {
 
 // Filled is the default, like Discord's chrome; the switch shows the outline set beside it.
 let FILLED = true;
-try { FILLED = localStorage.getItem("dango-icons-weight") !== "outline"; } catch {}
+try { FILLED = localStorage.getItem("waffle-icons-weight") !== "outline"; } catch {}
 // Line-only glyphs whose Reicon filled form wraps them in a tile or circle: Discord draws these as
 // bare lines in either weight, so they keep the outline.
 const LINE_ONLY = new Set(["hashtag2", "add", "arrow-right5", "arrow-up5", "check-read", "sort", "search"]);
@@ -148,7 +148,7 @@ const ICON = name => (FILLED && !LINE_ONLY.has(name) && REICON_FILLED[name]) || 
 $("#weight").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   FILLED = b.dataset.v === "filled";
-  try { localStorage.setItem("dango-icons-weight", b.dataset.v); } catch {}
+  try { localStorage.setItem("waffle-icons-weight", b.dataset.v); } catch {}
   renderAll();
 });
 

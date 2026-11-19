@@ -13,7 +13,7 @@ use gpui_kit::{
 };
 
 use crate::{
-    Channel, ChannelKind, Rustcord, EmojiTarget, SearchState,
+    Channel, ChannelKind, Waffle, EmojiTarget, SearchState,
     discord::{Emoji, Message, User},
     icons::Glyph,
     layout::avatar_with_status,
@@ -38,7 +38,7 @@ impl ComposerPicker {
     const ALL: [ComposerPicker; 3] = [ComposerPicker::Gifs, ComposerPicker::Stickers, ComposerPicker::Emoji];
 }
 
-impl Rustcord {
+impl Waffle {
     pub(crate) fn on_emoji_search(&mut self, _: &Entity<SearchState>, _: &InputEvent, _: &mut Window, cx: &mut Context<Self>) {
         cx.notify();
     }
@@ -668,7 +668,7 @@ impl Rustcord {
                             .child(div().text_size(px(12.)).text_color(palette::muted(cx)).child(source)),
                     )
             }));
-        // GAP: the design's skin-tone button sits beside search; Dango has no skin tones yet.
+        // GAP: the design's skin-tone button sits beside search; Waffle has no skin tones yet.
         let head = div().p(px(10.)).child(ui::search_field("emoji-search", &self.emoji_search, cx));
         vec![
             head.into_any_element(),
@@ -861,7 +861,7 @@ fn picker_frame(id: &'static str, height: f32, cx: &App) -> gpui_kit::Stateful<g
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
 }
 
-pub(crate) fn backdrop(id: &'static str, cx: &mut Context<Rustcord>) -> gpui_kit::Stateful<gpui_kit::Div> {
+pub(crate) fn backdrop(id: &'static str, cx: &mut Context<Waffle>) -> gpui_kit::Stateful<gpui_kit::Div> {
     div().id(id).absolute().inset_0().occlude().on_mouse_down(
         MouseButton::Left,
         cx.listener(|this, _, _, cx| {

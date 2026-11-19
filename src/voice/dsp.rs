@@ -279,7 +279,7 @@ impl Neural {
         let (requests, inbox) = sync_channel(1);
         let (outbox, replies) = sync_channel(1);
         let flag = ready.clone();
-        let spawned = thread::Builder::new().name("rustcord-deepfilternet".into()).spawn(move || run_worker(&flag, &inbox, &outbox));
+        let spawned = thread::Builder::new().name("waffle-deepfilternet".into()).spawn(move || run_worker(&flag, &inbox, &outbox));
         if spawned.is_ok() {
             self.dfn = Some(Worker { ready, requests, replies });
         }

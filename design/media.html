@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wave Media</title>
+<title>Waffle Media</title>
 <meta name="description" content="The video player, file drops, and everything you can drag.">
-<link rel="icon" href="/assets/brand/icons/glass.png">
+<link rel="icon" href="/assets/brand/icons/paper.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="css/community.css">
 <link rel="stylesheet" href="css/server-settings.css">
 <link rel="stylesheet" href="css/flows.css">
-<script>try{const p=JSON.parse(localStorage.getItem("wave-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<script>try{const p=JSON.parse(localStorage.getItem("waffle-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
 </head>
 <body>
 <header id="top"></header>
@@ -131,7 +131,7 @@
   <h3>Zoomed, loading, failed</h3>
   <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr))">
     <figure class="viewer vw" data-state="ready" style="min-height: 360px"><div class="vbar"><div><b>glass.png</b><span>Mira · 212 KB</span></div><span class="vw-count">1 of 5</span><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
-      <div class="vw-stage is-zoomed" style="padding: 16px 56px"><img class="vw-img" src="/assets/brand/icons/glass.png" alt="" style="--z: 1.5; --x: 30px; --y: 10px; max-height: 220px"><button class="vw-nav prev" aria-label="Previous image" disabled><i class="ph-bold ph-caret-left"></i></button><button class="vw-nav next" aria-label="Next image"><i class="ph-bold ph-caret-right"></i></button><div class="vw-hud is-shown" role="status"><output>150%</output><button class="btn btn--sm">Reset</button></div></div></figure>
+      <div class="vw-stage is-zoomed" style="padding: 16px 56px"><img class="vw-img" src="/assets/brand/icons/paper.png" alt="" style="--z: 1.5; --x: 30px; --y: 10px; max-height: 220px"><button class="vw-nav prev" aria-label="Previous image" disabled><i class="ph-bold ph-caret-left"></i></button><button class="vw-nav next" aria-label="Next image"><i class="ph-bold ph-caret-right"></i></button><div class="vw-hud is-shown" role="status"><output>150%</output><button class="btn btn--sm">Reset</button></div></div></figure>
     <figure class="viewer vw" data-state="loading" style="min-height: 360px"><div class="vbar"><div><b>pixel.png</b><span>Mira · 96 KB</span></div><span class="vw-count">5 of 5</span><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
       <div class="vw-stage" style="padding: 16px 56px"><div class="vw-wait" role="status" style="width: 220px"><span class="pic" style="--h: 330"></span><div><span class="mascot waiting"><i></i><i></i><i></i><i></i><i></i></span>Loading pixel.png…</div></div><button class="vw-nav prev" aria-label="Previous image"><i class="ph-bold ph-caret-left"></i></button><button class="vw-nav next" aria-label="Next image" disabled><i class="ph-bold ph-caret-right"></i></button></div></figure>
     <figure class="viewer vw" data-state="failed" style="min-height: 360px"><div class="vbar"><div><b>blueprint.png</b><span>Mira</span></div><span class="vw-count">3 of 5</span><button class="iconbtn" aria-label="Close"><i class="ph ph-x"></i></button></div>
@@ -308,10 +308,10 @@
   <h3>Decorations at each size</h3>
   <div class="board" style="overflow-x: auto">
     <div class="deco-grid" id="deco-grid">
-      <span></span><b>None</b><b>Wave ring</b><b>Wave ring, animated</b><b>Halo</b>
+      <span></span><b>None</b><b>Waffle ring</b><b>Waffle ring, animated</b><b>Halo</b>
     </div>
   </div>
-  <p class="note" style="margin-top: 8px">80 in profiles, 40 in chat, 32 in the member list and DMs. Wave ring: the logo's five-bar rhythm repeated around the avatar in the user's chosen hue, 30 bars at 64px and up, 15 thicker bars below. Animated decorations hold still until hovered (and always with reduced motion). In the app: <code>decorated_avatar</code> in <code>src/layout.rs</code>, which already draws at 1.2×.</p>
+  <p class="note" style="margin-top: 8px">80 in profiles, 40 in chat, 32 in the member list and DMs. Waffle ring: the logo's five-bar rhythm repeated around the avatar in the user's chosen hue, 30 bars at 64px and up, 15 thicker bars below. Animated decorations hold still until hovered (and always with reduced motion). In the app: <code>decorated_avatar</code> in <code>src/layout.rs</code>, which already draws at 1.2×.</p>
   <h3>Profile effect</h3>
   <div class="row" style="align-items: flex-start; gap: var(--space-6)">
     <div class="pop profile fx-card" id="fx-card" style="--banner: 200">
@@ -340,15 +340,15 @@
           <button class="ep-cat" role="tab" aria-selected="false" aria-label="Night owls"><span class="srv-tile" style="--hue: 300">N</span></button>
           <button class="ep-cat" role="tab" aria-selected="false" aria-label="Pixel Club"><span class="srv-tile" style="--hue: 140">P</span></button>
           <span class="sep"></span>
-          <button class="ep-cat" role="tab" aria-selected="false" aria-label="Wave pack"><span class="stk-mascot"><span class="mascot"><i></i><i></i><i></i><i></i><i></i></span></span></button>
+          <button class="ep-cat" role="tab" aria-selected="false" aria-label="Waffle pack"><span class="stk-mascot"><span class="mascot"><i></i><i></i><i></i><i></i><i></i></span></span></button>
         </div>
         <div class="ep-scroll">
           <div class="ep-sec"><i class="ph ph-clock-counter-clockwise"></i>Recently used</div>
           <div class="stk-grid" data-stickers="heart:Night owls,fire:Night owls:anim,gg:Pixel Club"></div>
           <div class="ep-sec"><span class="srv-tile" style="--hue: 300; width: 16px; height: 16px; border-radius: 5px; font-size: 11px">N</span>Night owls</div>
           <div class="stk-grid" data-stickers="heart:Night owls,fire:Night owls:anim,moon:Night owls,ghost:Night owls:anim"></div>
-          <div class="ep-sec"><span class="stk-mascot" style="width: 16px; height: 16px; border-radius: 5px"><span class="mascot" style="--s: 0.18"><i></i><i></i><i></i><i></i><i></i></span></span>Wave pack</div>
-          <div class="stk-grid" data-stickers="hi:Wave pack:anim,lol:Wave pack,mug:Wave pack,gg:Pixel Club"></div>
+          <div class="ep-sec"><span class="stk-mascot" style="width: 16px; height: 16px; border-radius: 5px"><span class="mascot" style="--s: 0.18"><i></i><i></i><i></i><i></i><i></i></span></span>Waffle pack</div>
+          <div class="stk-grid" data-stickers="hi:Waffle pack:anim,lol:Waffle pack,mug:Waffle pack,gg:Pixel Club"></div>
         </div>
       </div>
       <div class="stk-foot"><span class="stk-prev"></span><div><b>:fire:</b><small>Night owls · Animated</small></div></div>
@@ -404,9 +404,9 @@
 
 <section id="better-than-discord">
   <h2>Better than Discord</h2>
-  <p class="lede">Where Discord's media and drag handling is weak, Wave does this instead. Discord's side is described from its current desktop app.</p>
+  <p class="lede">Where Discord's media and drag handling is weak, Waffle does this instead. Discord's side is described from its current desktop app.</p>
   <div class="btd">
-    <div><span>Discord does</span><span>Wave does</span><span>Why</span></div>
+    <div><span>Discord does</span><span>Waffle does</span><span>Why</span></div>
     <div><p>A video that won't decode shows a generic error or a player that does nothing.</p><p><b><a href="#video-player">Failed video</a></b>Says it can't play here and why, with Open it instead in place.</p><p>An error should say what happened and what to do next, where it happened.</p></div>
     <div><p>The scrubber gives no hint of where a click lands; buffering covers the frame with a spinner.</p><p><b><a href="#video-player">Scrubber and buffering</a></b>Hover time, a hover marker and the buffered range; buffering shows the wave over the last frame with controls still live.</p><p>Seek without guessing; waiting should never hide what you were watching.</p></div>
     <div><p>The inline player has no playback speed or picture in picture.</p><p><b><a href="#video-player">Speed and picture in picture</a></b>Both in the bar, with keys for each.</p><p>Clips of guides and long recordings are watched at speed, or alongside the chat.</p></div>
@@ -461,7 +461,7 @@ function videoMarkup(h) {
   <button class="play" aria-label="Play video"><i class="ph-fill ph-play"></i></button><span class="media-tag br">0:42</span>
   <div class="vid-wait" role="status" aria-label="Loading video"><span class="mascot waiting"><i></i><i></i><i></i><i></i><i></i></span></div>
   <button class="vid-again"><i class="ph-bold ph-arrow-counter-clockwise"></i>Play again</button>
-  <div class="vid-fail" role="alert"><i class="ph ph-video-camera-slash"></i><b>Can't play this here</b><p>Wave can't decode HEVC video yet.</p><a class="btn btn--sm" href="#" onclick="return false"><i class="ph-bold ph-arrow-square-out"></i>Open it instead</a></div>
+  <div class="vid-fail" role="alert"><i class="ph ph-video-camera-slash"></i><b>Can't play this here</b><p>Waffle can't decode HEVC video yet.</p><a class="btn btn--sm" href="#" onclick="return false"><i class="ph-bold ph-arrow-square-out"></i>Open it instead</a></div>
   <div class="vid-pipnote"><i class="ph ph-picture-in-picture"></i>Playing in picture in picture<button class="btn btn--sm vid-pipback">Bring it back</button></div>
   <div class="vid-top"><div><b>night-run-finale.mp4</b><span>Theo · Today at 10:25 PM</span></div><button class="vid-btn vid-exit" aria-label="Exit full screen"><i class="ph ph-x"></i></button></div>
   <div class="vid-bar">
