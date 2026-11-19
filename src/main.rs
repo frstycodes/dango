@@ -703,6 +703,8 @@ pub struct Waffle {
     // The suggestion list's scroll, kept on the highlighted row.
     autocomplete_scroll: gpui_kit::ScrollHandle,
     channels_scroll: gpui_kit::ScrollHandle,
+    rail_scroll: gpui_kit::ScrollHandle,
+    panel_scroll: gpui_kit::ScrollHandle,
     flash: Option<String>,
     muted: bool,
     deafened: bool,
@@ -962,6 +964,8 @@ impl Waffle {
             autocomplete: None,
             autocomplete_scroll: gpui_kit::ScrollHandle::new(),
             channels_scroll: gpui_kit::ScrollHandle::new(),
+            rail_scroll: gpui_kit::ScrollHandle::new(),
+            panel_scroll: gpui_kit::ScrollHandle::new(),
             flash: None,
             muted: false,
             deafened: false,

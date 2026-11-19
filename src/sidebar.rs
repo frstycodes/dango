@@ -1,7 +1,6 @@
 // The server rail and the channel list (design/css/navigation.css: .rail, .srv, .folder, .side, .ch).
 use std::time::Duration;
 
-use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::{
     Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, Radians, SharedString, Stateful, Window,
     base::{Transition as Tween, transition},
@@ -26,8 +25,6 @@ pub(crate) const TILE: f32 = 44.;
 const RAIL_GAP: f32 = 8.;
 // How far a header control sits below the window's top: a 34px control centred in the 48px header row.
 const HEADER_INSET: f32 = 7.;
-// The strip the rail leaves the traffic lights; Home starts a gap below it.
-const LIGHTS_STRIP: f32 = crate::layout::HEADER_HEIGHT - RAIL_GAP + 4.;
 pub(crate) const TILE_X: f32 = (RAIL_WIDTH - TILE) / 2.;
 const MINI: f32 = 16.;
 const MINI_GAP: f32 = 4.;
@@ -108,12 +105,16 @@ impl Waffle {
         // rail under the row); otherwise Home sits in it, inset like the header's other controls.
         let lights = crate::layout::traffic_lights_shown(window);
         let separator = div().w(px(24.)).h(px(2.)).flex_none().rounded(px(1.)).bg(palette::line_strong(cx));
+        // Under the lights the rail starts below a strip the channel header's height (so their edges meet in one line),
+        // its first tile just under that edge.
+        let top = if lights { 4. } else { HEADER_INSET };
         div()
             .id("rail")
+            .track_scroll(&self.rail_scroll)
             .w(px(RAIL_WIDTH))
             .h_full()
             .flex_none()
-            .pt(px(if lights { 0. } else { HEADER_INSET }))
+            .pt(px(top))
             .pb(px(12.))
             .flex()
             .flex_col()
@@ -121,7 +122,6 @@ impl Waffle {
             .gap(px(RAIL_GAP))
             .overflow_y_scroll()
             .text_size(px(14.))
-            .when(lights, |rail| rail.child(div().flex_none().w_full().h(px(LIGHTS_STRIP)).window_control_area(gpui_kit::WindowControlArea::Drag)))
             // Without the lights, Home holds the slot over a drag strip; Home keeps its clicks from the strip,
             // and the rail still scrolls under it.
             .when(!lights, |rail| rail.child(div().absolute().top_0().left_0().w_full().h(px(crate::layout::HEADER_HEIGHT)).window_control_area(gpui_kit::WindowControlArea::Drag)))
@@ -142,9 +142,9 @@ impl Waffle {
             .when(open, |b| b.bg(palette::selected(cx)).text_color(palette::strong(cx)))
             .when(mentions, |b| b.child(div().absolute().top(px(6.)).right(px(6.)).size(px(8.)).rounded_full().bg(palette::alert())))
             .on_click(cx.listener(|this, _, _, cx| this.open_inbox(cx)));
-        // Under the traffic lights the tiles scroll up into the strip, which blurs and fades them (ui::scroll_edge).
+        // Under the traffic lights a strip sits above the tiles, a hard edge they scroll up to (ui::hard_edge).
         let lights = crate::layout::traffic_lights_shown(window);
-        let edge = lights.then(|| ui::scroll_edge_over(crate::material::sidebar_fill(cx), 0., LIGHTS_STRIP, RAIL_GAP));
+        let strip = lights.then(|| ui::hard_edge(self.sidebar_scrolled(window), cx).h(px(crate::layout::HEADER_HEIGHT)).window_control_area(gpui_kit::WindowControlArea::Drag));
         div()
             .w(px(RAIL_WIDTH))
             .h_full()
@@ -152,9 +152,18 @@ impl Waffle {
             .flex()
             .flex_col()
             .items_center()
-            .child(div().relative().flex_1().min_h_0().w_full().child(self.render_rail(window, cx)).children(edge))
+            .children(strip)
+            .child(div().relative().flex_1().min_h_0().w_full().child(self.render_rail(window, cx)))
             .child(div().flex_none().pt(px(RAIL_GAP)).pb(px(8.)).child(inbox))
             .child(div().flex_none().h(self.user_panel_clearance()))
+    }
+
+    // Whether the rail or the channel list has scrolled under its header: one hairline then runs across both. Without
+    // the traffic lights the rail has no strip to scroll under, so only the channel list counts.
+    fn sidebar_scrolled(&self, window: &Window) -> impl Fn() -> bool + 'static {
+        let rail = crate::layout::traffic_lights_shown(window).then(|| self.rail_scroll.clone());
+        let channels = self.channels_scroll.clone();
+        move || rail.as_ref().is_some_and(ui::scrolled) || ui::scrolled(&channels)
     }
 
     // DMs that want you, under Home as Discord stacks them: unread ones, newest first, and the one
@@ -561,7 +570,14 @@ impl Waffle {
                     .child(div().truncate().child(format!("Reconnecting… {}", reconnecting.clone().unwrap_or_default()))),
             )
         });
-        let header = self.channel_list_head(cx);
+        // The header row: 8px in, like the list below, so the name lines up with the channel rows.
+        let header = div()
+            .h(px(crate::layout::HEADER_HEIGHT))
+            .px_2()
+            .flex()
+            .items_center()
+            .window_control_area(gpui_kit::WindowControlArea::Drag)
+            .child(self.channel_list_head(cx));
         div()
             .relative()
             .w(px(self.channels_width))
@@ -572,23 +588,11 @@ impl Waffle {
             .bg(crate::material::sidebar_fill(cx))
             .text_color(palette::muted(cx))
             .text_size(px(14.))
-            // The list runs up under the header, which blurs and fades it (ui::scroll_edge), as the feed does.
-            .child(div().id("channels").track_scroll(&self.channels_scroll).flex_1().min_h_0().overflow_y_scrollbar().pt(px(crate::layout::HEADER_HEIGHT + 8.)).px_2().pb_2().flex().flex_col().gap(px(ROW_GAP)).children(rows))
+            // The list stops under the header, a hard edge (ui::hard_edge).
+            .child(ui::hard_edge(self.sidebar_scrolled(window), cx).child(header))
+            .child(ui::scroll_area(div().id("channels").pt(px(8.)).px_2().pb_2().flex().flex_col().gap(px(ROW_GAP)).children(rows), &self.channels_scroll))
             .child(banner)
             .child(div().flex_none().h(self.user_panel_clearance()))
-            // The header row: 8px in, like the list below, so the name lines up with the channel rows.
-            .child(
-                ui::scroll_edge(crate::material::sidebar_fill(cx), 0.)
-                .child(
-                    div()
-                        .h(px(crate::layout::HEADER_HEIGHT))
-                        .px_2()
-                        .flex()
-                        .items_center()
-                        .window_control_area(gpui_kit::WindowControlArea::Drag)
-                        .child(header),
-                ),
-            )
             .child(self.resize_handle(Edge::Channels, cx))
     }
 

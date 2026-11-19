@@ -157,7 +157,7 @@ pub fn settings_sidebar(id: impl Into<ElementId>, scroll: &ScrollHandle, cx: &Ap
 }
 
 // The settings nav's header strip: the traffic lights sit over it on macOS, as in System Settings, it drags
-// the window, and the list scrolls up under it into a blur and fade (scroll_edge), as the channel list does.
+// the window, and the list scrolls up under it into a fade (scroll_edge), as the channel list does.
 pub fn settings_nav_edge(cx: &App) -> Div {
     crate::ui::scroll_edge_over(crate::material::sidebar_fill(cx), 0., SETTINGS_NAV_STRIP, SETTINGS_NAV_TAIL)
         .child(div().h(px(SETTINGS_NAV_STRIP)).window_control_area(gpui_kit::WindowControlArea::Drag))

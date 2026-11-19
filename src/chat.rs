@@ -75,10 +75,9 @@ impl Waffle {
             .on_action(cx.listener(Self::focus_search))
             // The composer floats over the feed, which scrolls on under its glass.
             .child(div().relative().flex_1().min_h_0().child(body).children(unread_bar).child(self.render_composer(window, cx)));
-        // The feed runs up under the header, which blurs and fades it (scroll_edge); the members column beside
-        // it runs to the window's top with a header of its own on the same line.
+        // The feed runs up under the header's glass (ui::glass_header); the members column beside it runs to the
+        // window's top with a header of its own on the same line.
         let panel = self.panel_column_width().map(|w| self.part(crate::part::Column::Panel, gpui_kit::StyleRefinement::default().w(px(w)).h_full().flex_none(), cx));
-        // After the header: its scroll-edge fade runs past its bar and would veil the strip.
         let strip = strip.map(|s| div().absolute().top(px(HEADER_HEIGHT)).left_0().right_0().px(px(16.)).child(s));
         let drop_zone = self.drop_zone(&channel, cx);
         main.child(div().flex_1().min_h_0().flex().child(chat.child(header).children(strip).child(drop_zone)).children(panel))
@@ -169,7 +168,7 @@ impl Waffle {
             .children(topic)
             .child(div().ml_auto().flex_none().flex().items_center().gap(px(2.)).children(calls.into_iter().flatten()).children(threads).child(pins).children(members).children(search))
             .child(self.caption_clearance(!self.panel_shown()));
-        ui::scroll_edge(palette::surface(Level::Page, cx), 0.).child(bar)
+        ui::glass_header(palette::surface(Level::Page, cx)).child(bar)
     }
 
     // The header's search: one element that is a search button when closed and opens into the field, open

@@ -284,7 +284,7 @@ impl Waffle {
                 div().flex().flex_col().gap(px(2.)).child(label).children(rows).into_any_element()
             }
         };
-        // The list runs up under the header, which blurs and fades it (ui::scroll_edge).
+        // The list runs up under the header, which fades it (ui::scroll_edge).
         let page = palette::surface(palette::Level::Page, cx);
         div()
             .relative()
