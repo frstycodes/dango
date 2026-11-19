@@ -469,6 +469,47 @@ pub struct Emoji {
     pub animated: bool,
 }
 
+/// Your own custom status: what your user settings hold, and what goes out in your presence.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CustomStatus {
+    pub text: String,
+    pub emoji: Option<Emoji>,
+    pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+impl CustomStatus {
+    // A setting with neither text nor emoji, or one already past its expiry, is no status.
+    fn parse(v: &Value, now: chrono::DateTime<chrono::Utc>) -> Option<Self> {
+        let text = v["text"].as_str().unwrap_or_default().to_owned();
+        let emoji = v["emoji_name"].as_str().filter(|n| !n.is_empty()).map(|name| Emoji { id: v["emoji_id"].as_str().map(str::to_owned), name: name.to_owned(), animated: false });
+        let expires_at = v["expires_at"].as_str().and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok()).map(|t| t.with_timezone(&chrono::Utc));
+        if (text.is_empty() && emoji.is_none()) || expires_at.is_some_and(|t| t <= now) {
+            return None;
+        }
+        Some(CustomStatus { text, emoji, expires_at })
+    }
+
+    /// The user-settings shape (`PATCH /users/@me/settings`).
+    pub fn setting(&self) -> Value {
+        json!({
+            "text": (!self.text.is_empty()).then_some(&self.text),
+            "emoji_name": self.emoji.as_ref().map(|e| &e.name),
+            "emoji_id": self.emoji.as_ref().and_then(|e| e.id.as_ref()),
+            "expires_at": self.expires_at.map(|t| t.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)),
+        })
+    }
+
+    // Not verified: the activity's shape, taken from what Discord's own client sends.
+    fn activity(&self) -> Value {
+        json!({
+            "type": 4,
+            "name": "Custom Status",
+            "state": (!self.text.is_empty()).then_some(&self.text),
+            "emoji": self.emoji.as_ref().map(|e| json!({ "name": e.name, "id": e.id, "animated": e.animated })),
+        })
+    }
+}
+
 impl Emoji {
     pub fn unicode(name: &str) -> Self {
         Emoji { id: None, name: name.into(), animated: false }
@@ -634,7 +675,7 @@ pub struct Gif {
 pub struct Ready {
     pub me: User,
     pub status: Status,
-    pub custom_status: Option<String>,
+    pub custom_status: Option<CustomStatus>,
     pub session_id: String,
     pub guilds: Vec<Guild>,
     pub dms: Vec<Channel>,
@@ -957,16 +998,17 @@ impl Client {
     }
 
     /// Changes your status everywhere: the gateway presence now, the saved setting for next time.
-    pub async fn set_status(&self, status: Status) {
-        let wire = match status {
-            Status::Online => "online",
-            Status::Idle => "idle",
-            Status::Dnd => "dnd",
-            Status::Offline => "invisible",
-        };
-        self.gateway(json!({ "op": 3, "d": { "status": wire, "since": 0, "activities": [], "afk": false } }));
-        let req = self.request(reqwest::Method::PATCH, "/users/@me/settings").json(&json!({ "status": wire }));
+    /// `custom` rides along so the presence update doesn't wipe your custom status.
+    pub async fn set_status(&self, status: Status, custom: Option<&CustomStatus>) {
+        self.send_presence(status, custom);
+        let req = self.request(reqwest::Method::PATCH, "/users/@me/settings").json(&json!({ "status": status_wire(status) }));
         let _ = self.run(req).await;
+    }
+
+    // A custom status travels as a type-4 activity in the presence.
+    pub fn send_presence(&self, status: Status, custom: Option<&CustomStatus>) {
+        let activities: Vec<Value> = custom.map(CustomStatus::activity).into_iter().collect();
+        self.gateway(json!({ "op": 3, "d": { "status": status_wire(status), "since": 0, "activities": activities, "afk": false } }));
     }
 
     /// Saves account settings: `patch` holds only the fields that changed.
@@ -1439,6 +1481,15 @@ async fn session(token: &str, tx: &mpsc::UnboundedSender<Event>, outbound: &mut 
     }
 }
 
+fn status_wire(status: Status) -> &'static str {
+    match status {
+        Status::Online => "online",
+        Status::Idle => "idle",
+        Status::Dnd => "dnd",
+        Status::Offline => "invisible",
+    }
+}
+
 // capabilities 0 asks for the legacy READY shape: full guild objects and user objects in DMs.
 fn identify(token: &str) -> String {
     json!({
@@ -1537,7 +1588,7 @@ fn parse_ready(d: &Value) -> Ready {
     Ready {
         me: parse_user(&d["user"]),
         status: Status::parse(d["user_settings"]["status"].as_str().unwrap_or("online")),
-        custom_status: d["user_settings"]["custom_status"]["text"].as_str().filter(|t| !t.is_empty()).map(str::to_owned),
+        custom_status: CustomStatus::parse(&d["user_settings"]["custom_status"], chrono::Utc::now()),
         session_id: d["session_id"].as_str().unwrap_or_default().to_owned(),
         guilds: d["guilds"]
             .as_array()
@@ -2371,6 +2422,21 @@ mod tests {
         assert_eq!(m.media[1].kind, MediaKind::Gif { poster: "t.png".into() });
         assert_eq!(m.embeds.len(), 1);
         assert_eq!(m.embeds[0].provider.as_deref(), Some("YouTube"));
+    }
+
+    #[test]
+    fn custom_status_reads_settings_and_drops_expired() {
+        let now = chrono::Utc::now();
+        let soon = (now + chrono::Duration::hours(1)).to_rfc3339();
+        let past = (now - chrono::Duration::hours(1)).to_rfc3339();
+        let s = CustomStatus::parse(&json!({ "text": "brb", "emoji_name": "🍡", "expires_at": soon }), now).expect("live status");
+        assert_eq!((s.text.as_str(), s.emoji.as_ref().map(|e| e.name.as_str())), ("brb", Some("🍡")));
+        assert!(CustomStatus::parse(&json!({ "text": "old", "expires_at": past }), now).is_none());
+        assert!(CustomStatus::parse(&json!({ "text": "", "emoji_name": null }), now).is_none());
+        assert!(CustomStatus::parse(&Value::Null, now).is_none());
+        let emoji_only = CustomStatus::parse(&json!({ "emoji_name": "x", "emoji_id": "1" }), now).expect("emoji alone counts");
+        assert_eq!(emoji_only.setting()["text"], Value::Null);
+        assert_eq!(emoji_only.activity()["emoji"]["id"], "1");
     }
 
     #[test]

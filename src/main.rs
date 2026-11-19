@@ -36,6 +36,7 @@ mod os_image;
 mod overlays;
 mod overwrites;
 mod playback;
+mod status_menu;
 mod memory;
 mod menu;
 mod message_menu;
@@ -478,6 +479,7 @@ struct ProfileCard {
 enum EmojiTarget {
     Composer,
     Reaction(Box<Message>),
+    CustomStatus,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -513,7 +515,13 @@ pub struct Rustcord {
     _session: Option<Task<()>>,
     me: Option<User>,
     my_status: discord::Status,
-    custom_status: Option<String>,
+    custom_status: Option<discord::CustomStatus>,
+    // When a status picked "For 1 hour" and the like falls back to Online.
+    status_until: Option<chrono::DateTime<chrono::Local>>,
+    status_editor: Option<status_menu::StatusEditor>,
+    status_flyout: status_menu::Flyout,
+    status_input: Entity<SearchState>,
+    clear_after: status_menu::ClearAfter,
     guilds: Vec<Guild>,
     folders: Vec<Folder>,
     open_folders: HashSet<String>,
@@ -800,6 +808,8 @@ impl Rustcord {
         cx.subscribe_in(&switcher_input, window, Self::on_switcher_input).detach();
         let settings_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search settings"));
         let dialog_input = cx.new(|cx| SearchState::new(window, cx));
+        let status_input = cx.new(|cx| SearchState::new(window, cx).placeholder("What's on your mind?"));
+        cx.subscribe_in(&status_input, window, Self::on_status_input).detach();
         cx.subscribe(&settings_search, |this: &mut Self, _, _: &InputEvent, cx| {
             // A new query starts at its best result.
             if let Some(view) = this.settings.as_mut() {
@@ -816,6 +826,11 @@ impl Rustcord {
             me: None,
             my_status: discord::Status::Online,
             custom_status: None,
+            status_until: None,
+            status_editor: None,
+            status_flyout: status_menu::Flyout::default(),
+            status_input,
+            clear_after: status_menu::ClearAfter::default(),
             guilds: Vec::new(),
             folders: Vec::new(),
             open_folders: HashSet::new(),
@@ -1087,6 +1102,7 @@ impl Rustcord {
                 self.remember_account(&ready.me);
                 self.me = Some(ready.me);
                 self.custom_status = ready.custom_status;
+                self.expire_custom_status_later(cx);
                 for channel in ready.guilds.iter().flat_map(|g| &g.channels).chain(&ready.dms) {
                     if let Some(id) = channel.last_message_id.as_deref().and_then(|id| id.parse().ok()) {
                         self.last_message.insert(channel.id.clone(), id);
