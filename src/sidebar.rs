@@ -61,7 +61,8 @@ struct RailTile {
     unread: bool,
     mentions: u32,
     muted: bool,
-    in_voice: bool,
+    // The top-right media badge: what's live there, and whether you're connected to it.
+    media: Option<Media>,
     face: Face,
     guild_id: Option<String>,
     // Badges shrink with a folder's trip (1 shown, 0 gone).
@@ -86,7 +87,7 @@ impl Waffle {
             unread: false,
             mentions: dm_mentions,
             muted: false,
-            in_voice: false,
+            media: None,
             face: Face::Home,
             guild_id: None,
             badge_scale: 1.,
@@ -226,7 +227,7 @@ impl Waffle {
             // Every DM message counts as a mention, so this is its unread count.
             mentions,
             muted: false,
-            in_voice: self.call.as_ref().is_some_and(|c| c.guild_id.is_none() && c.channel.id == dm.id),
+            media: self.call.as_ref().is_some_and(|c| c.guild_id.is_none() && c.channel.id == dm.id).then_some(Media { kind: MediaKind::Voice, connected: true }),
             face: Face::Person(dm.face()),
             guild_id: None,
             badge_scale: 1.,
@@ -262,6 +263,22 @@ impl Waffle {
         }
     }
 
+    // Discord's server icon badge (GuildMediaStateStore.getGuildMediaState): what's live in this server's
+    // voice, from people you haven't blocked or ignored, in channels you can see that aren't a stage, the
+    // AFK channel or muted. A muted server shows none unless you're in its voice.
+    fn guild_media(&self, guild: &Guild) -> Option<Media> {
+        let me = self.me.as_ref()?.id.as_str();
+        let settings = self.guild_settings.get(&guild.id);
+        let connected = self.call.as_ref().filter(|c| c.guild_id.as_ref() == Some(&guild.id)).map(|c| c.channel.id.as_str());
+        let blocked = |id: &str| self.ignored.contains(id) || self.relationships.iter().any(|r| r.kind == crate::discord::Relation::Blocked && r.user.id == id);
+        let counts = |state: &crate::discord::VoiceState| {
+            let Some(channel_id) = state.channel_id.as_deref() else { return false };
+            let Some(channel) = guild.channels.iter().find(|c| c.id == channel_id) else { return false };
+            channel.raw_type != 13 && guild.afk_channel_id.as_deref() != Some(channel_id) && guild.can_view(me, channel) && !settings.is_some_and(|s| s.channel_muted(channel_id)) && !blocked(&state.user_id)
+        };
+        media_state(&guild.voice_states, me, connected, settings.is_some_and(|s| s.is_muted()), counts)
+    }
+
     fn guild_tile(&self, guild: &Guild, badge_scale: f32) -> RailTile {
         let (unread, mentions) = self.guild_badge(guild);
         RailTile {
@@ -271,7 +288,7 @@ impl Waffle {
             unread,
             mentions,
             muted: self.guild_settings.get(&guild.id).is_some_and(|s| s.is_muted()),
-            in_voice: self.call.as_ref().is_some_and(|c| c.guild_id.as_ref() == Some(&guild.id)),
+            media: self.guild_media(guild),
             face: server_face(guild),
             guild_id: Some(guild.id.clone()),
             badge_scale,
@@ -301,6 +318,7 @@ impl Waffle {
             Badge { pill: pill_height(self.guild_id.as_ref() == Some(&g.id), false, unread), mentions }
         }).collect();
         // The height the servers' pills split from and merge back into: the head's own, hover included.
+        let media = guilds.iter().filter_map(|g| self.guild_media(g)).max_by_key(|m| (m.kind, m.connected));
         let head_pill = pill_height(has_selected, self.hovered.as_deref() == Some(key.as_str()), unread);
         let handed = badges.iter().any(|b| b.pill > 0.);
         let rail = palette::surface(palette::Level::Rail, cx);
@@ -311,7 +329,8 @@ impl Waffle {
             unread,
             mentions,
             muted: false,
-            in_voice: false,
+            // A closed folder carries its servers' strongest badge; open, each server shows its own.
+            media: media.filter(|_| motion.trip <= 0.),
             face: Face::Folder { tint, minis: minis.iter().take(4).cloned().collect() },
             guild_id: None,
             // Its count hands over to the servers' over the trip, gone once they land.
@@ -357,7 +376,7 @@ impl Waffle {
     // A rail tile: the face, the state pill on the rail's edge (dot unread, longer on hover, full when
     // selected), and a count for mentions.
     fn rail_item(&mut self, tile: RailTile, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let RailTile { key, name, selected, unread, mentions, muted, in_voice, face, guild_id, badge_scale, open, handed } = tile;
+        let RailTile { key, name, selected, unread, mentions, muted, media, face, guild_id, badge_scale, open, handed } = tile;
         let hovered = self.hovered.as_deref() == Some(&key);
         let pill_height = pill_height(selected, hovered, unread);
         let pill = self.motions.frame_one(Part::Pill(key.clone()), Motion::new(Target::default().height(pill_height)).transition(hover_ease()), window, cx);
@@ -392,7 +411,7 @@ impl Waffle {
             // GAP: muted tiles skip the design's saturate(0.35): gpui has no element filters.
             .child(div().absolute().left(px(TILE_X)).top_0().when(muted, |f| f.opacity(0.55)).child(face))
             .when(mentions > 0 && badge_scale > 0.01, |item| item.child(rail_count(mentions, badge_scale, crate::material::behind_sidebar(rail))))
-            .when(in_voice && mentions == 0, |item| item.child(voice_mark(crate::material::behind_sidebar(rail), cx)))
+            .children(media.filter(|_| badge_scale > 0.99).map(|m| media_badge(m, crate::material::behind_sidebar(rail), cx)))
             .children(drop_hint.map(drop_marker))
             .tooltip({
                 let name = name.clone();
@@ -1570,18 +1589,56 @@ fn count_chip(count: u32, scale: f32, rail: Hsla) -> Div {
         .child(ui::count_badge(count).min_w(px(18.)).h(px(18.)).px(px(5.)).text_size(px(12.)))
 }
 
-// Connected to voice here: the still wave in a rail-coloured capsule on the corner.
-fn voice_mark(rail: Hsla, cx: &App) -> Div {
-    ui::cut_out(div(), rail)
-        .absolute()
-        .right(px(RAIL_WIDTH - TILE_X - TILE - 7.))
-        .bottom(px(-6.))
-        .h(px(22.))
-        .px(px(7.))
-        .rounded_full()
-        .flex()
-        .items_center()
-        .child(ui::bars_still(palette::positive_ink(cx), 10.))
+// What a server's icon badge shows, as Discord's GuildMediaStateStore decides it; the highest wins.
+// GAP: Discord's stage, event and activity badges outrank these; we don't track those yet.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum MediaKind {
+    Voice,
+    Video,
+    Screen,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Media {
+    kind: MediaKind,
+    // You're in this voice: Discord's connected (green) style.
+    connected: bool,
+}
+
+// The badge for one server's voice states. `connected` is the channel you're in there, if any.
+fn media_state(states: &[crate::discord::VoiceState], me: &str, connected: Option<&str>, muted_server: bool, counts: impl Fn(&crate::discord::VoiceState) -> bool) -> Option<Media> {
+    let pick = |screen: bool, video: bool, audio: bool| match (screen, video, audio) {
+        (true, ..) => Some(MediaKind::Screen),
+        (_, true, _) => Some(MediaKind::Video),
+        (.., true) => Some(MediaKind::Voice),
+        _ => None,
+    };
+    if let Some(channel) = connected {
+        // Yours: your own stream, anyone's camera in your channel, or just the call.
+        let screen = states.iter().any(|s| s.user_id == me && s.streaming);
+        let video = states.iter().any(|s| s.channel_id.as_deref() == Some(channel) && s.camera);
+        return pick(screen, video, true).map(|kind| Media { kind, connected: true });
+    }
+    if muted_server {
+        return None;
+    }
+    let live: Vec<_> = states.iter().filter(|s| counts(s)).collect();
+    pick(live.iter().any(|s| s.streaming), live.iter().any(|s| s.camera), !live.is_empty()).map(|kind| Media { kind, connected: false })
+}
+
+// The badge on a tile's top-right corner, ringed in the rail like the count below it.
+fn media_badge(media: Media, rail: Hsla, cx: &App) -> Div {
+    const RING: f32 = 3.;
+    let icon = match media.kind {
+        MediaKind::Voice => Icon::new(Glyph::VolumeHigh),
+        MediaKind::Video => Nav::CameraFill.icon(),
+        MediaKind::Screen => Icon::new(Glyph::ShareScreen),
+    };
+    // Dark with white ink in both themes, as Discord draws it; green while you're connected.
+    let fill = if media.connected { palette::status_in(Status_::Online, cx) } else { gpui_kit::hsla(0., 0., 0.08, 1.) };
+    ui::cut_out(div().absolute().right(px(RAIL_WIDTH - TILE_X - TILE - 4. - RING)).top(px(-4. - RING)).p(px(RING)).rounded_full(), rail).child(
+        div().size(px(20.)).rounded_full().bg(fill).flex().items_center().justify_center().text_color(gpui_kit::white()).child(icon.size(px(12.))),
+    )
 }
 
 // Drop cues: a bar in the gap to reorder, a ring around the tile to combine.
@@ -1746,13 +1803,33 @@ mod tests {
     }
 
     #[test]
-    fn self_deafen_shows_mute_and_deafen_server_deafen_shows_one() {
+    fn server_badge_follows_discords_media_state() {
+        let state = |user: &str, channel: &str, streaming, camera| crate::discord::VoiceState { user_id: user.into(), channel_id: Some(channel.into()), streaming, camera, ..Default::default() };
+        let all = |_: &crate::discord::VoiceState| true;
+        let kind = |m: Option<Media>| m.map(|m| (m.kind, m.connected));
+        assert_eq!(kind(media_state(&[], "me", None, false, all)), None, "an empty server has no badge");
+        assert_eq!(kind(media_state(&[state("a", "c", false, false)], "me", None, false, all)), Some((MediaKind::Voice, false)), "people in voice: speaker");
+        let busy = [state("a", "c", false, true), state("b", "c", true, false), state("d", "c", false, false)];
+        assert_eq!(kind(media_state(&busy, "me", None, false, all)), Some((MediaKind::Screen, false)), "a stream outranks cameras and voice");
+        assert_eq!(kind(media_state(&busy[..1], "me", None, false, all)), Some((MediaKind::Video, false)), "a camera outranks voice");
+        assert_eq!(kind(media_state(&busy, "me", None, true, all)), None, "a muted server stays quiet");
+        assert_eq!(kind(media_state(&busy, "me", None, false, |s| s.user_id == "d")), Some((MediaKind::Voice, false)), "uncounted people (blocked, AFK, hidden) don't light it");
+        let mine = [state("me", "c", false, false), state("b", "other", true, false)];
+        assert_eq!(kind(media_state(&mine, "me", Some("c"), true, all)), Some((MediaKind::Voice, true)), "connected: green speaker, even muted, and others' streams don't count");
+        let streaming = [state("me", "c", true, false)];
+        assert_eq!(kind(media_state(&streaming, "me", Some("c"), false, all)), Some((MediaKind::Screen, true)), "your own stream");
+    }
+
+    #[test]
+    fn mute_and_deafen_marks_fill_their_own_slots() {
         let state = |muted, deafened, server_muted, server_deafened| crate::discord::VoiceState { muted, deafened, server_muted, server_deafened, ..Default::default() };
         assert_eq!(voice_marks(&state(true, true, false, false)), [VoiceMark::Muted, VoiceMark::Deafened]);
         assert_eq!(voice_marks(&state(false, true, false, false)), [VoiceMark::Muted, VoiceMark::Deafened]);
         assert_eq!(voice_marks(&state(true, false, false, false)), [VoiceMark::Muted]);
-        // A server deafen arrives as deaf, which also reads as deafened here.
-        assert_eq!(voice_marks(&state(true, true, true, true)), [VoiceMark::ServerDeafened]);
+        // A server mute and deafen arrive as mute and deaf, which also read as muted and deafened here.
+        assert_eq!(voice_marks(&state(true, true, true, true)), [VoiceMark::ServerMuted, VoiceMark::ServerDeafened], "both server marks show");
+        assert_eq!(voice_marks(&state(false, true, false, true)), [VoiceMark::ServerDeafened], "a server deafen alone isn't a self-mute");
+        assert_eq!(voice_marks(&state(true, true, true, false)), [VoiceMark::ServerMuted, VoiceMark::Deafened], "server mute beside a self-deafen");
         assert_eq!(voice_marks(&state(true, false, true, false)), [VoiceMark::ServerMuted]);
         assert!(voice_marks(&state(false, false, false, false)).is_empty());
         let live = crate::discord::VoiceState { muted: true, deafened: true, camera: true, streaming: true, ..Default::default() };
