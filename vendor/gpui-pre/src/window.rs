@@ -5,7 +5,7 @@ use crate::Inspector;
 #[cfg(feature = "profiler")]
 use crate::profiler;
 use crate::{
-    Action, TouchPhase, AnyDrag, AnyElement, AnyImageCache, AnyTooltip, AnyView, App, AppContext, Arena, Asset,
+    Action, TouchPhase, AnyDrag, AnyElement, AnyImageCache, AnyTooltip, AnyView, TooltipPlacement, radians, relative, App, AppContext, Arena, Asset,
     AsyncWindowContext, AtlasTile, AvailableSpace, BackdropBlur, BackdropFilter, Background, BorderStyle, Bounds, BoxShadow,
     Capslock, Context, CornerShape, Corners, CursorHideMode, CursorStyle, Decorations,
     DevicePixels, DispatchActionListener, DispatchNodeId, DispatchTree, DisplayId, Edges, Effect,
@@ -1288,6 +1288,7 @@ pub struct Window {
     next_hitbox_id: HitboxId,
     pub(crate) next_tooltip_id: TooltipId,
     pub(crate) tooltip_bounds: Option<TooltipBounds>,
+    tooltip_entrance: Option<TooltipEntrance>,
     pub(crate) next_frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
     pub(crate) dirty_views: FxHashSet<EntityId>,
     focus_listeners: SubscriberSet<(), AnyWindowFocusListener>,
@@ -1296,6 +1297,8 @@ pub struct Window {
     default_prevented: bool,
     mouse_position: Point<Pixels>,
     mouse_hit_test: HitTest,
+    // Dango patch: a left press on a `WindowControlArea::Drag` that hasn't moved yet (macOS).
+    pending_window_move: bool,
     modifiers: Modifiers,
     capslock: Capslock,
     scale_factor: f32,
@@ -2206,6 +2209,7 @@ impl Window {
             next_hitbox_id: HitboxId(0),
             next_tooltip_id: TooltipId::default(),
             tooltip_bounds: None,
+            tooltip_entrance: None,
             dirty_views: FxHashSet::default(),
             focus_listeners: SubscriberSet::new(),
             focus_lost_listeners: SubscriberSet::new(),
@@ -2213,6 +2217,7 @@ impl Window {
             default_prevented: true,
             mouse_position,
             mouse_hit_test: HitTest::default(),
+            pending_window_move: false,
             modifiers,
             capslock,
             scale_factor,
@@ -3935,36 +3940,19 @@ impl Window {
             let mouse_position = tooltip_request.tooltip.mouse_position;
             let tooltip_size = element.layout_as_root(AvailableSpace::min_size(), self, cx);
 
-            let mut tooltip_bounds =
-                Bounds::new(mouse_position + point(px(1.), px(1.)), tooltip_size);
             let window_bounds = Bounds {
                 origin: Point::default(),
                 size: self.viewport_size(),
             };
-
-            if tooltip_bounds.right() > window_bounds.right() {
-                let new_x = mouse_position.x - tooltip_bounds.size.width - px(1.);
-                if new_x >= Pixels::ZERO {
-                    tooltip_bounds.origin.x = new_x;
-                } else {
-                    tooltip_bounds.origin.x = cmp::max(
-                        Pixels::ZERO,
-                        tooltip_bounds.origin.x - tooltip_bounds.right() - window_bounds.right(),
-                    );
-                }
-            }
-
-            if tooltip_bounds.bottom() > window_bounds.bottom() {
-                let new_y = mouse_position.y - tooltip_bounds.size.height - px(1.);
-                if new_y >= Pixels::ZERO {
-                    tooltip_bounds.origin.y = new_y;
-                } else {
-                    tooltip_bounds.origin.y = cmp::max(
-                        Pixels::ZERO,
-                        tooltip_bounds.origin.y - tooltip_bounds.bottom() - window_bounds.bottom(),
-                    );
-                }
-            }
+            let tooltip_bounds = match tooltip_request.tooltip.anchor {
+                Some(anchor) => anchored_tooltip_bounds(
+                    anchor,
+                    tooltip_size,
+                    tooltip_request.tooltip.placement,
+                    window_bounds,
+                ),
+                None => mouse_tooltip_bounds(mouse_position, tooltip_size, window_bounds),
+            };
 
             // It's possible for an element to have an active tooltip while not being painted (e.g.
             // via the `visible_on_hover` method). Since mouse listeners are not active in this
@@ -3975,9 +3963,9 @@ impl Window {
                 continue;
             }
 
-            self.with_absolute_element_offset(tooltip_bounds.origin, |window| {
-                element.prepaint(window, cx)
-            });
+            let mut element = self.entering_tooltip(&tooltip_request.tooltip, tooltip_bounds, None, cx);
+            element.layout_as_root(AvailableSpace::min_size(), self, cx);
+            self.with_absolute_element_offset(tooltip_bounds.origin, |window| element.prepaint(window, cx));
 
             self.tooltip_bounds = Some(TooltipBounds {
                 id: tooltip_request.id,
@@ -3985,7 +3973,71 @@ impl Window {
             });
             return Some(element);
         }
-        None
+        self.leaving_tooltip(cx)
+    }
+
+    /// Waffle patch: the last tooltip stays for `TOOLTIP_LINGER` after it closes, so crossing the gap between
+    /// two elements doesn't blank it for a frame before the next one shows.
+    fn leaving_tooltip(&mut self, cx: &mut App) -> Option<AnyElement> {
+        let now = cx.background_executor().now();
+        let entrance = self.tooltip_entrance.as_mut()?;
+        let ended = *entrance.ended.get_or_insert(now);
+        if now - ended >= TOOLTIP_WARM {
+            // Gone cold: let go of the last tooltip's view.
+            self.tooltip_entrance = None;
+            return None;
+        }
+        if now - ended >= TOOLTIP_LINGER {
+            return None;
+        }
+        let (tooltip, bounds) = entrance.last.clone()?;
+        self.on_next_frame(|window, _| window.refresh());
+        let mut element = self.entering_tooltip(&tooltip, bounds, Some(ended), cx);
+        element.layout_as_root(AvailableSpace::min_size(), self, cx);
+        self.with_absolute_element_offset(bounds.origin, |window| element.prepaint(window, cx));
+        Some(element)
+    }
+
+    /// Waffle patch: wraps a tooltip in its entrance, a pop with a tilt that grows out of its element. The
+    /// entrance belongs to the run of tooltips, not to one: one shown within `TOOLTIP_WARM` of the last
+    /// closing carries on from it, so moving between elements swaps the content without replaying.
+    /// `ended` is when it closed, for one drawn while it lingers.
+    fn entering_tooltip(&mut self, tooltip: &AnyTooltip, bounds: Bounds<Pixels>, ended: Option<Instant>, cx: &App) -> AnyElement {
+        let now = cx.background_executor().now();
+        let started = match &self.tooltip_entrance {
+            Some(entrance) if entrance.ended.is_none_or(|ended| now - ended < TOOLTIP_WARM) => entrance.started,
+            _ => now,
+        };
+        let t = match cx.reduce_motion() {
+            true => 1.,
+            false => ((now - started).as_secs_f32() / TOOLTIP_ENTRANCE.as_secs_f32()).min(1.),
+        };
+        if t < 1. {
+            self.on_next_frame(|window, _| window.refresh());
+        }
+        let origin = match tooltip.anchor {
+            Some(anchor) => point(
+                relative(((anchor.center().x - bounds.left()) / bounds.size.width).clamp(0., 1.)),
+                relative(((anchor.center().y - bounds.top()) / bounds.size.height).clamp(0., 1.)),
+            ),
+            None => point(relative(0.), relative(0.)),
+        };
+        self.tooltip_entrance = Some(TooltipEntrance { started, ended, last: Some((tooltip.clone(), bounds)) });
+        let pop = back_out(t);
+        crate::div()
+            .child(tooltip.view.clone())
+            .transform_origin(origin)
+            .opacity((t / 0.5).min(1.))
+            .scale(0.8 + 0.2 * pop)
+            .rotate(radians(-0.08 * (1. - pop)))
+            .into_any_element()
+    }
+
+    /// Whether a tooltip is showing or closed within `TOOLTIP_WARM`: the next one then shows at once.
+    pub(crate) fn tooltip_is_warm(&self, now: Instant) -> bool {
+        self.tooltip_entrance
+            .as_ref()
+            .is_some_and(|entrance| entrance.ended.is_none_or(|ended| now - ended < TOOLTIP_WARM))
     }
 
     fn prepaint_deferred_draws(&mut self, cx: &mut App) {
@@ -6307,10 +6359,49 @@ impl Window {
             }
         }
 
+        #[cfg(target_os = "macos")]
+        self.handle_titlebar_drag(event);
+
         // Auto-release pointer capture on mouse up
         if event.is::<MouseUpEvent>() && self.captured_hitbox.is_some() {
             self.captured_hitbox = None;
         }
+    }
+
+    // Dango patch: with `app_owns_titlebar_drag`, AppKit leaves the titlebar alone, so every drag area
+    // moves the window on its first drag and zooms or minimizes on a double click, per the user's
+    // AppleActionOnDoubleClick. Only a drag area the pointer actually hovers counts, so controls on
+    // top of one keep their clicks. The move starts on drag, not on press: AppKit's drag loop would
+    // otherwise swallow the mouse up.
+    #[cfg(target_os = "macos")]
+    fn handle_titlebar_drag(&mut self, event: &dyn Any) {
+        if let Some(down) = event.downcast_ref::<crate::MouseDownEvent>() {
+            self.pending_window_move = false;
+            if down.button != MouseButton::Left || self.is_fullscreen() || !self.hovers_drag_area() {
+                return;
+            }
+            if down.click_count == 2 {
+                return self.titlebar_double_click();
+            }
+            self.pending_window_move = down.click_count == 1;
+        } else if let Some(moved) = event.downcast_ref::<MouseMoveEvent>() {
+            if !self.pending_window_move || moved.pressed_button != Some(MouseButton::Left) {
+                return;
+            }
+            self.pending_window_move = false;
+            self.start_window_move();
+        } else if event.is::<MouseUpEvent>() {
+            self.pending_window_move = false;
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn hovers_drag_area(&self) -> bool {
+        let hovered = &self.mouse_hit_test.ids[..self.mouse_hit_test.hover_hitbox_count];
+        self.rendered_frame
+            .window_control_hitboxes
+            .iter()
+            .any(|(area, hitbox)| *area == WindowControlArea::Drag && hovered.contains(&hitbox.id))
     }
 
     // If modifiers are not excessive (e.g. AltGr), and the input handler is accepting text input,
@@ -10120,4 +10211,91 @@ impl SmoothWheel {
     fn share(elapsed_secs: f32) -> f32 {
         1. - (-elapsed_secs.max(0.) / Self::TAU).exp()
     }
+}
+
+fn mouse_tooltip_bounds(
+    mouse_position: Point<Pixels>,
+    tooltip_size: Size<Pixels>,
+    window_bounds: Bounds<Pixels>,
+) -> Bounds<Pixels> {
+    let mut tooltip_bounds =
+        Bounds::new(mouse_position + point(px(1.), px(1.)), tooltip_size);
+
+    if tooltip_bounds.right() > window_bounds.right() {
+        let new_x = mouse_position.x - tooltip_bounds.size.width - px(1.);
+        if new_x >= Pixels::ZERO {
+            tooltip_bounds.origin.x = new_x;
+        } else {
+            tooltip_bounds.origin.x = cmp::max(
+                Pixels::ZERO,
+                tooltip_bounds.origin.x - tooltip_bounds.right() - window_bounds.right(),
+            );
+        }
+    }
+
+    if tooltip_bounds.bottom() > window_bounds.bottom() {
+        let new_y = mouse_position.y - tooltip_bounds.size.height - px(1.);
+        if new_y >= Pixels::ZERO {
+            tooltip_bounds.origin.y = new_y;
+        } else {
+            tooltip_bounds.origin.y = cmp::max(
+                Pixels::ZERO,
+                tooltip_bounds.origin.y - tooltip_bounds.bottom() - window_bounds.bottom(),
+            );
+        }
+    }
+    tooltip_bounds
+}
+
+/// Waffle patch: a tooltip placed against its element, flipping to the other side when it would
+/// leave the window and sliding along that side to stay inside it.
+pub fn anchored_tooltip_bounds(
+    anchor: Bounds<Pixels>,
+    size: Size<Pixels>,
+    placement: TooltipPlacement,
+    window_bounds: Bounds<Pixels>,
+) -> Bounds<Pixels> {
+    let slide = |start: Pixels, length: Pixels, limit: Pixels| {
+        start.min(limit - length).max(Pixels::ZERO)
+    };
+    let origin = match placement {
+        TooltipPlacement::Side => {
+            let fits_right = anchor.right() + size.width <= window_bounds.right();
+            let x = match fits_right || anchor.left() < size.width {
+                true => anchor.right(),
+                false => anchor.left() - size.width,
+            };
+            let y = anchor.center().y - size.height / 2.;
+            point(x, slide(y, size.height, window_bounds.bottom()))
+        }
+        TooltipPlacement::Auto => {
+            let fits_below = anchor.bottom() + size.height <= window_bounds.bottom();
+            let y = match fits_below || anchor.top() < size.height {
+                true => anchor.bottom(),
+                false => anchor.top() - size.height,
+            };
+            let x = anchor.center().x - size.width / 2.;
+            point(slide(x, size.width, window_bounds.right()), y)
+        }
+    };
+    Bounds::new(origin, size)
+}
+
+const TOOLTIP_ENTRANCE: Duration = Duration::from_millis(320);
+const TOOLTIP_WARM: Duration = Duration::from_millis(300);
+// A closed tooltip holds this long; under `TOOLTIP_WARM`, so the next one still skips the entrance.
+const TOOLTIP_LINGER: Duration = Duration::from_millis(120);
+
+struct TooltipEntrance {
+    started: Instant,
+    ended: Option<Instant>,
+    // The last tooltip shown and where it settles, drawn again while it lingers.
+    last: Option<(AnyTooltip, Bounds<Pixels>)>,
+}
+
+// Overshoots past 1 by about 10% before settling, the pop's springiness.
+fn back_out(t: f32) -> f32 {
+    const C: f32 = 1.7;
+    let u = t - 1.;
+    1. + (C + 1.) * u * u * u + C * u * u
 }
