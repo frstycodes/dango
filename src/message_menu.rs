@@ -253,6 +253,7 @@ impl Waffle {
     // Removing reactions shows at once (`keep` decides which stay); they come back if refused.
     fn reactions_optimistic(&mut self, message: &Message, path: String, keep: impl Fn(&crate::discord::Reaction) -> bool + 'static, cx: &mut Context<Self>) {
         let before = self.message_mut(&message.channel_id, &message.id).map(|m| m.reactions.clone()).unwrap_or_default();
+        self.reactors.retain(|(id, _), _| *id != message.id);
         let (c1, i1, c2, i2) = (message.channel_id.clone(), message.id.clone(), message.channel_id.clone(), message.id.clone());
         self.rest_optimistic(
             Method::DELETE,

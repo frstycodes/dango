@@ -1167,6 +1167,13 @@ impl Client {
         self.run(self.http.request(method, url).header("Authorization", &self.token)).await.map(|_| ())
     }
 
+    // First page only (100): the tooltip names three at most and counts the rest from the reaction.
+    pub async fn reactors(&self, channel_id: &str, message_id: &str, emoji: &Emoji) -> Result<Vec<User>, String> {
+        let path = format!("/channels/{channel_id}/messages/{message_id}/reactions/{}?limit=100", emoji.path());
+        let body = self.run(self.request(reqwest::Method::GET, &path)).await?;
+        Ok(body.as_array().map(|users| users.iter().map(parse_user).collect()).unwrap_or_default())
+    }
+
     pub async fn typing(&self, channel_id: &str) {
         let _ = self.run(self.request(reqwest::Method::POST, &format!("/channels/{channel_id}/typing"))).await;
     }
