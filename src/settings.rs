@@ -188,7 +188,7 @@ pub struct Prefs {
     pub search_history: HashMap<String, Vec<crate::search::Saved>>,
     // Window zoom, 1 = 100% (⌘= / ⌘- / ⌘0).
     pub zoom: f32,
-    // The server voice channel (guild, channel) a restart left, rejoined once the new session is ready.
+    // The server voice channel (guild, channel) a restart left, offered back once the new session is ready.
     pub rejoin_voice: Option<(String, String)>,
 }
 

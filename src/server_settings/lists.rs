@@ -826,7 +826,7 @@ impl Waffle {
                     (Some(old), None) => div().text_color(palette::muted(cx)).line_through().child(old.clone()),
                     (None, None) => div().text_color(palette::muted(cx)).child("Cleared"),
                 };
-                div().flex().gap(px(8.)).text_size(px(13.)).child(div().w(px(150.)).flex_none().text_color(palette::muted(cx)).child(d.label)).child(div().flex_1().min_w_0().child(change))
+                div().flex().gap(px(8.)).text_size(px(14.)).child(div().w(px(150.)).flex_none().text_color(palette::muted(cx)).child(d.label)).child(div().flex_1().min_w_0().child(change))
             }))
         });
         let row = ui::settings_row(SharedString::from(format!("ss-audit-{}", e.id)), line, cx).flex_col().items_stretch().child(head).children(body);

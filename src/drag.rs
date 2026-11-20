@@ -21,6 +21,7 @@ use serde_json::json;
 
 use crate::{
     Waffle,
+    sortable::{Finished, Place},
     discord::{Channel, ChannelKind, perm},
     icons::Glyph,
     palette,
@@ -154,6 +155,8 @@ pub enum Look {
     Person { avatar: String, name: SharedString },
     Channel { channel: Box<Channel>, people: Vec<(String, SharedString)> },
     Tile(Face),
+    // A settings row: a colour dot and a name (a role).
+    Label { dot: gpui_kit::Hsla, text: SharedString },
 }
 
 // One carried row, shared by the drag's ghost and the app, which lands it.
@@ -167,6 +170,8 @@ pub struct Held {
     carry: Carry,
     // Beside the ghost: what letting go here will do.
     tag: Option<SharedString>,
+    // A sortable list's row stays in its column: the x it was picked up at.
+    lock_x: Option<Pixels>,
 }
 
 type Hand = Rc<RefCell<Held>>;
@@ -244,10 +249,12 @@ pub fn pick_up<T: 'static>(
     size: Point<Pixels>,
     lifted: f32,
     lean: f32,
+    axis_locked: bool,
 ) -> impl Fn(&T, Point<Pixels>, &mut Window, &mut App) -> Entity<Ghost> + 'static {
     move |_, offset, window, cx| {
-        let carry = Carry::new(window.mouse_position() - offset, lifted, lean);
-        let hand = Rc::new(RefCell::new(Held { key: key.clone(), look: look.clone(), size, offset, carry, tag: None }));
+        let origin = window.mouse_position() - offset;
+        let carry = Carry::new(origin, lifted, lean);
+        let hand = Rc::new(RefCell::new(Held { key: key.clone(), look: look.clone(), size, offset, carry, tag: None, lock_x: axis_locked.then_some(origin.x) }));
         this.update(cx, |this, cx| {
             this.drag_motion.hand = Some(hand.clone());
             this.drag_motion.landing = None;
@@ -267,7 +274,8 @@ impl Render for Ghost {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let mut held = self.hand.borrow_mut();
         let anchor = window.mouse_position() - held.offset;
-        held.carry.follow(anchor);
+        let target = held.lock_x.map_or(anchor, |x| point(x, anchor.y));
+        held.carry.follow(target);
         held.carry.step();
         window.request_animation_frame();
         ghost(&held, anchor, 0., cx)
@@ -288,6 +296,14 @@ fn ghost(held: &Held, origin: Point<Pixels>, settle: f32, cx: &App) -> Div {
             .gap(px(1.))
             .child(div().h(px(32.)).px_2().flex().items_center().gap_2().child(channel_glyph(channel).size(px(18.)).flex_none().text_color(palette::faint(cx))).child(div().flex_1().min_w_0().truncate().child(channel.name.clone())))
             .children(people.iter().map(|(avatar, name)| person(avatar, name).text_color(palette::muted(cx)))),
+        Look::Label { dot, text } => row_card(ui::RADIUS_MD, lifted, cx)
+            .h(held.size.y)
+            .px(px(16.))
+            .items_center()
+            .gap(px(12.))
+            .text_size(px(14.))
+            .child(div().size(px(12.)).flex_none().rounded_full().bg(*dot))
+            .child(div().flex_1().min_w_0().truncate().child(text.clone())),
     };
     let (sx, sy) = held.carry.scale();
     let grab = point(relative(f32::from(held.offset.x) / f32::from(held.size.x)), relative(f32::from(held.offset.y) / f32::from(held.size.y)));
@@ -341,7 +357,7 @@ fn tag_chip(tag: SharedString, cx: &App) -> AnyElement {
         .font_weight(FontWeight::MEDIUM)
         .bg(palette::strong(cx))
         .text_color(palette::surface(palette::Level::Page, cx))
-        .child(Icon::new(Glyph::ArrowRightBold).size(px(13.)))
+        .child(Icon::new(Glyph::ArrowRightBold).size(px(14.)))
         .child(tag.clone())
         .with_animation(tag, Animation::new(ui::DUR_POP).with_easing(gpui_kit::ease_out_quint()), |chip, t| chip.opacity(t).translate_x(px(-4. * (1. - t))).scale(0.95 + 0.05 * t))
         .into_any_element()
@@ -395,15 +411,6 @@ impl Waffle {
     }
 }
 
-// Where a dragged channel lands relative to the row it's dropped on.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Place {
-    Before,
-    After,
-    // Dropped on a category header: first in that category.
-    Into,
-}
-
 impl Waffle {
     pub(crate) fn can_move_voice(&self, guild_id: &str, user_id: &str, to: &str) -> bool {
         let (Some(me), Some(guild)) = (self.me.as_ref(), self.guilds.iter().find(|g| g.id == guild_id)) else { return false };
@@ -446,6 +453,32 @@ impl Waffle {
         if let Some(state) = self.guilds.iter_mut().find(|g| g.id == guild_id).and_then(|g| g.voice_states.iter_mut().find(|v| v.user_id == user_id)) {
             state.channel_id = channel;
         }
+    }
+
+    // Sortable drags let go of (sortable.rs): each board applies the move its list was showing, before
+    // the lists render, so what was carried lands in its new place.
+    pub(crate) fn finish_sorts(&mut self, cx: &mut Context<Self>) {
+        if let Some(done) = self.rail_board.finish(cx) {
+            self.finish_rail_sort(done, cx);
+        }
+        if let Some(done) = self.channel_board.finish(cx) {
+            self.finish_channel_sort(done, cx);
+        }
+        if let Some(done) = self.role_board.finish(cx) {
+            self.finish_role_sort(done, cx);
+        }
+    }
+
+    // A channel let go of over a category: beside a channel, or first in it from its header.
+    fn finish_channel_sort(&mut self, done: Finished, cx: &mut Context<Self>) {
+        let (Some(hint), Some(guild_id)) = (done.hint, self.guild_id.clone()) else { return };
+        let Some(guild) = self.guilds.iter().find(|g| g.id == guild_id) else { return };
+        let target = match &hint.target {
+            Some(id) => guild.channels.iter().find(|c| c.id == *id),
+            None => guild.channels.iter().find(|c| crate::sidebar::channel_list(Some(c)) == hint.list),
+        };
+        let Some(target) = target.cloned() else { return };
+        self.drop_channel(&ChannelDrag { channel_id: done.dragged, guild_id }, &target, hint.place, cx);
     }
 
     // Drop a channel above or below another, or into a category: renumber that category's
@@ -530,11 +563,6 @@ fn voice_move_target<'a>(current: Option<&str>, target: &'a str) -> Option<&'a s
     current.filter(|current| *current != target).map(|_| target)
 }
 
-// A drop's place from how far down the row the pointer is.
-pub fn place_at(fraction: f32) -> Place {
-    if fraction < 0.5 { Place::Before } else { Place::After }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -550,7 +578,6 @@ mod tests {
         assert_eq!(ids(&reorder(list(), "a", Some(("b", false)))), ["a", "b", "c"]);
         assert_eq!(ids(&reorder(list(), "x", None)), ["x", "b", "c", "a"]);
         assert_eq!(reorder(list(), "c", Some(("b", false)))[0], ("c".to_owned(), 0));
-        assert_eq!(place_at(0.2), Place::Before);
     }
 
     // Carried right fast it tilts clockwise toward 14° (its underdamped spring may pass it a little,

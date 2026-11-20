@@ -361,6 +361,11 @@ pub mod stage {
         hex(DARK.sidebar)
     }
 
+    // The control bar's groups: opaque, a step up from the stage, so they hold over any picture.
+    pub fn dock() -> Hsla {
+        hex(DARK.page)
+    }
+
     pub fn strong() -> Hsla {
         hex(DARK.strong)
     }

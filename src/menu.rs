@@ -303,7 +303,7 @@ pub struct Dialog {
     danger: bool,
     // Leads the title with the warning mark: for what can't be undone.
     warn: bool,
-    input: bool,
+    pub(crate) input: bool,
     // A key that confirms it from anywhere, drawn on the confirm button (D for a message's delete).
     key: Option<&'static str>,
     on_confirm: OnConfirm,

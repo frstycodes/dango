@@ -47,9 +47,10 @@ impl Render for PipDrag {
     }
 }
 
-// Insets from the window's top and bottom edges.
+// Insets from the window's top and bottom edges. The top one clears the header, so the player never sits
+// over a title bar or the window's own buttons.
 type Insets = (f32, f32);
-const INSETS: Insets = (MARGIN, MARGIN);
+const INSETS: Insets = (crate::layout::HEADER_HEIGHT + MARGIN, MARGIN);
 
 // Top-left of the player resting in `corner` of an `area`-sized window.
 fn rest(corner: Corner, area: (f32, f32), insets: Insets) -> (f32, f32) {
@@ -116,6 +117,9 @@ impl Waffle {
                 cx.stop_propagation();
                 this.stop_watching(cx);
             })));
+        // Who's watching, as on the stage's stream card: faces, a "+n", the full list on hover.
+        let viewers = self.viewers(&watching.streamer_id);
+        let viewer_chip = (!viewers.is_empty()).then(|| crate::call::viewer_chip(viewers, &watching.streamer_id));
         let this = cx.weak_entity();
         let player = div()
             .id("stream-pip")
@@ -132,6 +136,7 @@ impl Waffle {
             .cursor_pointer()
             .child(picture)
             .child(bar)
+            .children(viewer_chip)
             .on_drag(PipDrag, move |drag, grab, _, cx| {
                 this.update(cx, |this, _| this.pip.grab = grab).ok();
                 cx.new(|_| drag.clone())
@@ -164,7 +169,8 @@ impl Waffle {
             let area = (f32::from(e.bounds.size.width), f32::from(e.bounds.size.height));
             let at = e.event.position - e.bounds.origin - this.pip.grab;
             this.pip.area = area;
-            this.pip.carried = Some((f32::from(at.x).clamp(0., (area.0 - WIDTH).max(0.)), f32::from(at.y).clamp(0., (area.1 - HEIGHT).max(0.))));
+            let top = crate::layout::HEADER_HEIGHT;
+            this.pip.carried = Some((f32::from(at.x).clamp(0., (area.0 - WIDTH).max(0.)), f32::from(at.y).clamp(top, (area.1 - HEIGHT).max(top))));
             cx.notify();
         }))
         .on_drop(cx.listener(|this, _: &PipDrag, _, cx| this.land_pip(cx)))

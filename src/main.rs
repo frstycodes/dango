@@ -56,6 +56,7 @@ mod panel;
 mod part;
 mod rail_drag;
 mod sidebar;
+mod sortable;
 mod search;
 mod search_menu;
 mod search_results;
@@ -207,6 +208,9 @@ fn open_main(splash: Option<gpui_kit::WindowHandle<splash::Splash>>, cx: &mut gp
         window_min_size: Some(size(px(940.), px(520.))),
         titlebar: Some(TitlebarOptions { title: Some("Waffle".into()), appears_transparent: true, traffic_light_position: Some(layout::TRAFFIC_LIGHTS) }),
         window_background: material::window_background(),
+        // Every drag area moves the window and zooms on double click itself; AppKit's own titlebar
+        // handling covers only its 28pt strip and changed between macOS 26 and 27.
+        app_owns_titlebar_drag: true,
         ..Default::default()
     };
     let handle = gpui_kit::open_window(options, cx, |window, cx| {
@@ -502,6 +506,26 @@ impl Call {
     }
 }
 
+// A call to offer back: where it was, and when it ended.
+#[derive(Clone)]
+pub(crate) struct VoiceNotice {
+    guild_id: Option<String>,
+    channel: Channel,
+    at: Instant,
+    why: NoticeWhy,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NoticeWhy {
+    // Another client of ours joined voice and took the call.
+    Elsewhere,
+    // Waffle restarted mid-call; the call is offered back rather than rejoined unasked.
+    Restarted,
+}
+
+// How long after a call ends another client's voice state still explains why.
+const TAKEN_ELSEWHERE_WINDOW: Duration = Duration::from_secs(10);
+
 // Someone's Go Live we're watching. Dropping it stops the stream.
 pub(crate) struct Watching {
     pub(crate) streamer_id: String,
@@ -586,9 +610,13 @@ pub struct Waffle {
     guilds: Vec<Guild>,
     folders: Vec<Folder>,
     open_folders: HashSet<String>,
-    rail_drop: Option<(String, rail_drag::Drop)>,
+    // The dragged server has left the folder it came from this drag; that folder folds shut too.
+    rail_left_folder: bool,
+    // Reorderable lists by drag (sortable.rs): the rail and its folders, the channel list, roles.
+    rail_board: sortable::Board,
+    channel_board: sortable::Board,
+    role_board: sortable::Board,
     // Where a dragged channel would land: the row's id and above/below it.
-    channel_drop: Option<(String, drag::Place)>,
     // What a drag in the rail or channel list carries, and what it is landing.
     drag_motion: drag::DragMotion,
     // Every user seen as their server shows them, keyed by guild then user, for voice rows and tiles.
@@ -686,6 +714,8 @@ pub struct Waffle {
     watch_on_connect: Option<String>,
     // The window is in front; notifications for the open channel are skipped then.
     window_active: bool,
+    // The open channel should land on its first unread once its messages are in.
+    unread_scroll_pending: bool,
     dialog: Option<menu::Dialog>,
     create_channel: Option<create_channel::CreateChannel>,
     dialog_input: Entity<SearchState>,
@@ -712,6 +742,7 @@ pub struct Waffle {
     stream_live_since: HashMap<String, Instant>,
     // When the pointer last moved over the call view; the bar and header fade out after a while.
     call_pointer_at: Instant,
+    call_pointer_inside: bool,
     call_strip_hidden: bool,
     // Our stream's self-view: shown, and which corner of the stage it sits in.
     // Our local volume for each streamer's Go Live (0..=2), kept across watches.
@@ -773,6 +804,12 @@ pub struct Waffle {
     deafened: bool,
     call: Option<Call>,
     voice_error: Option<SharedString>,
+    // The banner over the main column after another client of ours took the call.
+    voice_notice: Option<VoiceNotice>,
+    // The call that just ended, for a notice that explains it after the fact.
+    last_call: Option<VoiceNotice>,
+    // Our gateway session, to tell our voice state apart from another client's.
+    gateway_session: String,
     // The call connecting now replaced one in the same server (our pick or a moderator's move):
     // it ended that one without a disconnect, and connecting sounds as a move.
     call_switched: bool,
@@ -838,6 +875,8 @@ impl Waffle {
         cx.observe_window_appearance(window, |_, window, cx| palette::sync(window, cx)).detach();
         cx.observe_window_activation(window, |this: &mut Self, window, cx| {
             this.window_active = window.is_window_active();
+            // Coming back to the newest message of the open channel reads it.
+            this.ack_open(cx);
             cx.notify();
         })
         .detach();
@@ -897,10 +936,16 @@ impl Waffle {
         cx.subscribe_in(&switcher_input, window, Self::on_switcher_input).detach();
         let settings_search = cx.new(|cx| SearchState::new(window, cx).placeholder("Search settings"));
         let dialog_input = cx.new(|cx| SearchState::new(window, cx));
-        // Enter in the field submits Create Channel; the input keeps the key from reaching the dialog.
-        cx.subscribe(&dialog_input, |this: &mut Self, _, event: &InputEvent, cx| {
-            if matches!(event, InputEvent::PressEnter { .. }) && this.create_channel.is_some() {
-                this.submit_create_channel(cx);
+        // Enter in the field submits its dialog; the input keeps the key from reaching the dialog itself.
+        cx.subscribe_in(&dialog_input, window, |this: &mut Self, _, event: &InputEvent, window, cx| {
+            if !matches!(event, InputEvent::PressEnter { .. }) {
+                return;
+            }
+            if this.create_channel.is_some() {
+                return this.submit_create_channel(cx);
+            }
+            if this.dialog.as_ref().is_some_and(|d| d.input) {
+                this.confirm_dialog(window, cx);
             }
         })
         .detach();
@@ -934,8 +979,10 @@ impl Waffle {
             guilds: Vec::new(),
             folders: Vec::new(),
             open_folders: HashSet::new(),
-            rail_drop: None,
-            channel_drop: None,
+            rail_left_folder: false,
+            rail_board: Default::default(),
+            channel_board: Default::default(),
+            role_board: Default::default(),
             drag_motion: Default::default(),
             members: HashMap::new(),
             dms: Vec::new(),
@@ -1004,6 +1051,7 @@ impl Waffle {
             activity_feed: Vec::new(),
             watch_on_connect: None,
             window_active: true,
+            unread_scroll_pending: false,
             dialog: None,
             create_channel: None,
             dialog_input,
@@ -1019,6 +1067,7 @@ impl Waffle {
             stream_paused: HashSet::new(),
             stream_live_since: HashMap::new(),
             call_pointer_at: Instant::now(),
+            call_pointer_inside: false,
             // Discord's focused view hides everyone else behind the pill on the stream's bottom edge.
             call_strip_hidden: true,
             preview_generation: 0,
@@ -1060,6 +1109,9 @@ impl Waffle {
             deafened: false,
             call: None,
             voice_error: None,
+            voice_notice: None,
+            last_call: None,
+            gateway_session: String::new(),
             call_switched: false,
             viewer: None,
             profile_card: None,
@@ -1105,6 +1157,10 @@ impl Waffle {
                 if this.scrolled_up != away {
                     this.scrolled_up = away;
                     cx.notify();
+                }
+                // Reaching the newest message is what reads the channel, as in Discord.
+                if !away {
+                    this.ack_open(cx);
                 }
             })
             .ok();
@@ -1246,6 +1302,7 @@ impl Waffle {
                 }
                 self.my_status = ready.status;
                 self.remember_account(&ready.me);
+                self.gateway_session = ready.session_id.clone();
                 self.me = Some(ready.me);
                 self.custom_status = ready.custom_status;
                 self.expire_custom_status_later(cx);
@@ -1435,9 +1492,12 @@ impl Waffle {
                 read.last_read = read.last_read.max(message_id);
                 read.mentions = 0;
             }
-            Event::VoiceState(state) => {
+            Event::VoiceState(state, session) => {
                 let ours = self.call.as_ref().map(|c| c.channel.id.clone());
                 let me = self.me.as_ref().map(|m| m.id.clone());
+                if Some(&state.user_id) == me.as_ref() && state.channel_id.is_some() && session.is_some_and(|s| s != self.gateway_session) {
+                    self.taken_elsewhere();
+                }
                 // Someone answering our ring joins the DM call: the ringtone stops.
                 if state.channel_id.is_some() && state.channel_id == self.ringing_out && Some(&state.user_id) != me.as_ref() {
                     self.stop_ringing_out();
@@ -1558,6 +1618,15 @@ impl Waffle {
         let is_open = self.channel.as_ref().is_some_and(|c| c.id == channel_id);
         if let Ok(id) = message.id.parse() {
             self.last_message.insert(channel_id.clone(), id);
+            // Sending reads the channel up to our message, as Discord's server does; without it our own
+            // message would mark the DM unread and raise its tile in the rail.
+            if mine {
+                self.read_states.entry(channel_id.clone()).or_default().last_read = id;
+                // Posting reads the channel, and the NEW line goes, as in Discord.
+                if is_open {
+                    self.unread_marker = None;
+                }
+            }
         }
         if let (Some(guild_id), Some(roles)) = (&message.guild_id, &message.roles) {
             self.member_roles.entry(guild_id.clone()).or_default().insert(message.author.id.clone(), roles.clone());
@@ -1703,9 +1772,28 @@ impl Waffle {
         }
         let count = self.feeds.get(&id).map_or(0, |f| f.messages.len());
         self.list.reset(count);
+        // With news, the channel opens on its first unread, under the NEW line, and stays unread until you
+        // scroll down to the newest message (Discord's auto-read needs the bottom); otherwise it's read now.
+        self.unread_scroll_pending = self.unread_marker.is_some();
+        self.scroll_to_first_unread();
         self.fetch_latest(&id, cx);
-        self.ack_open(cx);
+        if self.unread_marker.is_none() {
+            self.ack_open(cx);
+        }
         cx.notify();
+    }
+
+    // Puts the first unread message near the top, once it's loaded.
+    fn scroll_to_first_unread(&mut self) {
+        let (Some(read), Some(channel)) = (self.unread_marker, self.channel.as_ref()) else { return };
+        if !self.unread_scroll_pending {
+            return;
+        }
+        let Some(feed) = self.feeds.get(&channel.id) else { return };
+        let Some(first) = feed.messages.iter().position(|m| order(&m.id) > read) else { return };
+        // Its row opens with the NEW line, at the feed's top, just under the unread bar.
+        self.list.scroll_to(ListOffset { item_ix: first, offset_in_item: px(0.) });
+        self.unread_scroll_pending = false;
     }
 
     /// Hovering a channel warms its cache so the click shows messages instantly.
@@ -1755,6 +1843,9 @@ impl Waffle {
         let authors: Vec<String> = feed.messages.iter().map(|m| m.author.id.clone()).collect();
         if is_open && !unchanged {
             self.list.reset(count);
+            self.scroll_to_first_unread();
+            // Tried once the messages are in: a first unread that never loads mustn't hold off reading.
+            self.unread_scroll_pending = false;
         } else if is_open && reached_start {
             // The first row now carries the DM's start header.
             self.list.remeasure_items(0..1.min(count));
@@ -1893,7 +1984,12 @@ impl Waffle {
         .detach();
     }
 
+    // Reads the open channel up to its newest message, only while that message is in view and the window
+    // has focus (Discord's auto-read).
     fn ack_open(&mut self, cx: &mut Context<Self>) {
+        if self.scrolled_up || !self.window_active || self.unread_scroll_pending {
+            return;
+        }
         let (Some(client), Some(channel)) = (self.client.clone(), self.channel.as_ref()) else { return };
         let Some(&last) = self.last_message.get(&channel.id) else { return };
         let read = self.read_states.entry(channel.id.clone()).or_default();
@@ -2530,13 +2626,15 @@ impl Waffle {
         self.typing.get(&channel.id).map(|t| t.iter().filter(|t| t.until > now).cloned().collect()).unwrap_or_default()
     }
 
-    // The call Waffle's own restart left (restart.rs). Once only: a channel gone or hidden is dropped.
+    // The call Waffle's own restart left (restart.rs), offered back under the notice bar. Once only: a
+    // channel gone or hidden is dropped.
     fn rejoin_after_restart(&mut self, cx: &mut Context<Self>) {
         let Some((guild_id, channel_id)) = self.prefs.rejoin_voice.take() else { return };
         self.prefs.save();
         let channel = self.guilds.iter().find(|g| g.id == guild_id).and_then(|g| g.channels.iter().find(|c| c.id == channel_id)).cloned();
         if let Some(channel) = channel {
-            self.join_voice_in(Some(guild_id), channel, cx);
+            self.voice_notice = Some(VoiceNotice { guild_id: Some(guild_id), channel, at: Instant::now(), why: NoticeWhy::Restarted });
+            cx.notify();
         }
     }
 
@@ -2576,6 +2674,7 @@ impl Waffle {
         }
         self.call_switched = switched;
         self.voice_error = None;
+        self.voice_notice = None;
         // Its playback is outside the call's echo cancellation (see `close_settings`). Before the
         // join, so the call starts with the deafen state the test held.
         self.stop_mic_test();
@@ -2612,6 +2711,22 @@ impl Waffle {
         .detach();
         self.call = Some(Call { session, guild_id, channel, connected: false, stage: voice::Stage::AwaitingEndpoint, stats: None, level: (SILENCE_DB, false), speaking: HashSet::new(), last_spoke: HashMap::new(), cameras: HashMap::new(), camera_on: false, watching: Vec::new(), focus: None, ended: Vec::new(), sharing: None, share_label: None, share_source: None, live_since: None, self_view: None, joined: Instant::now(), _events: task });
         cx.notify();
+    }
+
+    // Another client of ours joined voice. The voice server can drop this one (4006) before that
+    // client's voice state reaches us, so a call that ended moments ago is explained after the fact.
+    fn taken_elsewhere(&mut self) {
+        if self.call.is_some() {
+            return;
+        }
+        let Some(last) = self.last_call.take().filter(|c| c.at.elapsed() < TAKEN_ELSEWHERE_WINDOW) else { return };
+        self.voice_error = None;
+        self.voice_notice = Some(last);
+    }
+
+    fn reconnect_voice(&mut self, cx: &mut Context<Self>) {
+        let Some(notice) = self.voice_notice.take() else { return };
+        self.join_voice_in(notice.guild_id, notice.channel, cx);
     }
 
     fn ring_out(&mut self, channel: String, cx: &mut Context<Self>) {
@@ -2758,13 +2873,16 @@ impl Waffle {
             voice::VoiceEvent::Moved(channel_id) => return self.follow_voice_move(&channel_id, cx),
             voice::VoiceEvent::Disconnected(reason) => {
                 if let Some(call) = self.call.take() {
+                    self.last_call = Some(VoiceNotice { guild_id: call.guild_id.clone(), channel: call.channel.clone(), at: Instant::now(), why: NoticeWhy::Elsewhere });
                     release_frames(call, cx);
                 }
                 self.call_focus = None;
                 self.stop_ringing_out();
                 sounds::play(sounds::Cue::Disconnect);
-                if reason != "Left" {
-                    self.voice_error = Some(reason.into());
+                match reason.as_str() {
+                    "Left" => {}
+                    voice::ANOTHER_LOCATION => self.taken_elsewhere(),
+                    _ => self.voice_error = Some(reason.into()),
                 }
             }
         }

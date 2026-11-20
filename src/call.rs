@@ -43,6 +43,8 @@ const STAGE_PAD: f32 = 16.;
 const STAGE_GAP: f32 = 16.;
 const HEAD_HEIGHT: f32 = 32.;
 const CONTROLS_HEIGHT: f32 = 48.;
+// A group's inset around its buttons.
+const DOCK_PAD: f32 = 4.;
 // .tiles: 10px apart, 8px once the grid is three across; avatars shrink in small tiles.
 const TILE_GAP: f32 = 10.;
 const TILE_GAP_DENSE: f32 = 8.;
@@ -678,9 +680,13 @@ impl Waffle {
         self.call.as_ref()?;
         let tiles = self.ordered_tiles();
         // .call.autohide: 260ms out, drifting 6px toward its edge; any move brings it back.
-        // With a stream focused the chrome steps aside, as Discord's does, while the pointer rests or
-        // has left the stage.
-        let rest = self.focused_stream().is_some() && self.call_idle();
+        // The chrome steps aside whenever the pointer has left the stage, and with a stream focused,
+        // as Discord's does, also while it rests.
+        let menus_closed = self.device_menu.is_none() && self.menu.is_none();
+        let rest = match self.focused_stream() {
+            Some(_) => self.call_idle(),
+            None => !self.call_pointer_inside && menus_closed,
+        };
         let shown = gpui_kit::base::transition("call-chrome", if rest { 0. } else { 1. }, gpui_kit::base::Transition::new(ui::DUR_PANEL), window, cx);
         let focused = self.call_focus.as_ref().and_then(|key| tiles.iter().find(|t| tile_key(t) == *key));
         if let Some(big) = focused {
@@ -699,8 +705,8 @@ impl Waffle {
             self.stage_root(cx)
                 .flex()
                 .flex_col()
-                .child(self.stage_head(cx))
-                .child(stage.child(div().flex_1().min_h_0().child(body)).child(self.call_controls(cx)))
+                .child(self.stage_head(cx).opacity(shown))
+                .child(stage.child(div().flex_1().min_h_0().child(body)).child(div().opacity(shown).child(self.call_controls(cx))))
                 .into_any_element(),
         )
     }
@@ -716,14 +722,16 @@ impl Waffle {
             .bg(stage::bg())
             .text_color(stage::text())
             .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
+                this.call_pointer_inside = *hovered;
                 if !*hovered {
                     this.call_pointer_at = Instant::now().checked_sub(CONTROLS_IDLE * 2).unwrap_or_else(Instant::now);
-                    cx.notify();
                 }
+                cx.notify();
             }))
             .on_mouse_move(cx.listener(|this, _: &gpui_kit::MouseMoveEvent, _, cx| {
-                let was_idle = this.call_idle();
+                let was_idle = this.call_idle() || !this.call_pointer_inside;
                 this.call_pointer_at = Instant::now();
+                this.call_pointer_inside = true;
                 if was_idle {
                     cx.notify();
                 }
@@ -998,9 +1006,10 @@ impl Waffle {
     }
 
     // Everyone watching a streamer, other than the streamer.
-    fn viewer_count(&self, streamer_id: &str) -> usize {
+    pub(crate) fn viewers(&self, streamer_id: &str) -> Vec<Viewer> {
         let suffix = format!(":{streamer_id}");
-        self.stream_viewers.iter().find(|(key, _)| key.ends_with(&suffix)).map_or(0, |(_, v)| v.iter().filter(|id| *id != streamer_id).count())
+        let ids = self.stream_viewers.iter().find(|(key, _)| key.ends_with(&suffix)).map(|(_, v)| v.as_slice()).unwrap_or_default();
+        ids.iter().filter(|id| *id != streamer_id).map(|id| Viewer { name: self.user_name(id).into(), avatar: self.user_avatar(id) }).collect()
     }
 
     // What someone is playing or streaming, from their presence, for name tags.
@@ -1174,7 +1183,8 @@ impl Waffle {
                 None => f.children(self.stream_preview(&state.user_id).map(|url| ui::media(url, ui::all(radius)).absolute().inset_0().size_full().object_fit(fit))),
             })
             .into_any_element(),
-            (false, Some(frame)) => ui::media(ImageSource::Render(frame.clone()), ui::all(radius)).size_full().object_fit(fit).into_any_element(),
+            // Our own camera reads as a mirror, as every call app shows it; others see it unflipped.
+            (false, Some(frame)) => ui::media(ImageSource::Render(frame.clone()), ui::all(radius)).size_full().object_fit(fit).when(me, mirrored).into_any_element(),
             (false, None) => div()
                 .size_full()
                 .when(!fill, |d| d.squircle(radius))
@@ -1225,7 +1235,7 @@ impl Waffle {
         let streamer = state.user_id.clone();
         let menu_user = state.user_id.clone();
         let card = tile.clone();
-        let viewers = if is_stream { self.viewer_count(&state.user_id) } else { 0 };
+        let viewers = if is_stream { self.viewers(&state.user_id) } else { Vec::new() };
         let alongside = call.watching.iter().any(|w| w.streamer_id != state.user_id);
         div()
             .id(group.clone())
@@ -1239,7 +1249,7 @@ impl Waffle {
             // Scrims only while hovered, so pictures aren't dimmed at rest; the chips carry their own fill.
             .when(media && !fill, |d| d.child(scrim_top(radius).opacity(0.).group_hover(group.clone(), |s| s.opacity(1.))).child(scrim_bottom(radius).opacity(0.).group_hover(group.clone(), |s| s.opacity(1.))))
             .children(own_live)
-            .when(viewers > 0, |d| d.child(viewer_chip(viewers)))
+            .when(!viewers.is_empty(), |d| d.child(viewer_chip(viewers, &state.user_id)))
             .when(watchable && !small, |d| {
                 d.child(div().absolute().inset_0().when(!fill, |d| d.squircle(radius)).bg(gpui_kit::black().opacity(0.45)).flex().items_center().justify_center().child(self.watch_actions(tile, alongside, cx)))
             })
@@ -1301,31 +1311,27 @@ impl Waffle {
         let camera_state = if call.camera_on { Control::On } else { Control::Rest };
         let mic = split_control(
             control("call-mic", if muted { Glyph::MicOffFill } else { Glyph::MicFill }, if muted { "Unmute" } else { "Mute" }, mic_state, true).on_click(cx.listener(|this, _, _, cx| this.toggle_mute(cx))),
-            control("call-mic-devices", Glyph::ChevronUpBold, "Microphone options", if menu_open(DeviceKind::Input) { Control::Open } else { mic_state }, true)
+            control("call-mic-devices", Glyph::ChevronUpBold, "Microphone options", if menu_open(DeviceKind::Input) { Control::Open } else { Control::Rest }, true)
                 .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stage_device_menu(DeviceKind::Input, e.position, cx))),
         );
         let camera = split_control(
             control("call-camera", if call.camera_on { Glyph::VideoFill } else { Glyph::VideoOffFill }, if call.camera_on { "Turn off camera" } else { "Turn on camera" }, camera_state, connected)
                 .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_camera(cx)))),
-            control("call-camera-devices", Glyph::ChevronUpBold, "Camera options", if menu_open(DeviceKind::Camera) { Control::Open } else { camera_state }, true)
+            control("call-camera-devices", Glyph::ChevronUpBold, "Camera options", if menu_open(DeviceKind::Camera) { Control::Open } else { Control::Rest }, true)
                 .on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stage_device_menu(DeviceKind::Camera, e.position, cx))),
         );
-        let share = match sharing {
-            true => control("call-share", Glyph::ShareScreenFill, "Stream options", Control::Active, true).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stream_menu(e.position, cx))),
-            false => control("call-share", Glyph::ShareScreenFill, "Share your screen", Control::Rest, connected).when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx)))),
-        };
+        // Live, the main half stops the stream and the chevron holds its options, as Discord's.
+        let share_state = if sharing { Control::Active } else { Control::Rest };
+        let share = split_control(
+            control("call-share", Glyph::ShareScreenFill, if sharing { "Stop streaming" } else { "Share your screen" }, share_state, connected)
+                .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.toggle_screen_share(cx)))),
+            control("call-share-options", Glyph::ChevronUpBold, "Stream options", if self.menu.is_some() && sharing { Control::Open } else { Control::Rest }, sharing)
+                .when(sharing, |b| b.on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_stream_menu(e.position, cx)))),
+        );
         let activities = control("call-activities", Glyph::ActivitiesFill, "Activities and soundboard", Control::Rest, connected)
             .when(connected, |b| b.on_click(cx.listener(|this, _, _, cx| this.show_toast("Activities and the soundboard aren't in Waffle yet", cx))));
         let more = control("call-more", Glyph::More, "More options", Control::Rest, true).on_mouse_down(MouseButton::Left, cx.listener(|this, e: &MouseDownEvent, _, cx| this.open_call_more(e.position, cx)));
-        // Watching the stream shown big, the red button stops watching it rather than leaving, as Discord's.
-        let me = self.me.as_ref().map(|m| m.id.as_str());
-        let leave = match self.focused_stream().filter(|id| call.watched(id).is_some() && me != Some(id.as_str())) {
-            Some(id) => control("call-stop-watching", Glyph::ScreenOff, "Stop watching", Control::Leave, true).w(px(68.)).on_click(cx.listener(move |this, _, _, cx| {
-                this.call_focus = None;
-                this.unwatch_stream(&id, cx);
-            })),
-            None => control("call-hang-up", Glyph::CallEnd, "Leave call", Control::Leave, true).w(px(68.)).on_click(cx.listener(|this, _, _, cx| this.leave_voice(cx))),
-        };
+        let leave = self.leave_control(cx);
         // Full screen at the bar's right end, as Discord's.
         let fullscreen = self.call_fullscreen;
         let fullscreen = stage_icon_button("call-fullscreen", if fullscreen { Glyph::FullscreenExit } else { Glyph::Fullscreen }, if fullscreen { "Exit full screen (Esc)" } else { "Full screen" }, false)
@@ -1340,15 +1346,50 @@ impl Waffle {
             .flex()
             .justify_center()
             .items_center()
-            .gap(px(10.))
-            .child(mic)
-            .child(camera)
-            .child(share)
-            .child(activities)
-            .child(more)
-            .child(div().w(px(6.)))
+            .gap(px(8.))
+            .child(control_group().child(mic).child(camera))
+            .child(control_group().child(share).child(activities).child(more))
             .child(leave)
             .child(div().absolute().right_0().top(px((CONTROLS_HEIGHT - 32.) / 2.)).flex().gap(px(4.)).children(volume).child(fullscreen))
+    }
+
+    // The one red button. Watching the stream shown big, it stops watching it rather than leaving, as
+    // Discord's. One element across both, so a press that spans the switch still lands, and the glyph
+    // cross-fades into the new action.
+    fn leave_control(&self, cx: &mut Context<Self>) -> ui::Pressable {
+        let call = self.call.as_ref().expect("in a call");
+        let me = self.me.as_ref().map(|m| m.id.as_str());
+        let watching = self.focused_stream().filter(|id| call.watched(id).is_some() && me != Some(id.as_str()));
+        let (glyph, tip) = match watching {
+            Some(_) => (Glyph::ScreenOff, "Stop watching"),
+            None => (Glyph::CallEnd, "Leave call"),
+        };
+        let icon = div().child(Icon::new(glyph).size(px(20.))).with_animation(
+            ElementId::Name(SharedString::from(format!("call-leave-{tip}"))),
+            Animation::new(ui::DUR_POP).with_easing(|t| crate::motion::ease_out().sample(t)),
+            |icon, t| icon.opacity(t).scale(0.25 + 0.75 * t),
+        );
+        ui::pressable(div().id("call-leave"), 0.92)
+            .w(px(56.))
+            .h(px(CONTROLS_HEIGHT))
+            .flex_none()
+            .squircle(10. + DOCK_PAD)
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(palette::danger())
+            .text_color(gpui_kit::white())
+            .cursor_pointer()
+            .hover(|s| s.bg(palette::danger_hover()))
+            .child(icon)
+            .tooltip(move |window, cx| Tooltip::new(tip).build(window, cx))
+            .on_click(cx.listener(move |this, _, _, cx| match watching.clone() {
+                Some(id) => {
+                    this.call_focus = None;
+                    this.unwatch_stream(&id, cx);
+                }
+                None => this.leave_voice(cx),
+            }))
     }
 
     // More options: what didn't earn a button of its own.
@@ -1481,6 +1522,7 @@ impl Waffle {
         };
         let card = div()
             .id("connection-card")
+            .occlude()
             .absolute()
             .left(px(8.))
             .bottom(px(self.panel_stack_height() + 16.))
@@ -1608,6 +1650,7 @@ impl Waffle {
         let viewport = window.viewport_size();
         let card = div()
             .id("device-menu")
+            .occlude()
             .absolute()
             .left(px((f32::from(menu.at.x) - 150.).clamp(8., f32::from(viewport.width) - 308.)))
             .bottom(px((f32::from(viewport.height) - f32::from(menu.at.y) + 12.).max(8.)))
@@ -1828,7 +1871,7 @@ fn watch_button_look() -> Div {
 }
 
 // A call control's state: .cbtn at rest, .off (coral), .on (light), .active (accent), the open
-// chevron ([aria-expanded]), or .leave (the one red fill).
+// chevron ([aria-expanded]). The red .leave is its own button.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Control {
     Rest,
@@ -1836,39 +1879,58 @@ enum Control {
     On,
     Active,
     Open,
-    Leave,
 }
 
-// .cbtn: 52x48, a squircle; icons 22px (the chevron 14px). Pressed, it sinks to 92%.
+// .cbtn: 40x40 inside its group, a squircle; icons 20px (the chevron 12px on a 20px strip). Pressed, it sinks to 92%.
+// The group is opaque, so a button at rest has no fill of its own.
 fn control(id: &'static str, glyph: Glyph, tip: &'static str, state: Control, enabled: bool) -> ui::Pressable {
     let (fill, hover, ink) = match state {
-        Control::Rest => (stage::wash(0.1), stage::wash(0.16), gpui_kit::white()),
+        Control::Rest => (gpui_kit::transparent_black(), stage::wash(0.08), gpui_kit::white()),
         Control::Off => (stage::off(false), stage::off(true), stage::off_ink()),
         Control::On => (stage::on(false), stage::on(true), stage::on_ink()),
         Control::Active => (palette::accent(), palette::accent_hover(), palette::on_accent()),
-        Control::Open => (stage::wash(0.2), stage::wash(0.2), gpui_kit::white()),
-        Control::Leave => (palette::danger(), palette::danger_hover(), gpui_kit::white()),
+        Control::Open => (stage::wash(0.12), stage::wash(0.12), gpui_kit::white()),
     };
     let chevron = matches!(glyph, Glyph::ChevronUpBold);
+    let side = CONTROLS_HEIGHT - DOCK_PAD * 2.;
     ui::pressable(div().id(id), if enabled { 0.92 } else { 1. })
-        .w(px(if chevron { 26. } else { 52. }))
-        .h(px(CONTROLS_HEIGHT))
+        .w(px(if chevron { 20. } else { side }))
+        .h(px(side))
         .flex_none()
-        .squircle(16.)
+        .squircle(10.)
         .flex()
         .items_center()
         .justify_center()
         .bg(fill)
-        .text_color(ink)
-        .child(Icon::new(glyph).size(px(if chevron { 14. } else { 22. })))
-        .when(enabled, |b| b.cursor_pointer().hover(move |s| s.bg(hover)))
+        .text_color(if chevron && state == Control::Rest { stage::muted() } else { ink })
+        .child(Icon::new(glyph).size(px(if chevron { 12. } else { 20. })))
+        .when(enabled, |b| b.cursor_pointer().hover(move |s| s.bg(hover).text_color(ink)))
         .when(!enabled, |b| b.opacity(0.4).cursor(gpui_kit::CursorStyle::OperationNotAllowed))
         .tooltip(move |window, cx| Tooltip::new(tip).build(window, cx))
 }
 
-// .csplit: the main half and its chevron 2px apart, their facing corners small.
-fn split_control(main: impl Styled + IntoElement, chevron: impl Styled + IntoElement) -> Div {
-    div().flex().gap(px(2.)).child(main.rounded_tr(px(4.)).rounded_br(px(4.))).child(chevron.rounded_tl(px(4.)).rounded_bl(px(4.)))
+fn mirrored<E: Styled>(mut el: E) -> E {
+    el.style().scale.width = Some(-1.);
+    el
+}
+
+// .csplit: the main button with its chevron tucked flush beside it.
+fn split_control(main: impl IntoElement, chevron: impl IntoElement) -> Div {
+    div().flex().child(main).child(chevron)
+}
+
+// .cgroup: related controls on one opaque plate with a hairline, so they read over any picture.
+fn control_group() -> Div {
+    div()
+        .h(px(CONTROLS_HEIGHT))
+        .flex()
+        .items_center()
+        .gap(px(2.))
+        .p(px(DOCK_PAD))
+        .squircle(10. + DOCK_PAD)
+        .bg(stage::dock())
+        .border_1()
+        .border_color(stage::wash(0.08))
 }
 
 // .tile .name: a dark chip in the tile's foot, 12px white, so it reads over any picture.
@@ -1916,25 +1978,59 @@ fn scrim_bottom(radius: f32) -> Div {
     ui::edge(div().absolute().bottom_0().left_0().right_0().h(relative(0.38)), ui::bottom(radius)).bg(gpui_kit::linear_gradient(180., gpui_kit::linear_color_stop(gpui_kit::transparent_black(), 0.), gpui_kit::linear_color_stop(gpui_kit::black().opacity(0.55), 1.)))
 }
 
-// .tile .viewers: the watch count, top right.
-fn viewer_chip(viewers: usize) -> Div {
+// .tile .viewers: who's watching, top right; a few faces and a "+n", the full list on hover.
+const VIEWER_FACES: usize = 4;
+
+#[derive(Clone)]
+pub(crate) struct Viewer {
+    name: SharedString,
+    avatar: String,
+}
+
+pub(crate) fn viewer_chip(viewers: Vec<Viewer>, streamer_id: &str) -> Stateful<Div> {
+    let avatars: Vec<String> = viewers.iter().map(|v| v.avatar.clone()).collect();
     div()
+        .id(SharedString::from(format!("viewers-{streamer_id}")))
         .absolute()
         .right(px(8.))
         .top(px(8.))
-        .h(px(20.))
-        .px(px(7.))
-        .squircle(RADIUS_XS)
+        .h(px(28.))
+        .pl(px(8.))
+        .pr(px(4.))
+        .rounded_full()
         .flex()
         .items_center()
-        .gap(px(4.))
-        .bg(gpui_kit::black().opacity(0.45))
-        .text_color(gpui_kit::white())
-        .text_size(px(11.))
-        .font_weight(FontWeight::SEMIBOLD)
-        .font_features(tabular())
-        .child(Icon::new(Glyph::EyeBold).size(px(12.)))
-        .child(viewers.to_string())
+        .gap(px(6.))
+        .bg(stage::dock())
+        .text_color(stage::muted())
+        .child(Icon::new(Glyph::EyeBold).size(px(14.)))
+        .child(ui::capped_stack(&avatars, VIEWER_FACES, 20., stage::dock(), stage::overlay(), stage::strong()))
+        .tooltip(move |_, cx| cx.new(|_| ViewerList(viewers.clone())).into())
+}
+
+// The hover list behind the viewer chip: everyone watching, face and name.
+struct ViewerList(Vec<Viewer>);
+
+impl Render for ViewerList {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let rows = self.0.iter().map(|v| {
+            div().flex().items_center().gap(px(8.)).child(ui::avatar(v.avatar.clone(), 20.)).child(div().truncate().child(v.name.clone()))
+        });
+        div()
+            .max_w(px(240.))
+            .max_h(px(320.))
+            .overflow_hidden()
+            .p(px(10.))
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .squircle(RADIUS_MD)
+            .bg(stage::overlay())
+            .text_color(stage::text())
+            .text_size(px(14.))
+            .child(div().text_color(stage::muted()).text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).child(format!("Watching · {}", self.0.len())))
+            .children(rows)
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

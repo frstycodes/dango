@@ -47,7 +47,8 @@ impl Render for Waffle {
 
 impl Waffle {
     fn render_root(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        // Before the rows draw, so a row just let go of draws as landing rather than as a hole.
+        // Before the rows draw, so a row just let go of lands in its new place rather than as a hole.
+        self.finish_sorts(cx);
         self.settle_carry(cx);
         // First, so every fill below knows whether it sits on the native material this frame.
         let sidebar_width = if self.settings_open() { self.settings_width } else { RAIL_WIDTH + self.channels_width };
@@ -148,6 +149,14 @@ impl Waffle {
     // The column beside the sidebar: the call, the inbox, home, a forum or the chat (a part, see part.rs).
     pub(crate) fn render_main(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         crate::gif::begin_inline_layout();
+        let content = self.render_main_content(window, cx);
+        match self.voice_notice_bar(cx) {
+            Some(bar) => div().size_full().flex().flex_col().child(bar).child(div().flex_1().min_h_0().flex().child(content)).into_any_element(),
+            None => content,
+        }
+    }
+
+    fn render_main_content(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         match self.call_view.then(|| self.render_call_with_chat(window, cx)).flatten() {
             Some(call) => div().flex_1().min_w_0().h_full().child(call).into_any_element(),
             None if self.inbox_page => self.render_inbox_page(window, cx),
@@ -158,6 +167,62 @@ impl Waffle {
             }
             None => self.render_chat(window, cx).into_any_element(),
         }
+    }
+
+    // Discord's notice bar over the main column: a call we lost (in Discord's words when another client of
+    // ours took it, or to Waffle's own restart), with a way to take it back here.
+    fn voice_notice_bar(&self, cx: &mut Context<Self>) -> Option<Div> {
+        let notice = self.voice_notice.as_ref()?;
+        // Losing the call to another client is a fault; a restart's offer is just an offer.
+        let (fill, ink, text) = match notice.why {
+            crate::NoticeWhy::Elsewhere => (palette::danger(), gpui_kit::white(), "Your voice has been disconnected because you connected at another location.".to_owned()),
+            crate::NoticeWhy::Restarted => (palette::accent(), palette::on_accent(), format!("You left {} when Waffle restarted.", notice.channel.name)),
+        };
+        let reconnect = div()
+            .id("voice-notice-reconnect")
+            .h(px(24.))
+            .px(px(10.))
+            .flex()
+            .items_center()
+            .squircle(crate::ui::RADIUS_XS)
+            .border_1()
+            .border_color(ink.opacity(0.6))
+            .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+            .cursor_pointer()
+            .hover(move |s| s.bg(ink.opacity(0.12)))
+            .child("Reconnect")
+            .on_click(cx.listener(|this, _, _, cx| this.reconnect_voice(cx)));
+        let close = div()
+            .id("voice-notice-close")
+            .size(px(24.))
+            .flex()
+            .items_center()
+            .justify_center()
+            .squircle(crate::ui::RADIUS_XS)
+            .cursor_pointer()
+            .hover(move |s| s.bg(ink.opacity(0.12)))
+            .child(gpui_kit::component::Icon::new(crate::icons::Glyph::X).size(px(16.)))
+            .tooltip(|window, cx| gpui_kit::component::tooltip::Tooltip::new("Dismiss").build(window, cx))
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.voice_notice = None;
+                cx.notify();
+            }));
+        Some(
+            div()
+                .flex_none()
+                .h(px(36.))
+                .pl(px(16.))
+                .pr(px(8.))
+                .flex()
+                .items_center()
+                .gap(px(12.))
+                .bg(fill)
+                .text_color(ink)
+                .text_size(px(14.))
+                .child(div().flex_1().min_w_0().flex().items_center().justify_center().gap(px(12.)).child(div().truncate().child(text)).child(reconnect))
+                .child(close)
+                .child(self.caption_clearance(cfg!(target_os = "windows"))),
+        )
     }
 
     fn on_root_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
@@ -220,7 +285,7 @@ impl Waffle {
     // A settings view: its nav with a resize handle on the edge, then the page. It covers the window, so it
     // tracks a drag of that handle itself.
     pub(crate) fn settings_frame(&self, id: &'static str, nav: AnyElement, main: impl IntoElement, cx: &mut Context<Self>) -> gpui_kit::Stateful<Div> {
-        let nav = div().relative().flex_none().h_full().w(px(self.settings_width)).child(nav).child(ui::settings_nav_edge(cx)).child(self.resize_handle(Edge::Settings, cx));
+        let nav = div().relative().flex_none().h_full().w(px(self.settings_width)).flex().flex_col().child(ui::settings_nav_edge(cx)).child(nav).child(self.resize_handle(Edge::Settings, cx));
         // The page's top band drags the window too, as every other column's header does; it stops above
         // the close button, which sits below the caption buttons.
         let drag = div().absolute().top_0().left_0().right_0().h(px(TITLE_HEIGHT)).window_control_area(gpui_kit::WindowControlArea::Drag);
@@ -303,7 +368,7 @@ impl Waffle {
         let (faint, danger) = (palette::faint(cx), palette::danger_ink(cx));
         let status_line: AnyElement = match (server_muted, sharing) {
             (true, _) => div().truncate().text_color(danger).child("Server muted by a moderator").into_any_element(),
-            (false, true) => div().flex().items_center().gap_1().child(Icon::new(Glyph::Screen).size(px(13.)).text_color(palette::positive_ink(cx))).child(div().truncate().child("Sharing their screen")).into_any_element(),
+            (false, true) => div().flex().items_center().gap_1().child(Icon::new(Glyph::Screen).size(px(14.)).text_color(palette::positive_ink(cx))).child(div().truncate().child("Sharing their screen")).into_any_element(),
             (false, false) => ui::truncating("me-status", self.status_line()).into_any_element(),
         };
         let mic = me_button("mic", if muted { Nav::MicOff } else { Nav::Mic }, muted, if server_muted { "A moderator muted you here. Only they can unmute you." } else if muted { "Unmute" } else { "Mute" }, cx)

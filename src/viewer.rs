@@ -42,7 +42,7 @@ pub(crate) struct Viewer {
 impl Waffle {
     pub(crate) fn open_viewer(&mut self, url: &str, window: &mut Window, cx: &mut Context<Self>) {
         let Some(feed) = self.channel.as_ref().and_then(|c| self.feeds.get(&c.id)) else { return };
-        let items: Vec<Media> = feed.messages.iter().flat_map(|m| m.media.iter().cloned()).collect();
+        let items: Vec<Media> = feed.messages.iter().flat_map(|m| m.media.iter().chain(m.embeds.iter().filter(|e| !e.video).flat_map(|e| &e.images)).cloned()).collect();
         let Some(index) = items.iter().position(|m| m.url == url) else { return };
         self.viewer = Some(Viewer { items, index, from: index, strip: ScrollHandle::new(), reveal: Cell::new(true), loaded: Cell::new(0..0) });
         window.focus(&self.focus, cx);

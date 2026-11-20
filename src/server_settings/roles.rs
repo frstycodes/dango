@@ -8,7 +8,7 @@ use gpui_kit::{
         ActiveTheme, Icon,
         input::{Input, InputEvent, InputState},
     },
-    div, px,
+    div, prelude::FluentBuilder, px,
 };
 use serde_json::Value;
 
@@ -21,11 +21,23 @@ use super::{
 use crate::{
     Waffle,
     channel_settings::Load,
+    drag::{Look, RowDrag},
+    sortable::{Board, Finished, Place},
     discord::perm,
     icons::Glyph,
     palette,
     ui::{self, Notice, Tone},
 };
+
+// The roles list's sortable list and its drag (sortable.rs).
+const ROLE_LIST: &str = "roles";
+
+#[derive(Clone)]
+struct RoleDrag;
+
+fn role_board(waffle: &mut Waffle) -> &mut Board {
+    &mut waffle.role_board
+}
 
 // Discord's role colour swatches.
 pub const COLORS: [u32; 20] = [
@@ -202,6 +214,10 @@ impl Waffle {
         });
         let create = ui::button("ss-role-create", Tone::Primary, cx).small().child(Icon::new(Glyph::Plus).size(px(16.))).child("Create role").on_click(cx.listener(|this, _, _, cx| this.create_role(cx)));
         let search = ui::search_field("ss-role-search", &view.roles.search, cx);
+        // Drag to reorder while the whole list shows; a filtered list has gaps a drop can't name.
+        let sorting = query.is_empty();
+        let order: Vec<String> = ranked.iter().map(|r| r.id.clone()).collect();
+        let sortable = self.role_board.list(ROLE_LIST, order, window, cx);
         let rows: Vec<AnyElement> = ranked
             .iter()
             .enumerate()
@@ -224,7 +240,23 @@ impl Waffle {
                     .child(div().w(px(32.)).flex_none().children(movable_up.then(|| ui::icon_button(SharedString::from(format!("ss-role-up-{up_id}")), Glyph::ArrowUp, "Move up", cx).on_click(cx.listener(move |this, _, _, cx| this.move_role(&up_id, -1, cx))))))
                     .child(div().w(px(32.)).flex_none().children(movable_down.then(|| ui::icon_button(SharedString::from(format!("ss-role-down-{down_id}")), Glyph::ArrowDown, "Move down", cx).on_click(cx.listener(move |this, _, _, cx| this.move_role(&down_id, 1, cx))))))
                     .child(Icon::new(Glyph::ChevronRight).size(px(16.)));
-                ui::settings_choice(row, cx).on_click(cx.listener(move |this, _, window, cx| this.open_role(id.clone(), window, cx))).into_any_element()
+                let key = format!("ss-role-{}", r.id);
+                let draggable = sorting && self.with_access(&guild_id, |me| access::can_drag_role(me, r.position, false)).unwrap_or(false);
+                let carried = self.drag_motion.row(&key) != RowDrag::Rest;
+                let row = ui::settings_choice(row, cx)
+                    .children(self.drag_motion.spot(&key))
+                    .when(carried, |r| r.opacity(0.))
+                    .on_click(cx.listener(move |this, _, window, cx| this.open_role(id.clone(), window, cx)));
+                let row = match draggable {
+                    true => {
+                        let size = self.role_board.slot(&r.id).map_or(gpui_kit::point(px(480.), px(56.)), |b| gpui_kit::point(b.size.width, b.size.height));
+                        let ghost = crate::drag::pick_up(cx.weak_entity(), key.into(), Look::Label { dot: color, text: r.role.name.clone().into() }, size, 1.03, 0., true);
+                        let row = row.on_drag(RoleDrag, Board::lift(cx.weak_entity(), role_board, r.id.clone(), ghost));
+                        Board::target(row, role_board, ROLE_LIST, r.id.clone(), |_: &RoleDrag| false, cx)
+                    }
+                    false => row,
+                };
+                sortable.item(&r.id, row)
             })
             .collect();
         let empty = rows.is_empty().then(|| ui::settings_caption(if query.is_empty() { "No roles yet. Create one to group members and give them permissions." } else { "No roles match." }, cx));
@@ -253,18 +285,42 @@ impl Waffle {
         }, cx);
     }
 
-    // One step up (-1) or down (+1) among the ranked roles; Discord's answer sticks, Undo puts it back.
+    // One step up (-1) or down (+1) among the ranked roles.
     fn move_role(&mut self, id: &str, step: i64, cx: &mut Context<Self>) {
+        let Some(Load::Ready(list)) = self.server_settings.as_ref().map(|v| &v.roles.list) else { return };
+        let Some(i) = list.iter().position(|r| r.id == id) else { return };
+        let Some(neighbour) = i.checked_add_signed(step as isize).and_then(|j| list.get(j)).map(|r| r.id.clone()) else { return };
+        self.move_role_beside(id, &neighbour, if step < 0 { Place::Before } else { Place::After }, cx);
+    }
+
+    // A role dragged in the list, dropped beside another.
+    pub(crate) fn finish_role_sort(&mut self, done: Finished, cx: &mut Context<Self>) {
+        let Some(hint) = done.hint.filter(|h| h.list == ROLE_LIST) else { return };
+        let Some(target) = hint.target else { return };
+        self.move_role_beside(&done.dragged, &target, hint.place, cx);
+    }
+
+    // Moves the role `id` just above (Before) or below (After) `target`, never under @everyone; Discord's
+    // answer sticks, Undo puts it back.
+    fn move_role_beside(&mut self, id: &str, target: &str, place: Place, cx: &mut Context<Self>) {
         let Some(view) = &mut self.server_settings else { return };
         let guild_id = view.guild_id.clone();
         let Load::Ready(list) = &mut view.roles.list else { return };
-        let before: Vec<(String, i64)> = list.iter().map(|r| (r.id.clone(), r.position)).collect();
-        let Some(i) = list.iter().position(|r| r.id == id) else { return };
-        let j = i as i64 + step;
-        if j < 0 || j as usize >= list.len() || list[j as usize].id == guild_id {
+        if id == target || target == guild_id {
             return;
         }
-        list.swap(i, j as usize);
+        let before: Vec<(String, i64)> = list.iter().map(|r| (r.id.clone(), r.position)).collect();
+        let Some(i) = list.iter().position(|r| r.id == id) else { return };
+        let moved = list.remove(i);
+        let Some(at) = list.iter().position(|r| r.id == target) else {
+            list.insert(i, moved);
+            return;
+        };
+        let j = if place == Place::After { at + 1 } else { at };
+        list.insert(j, moved);
+        if list.iter().map(|r| r.id.as_str()).eq(before.iter().map(|(id, _)| id.as_str())) {
+            return;
+        }
         let order: Vec<(&str, i64)> = list.iter().map(|r| (r.id.as_str(), r.position)).collect();
         let Some(call) = api::reorder_roles(&guild_id, &order) else { return };
         let bottom = list.len() as i64 - 1;
@@ -274,7 +330,7 @@ impl Waffle {
         let now: HashMap<String, i64> = list.iter().map(|r| (r.id.clone(), r.position)).collect();
         let back: Vec<(&str, i64)> = before.iter().map(|(id, _)| (id.as_str(), now[id])).collect();
         let undo = api::reorder_roles(&guild_id, &back);
-        let name = list[j as usize].role.name.clone();
+        let name = list[j].role.name.clone();
         cx.notify();
         self.server_call(call, move |this, result, cx| match result {
             Ok(_) => {
@@ -308,7 +364,7 @@ impl Waffle {
             }
             cx.notify();
         }));
-        let title = div().text_size(px(18.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).truncate().child(if is_everyone { "@everyone".to_owned() } else { format!("Edit role · {}", row.role.name) });
+        let title = div().text_size(px(20.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).truncate().child(if is_everyone { "@everyone".to_owned() } else { format!("Edit role · {}", row.role.name) });
         let mut tabs = vec![ui::Tab::new("Permissions")];
         if !is_everyone {
             tabs.insert(0, ui::Tab::new("Display"));
