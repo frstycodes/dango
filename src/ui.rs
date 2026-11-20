@@ -571,6 +571,29 @@ pub fn stacked(avatars: impl IntoIterator<Item = AnyElement>, size: f32, ring: H
     }))
 }
 
+// At most `cap` faces; past that the last slot becomes a "+n" chip in `more_fill`, so the stack stays a
+// glance, not a roster.
+pub fn capped_stack(urls: &[String], cap: usize, size: f32, ring: Hsla, more_fill: Hsla, more_ink: Hsla) -> Div {
+    let shown = if urls.len() > cap { cap - 1 } else { urls.len() };
+    let more = urls.len() - shown;
+    let faces = urls[..shown].iter().map(|url| avatar(url.clone(), size).into_any_element());
+    let more_chip = (more > 0).then(|| {
+        div()
+            .size(px(size))
+            .rounded_full()
+            .bg(more_fill)
+            .text_color(more_ink)
+            .text_size(px((size * 0.43).round().max(11.)))
+            .font_weight(FontWeight::SEMIBOLD)
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(format!("+{more}"))
+            .into_any_element()
+    });
+    stacked(faces.chain(more_chip), size, ring)
+}
+
 // Paints `el` in the surface colour it stands in for; over the native sidebar, where that colour is
 // clear, it cuts its shape out of whatever was painted under it instead, so the material shows through.
 pub fn cut_out(el: Div, surface: Hsla) -> Div {

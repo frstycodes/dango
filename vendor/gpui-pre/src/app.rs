@@ -3452,10 +3452,27 @@ pub struct AnyTooltip {
     /// The absolute position of the mouse when the tooltip was deployed.
     pub mouse_position: Point<Pixels>,
 
+    /// Waffle patch: the hovered element's bounds this frame. When set, the tooltip is placed
+    /// against them by `placement` instead of at the mouse.
+    pub anchor: Option<Bounds<Pixels>>,
+
+    /// Where the tooltip sits relative to `anchor`.
+    pub placement: TooltipPlacement,
+
     /// Given the bounds of the tooltip, checks whether the tooltip should still be visible and
     /// updates its state accordingly. This is needed atop the hovered element's mouse move handler
     /// to handle the case where the element is not painted (e.g. via use of `visible_on_hover`).
     pub check_visible_and_update: Rc<dyn Fn(Bounds<Pixels>, &mut Window, &mut App) -> bool>,
+}
+
+/// Where an anchored tooltip sits relative to the element it describes.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum TooltipPlacement {
+    /// Below the element, centred; above it when there's no room below.
+    #[default]
+    Auto,
+    /// To the element's right, centred vertically; to its left when there's no room on the right.
+    Side,
 }
 
 /// Whether a keystroke should prefer character input or key bindings.
