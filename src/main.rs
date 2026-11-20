@@ -40,6 +40,7 @@ mod os_image;
 mod overlays;
 mod overwrites;
 mod playback;
+mod poll;
 mod inbox;
 mod status_menu;
 mod stickers;
@@ -575,6 +576,8 @@ enum EmojiTarget {
     Composer,
     Reaction(Box<Message>),
     CustomStatus,
+    // An answer's emoji in the poll creator, by row.
+    PollAnswer(usize),
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -614,6 +617,10 @@ pub struct Waffle {
     // When a status picked "For 1 hour" and the like falls back to Online.
     status_until: Option<chrono::DateTime<chrono::Local>>,
     status_editor: Option<status_menu::StatusEditor>,
+    poll_creator: Option<poll::PollCreator>,
+    // Answers picked on a poll before Vote, and polls showing their results before you vote, by message.
+    poll_picks: HashMap<String, Vec<u32>>,
+    poll_peek: HashSet<String>,
     status_flyout: status_menu::Flyout,
     status_input: Entity<SearchState>,
     clear_after: status_menu::ClearAfter,
@@ -985,6 +992,9 @@ impl Waffle {
             custom_status: None,
             status_until: None,
             status_editor: None,
+            poll_creator: None,
+            poll_picks: HashMap::new(),
+            poll_peek: HashSet::new(),
             status_flyout: status_menu::Flyout::default(),
             status_input,
             clear_after: status_menu::ClearAfter::default(),
@@ -1466,6 +1476,12 @@ impl Waffle {
                 let mine = self.me.as_ref().is_some_and(|me| me.id == user_id);
                 if let Some(m) = self.message_mut(&channel_id, &message_id) {
                     adjust_reaction(m, &emoji, added, mine, true);
+                }
+            }
+            Event::PollVote { channel_id, message_id, user_id, answer_id, added } => {
+                let mine = self.me.as_ref().is_some_and(|me| me.id == user_id);
+                if let Some(poll) = self.message_mut(&channel_id, &message_id).and_then(|m| m.poll.as_mut()) {
+                    poll::apply_vote(poll, answer_id, added, mine);
                 }
             }
             Event::Typing { channel_id, user_id, name } => self.on_typing(channel_id, user_id, name, cx),
@@ -2134,9 +2150,10 @@ impl Waffle {
             return self.start_upload(nonce, cx);
         }
         cx.spawn(async move |this, cx| {
-            let result = match message.stickers.first() {
-                Some(sticker) => client.send_sticker(&message.channel_id, &sticker.id, &nonce, message.reply_to.as_deref(), true).await,
-                None => client.send_message(&message.channel_id, &message.content, &nonce, message.reply_to.as_deref(), true).await,
+            let result = match (message.stickers.first(), poll::draft_of(&message)) {
+                (Some(sticker), _) => client.send_sticker(&message.channel_id, &sticker.id, &nonce, message.reply_to.as_deref(), true).await,
+                (None, Some(draft)) => client.send_poll(&message.channel_id, &draft, &nonce).await,
+                (None, None) => client.send_message(&message.channel_id, &message.content, &nonce, message.reply_to.as_deref(), true).await,
             };
             this.update(cx, |this, cx| this.settle(&message.channel_id, &nonce, result, cx)).ok();
         })
