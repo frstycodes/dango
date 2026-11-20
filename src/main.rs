@@ -843,6 +843,8 @@ pub struct Waffle {
     profiles: query::Query<discord::Profile>,
     // Previews of Discord's own links (messages, invites), shared with the rows that draw them.
     link_previews: link_preview::Previews,
+    // Who reacted, by message and emoji (`Emoji::path`), fetched on a pill's first hover; dropped when it changes.
+    reactors: HashMap<(String, String), chat::Reactors>,
     games: games::Games,
     emoji_picker: Option<EmojiTarget>,
     emoji_search: Entity<SearchState>,
@@ -1138,6 +1140,7 @@ impl Waffle {
             call_area: Rc::new(std::cell::Cell::new((0., 0.))),
             profiles: query::Query::new("profiles", Duration::from_secs(5 * 60)),
             link_previews: link_preview::previews(),
+            reactors: HashMap::new(),
             games: Default::default(),
             composer_height: Rc::new(std::cell::Cell::new(86.)),
             pip: Default::default(),
@@ -1464,6 +1467,7 @@ impl Waffle {
             Event::MessageDelete { channel_id, id } => self.remove_message(&channel_id, &id),
             Event::Reaction { channel_id, message_id, user_id, emoji, added } => {
                 let mine = self.me.as_ref().is_some_and(|me| me.id == user_id);
+                self.reactors.remove(&(message_id.clone(), emoji.path()));
                 if let Some(m) = self.message_mut(&channel_id, &message_id) {
                     adjust_reaction(m, &emoji, added, mine, true);
                 }
@@ -2199,6 +2203,7 @@ impl Waffle {
             self.update_prefs(cx, |p| p.record_emoji(&emoji));
         }
         let (channel_id, message_id) = (message.channel_id.clone(), message.id.clone());
+        self.reactors.remove(&(message_id.clone(), emoji.path()));
         if let Some(m) = self.message_mut(&channel_id, &message_id) {
             adjust_reaction(m, &emoji, add, true, false);
         }
