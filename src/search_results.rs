@@ -16,7 +16,7 @@ use crate::{
 // Wider than the member list: results carry pictures.
 pub(crate) const PANEL_WIDTH: f32 = 420.;
 // The hits' content column: the panel less its padding, the card's, and the avatar beside it.
-const HIT_COLUMN: f32 = PANEL_WIDTH - 16. - 24. - 48.;
+pub(crate) const HIT_COLUMN: f32 = PANEL_WIDTH - 16. - 24. - 48.;
 
 pub(crate) struct Results {
     scope: String,

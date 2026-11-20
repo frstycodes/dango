@@ -478,7 +478,7 @@ impl Waffle {
         ]
     }
 
-    // The pins popover under the header's pin button: newest first, each with a Jump link.
+    // The pins popover under the header's pin button: newest first, each the message as search draws it.
     fn pins_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let pins = self.pins.as_ref()?;
         let theme = cx.theme().clone();
@@ -486,58 +486,53 @@ impl Waffle {
             None => div().p_4().text_color(theme.muted_foreground).child("Loading pins…").into_any_element(),
             Some(Err(error)) => div().p_4().text_color(theme.danger).child(error.clone()).into_any_element(),
             Some(Ok(list)) if list.is_empty() => div().p_6().flex().flex_col().items_center().gap_2().text_color(theme.muted_foreground).child("This channel doesn't have any pinned messages… yet.").into_any_element(),
-            Some(Ok(list)) => div()
-                .flex()
-                .flex_col()
-                .gap_2()
-                .children(list.iter().map(|m| {
-                    let id = m.id.clone();
-                    div()
-                        .id(SharedString::from(format!("pin-{}", m.id)))
-                        .p_3()
-                        .squircle(RADIUS_XS)
-                        .bg(theme.background)
-                        .border_1()
-                        .border_color(theme.border)
-                        .flex()
-                        .gap_3()
-                        .child(crate::ui::avatar(m.author.avatar.clone(), 32.))
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .flex()
-                                .flex_col()
-                                .gap_1()
-                                .child(div().flex().items_center().gap_2().child(div().font_weight(FontWeight::NORMAL).child(m.author.name.clone())).child(div().flex_1()).child(
-                                    div()
-                                        .id(SharedString::from(format!("jump-{}", m.id)))
-                                        .text_size(px(12.))
-                                        .text_color(theme.link)
-                                        .cursor_pointer()
-                                        .child("Jump")
-                                        .on_click(cx.listener(move |this, _, _, cx| {
-                                            this.pins = None;
-                                            this.jump_to(id.clone(), cx);
-                                        })),
-                                ))
-                                .child(div().text_size(px(14.)).line_clamp(4).child(m.content.clone())),
-                        )
-                }))
-                .into_any_element(),
+            Some(Ok(list)) => {
+                let ctx = self.row_context(list, None, false, PIN_COLUMN, cx);
+                div().flex_none().flex().flex_col().gap(px(8.)).children(list.iter().map(|m| self.pin_card(m, &ctx, cx))).into_any_element()
+            }
         };
         let card = crate::ui::surface(cx)
             .id("pins")
             .w(px(420.))
-            .max_h(px(560.))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(div().px_4().py_3().flex().items_center().gap_2().child(Icon::new(Glyph::Pin).size(px(20.))).child(div().font_weight(FontWeight::SEMIBOLD).child("Pinned Messages")))
-            .child(div().id("pins-list").flex_1().min_h_0().overflow_y_scrollbar().px_3().pb_3().child(body));
+            // The cap sits on the list: `overflow_y_scrollbar`'s scroll area gives a `flex_1` list no content height, so
+            // under a card with only a max height it collapsed to nothing (tests/gpui_capped_list.rs).
+            .child(div().id("pins-list").max_h(px(500.)).overflow_y_scrollbar().px_3().pb_3().child(body));
         // Under the header's pin button: its top-right corner just right of the click, kept in the window.
         let at = point(self.popover_at.x + px(16.), px(crate::layout::HEADER_HEIGHT - 2.));
         Some(backdrop("pins-backdrop", cx).child(anchored_at(at, gpui_kit::Anchor::TopRight, ui::rise(card.transform_origin(ui::corner(true, false)), "pins", Duration::ZERO))).into_any_element())
     }
 
+
+    // A pin, with Jump and Unpin at its top right on hover, as Discord's, in a slot of their own so the head never
+    // runs under them. Unpin asks first unless Shift is held.
+    fn pin_card(&self, m: &Message, ctx: &std::rc::Rc<crate::chat::RowContext>, cx: &mut Context<Self>) -> AnyElement {
+        let group = SharedString::from(format!("pin-{}", m.id));
+        let (id, pinned) = (m.id.clone(), m.clone());
+        let jump = ui::button(SharedString::from(format!("pin-jump-{}", m.id)), ui::Tone::Secondary, cx).small().child("Jump").on_click(cx.listener(move |this, _, _, cx| {
+            this.pins = None;
+            this.jump_to(id.clone(), cx);
+        }));
+        let unpin = ui::icon_button(SharedString::from(format!("pin-unpin-{}", m.id)), Glyph::X, "Unpin", cx).small().on_click(cx.listener(move |this, _, window, cx| {
+            this.run_message_action(crate::message_menu::MessageAction::Pin, &pinned, false, window, cx);
+        }));
+        div()
+            .id(group.clone())
+            .group(group.clone())
+            .flex_none()
+            .flex()
+            .items_start()
+            .gap(px(8.))
+            .p(px(12.))
+            .squircle(RADIUS_MD)
+            .bg(palette::surface(palette::Level::Page, cx))
+            .border_1()
+            .border_color(palette::line(cx))
+            .child(crate::chat::search_hit(m, ctx, cx).flex_1().min_w_0())
+            .child(div().flex_none().mt(px(-4.)).mr(px(-4.)).flex().gap(px(4.)).opacity(0.).group_hover(group, |s| s.opacity(1.)).child(jump).child(unpin))
+            .into_any_element()
+    }
 
     // The emoji picker (messages.css `.picker`): search on top, categories down the left, the grid in
     // the middle and the hovered emoji named at the foot. Recent first, then the server's own, then Unicode.
@@ -924,3 +919,6 @@ fn group_name(group: emojis::Group) -> (&'static str, Glyph) {
     }
 }
 
+
+// Search's hit column less the pin card's Jump and Unpin slot.
+const PIN_COLUMN: f32 = crate::search_results::HIT_COLUMN - 100.;

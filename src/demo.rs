@@ -127,7 +127,14 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
                 waffle.open_reactions(&message, Emoji::unicode("💀"), cx);
             }
         }
-        "pins" => waffle.pins = Some(Some(Ok(waffle.feeds.get("general").map(|f| f.messages.iter().rev().take(3).cloned().collect()).unwrap_or_default()))),
+        // "-unpin": the pins up, then the first one's unpin confirm over them.
+        "pins" | "pins-unpin" => {
+            let pinned: Vec<Message> = waffle.feeds.get("general").map(|f| f.messages.iter().rev().filter(|m| m.pinned).cloned().collect()).unwrap_or_default();
+            if let Some(first) = pinned.first().filter(|_| scene == "pins-unpin") {
+                waffle.run_message_action(crate::message_menu::MessageAction::Pin, first, false, window, cx);
+            }
+            waffle.pins = Some(Some(Ok(pinned)));
+        }
         // Typed once the window is up, as `mention` does: the field isn't live while the app is being built.
         "header-search" => cx
             .spawn_in(window, async move |this, cx| {
@@ -1238,6 +1245,9 @@ fn messages() -> Vec<Message> {
         ..Default::default()
     }];
     first_thread_chip(&mut image);
+    image.pinned = true;
+    let mut pin_notice = message("107", me.clone(), &["r1"], "2026-11-14T08:21:00Z", "");
+    (pin_notice.pin_notice, pin_notice.reply_to) = (true, Some("102".into()));
     let mut reply = message("103", me.clone(), &["r1"], "2026-11-14T08:15:00Z", "discord on rust <@8388608>, check <#media>");
     reply.reply_to = Some("101".into());
     reply.reply = Some(Box::new(first.clone()));
@@ -1252,7 +1262,8 @@ fn messages() -> Vec<Message> {
         mention,
         message("105", abyss.clone(), &["r2"], "2026-11-14T08:18:00Z", "```rust\nfn main() {\n    println!(\"hi\");\n}\n```"),
         // Discord keeps each line and its indent.
-        message("106", abyss, &["r2"], "2026-11-14T08:20:00Z", "the build so far:\n    Brightline 8-core CPU\n    Coldfront 240 mm cooler\n    32 GB memory\n<@4194304>"),
+        Message { pinned: true, ..message("106", abyss, &["r2"], "2026-11-14T08:20:00Z", "the build so far:\n    Brightline 8-core CPU\n    Coldfront 240 mm cooler\n    32 GB memory\n<@4194304>") },
+        pin_notice,
     ]
 }
 

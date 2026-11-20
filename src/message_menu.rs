@@ -224,6 +224,14 @@ impl Waffle {
             MessageAction::Thread => self.create_thread(m, window, cx),
             MessageAction::React => self.open_emoji_picker(EmojiTarget::Reaction(Box::new(m)), window, cx),
             MessageAction::CopyText => self.copy_text(m.content, cx),
+            // Unpinning asks first, as Discord does; Shift skips it, from a key or a click.
+            MessageAction::Pin if m.pinned && !quick && !window.modifiers().shift => {
+                self.confirm("Unpin Message", "You sure you want to remove this pinned message?", "Remove it please!", move |this, _, cx| this.toggle_pin(&m, cx), cx);
+                if let Some(dialog) = &mut self.dialog {
+                    dialog.danger = true;
+                }
+                self.set_dialog_preview(message.clone(), "You can hold down shift when clicking unpin message to bypass this confirmation entirely.");
+            }
             MessageAction::Pin => self.toggle_pin(&m, cx),
             MessageAction::MarkUnread => self.mark_unread(&m, cx),
             MessageAction::Delete if quick || m.state == SendState::Failed => self.delete(m, cx),
@@ -246,6 +254,12 @@ impl Waffle {
             move |this| {
                 if let Some(m) = this.message_mut(&c1, &i1) {
                     m.pinned = pinned;
+                }
+                // ponytail: an unpin leaves the open pins list; a rollback doesn't put it back until it reopens.
+                if let Some(Some(Ok(pins))) = &mut this.pins
+                    && !pinned
+                {
+                    pins.retain(|p| p.id != i1);
                 }
             },
             move |this| {

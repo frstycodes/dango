@@ -730,6 +730,9 @@ pub struct Message {
     pub forward: Option<Box<Message>>,
     #[serde(default)]
     pub poll: Option<Poll>,
+    // Discord's "X pinned a message" notice (type 6): never drawn, it names who pinned `reply_to`.
+    #[serde(default)]
+    pub pin_notice: bool,
 }
 
 /// A live poll as a message carries it, its counts folded into the answers.
@@ -2385,6 +2388,7 @@ pub fn parse_message(m: &Value) -> Option<Message> {
         stickers: m["sticker_items"].as_array().or(m["stickers"].as_array()).into_iter().flatten().filter_map(Sticker::parse).collect(),
         poll: m["poll"].is_object().then(|| parse_poll(&m["poll"])),
         forward: parse_forward(m),
+        pin_notice: m["type"] == 6,
     })
 }
 
@@ -2836,6 +2840,15 @@ mod tests {
         assert_eq!(parse_user(&unknown).name_style, Some(NameStyle { font: 11, effect: NameEffect::Solid, colors: vec![] }));
         let member = serde_json::json!({ "display_name_styles": { "font_id": 3, "effect_id": 8, "colors": [255] } });
         assert_eq!(parse_member_user(&member, &user, Some("g")).name_style.map(|s| s.effect), Some(NameEffect::Gummy), "the server's style wins");
+    }
+
+    #[test]
+    fn pin_notice_names_the_pinned_message() {
+        let notice = json!({ "id": "9", "channel_id": "1", "type": 6, "author": { "id": "5", "username": "frsty" }, "message_reference": { "message_id": "3" } });
+        let notice = parse_message(&notice).expect("parses");
+        assert!(notice.pin_notice);
+        assert_eq!(notice.reply_to.as_deref(), Some("3"));
+        assert!(!parse_message(&json!({ "id": "3", "channel_id": "1", "type": 0, "author": { "id": "5" } })).expect("parses").pin_notice);
     }
 
     fn upload(name: &str, size: u64) -> Upload {

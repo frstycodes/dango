@@ -873,6 +873,8 @@ pub struct Waffle {
     scrolled_up: bool,
     // The floating composer's height, measured as it paints; the feed keeps that much room at its foot.
     composer_height: Rc<std::cell::Cell<f32>>,
+    // The header pin button's centre, where Pinned Messages opens from wherever it's asked for.
+    pins_button_x: Rc<std::cell::Cell<f32>>,
     pip: pip::Pip,
     copied: Option<String>,
     focus: FocusHandle,
@@ -1167,6 +1169,7 @@ impl Waffle {
             reactions_dialog: None,
             games: Default::default(),
             composer_height: Rc::new(std::cell::Cell::new(86.)),
+            pins_button_x: Rc::default(),
             pip: Default::default(),
             emoji_picker: None,
             emoji_search,
