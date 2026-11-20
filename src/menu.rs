@@ -57,7 +57,7 @@ pub enum Entry {
 
 #[derive(Clone)]
 pub enum HeadLead {
-    Avatar { url: String, status: Option<Status> },
+    Avatar { url: String, status: Option<crate::discord::Mark> },
     Server { icon: Option<String>, name: String },
     Tile(Glyph),
 }

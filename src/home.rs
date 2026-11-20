@@ -451,7 +451,7 @@ impl Waffle {
             Relation::Friend => presence.custom.clone().or_else(|| presence.activity.as_ref().map(|a| a.text.clone())).unwrap_or_else(|| if presence.status == Status::Offline { "Offline".into() } else { presence.status.label().into() }),
         };
         let page = palette::surface(palette::Level::Page, cx);
-        let status = (relation.kind == Relation::Friend).then_some(presence.status);
+        let status = (relation.kind == Relation::Friend).then_some(presence.mark());
         let id = user.id.clone();
         let acts: Vec<Stateful<Div>> = match relation.kind {
             Relation::Friend => vec![

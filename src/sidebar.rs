@@ -1136,7 +1136,7 @@ impl Waffle {
         let offline = status == Some(Status_::Offline);
         let ring = crate::material::sidebar_fill(cx);
         let face = match &channel.recipient {
-            Some(user) => avatar_with_status(&user.avatar, 32., status, ring),
+            Some(user) => avatar_with_status(&user.avatar, 32., presence.as_ref().map(|p| p.mark()), ring),
             None => ui::dm_face(&channel.face(), 32., ring),
         };
         let typing = self.typing.get(&channel.id).is_some_and(|t| t.iter().any(|t| t.until > std::time::Instant::now()));

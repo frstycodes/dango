@@ -442,7 +442,7 @@ impl Waffle {
             .min_h(px(48.))
             .pl(px(8.))
             .pr(px(6.))
-            .child(avatar_with_status(&account.avatar, 32., Some(status), ring))
+            .child(avatar_with_status(&account.avatar, 32., Some(status.into()), ring))
             .child(name)
             .children(log_out)
             .on_hover(self.row_hover(None, cx))
@@ -504,7 +504,7 @@ impl Waffle {
         let radius = profile::inner_radius(ink);
         let (banner, banner_height) = profile::banner(&profile, ink, radius, cx);
         let decoration = me.decoration.clone().or(profile.decoration.clone());
-        let avatar = div().p(px(AVATAR_RING)).rounded_full().bg(ink.top).child(crate::layout::decorated_avatar(&me.avatar, decoration.as_deref(), AVATAR, Some(editor.status), ink.top));
+        let avatar = div().p(px(AVATAR_RING)).rounded_full().bg(ink.top).child(crate::layout::decorated_avatar(&me.avatar, decoration.as_deref(), AVATAR, Some(editor.status.into()), ink.top));
         let inset = 16.;
         let header = div()
             .relative()

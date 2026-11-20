@@ -68,7 +68,7 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
             let mut items = members();
             items.extend((0..80).map(|n| {
                 let user = user(&(30_000_000 + n).to_string(), &format!("member {n}"));
-                ListItem::Member(Member { user, roles: Vec::new(), presence: Presence { status: Presence_::Offline, custom: None, activity: None, rich: None } })
+                ListItem::Member(Member { user, roles: Vec::new(), presence: Presence { status: Presence_::Offline, custom: None, activity: None, rich: None, ..Default::default() } })
             }));
             waffle.on_event(Event::MemberList { guild_id: "1".into(), groups: vec![("r1".into(), 2), ("online".into(), 3), ("offline".into(), 81)], ops: vec![ListOp::Sync { start: 0, items }] }, cx);
         }
@@ -518,7 +518,7 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
         "stream-card" => {
             let key = "guild:1:lounge:12582912".to_owned();
             let blender = Activity { kind: ActivityKind::Playing, text: "Blender".into(), more: 0 };
-            waffle.presences.insert("12582912".into(), Presence { status: Presence_::Online, custom: None, activity: Some(blender), rich: None });
+            waffle.presences.insert("12582912".into(), Presence { status: Presence_::Online, custom: None, activity: Some(blender), rich: None, ..Default::default() });
             let since = std::time::Instant::now().checked_sub(std::time::Duration::from_secs(24 * 60)).unwrap_or_else(std::time::Instant::now);
             waffle.stream_live_since.insert(key.clone(), since);
             waffle.on_event(Event::StreamUpdate { key, viewers: vec!["8388608".into(), "16777216".into(), "20971520".into(), "4194304".into()], paused: false }, cx);
@@ -644,7 +644,7 @@ fn demo_profile(waffle: &mut Waffle, cx: &mut Context<Waffle>) {
         joinable: true,
     };
     let playing = Activity { kind: ActivityKind::Playing, text: rich.name.clone(), more: 0 };
-    waffle.presences.insert("8388608".into(), Presence { status: Presence_::Dnd, custom: None, activity: Some(playing), rich: Some(rich) });
+    waffle.presences.insert("8388608".into(), Presence { status: Presence_::Dnd, custom: None, activity: Some(playing), rich: Some(rich), ..Default::default() });
     let mut zoe = user("8388608", "Wren");
     zoe.tag = Some(GuildTag { text: "wony".into(), badge: Some("brand/icons/sticker.png".into()) });
     zoe.decoration = Some("demo/decoration.png".into());
@@ -729,7 +729,7 @@ fn demo_games(waffle: &mut Waffle) {
         let started = Some(chrono::Utc::now().timestamp_millis() - 47 * 60_000);
         let rich = crate::discord::RichPresence { kind: ActivityKind::Playing, name: name.into(), app_id: Some(app_id.into()), started, ..Default::default() };
         let activity = Activity { kind: ActivityKind::Playing, text: name.into(), more: 0 };
-        waffle.presences.insert(id.into(), Presence { status: Presence_::Online, custom: None, activity: Some(activity), rich: Some(rich) });
+        waffle.presences.insert(id.into(), Presence { status: Presence_::Online, custom: None, activity: Some(activity), rich: Some(rich), ..Default::default() });
     }
 }
 
@@ -952,7 +952,7 @@ fn ready(me: User) -> Ready {
             ("media".into(), ReadState { last_read: 100, mentions: 0 }),
             ("staff".into(), ReadState { last_read: 100, mentions: 2 }),
         ],
-        presences: vec![("8388608".into(), Presence { status: Presence_::Online, custom: None, activity: None, rich: None })],
+        presences: vec![("8388608".into(), Presence { status: Presence_::Online, custom: None, activity: None, rich: None, ..Default::default() })],
         relationships: vec![
             Relationship { user: user("8388608", "Wren"), kind: Relation::Friend },
             Relationship { user: user("12582912", "moss lantern"), kind: Relation::Friend },
@@ -1024,7 +1024,7 @@ fn load_members() -> (Vec<(String, u32)>, Vec<ListItem>) {
         for n in 0..count {
             let id = format!("{}", 30_000_000 + items.len());
             let activity = (n % 3 == 0).then(|| Activity { kind: ActivityKind::Playing, text: format!("Game number {n}"), more: 0 });
-            items.push(ListItem::Member(Member { user: user(&id, &format!("{group} member {n}")), roles: vec!["r2".into()], presence: Presence { status, custom: None, activity, rich: None } }));
+            items.push(ListItem::Member(Member { user: user(&id, &format!("{group} member {n}")), roles: vec!["r2".into()], presence: Presence { status, custom: None, activity, rich: None, ..Default::default() } }));
         }
     }
     (groups.iter().map(|(g, _, c)| ((*g).into(), *c)).collect(), items)
@@ -1058,6 +1058,9 @@ fn members() -> Vec<ListItem> {
             custom: activity.filter(|(kind, _)| *kind == ActivityKind::Custom).map(|(_, text)| text.into()),
             activity: activity.filter(|(kind, _)| *kind != ActivityKind::Custom).map(|(kind, text)| Activity { kind, text: text.into(), more: 0 }),
             rich: None,
+            // Wren is only on their phone, so the panel shows the mobile mark.
+            mobile_only: id == "8388608",
+            streaming: activity.is_some_and(|(kind, _)| kind == ActivityKind::Streaming),
         } })
     };
     vec![
@@ -1066,7 +1069,7 @@ fn members() -> Vec<ListItem> {
         member("20971520", "Jockie Music", &["r1"], Presence_::Online, Some((ActivityKind::Custom, "m!help")), true),
         ListItem::Group { id: "online".into(), count: 3 },
         member("12582912", "moss lantern", &["r2"], Presence_::Online, Some((ActivityKind::Playing, "Apex Legends")), false),
-        member("16777216", "toma reed", &[], Presence_::Idle, Some((ActivityKind::Listening, "Hozier")), false),
+        member("16777216", "toma reed", &[], Presence_::Idle, Some((ActivityKind::Streaming, "Speedrunning Celeste")), false),
         member("8388608", "Wren", &["r2"], Presence_::Online, None, false),
         ListItem::Group { id: "offline".into(), count: 1 },
         member("25165824", "a member whose display name runs long", &[], Presence_::Offline, None, false),

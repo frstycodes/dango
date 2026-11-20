@@ -225,7 +225,7 @@ impl Waffle {
         let Some(guild) = place.guild else {
             let channel = place.channel;
             return match &channel.recipient {
-                Some(user) => avatar_with_status(&user.avatar, LEAD, self.presences.get(&user.id).map(|p| p.status), surface),
+                Some(user) => avatar_with_status(&user.avatar, LEAD, self.presences.get(&user.id).map(|p| p.mark()), surface),
                 None => ui::dm_face(&channel.face(), LEAD, surface),
             };
         };
