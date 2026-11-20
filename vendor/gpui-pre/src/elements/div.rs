@@ -16,7 +16,7 @@
 //! constructed by combining these two systems into an all-in-one element.
 
 use crate::{
-    Action, AnyDrag, AnyElement, AnyTooltip, AnyView, App, Bounds, ClickEvent, DispatchPhase,
+    Action, AnyDrag, AnyElement, AnyTooltip, AnyView, TooltipPlacement, App, Bounds, ClickEvent, DispatchPhase,
     Display, Element, ElementId, Entity, EntityId, ExternalDragPayload, ExternalDragPayloadSource,
     FileDropEvent, FocusHandle, Global, GlobalElementId, Hitbox, HitboxBehavior, HitboxId,
     InspectorElementId, IntoElement, IsZero, KeyContext, KeyDownEvent, KeyUpEvent, KeyboardButton,
@@ -735,6 +735,12 @@ impl Interactivity {
     /// The imperative API equivalent to [`StatefulInteractiveElement::tooltip_show_delay`].
     pub fn tooltip_show_delay(&mut self, delay: Duration) {
         self.tooltip_show_delay = Some(delay);
+    }
+
+    /// Sets where this element's tooltip opens relative to it.
+    /// The imperative API equivalent to [`StatefulInteractiveElement::tooltip_placement`].
+    pub fn tooltip_placement(&mut self, placement: TooltipPlacement) {
+        self.tooltip_placement = placement;
     }
 
     /// Block the mouse from all interactions with elements behind this element's hitbox. Typically
@@ -1713,6 +1719,16 @@ pub trait StatefulInteractiveElement: InteractiveElement {
         self.interactivity().tooltip_show_delay(delay);
         self
     }
+
+    /// Sets where this element's tooltip opens relative to it.
+    /// The fluent API equivalent to [`Interactivity::tooltip_placement`].
+    fn tooltip_placement(mut self, placement: TooltipPlacement) -> Self
+    where
+        Self: Sized,
+    {
+        self.interactivity().tooltip_placement(placement);
+        self
+    }
 }
 
 pub(crate) type MouseDownListener =
@@ -2197,6 +2213,7 @@ pub struct Interactivity {
     pub(crate) hover_listener_mode: HoverListenerMode,
     pub(crate) tooltip_builder: Option<TooltipBuilder>,
     pub(crate) tooltip_show_delay: Option<Duration>,
+    pub(crate) tooltip_placement: TooltipPlacement,
     pub(crate) window_control: Option<WindowControlArea>,
     pub(crate) hitbox_behavior: HitboxBehavior,
     pub(crate) tab_index: Option<isize>,
@@ -2394,7 +2411,11 @@ impl Interactivity {
                     }
                     if let Some(active_tooltip) = element_state.active_tooltip.as_ref() {
                         if self.tooltip_builder.is_some() {
-                            self.tooltip_id = set_tooltip_on_window(active_tooltip, window);
+                            self.tooltip_id = set_tooltip_on_window(
+                                active_tooltip,
+                                Some((bounds, self.tooltip_placement)),
+                                window,
+                            );
                         } else {
                             // If there is no longer a tooltip builder, remove the active tooltip.
                             if let Some(long_press_tooltip_active) =
@@ -3757,14 +3778,19 @@ pub(crate) fn clear_active_tooltip_if_not_hoverable(
 
 pub(crate) fn set_tooltip_on_window(
     active_tooltip: &Rc<RefCell<Option<ActiveTooltip>>>,
+    anchor: Option<(Bounds<Pixels>, TooltipPlacement)>,
     window: &mut Window,
 ) -> Option<TooltipId> {
-    let tooltip = match active_tooltip.borrow().as_ref() {
+    let mut tooltip = match active_tooltip.borrow().as_ref() {
         None => return None,
         Some(ActiveTooltip::WaitingForShow { .. }) => return None,
         Some(ActiveTooltip::Visible { tooltip, .. }) => tooltip.clone(),
         Some(ActiveTooltip::WaitingForHide { tooltip, .. }) => tooltip.clone(),
     };
+    if let Some((bounds, placement)) = anchor {
+        tooltip.anchor = Some(bounds);
+        tooltip.placement = placement;
+    }
     Some(window.set_tooltip(tooltip))
 }
 
@@ -3938,6 +3964,10 @@ fn handle_tooltip_mouse_move(
             active_tooltip.borrow_mut().take();
         }
         Action::ScheduleShow => {
+            let show_delay = match window.tooltip_is_warm(cx.background_executor().now()) {
+                true => Duration::ZERO,
+                false => show_delay,
+            };
             let delayed_show_task = window.spawn(cx, {
                 let weak_active_tooltip = Rc::downgrade(active_tooltip);
                 let build_tooltip = build_tooltip.clone();
@@ -3985,6 +4015,8 @@ fn show_tooltip(
             tooltip: AnyTooltip {
                 view,
                 mouse_position: window.mouse_position(),
+                anchor: None,
+                placement: TooltipPlacement::Auto,
                 check_visible_and_update: Rc::new(move |tooltip_bounds, window, cx| {
                     if long_press_tooltip_active
                         .as_ref()
