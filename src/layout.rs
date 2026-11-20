@@ -99,6 +99,7 @@ impl Waffle {
             crate::gif::set_covered(!overlays.is_empty() || !call_overlays.is_empty() || menu.is_some() || dialog.is_some());
             return root
                 .child(call)
+                .children(self.call_window(cx))
                 .children(overlays)
                 .children(call_overlays)
                 .children(self.render_toast(cx))
@@ -123,12 +124,11 @@ impl Waffle {
         let channel_settings = self.render_channel_settings(window, cx);
         let server_settings = self.render_server_settings(window, cx);
         crate::gif::set_covered(!overlays.is_empty() || !call_overlays.is_empty() || menu.is_some() || dialog.is_some() || viewer.is_some() || settings.is_some() || channel_settings.is_some() || server_settings.is_some());
-        // Away from the call, a watched stream floats as a picture-in-picture over everything but popups.
-        let pip = (!self.call_view).then(|| self.stream_pip(cx)).flatten();
+        // Over everything but popups: a DM call's window, or, away from a server call, the stream we watch.
+        let pip = self.call_window(cx).or_else(|| (!self.call_view).then(|| self.stream_pip(cx)).flatten());
         self.pip_drop_zone(root, cx)
             .child(body)
             .children(pip)
-            .children(self.incoming_call_banner(cx))
             .children(overlays)
             .children(call_overlays)
             .children(self.render_toast(cx))
@@ -189,6 +189,11 @@ impl Waffle {
             return cx.stop_propagation();
         }
         if keystroke.key == "escape" && self.viewer.is_none() && self.dismiss_overlay(cx) {
+            return cx.stop_propagation();
+        }
+        // On a DM call's stage, Esc with nothing else to close goes back to the chat.
+        if keystroke.key == "escape" && self.call_view && self.call.as_ref().is_some_and(|c| c.guild_id.is_none()) {
+            self.back_to_chat(window, cx);
             return cx.stop_propagation();
         }
         if let Some(forward) = history_step(keystroke) {
