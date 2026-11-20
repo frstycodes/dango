@@ -14,6 +14,7 @@ User complaints about Discord and how Waffle answers them: [docs/better.md](docs
 - [x] Emoji picker: composer button and "add reaction" with search, categories, recents and server emoji
 - [x] Status menu from the user panel: custom status, presence (Idle, Do not disturb and Invisible for 15 minutes to Forever from a hover submenu), accounts; "Set your status" with a live profile preview, emoji, text, Clear after and presence (timed statuses fall back to Online only while Waffle is open)
 - [x] Quick switcher (Ctrl/Cmd+K)
+- [x] `:` emoji autocomplete: `:` plus two characters lists ten matches, your most used first; separators don't count, so `:thisis` finds `:this_is_the_way:`
 - [x] "NEW" unread divider in the transcript, plus a "You're viewing older messages / Jump to present" bar
 - [x] Markdown parity (timestamps, spoilers, subtext): spoilers `||x||`, block quotes `>`, headers `#`, subtext `-#`, timestamps `<t:…:R>`, masked links, lists
 - [x] Reply composer toggle "@ ON / OFF" (ping the author) and a jump arrow on the reply bar

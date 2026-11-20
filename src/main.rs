@@ -19,6 +19,7 @@ mod dm_call;
 mod dm_start;
 mod chat;
 #[cfg(debug_assertions)]
+mod composer_emoji;
 mod demo;
 mod discord;
 mod drag;
@@ -419,9 +420,18 @@ struct Typer {
 struct Suggestion {
     label: String,
     insert: String,
-    // The wire form substituted on send: `<@id>` or `<#id>`.
+    // The wire form substituted on send: `<@id>`, `<#id>` or `<:name:id>`.
     wire: String,
-    avatar: Option<String>,
+    lead: SuggestLead,
+    // A muted note at the row's end: the server a custom emoji comes from.
+    detail: Option<String>,
+}
+
+#[derive(Clone)]
+enum SuggestLead {
+    Avatar(String),
+    Channel,
+    Emoji(discord::Emoji),
 }
 
 struct Autocomplete {
@@ -2435,20 +2445,36 @@ impl Waffle {
     }
 
     fn suggest(&self, text: &str) -> Option<Autocomplete> {
+        let last = text.rsplit(char::is_whitespace).next()?;
+        if let Some(query) = composer_emoji::emoji_query(last) {
+            let items: Vec<Suggestion> = self
+                .emoji_suggestions(query)
+                .into_iter()
+                .map(|m| {
+                    let shown = format!(":{}:", m.name);
+                    let wire = match &m.emoji.id {
+                        Some(id) => format!("<{}:{}:{id}>", if m.emoji.animated { "a" } else { "" }, m.emoji.name),
+                        None => m.emoji.name.clone(),
+                    };
+                    Suggestion { label: shown, insert: wire.clone(), wire, lead: SuggestLead::Emoji(m.emoji), detail: m.server }
+                })
+                .collect();
+            return (!items.is_empty()).then(|| Autocomplete { token: last.to_owned(), items, selected: 0 });
+        }
         // A bare `@` or `#` already lists everyone or every channel, as Discord does.
-        let token = text.rsplit(char::is_whitespace).next().filter(|t| t.starts_with('@') || t.starts_with('#'))?;
+        let token = Some(last).filter(|t| t.starts_with('@') || t.starts_with('#'))?;
         let query = token[1..].to_lowercase();
         let mut items: Vec<Suggestion> = Vec::new();
         if token.starts_with('#') {
             for c in self.guild().map(|g| g.channels.as_slice()).unwrap_or_default() {
                 if c.kind == ChannelKind::Text && c.name.to_lowercase().contains(&query) {
-                    items.push(Suggestion { label: c.name.clone(), insert: format!("#{}", c.name), wire: format!("<#{}>", c.id), avatar: None });
+                    items.push(Suggestion { label: c.name.clone(), insert: format!("#{}", c.name), wire: format!("<#{}>", c.id), lead: SuggestLead::Channel, detail: None });
                 }
             }
         } else {
             for user in self.mention_candidates() {
                 if user.name.to_lowercase().contains(&query) && !items.iter().any(|s| s.wire == format!("<@{}>", user.id)) {
-                    items.push(Suggestion { label: user.name.clone(), insert: format!("@{}", user.name), wire: format!("<@{}>", user.id), avatar: Some(user.avatar) });
+                    items.push(Suggestion { label: user.name.clone(), insert: format!("@{}", user.name), wire: format!("<@{}>", user.id), lead: SuggestLead::Avatar(user.avatar), detail: None });
                 }
             }
         }
@@ -2459,6 +2485,18 @@ impl Waffle {
     fn accept_suggestion(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(auto) = self.autocomplete.take() else { return };
         let Some(pick) = auto.items.get(auto.selected) else { return };
+        // An emoji goes in as itself: the character, or a custom one's `:name:` sent as its `<:name:id>`.
+        if let SuggestLead::Emoji(emoji) = &pick.lead {
+            let shown = if emoji.id.is_some() { pick.label.clone() } else { pick.wire.clone() };
+            if emoji.id.is_some() {
+                self.mention_wire.insert(shown.clone(), pick.wire.clone());
+            }
+            let emoji = emoji.clone();
+            self.update_prefs(cx, |p| p.record_emoji(&emoji));
+            self.composer.update(cx, |state, cx| complete_text(state, &auto.token, &shown, window, cx));
+            self.has_draft = true;
+            return cx.notify();
+        }
         let chip = InlineToken::new(pick.wire.clone(), pick.insert.clone());
         self.composer.update(cx, |state, cx| complete_mention(state, &auto.token, chip, window, cx));
         cx.notify();
@@ -3228,6 +3266,17 @@ pub(crate) fn complete_mention(state: &mut ComposerState, query: &str, chip: Inl
     if state.replace_with_token(chip, window, cx).is_ok() {
         state.insert(" ", window, cx);
     }
+}
+
+// Replaces the `query` that ends the draft with `text` and a space.
+pub(crate) fn complete_text(state: &mut ComposerState, query: &str, text: &str, window: &mut Window, cx: &mut Context<ComposerState>) {
+    let end = state.value().len();
+    if !state.value().ends_with(query) {
+        return;
+    }
+    state.set_selected_range(end - query.len()..end, cx);
+    // `replace` swaps out the selection; `insert` would add at the caret and leave the typed code behind.
+    state.replace(format!("{text} "), window, cx);
 }
 
 // The draft as Discord takes it: each mention chip becomes its `<@id>` / `<#id>`, kept as the token's id.
