@@ -486,9 +486,19 @@ impl Waffle {
             None => div().p_4().text_color(theme.muted_foreground).child("Loading pins…").into_any_element(),
             Some(Err(error)) => div().p_4().text_color(theme.danger).child(error.clone()).into_any_element(),
             Some(Ok(list)) if list.is_empty() => div().p_6().flex().flex_col().items_center().gap_2().text_color(theme.muted_foreground).child("This channel doesn't have any pinned messages… yet.").into_any_element(),
+            // A list, as the feed: it lays out only the cards in view, so scrolling doesn't redraw every pin.
             Some(Ok(list)) => {
+                // Pins change from the fetch, an unpin and the demo; the list follows here, where they're drawn.
+                if self.pins_list.item_count() != list.len() {
+                    self.pins_list.reset(list.len());
+                }
                 let ctx = self.row_context(list, None, false, PIN_COLUMN, cx);
-                div().flex_none().flex().flex_col().gap(px(8.)).children(list.iter().map(|m| self.pin_card(m, &ctx, cx))).into_any_element()
+                let pins: std::rc::Rc<[Message]> = list.iter().cloned().collect();
+                let rows = gpui_kit::list(self.pins_list.clone(), move |ix, _, cx| div().pb(px(8.)).child(pin_card(&pins[ix], &ctx, cx)).into_any_element())
+                    .with_sizing_behavior(gpui_kit::ListSizingBehavior::Infer)
+                    .max_h(px(500.))
+                    .px_3();
+                div().relative().child(rows).child(gpui_kit::component::scroll::Scrollbar::vertical(&self.pins_list)).into_any_element()
             }
         };
         let card = crate::ui::surface(cx)
@@ -496,48 +506,12 @@ impl Waffle {
             .w(px(420.))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(div().px_4().py_3().flex().items_center().gap_2().child(Icon::new(Glyph::Pin).size(px(20.))).child(div().font_weight(FontWeight::SEMIBOLD).child("Pinned Messages")))
-            // A plain scroll container with the cap on it, the scrollbar laid over: `overflow_y_scrollbar` either
-            // collapses such a list or never scrolls it (tests/gpui_capped_list.rs).
-            .child(
-                div()
-                    .relative()
-                    .child(div().id("pins-list").max_h(px(500.)).overflow_y_scroll().track_scroll(&self.pins_scroll).px_3().pb_3().child(body))
-                    .child(gpui_kit::component::scroll::Scrollbar::vertical(&self.pins_scroll)),
-            );
+            .child(body);
         // Under the header's pin button: its top-right corner just right of the click, kept in the window.
         let at = point(self.popover_at.x + px(16.), px(crate::layout::HEADER_HEIGHT - 2.));
         Some(backdrop("pins-backdrop", cx).child(anchored_at(at, gpui_kit::Anchor::TopRight, ui::rise(card.transform_origin(ui::corner(true, false)), "pins", Duration::ZERO))).into_any_element())
     }
 
-
-    // A pin, with Jump and Unpin at its top right on hover, as Discord's, in a slot of their own so the head never
-    // runs under them. Unpin asks first unless Shift is held.
-    fn pin_card(&self, m: &Message, ctx: &std::rc::Rc<crate::chat::RowContext>, cx: &mut Context<Self>) -> AnyElement {
-        let group = SharedString::from(format!("pin-{}", m.id));
-        let (id, pinned) = (m.id.clone(), m.clone());
-        let jump = ui::button(SharedString::from(format!("pin-jump-{}", m.id)), ui::Tone::Secondary, cx).small().child("Jump").on_click(cx.listener(move |this, _, _, cx| {
-            this.pins = None;
-            this.jump_to(id.clone(), cx);
-        }));
-        let unpin = ui::icon_button(SharedString::from(format!("pin-unpin-{}", m.id)), Glyph::X, "Unpin", cx).small().on_click(cx.listener(move |this, _, window, cx| {
-            this.run_message_action(crate::message_menu::MessageAction::Pin, &pinned, false, window, cx);
-        }));
-        div()
-            .id(group.clone())
-            .group(group.clone())
-            .flex_none()
-            .flex()
-            .items_start()
-            .gap(px(8.))
-            .p(px(12.))
-            .squircle(RADIUS_MD)
-            .bg(palette::surface(palette::Level::Page, cx))
-            .border_1()
-            .border_color(palette::line(cx))
-            .child(crate::chat::search_hit(m, ctx, cx).flex_1().min_w_0())
-            .child(div().flex_none().mt(px(-4.)).mr(px(-4.)).flex().gap(px(4.)).opacity(0.).group_hover(group, |s| s.opacity(1.)).child(jump).child(unpin))
-            .into_any_element()
-    }
 
     // The emoji picker (messages.css `.picker`): search on top, categories down the left, the grid in
     // the middle and the hovered emoji named at the foot. Recent first, then the server's own, then Unicode.
@@ -927,3 +901,35 @@ fn group_name(group: emojis::Group) -> (&'static str, Glyph) {
 
 // Search's hit column less the pin card's Jump and Unpin slot.
 const PIN_COLUMN: f32 = crate::search_results::HIT_COLUMN - 100.;
+
+// A pin, with Jump and Unpin at its top right on hover, as Discord's, in a slot of their own so the head never
+// runs under them. Unpin asks first unless Shift is held.
+fn pin_card(m: &Message, ctx: &std::rc::Rc<crate::chat::RowContext>, cx: &mut App) -> AnyElement {
+    let group = SharedString::from(format!("pin-{}", m.id));
+    let (this, id) = (ctx.this(), m.id.clone());
+    let jump = ui::button(SharedString::from(format!("pin-jump-{}", m.id)), ui::Tone::Secondary, cx).small().child("Jump").on_click(move |_, _, cx| {
+        this.update(cx, |this, cx| {
+            this.pins = None;
+            this.jump_to(id.clone(), cx);
+        })
+        .ok();
+    });
+    let (this, pinned) = (ctx.this(), m.clone());
+    let unpin = ui::icon_button(SharedString::from(format!("pin-unpin-{}", m.id)), Glyph::X, "Unpin", cx).small().on_click(move |_, window, cx| {
+        this.update(cx, |this, cx| this.run_message_action(crate::message_menu::MessageAction::Pin, &pinned, false, window, cx)).ok();
+    });
+    div()
+        .id(group.clone())
+        .group(group.clone())
+        .flex()
+        .items_start()
+        .gap(px(8.))
+        .p(px(12.))
+        .squircle(RADIUS_MD)
+        .bg(palette::surface(palette::Level::Page, cx))
+        .border_1()
+        .border_color(palette::line(cx))
+        .child(crate::chat::search_hit(m, ctx, cx).flex_1().min_w_0())
+        .child(div().flex_none().mt(px(-4.)).mr(px(-4.)).flex().gap(px(4.)).opacity(0.).group_hover(group, |s| s.opacity(1.)).child(jump).child(unpin))
+        .into_any_element()
+}

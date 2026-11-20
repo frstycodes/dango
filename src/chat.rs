@@ -846,6 +846,10 @@ impl RowContext {
     fn name_of(&self, user: &User) -> String {
         self.names.get(&user.id).cloned().unwrap_or_else(|| user.name.clone())
     }
+
+    pub(crate) fn this(&self) -> WeakEntity<Waffle> {
+        self.this.clone()
+    }
 }
 
 pub(crate) struct RowContext {
