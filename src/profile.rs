@@ -143,7 +143,7 @@ impl Waffle {
     // Banner with its round actions, then the avatar overlapping its foot.
     fn profile_header(&self, card: &ProfileCard, profile: &Profile, is_me: bool, radius: f32, ink: Ink, cx: &mut Context<Self>) -> Div {
         let user = &card.user;
-        let status = self.presences.get(&user.id).map(|p| p.status).or(is_me.then_some(self.my_status));
+        let status = self.presences.get(&user.id).map(|p| p.mark()).or(is_me.then_some(self.my_status.into()));
         let (banner, _) = banner(profile, ink, radius, cx);
         let decoration = user.decoration.clone().or(profile.decoration.clone());
         let avatar = div().p(px(AVATAR_RING)).rounded_full().bg(ink.top).child(decorated_avatar(&user.avatar, decoration.as_deref(), AVATAR, status, ink.top));

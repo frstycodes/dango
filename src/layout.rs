@@ -413,7 +413,7 @@ impl Waffle {
             .hover(move |s| s.bg(hover))
             .when(self.status_menu, |w| w.bg(hover))
             .on_click(cx.listener(|this, _, _, cx| this.toggle_status_menu(cx)))
-            .child(decorated_avatar(&me.avatar, me.decoration.as_deref(), 32., Some(self.my_status), ring))
+            .child(decorated_avatar(&me.avatar, me.decoration.as_deref(), 32., Some(self.my_status.into()), ring))
             .child(
                 div()
                     .flex_1()
@@ -559,13 +559,14 @@ pub fn nameplate_art(plate: &discord::Nameplate, height: f32, top_right: gpui_ki
 }
 
 /// An avatar with Discord's status shape cut into its bottom-right corner: a dot for online, a moon for
-/// idle, a bar for do-not-disturb, a ring for offline. Cut-outs are painted in the surface colour.
-pub fn avatar_with_status(url: &str, size: f32, status: Option<discord::Status>, surface: Hsla) -> AnyElement {
+/// idle, a bar for do-not-disturb, a ring for offline, a phone for online on mobile only, a play disc
+/// while streaming. Cut-outs are painted in the surface colour.
+pub fn avatar_with_status(url: &str, size: f32, status: Option<discord::Mark>, surface: Hsla) -> AnyElement {
     decorated_avatar(url, None, size, status, surface)
 }
 
 /// The same, with the user's avatar decoration framing it (drawn at 1.2× the avatar, as Discord does).
-pub fn decorated_avatar(url: &str, decoration: Option<&str>, size: f32, status: Option<discord::Status>, surface: Hsla) -> AnyElement {
+pub fn decorated_avatar(url: &str, decoration: Option<&str>, size: f32, status: Option<discord::Mark>, surface: Hsla) -> AnyElement {
     // .status: 30% of the avatar (9..16px), ringed 2px in the surface, its corner just past the avatar's.
     let dot = (size * 0.3).clamp(9., 16.).round();
     let inset = size * 0.04 - 2. - STATUS_RING;
@@ -577,7 +578,9 @@ pub fn decorated_avatar(url: &str, decoration: Option<&str>, size: f32, status: 
         .child(img(url.to_owned()).size_full().rounded_full())
         .children(decoration.map(|d| img(d.to_owned()).absolute().size(px(frame)).left(px((size - frame) / 2.)).top(px((size - frame) / 2.))))
         .children(status.map(|status| {
-            ui::cut_out(div().absolute().right(px(inset)).bottom(px(inset)).size(px(dot + 2. * STATUS_RING)).rounded_full(), surface)
+            // The phone stands taller than the dot, growing upward from the same corner.
+            let tall = if status == discord::Mark::Mobile { dot * PHONE_ASPECT } else { dot };
+            ui::cut_out(div().absolute().right(px(inset)).bottom(px(inset)).w(px(dot + 2. * STATUS_RING)).h(px(tall + 2. * STATUS_RING)).rounded(px(if tall > dot { dot * 0.28 + STATUS_RING } else { dot })), surface)
                 .flex()
                 .items_center()
                 .justify_center()
@@ -588,14 +591,28 @@ pub fn decorated_avatar(url: &str, decoration: Option<&str>, size: f32, status: 
 
 const STATUS_RING: f32 = 2.;
 
-pub fn status_mark(status: discord::Status, dot: f32, surface: Hsla) -> AnyElement {
-    let mark = div().relative().size(px(dot)).rounded_full().bg(palette::status(status)).overflow_hidden();
+const PHONE_ASPECT: f32 = 1.5;
+
+pub fn status_mark(status: discord::Mark, dot: f32, surface: Hsla) -> AnyElement {
+    use discord::{Mark, Status};
+    let color = match status {
+        Mark::Status(status) => palette::status(status),
+        Mark::Mobile => palette::status(Status::Online),
+        Mark::Streaming => palette::streaming(),
+    };
+    let mark = div().relative().size(px(dot)).rounded_full().bg(color).overflow_hidden();
     let cut = |w: f32, h: f32| ui::cut_out(div().absolute().w(px(w)).h(px(h)), surface);
     match status {
-        discord::Status::Online => mark,
-        discord::Status::Idle => mark.child(cut(dot * 0.62, dot * 0.62).rounded_full().left(px(-dot * 0.12)).top(px(-dot * 0.12))),
-        discord::Status::Dnd => mark.flex().items_center().justify_center().child(cut(dot * 0.62, (dot * 0.24).max(2.)).relative().rounded(px(dot))),
-        discord::Status::Offline => mark.flex().items_center().justify_center().child(cut(dot * 0.46, dot * 0.46).relative().rounded_full()),
+        Mark::Status(Status::Online) => mark,
+        Mark::Status(Status::Idle) => mark.child(cut(dot * 0.62, dot * 0.62).rounded_full().left(px(-dot * 0.12)).top(px(-dot * 0.12))),
+        Mark::Status(Status::Dnd) => mark.flex().items_center().justify_center().child(cut(dot * 0.62, (dot * 0.24).max(2.)).relative().rounded(px(dot))),
+        Mark::Status(Status::Offline) => mark.flex().items_center().justify_center().child(cut(dot * 0.46, dot * 0.46).relative().rounded_full()),
+        // A handset: a screen cut out of the body, a chin below it for the home bar.
+        Mark::Mobile => {
+            let side = (dot * 0.18).max(1.5);
+            mark.h(px(dot * PHONE_ASPECT)).rounded(px(dot * 0.28)).child(cut(dot - 2. * side, dot * PHONE_ASPECT - side - dot * 0.42).left(px(side)).top(px(side)).rounded(px(dot * 0.08)))
+        }
+        Mark::Streaming => mark.flex().items_center().justify_center().text_color(gpui_kit::white()).child(Icon::new(Glyph::Play).size(px((dot * 0.62).round()))),
     }
     .into_any_element()
 }

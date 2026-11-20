@@ -784,7 +784,7 @@ impl Waffle {
     pub(crate) fn channel_lead(&self, channel: &Channel, cx: &App) -> AnyElement {
         match (&channel.recipient, channel.kind) {
             (Some(user), _) => {
-                let status = self.presences.get(&user.id).map(|p| p.status);
+                let status = self.presences.get(&user.id).map(|p| p.mark());
                 avatar_with_status(&user.avatar, 20., status, palette::surface(palette::Level::Overlay, cx))
             }
             (None, ChannelKind::Dm) => ui::dm_face(&channel.face(), 20., palette::surface(palette::Level::Overlay, cx)),

@@ -24,6 +24,7 @@ const SUCCESS: u32 = 0x00753E;
 const ALERT: u32 = 0xDB2B33;
 const DND: u32 = ALERT;
 const OFFLINE: u32 = 0x83868C;
+const STREAMING: u32 = 0x8C55E0;
 // Graphite's cast, for the few neutrals computed from OKLCH rather than listed below.
 const NEUTRAL_HUE: f32 = 260.;
 const NEUTRAL_CHROMA: f32 = 0.004;
@@ -565,6 +566,11 @@ pub fn status_in(status: crate::discord::Status, cx: &App) -> Hsla {
         Status::Dnd => DND,
         Status::Offline => OFFLINE,
     })
+}
+
+// Discord's streaming purple, the same in both themes like do-not-disturb.
+pub fn streaming() -> Hsla {
+    hex(STREAMING)
 }
 
 // Presence colours for callers without a theme at hand (the dark values).

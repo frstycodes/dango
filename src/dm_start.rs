@@ -8,7 +8,7 @@ use gpui_kit::{AnyElement, App, Context, FontWeight, SharedString, WeakEntity, d
 use crate::{
     Waffle,
     chat::emphasised,
-    discord::{Channel, ChannelKind, DmFace, Relation, Status, User},
+    discord::{Channel, ChannelKind, DmFace, Mark, Relation, User},
     icons::Glyph,
     layout::decorated_avatar,
     palette::{self, Level},
@@ -21,7 +21,7 @@ const FACE: f32 = 80.;
 #[derive(Clone)]
 pub(crate) struct DmStart {
     face: DmFace,
-    status: Option<Status>,
+    status: Option<Mark>,
     name: SharedString,
     // A person's username, or a group's member count.
     subtitle: Option<SharedString>,
@@ -90,7 +90,7 @@ impl Waffle {
         let profile = self.profiles.peek(&profile_key(&person.id, None));
         Some(DmStart {
             face: channel.face(),
-            status: self.presences.get(&person.id).map(|p| p.status),
+            status: self.presences.get(&person.id).map(|p| p.mark()),
             name: person.name.clone().into(),
             subtitle: profile.as_ref().map(|p| p.username.clone()).filter(|u| !u.is_empty()).map(Into::into),
             line: vec![("This is the start of your messages with ".into(), false), (person.name.clone(), true), (".".into(), false)],

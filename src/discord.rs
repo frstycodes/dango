@@ -133,6 +133,36 @@ pub struct Presence {
     pub activity: Option<Activity>,
     // The first non-custom activity in full, for the profile's rich presence card.
     pub rich: Option<RichPresence>,
+    // Signed in on a phone and nowhere else.
+    pub mobile_only: bool,
+    // Any activity of the Streaming kind (a Twitch or YouTube link), not a Go Live screen share.
+    pub streaming: bool,
+}
+
+impl Presence {
+    // What the avatar corner shows: Discord swaps online for a phone when they are only on mobile,
+    // and any shown status for the streaming mark while they stream.
+    pub fn mark(&self) -> Mark {
+        match self.status {
+            Status::Offline => Mark::Status(Status::Offline),
+            _ if self.streaming => Mark::Streaming,
+            Status::Online if self.mobile_only => Mark::Mobile,
+            status => Mark::Status(status),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mark {
+    Status(Status),
+    Mobile,
+    Streaming,
+}
+
+impl From<Status> for Mark {
+    fn from(status: Status) -> Self {
+        Mark::Status(status)
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -2620,7 +2650,10 @@ fn parse_presence(p: &Value) -> Presence {
         Some(Activity { kind, text: text.to_owned(), more: others.len() - 1 })
     });
     let rich = others.first().and_then(|a| parse_rich(a));
-    Presence { status: Status::parse(p["status"].as_str().unwrap_or("offline")), custom, activity: first, rich }
+    let clients = &p["client_status"];
+    let mobile_only = !clients["mobile"].is_null() && clients["desktop"].is_null() && clients["web"].is_null();
+    let streaming = others.iter().any(|a| a["type"] == 1);
+    Presence { status: Status::parse(p["status"].as_str().unwrap_or("offline")), custom, activity: first, rich, mobile_only, streaming }
 }
 
 // Field names from the diself crate's model (src/model/user.rs), not from Discord's docs (the endpoint is undocumented).
@@ -3258,6 +3291,18 @@ mod tests {
         assert_eq!(p.activity.unwrap().text, "Apex");
         let p = parse_presence(&json!({ "status": "idle", "activities": [{ "type": 2, "name": "Spotify", "state": "Hozier" }, { "type": 0, "name": "Apex" }] }));
         assert_eq!(p.activity, Some(Activity { kind: ActivityKind::Listening, text: "Hozier".into(), more: 1 }));
+    }
+
+    #[test]
+    fn presence_mark_follows_device_and_stream() {
+        let mark = |v: Value| parse_presence(&v).mark();
+        assert_eq!(mark(json!({ "status": "online", "client_status": { "mobile": "online" } })), Mark::Mobile);
+        assert_eq!(mark(json!({ "status": "online", "client_status": { "mobile": "online", "desktop": "idle" } })), Mark::Status(Status::Online));
+        assert_eq!(mark(json!({ "status": "idle", "client_status": { "mobile": "idle" } })), Mark::Status(Status::Idle));
+        assert_eq!(mark(json!({ "status": "online" })), Mark::Status(Status::Online));
+        let stream = json!([{ "type": 0, "name": "Apex" }, { "type": 1, "name": "Twitch", "url": "https://twitch.tv/x" }]);
+        assert_eq!(mark(json!({ "status": "dnd", "client_status": { "mobile": "dnd" }, "activities": stream })), Mark::Streaming);
+        assert_eq!(mark(json!({ "status": "offline", "activities": stream })), Mark::Status(Status::Offline));
     }
 
     #[test]

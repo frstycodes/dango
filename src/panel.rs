@@ -313,7 +313,7 @@ impl Waffle {
             .when(selected, |r| r.bg(palette::selected(cx)))
             .when(!selected, |r| r.hover(move |s| s.bg(hover)))
             .children(plate)
-            .child(div().when(offline, |a| a.opacity(0.5)).child(decorated_avatar(&member.user.avatar, member.user.decoration.as_deref(), 32., Some(member.presence.status), surface)))
+            .child(div().when(offline, |a| a.opacity(0.5)).child(decorated_avatar(&member.user.avatar, member.user.decoration.as_deref(), 32., Some(member.presence.mark()), surface)))
             .child(names(format!("member-name-{}", member.user.id)).relative().flex_1())
             .on_click({
                 let user = member.user.clone();
