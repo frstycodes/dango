@@ -300,6 +300,7 @@ pub mod perm {
     pub const MANAGE_THREADS: u64 = 1 << 34;
     pub const CREATE_PUBLIC_THREADS: u64 = 1 << 35;
     pub const MODERATE_MEMBERS: u64 = 1 << 40;
+    pub const SEND_POLLS: u64 = 1 << 49;
     pub const PIN_MESSAGES: u64 = 1 << 51;
     pub const CONNECT: u64 = 1 << 20;
 }
@@ -684,6 +685,39 @@ pub struct Message {
     pub call: Option<CallRecord>,
     #[serde(default)]
     pub stickers: Vec<Sticker>,
+    #[serde(default)]
+    pub poll: Option<Poll>,
+}
+
+/// A live poll as a message carries it, its counts folded into the answers.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Poll {
+    pub question: String,
+    pub answers: Vec<PollAnswer>,
+    // RFC 3339; None for a poll that never ends.
+    pub expiry: Option<String>,
+    pub multiselect: bool,
+    // Discord has closed it and the counts are final.
+    pub finalized: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PollAnswer {
+    pub id: u32,
+    pub text: String,
+    pub emoji: Option<Emoji>,
+    pub count: u64,
+    // You voted for it.
+    pub me: bool,
+}
+
+/// A poll to post: Create Message's `poll` before Discord gives its answers ids.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PollDraft {
+    pub question: String,
+    pub answers: Vec<(String, Option<Emoji>)>,
+    pub hours: u32,
+    pub multiselect: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -968,6 +1002,7 @@ pub enum Event {
     MessageUpdate(Value),
     MessageDelete { channel_id: String, id: String },
     Reaction { channel_id: String, message_id: String, user_id: String, emoji: Emoji, added: bool },
+    PollVote { channel_id: String, message_id: String, user_id: String, answer_id: u32, added: bool },
     Typing { channel_id: String, user_id: String, name: Option<String> },
     Presence { user_id: String, presence: Presence },
     MemberList { guild_id: String, groups: Vec<(String, u32)>, ops: Vec<ListOp> },
@@ -1066,6 +1101,24 @@ impl Client {
     pub async fn send_sticker(&self, channel_id: &str, sticker_id: &str, nonce: &str, reply_to: Option<&str>, ping_author: bool) -> Result<Message, String> {
         let mut body = message_body("", nonce, reply_to, ping_author, &[]);
         body["sticker_ids"] = json!([sticker_id]);
+        let req = self.request(reqwest::Method::POST, &format!("/channels/{channel_id}/messages")).json(&body);
+        self.run(req).await.and_then(|v| parse_message(&v).ok_or_else(|| "Unexpected response".into()))
+    }
+
+    /// A message that is one poll; `layout_type` 1 is Discord's only layout.
+    pub async fn send_poll(&self, channel_id: &str, poll: &PollDraft, nonce: &str) -> Result<Message, String> {
+        let mut body = message_body("", nonce, None, false, &[]);
+        let answers: Vec<Value> = poll
+            .answers
+            .iter()
+            .map(|(text, emoji)| match emoji {
+                // Only one field: the id for a server's emoji, the character for a Unicode one.
+                Some(Emoji { id: Some(id), .. }) => json!({ "poll_media": { "text": text, "emoji": { "id": id } } }),
+                Some(e) => json!({ "poll_media": { "text": text, "emoji": { "name": e.name } } }),
+                None => json!({ "poll_media": { "text": text } }),
+            })
+            .collect();
+        body["poll"] = json!({ "question": { "text": poll.question }, "answers": answers, "duration": poll.hours, "allow_multiselect": poll.multiselect, "layout_type": 1 });
         let req = self.request(reqwest::Method::POST, &format!("/channels/{channel_id}/messages")).json(&body);
         self.run(req).await.and_then(|v| parse_message(&v).ok_or_else(|| "Unexpected response".into()))
     }
@@ -1940,6 +1993,13 @@ fn dispatch(kind: &str, d: &Value) -> Option<Event> {
             emoji: parse_emoji(&d["emoji"]),
             added: kind == "MESSAGE_REACTION_ADD",
         }),
+        "MESSAGE_POLL_VOTE_ADD" | "MESSAGE_POLL_VOTE_REMOVE" => Some(Event::PollVote {
+            channel_id: s(&d["channel_id"]),
+            message_id: s(&d["message_id"]),
+            user_id: s(&d["user_id"]),
+            answer_id: d["answer_id"].as_u64()? as u32,
+            added: kind == "MESSAGE_POLL_VOTE_ADD",
+        }),
         "TYPING_START" => Some(Event::Typing {
             channel_id: s(&d["channel_id"]),
             user_id: s(&d["user_id"]),
@@ -2258,6 +2318,7 @@ pub fn parse_message(m: &Value) -> Option<Message> {
         thread: m["thread"].is_object().then(|| parse_channel(&m["thread"], m["guild_id"].as_str().unwrap_or_default())).flatten(),
         call: (m["type"] == 3).then(|| CallRecord { participants: strings(&m["call"]["participants"]), ended: m["call"]["ended_timestamp"].as_str().map(str::to_owned) }),
         stickers: m["sticker_items"].as_array().or(m["stickers"].as_array()).into_iter().flatten().filter_map(Sticker::parse).collect(),
+        poll: m["poll"].is_object().then(|| parse_poll(&m["poll"])),
     })
 }
 
@@ -2440,6 +2501,35 @@ fn parse_embed(e: &Value) -> Embed {
         footer_icon: text(&e["footer"]["proxy_icon_url"]).or_else(|| text(&e["footer"]["icon_url"])),
         timestamp: text(&e["timestamp"]),
         poll: None,
+    }
+}
+
+// Counts arrive apart from the answers, in `results`; an answer missing there has no votes.
+fn parse_poll(p: &Value) -> Poll {
+    let counts = p["results"]["answer_counts"].as_array().cloned().unwrap_or_default();
+    let answers = p["answers"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|a| {
+            let id = a["answer_id"].as_u64()? as u32;
+            let result = counts.iter().find(|c| c["id"].as_u64() == Some(id.into()));
+            let media = &a["poll_media"];
+            Some(PollAnswer {
+                id,
+                text: media["text"].as_str().unwrap_or_default().to_owned(),
+                emoji: media["emoji"].is_object().then(|| parse_emoji(&media["emoji"])),
+                count: result.and_then(|c| c["count"].as_u64()).unwrap_or(0),
+                me: result.and_then(|c| c["me_voted"].as_bool()).unwrap_or(false),
+            })
+        })
+        .collect();
+    Poll {
+        question: p["question"]["text"].as_str().unwrap_or_default().to_owned(),
+        answers,
+        expiry: p["expiry"].as_str().map(str::to_owned),
+        multiselect: p["allow_multiselect"].as_bool().unwrap_or(false),
+        finalized: p["results"]["is_finalized"].as_bool().unwrap_or(false),
     }
 }
 
@@ -2990,6 +3080,23 @@ mod tests {
         assert_eq!(m.files[0].name, "b.zip");
         assert_eq!(m.reply.unwrap().author.name, "zoe");
         assert_eq!(m.reply_to.as_deref(), Some("0"));
+    }
+
+    #[test]
+    fn folds_poll_counts_into_answers() {
+        let m = parse_message(&json!({ "id": "1", "channel_id": "c", "author": { "id": "u" }, "poll": {
+            "question": { "text": "Map?" }, "expiry": "2026-11-20T21:00:00Z", "allow_multiselect": true,
+            "answers": [
+                { "answer_id": 1, "poll_media": { "text": "Peaks", "emoji": { "name": "🏔️" } } },
+                { "answer_id": 2, "poll_media": { "text": "Harbor" } },
+            ],
+            "results": { "is_finalized": false, "answer_counts": [{ "id": 1, "count": 3, "me_voted": true }] },
+        } }))
+        .unwrap();
+        let poll = m.poll.unwrap();
+        assert_eq!((poll.question.as_str(), poll.multiselect, poll.finalized), ("Map?", true, false));
+        assert_eq!(poll.answers[0], PollAnswer { id: 1, text: "Peaks".into(), emoji: Some(Emoji::unicode("🏔️")), count: 3, me: true });
+        assert_eq!((poll.answers[1].count, poll.answers[1].me, poll.answers[1].emoji.is_none()), (0, false, true));
     }
 
     #[test]

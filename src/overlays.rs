@@ -156,6 +156,7 @@ impl Waffle {
         let Some(target) = self.emoji_picker.take() else { return };
         match target {
             EmojiTarget::Reaction(message) => self.toggle_reaction(&message, emoji, cx),
+            EmojiTarget::PollAnswer(ix) => self.set_poll_emoji(ix, emoji),
             EmojiTarget::CustomStatus => {
                 if let Some(editor) = self.status_editor.as_mut() {
                     editor.emoji = Some(emoji);
@@ -246,6 +247,7 @@ impl Waffle {
             | self.profile_card.take().is_some()
             | std::mem::take(&mut self.status_menu)
             | self.status_editor.take().is_some()
+            | self.poll_creator.take().is_some()
             | self.emoji_picker.take().is_some()
             | self.switcher.take().is_some()
             | self.close_share_picker(cx)
@@ -266,6 +268,7 @@ impl Waffle {
         out.extend(self.text_viewer_overlay(window, cx));
         out.extend(self.status_menu_overlay(cx));
         out.extend(self.status_editor_overlay(window, cx));
+        out.extend(self.poll_creator_overlay(window, cx));
         out.extend(self.emoji_overlay(window, cx));
         out.extend(self.switcher_overlay(window, cx));
         out.extend(self.share_overlay(window, cx));

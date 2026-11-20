@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// WAFFLE_DEMO=chat | busy | message-focus | message-focus-menu | message-focus-delete | message-menu-theirs | user-menu-voice | user-menu-voice-denied | mention | mention-tab | mention-enter | reactors | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | emoji-suggest | emoji-accept | notify-bell | jump | inbox | inbox-unreads | home | add-friend | create-channel | advanced | zoom | home-presence | folder | stream-card | call-streams | call-streams-ended | call-streams-focus | call-streams-strip | call-streams-full | voice-elsewhere | call-incoming | call-banner | call-joinable | call-dm | call-dm-camera | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | drafts | updating (the launch splash alone).
+// WAFFLE_DEMO=chat | busy | message-focus | message-focus-menu | message-focus-delete | message-menu-theirs | user-menu-voice | user-menu-voice-denied | mention | mention-tab | mention-enter | reactors | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | emoji-suggest | emoji-accept | notify-bell | jump | inbox | inbox-unreads | home | add-friend | create-channel | advanced | zoom | home-presence | folder | stream-card | call-streams | call-streams-ended | call-streams-focus | call-streams-strip | call-streams-full | voice-elsewhere | call-incoming | call-banner | call-joinable | call-dm | call-dm-camera | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | poll | poll-creator | drafts | updating (the launch splash alone).
 use gpui_kit::{
     Context, Window,
     component::input::{InlineToken, InputContent},
@@ -151,6 +151,15 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
         "status-durations" => {
             waffle.status_menu = true;
             waffle.status_flyout = crate::status_menu::Flyout::opened(crate::discord::Status::Dnd);
+        }
+        // A poll you haven't voted in (one answer picked, not yet sent) and one you have.
+        "poll" => {
+            demo_polls(waffle);
+            waffle.poll_picks.insert("195".into(), vec![1]);
+        }
+        "poll-creator" => {
+            waffle.open_poll_creator(window, cx);
+            waffle.fill_poll_creator("Which map first tonight?", &[("Ashen Peaks", Some("🏔️")), ("Drowned Harbor", Some("🌊")), ("", None)], window, cx);
         }
         // Sticker messages (an animated one, a Lottie one that can't play) and the picker on its Stickers tab.
         "stickers" | "stickers-chat" => {
@@ -1572,6 +1581,29 @@ fn hsl(h: f32, s: f32, l: f32) -> [u8; 3] {
 
 fn demo_custom_status() -> crate::discord::CustomStatus {
     crate::discord::CustomStatus { text: "Reviewing the parity spec, back at 5".into(), emoji: Some(crate::discord::Emoji::unicode("🍡")), expires_at: None }
+}
+
+// design/messages.html's two boards, the second with your vote in and its longest answer wrapping.
+fn demo_polls(waffle: &mut Waffle) {
+    use crate::discord::{Poll, PollAnswer};
+    let answer = |id: u32, emoji: &str, text: &str, count: u64, me: bool| PollAnswer { id, text: text.into(), emoji: Some(Emoji::unicode(emoji)), count, me };
+    let ends = (chrono::Utc::now() + chrono::Duration::minutes(3 * 60 + 10)).to_rfc3339();
+    let poll = |mine: bool| Poll {
+        question: "Which map first tonight?".into(),
+        answers: vec![
+            answer(1, "🏔️", "Ashen Peaks", 67 + u64::from(mine), mine),
+            answer(2, "🌊", "Drowned Harbor", 50, false),
+            answer(3, "🌵", "Glass Desert, the one with the sandstorms that last forever", 24, false),
+        ],
+        expiry: Some(ends.clone()),
+        multiselect: false,
+        finalized: false,
+    };
+    let post = |id: &str, author: User, poll: Poll| Message { id: id.into(), channel_id: "general".into(), guild_id: Some("1".into()), author, timestamp: chrono::Utc::now().to_rfc3339(), poll: Some(poll), ..Default::default() };
+    if let Some(feed) = waffle.feeds.get_mut("general") {
+        std::sync::Arc::make_mut(&mut feed.messages).extend([post("195", user("8388608", "Jun"), poll(false)), post("196", user("12582912", "moss lantern"), poll(true))]);
+    }
+    waffle.list.reset(waffle.feeds.get("general").map_or(0, |f| f.messages.len()));
 }
 
 // Real ids from Discord's own packs (animated APNG), so the pictures load; Lottie ones stand in for the

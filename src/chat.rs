@@ -20,7 +20,7 @@ use gpui_motion_kit::core::{Motion, Target};
 
 use crate::{
     EmojiTarget, Feed, RightPanel, Waffle,
-    discord::{Channel, ChannelKind, Embed, Emoji, MediaKind, Message, NameEffect, NameStyle, Reaction, SendState, User},
+    discord::{Channel, ChannelKind, Embed, Emoji, MediaKind, Message, NameEffect, NameStyle, Poll, PollAnswer, Reaction, SendState, User},
     icons::Glyph,
     layout::HEADER_HEIGHT,
     mascot::Mood,
@@ -461,7 +461,19 @@ impl Waffle {
             shift: self.shift_held,
             manage_messages: channel.is_some_and(|c| self.can_in(&c.id, crate::discord::perm::MANAGE_MESSAGES)),
             threads: channel.is_some_and(|c| c.kind == ChannelKind::Text && self.can_in(&c.id, crate::discord::perm::CREATE_PUBLIC_THREADS)),
+            poll_picks: self.poll_picks.clone(),
+            poll_peek: self.poll_peek.clone(),
         })
+    }
+
+    // The composer's +: a file, or a poll where you may post one (always in a DM).
+    fn attach_entries(&self) -> Vec<crate::menu::Entry> {
+        let polls = self.guild_id.is_none() || self.channel.as_ref().is_some_and(|c| self.can_in(&c.id, crate::discord::perm::SEND_POLLS));
+        let poll = crate::menu::item("Create poll", |this, window, cx| this.open_poll_creator(window, cx)).icon(Glyph::Checks);
+        vec![
+            crate::menu::item("Upload a file", |this, window, cx| this.upload(window, cx)).icon(Glyph::Upload).entry(),
+            (if polls { poll } else { poll.hint("You can't create polls here").disabled() }).entry(),
+        ]
     }
 
     pub(crate) fn render_composer(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -475,7 +487,7 @@ impl Waffle {
             .flex()
             .items_end()
             .gap(px(4.))
-            .child(ui::icon_button("attach", Glyph::PlusCircle, "Upload a File", cx).on_click(cx.listener(|this, _, window, cx| this.upload(window, cx))))
+            .child(ui::icon_button("attach", Glyph::PlusCircle, "Upload a file or create a poll", cx).on_click(cx.listener(|this, _, window, cx| this.open_menu(window.mouse_position(), this.attach_entries(), cx))))
             // XSmall gives the editor 0/4px padding of its own; with these, the design's 4/6.
             .child(div().flex_1().min_w_0().child(Textarea::new(&self.composer).appearance(false).with_size(Size::XSmall).py(px(4.)).px(px(2.)).text_size(px(15.)).line_height(px(22.)).text_color(strong).token(mention_chip(cx))))
             .children([(ComposerPicker::Gifs, "composer-gif", Glyph::Gif, "Open GIF picker"), (ComposerPicker::Stickers, "composer-sticker", Glyph::Sticker, "Open sticker picker"), (ComposerPicker::Emoji, "composer-emoji", Glyph::Emoji, "Select Emoji")].map(|(picker, id, glyph, label)| {
@@ -902,6 +914,8 @@ pub(crate) struct RowContext {
     threads: bool,
     // The widest media may run.
     column: f32,
+    poll_picks: HashMap<String, Vec<u32>>,
+    poll_peek: std::collections::HashSet<String>,
 }
 
 // More than a few rows below the viewport: the feed is scrolled away from its newest message.
@@ -949,6 +963,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .children(content(message, ctx, cx))
         .children(media.map(|m| div().when(pending, |d| d.opacity(0.6)).child(m)))
         .children(message.stickers.iter().map(|s| div().when(pending, |d| d.opacity(0.6)).child(crate::stickers::in_chat(s, cx))))
+        .children(message.poll.as_ref().map(|p| poll_card(message, p, ctx, cx)))
         .children(message.embeds.iter().filter(|_| ctx.embeds).enumerate().map(|(i, e)| embed_card(e, message.reply_to.as_deref(), format!("embed-{}-{i}", message.id), ctx, cx)))
         .children(link_cards(message, ctx, cx))
         .children(message.thread.as_ref().map(|t| thread_card(t, ctx, cx)))
@@ -2137,6 +2152,103 @@ fn poll_result(poll: &crate::discord::PollResult, poll_message: Option<&str>, ke
                 this.update(cx, |this, cx| this.jump_to(id.clone(), cx)).ok();
             }))
         })
+        .into_any_element()
+}
+
+// A live poll (design/messages.html `.poll`): pick and Vote, or its results once you've voted, peeked or it closed.
+fn poll_card(message: &Message, poll: &Poll, ctx: &RowContext, cx: &App) -> AnyElement {
+    let now = chrono::Utc::now();
+    let (closed, voted, pending) = (poll.closed(now), poll.voted(), message.state != SendState::Sent);
+    let results = closed || voted || ctx.poll_peek.contains(&message.id);
+    let picks = ctx.poll_picks.get(&message.id).cloned().unwrap_or_default();
+    let options: Vec<AnyElement> = match results {
+        true => poll.answers.iter().zip(poll.shares()).map(|(answer, share)| poll_share(answer, share, cx)).collect(),
+        false => poll.answers.iter().map(|answer| poll_choice(message, poll, answer, picks.contains(&answer.id), pending, ctx, cx)).collect(),
+    };
+    let key = |part: &str| SharedString::from(format!("poll-{}-{part}", message.id));
+    let (channel_id, message_id, this) = (message.channel_id.clone(), message.id.clone(), ctx.this.clone());
+    let act = move |picks: Vec<u32>| {
+        let (channel_id, message_id, this) = (channel_id.clone(), message_id.clone(), this.clone());
+        move |_: &gpui_kit::ClickEvent, _: &mut Window, cx: &mut App| {
+            cx.stop_propagation();
+            this.update(cx, |this, cx| this.vote(channel_id.clone(), message_id.clone(), picks.clone(), cx)).ok();
+        }
+    };
+    let (peek_id, peek_this) = (message.id.clone(), ctx.this.clone());
+    let peek = move |_: &gpui_kit::ClickEvent, _: &mut Window, cx: &mut App| {
+        cx.stop_propagation();
+        peek_this.update(cx, |this, cx| this.toggle_poll_results(peek_id.clone(), cx)).ok();
+    };
+    let actions = div().ml_auto().flex().gap(px(8.)).when(!pending && !closed, |d| match (voted, results) {
+        (true, _) => d.child(ui::button(key("remove"), ui::Tone::Ghost, cx).small().child("Remove vote").on_click(act(Vec::new()))),
+        (false, true) => d.child(ui::button(key("back"), ui::Tone::Ghost, cx).small().child("Back to vote").on_click(peek)),
+        (false, false) => d
+            .child(ui::button(key("peek"), ui::Tone::Ghost, cx).small().child("Show results").on_click(peek))
+            .child(ui::button(key("vote"), ui::Tone::Primary, cx).small().disabled(picks.is_empty()).child("Vote").on_click(act(picks.clone()))),
+    });
+    div()
+        .mt(px(8.))
+        .w_full()
+        .max_w(px(COLUMN.min(ctx.column)))
+        .p(px(14.))
+        .flex()
+        .flex_col()
+        .gap(px(12.))
+        .squircle(RADIUS_LG)
+        .bg(palette::surface(Level::Sidebar, cx))
+        .border_1()
+        .border_color(palette::line(cx))
+        .when(pending, |d| d.opacity(0.6))
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(4.))
+                .child(div().text_size(px(16.)).line_height(px(20.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(poll.question.clone()))
+                .child(div().text_size(px(12.)).text_color(palette::faint(cx)).child(poll.prompt(now))),
+        )
+        .child(div().flex().flex_col().gap(px(6.)).children(options))
+        .child(div().flex().flex_wrap().items_center().gap(px(8.)).text_size(px(12.)).text_color(palette::faint(cx)).child(poll.foot(now)).child(actions))
+        .into_any_element()
+}
+
+// An answer to pick before voting: its radio (a check where several may be picked), emoji and text.
+fn poll_choice(message: &Message, poll: &Poll, answer: &PollAnswer, on: bool, pending: bool, ctx: &RowContext, cx: &App) -> AnyElement {
+    let mark = if poll.multiselect { ui::check(if on { ui::Check::On } else { ui::Check::Off }, cx) } else { ui::radio(on, cx) };
+    let lead = div().flex_none().flex().items_center().gap(px(10.)).child(mark).children(answer.emoji.as_ref().map(|e| crate::menu::emoji_face(e, 20.)));
+    let (this, message_id, answer_id, multiselect) = (ctx.this.clone(), message.id.clone(), answer.id, poll.multiselect);
+    ui::pick_row(SharedString::from(format!("poll-{}-answer-{answer_id}", message.id)), lead, answer.text.clone(), None, cx)
+        .toggled(on, cx)
+        .disabled(pending)
+        .on_click(move |_, _, cx| {
+            cx.stop_propagation();
+            this.update(cx, |this, cx| this.pick_poll_answer(message_id.clone(), answer_id, multiselect, cx)).ok();
+        })
+        .into_any_element()
+}
+
+// An answer's result: its share as a bar behind it, the percentage at the end, and a check on yours.
+fn poll_share(answer: &PollAnswer, share: u32, cx: &App) -> AnyElement {
+    let strong = palette::strong(cx);
+    let bar = if answer.me { palette::accent_soft(cx) } else { strong.opacity(0.10) };
+    div()
+        .relative()
+        .min_h(px(44.))
+        .px(px(12.))
+        .py(px(8.))
+        .flex()
+        .items_center()
+        .gap(px(10.))
+        .squircle(RADIUS_MD)
+        .bg(palette::hover(cx))
+        .text_size(px(14.))
+        .font_weight(FontWeight::MEDIUM)
+        .text_color(if answer.me { strong } else { palette::text(cx) })
+        .when(share > 0, |d| d.child(div().absolute().left_0().top_0().bottom_0().w(gpui_kit::relative(share as f32 / 100.)).squircle(RADIUS_MD).bg(bar)))
+        .children(answer.emoji.as_ref().map(|e| div().flex_none().child(crate::menu::emoji_face(e, 20.))))
+        .child(div().flex_1().min_w_0().child(answer.text.clone()))
+        .when(answer.me, |d| d.child(Icon::new(Glyph::CheckCircle).size(px(18.)).flex_none().text_color(palette::accent_ink(cx))))
+        .child(div().flex_none().font_weight(FontWeight::SEMIBOLD).text_color(strong).child(format!("{share}%")))
         .into_any_element()
 }
 
