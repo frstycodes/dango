@@ -2,7 +2,7 @@
 use std::time::Duration;
 
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, Radians, SharedString, Stateful, Window,
+    Animation, AnimationExt, AnyElement, App, Context, Div, FontWeight, Hsla, Radians, SharedString, Stateful, TooltipPlacement, Window,
     base::{Transition as Tween, transition},
     component::{ActiveTheme, Icon, tooltip::Tooltip},
     div, img, point, prelude::*, px, relative, rgb, svg,
@@ -409,17 +409,28 @@ impl Waffle {
             .cursor_pointer()
             .child(div().absolute().left_0().top(px((TILE - pill_height) / 2.)).w(px(4.)).h(px(pill_height)).rounded_r(px(4.)).bg(palette::strong(cx)))
             // GAP: muted tiles skip the design's saturate(0.35): gpui has no element filters.
-            .child(div().absolute().left(px(TILE_X)).top_0().when(muted, |f| f.opacity(0.55)).child(face))
+            // The tooltip hangs off the tile rather than the rail-wide item, so it opens a fixed gap from the art.
+            .child(
+                div()
+                    .id(SharedString::from(format!("rail-tile-{key}")))
+                    .absolute()
+                    .left(px(TILE_X))
+                    .top_0()
+                    .when(muted, |f| f.opacity(0.55))
+                    .child(face)
+                    .tooltip({
+                        let name = name.clone();
+                        move |window, cx| match preview.clone().filter(ServerPreview::has_activity) {
+                            Some(preview) => cx.new(|_| preview).into(),
+                            None => Tooltip::new(name.clone()).build(window, cx),
+                        }
+                    })
+                    .tooltip_show_delay(Duration::ZERO)
+                    .tooltip_placement(TooltipPlacement::Side),
+            )
             .when(mentions > 0 && badge_scale > 0.01, |item| item.child(rail_count(mentions, badge_scale, crate::material::behind_sidebar(rail))))
             .children(media.filter(|_| badge_scale > 0.99).map(|m| media_badge(m, crate::material::behind_sidebar(rail), cx)))
             .children(drop_hint.map(drop_marker))
-            .tooltip({
-                let name = name.clone();
-                move |window, cx| match preview.clone().filter(ServerPreview::has_activity) {
-                    Some(preview) => cx.new(|_| preview).into(),
-                    None => Tooltip::new(name.clone()).build(window, cx),
-                }
-            })
             .on_hover(cx.listener(move |this, hovered: &bool, _, cx| this.set_hovered(&hover_key, *hovered, cx)))
             .when_some(guild_id.clone(), |item, guild_id| item.on_click(cx.listener(move |this, _, window, cx| this.open_guild(Some(guild_id.clone()), window, cx))))
             .when(key == "dms", |item| item.on_click(cx.listener(|this, _, window, cx| this.open_guild(None, window, cx))));
@@ -1521,6 +1532,8 @@ fn letters_tile(label: &str, size: f32, radius: f32, cx: &App) -> Div {
 // The hairline between home, the servers and the actions.
 // Add and Discover: a quiet tile that lifts to the raised tone on hover.
 // A server's hover card, as Discord's: its name, then who's talking in voice and who's live.
+const PREVIEW_FACES: usize = 6;
+
 #[derive(Clone)]
 struct ServerPreview {
     name: SharedString,
@@ -1539,23 +1552,20 @@ impl Render for ServerPreview {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let surface = palette::surface(palette::Level::Overlay, cx);
         let muted = palette::muted(cx);
-        // Six faces at most per row; the card stays a glance, not a roster.
+        let (wash, strong) = (palette::selected(cx), palette::strong(cx));
+        // Six slots at most per row, the last a "+n" when they don't all fit; the card stays a glance, not a roster.
         let row = |glyph: Glyph, avatars: &[String]| {
-            div()
-                .flex()
-                .items_center()
-                .gap(px(10.))
-                .child(Icon::new(glyph).size(px(20.)).text_color(muted))
-                .child(ui::avatar_stack(avatars.iter().take(6).cloned(), 28., surface))
+            div().flex().items_center().gap(px(10.)).child(Icon::new(glyph).size(px(20.)).text_color(muted)).child(ui::capped_stack(avatars, PREVIEW_FACES, 28., surface, wash, strong))
         };
-        ui::surface(cx)
+        // Anchored flush to the tile; plain tooltips get their 12px gap from Tooltip's own margin.
+        div().pl(px(12.)).child(ui::surface(cx)
             .max_w(px(280.))
             .p(px(12.))
             .gap(px(10.))
             .child(div().truncate().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(self.name.clone()))
             .when(!self.voice.is_empty(), |c| c.child(row(Glyph::VolumeHigh, &self.voice)))
             .when(!self.live.is_empty(), |c| c.child(row(Glyph::ShareScreen, &self.live)))
-            .when(self.muted, |c| c.child(div().text_size(px(14.)).text_color(muted).child("Muted")))
+            .when(self.muted, |c| c.child(div().text_size(px(14.)).text_color(muted).child("Muted"))))
     }
 }
 
@@ -1575,6 +1585,8 @@ fn rail_action(id: &'static str, icon: Icon, tooltip: &'static str, cx: &App) ->
         .hover(move |s| s.bg(raised).text_color(strong))
         .child(icon.size(px(20.)))
         .tooltip(move |window, cx| Tooltip::new(tooltip).build(window, cx))
+        .tooltip_show_delay(Duration::ZERO)
+        .tooltip_placement(TooltipPlacement::Side)
 }
 
 // The mention count on a tile's corner, ringed in the rail so it reads apart from the art.
