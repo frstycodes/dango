@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// WAFFLE_DEMO=chat | busy | message-focus | message-focus-menu | message-focus-delete | message-menu-theirs | user-menu-voice | user-menu-voice-denied | mention | mention-tab | mention-enter | reactors | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | emoji-suggest | emoji-accept | notify-bell | jump | inbox | inbox-unreads | home | add-friend | create-channel | advanced | zoom | home-presence | folder | stream-card | call-streams | call-streams-ended | call-streams-focus | call-streams-strip | call-streams-full | voice-elsewhere | call-incoming | call-banner | call-joinable | call-dm | call-dm-camera | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | forwarded | forward-dialog | poll | poll-creator | drafts | updating (the launch splash alone).
+// WAFFLE_DEMO=chat | busy | message-focus | message-focus-menu | message-focus-delete | message-menu-theirs | user-menu-voice | user-menu-voice-denied | mention | mention-tab | mention-enter | reactors | reactions-dialog | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | emoji-suggest | emoji-accept | notify-bell | jump | inbox | inbox-unreads | home | add-friend | create-channel | advanced | zoom | home-presence | folder | stream-card | call-streams | call-streams-ended | call-streams-focus | call-streams-strip | call-streams-full | voice-elsewhere | call-incoming | call-banner | call-joinable | call-dm | call-dm-camera | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | forwarded | forward-dialog | poll | poll-creator | drafts | updating (the launch splash alone).
 use gpui_kit::{
     Context, Window,
     component::input::{InlineToken, InputContent},
@@ -9,7 +9,7 @@ use crate::{
     Waffle, Feed, Status,
     drafts::Draft,
     discord::{
-        Activity, ActivityKind, Channel, ChannelKind, Embed, Emoji, Event, Folder, Guild, GuildTag, ListItem, ListOp, Media, MediaKind, Member, Message, Presence, Reaction, ReadState, Ready, Relation, Relationship, Role,
+        Activity, ActivityKind, Channel, ChannelKind, Embed, Emoji, Event, Folder, Guild, GuildTag, ListItem, ListOp, Media, MediaKind, Member, Message, Presence, Reaction, Reactor, ReadState, Ready, Relation, Relationship, Role,
         Status as Presence_, User, VoiceState, avatar_url,
     },
     login::Login,
@@ -104,18 +104,28 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
             }
         }
         // Who reacted, as a fetch would leave it: 🔥 names three (account names, shown as their nicknames)
-        // and counts three more; 👀's fetch failed, so it falls back to the count. Hover a pill on the first message.
+        // and links the 589 others to the dialog; 👀's fetch failed, so it falls back to the count. Hover a pill
+        // on the newest message.
         "reactors" => {
-            if let Some(feed) = waffle.feeds.get_mut("general") {
-                let mut messages = feed.messages.as_ref().clone();
-                if let Some(first) = messages.iter_mut().find(|m| m.id == "101") {
-                    first.reactions[0].count = 6;
+            let id = set_reactions(waffle, vec![Reaction { emoji: Emoji::unicode("🔥"), count: 592, me: true }, Reaction { emoji: Emoji::unicode("👀"), count: 1, me: false }]);
+            waffle.reactors.insert((id.clone(), Emoji::unicode("🔥").path()), crate::reactions::Reactors::loaded(reactors(4)));
+            waffle.reactors.insert((id, Emoji::unicode("👀").path()), crate::reactions::Reactors::failed());
+        }
+        // The Reactions dialog on the newest message's most used reaction (yours), every reaction's people loaded.
+        "reactions-dialog" => {
+            let counts = [("💀", 592, true), ("😭", 132, false), ("✅", 119, false), ("❌", 115, false), ("🐈", 67, false), ("🍯", 61, true), ("7️⃣", 61, false)];
+            let reactions: Vec<Reaction> = counts.iter().map(|&(e, count, me)| Reaction { emoji: Emoji::unicode(e), count, me }).collect();
+            for (i, r) in reactions.iter().enumerate() {
+                let mut people = reactors(14 - i);
+                if r.me {
+                    people.insert(3, Reactor { user: me_user(), username: "kiwi.dev".into() });
                 }
-                feed.messages = std::sync::Arc::new(messages);
+                waffle.reactors.insert((newest(waffle), r.emoji.path()), crate::reactions::Reactors::loaded(people));
             }
-            let users = vec![user("12582912", "mosslantern"), user("8388608", "wren.wav"), user("16777216", "toma"), me_user()];
-            waffle.reactors.insert(("101".into(), Emoji::unicode("🔥").path()), crate::chat::Reactors::Loaded(users));
-            waffle.reactors.insert(("101".into(), Emoji::unicode("👀").path()), crate::chat::Reactors::Failed);
+            let id = set_reactions(waffle, reactions);
+            if let Some(message) = waffle.feed_message("general", &id) {
+                waffle.open_reactions(&message, Emoji::unicode("💀"), cx);
+            }
         }
         "pins" => waffle.pins = Some(Some(Ok(waffle.feeds.get("general").map(|f| f.messages.iter().rev().take(3).cloned().collect()).unwrap_or_default()))),
         // Typed once the window is up, as `mention` does: the field isn't live while the app is being built.
@@ -1674,4 +1684,43 @@ fn demo_stickers(waffle: &mut Waffle) {
         std::sync::Arc::make_mut(&mut feed.messages).extend([wave, lottie]);
     }
     waffle.list.reset(waffle.feeds.get("general").map_or(0, |f| f.messages.len()));
+}
+
+// Puts `reactions` on the newest message in #general, where the feed opens; returns its id.
+fn set_reactions(waffle: &mut Waffle, reactions: Vec<Reaction>) -> String {
+    let id = newest(waffle);
+    if let Some(feed) = waffle.feeds.get_mut("general") {
+        let mut messages = feed.messages.as_ref().clone();
+        if let Some(last) = messages.last_mut() {
+            last.reactions = reactions;
+        }
+        feed.messages = std::sync::Arc::new(messages);
+    }
+    id
+}
+
+fn newest(waffle: &Waffle) -> String {
+    waffle.feeds.get("general").and_then(|f| f.messages.last()).map(|m| m.id.clone()).unwrap_or_default()
+}
+
+// People who reacted, as the reactions route returns them: account names, which members the server knows
+// show as their nicknames, then strangers with long and short names.
+fn reactors(count: usize) -> Vec<Reactor> {
+    let people = [
+        ("12582912", "mosslantern", "mosslantern"),
+        ("8388608", "wren.wav", "wren.wav"),
+        ("16777216", "toma", "toma.reed"),
+        ("25165824", "longname", "a.member.whose.display.name.runs.long"),
+        ("31000001", "Dhalon", "dhalon"),
+        ("31000002", "saik", "saik03"),
+        ("31000003", "Digitally_Devious", "digitally_devious"),
+        ("31000004", "Laryke", "laryke"),
+        ("31000005", "h y p r", ".thehypr"),
+        ("31000006", "pouyas", "pouyas"),
+        ("31000007", "Bartholomew Featherstonehaugh-Wright", "bart.fw"),
+        ("31000008", "J", "yqsod"),
+        ("31000009", "valse", "valsesn"),
+        ("31000010", "mikey", "mickeeeyyyyyy"),
+    ];
+    people.iter().take(count).map(|&(id, name, username)| Reactor { user: user(id, name), username: username.into() }).collect()
 }

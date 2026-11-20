@@ -41,7 +41,7 @@ User complaints about Discord and how Waffle answers them: [docs/better.md](docs
 - [ ] Sound cues on Windows/Linux (rodio)
 
 ### Regular
-- [x] Reactions name who reacted on hover
+- [x] Reactions name who reacted on hover; "N others" and the message menu's View reactions open the Reactions dialog
 - [x] GIF picker (Discord's Tenor search)
 - [~] Stickers: sent from a Stickers tab beside GIFs and Emoji (recent, your servers, Discord's packs, search by name and tags) and drawn at 160px, APNG animated; Lottie stickers (most of Discord's own packs) show a placeholder because there's no Lottie player
 - [x] Pins popover from the header

@@ -20,7 +20,7 @@ use gpui_motion_kit::core::{Motion, Target};
 
 use crate::{
     EmojiTarget, Feed, RightPanel, Waffle,
-    discord::{Channel, ChannelKind, Embed, Emoji, MediaKind, Message, NameEffect, NameStyle, Poll, PollAnswer, Reaction, SendState, User},
+    discord::{Channel, ChannelKind, Embed, Emoji, MediaKind, Message, NameEffect, NameStyle, Poll, PollAnswer, SendState, User},
     icons::Glyph,
     layout::HEADER_HEIGHT,
     mascot::Mood,
@@ -836,36 +836,6 @@ impl Waffle {
                 .transform_origin(point(gpui_kit::relative(0.5), gpui_kit::relative(1.)))
                 .with_animation("autocomplete", Animation::new(ui::DUR_POP).with_easing(gpui_kit::ease_out_quint()), |el, t| el.opacity(t).scale(0.95 + 0.05 * t)),
         )
-    }
-}
-
-pub(crate) enum Reactors {
-    Loading,
-    Loaded(Vec<User>),
-    Failed,
-}
-
-impl Waffle {
-    // Asked once per reaction; a failure stays (the tooltip falls back to the count) until the reaction changes.
-    fn load_reactors(&mut self, message: &Message, emoji: &Emoji, cx: &mut Context<Self>) {
-        let key = (message.id.clone(), emoji.path());
-        if self.reactors.contains_key(&key) {
-            return;
-        }
-        let Some(client) = self.client.clone() else { return };
-        self.reactors.insert(key.clone(), Reactors::Loading);
-        let (channel_id, message_id, emoji) = (message.channel_id.clone(), message.id.clone(), emoji.clone());
-        cx.spawn(async move |this, cx| {
-            let result = client.reactors(&channel_id, &message_id, &emoji).await;
-            this.update(cx, |this, cx| {
-                // Dropped while loading: the reaction changed, so this answer is already stale.
-                let Some(entry @ Reactors::Loading) = this.reactors.get_mut(&key) else { return };
-                *entry = result.map_or(Reactors::Failed, Reactors::Loaded);
-                cx.notify();
-            })
-            .ok();
-        })
-        .detach();
     }
 }
 
@@ -2484,17 +2454,18 @@ fn reactions(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyEle
     let pills = message.reactions.iter().map(|r| {
         let (this, msg, emoji) = (ctx.this.clone(), message.clone(), r.emoji.clone());
         let (hover_this, hover_msg, hover_emoji) = (ctx.this.clone(), message.clone(), r.emoji.clone());
-        let (tip_ctx, tip_message, tip_reaction) = (ctx.clone(), message.id.clone(), r.clone());
+        let card = crate::reactions::ReactorsCard::new(ctx.this.clone(), message, r);
         reaction_pill(SharedString::from(format!("react-{}-{}", message.id, r.emoji.name)), r.me, cx)
             .px(px(9.))
             .child(emoji_face(&r.emoji, 18., 16.))
             .child(r.count.to_string())
             .on_hover(move |hovered, _, cx| {
                 if *hovered {
-                    hover_this.update(cx, |this, cx| this.load_reactors(&hover_msg, &hover_emoji, cx)).ok();
+                    hover_this.update(cx, |this, cx| this.load_reactors(&hover_msg.channel_id, &hover_msg.id, &hover_emoji, cx)).ok();
                 }
             })
-            .tooltip(move |window, cx| reactors_tip(&tip_ctx, &tip_message, &tip_reaction, window, cx))
+            // Hoverable, so the pointer can cross into the card and click its "N others".
+            .hoverable_tooltip(move |_, cx| cx.new(|_| card.clone()).into())
             .on_click(move |_, _, cx| { cx.stop_propagation();
                 this.update(cx, |this, cx| this.toggle_reaction(&msg, emoji.clone(), cx)).ok();
             })
@@ -2508,55 +2479,6 @@ fn reactions(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyEle
             this.update(cx, |this, cx| this.open_emoji_picker(EmojiTarget::Reaction(Box::new(msg.clone())), window, cx)).ok();
         });
     Some(div().mt(px(6.)).flex().flex_wrap().gap(px(6.)).children(pills).child(add).into_any_element())
-}
-
-// Discord's who-reacted tooltip: the emoji big, then the names it knows (nicknames here) and the count.
-fn reactors_tip(ctx: &Rc<RowContext>, message_id: &str, reaction: &Reaction, window: &mut Window, cx: &mut App) -> gpui_kit::AnyView {
-    let (ctx, key, reaction) = (ctx.clone(), (message_id.to_owned(), reaction.emoji.path()), reaction.clone());
-    Tooltip::element(move |_, cx| {
-        let names: Vec<String> = match ctx.this.upgrade().as_ref().and_then(|waffle| waffle.read(cx).reactors.get(&key)) {
-            Some(Reactors::Loaded(users)) => users.iter().map(|u| ctx.name_of(u)).collect(),
-            _ => Vec::new(),
-        };
-        let (text, ranges) = reactors_line(&names, reaction.count, &crate::message_menu::shortcode(&reaction.emoji));
-        let strong = HighlightStyle { color: Some(palette::strong(cx)), font_weight: Some(FontWeight::SEMIBOLD), ..Default::default() };
-        div()
-            .flex()
-            .items_center()
-            .gap(px(10.))
-            .max_w(px(260.))
-            .child(div().flex_none().child(emoji_face(&reaction.emoji, 28., 28.)))
-            .child(div().min_w_0().text_size(px(14.)).line_height(px(19.)).text_color(palette::muted(cx)).child(StyledText::new(text).with_highlights(ranges.into_iter().map(|r| (r, strong)))))
-    })
-    .p(px(8.))
-    .pr(px(12.))
-    .build(window, cx)
-}
-
-// "Mira, Jun and 3 others reacted with :fire:": three names at most, the rest counted from the reaction;
-// with no names (loading, or the fetch failed) the count alone. The names' ranges come back to draw strong.
-fn reactors_line(names: &[String], count: u32, shortcode: &str) -> (String, Vec<std::ops::Range<usize>>) {
-    let shown = &names[..names.len().min(3)];
-    if shown.is_empty() {
-        let people = if count == 1 { "1 person".to_owned() } else { format!("{count} people") };
-        return (format!("{people} reacted with {shortcode}"), Vec::new());
-    }
-    let others = (count as usize).max(names.len()) - shown.len();
-    let (mut text, mut ranges) = (String::new(), Vec::new());
-    for (i, name) in shown.iter().enumerate() {
-        if i > 0 {
-            text.push_str(if i + 1 == shown.len() && others == 0 { " and " } else { ", " });
-        }
-        ranges.push(text.len()..text.len() + name.len());
-        text.push_str(name);
-    }
-    match others {
-        0 => {}
-        1 => text.push_str(" and 1 other"),
-        n => text.push_str(&format!(" and {n} others")),
-    }
-    text.push_str(&format!(" reacted with {shortcode}"));
-    (text, ranges)
 }
 
 // A custom emoji's picture, or a unicode one drawn as text.
@@ -3032,22 +2954,6 @@ fn crumb(id: &'static str, cx: &App) -> Stateful<Div> {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn reactors_line_names_three_then_counts_the_rest() {
-        let names = |n: &[&str]| n.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        let line = |n: &[&str], count| super::reactors_line(&names(n), count, ":fire:").0;
-        assert_eq!(line(&["Mira"], 1), "Mira reacted with :fire:");
-        assert_eq!(line(&["Mira", "Jun"], 2), "Mira and Jun reacted with :fire:");
-        assert_eq!(line(&["Mira", "Jun", "Theo"], 3), "Mira, Jun and Theo reacted with :fire:");
-        assert_eq!(line(&["Mira", "Jun", "Theo", "Ana"], 4), "Mira, Jun, Theo and 1 other reacted with :fire:");
-        assert_eq!(line(&["Mira", "Jun", "Theo"], 6), "Mira, Jun, Theo and 3 others reacted with :fire:");
-        assert_eq!(line(&["Mira", "Jun"], 6), "Mira, Jun and 4 others reacted with :fire:");
-        assert_eq!(line(&[], 1), "1 person reacted with :fire:");
-        assert_eq!(line(&[], 3), "3 people reacted with :fire:");
-        let (text, ranges) = super::reactors_line(&names(&["Mira", "Jun"]), 5, ":fire:");
-        assert_eq!(ranges.iter().map(|r| &text[r.clone()]).collect::<Vec<_>>(), ["Mira", "Jun"]);
-    }
-
     #[test]
     fn unread_bar_says_how_many_since_when() {
         let now = chrono::Utc::now().to_rfc3339();

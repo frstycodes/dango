@@ -46,6 +46,10 @@ impl Waffle {
         more.push(Entry::Separator);
         more.push(item("All reactions", open_picker).icon(Glyph::Search).entry());
         out.push(submenu("Add reaction", more).icon(Glyph::Emoji).entry());
+        if let Some(first) = crate::reactions::rail_order(&message.reactions).first() {
+            let (m, emoji) = (message.clone(), first.emoji.clone());
+            out.push(item("View reactions", move |this, _, cx| this.open_reactions(&m, emoji.clone(), cx)).icon(Glyph::Users).entry());
+        }
         out.push(Entry::Separator);
 
         // G4: primary.

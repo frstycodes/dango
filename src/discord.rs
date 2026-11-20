@@ -639,6 +639,14 @@ impl Emoji {
     }
 }
 
+/// Someone who reacted, with the handle the Reactions dialog shows under their name (`User` keeps only the
+/// display name).
+#[derive(Clone, Debug, Default)]
+pub struct Reactor {
+    pub user: User,
+    pub username: String,
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Reaction {
     pub emoji: Emoji,
@@ -1233,11 +1241,13 @@ impl Client {
         self.run(self.http.request(method, url).header("Authorization", &self.token)).await.map(|_| ())
     }
 
-    // First page only (100): the tooltip names three at most and counts the rest from the reaction.
-    pub async fn reactors(&self, channel_id: &str, message_id: &str, emoji: &Emoji) -> Result<Vec<User>, String> {
-        let path = format!("/channels/{channel_id}/messages/{message_id}/reactions/{}?limit=100", emoji.path());
+    /// One page of who reacted with `emoji`, in reaction order, starting after the user id `after`.
+    pub async fn reactors(&self, channel_id: &str, message_id: &str, emoji: &Emoji, after: Option<&str>, limit: usize) -> Result<Vec<Reactor>, String> {
+        let after = after.map(|id| format!("&after={id}")).unwrap_or_default();
+        let path = format!("/channels/{channel_id}/messages/{message_id}/reactions/{}?limit={limit}{after}", emoji.path());
         let body = self.run(self.request(reqwest::Method::GET, &path)).await?;
-        Ok(body.as_array().map(|users| users.iter().map(parse_user).collect()).unwrap_or_default())
+        let reactor = |v: &Value| Reactor { user: parse_user(v), username: v["username"].as_str().unwrap_or_default().to_owned() };
+        Ok(body.as_array().map(|users| users.iter().map(reactor).collect()).unwrap_or_default())
     }
 
     pub async fn typing(&self, channel_id: &str) {

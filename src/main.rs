@@ -33,6 +33,7 @@ mod mascot;
 mod material;
 mod forum;
 mod forward;
+mod reactions;
 mod gif;
 mod games;
 mod go_live;
@@ -859,7 +860,8 @@ pub struct Waffle {
     // Previews of Discord's own links (messages, invites), shared with the rows that draw them.
     link_previews: link_preview::Previews,
     // Who reacted, by message and emoji (`Emoji::path`), fetched on a pill's first hover; dropped when it changes.
-    reactors: HashMap<(String, String), chat::Reactors>,
+    reactors: HashMap<(String, String), reactions::Reactors>,
+    reactions_dialog: Option<reactions::ReactionsDialog>,
     games: games::Games,
     emoji_picker: Option<EmojiTarget>,
     emoji_search: Entity<SearchState>,
@@ -1162,6 +1164,7 @@ impl Waffle {
             profiles: query::Query::new("profiles", Duration::from_secs(5 * 60)),
             link_previews: link_preview::previews(),
             reactors: HashMap::new(),
+            reactions_dialog: None,
             games: Default::default(),
             composer_height: Rc::new(std::cell::Cell::new(86.)),
             pip: Default::default(),
@@ -1488,7 +1491,7 @@ impl Waffle {
             Event::MessageDelete { channel_id, id } => self.remove_message(&channel_id, &id),
             Event::Reaction { channel_id, message_id, user_id, emoji, added } => {
                 let mine = self.me.as_ref().is_some_and(|me| me.id == user_id);
-                self.reactors.remove(&(message_id.clone(), emoji.path()));
+                self.reactors_changed(&message_id, &emoji, &user_id, added);
                 if let Some(m) = self.message_mut(&channel_id, &message_id) {
                     adjust_reaction(m, &emoji, added, mine, true);
                 }
@@ -2236,7 +2239,8 @@ impl Waffle {
             self.update_prefs(cx, |p| p.record_emoji(&emoji));
         }
         let (channel_id, message_id) = (message.channel_id.clone(), message.id.clone());
-        self.reactors.remove(&(message_id.clone(), emoji.path()));
+        let me = self.my_id().to_owned();
+        self.reactors_changed(&message_id, &emoji, &me, add);
         if let Some(m) = self.message_mut(&channel_id, &message_id) {
             adjust_reaction(m, &emoji, add, true, false);
         }
@@ -2245,6 +2249,7 @@ impl Waffle {
                 return;
             }
             this.update(cx, |this, cx| {
+                this.reactors_changed(&message_id, &emoji, &me, !add);
                 if let Some(m) = this.message_mut(&channel_id, &message_id) {
                     adjust_reaction(m, &emoji, !add, true, false);
                 }
