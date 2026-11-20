@@ -939,6 +939,8 @@ impl Waffle {
                 .tooltip(move |window, cx| Tooltip::new(format!("{label}: {fps:.0} frames per second")).build(window, cx))
         });
         let stop = watching.map(|_| stage_button("stop-watching", if several { "Stop all" } else { "Stop watching" }).occlude().on_click(cx.listener(|this, _, _, cx| this.stop_watching(cx))));
+        // A DM call's stage is opened from its window; this is the way back to the chat (Esc too).
+        let back = call.guild_id.is_none().then(|| stage_button("back-to-chat", "Back to chat").occlude().on_click(cx.listener(|this, _, window, cx| this.back_to_chat(window, cx))));
         let chat_open = self.call_chat;
         div()
             .h(px(HEAD_HEIGHT))
@@ -951,6 +953,7 @@ impl Waffle {
             .child(timer)
             .children(health)
             .child(div().flex_1())
+            .children(back)
             .children(stop)
             .child(who)
             .child(div().w(px(1.)).h(px(20.)).mx(px(2.)).flex_none().bg(stage::wash(0.14)))
@@ -2001,7 +2004,7 @@ impl gpui_kit::Render for MenuSliderDrag {
     }
 }
 
-fn tabular() -> FontFeatures {
+pub(crate) fn tabular() -> FontFeatures {
     FontFeatures(Arc::new(vec![("tnum".into(), 1)]))
 }
 

@@ -1,7 +1,7 @@
-// The stream picture-in-picture (design/voice.html .pip): a Go Live we're watching, floating over the
-// whole app while we're away from the call. It rests in a corner of the window; dragged, it follows the
-// pointer and on release springs to the nearest corner, as Discord's does. Clicking it opens the call.
-use std::time::Duration;
+// The floating windows over the whole app (design/voice.html .pip, design/dm-call-panel.html): a Go Live
+// we're watching while away from a server call, and a DM call's own window (dm_call.rs). Each rests in a
+// corner of the window; dragged, it follows the pointer and on release springs to the nearest corner.
+use std::{cell::Cell, time::Duration};
 
 use gpui_kit::{Animation, AnimationExt, AnyElement, Context, FontWeight, MouseButton, Pixels, Point, SharedString, Window, div, prelude::*, px};
 
@@ -12,6 +12,8 @@ use crate::{
 
 const WIDTH: f32 = 320.;
 const HEIGHT: f32 = WIDTH * 9. / 16.;
+
+type Size = (f32, f32);
 const MARGIN: f32 = 16.;
 const SNAP: Duration = Duration::from_millis(260);
 
@@ -35,6 +37,8 @@ pub(crate) struct Pip {
     area: (f32, f32),
     // Where it was let go, and a count so each landing replays the snap.
     landed: Option<((f32, f32), usize)>,
+    // The size of whichever window is floating, from its last render: the drag clamps and snaps by it.
+    size: Cell<Size>,
 }
 
 // The player being carried; the real one follows the pointer, so this draws nothing.
@@ -49,24 +53,25 @@ impl Render for PipDrag {
 
 // Insets from the window's top and bottom edges.
 type Insets = (f32, f32);
-const INSETS: Insets = (MARGIN, MARGIN);
+// Clear of the pane's header above and the composer below, so a floating window never covers either.
+const INSETS: Insets = (crate::layout::HEADER_HEIGHT + MARGIN, 76.);
 
-// Top-left of the player resting in `corner` of an `area`-sized window.
-fn rest(corner: Corner, area: (f32, f32), insets: Insets) -> (f32, f32) {
+// Top-left of a `size` player resting in `corner` of an `area`-sized window.
+fn rest(corner: Corner, size: Size, area: (f32, f32), insets: Insets) -> (f32, f32) {
     let x = match corner {
         Corner::TopLeft | Corner::BottomLeft => MARGIN,
-        Corner::TopRight | Corner::BottomRight => area.0 - WIDTH - MARGIN,
+        Corner::TopRight | Corner::BottomRight => area.0 - size.0 - MARGIN,
     };
     let y = match corner {
         Corner::TopLeft | Corner::TopRight => insets.0,
-        Corner::BottomLeft | Corner::BottomRight => area.1 - HEIGHT - insets.1,
+        Corner::BottomLeft | Corner::BottomRight => area.1 - size.1 - insets.1,
     };
     (x, y)
 }
 
 // The corner whose quarter of the window holds the player's centre.
-fn nearest(at: (f32, f32), area: (f32, f32)) -> Corner {
-    let (left, top) = (at.0 + WIDTH / 2. < area.0 / 2., at.1 + HEIGHT / 2. < area.1 / 2.);
+fn nearest(at: (f32, f32), size: Size, area: (f32, f32)) -> Corner {
+    let (left, top) = (at.0 + size.0 / 2. < area.0 / 2., at.1 + size.1 / 2. < area.1 / 2.);
     match (left, top) {
         (true, true) => Corner::TopLeft,
         (false, true) => Corner::TopRight,
@@ -116,9 +121,8 @@ impl Waffle {
                 cx.stop_propagation();
                 this.stop_watching(cx);
             })));
-        let this = cx.weak_entity();
-        let player = div()
-            .id("stream-pip")
+        let player = self.floating_drag(div().id("stream-pip"), cx);
+        let player = player
             .group("stream-pip")
             // Floats over the app: what's under it must not take the hover or the click.
             .occlude()
@@ -132,17 +136,20 @@ impl Waffle {
             .cursor_pointer()
             .child(picture)
             .child(bar)
-            .on_drag(PipDrag, move |drag, grab, _, cx| {
-                this.update(cx, |this, _| this.pip.grab = grab).ok();
-                cx.new(|_| drag.clone())
-            })
             .on_click(cx.listener(move |this, _, window, cx| this.show_call(channel.clone(), window, cx)));
+        Some(self.place_floating(player, (WIDTH, HEIGHT)))
+    }
+
+    // Puts a floating window where it rests, follows the pointer while carried, or springs into its corner.
+    // The window must hand its drag to `PipDrag` (see `floating_drag`).
+    pub(crate) fn place_floating(&self, player: gpui_kit::Stateful<gpui_kit::Div>, size: Size) -> AnyElement {
         let pip = &self.pip;
+        pip.size.set(size);
         let insets = INSETS;
         let placed: AnyElement = match (pip.carried, pip.landed) {
             (Some((x, y)), _) => player.left(px(x)).top(px(y)).into_any_element(),
             (None, Some((from, n))) => {
-                let (corner, to) = (pip.corner, rest(pip.corner, pip.area, insets));
+                let (corner, to) = (pip.corner, rest(pip.corner, size, pip.area, insets));
                 player
                     .with_animation(SharedString::from(format!("pip-snap-{n}")), Animation::new(SNAP), move |d, t| {
                         if t >= 1. {
@@ -155,7 +162,16 @@ impl Waffle {
             }
             _ => anchored(player, pip.corner, insets).into_any_element(),
         };
-        Some(placed)
+        placed
+    }
+
+    // Lets a floating window be carried: the pointer's hold is kept so it hangs from where it was grabbed.
+    pub(crate) fn floating_drag(&self, player: gpui_kit::Stateful<gpui_kit::Div>, cx: &mut Context<Self>) -> gpui_kit::Stateful<gpui_kit::Div> {
+        let this = cx.weak_entity();
+        player.on_drag(PipDrag, move |drag, grab, _, cx| {
+            this.update(cx, |this, _| this.pip.grab = grab).ok();
+            cx.new(|_| drag.clone())
+        })
     }
 
     // The drag's moves and drop, on the app's root: the player can go to any edge of the window.
@@ -164,7 +180,8 @@ impl Waffle {
             let area = (f32::from(e.bounds.size.width), f32::from(e.bounds.size.height));
             let at = e.event.position - e.bounds.origin - this.pip.grab;
             this.pip.area = area;
-            this.pip.carried = Some((f32::from(at.x).clamp(0., (area.0 - WIDTH).max(0.)), f32::from(at.y).clamp(0., (area.1 - HEIGHT).max(0.))));
+            let size = this.pip.size.get();
+            this.pip.carried = Some((f32::from(at.x).clamp(0., (area.0 - size.0).max(0.)), f32::from(at.y).clamp(0., (area.1 - size.1).max(0.))));
             cx.notify();
         }))
         .on_drop(cx.listener(|this, _: &PipDrag, _, cx| this.land_pip(cx)))
@@ -173,7 +190,7 @@ impl Waffle {
 
     fn land_pip(&mut self, cx: &mut Context<Self>) {
         let Some(at) = self.pip.carried.take() else { return };
-        self.pip.corner = nearest(at, self.pip.area);
+        self.pip.corner = nearest(at, self.pip.size.get(), self.pip.area);
         let n = self.pip.landed.map_or(0, |(_, n)| n + 1);
         self.pip.landed = Some((at, n));
         cx.notify();
@@ -187,13 +204,18 @@ mod tests {
     #[test]
     fn lands_in_the_nearest_corner() {
         let area = (1000., 800.);
-        assert_eq!(nearest((10., 10.), area), Corner::TopLeft);
-        assert_eq!(nearest((900., 20.), area), Corner::TopRight);
-        assert_eq!(nearest((0., 700.), area), Corner::BottomLeft);
-        assert_eq!(nearest((700., 600.), area), Corner::BottomRight);
+        let size = (WIDTH, HEIGHT);
+        assert_eq!(nearest((10., 10.), size, area), Corner::TopLeft);
+        assert_eq!(nearest((900., 20.), size, area), Corner::TopRight);
+        assert_eq!(nearest((0., 700.), size, area), Corner::BottomLeft);
+        assert_eq!(nearest((700., 600.), size, area), Corner::BottomRight);
         // Its centre decides: the left edge just past the middle still lands left.
-        assert_eq!(nearest((500. - WIDTH / 2. - 1., 0.), area), Corner::TopLeft);
-        assert_eq!(rest(Corner::BottomRight, area, (64., 120.)), (1000. - WIDTH - MARGIN, 800. - HEIGHT - 120.));
-        assert_eq!(rest(Corner::TopLeft, area, (64., 120.)), (MARGIN, 64.));
+        assert_eq!(nearest((500. - WIDTH / 2. - 1., 0.), size, area), Corner::TopLeft);
+        assert_eq!(rest(Corner::BottomRight, size, area, (64., 120.)), (1000. - WIDTH - MARGIN, 800. - HEIGHT - 120.));
+        assert_eq!(rest(Corner::TopLeft, size, area, (64., 120.)), (MARGIN, 64.));
+        // A tall call window lands by its own centre and rests by its own height.
+        let tall = (248., 400.);
+        assert_eq!(nearest((10., 250.), tall, area), Corner::BottomLeft);
+        assert_eq!(rest(Corner::BottomRight, tall, area, (16., 16.)), (1000. - 248. - MARGIN, 800. - 400. - 16.));
     }
 }

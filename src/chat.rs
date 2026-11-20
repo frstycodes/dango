@@ -54,8 +54,7 @@ impl Waffle {
             return main.child(empty_state("idle", Mood::Idle, "No channel open", "Pick a server on the left, then a channel to start reading.", cx));
         };
         let header = self.channel_header(&channel, window, cx);
-        let strip = self.dm_call_strip(&channel, cx);
-        let top = HEADER_HEIGHT + if strip.is_some() { crate::dm_call::STRIP_HEIGHT + 8. } else { 0. };
+        let top = HEADER_HEIGHT;
         let body = match self.feeds.get(&channel.id) {
             Some(Feed { loaded: true, messages, .. }) if messages.is_empty() && channel.kind == ChannelKind::Dm => match self.dm_start(&channel, false) {
                 // Nothing said yet: the header rests at the foot of the feed, where the first message will land.
@@ -82,9 +81,8 @@ impl Waffle {
         // The feed runs up under the header's glass (ui::glass_header); the members column beside it runs to the
         // window's top with a header of its own on the same line.
         let panel = self.panel_column_width().map(|w| self.part(crate::part::Column::Panel, gpui_kit::StyleRefinement::default().w(px(w)).h_full().flex_none(), cx));
-        let strip = strip.map(|s| div().absolute().top(px(HEADER_HEIGHT)).left_0().right_0().px(px(16.)).child(s));
         let drop_zone = self.drop_zone(&channel, cx);
-        main.child(div().flex_1().min_h_0().flex().child(chat.child(header).children(strip).child(drop_zone)).children(panel))
+        main.child(div().flex_1().min_h_0().flex().child(chat.child(header).child(drop_zone)).children(panel))
     }
 
     // Where you are as breadcrumbs, the topic, then the channel's tools (design: navigation.html's chanbar).
@@ -137,8 +135,10 @@ impl Waffle {
                 this.popover_at = e.position;
                 this.open_pins(cx);
             }));
-        // Discord's two call buttons; hidden once we're in this DM's call (the strip holds it).
-        let can_call = channel.kind == ChannelKind::Dm && self.call.as_ref().is_none_or(|c| c.channel.id != channel.id);
+        // Discord's two call buttons; hidden once we're in this DM's call (its window holds it), and while a
+        // call goes on here without us (the Join pill takes their place).
+        let join = self.dm_join_pill(channel, cx);
+        let can_call = channel.kind == ChannelKind::Dm && join.is_none() && self.call.as_ref().is_none_or(|c| c.channel.id != channel.id);
         let calls = can_call.then(|| {
             let (voice, video) = (channel.clone(), channel.clone());
             [
@@ -170,7 +170,7 @@ impl Waffle {
             .window_control_area(WindowControlArea::Drag)
             .child(crumbs)
             .children(topic)
-            .child(div().ml_auto().flex_none().flex().items_center().gap(px(2.)).children(calls.into_iter().flatten()).children(threads).child(pins).children(members).children(search))
+            .child(div().ml_auto().flex_none().flex().items_center().gap(px(2.)).children(join).children(calls.into_iter().flatten()).children(threads).child(pins).children(members).children(search))
             .child(self.caption_clearance(!self.panel_shown()));
         ui::glass_header(palette::surface(Level::Page, cx)).child(bar)
     }
@@ -1207,8 +1207,8 @@ fn call_line(message: &Message, call: &crate::discord::CallRecord, ctx: &Rc<RowC
     let ink = if missed { palette::danger_ink(cx) } else { palette::positive_ink(cx) };
     let (this, channel_id) = (ctx.this.clone(), message.channel_id.clone());
     let action = action.map(|label| {
-        ui::button(SharedString::from(format!("call-line-{}", message.id)), ui::Tone::Link, cx).child(label).on_click(move |_, window, cx| { cx.stop_propagation();
-            this.update(cx, |this, cx| this.answer_dm_call(&channel_id, window, cx)).ok();
+        ui::button(SharedString::from(format!("call-line-{}", message.id)), ui::Tone::Link, cx).child(label).on_click(move |_, _, cx| { cx.stop_propagation();
+            this.update(cx, |this, cx| this.answer_dm_call(&channel_id, cx)).ok();
         })
     });
     div()
