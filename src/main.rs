@@ -18,8 +18,8 @@ mod channel_settings;
 mod dm_call;
 mod dm_start;
 mod chat;
-#[cfg(debug_assertions)]
 mod composer_emoji;
+#[cfg(debug_assertions)]
 mod demo;
 mod discord;
 mod drag;
