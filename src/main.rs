@@ -22,6 +22,7 @@ mod composer_emoji;
 #[cfg(debug_assertions)]
 mod demo;
 mod discord;
+mod drafts;
 mod drag;
 mod icons;
 mod images;
@@ -31,6 +32,8 @@ mod login;
 mod mascot;
 mod material;
 mod forum;
+mod forward;
+mod reactions;
 mod gif;
 mod games;
 mod go_live;
@@ -40,6 +43,7 @@ mod os_image;
 mod overlays;
 mod overwrites;
 mod playback;
+mod poll;
 mod inbox;
 mod status_menu;
 mod stickers;
@@ -104,6 +108,7 @@ use login::Login;
 
 const TYPING_TTL: Duration = Duration::from_secs(10);
 const TYPING_SEND_EVERY: Duration = Duration::from_secs(8);
+const DRAFTS_SAVE_AFTER: Duration = Duration::from_millis(500);
 
 // Counts every allocation so the memory report can show Rust's own share (see memory.rs); the
 // dhat-heap build records where each one comes from instead.
@@ -575,6 +580,9 @@ enum EmojiTarget {
     Composer,
     Reaction(Box<Message>),
     CustomStatus,
+    // An answer's emoji in the poll creator, by row.
+    PollAnswer(usize),
+    ForwardNote,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -614,6 +622,11 @@ pub struct Waffle {
     // When a status picked "For 1 hour" and the like falls back to Online.
     status_until: Option<chrono::DateTime<chrono::Local>>,
     status_editor: Option<status_menu::StatusEditor>,
+    poll_creator: Option<poll::PollCreator>,
+    // Answers picked on a poll before Vote, and polls showing their results before you vote, by message.
+    poll_picks: HashMap<String, Vec<u32>>,
+    poll_peek: HashSet<String>,
+    forward_dialog: Option<forward::ForwardDialog>,
     status_flyout: status_menu::Flyout,
     status_input: Entity<SearchState>,
     clear_after: status_menu::ClearAfter,
@@ -655,6 +668,9 @@ pub struct Waffle {
     search_more: bool,
     search_day: chrono::NaiveDate,
     has_draft: bool,
+    // Each channel's unsent composer, and its pending write to disk.
+    drafts: drafts::Drafts,
+    drafts_save: Option<Task<()>>,
     send_error: Option<SharedString>,
     replying: Option<Message>,
     // Discord's "@ ON / OFF" on the reply bar: whether the reply pings its author.
@@ -843,6 +859,9 @@ pub struct Waffle {
     profiles: query::Query<discord::Profile>,
     // Previews of Discord's own links (messages, invites), shared with the rows that draw them.
     link_previews: link_preview::Previews,
+    // Who reacted, by message and emoji (`Emoji::path`), fetched on a pill's first hover; dropped when it changes.
+    reactors: HashMap<(String, String), reactions::Reactors>,
+    reactions_dialog: Option<reactions::ReactionsDialog>,
     games: games::Games,
     emoji_picker: Option<EmojiTarget>,
     emoji_search: Entity<SearchState>,
@@ -985,6 +1004,10 @@ impl Waffle {
             custom_status: None,
             status_until: None,
             status_editor: None,
+            poll_creator: None,
+            poll_picks: HashMap::new(),
+            poll_peek: HashSet::new(),
+            forward_dialog: None,
             status_flyout: status_menu::Flyout::default(),
             status_input,
             clear_after: status_menu::ClearAfter::default(),
@@ -1019,6 +1042,8 @@ impl Waffle {
             search_more: false,
             search_day: search_menu::today(),
             has_draft: false,
+            drafts: drafts::Drafts::load(),
+            drafts_save: None,
             send_error: None,
             replying: None,
             reply_ping: true,
@@ -1138,6 +1163,8 @@ impl Waffle {
             call_area: Rc::new(std::cell::Cell::new((0., 0.))),
             profiles: query::Query::new("profiles", Duration::from_secs(5 * 60)),
             link_previews: link_preview::previews(),
+            reactors: HashMap::new(),
+            reactions_dialog: None,
             games: Default::default(),
             composer_height: Rc::new(std::cell::Cell::new(86.)),
             pip: Default::default(),
@@ -1464,8 +1491,15 @@ impl Waffle {
             Event::MessageDelete { channel_id, id } => self.remove_message(&channel_id, &id),
             Event::Reaction { channel_id, message_id, user_id, emoji, added } => {
                 let mine = self.me.as_ref().is_some_and(|me| me.id == user_id);
+                self.reactors_changed(&message_id, &emoji, &user_id, added);
                 if let Some(m) = self.message_mut(&channel_id, &message_id) {
                     adjust_reaction(m, &emoji, added, mine, true);
+                }
+            }
+            Event::PollVote { channel_id, message_id, user_id, answer_id, added } => {
+                let mine = self.me.as_ref().is_some_and(|me| me.id == user_id);
+                if let Some(poll) = self.message_mut(&channel_id, &message_id).and_then(|m| m.poll.as_mut()) {
+                    poll::apply_vote(poll, answer_id, added, mine);
                 }
             }
             Event::Typing { channel_id, user_id, name } => self.on_typing(channel_id, user_id, name, cx),
@@ -1768,9 +1802,10 @@ impl Waffle {
             self.feeds.insert(id.clone(), Feed { messages: Arc::new(messages), loaded: true, has_more: true, ..Default::default() });
         }
         self.load_dm_profile(&channel, cx);
+        self.stash_draft(cx);
         self.channel = Some(channel);
-        self.replying = None;
         self.editing = None;
+        self.restore_draft(window, cx);
         self.send_error = None;
         self.autocomplete = None;
         self.scrolled_up = false;
@@ -2021,6 +2056,7 @@ impl Waffle {
             InputEvent::Change => {
                 let text = state.read(cx).value();
                 self.has_draft = !text.trim().is_empty() || !self.pending_files.is_empty();
+                self.stash_draft(cx);
                 self.autocomplete = self.suggest(&text);
                 self.send_typing();
                 cx.notify();
@@ -2055,8 +2091,11 @@ impl Waffle {
         self.send_error = None;
         self.last_typing_sent = None;
         if let Some(editing) = self.editing.take() {
+            self.restore_draft(window, cx);
             return self.edit(editing, content, cx);
         }
+        self.drafts.clear(&channel.id);
+        self.save_drafts_soon(cx);
         if !self.pending_files.is_empty() {
             return self.send_files(content, cx);
         }
@@ -2134,9 +2173,10 @@ impl Waffle {
             return self.start_upload(nonce, cx);
         }
         cx.spawn(async move |this, cx| {
-            let result = match message.stickers.first() {
-                Some(sticker) => client.send_sticker(&message.channel_id, &sticker.id, &nonce, message.reply_to.as_deref(), true).await,
-                None => client.send_message(&message.channel_id, &message.content, &nonce, message.reply_to.as_deref(), true).await,
+            let result = match (message.stickers.first(), poll::draft_of(&message)) {
+                (Some(sticker), _) => client.send_sticker(&message.channel_id, &sticker.id, &nonce, message.reply_to.as_deref(), true).await,
+                (None, Some(draft)) => client.send_poll(&message.channel_id, &draft, &nonce).await,
+                (None, None) => client.send_message(&message.channel_id, &message.content, &nonce, message.reply_to.as_deref(), true).await,
             };
             this.update(cx, |this, cx| this.settle(&message.channel_id, &nonce, result, cx)).ok();
         })
@@ -2199,6 +2239,8 @@ impl Waffle {
             self.update_prefs(cx, |p| p.record_emoji(&emoji));
         }
         let (channel_id, message_id) = (message.channel_id.clone(), message.id.clone());
+        let me = self.my_id().to_owned();
+        self.reactors_changed(&message_id, &emoji, &me, add);
         if let Some(m) = self.message_mut(&channel_id, &message_id) {
             adjust_reaction(m, &emoji, add, true, false);
         }
@@ -2207,6 +2249,7 @@ impl Waffle {
                 return;
             }
             this.update(cx, |this, cx| {
+                this.reactors_changed(&message_id, &emoji, &me, !add);
                 if let Some(m) = this.message_mut(&channel_id, &message_id) {
                     adjust_reaction(m, &emoji, !add, true, false);
                 }
@@ -2426,13 +2469,45 @@ impl Waffle {
     }
 
     fn cancel_compose(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.autocomplete = None;
         if self.editing.take().is_some() {
-            self.composer.update(cx, |state, cx| state.set_value("", window, cx));
-            self.has_draft = false;
+            self.restore_draft(window, cx);
+            return cx.notify();
         }
         self.replying = None;
-        self.autocomplete = None;
         cx.notify();
+    }
+
+    // Keeps the open channel's composer as its draft; an edit in progress is not one.
+    fn stash_draft(&mut self, cx: &mut Context<Self>) {
+        let Some(channel) = &self.channel else { return };
+        if self.editing.is_some() {
+            return;
+        }
+        let draft = drafts::Draft::new(&self.composer.read(cx).content(), self.replying.clone());
+        self.drafts.set(&channel.id, draft);
+        self.save_drafts_soon(cx);
+    }
+
+    // Puts the open channel's draft back in the composer (or empties it), caret at the end.
+    fn restore_draft(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let draft = self.channel.as_ref().and_then(|c| self.drafts.get(&c.id)).cloned().unwrap_or_default();
+        let content = draft.content();
+        let end = content.text().len();
+        self.has_draft = !content.text().trim().is_empty() || !self.pending_files.is_empty();
+        self.composer.update(cx, |state, cx| {
+            state.set_value(content, window, cx);
+            state.set_selected_range(end..end, cx);
+        });
+        self.replying = draft.reply;
+    }
+
+    // Typing rewrites the drafts file at most once per pause.
+    fn save_drafts_soon(&mut self, cx: &mut Context<Self>) {
+        self.drafts_save = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(DRAFTS_SAVE_AFTER).await;
+            this.update(cx, |this, _| this.drafts.save()).ok();
+        }));
     }
 
     /// Up arrow in an empty composer edits your last message, like Discord.

@@ -1,6 +1,6 @@
 // Discord's message context menu (navId "message"), item-for-item from its menu code
-// (docs/discord-menus-user-message.md §5). Items for features Waffle doesn't have yet (forward,
-// threads, translate, bookmarks, reminders, apps, reports) are left out.
+// (docs/discord-menus-user-message.md §5). Items for features Waffle doesn't have yet (translate,
+// bookmarks, reminders, apps, reports) are left out.
 use gpui_kit::{Context, Pixels, Point};
 use reqwest::Method;
 
@@ -46,12 +46,16 @@ impl Waffle {
         more.push(Entry::Separator);
         more.push(item("All reactions", open_picker).icon(Glyph::Search).entry());
         out.push(submenu("Add reaction", more).icon(Glyph::Emoji).entry());
+        if let Some(first) = crate::reactions::rail_order(&message.reactions).first() {
+            let (m, emoji) = (message.clone(), first.emoji.clone());
+            out.push(item("View reactions", move |this, _, cx| this.open_reactions(&m, emoji.clone(), cx)).icon(Glyph::Users).entry());
+        }
         out.push(Entry::Separator);
 
         // G4: primary.
         let facts = self.message_facts(message);
         let action = |a: MessageAction| a.allowed(message, &facts).then(|| self.action_item(a, message).entry());
-        out.extend([MessageAction::Edit, MessageAction::Reply, MessageAction::Thread].into_iter().filter_map(action));
+        out.extend([MessageAction::Edit, MessageAction::Reply, MessageAction::Forward, MessageAction::Thread].into_iter().filter_map(action));
         out.push(Entry::Separator);
 
         // G5: secondary.
@@ -111,6 +115,7 @@ impl Waffle {
 pub(crate) enum MessageAction {
     Edit,
     Reply,
+    Forward,
     Thread,
     React,
     CopyText,
@@ -132,7 +137,7 @@ pub(crate) struct Facts {
 }
 
 impl MessageAction {
-    pub const ALL: [Self; 9] = [Self::Edit, Self::Reply, Self::Thread, Self::React, Self::CopyText, Self::Pin, Self::MarkUnread, Self::Delete, Self::CopyId];
+    pub const ALL: [Self; 10] = [Self::Edit, Self::Reply, Self::Forward, Self::Thread, Self::React, Self::CopyText, Self::Pin, Self::MarkUnread, Self::Delete, Self::CopyId];
 
     pub fn allowed(self, message: &Message, facts: &Facts) -> bool {
         match message.state {
@@ -143,6 +148,7 @@ impl MessageAction {
         match self {
             Self::Edit => facts.mine,
             Self::Reply | Self::React | Self::MarkUnread => true,
+            Self::Forward => message.call.is_none(),
             Self::Thread => facts.threads && message.thread.is_none(),
             Self::CopyText => !message.content.is_empty(),
             Self::Pin => facts.in_dm || facts.pin,
@@ -153,12 +159,13 @@ impl MessageAction {
 
     // Keys in Waffle's saved-keybind form, with `secondary` for ⌘ on macOS and Ctrl elsewhere; the first
     // is the one the menu shows. Discord's own (support article 1500000056121): e, r, +, Backspace, p,
-    // ⌘/Ctrl+C, Alt+Enter. The rest aren't in it: d (Waffle's own delete, and d again confirms it), a, t, c,
+    // ⌘/Ctrl+C, Alt+Enter. The rest aren't in it: d (Waffle's own delete, and d again confirms it), f, a, t, c,
     // Delete, ⇧ to skip the delete confirm, ⇧⌘C.
     pub const fn keys(self) -> &'static [&'static str] {
         match self {
             Self::Edit => &["e"],
             Self::Reply => &["r"],
+            Self::Forward => &["f"],
             Self::Thread => &["t"],
             Self::React => &["plus", "a"],
             Self::CopyText => &["secondary+c", "c"],
@@ -192,6 +199,7 @@ impl Waffle {
         let (label, glyph) = match action {
             MessageAction::Edit => ("Edit message", Glyph::Pen),
             MessageAction::Reply => ("Reply", Glyph::Reply),
+            MessageAction::Forward => ("Forward", Glyph::Forward),
             MessageAction::Thread => ("Create thread", Glyph::Thread),
             MessageAction::React => ("Add reaction", Glyph::Emoji),
             MessageAction::CopyText => ("Copy text", Glyph::Copy),
@@ -212,6 +220,7 @@ impl Waffle {
         match action {
             MessageAction::Edit => self.start_edit(m, window, cx),
             MessageAction::Reply => self.start_reply(m, window, cx),
+            MessageAction::Forward => self.open_forward(m, window, cx),
             MessageAction::Thread => self.create_thread(m, window, cx),
             MessageAction::React => self.open_emoji_picker(EmojiTarget::Reaction(Box::new(m)), window, cx),
             MessageAction::CopyText => self.copy_text(m.content, cx),
@@ -253,6 +262,7 @@ impl Waffle {
     // Removing reactions shows at once (`keep` decides which stay); they come back if refused.
     fn reactions_optimistic(&mut self, message: &Message, path: String, keep: impl Fn(&crate::discord::Reaction) -> bool + 'static, cx: &mut Context<Self>) {
         let before = self.message_mut(&message.channel_id, &message.id).map(|m| m.reactions.clone()).unwrap_or_default();
+        self.reactors.retain(|(id, _), _| *id != message.id);
         let (c1, i1, c2, i2) = (message.channel_id.clone(), message.id.clone(), message.channel_id.clone(), message.id.clone());
         self.rest_optimistic(
             Method::DELETE,

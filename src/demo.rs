@@ -1,11 +1,15 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// WAFFLE_DEMO=chat | busy | message-focus | message-focus-menu | message-focus-delete | message-menu-theirs | user-menu-voice | user-menu-voice-denied | mention | mention-tab | mention-enter | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | emoji-suggest | emoji-accept | notify-bell | jump | inbox | inbox-unreads | home | add-friend | create-channel | advanced | zoom | home-presence | folder | stream-card | call-streams | call-streams-ended | call-streams-focus | call-streams-strip | call-streams-full | voice-elsewhere | call-incoming | call-banner | call-joinable | call-dm | call-dm-camera | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
-use gpui_kit::{Context, Window};
+// WAFFLE_DEMO=chat | busy | message-focus | message-focus-menu | message-focus-delete | message-menu-theirs | user-menu-voice | user-menu-voice-denied | mention | mention-tab | mention-enter | reactors | reactions-dialog | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | emoji-suggest | emoji-accept | notify-bell | jump | inbox | inbox-unreads | home | add-friend | create-channel | advanced | zoom | home-presence | folder | stream-card | call-streams | call-streams-ended | call-streams-focus | call-streams-strip | call-streams-full | voice-elsewhere | call-incoming | call-banner | call-joinable | call-dm | call-dm-camera | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | forwarded | forward-dialog | poll | poll-creator | drafts | updating (the launch splash alone).
+use gpui_kit::{
+    Context, Window,
+    component::input::{InlineToken, InputContent},
+};
 
 use crate::{
     Waffle, Feed, Status,
+    drafts::Draft,
     discord::{
-        Activity, ActivityKind, Channel, ChannelKind, Embed, Emoji, Event, Folder, Guild, GuildTag, ListItem, ListOp, Media, MediaKind, Member, Message, Presence, Reaction, ReadState, Ready, Relation, Relationship, Role,
+        Activity, ActivityKind, Channel, ChannelKind, Embed, Emoji, Event, Folder, Guild, GuildTag, ListItem, ListOp, Media, MediaKind, Member, Message, Presence, Reaction, Reactor, ReadState, Ready, Relation, Relationship, Role,
         Status as Presence_, User, VoiceState, avatar_url,
     },
     login::Login,
@@ -17,6 +21,8 @@ pub fn updating_splash(cx: &mut gpui_kit::App) {
 }
 
 pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Context<Waffle>) {
+    // Fixture drafts stay in memory, away from the real drafts file.
+    waffle.drafts = crate::drafts::Drafts::default();
     let me = me_user();
     match scene {
         "login" => return waffle.status = Status::SignedOut(Login::qr("https://discord.com/ra/demo-fingerprint-0123456789abcdef")),
@@ -66,6 +72,15 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
             }));
             waffle.on_event(Event::MemberList { guild_id: "1".into(), groups: vec![("r1".into(), 2), ("online".into(), 3), ("offline".into(), 81)], ops: vec![ListOp::Sync { start: 0, items }] }, cx);
         }
+        // One draft waiting in #staff-notes (its pencil in the sidebar), another with a chip in the open composer.
+        "drafts" => {
+            waffle.drafts.set("staff", Draft::new(&InputContent::new("remember to pin the release notes"), None));
+            let open = InputContent::new("@Wren can you check the build ").with_token(0..5, InlineToken::new("<@8388608>", "@Wren"));
+            if let Ok(open) = open {
+                waffle.drafts.set("general", Draft::new(&open, None));
+            }
+            waffle.restore_draft(window, cx);
+        }
         "gallery" => waffle.open_viewer(&avatar_url("3", None), window, cx),
         // Twenty made-up pictures and clips on one message, the viewer open at the tenth.
         "viewer" | "viewer-video" => {
@@ -86,6 +101,30 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
                     this.update(cx, |this, cx| this.on_viewer_key(&gpui_kit::Keystroke::parse("space").expect("valid key"), cx)).ok();
                 })
                 .detach();
+            }
+        }
+        // Who reacted, as a fetch would leave it: 🔥 names three (account names, shown as their nicknames)
+        // and links the 589 others to the dialog; 👀's fetch failed, so it falls back to the count. Hover a pill
+        // on the newest message.
+        "reactors" => {
+            let id = set_reactions(waffle, vec![Reaction { emoji: Emoji::unicode("🔥"), count: 592, me: true }, Reaction { emoji: Emoji::unicode("👀"), count: 1, me: false }]);
+            waffle.reactors.insert((id.clone(), Emoji::unicode("🔥").path()), crate::reactions::Reactors::loaded(reactors(4)));
+            waffle.reactors.insert((id, Emoji::unicode("👀").path()), crate::reactions::Reactors::failed());
+        }
+        // The Reactions dialog on the newest message's most used reaction (yours), every reaction's people loaded.
+        "reactions-dialog" => {
+            let counts = [("💀", 592, true), ("😭", 132, false), ("✅", 119, false), ("❌", 115, false), ("🐈", 67, false), ("🍯", 61, true), ("7️⃣", 61, false)];
+            let reactions: Vec<Reaction> = counts.iter().map(|&(e, count, me)| Reaction { emoji: Emoji::unicode(e), count, me }).collect();
+            for (i, r) in reactions.iter().enumerate() {
+                let mut people = reactors(14 - i);
+                if r.me {
+                    people.insert(3, Reactor { user: me_user(), username: "kiwi.dev".into() });
+                }
+                waffle.reactors.insert((newest(waffle), r.emoji.path()), crate::reactions::Reactors::loaded(people));
+            }
+            let id = set_reactions(waffle, reactions);
+            if let Some(message) = waffle.feed_message("general", &id) {
+                waffle.open_reactions(&message, Emoji::unicode("💀"), cx);
             }
         }
         "pins" => waffle.pins = Some(Some(Ok(waffle.feeds.get("general").map(|f| f.messages.iter().rev().take(3).cloned().collect()).unwrap_or_default()))),
@@ -122,6 +161,15 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
         "status-durations" => {
             waffle.status_menu = true;
             waffle.status_flyout = crate::status_menu::Flyout::opened(crate::discord::Status::Dnd);
+        }
+        // A poll you haven't voted in (one answer picked, not yet sent) and one you have.
+        "poll" => {
+            demo_polls(waffle);
+            waffle.poll_picks.insert("195".into(), vec![1]);
+        }
+        "poll-creator" => {
+            waffle.open_poll_creator(window, cx);
+            waffle.fill_poll_creator("Which map first tonight?", &[("Ashen Peaks", Some("🏔️")), ("Drowned Harbor", Some("🌊")), ("", None)], window, cx);
         }
         // Sticker messages (an animated one, a Lottie one that can't play) and the picker on its Stickers tab.
         "stickers" | "stickers-chat" => {
@@ -319,6 +367,20 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
         // Discord's own links: a message card, a channel chip, invites to a joined server, another server
         // and an expired code, a message you can't see (no card), and two still loading.
         "link-previews" => demo_link_previews(waffle),
+        "forwarded" => demo_forwarded(waffle),
+        // The dialog with #📷-media picked and a note; gpui's channel reads only, so it shows locked.
+        "forward-dialog" => {
+            if let Some(guild) = waffle.guilds.iter_mut().find(|g| g.id == "2") {
+                guild.owner_id = Some("1".into());
+                guild.roles = vec![Role { id: "2".into(), name: "@everyone".into(), color: 0, position: 0, permissions: crate::discord::VIEW_CHANNEL, managed: false }];
+            }
+            let Some(message) = waffle.feeds.get("general").and_then(|f| f.messages.iter().find(|m| m.id == "102").cloned()) else { return };
+            waffle.open_forward(message, window, cx);
+            waffle.toggle_forward_place("media".into(), "#📷-media".into(), cx);
+            if let Some(dialog) = &waffle.forward_dialog {
+                dialog.note.update(cx, |state, cx| state.set_value("you two need to see this", window, cx));
+            }
+        }
         // Four pictures of mixed shapes on one message: the 2x2 gallery.
         "gallery-grid" => {
             if let Some(feed) = waffle.feeds.get_mut("general") {
@@ -1403,6 +1465,36 @@ fn demo_text_files(waffle: &mut Waffle, scene: &str) {
     feed.messages = std::sync::Arc::new(messages);
 }
 
+// Wren forwards a clip from #📷-media into #👋-general, with a note under it.
+fn demo_forwarded(waffle: &mut Waffle) {
+    let Some(feed) = waffle.feeds.get_mut("general") else { return };
+    let wren = user("8388608", "Wren");
+    let original = Message {
+        id: "880".into(),
+        channel_id: "media".into(),
+        guild_id: Some("1".into()),
+        content: "caught this on stream last night".into(),
+        timestamp: (chrono::Utc::now() - chrono::Duration::days(1)).to_rfc3339(),
+        media: vec![Media { url: avatar_url("3", None), width: 320., height: 200., kind: MediaKind::Image }],
+        ..Default::default()
+    };
+    let post = |id: &str, content: &str, forward: Option<Box<Message>>| Message {
+        id: id.into(),
+        channel_id: "general".into(),
+        guild_id: Some("1".into()),
+        author: wren.clone(),
+        content: content.into(),
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        forward,
+        ..Default::default()
+    };
+    let mut messages = feed.messages.as_ref().clone();
+    messages.push(post("901", "", Some(Box::new(original))));
+    messages.push(post("902", "you two need to see this", None));
+    feed.messages = std::sync::Arc::new(messages);
+    waffle.list.reset(waffle.feeds.get("general").map_or(0, |f| f.messages.len()));
+}
+
 fn demo_link_previews(waffle: &mut Waffle) {
     use crate::{discord::Invite, link_preview::Preview};
     let mut announcements = channel("1100", "📌-announcements", ChannelKind::Text, Some("c0"));
@@ -1545,6 +1637,29 @@ fn demo_custom_status() -> crate::discord::CustomStatus {
     crate::discord::CustomStatus { text: "Reviewing the parity spec, back at 5".into(), emoji: Some(crate::discord::Emoji::unicode("🍡")), expires_at: None }
 }
 
+// design/messages.html's two boards, the second with your vote in and its longest answer wrapping.
+fn demo_polls(waffle: &mut Waffle) {
+    use crate::discord::{Poll, PollAnswer};
+    let answer = |id: u32, emoji: &str, text: &str, count: u64, me: bool| PollAnswer { id, text: text.into(), emoji: Some(Emoji::unicode(emoji)), count, me };
+    let ends = (chrono::Utc::now() + chrono::Duration::minutes(3 * 60 + 10)).to_rfc3339();
+    let poll = |mine: bool| Poll {
+        question: "Which map first tonight?".into(),
+        answers: vec![
+            answer(1, "🏔️", "Ashen Peaks", 67 + u64::from(mine), mine),
+            answer(2, "🌊", "Drowned Harbor", 50, false),
+            answer(3, "🌵", "Glass Desert, the one with the sandstorms that last forever", 24, false),
+        ],
+        expiry: Some(ends.clone()),
+        multiselect: false,
+        finalized: false,
+    };
+    let post = |id: &str, author: User, poll: Poll| Message { id: id.into(), channel_id: "general".into(), guild_id: Some("1".into()), author, timestamp: chrono::Utc::now().to_rfc3339(), poll: Some(poll), ..Default::default() };
+    if let Some(feed) = waffle.feeds.get_mut("general") {
+        std::sync::Arc::make_mut(&mut feed.messages).extend([post("195", user("8388608", "Jun"), poll(false)), post("196", user("12582912", "moss lantern"), poll(true))]);
+    }
+    waffle.list.reset(waffle.feeds.get("general").map_or(0, |f| f.messages.len()));
+}
+
 // Real ids from Discord's own packs (animated APNG), so the pictures load; Lottie ones stand in for the
 // format Waffle can't play.
 fn demo_stickers(waffle: &mut Waffle) {
@@ -1569,4 +1684,43 @@ fn demo_stickers(waffle: &mut Waffle) {
         std::sync::Arc::make_mut(&mut feed.messages).extend([wave, lottie]);
     }
     waffle.list.reset(waffle.feeds.get("general").map_or(0, |f| f.messages.len()));
+}
+
+// Puts `reactions` on the newest message in #general, where the feed opens; returns its id.
+fn set_reactions(waffle: &mut Waffle, reactions: Vec<Reaction>) -> String {
+    let id = newest(waffle);
+    if let Some(feed) = waffle.feeds.get_mut("general") {
+        let mut messages = feed.messages.as_ref().clone();
+        if let Some(last) = messages.last_mut() {
+            last.reactions = reactions;
+        }
+        feed.messages = std::sync::Arc::new(messages);
+    }
+    id
+}
+
+fn newest(waffle: &Waffle) -> String {
+    waffle.feeds.get("general").and_then(|f| f.messages.last()).map(|m| m.id.clone()).unwrap_or_default()
+}
+
+// People who reacted, as the reactions route returns them: account names, which members the server knows
+// show as their nicknames, then strangers with long and short names.
+fn reactors(count: usize) -> Vec<Reactor> {
+    let people = [
+        ("12582912", "mosslantern", "mosslantern"),
+        ("8388608", "wren.wav", "wren.wav"),
+        ("16777216", "toma", "toma.reed"),
+        ("25165824", "longname", "a.member.whose.display.name.runs.long"),
+        ("31000001", "Dhalon", "dhalon"),
+        ("31000002", "saik", "saik03"),
+        ("31000003", "Digitally_Devious", "digitally_devious"),
+        ("31000004", "Laryke", "laryke"),
+        ("31000005", "h y p r", ".thehypr"),
+        ("31000006", "pouyas", "pouyas"),
+        ("31000007", "Bartholomew Featherstonehaugh-Wright", "bart.fw"),
+        ("31000008", "J", "yqsod"),
+        ("31000009", "valse", "valsesn"),
+        ("31000010", "mikey", "mickeeeyyyyyy"),
+    ];
+    people.iter().take(count).map(|&(id, name, username)| Reactor { user: user(id, name), username: username.into() }).collect()
 }

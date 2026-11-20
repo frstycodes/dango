@@ -20,7 +20,7 @@ use gpui_motion_kit::core::{Motion, Target};
 
 use crate::{
     EmojiTarget, Feed, RightPanel, Waffle,
-    discord::{Channel, ChannelKind, Embed, Emoji, MediaKind, Message, NameEffect, NameStyle, SendState, User},
+    discord::{Channel, ChannelKind, Embed, Emoji, MediaKind, Message, NameEffect, NameStyle, Poll, PollAnswer, SendState, User},
     icons::Glyph,
     layout::HEADER_HEIGHT,
     mascot::Mood,
@@ -46,6 +46,8 @@ const CONTENT_INSET: f32 = AVATAR + 16.;
 const UNREAD_BAR_SPACE: f32 = 52.;
 // A reply preview's line, above the message it answers.
 const REPLY_HEIGHT: f32 = 22.;
+// A forwarded copy's card, as the design's `.fwd`.
+const FORWARD_WIDTH: f32 = 520.;
 
 // The floating stream player's width; its height keeps 16:9.
 
@@ -438,7 +440,7 @@ impl Waffle {
             style_ground: self.guild_id.is_none().then(|| palette::surface(palette::Level::Page, cx)),
             colors: messages.iter().filter_map(|m| Some((m.author.id.clone(), self.role_color(m.guild_id.as_ref().or(self.guild_id.as_ref()), &m.author.id, m.roles.as_ref(), cx.theme().is_dark())?))).collect(),
             mentions_me: messages.iter().filter(|m| self.mentions_me(m)).map(|m| m.id.clone()).collect(),
-            channel_names: self.guild().map(|g| g.channels.iter().map(|c| (c.id.clone(), c.name.clone())).collect()).unwrap_or_default(),
+            channel_names: self.guild().into_iter().flat_map(|g| &g.channels).map(|c| (c.id.clone(), c.name.clone())).chain(self.forward_sources(messages)).collect(),
             role_names: self.guild().map(|g| g.roles.iter().map(|r| (r.id.clone(), r.name.clone())).collect()).unwrap_or_default(),
             mention_fill: palette::accent_soft(cx),
             mention_hover: palette::accent().opacity(0.26),
@@ -461,7 +463,19 @@ impl Waffle {
             shift: self.shift_held,
             manage_messages: channel.is_some_and(|c| self.can_in(&c.id, crate::discord::perm::MANAGE_MESSAGES)),
             threads: channel.is_some_and(|c| c.kind == ChannelKind::Text && self.can_in(&c.id, crate::discord::perm::CREATE_PUBLIC_THREADS)),
+            poll_picks: self.poll_picks.clone(),
+            poll_peek: self.poll_peek.clone(),
         })
+    }
+
+    // The composer's +: a file, or a poll where you may post one (always in a DM).
+    fn attach_entries(&self) -> Vec<crate::menu::Entry> {
+        let polls = self.guild_id.is_none() || self.channel.as_ref().is_some_and(|c| self.can_in(&c.id, crate::discord::perm::SEND_POLLS));
+        let poll = crate::menu::item("Create poll", |this, window, cx| this.open_poll_creator(window, cx)).icon(Glyph::Checks);
+        vec![
+            crate::menu::item("Upload a file", |this, window, cx| this.upload(window, cx)).icon(Glyph::Upload).entry(),
+            (if polls { poll } else { poll.hint("You can't create polls here").disabled() }).entry(),
+        ]
     }
 
     pub(crate) fn render_composer(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -475,7 +489,7 @@ impl Waffle {
             .flex()
             .items_end()
             .gap(px(4.))
-            .child(ui::icon_button("attach", Glyph::PlusCircle, "Upload a File", cx).on_click(cx.listener(|this, _, window, cx| this.upload(window, cx))))
+            .child(ui::icon_button("attach", Glyph::PlusCircle, "Upload a file or create a poll", cx).on_click(cx.listener(|this, _, window, cx| this.open_menu(window.mouse_position(), this.attach_entries(), cx))))
             // XSmall gives the editor 0/4px padding of its own; with these, the design's 4/6.
             .child(div().flex_1().min_w_0().child(Textarea::new(&self.composer).appearance(false).with_size(Size::XSmall).py(px(4.)).px(px(2.)).text_size(px(15.)).line_height(px(22.)).text_color(strong).token(mention_chip(cx))))
             .children([(ComposerPicker::Gifs, "composer-gif", Glyph::Gif, "Open GIF picker"), (ComposerPicker::Stickers, "composer-sticker", Glyph::Sticker, "Open sticker picker"), (ComposerPicker::Emoji, "composer-emoji", Glyph::Emoji, "Select Emoji")].map(|(picker, id, glyph, label)| {
@@ -872,6 +886,8 @@ pub(crate) struct RowContext {
     threads: bool,
     // The widest media may run.
     column: f32,
+    poll_picks: HashMap<String, Vec<u32>>,
+    poll_peek: std::collections::HashSet<String>,
 }
 
 // More than a few rows below the viewport: the feed is scrolled away from its newest message.
@@ -917,8 +933,10 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .text_size(px(16.))
         .text_color(ink)
         .children(content(message, ctx, cx))
+        .children(message.forward.as_ref().map(|original| forward_card(original, ctx, cx)))
         .children(media.map(|m| div().when(pending, |d| d.opacity(0.6)).child(m)))
         .children(message.stickers.iter().map(|s| div().when(pending, |d| d.opacity(0.6)).child(crate::stickers::in_chat(s, cx))))
+        .children(message.poll.as_ref().map(|p| poll_card(message, p, ctx, cx)))
         .children(message.embeds.iter().filter(|_| ctx.embeds).enumerate().map(|(i, e)| embed_card(e, message.reply_to.as_deref(), format!("embed-{}-{i}", message.id), ctx, cx)))
         .children(link_cards(message, ctx, cx))
         .children(message.thread.as_ref().map(|t| thread_card(t, ctx, cx)))
@@ -998,6 +1016,7 @@ pub(crate) fn search_hit(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) 
         .text_color(palette::text(cx))
         .child(message_head(message, ctx, cx))
         .children(content(message, ctx, cx))
+        .children(message.forward.as_ref().map(|original| forward_card(original, ctx, cx)))
         .children(media.map(|m| div().flex_none().child(m)))
         .children(message.embeds.iter().enumerate().map(|(i, e)| embed_card(e, message.reply_to.as_deref(), format!("hit-embed-{}-{i}", message.id), ctx, cx)))
         .children(files(message, ctx, cx));
@@ -1184,6 +1203,61 @@ fn reply_preview(reply: &Message, target: Option<String>, ctx: &Rc<RowContext>, 
             let Some(id) = target.clone() else { return };
             this.update(cx, |this, cx| this.jump_to(id, cx)).ok();
         })
+        .into_any_element()
+}
+
+// A forwarded copy (design/messages.html `.fwd`): the label, the original's text, media and files, then
+// where it came from, which jumps to the original. A source outside your servers shows its time alone.
+fn forward_card(original: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> AnyElement {
+    let faint = palette::faint(cx);
+    let label = div()
+        .flex()
+        .items_center()
+        .gap(px(6.))
+        .text_size(px(12.))
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(palette::muted(cx))
+        .child(Icon::new(Glyph::Forward).size(px(14.)))
+        .child("Forwarded");
+    let name = ctx.channel_names.get(&original.channel_id).cloned();
+    let glyph = if original.guild_id.is_some() { Glyph::Hashtag } else { Glyph::User };
+    let stamp = format_stamp(&original.timestamp);
+    let source = div()
+        .id(SharedString::from(format!("forward-source-{}", original.id)))
+        .flex()
+        .items_center()
+        .gap(px(4.))
+        .text_size(px(12.))
+        .text_color(faint)
+        .when_some(name.clone(), |s, name| s.child(Icon::new(glyph).size(px(14.))).child(format!("{name} · {stamp}")))
+        .when(name.is_none(), |s| s.child(stamp));
+    let source = match name {
+        Some(_) => {
+            let (this, guild_id, channel_id, id) = (ctx.this.clone(), original.guild_id.clone(), original.channel_id.clone(), original.id.clone());
+            source.cursor_pointer().hover(|s| s.text_color(palette::muted(cx))).on_click(move |_, window, cx| { cx.stop_propagation();
+                this.update(cx, |this, cx| this.open_message(guild_id.clone(), &channel_id, id.clone(), window, cx)).ok();
+            })
+        }
+        None => source,
+    };
+    div()
+        .mt(px(4.))
+        .max_w(px(FORWARD_WIDTH))
+        .pt(px(8.))
+        .px(px(12.))
+        .pb(px(10.))
+        .squircle(RADIUS_MD)
+        .bg(palette::strong(cx).opacity(0.05))
+        .flex()
+        .flex_col()
+        .gap(px(4.))
+        .child(label)
+        .children(content(original, ctx, cx))
+        .children(media_grid(original, ctx, cx))
+        .children(original.stickers.iter().map(|s| crate::stickers::in_chat(s, cx)))
+        .children(original.embeds.iter().filter(|_| ctx.embeds).enumerate().map(|(i, e)| embed_card(e, None, format!("forward-embed-{}-{i}", original.id), ctx, cx)))
+        .children(files(original, ctx, cx))
+        .child(source)
         .into_any_element()
 }
 
@@ -2110,6 +2184,103 @@ fn poll_result(poll: &crate::discord::PollResult, poll_message: Option<&str>, ke
         .into_any_element()
 }
 
+// A live poll (design/messages.html `.poll`): pick and Vote, or its results once you've voted, peeked or it closed.
+fn poll_card(message: &Message, poll: &Poll, ctx: &RowContext, cx: &App) -> AnyElement {
+    let now = chrono::Utc::now();
+    let (closed, voted, pending) = (poll.closed(now), poll.voted(), message.state != SendState::Sent);
+    let results = closed || voted || ctx.poll_peek.contains(&message.id);
+    let picks = ctx.poll_picks.get(&message.id).cloned().unwrap_or_default();
+    let options: Vec<AnyElement> = match results {
+        true => poll.answers.iter().zip(poll.shares()).map(|(answer, share)| poll_share(answer, share, cx)).collect(),
+        false => poll.answers.iter().map(|answer| poll_choice(message, poll, answer, picks.contains(&answer.id), pending, ctx, cx)).collect(),
+    };
+    let key = |part: &str| SharedString::from(format!("poll-{}-{part}", message.id));
+    let (channel_id, message_id, this) = (message.channel_id.clone(), message.id.clone(), ctx.this.clone());
+    let act = move |picks: Vec<u32>| {
+        let (channel_id, message_id, this) = (channel_id.clone(), message_id.clone(), this.clone());
+        move |_: &gpui_kit::ClickEvent, _: &mut Window, cx: &mut App| {
+            cx.stop_propagation();
+            this.update(cx, |this, cx| this.vote(channel_id.clone(), message_id.clone(), picks.clone(), cx)).ok();
+        }
+    };
+    let (peek_id, peek_this) = (message.id.clone(), ctx.this.clone());
+    let peek = move |_: &gpui_kit::ClickEvent, _: &mut Window, cx: &mut App| {
+        cx.stop_propagation();
+        peek_this.update(cx, |this, cx| this.toggle_poll_results(peek_id.clone(), cx)).ok();
+    };
+    let actions = div().ml_auto().flex().gap(px(8.)).when(!pending && !closed, |d| match (voted, results) {
+        (true, _) => d.child(ui::button(key("remove"), ui::Tone::Ghost, cx).small().child("Remove vote").on_click(act(Vec::new()))),
+        (false, true) => d.child(ui::button(key("back"), ui::Tone::Ghost, cx).small().child("Back to vote").on_click(peek)),
+        (false, false) => d
+            .child(ui::button(key("peek"), ui::Tone::Ghost, cx).small().child("Show results").on_click(peek))
+            .child(ui::button(key("vote"), ui::Tone::Primary, cx).small().disabled(picks.is_empty()).child("Vote").on_click(act(picks.clone()))),
+    });
+    div()
+        .mt(px(8.))
+        .w_full()
+        .max_w(px(COLUMN.min(ctx.column)))
+        .p(px(14.))
+        .flex()
+        .flex_col()
+        .gap(px(12.))
+        .squircle(RADIUS_LG)
+        .bg(palette::surface(Level::Sidebar, cx))
+        .border_1()
+        .border_color(palette::line(cx))
+        .when(pending, |d| d.opacity(0.6))
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(4.))
+                .child(div().text_size(px(16.)).line_height(px(20.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(poll.question.clone()))
+                .child(div().text_size(px(12.)).text_color(palette::faint(cx)).child(poll.prompt(now))),
+        )
+        .child(div().flex().flex_col().gap(px(6.)).children(options))
+        .child(div().flex().flex_wrap().items_center().gap(px(8.)).text_size(px(12.)).text_color(palette::faint(cx)).child(poll.foot(now)).child(actions))
+        .into_any_element()
+}
+
+// An answer to pick before voting: its radio (a check where several may be picked), emoji and text.
+fn poll_choice(message: &Message, poll: &Poll, answer: &PollAnswer, on: bool, pending: bool, ctx: &RowContext, cx: &App) -> AnyElement {
+    let mark = if poll.multiselect { ui::check(if on { ui::Check::On } else { ui::Check::Off }, cx) } else { ui::radio(on, cx) };
+    let lead = div().flex_none().flex().items_center().gap(px(10.)).child(mark).children(answer.emoji.as_ref().map(|e| crate::menu::emoji_face(e, 20.)));
+    let (this, message_id, answer_id, multiselect) = (ctx.this.clone(), message.id.clone(), answer.id, poll.multiselect);
+    ui::pick_row(SharedString::from(format!("poll-{}-answer-{answer_id}", message.id)), lead, answer.text.clone(), None, cx)
+        .toggled(on, cx)
+        .disabled(pending)
+        .on_click(move |_, _, cx| {
+            cx.stop_propagation();
+            this.update(cx, |this, cx| this.pick_poll_answer(message_id.clone(), answer_id, multiselect, cx)).ok();
+        })
+        .into_any_element()
+}
+
+// An answer's result: its share as a bar behind it, the percentage at the end, and a check on yours.
+fn poll_share(answer: &PollAnswer, share: u32, cx: &App) -> AnyElement {
+    let strong = palette::strong(cx);
+    let bar = if answer.me { palette::accent_soft(cx) } else { strong.opacity(0.10) };
+    div()
+        .relative()
+        .min_h(px(44.))
+        .px(px(12.))
+        .py(px(8.))
+        .flex()
+        .items_center()
+        .gap(px(10.))
+        .squircle(RADIUS_MD)
+        .bg(palette::hover(cx))
+        .text_size(px(14.))
+        .font_weight(FontWeight::MEDIUM)
+        .text_color(if answer.me { strong } else { palette::text(cx) })
+        .when(share > 0, |d| d.child(div().absolute().left_0().top_0().bottom_0().w(gpui_kit::relative(share as f32 / 100.)).squircle(RADIUS_MD).bg(bar)))
+        .children(answer.emoji.as_ref().map(|e| div().flex_none().child(crate::menu::emoji_face(e, 20.))))
+        .child(div().flex_1().min_w_0().child(answer.text.clone()))
+        .when(answer.me, |d| d.child(Icon::new(Glyph::CheckCircle).size(px(18.)).flex_none().text_color(palette::accent_ink(cx))))
+        .child(div().flex_none().font_weight(FontWeight::SEMIBOLD).text_color(strong).child(format!("{share}%")))
+        .into_any_element()
+}
+
 // Text files read in place (the fetch starts here, when the row first renders); any other file, or one
 // that turned out not to be text, is a card with its icon, name, size and one action.
 fn files(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Vec<AnyElement> {
@@ -2282,13 +2453,19 @@ fn reactions(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyEle
     }
     let pills = message.reactions.iter().map(|r| {
         let (this, msg, emoji) = (ctx.this.clone(), message.clone(), r.emoji.clone());
+        let (hover_this, hover_msg, hover_emoji) = (ctx.this.clone(), message.clone(), r.emoji.clone());
+        let card = crate::reactions::ReactorsCard::new(ctx.this.clone(), message, r);
         reaction_pill(SharedString::from(format!("react-{}-{}", message.id, r.emoji.name)), r.me, cx)
             .px(px(9.))
-            .child(match r.emoji.url() {
-                Some(url) => img(url).size(px(18.)).into_any_element(),
-                None => div().text_size(px(16.)).line_height(px(16.)).child(r.emoji.name.clone()).into_any_element(),
-            })
+            .child(emoji_face(&r.emoji, 18., 16.))
             .child(r.count.to_string())
+            .on_hover(move |hovered, _, cx| {
+                if *hovered {
+                    hover_this.update(cx, |this, cx| this.load_reactors(&hover_msg.channel_id, &hover_msg.id, &hover_emoji, cx)).ok();
+                }
+            })
+            // Hoverable, so the pointer can cross into the card and click its "N others".
+            .hoverable_tooltip(move |_, cx| cx.new(|_| card.clone()).into())
             .on_click(move |_, _, cx| { cx.stop_propagation();
                 this.update(cx, |this, cx| this.toggle_reaction(&msg, emoji.clone(), cx)).ok();
             })
@@ -2302,6 +2479,14 @@ fn reactions(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyEle
             this.update(cx, |this, cx| this.open_emoji_picker(EmojiTarget::Reaction(Box::new(msg.clone())), window, cx)).ok();
         });
     Some(div().mt(px(6.)).flex().flex_wrap().gap(px(6.)).children(pills).child(add).into_any_element())
+}
+
+// A custom emoji's picture, or a unicode one drawn as text.
+fn emoji_face(emoji: &Emoji, image: f32, text: f32) -> AnyElement {
+    match emoji.url() {
+        Some(url) => img(url).size(px(image)).into_any_element(),
+        None => div().text_size(px(text)).line_height(px(text)).child(emoji.name.clone()).into_any_element(),
+    }
 }
 
 fn reaction_pill(id: SharedString, mine: bool, cx: &App) -> ui::Pressable {
@@ -2371,10 +2556,7 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, cx: &App) -> Any
     } else if sent {
         for quick in ctx.quick_reactions.iter().cloned() {
             let (this, msg, emoji) = (ctx.this.clone(), message.clone(), quick.clone());
-            let face: AnyElement = match quick.url() {
-                Some(url) => img(url).size(px(20.)).into_any_element(),
-                None => div().text_size(px(18.)).line_height(px(18.)).child(quick.name.clone()).into_any_element(),
-            };
+            let face = emoji_face(&quick, 20., 18.);
             bar = bar.child(
                 ui::pressable(div().id(SharedString::from(format!("quick-{}-{}", message.id, quick.name))), 0.92)
                     .size(px(32.))

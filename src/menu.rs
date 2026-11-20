@@ -17,7 +17,7 @@ use crate::{
     icons::Glyph,
     motion, palette,
     settings::Fill,
-    ui::{self, RADIUS_LG, RADIUS_SM, RADIUS_XS, SURFACE_INSET, Squircle},
+    ui::{self, RADIUS_LG, RADIUS_SM, SURFACE_INSET, Squircle},
 };
 
 pub type Act = Rc<dyn Fn(&mut Waffle, &mut Window, &mut Context<Waffle>)>;
@@ -691,7 +691,7 @@ pub(crate) fn menu_item_row(id: SharedString, item: &Item, sub_open: bool, lead_
         // The 14px presence mark with no ring of its own; its cut-outs take the menu's colour.
         Lead::Status(status) => ui::status_mark(*status, 14., palette::surface(palette::Level::Overlay, cx), cx).border(px(0.)).into_any_element(),
         Lead::Dot(color) => div().size(px(12.)).rounded_full().bg(gpui_kit::rgb(*color)).into_any_element(),
-        Lead::Server { icon, name } => server_icon(icon.as_deref(), name, 20., 6., cx),
+        Lead::Server { icon, name } => ui::server_tile(icon.as_deref(), name, 20., cx),
     });
     let lead = lead.or_else(|| lead_slot.then(|| div().size(px(LEAD)).into_any_element()));
     let (hint, hint_hover) = hint_inks(item, cx);
@@ -759,7 +759,7 @@ fn menu_header(lead: &HeadLead, title: SharedString, subtitle: Option<SharedStri
     let overlay = palette::surface(palette::Level::Overlay, cx);
     let lead = match lead {
         HeadLead::Avatar { url, status } => crate::layout::avatar_with_status(url, 32., *status, overlay),
-        HeadLead::Server { icon, name } => server_icon(icon.as_deref(), name, 32., RADIUS_XS, cx),
+        HeadLead::Server { icon, name } => ui::server_tile(icon.as_deref(), name, 32., cx),
         HeadLead::Tile(glyph) => div().size(px(32.)).squircle(RADIUS_SM).bg(palette::selected(cx)).text_color(palette::strong(cx)).flex().items_center().justify_center().child(Icon::new(*glyph).size(px(18.))).into_any_element(),
     };
     div()
@@ -781,25 +781,6 @@ fn menu_header(lead: &HeadLead, title: SharedString, subtitle: Option<SharedStri
                 .child(div().truncate().text_size(px(14.)).line_height(px(18.)).font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(title))
                 .children(subtitle.map(|s| div().truncate().text_size(px(12.)).line_height(px(16.)).text_color(palette::muted(cx)).child(s))),
         )
-}
-
-// A server's icon, or its initials on a tile until it has one.
-pub(crate) fn server_icon(icon: Option<&str>, name: &str, size: f32, radius: f32, cx: &App) -> AnyElement {
-    if let Some(url) = icon {
-        return img(url.to_owned()).size(px(size)).squircle(radius).into_any_element();
-    }
-    div()
-        .size(px(size))
-        .squircle(radius)
-        .bg(palette::selected(cx))
-        .text_color(palette::strong(cx))
-        .text_size(px((size * 0.38).round()))
-        .font_weight(FontWeight::SEMIBOLD)
-        .flex()
-        .items_center()
-        .justify_center()
-        .child(crate::sidebar::initials(name))
-        .into_any_element()
 }
 
 fn quick_reactions(quick: &[(Emoji, Act)], more: Act, cx: &mut Context<Waffle>) -> Div {

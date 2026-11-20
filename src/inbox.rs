@@ -6,7 +6,7 @@ use crate::{
     Waffle,
     discord::{Channel, ChannelKind, Message},
     icons::Glyph,
-    menu, palette,
+    palette,
     ui::{self, RADIUS_SM, Squircle},
 };
 
@@ -201,7 +201,7 @@ impl Waffle {
             .gap_2()
             .cursor_pointer()
             .hover(|s| s.bg(palette::hover(cx)))
-            .child(menu::server_icon(unread.guild_icon.as_deref(), &unread.guild_name, 24., 7., cx))
+            .child(ui::server_tile(unread.guild_icon.as_deref(), &unread.guild_name, 24., cx))
             .child(
                 div()
                     .flex_1()
