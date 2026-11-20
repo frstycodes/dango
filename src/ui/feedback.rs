@@ -346,6 +346,96 @@ fn paint_sweep(window: &mut Window, bounds: Bounds<Pixels>, radius: f32, shimmer
     }
 }
 
+// A marker squiggle under where a jump landed. It waits for the view to settle, draws itself left to right
+// like a hand with a marker, holds, then fades. `seed`
+// varies the hand so no two look alike; callers size and place it (8px tall reads well).
+pub fn squiggle(id: impl Into<ElementId>, seed: u64, color: Hsla, duration: Duration) -> impl IntoElement {
+    const WAIT: f32 = 0.35;
+    const DRAW: f32 = 0.55;
+    const FADE: f32 = 0.5;
+    let total = duration.as_secs_f32();
+    div().size_full().with_animation(id.into(), Animation::new(duration), move |d, t| {
+        let now = t * total;
+        let drawn = ((now - WAIT) / DRAW).clamp(0., 1.);
+        // Ease in and out, as a stroke speeds up and settles.
+        let drawn = drawn * drawn * (3. - 2. * drawn);
+        let alpha = ((total - now) / FADE).clamp(0., 1.);
+        d.child(canvas(|_, _, _| (), move |bounds: Bounds<Pixels>, _, window, _| paint_squiggle(window, bounds, seed, drawn, color.opacity(color.a * alpha))).size_full())
+    })
+}
+
+// The marker line up to `drawn` of its length, as a hand makes it: every half-wave its own width and height,
+// a wandering baseline, a faint tremor, pressure in the width, and a flick at the pen-up. Round ends.
+fn paint_squiggle(window: &mut Window, bounds: Bounds<Pixels>, seed: u64, drawn: f32, color: Hsla) {
+    const MAX_LENGTH: f32 = 360.;
+    if drawn <= 0. {
+        return;
+    }
+    let length = f32::from(bounds.size.width).min(MAX_LENGTH);
+    let mid = f32::from(bounds.size.height) / 2.;
+    // A small seeded generator, so the same message gets the same scribble every frame.
+    let mut state = seed ^ 0x9E37_79B9_7F4A_7C15;
+    let mut next = move || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        (state >> 40) as f32 / (1u64 << 24) as f32
+    };
+    // Half-waves: where each ends and how high it swings (alternating up and down).
+    let mut waves: Vec<(f32, f32)> = Vec::new();
+    let mut x = 0.;
+    let mut up = true;
+    while x < length {
+        x += 5. + next() * 5.;
+        let height = (0.6 + next() * 2.2) * if up { -1. } else { 1. };
+        waves.push((x.min(length), height));
+        up = !up;
+    }
+    let (p1, p2, rise) = (next() * TAU, next() * TAU, -0.8 - next() * 1.2);
+    let centre = |x: f32| {
+        let i = waves.partition_point(|(end, _)| *end < x).min(waves.len() - 1);
+        let start = if i == 0 { 0. } else { waves[i - 1].0 };
+        let (end, height) = waves[i];
+        let local = ((x - start) / (end - start).max(0.001)).clamp(0., 1.);
+        let u = x / length;
+        let swing = height * (local * std::f32::consts::PI).sin();
+        let baseline = mid + rise * u + 0.9 * (u * 2.1 + p1).sin();
+        let tremor = 0.25 * (x * 1.7 + p2).sin() * (x * 0.53).cos();
+        // The pen-up flicks the last few pixels upward.
+        let flick = -2.5 * ((u - 0.94) / 0.06).clamp(0., 1.).powi(2);
+        point(px(x), px(baseline + swing + tremor + flick))
+    };
+    let half = |x: f32| (2.0 + 0.8 * (0.5 + 0.5 * (x / length * 5.3 + p1).sin())) / 2.;
+    let steps = ((length * drawn) / 1.2).ceil().max(2.) as usize;
+    let xs: Vec<f32> = (0..=steps).map(|i| length * drawn * i as f32 / steps as f32).collect();
+    let normal = |x: f32| {
+        let (a, b) = (centre(x - 0.4), centre(x + 0.4));
+        let (dx, dy) = (f32::from(b.x - a.x), f32::from(b.y - a.y));
+        let len = (dx * dx + dy * dy).sqrt().max(0.001);
+        (-dy / len, dx / len)
+    };
+    let edge = |x: f32, side: f32| {
+        let (c, (nx, ny), h) = (centre(x), normal(x), half(x) * side);
+        bounds.origin + c + point(px(nx * h), px(ny * h))
+    };
+    let mut path = PathBuilder::fill();
+    path.move_to(edge(xs[0], 1.));
+    for &x in &xs[1..] {
+        path.line_to(edge(x, 1.));
+    }
+    for &x in xs.iter().rev() {
+        path.line_to(edge(x, -1.));
+    }
+    path.close();
+    if let Ok(path) = path.build() {
+        window.paint_path(path, color);
+    }
+    for x in [xs[0], xs[xs.len() - 1]] {
+        let (c, r) = (bounds.origin + centre(x), half(x));
+        window.paint_quad(fill(Bounds::new(c - point(px(r), px(r)), size(px(r * 2.), px(r * 2.))), color).corner_radii(px(r)));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use gpui_kit::{Bounds, point, px, size};

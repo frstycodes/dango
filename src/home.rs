@@ -105,12 +105,14 @@ impl Waffle {
         cx.notify();
     }
 
-    fn fetch_mentions(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn fetch_mentions(&mut self, cx: &mut Context<Self>) {
         let Some(client) = self.client.clone() else { return };
         self.inbox = Some(None);
         cx.notify();
+        let filters = self.prefs.mention_filters;
+        let guild = self.guild_id.clone().filter(|_| filters.this_server);
         cx.spawn(async move |this, cx| {
-            let result = client.mentions().await;
+            let result = client.mentions(filters.everyone, filters.roles, guild.as_deref()).await;
             this.update(cx, |this, cx| {
                 this.inbox = Some(Some(result.map_err(Into::into)));
                 cx.notify();
@@ -186,7 +188,7 @@ impl Waffle {
 
     /// The Friends page: a header with the filter tabs, then the people in that tab.
     // The Inbox page: every recent mention, under the same dissolving header as a channel's.
-    pub(crate) fn render_inbox_page(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn render_inbox_page(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let page = palette::surface(palette::Level::Page, cx);
         let header = div()
             .occlude()
@@ -202,7 +204,6 @@ impl Waffle {
             .text_color(palette::strong(cx))
             .child(Icon::new(Glyph::Inbox).size(px(20.)).text_color(palette::faint(cx)))
             .child("Inbox")
-            .child(div().text_color(palette::faint(cx)).font_weight(FontWeight::NORMAL).child("Mentions"))
             .child(div().ml_auto().child(self.caption_clearance(true)));
         div()
             .relative()
@@ -216,7 +217,7 @@ impl Waffle {
             .text_size(px(14.))
             .child(
                 div().id("inbox-page").flex_1().min_h_0().overflow_y_scrollbar().pt(px(crate::layout::HEADER_HEIGHT + 16.)).px_4().pb_6().child(
-                    div().w_full().max_w(px(760.)).mx_auto().child(self.mention_list(None, cx)),
+                    div().w_full().max_w(px(760.)).mx_auto().flex().flex_col().gap_3().child(self.inbox_head(false, window, cx)).child(self.inbox_body(None, cx)),
                 ),
             )
             .child(ui::scroll_edge(page, 0.).child(header))

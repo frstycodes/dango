@@ -30,6 +30,9 @@ use crate::{
     ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XS, Squircle},
 };
 
+// How long a jumped-to message stays marked: its fill and squiggle (the flash in `jump_to`).
+pub(crate) const JUMP_FLASH: Duration = Duration::from_millis(2400);
+
 // Messages from one author closer together than this share a header, like Discord.
 const GROUP_GAP_SECS: i64 = 7 * 60;
 // A lone image fits inside this; galleries and cards fill the media column.
@@ -385,6 +388,19 @@ impl Waffle {
     // the text, one hairline apart, and popovers rise from its top edge.
     // What every message row reads besides the message: names, colours, who's mentioned, hover and edit
     // state. `column` caps media width: the feed's column, or a narrower panel's.
+    /// A row context for messages from any server (the Inbox): channel and role names from all of them.
+    pub(crate) fn row_context_everywhere(&self, messages: &[Message], column: f32, cx: &mut Context<Self>) -> Rc<RowContext> {
+        let mut ctx = self.row_context(messages, None, false, column, cx);
+        if let Some(ctx) = Rc::get_mut(&mut ctx) {
+            for guild in &self.guilds {
+                ctx.channel_names.extend(guild.channels.iter().map(|c| (c.id.clone(), c.name.clone())));
+                ctx.role_names.extend(guild.roles.iter().map(|r| (r.id.clone(), r.name.clone())));
+                ctx.names.extend(self.members.get(&guild.id).into_iter().flat_map(|m| m.values()).map(|u| (u.id.clone(), u.name.clone())));
+            }
+        }
+        ctx
+    }
+
     pub(crate) fn row_context(&self, messages: &[Message], channel: Option<&Channel>, has_more: bool, column: f32, cx: &mut Context<Self>) -> Rc<RowContext> {
         Rc::new(RowContext {
             me: self.me.clone(),
@@ -867,7 +883,9 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         SendState::Failed => palette::muted(cx),
     };
     let pending = message.state != SendState::Sent;
+    let landed = ctx.flash.as_ref() == Some(&message.id);
     let body = div()
+        .relative()
         .flex_1()
         .min_w_0()
         .flex()
@@ -883,7 +901,9 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .children(files(message, ctx, cx))
         .children(upload_cards(message, ctx, cx))
         .children(reactions(message, ctx, cx).filter(|_| ctx.reactions))
-        .when(message.state == SendState::Failed, |b| b.child(send_failure(message, ctx, cx)));
+        .when(message.state == SendState::Failed, |b| b.child(send_failure(message, ctx, cx)))
+        // Where a jump landed: a squiggle under the message, gone with the flash.
+        .when(landed, |b| b.child(div().absolute().left_0().right_0().bottom(px(-6.)).h(px(8.)).child(ui::squiggle(SharedString::from(format!("squiggle-{}", message.id)), message.id.parse().unwrap_or(0), palette::accent_ink(cx), JUMP_FLASH))));
     let row = div()
         .id(group.clone())
         .group(group.clone())
@@ -1207,7 +1227,7 @@ fn call_line(message: &Message, call: &crate::discord::CallRecord, ctx: &Rc<RowC
         .into_any_element()
 }
 
-fn content(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyElement> {
+pub(crate) fn content(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyElement> {
     if message.content.is_empty() || only_media_link(message) {
         return None;
     }
@@ -2375,7 +2395,7 @@ fn time_format(gutter: bool) -> &'static str {
 }
 
 // "Today at 9:41 PM", "Yesterday at 11:58 PM", the weekday within the week, then the date.
-fn format_stamp(timestamp: &str) -> String {
+pub(crate) fn format_stamp(timestamp: &str) -> String {
     let Some(time) = local(timestamp) else { return String::new() };
     let clock = time.format(time_format(false));
     match (Local::now().date_naive() - time.date_naive()).num_days() {

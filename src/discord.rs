@@ -1073,8 +1073,14 @@ impl Client {
     }
 
     /// Recent messages that mention you, across servers (the title bar's Inbox).
-    pub async fn mentions(&self) -> Result<Vec<Message>, String> {
-        let body = self.run(self.request(reqwest::Method::GET, "/users/@me/mentions?limit=25&roles=true&everyone=true")).await?;
+    /// Recent mentions of you; `everyone` and `roles` include @everyone/@here and role mentions, `guild_id`
+    /// keeps one server's.
+    pub async fn mentions(&self, everyone: bool, roles: bool, guild_id: Option<&str>) -> Result<Vec<Message>, String> {
+        let mut path = format!("/users/@me/mentions?limit=25&roles={roles}&everyone={everyone}");
+        if let Some(guild) = guild_id {
+            path.push_str(&format!("&guild_id={guild}"));
+        }
+        let body = self.run(self.request(reqwest::Method::GET, &path)).await?;
         Ok(body.as_array().into_iter().flatten().filter_map(parse_message).collect())
     }
 
