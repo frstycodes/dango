@@ -1503,7 +1503,14 @@ impl Element for List {
                     let max_element_width = layout_response.max_item_width;
 
                     let summary = state.items.summary();
-                    let total_height = summary.height;
+                    // Waffle patch: a max height caps the inferred one, so a list that grows with its rows
+                    // stops there and scrolls; the measured size isn't clamped by it otherwise.
+                    let total_height = match style.max_size.height {
+                        crate::Length::Definite(crate::DefiniteLength::Absolute(max)) => {
+                            summary.height.min(max.to_pixels(window.rem_size()))
+                        }
+                        _ => summary.height,
+                    };
 
                     window.request_measured_layout(
                         style,

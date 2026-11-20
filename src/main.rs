@@ -875,7 +875,7 @@ pub struct Waffle {
     composer_height: Rc<std::cell::Cell<f32>>,
     // The header pin button's centre, where Pinned Messages opens from wherever it's asked for.
     pins_button_x: Rc<std::cell::Cell<f32>>,
-    pins_scroll: gpui_kit::ScrollHandle,
+    pins_list: ListState,
     pip: pip::Pip,
     copied: Option<String>,
     focus: FocusHandle,
@@ -1171,7 +1171,7 @@ impl Waffle {
             games: Default::default(),
             composer_height: Rc::new(std::cell::Cell::new(86.)),
             pins_button_x: Rc::default(),
-            pins_scroll: gpui_kit::ScrollHandle::new(),
+            pins_list: ListState::new(0, ListAlignment::Top, px(500.)),
             pip: Default::default(),
             emoji_picker: None,
             emoji_search,
@@ -2415,7 +2415,7 @@ impl Waffle {
     fn open_pins(&mut self, cx: &mut Context<Self>) {
         let (Some(client), Some(channel)) = (self.client.clone(), self.channel.clone()) else { return };
         self.pins = Some(None);
-        self.pins_scroll.set_offset(gpui_kit::point(gpui_kit::px(0.), gpui_kit::px(0.)));
+        self.pins_list.reset(0);
         cx.notify();
         cx.spawn(async move |this, cx| {
             let result = client.pins(&channel.id).await;
