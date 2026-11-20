@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// WAFFLE_DEMO=chat | busy | message-focus | message-focus-menu | message-focus-delete | message-menu-theirs | user-menu-voice | user-menu-voice-denied | mention | mention-tab | mention-enter | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | jump | inbox | inbox-unreads | home | add-friend | create-channel | advanced | zoom | home-presence | folder | stream-card | call-streams | call-streams-ended | call-streams-focus | call-streams-strip | call-streams-full | voice-elsewhere | call-incoming | call-banner | call-joinable | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
+// WAFFLE_DEMO=chat | busy | message-focus | message-focus-menu | message-focus-delete | message-menu-theirs | user-menu-voice | user-menu-voice-denied | mention | mention-tab | mention-enter | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | notify-bell | jump | inbox | inbox-unreads | home | add-friend | create-channel | advanced | zoom | home-presence | folder | stream-card | call-streams | call-streams-ended | call-streams-focus | call-streams-strip | call-streams-full | voice-elsewhere | call-incoming | call-banner | call-joinable | call-dm | call-dm-camera | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -197,6 +197,12 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
             waffle.last_message.insert("general".into(), 999);
             waffle.read_states.insert("general".into(), ReadState { last_read: 103, mentions: 0 });
         }
+        // The channel header's bell with its menu open.
+        "notify-bell" => {
+            if let Some(channel) = waffle.channel.clone() {
+                waffle.open_notify_menu(channel, "1".into(), gpui_kit::point(gpui_kit::px(1180.), gpui_kit::px(40.)), cx);
+            }
+        }
         // A jump landing: the message centred, filled and squiggled.
         "jump" => waffle.jump_to("103".into(), cx),
         // The rail's Inbox on each tab: mentions under their filter chips, and the unread channels with the
@@ -376,7 +382,8 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
             .detach();
         }
         // Wren calls: the strip rings in her DM; "call-banner" takes the call while #general is open.
-        "call-incoming" | "call-banner" | "call-joinable" => demo_dm_call(waffle, scene, window, cx),
+        // "call-dm": we're in Wren's call, its window floating over the DM; "call-dm-camera" with her camera on.
+        "call-incoming" | "call-banner" | "call-joinable" | "call-dm" | "call-dm-camera" => demo_dm_call(waffle, scene, window, cx),
         // The foot of the sidebar stacked full (an update over the voice panel, then its disconnected
         // state), with the channel list scrolled so rows run under the header's blur.
         // The channel list resized back and forth, as if its edge were being dragged: the traffic lights
@@ -714,8 +721,36 @@ fn demo_dm_call(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut 
     waffle.feeds.insert("dm".into(), Feed { messages: std::sync::Arc::new(messages), loaded: true, ..Default::default() });
     let state = VoiceState { guild_id: None, channel_id: Some("dm".into()), user_id: zoe.id.clone(), user: Some(zoe), muted: false, deafened: false, server_muted: false, server_deafened: false, streaming: false, camera: false };
     waffle.on_event(Event::VoiceState(state, None), cx);
-    let ringing = if scene == "call-joinable" { vec![] } else { vec![me.id.clone()] };
+    let ringing = if matches!(scene, "call-joinable" | "call-dm" | "call-dm-camera") { vec![] } else { vec![me.id.clone()] };
     waffle.on_event(Event::Call { channel_id: "dm".into(), ringing }, cx);
+    if scene.starts_with("call-dm") {
+        let dm = waffle.dms[0].clone();
+        let (session, _) = crate::voice::join(me.id.clone(), None, dm.id.clone(), crate::voice::GatewayHandle::new().0, Default::default());
+        let cameras = match scene {
+            "call-dm-camera" => [("8388608".to_owned(), demo_frame(480, 640, 90))].into_iter().collect(),
+            _ => Default::default(),
+        };
+        waffle.call = Some(crate::Call {
+            session,
+            guild_id: None,
+            channel: dm,
+            connected: true,
+            stage: crate::voice::Stage::Connected,
+            stats: None,
+            level: (-30., false),
+            speaking: ["8388608".to_owned()].into_iter().collect(),
+            last_spoke: Default::default(),
+            cameras,
+            camera_on: false,
+            watching: Vec::new(),
+            focus: None,
+            ended: Vec::new(),
+            sharing: None,
+            share_source: None, live_since: None, self_view: None, share_label: None,
+            joined: std::time::Instant::now().checked_sub(std::time::Duration::from_secs(724)).unwrap_or_else(std::time::Instant::now),
+            _events: gpui_kit::Task::ready(()),
+        });
+    }
     if scene != "call-banner" {
         let dm = waffle.dms[0].clone();
         waffle.restore = None;

@@ -696,6 +696,8 @@ pub struct Waffle {
     dm_voice: Vec<discord::VoiceState>,
     // The DM call ringing us; its ringtone plays until we answer or decline, or it stops ringing.
     ringing_in: Option<String>,
+    // The DM call we just left, its length, and when: its window reads "Call ended" briefly (dm_call.rs).
+    dm_call_ended: Option<(String, u64, Instant)>,
     // A video call we started: the camera turns on once it connects.
     camera_on_connect: bool,
     // Voice channels whose member list is collapsed (Discord's "Hide Names").
@@ -1041,6 +1043,7 @@ impl Waffle {
             dm_calls: HashMap::new(),
             dm_voice: Vec::new(),
             ringing_in: None,
+            dm_call_ended: None,
             camera_on_connect: false,
             hidden_voice_names: HashSet::new(),
             shift_held: false,
@@ -2763,6 +2766,10 @@ impl Waffle {
         self.stop_ringing_out();
         let Some(call) = self.call.take() else { return false };
         self.call_focus = None;
+        if call.guild_id.is_none() {
+            let name = self.dms.iter().find(|d| d.id == call.channel.id).map_or_else(|| call.channel.name.clone(), |d| d.name.clone());
+            self.show_call_ended(name, call.joined.elapsed().as_secs(), cx);
+        }
         release_frames(call, cx);
         cx.notify();
         true
