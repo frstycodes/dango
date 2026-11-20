@@ -2569,9 +2569,9 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, cx: &App) -> Any
     let shifted = ctx.shift && (mine || ctx.manage_messages);
     let mut bar = div()
         .id(SharedString::from(format!("actions-{}", message.id)))
-        // Rides 18px into the row above: occlude it there and keep this row hovered, or the pointer hands
-        // the hover (and the bar) to that row.
-        .occlude()
+        // Rides 18px into the row above: block the pointer there and keep this row hovered, or the pointer hands
+        // the hover (and the bar) to that row. The wheel still reaches the feed under it.
+        .block_mouse_except_scroll()
         .on_hover(track_message_hover(message, ctx))
         .absolute()
         .top(px(-18.))
