@@ -1,44 +1,102 @@
-// A popover capped by a max height, its list in gpui-component's `overflow_y_scrollbar`: the cap goes on the list.
-// `flex_1` under a card with only a max height lays the list out at zero height, since the wrapper's scroll area
-// gives it no content height (the Pinned Messages popover drew its title over nothing).
+// A popover that grows with its list up to a cap, then scrolls (Pinned Messages). gpui-component's
+// `overflow_y_scrollbar` can't do both: its scroll area is `size_full` of a wrapper whose height is auto, so the
+// area takes the content's full height and the wrapper's cap only clips it; nothing scrolls. And with `flex_1`
+// instead of a cap, the area gives the list no height at all. The shape that works is a plain gpui scroll
+// container with the cap on it, its scrollbar laid over it.
 use std::{cell::Cell, rc::Rc};
 
-use gpui_kit::component::scroll::ScrollableElement as _;
+use gpui_kit::component::scroll::{ScrollableElement as _, Scrollbar};
 use gpui_kit::prelude::*;
-use gpui_kit::{Context, TestAppContext, Window, canvas, div, px};
+use gpui_kit::{Context, ScrollDelta, ScrollHandle, ScrollWheelEvent, TestAppContext, TouchPhase, VisualTestContext, Window, canvas, div, point, px};
+
+const HEADER: f32 = 44.;
+const CAP: f32 = 500.;
+
+#[derive(Clone, Copy)]
+enum Shape {
+    // What shipped in 0.13.0: the cap on a list in `overflow_y_scrollbar`.
+    KitScrollbar,
+    // A plain scroll container carrying the cap, with the kit's scrollbar over it.
+    Plain,
+}
 
 struct Card {
-    flex_list: bool,
+    shape: Shape,
+    content: f32,
+    scroll: ScrollHandle,
+    // The card's height and the content's top, as they paint.
     height: Rc<Cell<f32>>,
+    top: Rc<Cell<f32>>,
 }
 
 impl Render for Card {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        let height = self.height.clone();
-        let probe = canvas(move |bounds, _, _| height.set(f32::from(bounds.size.height)), |_, _, _, _| {}).absolute().size_full();
-        let list = div().id("list").child(div().h(px(80.)));
-        let list = if self.flex_list { list.flex_1().min_h_0() } else { list.max_h(px(500.)) };
-        let card = div().relative().w(px(420.)).flex().flex_col().child(div().h(px(44.)));
-        let card = if self.flex_list { card.max_h(px(560.)) } else { card };
-        div().size_full().child(card.child(list.overflow_y_scrollbar()).child(probe))
+        let (height, top) = (self.height.clone(), self.top.clone());
+        let card_probe = canvas(move |bounds, _, _| height.set(f32::from(bounds.size.height)), |_, _, _, _| {}).absolute().size_full();
+        let content_probe = canvas(move |bounds, _, _| top.set(f32::from(bounds.origin.y)), |_, _, _, _| {}).absolute().size_full();
+        let content = div().relative().flex_none().h(px(self.content)).child(content_probe);
+        let list = match self.shape {
+            Shape::KitScrollbar => div().id("list").max_h(px(CAP)).child(content).overflow_y_scrollbar().into_any_element(),
+            Shape::Plain => div()
+                .relative()
+                .child(div().id("list").max_h(px(CAP)).overflow_y_scroll().track_scroll(&self.scroll).child(content))
+                .child(Scrollbar::vertical(&self.scroll))
+                .into_any_element(),
+        };
+        div().size_full().child(div().relative().w(px(420.)).flex().flex_col().child(div().flex_none().h(px(HEADER))).child(list).child(card_probe))
     }
 }
 
-fn card_height(flex_list: bool, cx: &mut TestAppContext) -> f32 {
-    let height = Rc::new(Cell::new(-1.));
-    let (_, cx) = cx.add_window_view(|_, _| Card { flex_list, height: height.clone() });
+struct Painted {
+    height: f32,
+    top: f32,
+}
+
+struct Probes {
+    height: Rc<Cell<f32>>,
+    top: Rc<Cell<f32>>,
+}
+
+fn open(shape: Shape, content: f32, cx: &mut TestAppContext) -> (&mut VisualTestContext, Probes) {
+    let probes = Probes { height: Rc::new(Cell::new(-1.)), top: Rc::new(Cell::new(-1.)) };
+    let (height, top) = (probes.height.clone(), probes.top.clone());
+    let (_, cx) = cx.add_window_view(move |_, _| Card { shape, content, scroll: ScrollHandle::new(), height, top });
     cx.run_until_parked();
+    (cx, probes)
+}
+
+fn painted(cx: &mut VisualTestContext, probes: &Probes) -> Painted {
     cx.update(|window, _| window.refresh());
     cx.run_until_parked();
-    height.get()
+    Painted { height: probes.height.get(), top: probes.top.get() }
+}
+
+fn wheel_over_list(cx: &mut VisualTestContext) {
+    let delta = ScrollDelta::Pixels(point(px(0.), px(-200.)));
+    cx.simulate_event(ScrollWheelEvent { position: point(px(100.), px(HEADER + 100.)), delta, modifiers: Default::default(), touch_phase: TouchPhase::Moved });
+    cx.run_until_parked();
 }
 
 #[gpui_kit::test]
-fn capped_list_keeps_its_content_height(cx: &mut TestAppContext) {
-    assert_eq!(card_height(false, cx), 124., "header and the whole list");
+fn short_list_sizes_the_card(cx: &mut TestAppContext) {
+    let (cx, probes) = open(Shape::Plain, 80., cx);
+    assert_eq!(painted(cx, &probes).height, HEADER + 80., "header and the whole list");
 }
 
 #[gpui_kit::test]
-fn flex_list_under_a_max_height_card_collapses(cx: &mut TestAppContext) {
-    assert_eq!(card_height(true, cx), 44., "only the header: the old pins card");
+fn long_list_caps_and_scrolls(cx: &mut TestAppContext) {
+    let (cx, probes) = open(Shape::Plain, 800., cx);
+    let before = painted(cx, &probes);
+    assert_eq!(before.height, HEADER + CAP, "capped");
+    wheel_over_list(cx);
+    assert_eq!(painted(cx, &probes).top, before.top - 200., "the wheel scrolls the list");
+}
+
+#[gpui_kit::test]
+fn kit_scrollbar_caps_but_never_scrolls(cx: &mut TestAppContext) {
+    let (cx, probes) = open(Shape::KitScrollbar, 800., cx);
+    let before = painted(cx, &probes);
+    assert_eq!(before.height, HEADER + CAP, "capped");
+    wheel_over_list(cx);
+    assert_eq!(painted(cx, &probes).top, before.top, "gpui-component's layout: what shipped in 0.13.0");
 }
