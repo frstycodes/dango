@@ -788,7 +788,7 @@ impl HitboxId {
         if window.captured_hitbox == Some(self) {
             return true;
         }
-        if window.last_input_was_keyboard() || window.last_input_modality == InputModality::Scroll {
+        if window.last_input_was_keyboard() {
             return false;
         }
         self.hit_test(window)
@@ -807,6 +807,9 @@ impl HitboxId {
     }
 
     fn hit_test(self, window: &Window) -> bool {
+        if let Some(held) = &window.held_hover {
+            return held.ids.contains(&self);
+        }
         let hit_test = &window.mouse_hit_test;
         for id in hit_test.ids.iter().take(hit_test.hover_hitbox_count) {
             if self == *id {
@@ -983,22 +986,62 @@ pub(crate) struct TooltipRequest {
 pub(crate) struct ElementIdStack {
     ids: SmallVec<[ElementId; 32]>,
     hashes: SmallVec<[u64; 32]>,
+    // Waffle patch: each open id or list item, with its seed and the hitboxes inserted under it so far,
+    // for `next_hitbox_key`. The bottom entry is the window root, reset every frame.
+    hitbox_scopes: SmallVec<[(u64, u32); 32]>,
 }
 
 impl ElementIdStack {
     pub(crate) fn push(&mut self, id: ElementId) {
-        self.hashes.push(crate::extend_path_hash(self.hash(), &id));
+        let hash = crate::extend_path_hash(self.hash(), &id);
+        self.hashes.push(hash);
         self.ids.push(id);
+        self.hitbox_scopes.push((hash, 0));
     }
 
     pub(crate) fn pop(&mut self) -> Option<ElementId> {
         self.hashes.pop();
+        self.hitbox_scopes.pop();
         self.ids.pop()
     }
 
     pub(crate) fn clear(&mut self) {
         self.ids.clear();
         self.hashes.clear();
+        self.hitbox_scopes.truncate(1);
+    }
+
+    pub(crate) fn reset_hitbox_keys(&mut self) {
+        self.hitbox_scopes.clear();
+        self.hitbox_scopes.push((crate::EMPTY_PATH_HASH, 0));
+    }
+
+    /// Opens a scope for the hitboxes of an element that has no id of its own, such as a list item,
+    /// so they keep their keys when siblings before them come and go.
+    pub(crate) fn push_hitbox_salt(&mut self, salt: usize) {
+        let seed = mix_hitbox_key(self.hitbox_seed(), salt as u64 ^ HITBOX_SALT);
+        self.hitbox_scopes.push((seed, 0));
+    }
+
+    pub(crate) fn pop_hitbox_salt(&mut self) {
+        self.hitbox_scopes.pop();
+    }
+
+    /// A key for the next hitbox that names the same element on the next frame: the nearest id or
+    /// list item above it, and how many hitboxes came before it under that.
+    fn next_hitbox_key(&mut self) -> u64 {
+        if self.hitbox_scopes.is_empty() {
+            self.reset_hitbox_keys();
+        }
+        let (seed, count) = self.hitbox_scopes.last_mut().unwrap();
+        *count += 1;
+        mix_hitbox_key(*seed, *count as u64)
+    }
+
+    fn hitbox_seed(&self) -> u64 {
+        self.hitbox_scopes
+            .last()
+            .map_or(crate::EMPTY_PATH_HASH, |(seed, _)| *seed)
     }
 
     /// The hash of the whole path on the stack.
@@ -1012,6 +1055,15 @@ impl ElementIdStack {
     pub(crate) fn global_id(&self) -> GlobalElementId {
         GlobalElementId::with_hash(&self.ids, self.hash())
     }
+}
+
+const HITBOX_SALT: u64 = 0x9e37_79b9_7f4a_7c15;
+
+fn mix_hitbox_key(seed: u64, value: u64) -> u64 {
+    use std::hash::Hasher;
+    let mut hasher = collections::FxHasher::with_seed(seed as usize);
+    hasher.write_u64(value);
+    hasher.finish()
 }
 
 impl std::ops::Deref for ElementIdStack {
@@ -1062,6 +1114,8 @@ pub(crate) struct Frame {
     /// Parallel to `hitboxes`: for each hitbox inserted under an element transformation, the
     /// transformation from window space into its own space, so it is hit-tested untransformed.
     hitbox_inverse_transformations: Vec<Option<TransformationMatrix>>,
+    /// Waffle patch: parallel to `hitboxes`, each one's `ElementIdStack::next_hitbox_key`.
+    hitbox_keys: Vec<u64>,
 }
 
 #[derive(Clone, Default)]
@@ -1125,6 +1179,7 @@ impl Frame {
             inspector_hitboxes: FxHashMap::default(),
             tab_stops: TabStopMap::default(),
             hitbox_inverse_transformations: Vec::new(),
+            hitbox_keys: Vec::new(),
         }
     }
 
@@ -1139,6 +1194,7 @@ impl Frame {
         self.cursor_styles.clear();
         self.hitboxes.clear();
         self.hitbox_inverse_transformations.clear();
+        self.hitbox_keys.clear();
         self.window_control_hitboxes.clear();
         self.deferred_draws.clear();
         self.tab_stops.clear();
@@ -1236,9 +1292,43 @@ enum InputModality {
     Mouse,
     Keyboard,
     Touch,
-    /// Wheel scrolling under a still pointer. As in browsers, hover is held until the pointer moves
-    /// or the scroll ends (finger lifted, momentum and rebound done), so rows don't flash as they pass.
+    /// Wheel scrolling under a still pointer. As in browsers, what was hovered when the scroll began
+    /// stays hovered, and nothing else becomes hovered, until the pointer moves or the scroll ends
+    /// (finger lifted, momentum and rebound done). See `HeldHover`.
     Scroll,
+}
+
+/// Waffle patch: the hover held while `InputModality::Scroll` lasts. Hitbox ids are new every frame,
+/// so the elements are remembered by `Frame::hitbox_keys` and found again in each frame's hitboxes.
+struct HeldHover {
+    keys: SmallVec<[u64; 8]>,
+    ids: SmallVec<[HitboxId; 8]>,
+}
+
+impl HeldHover {
+    fn capture(hit_test: &HitTest, frame: &Frame) -> Self {
+        let hovered = &hit_test.ids[..hit_test.hover_hitbox_count];
+        let keys = frame
+            .hitboxes
+            .iter()
+            .zip(&frame.hitbox_keys)
+            .filter(|(hitbox, _)| hovered.contains(&hitbox.id))
+            .map(|(_, key)| *key)
+            .collect();
+        let mut held = Self { keys, ids: SmallVec::new() };
+        held.locate(frame);
+        held
+    }
+
+    fn locate(&mut self, frame: &Frame) {
+        self.ids = frame
+            .hitboxes
+            .iter()
+            .zip(&frame.hitbox_keys)
+            .filter(|(_, key)| self.keys.contains(key))
+            .map(|(hitbox, _)| hitbox.id)
+            .collect();
+    }
 }
 
 // Momentum and mouse wheels have no end event: the scroll is over once neither a wheel event nor a
@@ -1328,6 +1418,7 @@ pub struct Window {
     scroll_settle_timer: Option<Task<()>>,
     scroll_finger_down: bool,
     scroll_moved_in_frame: bool,
+    held_hover: Option<HeldHover>,
     long_press_capture: Option<EntityId>,
     pub(crate) refreshing: bool,
     // Waffle patch: counts `draw` calls, so a cached view can tell whether its recorded ranges
@@ -2246,6 +2337,7 @@ impl Window {
             scroll_settle_timer: None,
             scroll_finger_down: false,
             scroll_moved_in_frame: false,
+            held_hover: None,
             long_press_capture: None,
             refreshing: false,
             draw_count: 0,
@@ -3262,6 +3354,15 @@ impl Window {
         result
     }
 
+    /// Waffle patch: prepaints a list item so hover held through a scroll stays on the same item when
+    /// items before it scroll out. Lists key their items by index, not by element id.
+    pub(crate) fn with_list_item<R>(&mut self, index: usize, f: impl FnOnce(&mut Self) -> R) -> R {
+        self.element_id_stack.push_hitbox_salt(index);
+        let result = f(self);
+        self.element_id_stack.pop_hitbox_salt();
+        result
+    }
+
     /// Executes the provided function with the specified rem size.
     ///
     /// This method must only be called as part of element drawing.
@@ -3636,6 +3737,7 @@ impl Window {
         let previous_window_active = self.rendered_frame.window_active;
         mem::swap(&mut self.rendered_frame, &mut self.next_frame);
         self.next_frame.clear();
+        self.element_id_stack.reset_hitbox_keys();
         let current_focus_path = self.rendered_frame.focus_path();
         let current_window_active = self.rendered_frame.window_active;
         let mut focus_before_listeners = self.focus;
@@ -3862,6 +3964,9 @@ impl Window {
         }
 
         self.mouse_hit_test = self.next_frame.hit_test(self.mouse_position);
+        if let Some(held) = &mut self.held_hover {
+            held.locate(&self.next_frame);
+        }
         if mem::take(&mut self.scroll_moved_in_frame) && self.last_input_modality == InputModality::Scroll {
             self.schedule_scroll_settle(cx);
         }
@@ -4073,6 +4178,7 @@ impl Window {
                     let deferred_draw = &mut self.next_frame.deferred_draws[deferred_draw_ix];
                     self.element_id_stack
                         .clone_from(&deferred_draw.element_id_stack);
+                    self.element_id_stack.push_hitbox_salt(deferred_draw_ix);
                     self.text_style_stack
                         .clone_from(&deferred_draw.text_style_stack);
                     (
@@ -4179,6 +4285,9 @@ impl Window {
                 &self.rendered_frame.hitbox_inverse_transformations
                     [range.start.hitboxes_index..range.end.hitboxes_index],
             );
+        self.next_frame.hitbox_keys.extend_from_slice(
+            &self.rendered_frame.hitbox_keys[range.start.hitboxes_index..range.end.hitboxes_index],
+        );
         self.next_frame.tooltip_requests.extend(
             self.rendered_frame.tooltip_requests
                 [range.start.tooltips_index..range.end.tooltips_index]
@@ -4506,6 +4615,7 @@ impl Window {
             self.next_frame
                 .hitbox_inverse_transformations
                 .truncate(index.hitboxes_index);
+            self.next_frame.hitbox_keys.truncate(index.hitboxes_index);
             self.next_frame
                 .tooltip_requests
                 .truncate(index.tooltips_index);
@@ -5635,6 +5745,8 @@ impl Window {
         self.next_frame
             .hitbox_inverse_transformations
             .push(self.hitbox_inverse_transformation());
+        let key = self.element_id_stack.next_hitbox_key();
+        self.next_frame.hitbox_keys.push(key);
         hitbox
     }
 
@@ -5956,14 +6068,25 @@ impl Window {
                 TouchPhase::Moved => {}
             }
         }
-        if self.last_input_modality != old_modality {
-            self.refresh();
-        }
         match self.last_input_modality {
-            InputModality::Scroll => self.schedule_scroll_settle(cx),
+            InputModality::Scroll => {
+                if old_modality != InputModality::Scroll {
+                    // Holding exactly what was hovered changes nothing on screen, so no refresh. From the
+                    // keyboard, nothing was hovered, and an empty hold keeps it that way.
+                    self.held_hover = Some(match old_modality {
+                        InputModality::Keyboard => HeldHover { keys: SmallVec::new(), ids: SmallVec::new() },
+                        _ => HeldHover::capture(&self.mouse_hit_test, &self.rendered_frame),
+                    });
+                }
+                self.schedule_scroll_settle(cx);
+            }
             _ => {
                 self.scroll_settle_timer = None;
                 self.scroll_finger_down = false;
+                self.held_hover = None;
+                if self.last_input_modality != old_modality {
+                    self.refresh();
+                }
             }
         }
 
@@ -6283,6 +6406,7 @@ impl Window {
                 // A resting finger hasn't ended the scroll; its lift arrives as a wheel event and re-arms this.
                 if window.last_input_modality == InputModality::Scroll && !window.scroll_finger_down {
                     window.last_input_modality = InputModality::Mouse;
+                    window.held_hover = None;
                     window.refresh();
                 }
             })
@@ -6312,6 +6436,9 @@ impl Window {
         if hit_test != self.mouse_hit_test {
             self.mouse_hit_test = hit_test;
             self.reset_cursor_style(cx);
+        }
+        if let Some(held) = &mut self.held_hover {
+            held.locate(&self.rendered_frame);
         }
 
         #[cfg(any(feature = "inspector", debug_assertions))]
