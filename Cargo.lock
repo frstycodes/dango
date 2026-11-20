@@ -10682,7 +10682,7 @@ dependencies = [
 
 [[package]]
 name = "waffle"
-version = "0.13.2"
+version = "0.13.3"
 dependencies = [
  "aes-gcm",
  "async-trait",
