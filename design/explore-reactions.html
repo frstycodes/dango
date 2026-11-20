@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reactions List</title>
+<meta name="description" content="Who reacted: the hover tooltip and the Reactions dialog it opens.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400..700&display=swap" rel="stylesheet">
+<style>
+  /* Waffle's tokens (tokens.css), inlined so the page stands alone. */
+  :root, :root[data-theme="light"] { color-scheme: light; --bg-page: oklch(0.982 0.002 80); --bg-raised: oklch(0.995 0.001 80); --bg-overlay: oklch(0.995 0.001 80); --hover: oklch(0.3 0.008 80 / 0.06); --selected: oklch(0.3 0.008 80 / 0.09); --line: oklch(0.3 0.008 80 / 0.1); --line-strong: oklch(0.3 0.008 80 / 0.18); --text-strong: oklch(0.20 0.009 80); --text: oklch(0.30 0.009 80); --text-muted: oklch(0.46 0.009 80); --text-faint: oklch(0.58 0.009 80); --accent: #efa831; --accent-soft: color-mix(in oklch, #efa831 18%, transparent); --accent-ink: #8a5601; --scrim: oklch(0.2 0.01 80 / 0.3); --shadow: 0 1px 2px oklch(0 0 0 / 0.08), 0 12px 32px oklch(0 0 0 / 0.14); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; --bg-page: oklch(0.210 0.004 80); --bg-raised: oklch(0.250 0.005 80); --bg-overlay: oklch(0.265 0.005 80); --hover: oklch(1 0 0 / 0.05); --selected: oklch(1 0 0 / 0.08); --line: oklch(1 0 0 / 0.08); --line-strong: oklch(1 0 0 / 0.14); --text-strong: oklch(0.97 0.004 80); --text: oklch(0.88 0.008 80); --text-muted: oklch(0.72 0.012 80); --text-faint: oklch(0.6 0.01 80); --accent-soft: color-mix(in oklch, #efa831 20%, transparent); --accent-ink: #f6b84d; --scrim: oklch(0 0 0 / 0.45); --shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 16px 40px oklch(0 0 0 / 0.4); } }
+  :root[data-theme="dark"] { color-scheme: dark; --bg-page: oklch(0.210 0.004 80); --bg-raised: oklch(0.250 0.005 80); --bg-overlay: oklch(0.265 0.005 80); --hover: oklch(1 0 0 / 0.05); --selected: oklch(1 0 0 / 0.08); --line: oklch(1 0 0 / 0.08); --line-strong: oklch(1 0 0 / 0.14); --text-strong: oklch(0.97 0.004 80); --text: oklch(0.88 0.008 80); --text-muted: oklch(0.72 0.012 80); --text-faint: oklch(0.6 0.01 80); --accent-soft: color-mix(in oklch, #efa831 20%, transparent); --accent-ink: #f6b84d; --scrim: oklch(0 0 0 / 0.45); --shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 16px 40px oklch(0 0 0 / 0.4); }
+
+  body { margin: 0; background: var(--bg-page); color: var(--text); font-family: "Figtree", system-ui, sans-serif; font-size: 16px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px 64px; }
+  header.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  h1 { font-size: 24px; margin: 0; color: var(--text-strong); flex: 1; }
+  h2 { font-size: 16px; color: var(--text-strong); margin: 32px 0 4px; }
+  p.lede, p.note { color: var(--text-muted); margin: 0 0 16px; max-width: 72ch; line-height: 1.5; font-size: 14px; }
+  .btn { font: inherit; font-size: 14px; color: var(--text-strong); background: var(--selected); border: 0; border-radius: 12px; padding: 7px 14px; cursor: pointer; }
+  .btn:hover { background: var(--line-strong); }
+
+  /* The message and its pills (messages.css .react). */
+  .board { background: var(--bg-page); border: 1px solid var(--line); border-radius: 20px; padding: 72px 16px 16px; }
+  .msg { display: grid; grid-template-columns: 40px 1fr; gap: 0 12px; }
+  .av { width: 40px; height: 40px; border-radius: 50%; flex: none; }
+  .name { color: var(--accent-ink); font-weight: 600; }
+  .time { color: var(--text-faint); font-size: 12px; margin-left: 8px; }
+  .body { color: var(--text-strong); margin-top: 2px; }
+  .reacts { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; position: relative; }
+  .react { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border-radius: 9px; background: var(--selected); border: 1px solid transparent; font: inherit; font-weight: 600; font-size: 14px; color: var(--text-muted); font-variant-numeric: tabular-nums; cursor: pointer; transition: transform 120ms cubic-bezier(.23,1,.32,1), border-color 120ms; }
+  .react:hover { border-color: var(--line-strong); }
+  .react:active { transform: scale(0.92); }
+  .react.mine { background: var(--accent-soft); border-color: color-mix(in oklch, var(--accent) 55%, transparent); color: var(--accent-ink); }
+  .react .e { font-size: 16px; line-height: 1; }
+
+  /* Tooltip: the emoji big, then who; "N others" opens the dialog. */
+  .tip { position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 4; display: flex; align-items: center; gap: 12px; width: max-content; max-width: 320px; padding: 10px 14px 10px 10px; border-radius: 14px; background: var(--bg-overlay); box-shadow: var(--shadow); color: var(--text-muted); font-size: 14px; line-height: 1.4; }
+  .tip .e { font-size: 36px; line-height: 1; flex: none; }
+  .tip b { color: var(--text-strong); font-weight: 600; }
+  .tip a { color: var(--accent-ink); font-weight: 600; text-decoration: none; cursor: pointer; }
+  .tip a:hover { text-decoration: underline; }
+
+  /* Dialog. */
+  .scrim { position: relative; border-radius: 20px; background: var(--scrim); padding: 32px 16px; display: grid; place-items: center; }
+  .dialog { width: min(100%, 560px); height: 600px; display: grid; grid-template-rows: auto 1fr; background: var(--bg-raised); border-radius: 24px; box-shadow: var(--shadow); overflow: hidden; }
+  .dhead { display: flex; align-items: center; gap: 12px; padding: 20px 20px 14px 24px; border-bottom: 1px solid var(--line); }
+  .dhead h3 { margin: 0; font-size: 20px; color: var(--text-strong); flex: 1; }
+  .dhead small { color: var(--text-muted); font-size: 14px; font-weight: 400; margin-left: 8px; }
+  .iconbtn { width: 32px; height: 32px; border: 0; border-radius: 10px; background: transparent; color: var(--text-muted); font-size: 18px; cursor: pointer; display: grid; place-items: center; }
+  .iconbtn:hover { background: var(--hover); color: var(--text-strong); }
+  .split { display: grid; grid-template-columns: 112px 1fr; min-height: 0; }
+  .rail { border-right: 1px solid var(--line); overflow: auto; padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; }
+  .tab { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border: 0; border-radius: 12px; background: transparent; color: var(--text-muted); font: inherit; font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; cursor: pointer; text-align: left; }
+  .tab:hover { background: var(--hover); color: var(--text-strong); }
+  .tab[aria-selected="true"] { background: var(--selected); color: var(--text-strong); }
+  .tab.mine { color: var(--accent-ink); }
+  .tab .e { font-size: 22px; line-height: 1; width: 26px; text-align: center; }
+  .people { overflow: auto; padding: 8px; }
+  .person { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 10px; border-radius: 12px; }
+  .person:hover { background: var(--hover); }
+  .person .who { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+  .person b { color: var(--text-strong); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .person span { color: var(--text-muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .person .rm { opacity: 0; font-size: 13px; padding: 5px 10px; }
+  .person:hover .rm, .person.you .rm { opacity: 1; }
+  .loading { display: flex; align-items: center; gap: 12px; padding: 10px; }
+  .sk { border-radius: 8px; background: var(--selected); }
+  .sk.c { width: 36px; height: 36px; border-radius: 50%; }
+</style>
+<script>try{const t=localStorage.getItem("reactions-theme");if(t)document.documentElement.dataset.theme=t}catch{}</script>
+</head>
+<body>
+<main>
+  <header class="top">
+    <h1>Who reacted</h1>
+    <button class="btn" id="theme">Light / dark</button>
+  </header>
+  <p class="lede">Hovering a reaction names the first three people and counts the rest; "N others" (or the message menu's View reactions) opens the full list. One dialog for every reaction on the message, as Discord does: the reactions down the left by count, the people who used the selected one on the right, more loading as you scroll.</p>
+
+  <h2>Hover</h2>
+  <p class="note">After 500ms on a pill. Names are the server's nicknames. With three or fewer people there's no link; while loading it shows the count.</p>
+  <div class="board">
+    <div class="msg"><span class="av" style="background:#6d8fbf"></span><div><div><span class="name">Rosa</span><span class="time">Today at 11:02 PM</span></div><div class="body">a softban.</div>
+      <div class="reacts" id="pills"></div></div></div>
+  </div>
+
+  <h2>Reactions dialog</h2>
+  <p class="note">The selected reaction carries the selected fill; yours are in the accent. Your own row offers Remove; moderators (Manage Messages) see Remove on everyone's on hover.</p>
+  <div class="scrim">
+    <div class="dialog" role="dialog" aria-labelledby="rx-title">
+      <div class="dhead"><h3 id="rx-title">Reactions<small id="rx-count"></small></h3><button class="iconbtn" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <div class="split">
+        <div class="rail" role="tablist" aria-orientation="vertical" id="rail"></div>
+        <div class="people" role="tabpanel" id="people"></div>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+const R = [
+  { e: "💀", n: "skull", count: 592, mine: true },
+  { e: "😭", n: "sob", count: 132 },
+  { e: "✅", n: "white_check_mark", count: 119 },
+  { e: "❌", n: "x", count: 115 },
+  { e: "🫃", n: "pregnant_man", count: 87 },
+  { e: "🐈", n: "cat2", count: 67 },
+  { e: "🖕", n: "middle_finger", count: 63, mine: true },
+  { e: "🍯", n: "honey_pot", count: 61 },
+  { e: "7️⃣", n: "seven", count: 61 },
+  { e: "6️⃣", n: "six", count: 60 },
+];
+const NAMES = [["Dhalon","dhalon"],["saik","saik03"],["Digitally_Devious","digitally_devious"],["Laryke","laryke"],["h y p r",".thehypr"],["darkso7t","darkso7t"],["pouyas","pouyas"],["Thy","herorj"],["mikey","mickeeeyyyyyy"],["superman","a_paradoxx"],["Bartholomew Featherstonehaugh-Wright","bart.fw"],["J","yqsod"],["valse","valsesn"]];
+const hues = [20, 60, 140, 200, 260, 300, 340, 100, 180, 230, 30, 80, 320];
+let sel = 0;
+
+function pills() {
+  const el = document.getElementById("pills");
+  el.innerHTML = R.slice(0, 6).map((r, i) => `<button class="react${r.mine ? " mine" : ""}" data-i="${i}"><span class="e">${r.e}</span>${r.count}</button>`).join("");
+  const tip = document.createElement("div"); tip.className = "tip"; el.prepend(tip);
+  const show = i => {
+    const r = R[i], names = NAMES.slice(0, 3).map(n => `<b>${n[0]}</b>`);
+    const rest = r.count - 3;
+    tip.innerHTML = `<span class="e">${r.e}</span><span><b>:${r.n}:</b> reacted by ${names.join(", ")}${rest > 0 ? `, and <a data-i="${i}">${rest.toLocaleString()} ${rest === 1 ? "other" : "others"}</a>` : ""}</span>`;
+    const pill = el.querySelector(`.react[data-i="${i}"]`); tip.style.left = pill.offsetLeft + "px";
+    tip.querySelector("a")?.addEventListener("click", () => { sel = i; dialog(); document.querySelector(".scrim").scrollIntoView({ behavior: "smooth" }); });
+  };
+  el.querySelectorAll(".react").forEach(b => b.addEventListener("mouseenter", () => show(+b.dataset.i)));
+  show(0);
+}
+
+function dialog() {
+  document.getElementById("rx-count").textContent = R.reduce((n, r) => n + r.count, 0).toLocaleString();
+  document.getElementById("rail").innerHTML = R.map((r, i) => `<button class="tab${r.mine ? " mine" : ""}" role="tab" aria-selected="${i === sel}" data-i="${i}" title=":${r.n}:"><span class="e">${r.e}</span>${r.count}</button>`).join("");
+  document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => { sel = +t.dataset.i; dialog(); }));
+  const r = R[sel];
+  const rows = NAMES.map((n, k) => ({ n, k })).slice(0, Math.min(NAMES.length, r.count));
+  const you = r.mine ? `<div class="person you"><span class="av" style="background:oklch(0.65 0.12 70)"></span><div class="who"><b>kiwi</b><span>kiwi.dev · you</span></div><button class="btn rm">Remove</button></div>` : "";
+  document.getElementById("people").innerHTML = you + rows.map(({ n, k }) => `<div class="person"><span class="av" style="background:oklch(0.62 0.1 ${hues[k]})"></span><div class="who"><b>${n[0]}</b><span>${n[1]}</span></div></div>`).join("")
+    + (r.count > rows.length ? `<div class="loading"><span class="sk c"></span><span class="sk" style="width:40%;height:12px"></span></div>` : "");
+}
+
+document.getElementById("theme").onclick = () => {
+  const root = document.documentElement, dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  root.dataset.theme = dark ? "light" : "dark"; try { localStorage.setItem("reactions-theme", root.dataset.theme); } catch {}
+};
+pills(); dialog();
+</script>
+</body>
+</html>
