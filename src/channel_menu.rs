@@ -242,10 +242,37 @@ impl Waffle {
         }, cx);
     }
 
-    fn channel_menu(&self, channel: &Channel, guild_id: &str) -> Vec<Entry> {
-        let voice = channel.kind == ChannelKind::Voice;
+    /// Mute and notification level for one channel: in its right-click menu and behind the header's bell.
+    pub(crate) fn channel_notify_entries(&self, channel: &Channel, guild_id: &str) -> Vec<Entry> {
         let settings = self.settings_for(guild_id);
         let overrides = settings.channels.get(&channel.id).cloned().unwrap_or_default();
+        let (gid, cid) = (guild_id.to_owned(), channel.id.clone());
+        let mut out = vec![self.mute_entry("Mute channel", "Unmute channel", settings.channel_muted(&channel.id), overrides.mute_end.as_deref(), move |this, mut body, cx| {
+            body["channel_id"] = json!(cid);
+            let mut overrides = serde_json::Map::new();
+            overrides.insert(cid.clone(), body);
+            this.patch_guild_settings(gid.clone(), json!({ "channel_overrides": overrides }), cx);
+        })];
+        // Discord has no notification levels for voice channels.
+        if channel.kind != ChannelKind::Voice {
+            let inherited = if channel.parent_id.is_some() { "Use category default" } else { "Use server default" };
+            let (gid, cid) = (guild_id.to_owned(), channel.id.clone());
+            let radios = self.notification_radios(overrides.notifications, Some((inherited, settings.notifications)), move |this, level, cx| {
+                let mut overrides = serde_json::Map::new();
+                overrides.insert(cid.clone(), json!({ "message_notifications": level }));
+                this.patch_guild_settings(gid.clone(), json!({ "channel_overrides": overrides }), cx);
+            });
+            out.push(submenu("Notification settings", radios).hint(notification_label(effective(overrides.notifications, settings.notifications))).icon(Glyph::Bell).entry());
+        }
+        out
+    }
+
+    pub(crate) fn open_notify_menu(&mut self, channel: Channel, guild_id: String, at: Point<Pixels>, cx: &mut Context<Self>) {
+        self.open_live_menu(at, move |this| this.channel_notify_entries(&channel, &guild_id), cx);
+    }
+
+    fn channel_menu(&self, channel: &Channel, guild_id: &str) -> Vec<Entry> {
+        let voice = channel.kind == ChannelKind::Voice;
         let manage = self.can_in(&channel.id, perm::MANAGE_CHANNELS);
         let mut out = vec![self.channel_menu_header(channel, guild_id)];
 
@@ -276,24 +303,7 @@ impl Waffle {
             out.push(Entry::Separator);
         }
 
-        let (gid, cid) = (guild_id.to_owned(), channel.id.clone());
-        out.push(self.mute_entry("Mute channel", "Unmute channel", settings.channel_muted(&channel.id), overrides.mute_end.as_deref(), move |this, mut body, cx| {
-            body["channel_id"] = json!(cid);
-            let mut overrides = serde_json::Map::new();
-            overrides.insert(cid.clone(), body);
-            this.patch_guild_settings(gid.clone(), json!({ "channel_overrides": overrides }), cx);
-        }));
-        // Discord has no notification levels for voice channels.
-        if !voice {
-            let inherited = if channel.parent_id.is_some() { "Use category default" } else { "Use server default" };
-            let (gid, cid) = (guild_id.to_owned(), channel.id.clone());
-            let radios = self.notification_radios(overrides.notifications, Some((inherited, settings.notifications)), move |this, level, cx| {
-                let mut overrides = serde_json::Map::new();
-                overrides.insert(cid.clone(), json!({ "message_notifications": level }));
-                this.patch_guild_settings(gid.clone(), json!({ "channel_overrides": overrides }), cx);
-            });
-            out.push(submenu("Notification settings", radios).hint(notification_label(effective(overrides.notifications, settings.notifications))).icon(Glyph::Bell).entry());
-        }
+        out.extend(self.channel_notify_entries(channel, guild_id));
         out.push(Entry::Separator);
 
         if !self.channel_setting_pages(guild_id, channel).is_empty() {

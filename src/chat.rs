@@ -128,6 +128,16 @@ impl Waffle {
                 .occlude()
                 .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_threads_popout(id.clone(), e.position, cx)))
         });
+        // Mute and notification level for this channel, the same entries as its right-click menu; the bell
+        // shows a slash while it's muted.
+        let bell = self.guild_id.clone().filter(|_| matches!(channel.kind, ChannelKind::Text | ChannelKind::Voice)).map(|guild_id| {
+            let muted = self.guild_settings.get(&guild_id).is_some_and(|s| s.channel_muted(&channel.id));
+            let (label, glyph) = if muted { ("Unmute or change notifications", Glyph::BellSlash) } else { ("Notification Settings", Glyph::Bell) };
+            let open = channel.clone();
+            ui::icon_button("notify-button", glyph, label, cx)
+                .occlude()
+                .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_notify_menu(open.clone(), guild_id.clone(), e.position, cx)))
+        });
         let pins = ui::icon_button("pins-button", Glyph::Pin, "Pinned Messages", cx)
             .occlude()
             .when(self.pins.is_some(), |b| b.bg(selected).text_color(strong))
@@ -170,7 +180,7 @@ impl Waffle {
             .window_control_area(WindowControlArea::Drag)
             .child(crumbs)
             .children(topic)
-            .child(div().ml_auto().flex_none().flex().items_center().gap(px(2.)).children(join).children(calls.into_iter().flatten()).children(threads).child(pins).children(members).children(search))
+            .child(div().ml_auto().flex_none().flex().items_center().gap(px(2.)).children(join).children(calls.into_iter().flatten()).children(threads).children(bell).child(pins).children(members).children(search))
             .child(self.caption_clearance(!self.panel_shown()));
         ui::glass_header(palette::surface(Level::Page, cx)).child(bar)
     }

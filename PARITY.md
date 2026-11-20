@@ -51,7 +51,7 @@ User complaints about Discord and how Waffle answers them: [docs/better.md](docs
 - [x] Friends page (Online, All, Pending) as the Direct Messages home
 - [x] System notifications for DMs and mentions (Discord's rules: DND, muted servers and channels, notification levels, suppressed @everyone and roles), plus a Dock badge (macOS; Windows taskbar badge open)
 - [x] Server dropdown (header chevron): mark as read, notification settings, leave server
-- [ ] Notification bell in the channel header: per-channel notification level
+- [x] Notification bell in the channel header: mute and notification level, the same entries as the channel's right-click menu; a slashed bell while muted
 - [x] Channel settings (Edit channel / Edit category): Overview (name, topic, slowmode, age-restricted, hide threads after; voice bitrate, user limit, video quality, region), Permissions (private switch, category sync, role and member overwrites), Invites (revoke), Webhooks (copy URL, delete), Delete; pages gated on our permissions in the channel; searchable from its nav (settings registry)
 - [ ] Channel settings: add a member overwrite, create webhooks, forum tags and default reaction, stage and announcement specifics
 - [x] Mark channel read with Esc; Alt+↑/↓ to move between channels
@@ -99,7 +99,7 @@ Tokens: `docs/discord-tokens.json` (Discord web, Midnight, read 2026-11-14).
 - [ ] Spoilers: Discord covers them with a grey box that fades on click; ours shows a bar of █
 - [ ] GIF picker: Discord opens on categories (Trending, Favourites, moods); ours opens on trending results
 - [ ] Title bar right side: Inbox, Help and Updates icons are missing
-- [ ] Channel header right side: Threads, Notification bell and Pins icons are missing
+- [x] Channel header right side: Threads, Notification bell and Pins icons
 - [ ] Server header: "Invite to Server" icon is missing; Events and Server Boosts rows (rare, skip)
 - [ ] Category rows: "+ Create Channel" on hover is missing (rare, skip)
 - [ ] Channel row hover: "Invite" and "Edit Channel" icons on the right (rare, skip)
