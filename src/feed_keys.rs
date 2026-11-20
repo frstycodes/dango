@@ -133,6 +133,7 @@ mod tests {
         let sec = if cfg!(target_os = "macos") { "cmd" } else { "ctrl" };
         assert_eq!(action(typed_key("e", "e")), Some(MessageAction::Edit));
         assert_eq!(action(typed_key("r", "r")), Some(MessageAction::Reply));
+        assert_eq!(action(typed_key("f", "f")), Some(MessageAction::Forward));
         assert_eq!(action(typed_key("p", "p")), Some(MessageAction::Pin));
         assert_eq!(action(typed_key("t", "t")), Some(MessageAction::Thread));
         assert_eq!(action(typed_key("d", "d")), Some(MessageAction::Delete));
@@ -206,6 +207,7 @@ mod tests {
         assert!(!MessageAction::CopyId.allowed(&sent, &theirs_in_server));
         assert!(MessageAction::CopyId.allowed(&sent, &Facts { developer: true, ..Default::default() }));
         assert!(MessageAction::Reply.allowed(&sent, &theirs_in_server));
+        assert!(MessageAction::Forward.allowed(&sent, &theirs_in_server));
 
         let empty = Message { state: SendState::Sent, ..Default::default() };
         assert!(!MessageAction::CopyText.allowed(&empty, &mine));

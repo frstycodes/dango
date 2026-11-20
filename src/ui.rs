@@ -558,6 +558,45 @@ pub fn gap(surface: Hsla, spread: f32) -> Div {
     cut_out(div().absolute().top(px(-spread)).left(px(-spread)).right(px(-spread)).bottom(px(-spread)).rounded_full(), surface)
 }
 
+// The rail's tile proportion (a 44px tile at RADIUS_LG), kept at every size a server tile is drawn.
+const SERVER_TILE_ROUNDING: f32 = RADIUS_LG / 44.;
+
+// A server's icon as a squircle tile at `size`, or its initials on the selected fill when it has none.
+pub fn server_tile(icon: Option<&str>, name: &str, size: f32, cx: &App) -> AnyElement {
+    let radius = size * SERVER_TILE_ROUNDING;
+    if let Some(url) = icon {
+        return img(url.to_owned()).size(px(size)).flex_none().squircle(radius).into_any_element();
+    }
+    div()
+        .size(px(size))
+        .flex_none()
+        .squircle(radius)
+        .bg(palette::selected(cx))
+        .text_color(palette::strong(cx))
+        .text_size(px((size * 0.38).round()))
+        .font_weight(FontWeight::SEMIBOLD)
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(crate::sidebar::initials(name))
+        .into_any_element()
+}
+
+// A server tile with `badge` (a channel's kind) on a round mark at its bottom-right, ringed 2px in
+// `surface`, the colour the tile sits on, so the mark reads cut out of the tile.
+pub fn server_tile_badged(icon: Option<&str>, name: &str, size: f32, badge: Glyph, surface: Hsla, cx: &App) -> Div {
+    let mark = (size * 0.45).round();
+    let ring = 2.;
+    let corner = -(mark / 2. - size * 0.12);
+    let badge = cut_out(div().absolute().right(px(corner - ring)).bottom(px(corner - ring)).size(px(mark + 2. * ring)).rounded_full(), surface)
+        .flex()
+        .items_center()
+        .justify_center()
+        .text_color(palette::muted(cx))
+        .child(Icon::new(badge).size(px((mark * 0.66).round())));
+    div().relative().flex_none().size(px(size)).child(server_tile(icon, name, size, cx)).child(badge)
+}
+
 // A presence mark for an avatar's corner. Never colour alone: online is a dot, idle a moon, do not
 // disturb a bar, offline a ring. `ring` is the surface it sits on: a 2px gap around the mark.
 pub fn status_mark(status: Status, size: f32, ring: Hsla, cx: &App) -> Div {

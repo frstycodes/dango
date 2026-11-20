@@ -32,6 +32,7 @@ mod login;
 mod mascot;
 mod material;
 mod forum;
+mod forward;
 mod gif;
 mod games;
 mod go_live;
@@ -580,6 +581,7 @@ enum EmojiTarget {
     CustomStatus,
     // An answer's emoji in the poll creator, by row.
     PollAnswer(usize),
+    ForwardNote,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -623,6 +625,7 @@ pub struct Waffle {
     // Answers picked on a poll before Vote, and polls showing their results before you vote, by message.
     poll_picks: HashMap<String, Vec<u32>>,
     poll_peek: HashSet<String>,
+    forward_dialog: Option<forward::ForwardDialog>,
     status_flyout: status_menu::Flyout,
     status_input: Entity<SearchState>,
     clear_after: status_menu::ClearAfter,
@@ -1002,6 +1005,7 @@ impl Waffle {
             poll_creator: None,
             poll_picks: HashMap::new(),
             poll_peek: HashSet::new(),
+            forward_dialog: None,
             status_flyout: status_menu::Flyout::default(),
             status_input,
             clear_after: status_menu::ClearAfter::default(),

@@ -17,7 +17,7 @@ use crate::{
     discord::{Emoji, Message, User},
     icons::Glyph,
     layout::avatar_with_status,
-    menu, palette,
+    palette,
     ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XS, Squircle},
 };
 
@@ -163,16 +163,17 @@ impl Waffle {
                 }
                 cx.notify();
             }
+            EmojiTarget::ForwardNote => {
+                let shown = self.shown_emoji(&emoji);
+                if let Some(dialog) = &self.forward_dialog {
+                    dialog.note.update(cx, |state, cx| {
+                        state.insert(shown, window, cx);
+                        state.focus(window, cx);
+                    });
+                }
+            }
             EmojiTarget::Composer => {
-                let shown = match &emoji.id {
-                    Some(id) => {
-                        let shown = format!(":{}:", emoji.name);
-                        let wire = format!("<{}:{}:{id}>", if emoji.animated { "a" } else { "" }, emoji.name);
-                        self.mention_wire.insert(shown.clone(), wire);
-                        shown
-                    }
-                    None => emoji.name.clone(),
-                };
+                let shown = self.shown_emoji(&emoji);
                 // insert, not set_value: that would drop the draft's mention chips and put the caret first.
                 self.composer.update(cx, |state, cx| {
                     let end = state.value().len();
@@ -184,6 +185,16 @@ impl Waffle {
             }
         }
         cx.notify();
+    }
+
+    // An emoji as a field shows it: itself, or `:name:` for a server's own, which `to_wire` turns back into
+    // its `<:name:id>` when sent.
+    fn shown_emoji(&mut self, emoji: &Emoji) -> String {
+        let Some(id) = &emoji.id else { return emoji.name.clone() };
+        let shown = format!(":{}:", emoji.name);
+        let wire = format!("<{}:{}:{id}>", if emoji.animated { "a" } else { "" }, emoji.name);
+        self.mention_wire.insert(shown.clone(), wire);
+        shown
     }
 
     pub(crate) fn open_switcher(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -242,12 +253,19 @@ impl Waffle {
 
     /// Closes whichever floating surface is open; true if one was.
     pub(crate) fn dismiss_overlay(&mut self, cx: &mut Context<Self>) -> bool {
+        // The note's picker sits over the forward dialog: closing it leaves the dialog and its picks.
+        if matches!(self.emoji_picker, Some(EmojiTarget::ForwardNote)) {
+            self.emoji_picker = None;
+            cx.notify();
+            return true;
+        }
         let text_viewer = self.text_files.borrow_mut().viewer.take().is_some();
         let open = text_viewer
             | self.profile_card.take().is_some()
             | std::mem::take(&mut self.status_menu)
             | self.status_editor.take().is_some()
             | self.poll_creator.take().is_some()
+            | self.forward_dialog.take().is_some()
             | self.emoji_picker.take().is_some()
             | self.switcher.take().is_some()
             | self.close_share_picker(cx)
@@ -269,6 +287,7 @@ impl Waffle {
         out.extend(self.status_menu_overlay(cx));
         out.extend(self.status_editor_overlay(window, cx));
         out.extend(self.poll_creator_overlay(window, cx));
+        out.extend(self.forward_overlay(window, cx));
         out.extend(self.emoji_overlay(window, cx));
         out.extend(self.switcher_overlay(window, cx));
         out.extend(self.share_overlay(window, cx));
@@ -759,8 +778,9 @@ impl Waffle {
         )
     }
 
-    fn switcher_row(&self, active: bool, guild_id: Option<String>, channel: Channel, place: SharedString, query: &str, cx: &mut Context<Self>) -> impl IntoElement {
-        let lead = match (&channel.recipient, channel.kind) {
+    // A channel's mark in a list of places: the person with their status, a group's faces, else the kind's glyph.
+    pub(crate) fn channel_lead(&self, channel: &Channel, cx: &App) -> AnyElement {
+        match (&channel.recipient, channel.kind) {
             (Some(user), _) => {
                 let status = self.presences.get(&user.id).map(|p| p.status);
                 avatar_with_status(&user.avatar, 20., status, palette::surface(palette::Level::Overlay, cx))
@@ -775,7 +795,11 @@ impl Waffle {
                 };
                 div().text_color(palette::faint(cx)).child(Icon::new(glyph).size(px(18.))).into_any_element()
             }
-        };
+        }
+    }
+
+    fn switcher_row(&self, active: bool, guild_id: Option<String>, channel: Channel, place: SharedString, query: &str, cx: &mut Context<Self>) -> impl IntoElement {
+        let lead = self.channel_lead(&channel, cx);
         let name: SharedString = channel.name.clone().into();
         let strong = palette::strong(cx);
         let mark = name.to_lowercase().find(&query.to_lowercase()).filter(|_| !query.is_empty()).map(|at| at..at + query.len()).filter(|r| name.is_char_boundary(r.start) && name.is_char_boundary(r.end));
@@ -823,14 +847,14 @@ impl SectionLead {
     fn render(&self, cx: &App) -> AnyElement {
         match self {
             SectionLead::Glyph(glyph) => Icon::new(*glyph).size(px(18.)).into_any_element(),
-            SectionLead::Server { icon, name } => menu::server_icon(icon.as_deref(), name, 24., RADIUS_XS, cx),
+            SectionLead::Server { icon, name } => ui::server_tile(icon.as_deref(), name, 24., cx),
         }
     }
 
     fn small(&self, cx: &App) -> AnyElement {
         match self {
             SectionLead::Glyph(glyph) => Icon::new(*glyph).size(px(14.)).into_any_element(),
-            SectionLead::Server { icon, name } => menu::server_icon(icon.as_deref(), name, 16., 5., cx),
+            SectionLead::Server { icon, name } => ui::server_tile(icon.as_deref(), name, 16., cx),
         }
     }
 }
