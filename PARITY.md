@@ -42,7 +42,7 @@ User complaints about Discord and how Waffle answers them: [docs/better.md](docs
 - [x] GIF picker (Discord's Tenor search)
 - [~] Stickers: sent from a Stickers tab beside GIFs and Emoji (recent, your servers, Discord's packs, search by name and tags) and drawn at 160px, APNG animated; Lottie stickers (most of Discord's own packs) show a placeholder because there's no Lottie player
 - [x] Pins popover from the header
-- [~] Inbox from the title bar: Mentions tab only; the Unreads tab and Mentions filters are missing
+- [x] Inbox: Unreads (unmuted channels with their newest cached messages, Mark read, Mark all read) and Mentions with filter chips (@everyone, roles, this server only); Discord's "For you" notifications aren't built
 - [x] Threads: thread chips under messages, joined threads nested under their channel, a Threads popout in the header, Create Thread, Discord's thread menu (join, close, lock, mute, notifications, delete, leave)
 - [ ] Threads open in the main view with a breadcrumb; Discord opens them in a split pane beside the channel
 - [ ] Threads popout lists active threads only; Discord also searches older and archived ones

@@ -39,6 +39,7 @@ mod os_image;
 mod overlays;
 mod overwrites;
 mod playback;
+mod inbox;
 mod status_menu;
 mod stickers;
 mod memory;
@@ -743,6 +744,9 @@ pub struct Waffle {
     inbox: Option<Option<Result<Vec<Message>, SharedString>>>,
     // The inbox popover, rising from the rail's Inbox tile.
     inbox_open: bool,
+    inbox_tab: inbox::InboxTab,
+    // A jump waiting for the opened channel's history to land.
+    pending_jump: Option<(String, String)>,
     // Where the pins popover or a reaction's emoji picker was opened from, so it rises from its trigger.
     popover_at: gpui_kit::Point<gpui_kit::Pixels>,
     // The full Inbox page in the content column ("See all").
@@ -1034,6 +1038,8 @@ impl Waffle {
             friends_tab: home::FriendsTab::Online,
             inbox: None,
             inbox_open: false,
+            inbox_tab: inbox::InboxTab::default(),
+            pending_jump: None,
             popover_at: gpui_kit::Point::default(),
             inbox_page: false,
             gif_picker: None,
@@ -1754,6 +1760,11 @@ impl Waffle {
             self.list.remeasure_items(0..1.min(count));
         }
         self.request_missing_roles(authors);
+        if self.pending_jump.as_ref().is_some_and(|(channel, _)| channel == channel_id)
+            && let Some((_, message_id)) = self.pending_jump.take()
+        {
+            self.jump_to(message_id, cx);
+        }
         cx.notify();
     }
 
@@ -1830,12 +1841,32 @@ impl Waffle {
     /// Scrolls to the replied-to message and flashes it; loads the history around it first if needed.
     fn jump_to(&mut self, message_id: String, cx: &mut Context<Self>) {
         let Some(channel) = self.channel.clone() else { return };
+        // A channel just opened is still fetching its newest page, which lands after this and resets the
+        // list to the bottom: wait for it (`merge_latest` runs the jump).
+        if self.feeds.get(&channel.id).is_some_and(|f| f.fetching) {
+            self.pending_jump = Some((channel.id.clone(), message_id));
+            return;
+        }
         let position = self.feeds.get(&channel.id).and_then(|f| f.messages.iter().position(|m| m.id == message_id));
         if let Some(ix) = position {
             self.list.scroll_to(ListOffset { item_ix: ix, offset_in_item: px(0.) });
             self.flash = Some(message_id.clone());
+            // The row's height is known only once it's laid out: then pull it down to the middle of the view.
             cx.spawn(async move |this, cx| {
-                cx.background_executor().timer(Duration::from_millis(1600)).await;
+                cx.background_executor().timer(Duration::from_millis(32)).await;
+                this.update(cx, |this, cx| {
+                    let (Some(row), view) = (this.list.bounds_for_item(ix), this.list.viewport_bounds()) else { return };
+                    let spare = view.size.height - row.size.height;
+                    if spare > px(0.) {
+                        this.list.scroll_by(row.top() - view.top() - spare / 2.);
+                        cx.notify();
+                    }
+                })
+                .ok();
+            })
+            .detach();
+            cx.spawn(async move |this, cx| {
+                cx.background_executor().timer(chat::JUMP_FLASH).await;
                 this.update(cx, |this, cx| {
                     if this.flash.as_ref() == Some(&message_id) {
                         this.flash = None;

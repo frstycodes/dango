@@ -111,12 +111,13 @@ impl Waffle {
 
     pub(crate) fn mark_guild_read(&mut self, guild_id: &str, cx: &mut Context<Self>) {
         let Some(guild) = self.guilds.iter().find(|g| g.id == guild_id) else { return };
-        let unread: Vec<(String, u64)> = guild
-            .channels
-            .iter()
-            .filter(|c| self.unread(&c.id) || self.mention_count(&c.id) > 0)
-            .filter_map(|c| Some((c.id.clone(), *self.last_message.get(&c.id)?)))
-            .collect();
+        let channels: Vec<String> = guild.channels.iter().filter(|c| self.unread(&c.id) || self.mention_count(&c.id) > 0).map(|c| c.id.clone()).collect();
+        self.mark_channels_read(&channels, cx);
+    }
+
+    /// Acks every channel in `channels` at its newest message in one request.
+    pub(crate) fn mark_channels_read(&mut self, channels: &[String], cx: &mut Context<Self>) {
+        let unread: Vec<(String, u64)> = channels.iter().filter_map(|c| Some((c.clone(), *self.last_message.get(c)?))).collect();
         for (channel, last) in &unread {
             let read = self.read_states.entry(channel.clone()).or_default();
             read.last_read = *last;
@@ -269,35 +270,21 @@ impl Waffle {
         out.extend(self.switcher_overlay(window, cx));
         out.extend(self.share_overlay(window, cx));
         out.extend(self.pins_overlay(cx));
-        out.extend(self.inbox_overlay(cx));
+        out.extend(self.inbox_overlay(window, cx));
         out.extend(self.composer_picker_overlay(window, cx));
         out
     }
 
     // The Inbox: your recent mentions across servers, each jumping to its message. It rises from the rail's
     // Inbox tile, showing the latest few, with the way to the full page at its foot.
-    fn inbox_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+    fn inbox_overlay(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         if !self.inbox_open {
             return None;
         }
         const PREVIEW: usize = 6;
-        let theme = cx.theme().clone();
-        let more = matches!(&self.inbox, Some(Some(Ok(list))) if list.len() > PREVIEW);
-        let see_all = div()
-            .id("inbox-see-all")
-            .mx_3()
-            .mb_3()
-            .h(px(34.))
-            .squircle(RADIUS_XS)
-            .flex()
-            .items_center()
-            .justify_center()
-            .cursor_pointer()
-            .text_size(px(14.))
-            .font_weight(FontWeight::MEDIUM)
-            .text_color(palette::strong(cx))
-            .bg(palette::selected(cx))
-            .hover(|s| s.bg(palette::hover(cx)))
+        let more = self.inbox_tab == crate::inbox::InboxTab::Mentions && matches!(&self.inbox, Some(Some(Ok(list))) if list.len() > PREVIEW);
+        let see_all = ui::button("inbox-see-all", ui::Tone::Secondary, cx)
+            .w_full()
             .child(if more { "See all mentions" } else { "Open Inbox" })
             .on_click(cx.listener(|this, _, _, cx| this.open_inbox_page(cx)));
         Some(
@@ -311,9 +298,9 @@ impl Waffle {
                         .w(px(420.))
                         .max_h(px(560.))
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .child(div().px_4().py_3().flex().items_center().gap_2().child(Icon::new(Glyph::Inbox).size(px(20.))).child(div().font_weight(FontWeight::SEMIBOLD).child("Inbox")).child(div().text_color(theme.muted_foreground).child("Mentions")))
-                        .child(div().id("inbox-list").flex_1().min_h_0().overflow_y_scrollbar().px_3().pb_3().child(self.mention_list(Some(PREVIEW), cx)))
-                        .child(see_all),
+                        .child(div().px_3().pt_2().pb_2().child(self.inbox_head(true, window, cx)))
+                        .child(div().id("inbox-list").flex_shrink(1.).min_h_0().overflow_y_scroll().px_3().pb_3().child(self.inbox_body(Some(PREVIEW), cx)))
+                        .child(div().px_3().pb_3().child(see_all)),
                 )
                 .into_any_element(),
         )
@@ -323,15 +310,22 @@ impl Waffle {
     pub(crate) fn mention_list(&self, limit: Option<usize>, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme().clone();
         match &self.inbox {
-            None | Some(None) => div().p_4().text_color(theme.muted_foreground).child("Loading mentions…").into_any_element(),
+            None | Some(None) => mention_skeletons(cx),
             Some(Some(Err(error))) => div().p_4().text_color(theme.danger).child(error.clone()).into_any_element(),
             Some(Some(Ok(list))) if list.is_empty() => div().p_6().text_color(theme.muted_foreground).child("You're all caught up!").into_any_element(),
-            Some(Some(Ok(list))) => div()
+            Some(Some(Ok(list))) => {
+                let shown: Vec<Message> = list.iter().take(limit.unwrap_or(usize::MAX)).cloned().collect();
+                let ctx = self.row_context_everywhere(&shown, 380., cx);
+                div()
                 .flex()
                 .flex_col()
                 .gap_2()
-                .children(list.iter().take(limit.unwrap_or(usize::MAX)).map(|m| {
-                    let place = m.guild_id.as_ref().and_then(|g| self.guilds.iter().find(|x| &x.id == g)).and_then(|g| g.channels.iter().find(|c| c.id == m.channel_id).map(|c| format!("#{} · {}", c.name, g.name))).unwrap_or_default();
+                .children(shown.iter().map(|m| {
+                    let place = match self.place_of(m.guild_id.as_deref(), &m.channel_id) {
+                        Some((Some(guild_id), channel)) => self.guilds.iter().find(|g| g.id == guild_id).map(|g| format!("#{} · {}", channel.name, g.name)).unwrap_or_default(),
+                        Some((None, channel)) => channel.name.clone(),
+                        None => String::new(),
+                    };
                     let (guild_id, channel_id, message_id) = (m.guild_id.clone(), m.channel_id.clone(), m.id.clone());
                     div()
                         .id(SharedString::from(format!("inbox-{}", m.id)))
@@ -345,18 +339,11 @@ impl Waffle {
                         .gap_1()
                         .child(div().text_size(px(12.)).text_color(theme.muted_foreground).child(place))
                         .child(div().flex().items_center().gap_2().child(crate::ui::avatar(m.author.avatar.clone(), 24.)).child(div().font_weight(FontWeight::NORMAL).child(m.author.name.clone())))
-                        .child(div().text_size(px(14.)).line_clamp(3).child(m.content.clone()))
-                        .on_click(cx.listener(move |this, _, window, cx| {
-                            this.inbox_open = false;
-                            let channel = guild_id.as_ref().and_then(|g| this.guilds.iter().find(|x| &x.id == g)).and_then(|g| g.channels.iter().find(|c| c.id == channel_id)).cloned();
-                            if let Some(channel) = channel {
-                                this.guild_id = guild_id.clone();
-                                this.open_channel(channel, window, cx);
-                            }
-                            this.jump_to(message_id.clone(), cx);
-                        }))
+                        .child(div().text_size(px(14.)).line_clamp(3).children(crate::chat::content(m, &ctx, cx)))
+                        .on_click(cx.listener(move |this, _, window, cx| this.open_message(guild_id.clone(), &channel_id, message_id.clone(), window, cx)))
                 }))
-                .into_any_element(),
+                .into_any_element()
+            }
         }
     }
 
@@ -848,6 +835,23 @@ impl SectionLead {
 // What someone's up to, as the popout's status line says it.
 // A full-window catcher: clicking outside the floating surface closes it.
 /// A popover placed with one corner at `at` (in window coordinates), shifted to stay 8px inside the window.
+// The mention cards' shape while they load: the place line, avatar and name, two lines of text.
+fn mention_skeletons(cx: &App) -> AnyElement {
+    let card = |i: usize, widths: (f32, f32, f32)| {
+        div()
+            .p_3()
+            .squircle(RADIUS_XS)
+            .bg(palette::surface(palette::Level::Raised, cx))
+            .flex()
+            .flex_col()
+            .gap_2()
+            .child(ui::skeleton(("mention-skel-place", i), RADIUS_XS, cx).h(px(10.)).w(px(widths.0)))
+            .child(div().flex().items_center().gap_2().child(ui::skeleton_circle(("mention-skel-avatar", i), 24., cx)).child(ui::skeleton(("mention-skel-name", i), RADIUS_XS, cx).h(px(12.)).w(px(widths.1))))
+            .child(ui::skeleton(("mention-skel-text", i), RADIUS_XS, cx).h(px(12.)).w(gpui_kit::relative(widths.2)))
+    };
+    div().flex().flex_col().gap_2().child(card(0, (140., 90., 0.85))).child(card(1, (110., 70., 0.6))).child(card(2, (160., 100., 0.75))).into_any_element()
+}
+
 pub(crate) fn anchored_at(at: gpui_kit::Point<gpui_kit::Pixels>, corner: gpui_kit::Anchor, popover: impl IntoElement) -> AnyElement {
     gpui_kit::anchored().position(at).anchor(corner).snap_to_window_with_margin(px(8.)).child(popover).into_any_element()
 }

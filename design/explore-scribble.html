@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jump Scribble</title>
+<meta name="description" content="Candidates for the mark that shows where a jump to a message landed.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400..700&display=swap" rel="stylesheet">
+<style>
+  /* Waffle's tokens (tokens.css), inlined so the page stands alone. */
+  :root, :root[data-theme="light"] { color-scheme: light; --bg-page: oklch(0.982 0.002 80); --bg-raised: oklch(0.995 0.001 80); --hover: oklch(0.3 0.008 80 / 0.06); --selected: oklch(0.3 0.008 80 / 0.09); --line: oklch(0.3 0.008 80 / 0.1); --text-strong: oklch(0.20 0.009 80); --text: oklch(0.30 0.009 80); --text-muted: oklch(0.46 0.009 80); --accent: #efa831; --accent-ink: #8a5601; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; --bg-page: oklch(0.210 0.004 80); --bg-raised: oklch(0.250 0.005 80); --hover: oklch(1 0 0 / 0.05); --selected: oklch(1 0 0 / 0.08); --line: oklch(1 0 0 / 0.08); --text-strong: oklch(0.97 0.004 80); --text: oklch(0.88 0.008 80); --text-muted: oklch(0.72 0.012 80); --accent-ink: #f6b84d; } }
+  :root[data-theme="dark"] { color-scheme: dark; --bg-page: oklch(0.210 0.004 80); --bg-raised: oklch(0.250 0.005 80); --hover: oklch(1 0 0 / 0.05); --selected: oklch(1 0 0 / 0.08); --line: oklch(1 0 0 / 0.08); --text-strong: oklch(0.97 0.004 80); --text: oklch(0.88 0.008 80); --text-muted: oklch(0.72 0.012 80); --accent-ink: #f6b84d; }
+  body { margin: 0; background: var(--bg-page); color: var(--text); font-family: "Figtree", system-ui, sans-serif; font-size: 16px; }
+  main { max-width: 1080px; margin: 0 auto; padding: 32px 16px 64px; }
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  h1 { font-size: 24px; margin: 0; color: var(--text-strong); flex: 1; }
+  p.lede { color: var(--text-muted); margin: 0 0 24px; max-width: 70ch; line-height: 1.5; }
+  button { font: inherit; font-size: 14px; color: var(--text-strong); background: var(--hover); border: 1px solid var(--line, oklch(0.5 0 0 / 0.2)); border-radius: 10px; padding: 6px 12px; cursor: pointer; }
+  button:hover { background: var(--selected, var(--hover)); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 480px), 1fr)); gap: 16px; }
+  .card { background: var(--bg-raised, var(--bg-page)); border: 1px solid var(--line, oklch(0.5 0 0 / 0.15)); border-radius: 20px; padding: 16px; cursor: pointer; }
+  .card h2 { margin: 0 0 4px; font-size: 16px; color: var(--text-strong); display: flex; gap: 8px; align-items: baseline; }
+  .card h2 b { font-family: ui-monospace, monospace; font-size: 13px; color: var(--text-muted); font-weight: 500; }
+  .card p { margin: 0 0 12px; font-size: 14px; color: var(--text-muted); line-height: 1.45; }
+  .feed { border-radius: 14px; background: var(--bg-page); padding: 8px 0; }
+  .msg { display: grid; grid-template-columns: 40px 1fr; gap: 0 12px; padding: 4px 16px 8px; border-radius: 10px; transition: background-color 300ms; }
+  .msg.dim { opacity: 0.5; }
+  .msg.landed { background: color-mix(in oklch, var(--accent, #efa831) 12%, transparent); }
+  .av { width: 40px; height: 40px; border-radius: 50%; grid-row: span 2; }
+  .head { display: flex; gap: 8px; align-items: baseline; }
+  .head b { color: var(--accent-ink); font-weight: 600; }
+  .head time { font-size: 12px; color: var(--text-muted); }
+  .text { position: relative; color: var(--text-strong); line-height: 22px; width: fit-content; max-width: 100%; }
+  .at { background: color-mix(in oklch, var(--accent, #efa831) 22%, transparent); color: var(--accent-ink); border-radius: 6px; padding: 0 3px; }
+  canvas.mark { position: absolute; left: -4px; top: 0; pointer-events: none; }
+</style>
+<script>try{const t=localStorage.getItem("scribble-theme");if(t)document.documentElement.dataset.theme=t}catch{}</script>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Jump scribble</h1>
+    <button id="replay">Replay all</button>
+    <button id="reseed">Another hand</button>
+    <button id="theme">Light / dark</button>
+  </header>
+  <p class="lede">Where a jump to a message landed (from a mention, search or a reply). Each waits ~350ms for the view to settle, draws itself over ~550ms, holds, then fades by 2.4s. Click a card to replay it; "Another hand" redraws every variant with a new seed.</p>
+  <div class="grid" id="grid"></div>
+</main>
+<script>
+const VARIANTS = [
+  { key: "A", name: "Uneven waves", note: "What's built now: every half-wave its own width and height, a wandering baseline, pressure, a flick at the end.", draw: waves, kind: "under" },
+  { key: "B", name: "Cursive loops", note: "A run of loose loops, like an ell written over and over; reads as fast handwriting.", draw: loops, kind: "under" },
+  { key: "C", name: "Double pass", note: "One underline gone over twice, the passes not quite on top of each other.", draw: double, kind: "under" },
+  { key: "D", name: "Calm swoosh", note: "One wobbly line with a little overshoot and a hook: the quietest of the four.", draw: swoosh, kind: "under" },
+  { key: "E", name: "Loose ring", note: "A hand-drawn oval around the text, overlapping where it closes, like circling a word.", draw: ring, kind: "ring" },
+  { key: "F", name: "Marker swipe", note: "A translucent highlighter stroke behind the text, rough at the edges.", draw: swipe, kind: "behind" },
+];
+const WAIT = 350, DRAW = 550, TOTAL = 2400, FADE = 500;
+let seed = 7;
+
+function rng(s) { let x = (s * 2654435761) >>> 0 || 1; return () => { x ^= x << 13; x >>>= 0; x ^= x >> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
+const ease = t => t * t * (3 - 2 * t);
+
+// Each variant returns strokes: arrays of {x, y, w} points in CSS px for a text box w × h.
+function waves(w, h, r) {
+  const len = Math.min(w + 8, 360), pts = [], waves = [];
+  let x = 0, up = true; while (x < len) { x += 5 + r() * 5; waves.push([Math.min(x, len), (0.6 + r() * 2.2) * (up ? -1 : 1)]); up = !up; }
+  const p1 = r() * 6.28, p2 = r() * 6.28, rise = -0.8 - r() * 1.2, base = h + 4;
+  for (let x = 0; x <= len; x += 1) {
+    const i = Math.min(waves.findIndex(v => v[0] >= x), waves.length - 1), start = i ? waves[i - 1][0] : 0, [end, hh] = waves[i];
+    const local = (x - start) / Math.max(end - start, .001), u = x / len;
+    const y = base + rise * u + .9 * Math.sin(u * 2.1 + p1) + hh * Math.sin(local * Math.PI) + .25 * Math.sin(x * 1.7 + p2) * Math.cos(x * .53) - 2.5 * Math.max(0, (u - .94) / .06) ** 2;
+    pts.push({ x, y, w: 2 + .8 * (.5 + .5 * Math.sin(u * 5.3 + p1)) });
+  }
+  return [pts];
+}
+function loops(w, h, r) {
+  const len = Math.min(w + 8, 360), pts = [], base = h + 5, step = 11 + r() * 3;
+  const n = Math.max(3, Math.round(len / step));
+  for (let i = 0; i <= n * 40; i++) {
+    const t = i / 40, a = t * 6.283;
+    const rad = 3 + r() * .4, x = t * (len / n) - Math.sin(a) * rad * 1.1, y = base - (1 - Math.cos(a)) * rad * .9 + Math.sin(t * .7) * .8;
+    if (x < 0) continue; pts.push({ x: Math.min(x, len), y, w: 1.9 + .5 * Math.sin(t * 1.3) });
+  }
+  return [pts];
+}
+function double(w, h, r) {
+  const len = Math.min(w + 8, 360), base = h + 4, out = [];
+  for (const [dy, s, e] of [[0, 0, 1], [2.2 + r(), .04, .97]]) {
+    const pts = [], p = r() * 6, tilt = (r() - .5) * 3;
+    for (let x = len * s; x <= len * e; x += 1) { const u = x / len; pts.push({ x, y: base + dy + tilt * u + 1.4 * Math.sin(u * 3.2 + p) + .6 * Math.sin(x * .21 + p * 2), w: 2.1 + .5 * Math.sin(u * 4 + p) }); }
+    out.push(pts);
+  }
+  return out;
+}
+function swoosh(w, h, r) {
+  const len = Math.min(w + 12, 360), base = h + 4, pts = [], p = r() * 6, bow = 1.5 + r() * 1.5;
+  for (let x = -4; x <= len; x += 1) {
+    const u = Math.max(0, x / len), hook = -5 * Math.max(0, (u - .9) / .1) ** 2.2;
+    pts.push({ x, y: base + bow * Math.sin(u * Math.PI) + .7 * Math.sin(x * .09 + p) + hook, w: 2.6 - 1.0 * u * u });
+  }
+  return [pts];
+}
+function ring(w, h, r) {
+  const cx = w / 2 + 2, cy = h / 2 + 1, rx = w / 2 + 16, ry = h / 2 + 2, pts = [], start = -2.6 + r() * .4, turn = 6.283 * 1.12;
+  for (let i = 0; i <= 220; i++) {
+    const t = i / 220, a = start + t * turn, wob = 1 + .05 * Math.sin(a * 3 + r() * .2) + .04 * t;
+    pts.push({ x: cx + Math.cos(a) * rx * wob, y: cy + Math.sin(a) * ry * wob * (1 - .06 * t), w: 2.2 + .5 * Math.sin(t * 9) });
+  }
+  return [pts];
+}
+function swipe(w, h, r) {
+  const len = w + 10, pts = [], p = r() * 6;
+  for (let x = -4; x <= len; x += 1) { const u = x / len; pts.push({ x, y: h / 2 + 1 + 1.6 * Math.sin(u * 2.8 + p) - 1.2 * u, w: h + 4 + 2 * Math.sin(x * .3 + p) }); }
+  return [pts];
+}
+
+function build() {
+  const grid = document.getElementById("grid"); grid.innerHTML = "";
+  VARIANTS.forEach((v, i) => {
+    const card = document.createElement("div"); card.className = "card";
+    card.innerHTML = `<h2><b>${v.key}</b>${v.name}</h2><p>${v.note}</p><div class="feed">
+      <div class="msg dim"><span class="av" style="background:#5d8ec8"></span><div class="head"><b>moss lantern</b><time>Saturday at 1:58 PM</time></div><div class="text">anyone tried the new list yet?</div></div>
+      <div class="msg target"><span class="av" style="background:#7c8794"></span><div class="head"><b>kiwi</b><time>Saturday at 2:00 PM</time></div><div class="text">discord on rust <span class="at">@Wren</span>, check <span class="at">#media</span><canvas class="mark"></canvas></div></div>
+      <div class="msg dim"><span class="av" style="background:#4fa36b"></span><div class="head"><b>Wren</b><time>Saturday at 2:02 PM</time></div><div class="text">it already feels faster than the real one</div></div></div>`;
+    card.onclick = () => play(card, v, i);
+    grid.appendChild(card);
+    play(card, v, i);
+  });
+}
+
+function play(card, v, i) {
+  const msg = card.querySelector(".target"), text = msg.querySelector(".text"), canvas = text.querySelector("canvas");
+  const box = text.getBoundingClientRect(), pad = 24, dpr = devicePixelRatio || 1;
+  const W = box.width + pad * 2, H = box.height + pad * 2;
+  canvas.style.width = W + "px"; canvas.style.height = H + "px"; canvas.style.left = (-pad - 4) + "px"; canvas.style.top = (-pad) + "px";
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.zIndex = v.kind === "behind" ? -1 : 1; text.style.zIndex = 0; text.style.isolation = "isolate";
+  const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const strokes = v.draw(box.width, box.height, rng(seed * 31 + i));
+  const color = getComputedStyle(document.documentElement).getPropertyValue("--accent-ink").trim() || "#efa831";
+  const t0 = performance.now(); msg.classList.add("landed"); card._run = (card._run || 0) + 1; const run = card._run;
+  function frame(now) {
+    if (card._run !== run) return;
+    const el = now - t0, drawn = ease(Math.min(1, Math.max(0, (el - WAIT) / DRAW))), alpha = Math.min(1, Math.max(0, (TOTAL - el) / FADE));
+    ctx.clearRect(0, 0, W, H); canvas.style.opacity = alpha * (v.kind === "behind" ? .35 : 1); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    const all = strokes.reduce((n, s) => n + s.length, 0); let budget = Math.floor(all * drawn);
+    for (const s of strokes) {
+      const n = Math.min(s.length, budget); budget -= n; if (n < 2) continue;
+      for (let k = 1; k < n; k++) { ctx.lineWidth = s[k].w; ctx.beginPath(); ctx.moveTo(pad + s[k - 1].x, pad + s[k - 1].y); ctx.lineTo(pad + s[k].x, pad + s[k].y); ctx.stroke(); }
+    }
+    if (el > TOTAL - FADE) msg.classList.remove("landed");
+    if (el < TOTAL) requestAnimationFrame(frame); else ctx.clearRect(0, 0, W, H);
+  }
+  requestAnimationFrame(frame);
+}
+
+document.getElementById("replay").onclick = build;
+document.getElementById("reseed").onclick = () => { seed++; build(); };
+document.getElementById("theme").onclick = () => {
+  const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  r.dataset.theme = dark ? "light" : "dark"; try { localStorage.setItem("scribble-theme", r.dataset.theme); } catch {}
+  build();
+};
+document.fonts.ready.then(build);
+</script>
+</body>
+</html>

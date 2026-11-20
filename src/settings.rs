@@ -164,6 +164,7 @@ pub struct Prefs {
     // How often we've reacted with each emoji, for the "frequently used" rows.
     pub emoji_uses: Vec<(crate::discord::Emoji, u32)>,
     pub sticker_uses: Vec<(crate::discord::Sticker, u32)>,
+    pub mention_filters: crate::inbox::MentionFilters,
     // Go Live quality: height (0 = source), frame rate, and whether the source's sound goes too.
     pub stream_resolution: u32,
     pub stream_fps: u32,
@@ -231,6 +232,7 @@ impl Default for Prefs {
             hidden_video: Vec::new(),
             emoji_uses: Vec::new(),
             sticker_uses: Vec::new(),
+            mention_filters: crate::inbox::MentionFilters::default(),
             stream_resolution: 720,
             stream_fps: 30,
             stream_audio: true,
