@@ -22,6 +22,7 @@ mod chat;
 mod composer_emoji;
 mod demo;
 mod discord;
+mod drafts;
 mod drag;
 mod icons;
 mod images;
@@ -104,6 +105,7 @@ use login::Login;
 
 const TYPING_TTL: Duration = Duration::from_secs(10);
 const TYPING_SEND_EVERY: Duration = Duration::from_secs(8);
+const DRAFTS_SAVE_AFTER: Duration = Duration::from_millis(500);
 
 // Counts every allocation so the memory report can show Rust's own share (see memory.rs); the
 // dhat-heap build records where each one comes from instead.
@@ -655,6 +657,9 @@ pub struct Waffle {
     search_more: bool,
     search_day: chrono::NaiveDate,
     has_draft: bool,
+    // Each channel's unsent composer, and its pending write to disk.
+    drafts: drafts::Drafts,
+    drafts_save: Option<Task<()>>,
     send_error: Option<SharedString>,
     replying: Option<Message>,
     // Discord's "@ ON / OFF" on the reply bar: whether the reply pings its author.
@@ -1019,6 +1024,8 @@ impl Waffle {
             search_more: false,
             search_day: search_menu::today(),
             has_draft: false,
+            drafts: drafts::Drafts::load(),
+            drafts_save: None,
             send_error: None,
             replying: None,
             reply_ping: true,
@@ -1768,9 +1775,10 @@ impl Waffle {
             self.feeds.insert(id.clone(), Feed { messages: Arc::new(messages), loaded: true, has_more: true, ..Default::default() });
         }
         self.load_dm_profile(&channel, cx);
+        self.stash_draft(cx);
         self.channel = Some(channel);
-        self.replying = None;
         self.editing = None;
+        self.restore_draft(window, cx);
         self.send_error = None;
         self.autocomplete = None;
         self.scrolled_up = false;
@@ -2021,6 +2029,7 @@ impl Waffle {
             InputEvent::Change => {
                 let text = state.read(cx).value();
                 self.has_draft = !text.trim().is_empty() || !self.pending_files.is_empty();
+                self.stash_draft(cx);
                 self.autocomplete = self.suggest(&text);
                 self.send_typing();
                 cx.notify();
@@ -2055,8 +2064,11 @@ impl Waffle {
         self.send_error = None;
         self.last_typing_sent = None;
         if let Some(editing) = self.editing.take() {
+            self.restore_draft(window, cx);
             return self.edit(editing, content, cx);
         }
+        self.drafts.clear(&channel.id);
+        self.save_drafts_soon(cx);
         if !self.pending_files.is_empty() {
             return self.send_files(content, cx);
         }
@@ -2426,13 +2438,45 @@ impl Waffle {
     }
 
     fn cancel_compose(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.autocomplete = None;
         if self.editing.take().is_some() {
-            self.composer.update(cx, |state, cx| state.set_value("", window, cx));
-            self.has_draft = false;
+            self.restore_draft(window, cx);
+            return cx.notify();
         }
         self.replying = None;
-        self.autocomplete = None;
         cx.notify();
+    }
+
+    // Keeps the open channel's composer as its draft; an edit in progress is not one.
+    fn stash_draft(&mut self, cx: &mut Context<Self>) {
+        let Some(channel) = &self.channel else { return };
+        if self.editing.is_some() {
+            return;
+        }
+        let draft = drafts::Draft::new(&self.composer.read(cx).content(), self.replying.clone());
+        self.drafts.set(&channel.id, draft);
+        self.save_drafts_soon(cx);
+    }
+
+    // Puts the open channel's draft back in the composer (or empties it), caret at the end.
+    fn restore_draft(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let draft = self.channel.as_ref().and_then(|c| self.drafts.get(&c.id)).cloned().unwrap_or_default();
+        let content = draft.content();
+        let end = content.text().len();
+        self.has_draft = !content.text().trim().is_empty() || !self.pending_files.is_empty();
+        self.composer.update(cx, |state, cx| {
+            state.set_value(content, window, cx);
+            state.set_selected_range(end..end, cx);
+        });
+        self.replying = draft.reply;
+    }
+
+    // Typing rewrites the drafts file at most once per pause.
+    fn save_drafts_soon(&mut self, cx: &mut Context<Self>) {
+        self.drafts_save = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(DRAFTS_SAVE_AFTER).await;
+            this.update(cx, |this, _| this.drafts.save()).ok();
+        }));
     }
 
     /// Up arrow in an empty composer edits your last message, like Discord.

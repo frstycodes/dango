@@ -20,6 +20,7 @@ User complaints about Discord and how Waffle answers them: [docs/better.md](docs
 - [x] Reply composer toggle "@ ON / OFF" (ping the author) and a jump arrow on the reply bar
 - [x] Paste or drag-and-drop images and files into the composer, with attachment previews before sending
 - [x] Voice channel row: green speaker and elapsed timer while people are in it; your own row highlighted
+- [x] Per-channel drafts: each channel keeps its unsent text and mention chips across channel switches and restarts (the reply target until a restart); a pencil marks channels holding one; sending clears it, editing a message leaves it alone
 - [x] Voice: input and output device menus (the chevrons by mic and headphones), per-user volume and local mute (right-click a participant), rebindable push-to-talk
 - [x] Popups and menus block the UI behind them
 - [x] Drag servers in the rail: reorder, drop on a server to make a folder, drop into or out of folders (saved to Discord: not verified that the legacy settings endpoint still accepts folders)

@@ -796,7 +796,11 @@ impl Waffle {
         });
         let group: SharedString = format!("ch-{}", channel.id).into();
         let hovered = self.hovered_row.as_deref() == Some(channel.id.as_str());
-        let meta = muted.then(|| Nav::BellSlash.icon());
+        // An unsent draft outranks the muted bell in the meta slot.
+        let meta = match self.drafts.has(&channel.id) {
+            true => Some(draft_mark()),
+            false => muted.then(|| Nav::BellSlash.icon().size(px(16.))),
+        };
         let faint = palette::faint(cx);
         let carried = self.drag_motion.row(&channel.id);
         let welcomes = channel.kind == ChannelKind::Voice && self.welcomes_voice_drop(channel, guild);
@@ -813,7 +817,7 @@ impl Waffle {
                 }))
                 .child(ui::truncating(format!("channel-name-{}", channel.id), channel.name.clone()).flex_1())
                 .children(elapsed)
-                .children(meta.filter(|_| !selected && !hovered).map(|icon| div().flex_none().flex().text_color(faint).child(icon.size(px(16.)))))
+                .children(meta.filter(|_| !selected && !hovered).map(|icon| div().flex_none().flex().text_color(faint).child(icon)))
                 .when(selected || hovered, |r| r.child(self.row_actions(channel, guild, cx)))
                 .when(mentions > 0, |r| r.child(ui::count_badge(mentions))),
         };
@@ -1176,6 +1180,7 @@ impl Waffle {
                     .children(line.map(|l| l.flex().items_center().gap_1().min_w_0().text_size(px(12.)).text_color(faint))),
             )
             .when(mentions > 0 && !hovered, |r| r.child(ui::count_badge(mentions)))
+            .when(mentions == 0 && !selected && !hovered && self.drafts.has(&channel.id), |r| r.child(div().flex_none().flex().text_color(faint).child(draft_mark())))
             .when(hovered, |r| r.child(close))
             .on_click(cx.listener(move |this, _, window, cx| this.open_channel(open.clone(), window, cx)))
             .on_mouse_down(gpui_kit::MouseButton::Right, {
@@ -1297,6 +1302,11 @@ fn row_action(id: SharedString, icon: Icon, tooltip: &'static str, cx: &App) -> 
         .hover(move |s| s.text_color(strong))
         .child(icon.size(px(16.)))
         .tooltip(move |window, cx| Tooltip::new(tooltip).build(window, cx))
+}
+
+// The pencil on a row whose channel holds an unsent draft.
+fn draft_mark() -> Icon {
+    Icon::new(Glyph::Pen).size(px(14.))
 }
 
 // The type glyph a channel leads with (Discord's raw types: 5 announcement, 13 stage, 16 media); a private
