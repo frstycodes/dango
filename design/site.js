@@ -14,6 +14,7 @@ const PAGES = [
   ["primitives.html", "Primitives"],
   ["navigation.html", "Navigation"],
   ["messages.html", "Messages"],
+  ["embeds.html", "Rich embeds"],
   ["voice.html", "Voice and streams"],
   ["overlays.html", "Overlays"],
   ["menus.html", "Context menus"],

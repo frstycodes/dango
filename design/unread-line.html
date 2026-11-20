@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unread Line</title>
+<meta name="description" content="The NEW line above the first unread message: shape, size and colour, in a real feed.">
+<link rel="icon" href="/assets/brand/icons/paper.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<link rel="stylesheet" href="css/messages.css">
+<script>try{const p=JSON.parse(localStorage.getItem("waffle-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+<style>
+  /* One shape, one SVG (assets/icons/new-tag.svg): a sharp point on the left that the rule runs into,
+     softly rounded where it meets the body, and the body's right corners squircle curves. The app tints the same file and lays NEW over its body. */
+  .nl { display: flex; align-items: center; margin: 8px 16px; }
+  .nl .rule { flex: 1; height: 1px; background: var(--alert); }
+  .nl .newtag { position: relative; flex: none; width: 40px; height: 16px; color: var(--alert); }
+  /* The rule runs on under the tag to the body, so it meets the sharp tip at full thickness. */
+  .nl .newtag::before { content: ""; position: absolute; left: -1px; width: 9px; top: 7.5px; height: 1px; background: var(--alert); }
+  .nl .newtag svg { position: absolute; inset: 0; }
+  .nl .newtag span { position: absolute; top: 0; bottom: 0; left: 8px; right: 0; display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 700; line-height: 1; }
+
+  .feed { background: var(--bg-page); border: 1px solid var(--line); border-radius: var(--radius-lg); corner-shape: superellipse(1.4); padding: 8px 0; max-width: 760px; }
+  .msg { display: flex; gap: 16px; padding: 6px 16px; }
+  .msg .av { width: 40px; height: 40px; border-radius: 50%; flex: none; background: var(--selected); }
+  .msg .who { color: var(--text-strong); font-weight: 600; }
+  .msg .who time { color: var(--text-faint); font-weight: 400; font-size: 12px; margin-left: 6px; }
+  .msg p { margin: 2px 0 0; color: var(--text); }
+  .big .nl { width: 120px; margin: 0; zoom: 4; }
+</style>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+<section id="unread-line">
+  <h1>Unread line</h1>
+  <p class="lede">Above the first message you haven't read: a red rule into a NEW tag whose point runs back along the rule, as Discord draws it, with Waffle's squircle corners. The tag is one SVG shape, so the app draws exactly this.</p>
+</section>
+
+<section id="in-feed">
+  <h2>In a feed</h2>
+  <div class="feed">
+    <div class="msg"><div class="av"></div><div><div class="who">kiwi<time>Today at 2:00 PM</time></div><p>discord on rust, check #media</p></div></div>
+    <div class="nl"><div class="rule"></div><div class="newtag"><svg viewBox="0 0 40 16" width="40" height="16" aria-hidden="true"><path fill="currentColor" d="M0 8L6.94 1.06Q8 0 9.5 0H34.4C38.3 0 40 1.7 40 5.6V10.4C40 14.3 38.3 16 34.4 16H9.5Q8 16 6.94 14.94Z"/></svg><span>NEW</span></div></div>
+    <div class="msg"><div class="av"></div><div><div class="who">Wren<time>Today at 2:02 PM</time></div><p>it already feels faster than the real one</p></div></div>
+    <div class="msg"><div class="av"></div><div><div class="who">moss lantern<time>Today at 2:03 PM</time></div><p>the build so far: 8 cores, 32 GB</p></div></div>
+  </div>
+</section>
+
+<section id="enlarged">
+  <h2>Enlarged</h2>
+  <div class="big"><div class="nl"><div class="rule"></div><div class="newtag"><svg viewBox="0 0 40 16" width="40" height="16" aria-hidden="true"><path fill="currentColor" d="M0 8L6.94 1.06Q8 0 9.5 0H34.4C38.3 0 40 1.7 40 5.6V10.4C40 14.3 38.3 16 34.4 16H9.5Q8 16 6.94 14.94Z"/></svg><span>NEW</span></div></div></div>
+</section>
+</main>
+</div>
+<script src="site.js"></script>
+</body>
+</html>
