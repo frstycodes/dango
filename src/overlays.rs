@@ -496,9 +496,14 @@ impl Waffle {
             .w(px(420.))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(div().px_4().py_3().flex().items_center().gap_2().child(Icon::new(Glyph::Pin).size(px(20.))).child(div().font_weight(FontWeight::SEMIBOLD).child("Pinned Messages")))
-            // The cap sits on the list: `overflow_y_scrollbar`'s scroll area gives a `flex_1` list no content height, so
-            // under a card with only a max height it collapsed to nothing (tests/gpui_capped_list.rs).
-            .child(div().id("pins-list").max_h(px(500.)).overflow_y_scrollbar().px_3().pb_3().child(body));
+            // A plain scroll container with the cap on it, the scrollbar laid over: `overflow_y_scrollbar` either
+            // collapses such a list or never scrolls it (tests/gpui_capped_list.rs).
+            .child(
+                div()
+                    .relative()
+                    .child(div().id("pins-list").max_h(px(500.)).overflow_y_scroll().track_scroll(&self.pins_scroll).px_3().pb_3().child(body))
+                    .child(gpui_kit::component::scroll::Scrollbar::vertical(&self.pins_scroll)),
+            );
         // Under the header's pin button: its top-right corner just right of the click, kept in the window.
         let at = point(self.popover_at.x + px(16.), px(crate::layout::HEADER_HEIGHT - 2.));
         Some(backdrop("pins-backdrop", cx).child(anchored_at(at, gpui_kit::Anchor::TopRight, ui::rise(card.transform_origin(ui::corner(true, false)), "pins", Duration::ZERO))).into_any_element())
