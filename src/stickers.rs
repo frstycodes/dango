@@ -15,7 +15,7 @@ use crate::{
     Waffle,
     discord::{Message, SendState, Sticker},
     icons::Glyph,
-    menu, palette,
+    palette,
     ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, RADIUS_XS, Squircle},
 };
 
@@ -50,7 +50,7 @@ impl Lead {
     fn render(&self, size: f32, cx: &App) -> AnyElement {
         match self {
             Lead::Recent => Icon::new(Glyph::Recent).size(px(size * 0.75)).into_any_element(),
-            Lead::Server { icon, name } => menu::server_icon(icon.as_deref(), name, size, if size > 20. { RADIUS_XS } else { 5. }, cx),
+            Lead::Server { icon, name } => ui::server_tile(icon.as_deref(), name, size, cx),
             Lead::Pack(cover) => picture(cover, size),
         }
     }

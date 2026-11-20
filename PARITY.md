@@ -122,7 +122,8 @@ Tokens: `docs/discord-tokens.json` (Discord web, Midnight, read 2026-11-14).
 - [x] Drag people between voice channels (Move Members) and drag channels to reorder or into a category (Manage Channels)
 - [x] Optimistic actions: settings, pins, reactions, roles, voice moderation, relationships, ignore, nicknames, channel and thread edits, deletes, leaving a server; rolled back with a toast if Discord refuses
 - [x] Right-click menus rebuilt from Discord's own menu code: user (server, voice, DM, friends), message, channel, voice channel, category, server icon, folder, server dropdown
-- [ ] Menu items for features not built yet: Forward, Translate, Bookmarks/Reminders, Apps, Report, Favorites, Activities, Mod View, Server Settings, Create Event
+- [x] Forwarding: Forward in the message menu (F on a focused message) opens a picker for up to five places with an optional note; received forwards show as a card with the original's content and a source line that jumps to it
+- [ ] Menu items for features not built yet: Translate, Bookmarks/Reminders, Apps, Report, Favorites, Activities, Mod View, Server Settings, Create Event
 - [ ] Edit Channel and Folder Settings: Discord opens full settings screens; ours rename only
 - [x] GIFs play inline: Tenor/Giphy MP4s (OpenH264, every B-frame decoded) and animated .gif/.webp attachments
 - [x] Video attachments play inline (H.264 + AAC MP4s): play/pause, scrubber, volume and mute, fullscreen, one at a time; other codecs (HEVC, VP9) open in the browser

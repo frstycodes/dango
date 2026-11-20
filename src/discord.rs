@@ -293,6 +293,7 @@ pub mod perm {
     pub const MUTE_MEMBERS: u64 = 1 << 22;
     pub const DEAFEN_MEMBERS: u64 = 1 << 23;
     pub const MOVE_MEMBERS: u64 = 1 << 24;
+    pub const SEND_MESSAGES: u64 = 1 << 11;
     pub const MANAGE_MESSAGES: u64 = 1 << 13;
     pub const MANAGE_NICKNAMES: u64 = 1 << 27;
     pub const MANAGE_ROLES: u64 = 1 << 28;
@@ -684,6 +685,10 @@ pub struct Message {
     pub call: Option<CallRecord>,
     #[serde(default)]
     pub stickers: Vec<Sticker>,
+    // A forwarded message's copy of the original: its id, channel_id and guild_id are the original's; its
+    // author is unknown, since Discord's snapshot leaves it out.
+    #[serde(default)]
+    pub forward: Option<Box<Message>>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -1058,6 +1063,14 @@ impl Client {
     /// `ping_author`: whether a reply mentions the person replied to (Discord's "@ ON / OFF").
     pub async fn send_message(&self, channel_id: &str, content: &str, nonce: &str, reply_to: Option<&str>, ping_author: bool) -> Result<Message, String> {
         let body = message_body(content, nonce, reply_to, ping_author, &[]);
+        let req = self.request(reqwest::Method::POST, &format!("/channels/{channel_id}/messages")).json(&body);
+        self.run(req).await.and_then(|v| parse_message(&v).ok_or_else(|| "Unexpected response".into()))
+    }
+
+    /// Forwards `original` into `channel_id`: a message that is only a type-1 reference to it. `guild_id` is
+    /// the original's server, which history loaded over REST doesn't carry on the message.
+    pub async fn forward_message(&self, channel_id: &str, original: &Message, guild_id: Option<&str>, nonce: &str) -> Result<Message, String> {
+        let body = forward_body(original, guild_id, nonce);
         let req = self.request(reqwest::Method::POST, &format!("/channels/{channel_id}/messages")).json(&body);
         self.run(req).await.and_then(|v| parse_message(&v).ok_or_else(|| "Unexpected response".into()))
     }
@@ -1565,6 +1578,16 @@ fn message_body(content: &str, nonce: &str, reply_to: Option<&str>, ping_author:
         body["attachments"] = json!(list);
     }
     body
+}
+
+// Not verified: this is the body as the API reference describes a forward (a type-1 reference and no
+// content); it hasn't been checked against a request from Discord's own client.
+fn forward_body(original: &Message, guild_id: Option<&str>, nonce: &str) -> Value {
+    let mut reference = json!({ "type": 1, "message_id": original.id, "channel_id": original.channel_id });
+    if let Some(guild_id) = guild_id {
+        reference["guild_id"] = json!(guild_id);
+    }
+    json!({ "nonce": nonce, "message_reference": reference })
 }
 
 // The PUT to a signed storage URL: no Authorization (the URL is the credential), streamed in chunks so
@@ -2221,7 +2244,9 @@ pub fn parse_message(m: &Value) -> Option<Message> {
             }
         }
     }
-    let reply = m["referenced_message"].is_object().then(|| parse_message(&m["referenced_message"])).flatten().map(Box::new);
+    // Reference type 1 is a forward; only 0 (or none, on older messages) is a reply.
+    let is_reply = matches!(m["message_reference"]["type"].as_u64(), None | Some(0));
+    let reply = (is_reply && m["referenced_message"].is_object()).then(|| parse_message(&m["referenced_message"])).flatten().map(Box::new);
     Some(Message {
         id: m["id"].as_str()?.to_owned(),
         channel_id: m["channel_id"].as_str()?.to_owned(),
@@ -2240,7 +2265,7 @@ pub fn parse_message(m: &Value) -> Option<Message> {
             .flatten()
             .map(|r| Reaction { emoji: parse_emoji(&r["emoji"]), count: r["count"].as_u64().unwrap_or(1) as u32, me: r["me"].as_bool().unwrap_or(false) })
             .collect(),
-        reply_to: m["message_reference"]["message_id"].as_str().map(str::to_owned),
+        reply_to: m["message_reference"]["message_id"].as_str().filter(|_| is_reply).map(str::to_owned),
         reply,
         mentions: m["mentions"].as_array().into_iter().flatten().map(parse_user).collect(),
         mention_roles: strings(&m["mention_roles"]),
@@ -2251,7 +2276,25 @@ pub fn parse_message(m: &Value) -> Option<Message> {
         thread: m["thread"].is_object().then(|| parse_channel(&m["thread"], m["guild_id"].as_str().unwrap_or_default())).flatten(),
         call: (m["type"] == 3).then(|| CallRecord { participants: strings(&m["call"]["participants"]), ended: m["call"]["ended_timestamp"].as_str().map(str::to_owned) }),
         stickers: m["sticker_items"].as_array().or(m["stickers"].as_array()).into_iter().flatten().filter_map(Sticker::parse).collect(),
+        forward: parse_forward(m),
     })
+}
+
+// A forward's snapshot carries the original's content, media and time but no id, author or channel;
+// those come from the reference.
+fn parse_forward(m: &Value) -> Option<Box<Message>> {
+    let reference = &m["message_reference"];
+    if reference["type"].as_u64() != Some(1) {
+        return None;
+    }
+    let mut original = m["message_snapshots"][0]["message"].clone();
+    if !original.is_object() {
+        return None;
+    }
+    original["id"] = reference["message_id"].clone();
+    original["channel_id"] = reference["channel_id"].clone();
+    original["guild_id"] = reference["guild_id"].clone();
+    parse_message(&original).map(Box::new)
 }
 
 /// Merges a partial MESSAGE_UPDATE (edits, late embeds) into a cached message.
@@ -2983,6 +3026,24 @@ mod tests {
         assert_eq!(m.files[0].name, "b.zip");
         assert_eq!(m.reply.unwrap().author.name, "zoe");
         assert_eq!(m.reply_to.as_deref(), Some("0"));
+    }
+
+    #[test]
+    fn a_forward_carries_its_snapshot_and_is_no_reply() {
+        let m = parse_message(&json!({ "id": "2", "channel_id": "dest", "author": { "id": "u" }, "content": "",
+            "message_reference": { "type": 1, "message_id": "9", "channel_id": "src", "guild_id": "g" },
+            "message_snapshots": [{ "message": { "content": "look", "timestamp": "2026-11-19T23:02:00+00:00",
+                "attachments": [{ "url": "a.png", "width": 10, "height": 20, "content_type": "image/png" }] } }] }))
+        .unwrap();
+        assert_eq!(m.reply_to, None, "a type-1 reference is a forward, not a reply");
+        let original = m.forward.expect("forward");
+        assert_eq!((original.id.as_str(), original.channel_id.as_str(), original.guild_id.as_deref()), ("9", "src", Some("g")));
+        assert_eq!(original.content, "look");
+        assert_eq!(original.media.len(), 1);
+
+        let body = forward_body(&original, Some("g"), "n");
+        assert_eq!(body["message_reference"], json!({ "type": 1, "message_id": "9", "channel_id": "src", "guild_id": "g" }));
+        assert!(body.get("content").is_none());
     }
 
     #[test]

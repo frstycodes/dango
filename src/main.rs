@@ -31,6 +31,7 @@ mod login;
 mod mascot;
 mod material;
 mod forum;
+mod forward;
 mod gif;
 mod games;
 mod go_live;
@@ -575,6 +576,7 @@ enum EmojiTarget {
     Composer,
     Reaction(Box<Message>),
     CustomStatus,
+    ForwardNote,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -614,6 +616,7 @@ pub struct Waffle {
     // When a status picked "For 1 hour" and the like falls back to Online.
     status_until: Option<chrono::DateTime<chrono::Local>>,
     status_editor: Option<status_menu::StatusEditor>,
+    forward_dialog: Option<forward::ForwardDialog>,
     status_flyout: status_menu::Flyout,
     status_input: Entity<SearchState>,
     clear_after: status_menu::ClearAfter,
@@ -985,6 +988,7 @@ impl Waffle {
             custom_status: None,
             status_until: None,
             status_editor: None,
+            forward_dialog: None,
             status_flyout: status_menu::Flyout::default(),
             status_input,
             clear_after: status_menu::ClearAfter::default(),

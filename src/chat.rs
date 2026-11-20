@@ -46,6 +46,8 @@ const CONTENT_INSET: f32 = AVATAR + 16.;
 const UNREAD_BAR_SPACE: f32 = 52.;
 // A reply preview's line, above the message it answers.
 const REPLY_HEIGHT: f32 = 22.;
+// A forwarded copy's card, as the design's `.fwd`.
+const FORWARD_WIDTH: f32 = 520.;
 
 // The floating stream player's width; its height keeps 16:9.
 
@@ -438,7 +440,7 @@ impl Waffle {
             style_ground: self.guild_id.is_none().then(|| palette::surface(palette::Level::Page, cx)),
             colors: messages.iter().filter_map(|m| Some((m.author.id.clone(), self.role_color(m.guild_id.as_ref().or(self.guild_id.as_ref()), &m.author.id, m.roles.as_ref(), cx.theme().is_dark())?))).collect(),
             mentions_me: messages.iter().filter(|m| self.mentions_me(m)).map(|m| m.id.clone()).collect(),
-            channel_names: self.guild().map(|g| g.channels.iter().map(|c| (c.id.clone(), c.name.clone())).collect()).unwrap_or_default(),
+            channel_names: self.guild().into_iter().flat_map(|g| &g.channels).map(|c| (c.id.clone(), c.name.clone())).chain(self.forward_sources(messages)).collect(),
             role_names: self.guild().map(|g| g.roles.iter().map(|r| (r.id.clone(), r.name.clone())).collect()).unwrap_or_default(),
             mention_fill: palette::accent_soft(cx),
             mention_hover: palette::accent().opacity(0.26),
@@ -917,6 +919,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .text_size(px(16.))
         .text_color(ink)
         .children(content(message, ctx, cx))
+        .children(message.forward.as_ref().map(|original| forward_card(original, ctx, cx)))
         .children(media.map(|m| div().when(pending, |d| d.opacity(0.6)).child(m)))
         .children(message.stickers.iter().map(|s| div().when(pending, |d| d.opacity(0.6)).child(crate::stickers::in_chat(s, cx))))
         .children(message.embeds.iter().filter(|_| ctx.embeds).enumerate().map(|(i, e)| embed_card(e, message.reply_to.as_deref(), format!("embed-{}-{i}", message.id), ctx, cx)))
@@ -998,6 +1001,7 @@ pub(crate) fn search_hit(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) 
         .text_color(palette::text(cx))
         .child(message_head(message, ctx, cx))
         .children(content(message, ctx, cx))
+        .children(message.forward.as_ref().map(|original| forward_card(original, ctx, cx)))
         .children(media.map(|m| div().flex_none().child(m)))
         .children(message.embeds.iter().enumerate().map(|(i, e)| embed_card(e, message.reply_to.as_deref(), format!("hit-embed-{}-{i}", message.id), ctx, cx)))
         .children(files(message, ctx, cx));
@@ -1184,6 +1188,61 @@ fn reply_preview(reply: &Message, target: Option<String>, ctx: &Rc<RowContext>, 
             let Some(id) = target.clone() else { return };
             this.update(cx, |this, cx| this.jump_to(id, cx)).ok();
         })
+        .into_any_element()
+}
+
+// A forwarded copy (design/messages.html `.fwd`): the label, the original's text, media and files, then
+// where it came from, which jumps to the original. A source outside your servers shows its time alone.
+fn forward_card(original: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> AnyElement {
+    let faint = palette::faint(cx);
+    let label = div()
+        .flex()
+        .items_center()
+        .gap(px(6.))
+        .text_size(px(12.))
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(palette::muted(cx))
+        .child(Icon::new(Glyph::Forward).size(px(14.)))
+        .child("Forwarded");
+    let name = ctx.channel_names.get(&original.channel_id).cloned();
+    let glyph = if original.guild_id.is_some() { Glyph::Hashtag } else { Glyph::User };
+    let stamp = format_stamp(&original.timestamp);
+    let source = div()
+        .id(SharedString::from(format!("forward-source-{}", original.id)))
+        .flex()
+        .items_center()
+        .gap(px(4.))
+        .text_size(px(12.))
+        .text_color(faint)
+        .when_some(name.clone(), |s, name| s.child(Icon::new(glyph).size(px(14.))).child(format!("{name} · {stamp}")))
+        .when(name.is_none(), |s| s.child(stamp));
+    let source = match name {
+        Some(_) => {
+            let (this, guild_id, channel_id, id) = (ctx.this.clone(), original.guild_id.clone(), original.channel_id.clone(), original.id.clone());
+            source.cursor_pointer().hover(|s| s.text_color(palette::muted(cx))).on_click(move |_, window, cx| { cx.stop_propagation();
+                this.update(cx, |this, cx| this.open_message(guild_id.clone(), &channel_id, id.clone(), window, cx)).ok();
+            })
+        }
+        None => source,
+    };
+    div()
+        .mt(px(4.))
+        .max_w(px(FORWARD_WIDTH))
+        .pt(px(8.))
+        .px(px(12.))
+        .pb(px(10.))
+        .squircle(RADIUS_MD)
+        .bg(palette::strong(cx).opacity(0.05))
+        .flex()
+        .flex_col()
+        .gap(px(4.))
+        .child(label)
+        .children(content(original, ctx, cx))
+        .children(media_grid(original, ctx, cx))
+        .children(original.stickers.iter().map(|s| crate::stickers::in_chat(s, cx)))
+        .children(original.embeds.iter().filter(|_| ctx.embeds).enumerate().map(|(i, e)| embed_card(e, None, format!("forward-embed-{}-{i}", original.id), ctx, cx)))
+        .children(files(original, ctx, cx))
+        .child(source)
         .into_any_element()
 }
 
