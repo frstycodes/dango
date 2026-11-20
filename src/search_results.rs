@@ -240,7 +240,7 @@ impl Waffle {
         };
         let (accent, hover, text, faint) = (palette::accent(), palette::hover(cx), palette::text(cx), palette::faint(cx));
         let numbers = search::pages(current, count).into_iter().enumerate().map(|(i, page)| {
-            let cell = div().min_w(px(28.)).h(px(28.)).px(px(4.)).flex().items_center().justify_center().rounded_full().text_size(px(13.));
+            let cell = div().min_w(px(28.)).h(px(28.)).px(px(4.)).flex().items_center().justify_center().rounded_full().text_size(px(14.));
             match page {
                 None => cell.id(("search-gap", i)).text_color(faint).child("…").into_any_element(),
                 Some(page) if page == current => cell.id(("search-page", page)).bg(accent).text_color(gpui_kit::white()).font_weight(FontWeight::SEMIBOLD).child(page.to_string()).into_any_element(),

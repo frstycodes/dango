@@ -51,7 +51,8 @@ impl Render for PipDrag {
     }
 }
 
-// Insets from the window's top and bottom edges.
+// Insets from the window's top and bottom edges. The top one clears the header, so the player never sits
+// over a title bar or the window's own buttons.
 type Insets = (f32, f32);
 // Clear of the pane's header above and the composer below, so a floating window never covers either.
 const INSETS: Insets = (crate::layout::HEADER_HEIGHT + MARGIN, 76.);
@@ -121,6 +122,9 @@ impl Waffle {
                 cx.stop_propagation();
                 this.stop_watching(cx);
             })));
+        // Who's watching, as on the stage's stream card: faces, a "+n", the full list on hover.
+        let viewers = self.viewers(&watching.streamer_id);
+        let viewer_chip = (!viewers.is_empty()).then(|| crate::call::viewer_chip(viewers, &watching.streamer_id));
         let player = self.floating_drag(div().id("stream-pip"), cx);
         let player = player
             .group("stream-pip")
@@ -136,6 +140,7 @@ impl Waffle {
             .cursor_pointer()
             .child(picture)
             .child(bar)
+            .children(viewer_chip)
             .on_click(cx.listener(move |this, _, window, cx| this.show_call(channel.clone(), window, cx)));
         Some(self.place_floating(player, (WIDTH, HEIGHT)))
     }
@@ -181,7 +186,9 @@ impl Waffle {
             let at = e.event.position - e.bounds.origin - this.pip.grab;
             this.pip.area = area;
             let size = this.pip.size.get();
-            this.pip.carried = Some((f32::from(at.x).clamp(0., (area.0 - size.0).max(0.)), f32::from(at.y).clamp(0., (area.1 - size.1).max(0.))));
+            // Never over the header and the window's own buttons.
+            let top = crate::layout::HEADER_HEIGHT;
+            this.pip.carried = Some((f32::from(at.x).clamp(0., (area.0 - size.0).max(0.)), f32::from(at.y).clamp(top, (area.1 - size.1).max(top))));
             cx.notify();
         }))
         .on_drop(cx.listener(|this, _: &PipDrag, _, cx| this.land_pip(cx)))

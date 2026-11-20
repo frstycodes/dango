@@ -127,6 +127,9 @@ impl Status {
 #[derive(Clone, Debug, Default)]
 pub struct Presence {
     pub status: Status,
+    // The custom status ("🍡 brb"), apart from what they're doing.
+    pub custom: Option<String>,
+    // The first activity other than the custom status, with "+N" for the rest.
     pub activity: Option<Activity>,
     // The first non-custom activity in full, for the profile's rich presence card.
     pub rich: Option<RichPresence>,
@@ -506,17 +509,41 @@ pub struct Embed {
     pub url: Option<String>,
     pub color: Option<u32>,
     pub provider: Option<String>,
+    #[serde(default)]
+    pub provider_url: Option<String>,
     pub author: Option<String>,
     pub author_icon: Option<String>,
     pub author_url: Option<String>,
     pub title: Option<String>,
     pub description: Option<String>,
     pub fields: Vec<(String, String, bool)>,
+    // The small picture at the top right.
     pub thumbnail: Option<Media>,
+    // The large picture under the text; embeds sharing a url add theirs here, up to four.
+    #[serde(default)]
+    pub images: Vec<Media>,
+    // A video embed (YouTube): `images` holds its still, drawn with a play button.
+    #[serde(default)]
+    pub video: bool,
+    // Flagged explicit, gore or self-harm: the media stays blurred until revealed.
+    #[serde(default)]
+    pub sensitive: bool,
     pub footer: Option<String>,
     pub footer_icon: Option<String>,
     // RFC 3339; Discord prints it after the footer text.
     pub timestamp: Option<String>,
+    // A closed poll's result (type poll_result); the other fields stay empty.
+    #[serde(default)]
+    pub poll: Option<PollResult>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PollResult {
+    pub question: String,
+    // None when nobody won: no votes, or a tie at the top.
+    pub winner: Option<(String, Option<Emoji>)>,
+    pub winner_votes: u64,
+    pub total_votes: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -946,7 +973,8 @@ pub enum Event {
     MemberList { guild_id: String, groups: Vec<(String, u32)>, ops: Vec<ListOp> },
     MembersChunk { guild_id: String, members: Vec<(User, Vec<String>)> },
     Ack { channel_id: String, message_id: u64 },
-    VoiceState(VoiceState),
+    // With the session it belongs to: ours, or another client of ours.
+    VoiceState(VoiceState, Option<String>),
     // A DM or group call started or changed; `ringing` is who it rings now.
     Call { channel_id: String, ringing: Vec<String> },
     CallEnded { channel_id: String },
@@ -1922,7 +1950,7 @@ fn dispatch(kind: &str, d: &Value) -> Option<Event> {
             members: d["members"].as_array().into_iter().flatten().map(|m| (parse_member_user(m, &m["user"], d["guild_id"].as_str()), strings(&m["roles"]))).collect(),
         }),
         "MESSAGE_ACK" => Some(Event::Ack { channel_id: s(&d["channel_id"]), message_id: snowflake(&d["message_id"]) }),
-        "VOICE_STATE_UPDATE" => Some(Event::VoiceState(parse_voice_state(d))),
+        "VOICE_STATE_UPDATE" => Some(Event::VoiceState(parse_voice_state(d), d["session_id"].as_str().map(str::to_owned))),
         "CHANNEL_INFO" => Some(Event::VoiceStartTimes {
             guild_id: s(&d["guild_id"]),
             times: d["channels"].as_array().into_iter().flatten().map(|c| (s(&c["id"]), c["voice_start_time"].as_u64())).collect(),
@@ -2182,7 +2210,15 @@ pub fn parse_message(m: &Value) -> Option<Message> {
                     media.push(Media { url: video.to_owned(), width: poster.width, height: poster.height, kind: MediaKind::Gif { poster: poster.url } });
                 }
             }
-            _ => embeds.push(parse_embed(e)),
+            _ => {
+                let embed = parse_embed(e);
+                // Discord folds embeds that share a url into the first one's gallery.
+                let first = embed.url.as_ref().and_then(|url| embeds.iter_mut().find(|f: &&mut Embed| f.url.as_ref() == Some(url)));
+                match first {
+                    Some(first) => first.images.extend(embed.images.into_iter().take(4usize.saturating_sub(first.images.len()))),
+                    None => embeds.push(embed),
+                }
+            }
         }
     }
     let reply = m["referenced_message"].is_object().then(|| parse_message(&m["referenced_message"])).flatten().map(Box::new);
@@ -2362,12 +2398,22 @@ fn embed_media(v: &Value) -> Option<Media> {
     Some(Media { url: url.to_owned(), width: v["width"].as_f64()? as f32, height: v["height"].as_f64()? as f32, kind: MediaKind::Image })
 }
 
+// Embed flags: CONTAINS_EXPLICIT_CONTENT, CONTAINS_GORE_CONTENT, CONTAINS_SELF_HARM_CONTENT.
+const SENSITIVE_EMBED: u64 = 1 << 4 | 1 << 6 | 1 << 7;
+
 fn parse_embed(e: &Value) -> Embed {
     let text = |v: &Value| v.as_str().filter(|t| !t.is_empty()).map(str::to_owned);
+    if e["type"] == "poll_result" {
+        return Embed { poll: Some(parse_poll_result(e)), ..Default::default() };
+    }
+    let video = e["type"] == "video" || e["video"].is_object();
+    // A video's still is its thumbnail; it plays large, so it never sits small at the right.
+    let image = embed_media(&e["image"]).or_else(|| video.then(|| embed_media(&e["thumbnail"])).flatten());
     Embed {
         url: text(&e["url"]),
         color: e["color"].as_u64().map(|c| c as u32),
         provider: text(&e["provider"]["name"]),
+        provider_url: text(&e["provider"]["url"]),
         author: text(&e["author"]["name"]),
         author_icon: text(&e["author"]["proxy_icon_url"]).or_else(|| text(&e["author"]["icon_url"])),
         author_url: text(&e["author"]["url"]),
@@ -2379,11 +2425,28 @@ fn parse_embed(e: &Value) -> Embed {
             .flatten()
             .map(|f| (f["name"].as_str().unwrap_or_default().to_owned(), f["value"].as_str().unwrap_or_default().to_owned(), f["inline"].as_bool().unwrap_or(false)))
             .collect(),
-        // Video embeds (YouTube) show their thumbnail large; others keep it small beside the text.
-        thumbnail: embed_media(&e["image"]).or_else(|| embed_media(&e["thumbnail"])),
+        thumbnail: (!video).then(|| embed_media(&e["thumbnail"])).flatten(),
+        images: image.into_iter().collect(),
+        video,
+        sensitive: e["flags"].as_u64().unwrap_or(0) & SENSITIVE_EMBED != 0,
         footer: text(&e["footer"]["text"]),
         footer_icon: text(&e["footer"]["proxy_icon_url"]).or_else(|| text(&e["footer"]["icon_url"])),
         timestamp: text(&e["timestamp"]),
+        poll: None,
+    }
+}
+
+// A poll_result embed carries its numbers as fields named after them.
+fn parse_poll_result(e: &Value) -> PollResult {
+    let fields: HashMap<&str, &str> = e["fields"].as_array().into_iter().flatten().filter_map(|f| Some((f["name"].as_str()?, f["value"].as_str()?))).collect();
+    let number = |name: &str| fields.get(name).and_then(|v| v.parse().ok()).unwrap_or(0);
+    let emoji = fields.get("victor_answer_emoji_id").map(|id| Emoji { id: Some((*id).to_owned()), name: fields.get("victor_answer_emoji_name").copied().unwrap_or_default().to_owned(), animated: fields.get("victor_answer_emoji_animated") == Some(&"true") })
+        .or_else(|| fields.get("victor_answer_emoji_name").map(|name| Emoji::unicode(name)));
+    PollResult {
+        question: fields.get("poll_question_text").copied().unwrap_or_default().to_owned(),
+        winner: fields.get("victor_answer_text").map(|text| ((*text).to_owned(), emoji)),
+        winner_votes: number("victor_answer_votes"),
+        total_votes: number("total_votes"),
     }
 }
 
@@ -2392,10 +2455,9 @@ fn parse_presence(p: &Value) -> Presence {
     let custom = activities.iter().find(|a| a["type"] == 4).and_then(|a| {
         let text = a["state"].as_str().filter(|t| !t.is_empty())?;
         let emoji = a["emoji"]["name"].as_str().filter(|_| a["emoji"]["id"].is_null()).map(|e| format!("{e} ")).unwrap_or_default();
-        Some(Activity { kind: ActivityKind::Custom, text: format!("{emoji}{text}"), more: 0 })
+        Some(format!("{emoji}{text}"))
     });
     let others: Vec<&Value> = activities.iter().filter(|a| a["type"] != 4).collect();
-    // Discord shows the custom status when there is one; otherwise the first activity, with "+N" for the rest.
     let first = others.first().and_then(|a| {
         let name = a["name"].as_str()?;
         let (kind, text) = match a["type"].as_u64() {
@@ -2408,7 +2470,7 @@ fn parse_presence(p: &Value) -> Presence {
         Some(Activity { kind, text: text.to_owned(), more: others.len() - 1 })
     });
     let rich = others.first().and_then(|a| parse_rich(a));
-    Presence { status: Status::parse(p["status"].as_str().unwrap_or("offline")), activity: custom.or(first), rich }
+    Presence { status: Status::parse(p["status"].as_str().unwrap_or("offline")), custom, activity: first, rich }
 }
 
 // Field names from the diself crate's model (src/model/user.rs), not from Discord's docs (the endpoint is undocumented).
@@ -2942,6 +3004,34 @@ mod tests {
     }
 
     #[test]
+    fn embeds_split_thumbnail_from_image_and_fold_shared_urls() {
+        let pic = |url: &str| json!({ "url": url, "width": 100, "height": 50 });
+        let m = parse_message(&json!({ "id": "1", "channel_id": "c", "author": { "id": "u" }, "embeds": [
+            { "url": "https://a", "title": "Set", "thumbnail": pic("t"), "image": pic("1"), "flags": 16 },
+            { "url": "https://a", "image": pic("2") },
+            { "url": "https://a", "image": pic("3") },
+            { "url": "https://a", "image": pic("4") },
+            { "url": "https://a", "image": pic("5") },
+            { "type": "video", "url": "https://v", "thumbnail": pic("still") },
+            { "type": "poll_result", "fields": [
+                { "name": "poll_question_text", "value": "Map?" }, { "name": "victor_answer_votes", "value": "3" },
+                { "name": "total_votes", "value": "5" }, { "name": "victor_answer_text", "value": "Peaks" }, { "name": "victor_answer_emoji_name", "value": "🏔️" } ] },
+        ] }))
+        .unwrap();
+        assert_eq!(m.embeds.len(), 3);
+        let set = &m.embeds[0];
+        assert_eq!(set.thumbnail.as_ref().map(|t| t.url.as_str()), Some("t"));
+        assert_eq!(set.images.iter().map(|i| i.url.as_str()).collect::<Vec<_>>(), ["1", "2", "3", "4"]);
+        assert!(set.sensitive && !set.video);
+        let video = &m.embeds[1];
+        assert!(video.video && video.thumbnail.is_none());
+        assert_eq!(video.images[0].url, "still");
+        let poll = m.embeds[2].poll.as_ref().unwrap();
+        assert_eq!((poll.question.as_str(), poll.winner_votes, poll.total_votes), ("Map?", 3, 5));
+        assert_eq!(poll.winner, Some(("Peaks".into(), Some(Emoji::unicode("🏔️")))));
+    }
+
+    #[test]
     fn stickers_parse_from_messages_and_pick_their_format() {
         let m = parse_message(&json!({ "id": "1", "channel_id": "2", "author": { "id": "3" }, "sticker_items": [
             { "id": "10", "name": "wave", "format_type": 1 },
@@ -2976,10 +3066,11 @@ mod tests {
     }
 
     #[test]
-    fn presence_prefers_custom_status() {
+    fn presence_keeps_custom_status_apart() {
         let p = parse_presence(&json!({ "status": "dnd", "activities": [{ "type": 0, "name": "Apex" }, { "type": 4, "state": "m!help" }] }));
         assert_eq!(p.status, Status::Dnd);
-        assert_eq!(p.activity.unwrap().text, "m!help");
+        assert_eq!(p.custom.as_deref(), Some("m!help"));
+        assert_eq!(p.activity.unwrap().text, "Apex");
         let p = parse_presence(&json!({ "status": "idle", "activities": [{ "type": 2, "name": "Spotify", "state": "Hozier" }, { "type": 0, "name": "Apex" }] }));
         assert_eq!(p.activity, Some(Activity { kind: ActivityKind::Listening, text: "Hozier".into(), more: 1 }));
     }

@@ -139,16 +139,17 @@ pub fn settings_window(id: impl Into<ElementId>, nav: impl IntoElement, main: im
         .child(main)
 }
 
-// A settings window's nav list. It starts below the header strip (`settings_nav_edge`), which stays put
-// over it while it scrolls.
+// A settings window's nav list, under its header strip (`settings_nav_edge`).
 pub fn settings_sidebar(id: impl Into<ElementId>, scroll: &ScrollHandle, cx: &App) -> Stateful<Div> {
     div()
         .id(id.into())
-        .size_full()
+        .flex_1()
+        .min_h_0()
+        .w_full()
         .overflow_y_scroll()
         .track_scroll(scroll)
         .bg(crate::material::sidebar_fill(cx))
-        .pt(px(SETTINGS_NAV_STRIP + SETTINGS_NAV_TAIL))
+        .pt(px(SETTINGS_NAV_TAIL))
         .px(px(8.))
         .pb(px(12.))
         .flex()
@@ -156,14 +157,13 @@ pub fn settings_sidebar(id: impl Into<ElementId>, scroll: &ScrollHandle, cx: &Ap
         .gap(px(1.))
 }
 
-// The settings nav's header strip: the traffic lights sit over it on macOS, as in System Settings, it drags
-// the window, and the list scrolls up under it into a fade (scroll_edge), as the channel list does.
+// The settings nav's header strip: the traffic lights sit over it on macOS, as in System Settings, and it
+// drags the window. The list stops under it, a hard edge, as the channel list does.
 pub fn settings_nav_edge(cx: &App) -> Div {
-    crate::ui::scroll_edge_over(crate::material::sidebar_fill(cx), 0., SETTINGS_NAV_STRIP, SETTINGS_NAV_TAIL)
-        .child(div().h(px(SETTINGS_NAV_STRIP)).window_control_area(gpui_kit::WindowControlArea::Drag))
+    crate::ui::hard_edge(|| false, cx).bg(crate::material::sidebar_fill(cx)).child(div().h(px(SETTINGS_NAV_STRIP)).window_control_area(gpui_kit::WindowControlArea::Drag))
 }
 
-// The strip holds the traffic lights (centred at 18); the list's first row starts clear of the fade below it.
+// The strip holds the traffic lights (centred at 18); the list's first row sits a little below it.
 const SETTINGS_NAV_STRIP: f32 = 36.;
 const SETTINGS_NAV_TAIL: f32 = 12.;
 

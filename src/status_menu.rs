@@ -330,6 +330,7 @@ impl Waffle {
         let card = ui::surface(cx)
             .w(px(MENU_WIDTH))
             .id("status-menu")
+            .occlude()
             .absolute()
             .left(px(16.))
             .bottom(px(self.panel_stack_height() + 16.))
@@ -401,6 +402,7 @@ impl Waffle {
         });
         let card = ui::surface(cx)
             .id("status-durations")
+            .occlude()
             .w(px(FLYOUT_WIDTH))
             .relative()
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())

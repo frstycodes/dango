@@ -416,6 +416,9 @@ struct Shared {
     // Set when another channel's join replaces this session: it must not send the leave, which
     // can reach Discord after that join and disconnect us from the new channel.
     superseded: AtomicBool,
+    // Another client of ours joined voice and took the call. Like `superseded`, the leave must not go
+    // out: our account has one voice state, and clearing it could end the call on that other client.
+    taken_elsewhere: AtomicBool,
     // The newest frame of each picture, until the UI takes it. Its event goes out only when the
     // slot was empty, so frames the UI hasn't drawn are replaced, never queued behind each other
     // (and ahead of every other voice event).
@@ -543,6 +546,7 @@ pub fn join(
         others_speaking: AtomicBool::new(false),
         input_detected: AtomicU8::new(0),
         superseded: AtomicBool::new(false),
+        taken_elsewhere: AtomicBool::new(false),
         frames: Mutex::default(),
     });
     if ATTENUATION_SUPPORTED {
@@ -793,7 +797,13 @@ async fn run(shared: Arc<Shared>, leave: oneshot::Receiver<()>) {
     if shared.superseded.load(Ordering::Acquire) {
         return;
     }
-    shared.send_voice_state(false);
+    // 4006 is how the voice server drops us when another client of ours joins; its voice state can
+    // reach us after the close, so a 4006 doesn't send the leave either.
+    let elsewhere = shared.taken_elsewhere.load(Ordering::Acquire);
+    if !elsewhere && !reason.ends_with("(4006)") {
+        shared.send_voice_state(false);
+    }
+    let reason = if elsewhere { ANOTHER_LOCATION.to_owned() } else { reason };
     shared.emit(VoiceEvent::Stage(Stage::Disconnected));
     shared.emit(VoiceEvent::Disconnected(reason));
 }
@@ -858,6 +868,10 @@ fn voice_dispatch(shared: &Shared, kind: &str, d: &Value) -> Option<String> {
     }
     let user_id = d["user_id"].as_str()?;
     let in_channel = d["channel_id"].as_str() == Some(&shared.channel_id);
+    if user_id == shared.user_id && taken_elsewhere(shared.session_id.lock().ok().and_then(|id| id.clone()).as_deref(), d) {
+        shared.taken_elsewhere.store(true, Ordering::Release);
+        return Some(ANOTHER_LOCATION.into());
+    }
     if user_id == shared.user_id && !in_channel {
         let session = shared.session_id.lock().ok().and_then(|id| id.clone());
         match ours_left(session.as_deref(), d) {
@@ -874,6 +888,15 @@ fn voice_dispatch(shared: &Shared, kind: &str, d: &Value) -> Option<String> {
     let camera = in_channel && d["self_video"].as_bool().unwrap_or(false);
     shared.emit(VoiceEvent::VideoState { user_id: user_id.to_owned(), streaming, camera });
     None
+}
+
+// Why a call ended when another client of ours joined voice, any channel, and took it from this one.
+pub const ANOTHER_LOCATION: &str = "Connected at another location";
+
+// Our account in voice under another session: one of our other clients joined.
+fn taken_elsewhere(our_session: Option<&str>, d: &Value) -> bool {
+    let theirs = d["session_id"].as_str();
+    our_session.zip(theirs).is_some_and(|(ours, theirs)| ours != theirs) && d["channel_id"].is_string()
 }
 
 enum Left<'a> {
@@ -1506,6 +1529,7 @@ mod tests {
             others_speaking: AtomicBool::new(false),
             input_detected: AtomicU8::new(0),
             superseded: AtomicBool::new(false),
+            taken_elsewhere: AtomicBool::new(false),
             frames: Mutex::default(),
         };
         (shared, rx)
@@ -1578,8 +1602,11 @@ mod tests {
     fn moved_session_follows_without_leaving() {
         let (shared, mut rx) = shared();
         *shared.session_id.lock().unwrap() = Some("s".into());
-        assert!(voice_dispatch(&shared, "VOICE_STATE_UPDATE", &json!({ "user_id": "me", "session_id": "other", "channel_id": "d" })).is_some());
-        assert!(!shared.superseded.load(Ordering::Acquire), "another client's join is a removal");
+        assert_eq!(voice_dispatch(&shared, "VOICE_STATE_UPDATE", &json!({ "user_id": "me", "session_id": "other", "channel_id": "d" })).as_deref(), Some(ANOTHER_LOCATION));
+        assert!(!shared.superseded.load(Ordering::Acquire), "another client's join is not a move");
+        assert!(shared.taken_elsewhere.load(Ordering::Acquire), "another client's join must not send the leave");
+        shared.taken_elsewhere.store(false, Ordering::Release);
+        assert!(voice_dispatch(&shared, "VOICE_STATE_UPDATE", &json!({ "user_id": "me", "session_id": "other", "channel_id": null })).is_none(), "another client leaving says nothing about ours");
         assert!(voice_dispatch(&shared, "VOICE_STATE_UPDATE", &json!({ "user_id": "me", "session_id": "s", "channel_id": "d" })).is_some());
         assert!(shared.superseded.load(Ordering::Acquire), "a move must not send the leave");
         let Ok(VoiceEvent::Moved(channel)) = rx.try_recv() else { panic!() };

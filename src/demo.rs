@@ -1,5 +1,5 @@
 // Worst-case fixture data for checking each screen without a Discord account (debug builds only):
-// WAFFLE_DEMO=chat | busy | message-focus | message-focus-menu | message-focus-delete | message-menu-theirs | user-menu-voice | user-menu-voice-denied | mention | mention-tab | mention-enter | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | notify-bell | jump | inbox | inbox-unreads | home | add-friend | create-channel | advanced | zoom | home-presence | folder | stream-card | call-streams | call-streams-ended | call-streams-focus | call-streams-strip | call-streams-full | call-incoming | call-banner | call-joinable | call-dm | call-dm-camera | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
+// WAFFLE_DEMO=chat | busy | message-focus | message-focus-menu | message-focus-delete | message-menu-theirs | user-menu-voice | user-menu-voice-denied | mention | mention-tab | mention-enter | text-files | text-expanded | text-viewer | link-previews | activity | activity-all | rail-dms | rail-dms-live | gallery | viewer | viewer-video | pins | header-search | search | search-from | search-date | search-results | search-filters | search-dm | search-dm-results | profile | profile-plain | emoji | switcher | settings | voice-settings | keybinds | appearance | appearance-scrolled | notifications | content-social | chat-settings | settings-search | status | status-custom | status-durations | status-editor | stickers | stickers-chat | accounts | unread | notify-bell | jump | inbox | inbox-unreads | home | add-friend | create-channel | advanced | zoom | home-presence | folder | stream-card | call-streams | call-streams-ended | call-streams-focus | call-streams-strip | call-streams-full | voice-elsewhere | call-incoming | call-banner | call-joinable | call-dm | call-dm-camera | sidebar-resize | sidebar-voice | sidebar-voice-error | sidebar-voice-solid | sidebar-voice-fullscreen | dm-empty | group-empty | group-start | login | scanned | failed | empty | update-ready | updates | updates-downloading | updates-ready | channel-settings | channel-settings-search | channel-settings-perms | channel-settings-voice | channel-settings-voice-perms | channel-settings-invites | channel-settings-dirty | load | server-settings | server-settings-engagement | server-settings-roles | server-settings-role | server-settings-role-perms | server-settings-audit | server-settings-bans | server-settings-automod | server-settings-invites | server-settings-dirty | attachments | attachments-drop | updating (the launch splash alone).
 use gpui_kit::{Context, Window};
 
 use crate::{
@@ -35,7 +35,11 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
     if scene == "empty" {
         return;
     }
-    let messages = if load { load_messages() } else { messages() };
+    let messages = match scene {
+        _ if load => load_messages(),
+        "embeds" => embed_messages(),
+        _ => messages(),
+    };
     waffle.feeds.insert("general".into(), Feed { messages: std::sync::Arc::new(messages), loaded: true, ..Default::default() });
     let general = waffle.guild().and_then(|g| g.channels.iter().find(|c| c.id == "general").cloned());
     if let Some(channel) = general {
@@ -58,7 +62,7 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
             let mut items = members();
             items.extend((0..80).map(|n| {
                 let user = user(&(30_000_000 + n).to_string(), &format!("member {n}"));
-                ListItem::Member(Member { user, roles: Vec::new(), presence: Presence { status: Presence_::Offline, activity: None, rich: None } })
+                ListItem::Member(Member { user, roles: Vec::new(), presence: Presence { status: Presence_::Offline, custom: None, activity: None, rich: None } })
             }));
             waffle.on_event(Event::MemberList { guild_id: "1".into(), groups: vec![("r1".into(), 2), ("online".into(), 3), ("offline".into(), 81)], ops: vec![ListOp::Sync { start: 0, items }] }, cx);
         }
@@ -187,7 +191,12 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
             })
             .detach();
         }
-        "unread" => waffle.unread_marker = Some(103),
+        // Opened with news since message 103: the NEW line above the first, and the bar over the feed.
+        "unread" => {
+            waffle.unread_marker = Some(103);
+            waffle.last_message.insert("general".into(), 999);
+            waffle.read_states.insert("general".into(), ReadState { last_read: 103, mentions: 0 });
+        }
         // The channel header's bell with its menu open.
         "notify-bell" => {
             if let Some(channel) = waffle.channel.clone() {
@@ -396,6 +405,11 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
             })
             .detach();
         }
+        // Another client of ours took the call: the notice bar over the chat, with Reconnect.
+        "voice-elsewhere" => {
+            let channel = waffle.guilds.iter().flat_map(|g| &g.channels).find(|c| c.kind == crate::discord::ChannelKind::Voice).cloned();
+            waffle.voice_notice = channel.map(|channel| crate::VoiceNotice { guild_id: Some("1".into()), channel, at: std::time::Instant::now(), why: crate::NoticeWhy::Elsewhere });
+        }
         "sidebar-voice" | "sidebar-voice-error" | "sidebar-voice-solid" | "sidebar-voice-fullscreen" => {
             waffle.prefs.native_sidebar = scene != "sidebar-voice-solid";
             waffle.updates.status = crate::updater::Status::Ready(crate::updater::Staged::demo("0.8.0"));
@@ -421,7 +435,7 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
         "stream-card" => {
             let key = "guild:1:lounge:12582912".to_owned();
             let blender = Activity { kind: ActivityKind::Playing, text: "Blender".into(), more: 0 };
-            waffle.presences.insert("12582912".into(), Presence { status: Presence_::Online, activity: Some(blender), rich: None });
+            waffle.presences.insert("12582912".into(), Presence { status: Presence_::Online, custom: None, activity: Some(blender), rich: None });
             let since = std::time::Instant::now().checked_sub(std::time::Duration::from_secs(24 * 60)).unwrap_or_else(std::time::Instant::now);
             waffle.stream_live_since.insert(key.clone(), since);
             waffle.on_event(Event::StreamUpdate { key, viewers: vec!["8388608".into(), "16777216".into(), "20971520".into(), "4194304".into()], paused: false }, cx);
@@ -475,6 +489,7 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
         // streams' cards: one streamer still in the call, one who left.
         "call-streams" | "call-streams-ended" | "call-streams-focus" | "call-streams-strip" | "call-streams-full" => {
             demo_call(waffle);
+            waffle.call_pointer_inside = true;
             if let Some(guild) = waffle.guilds.iter_mut().find(|g| g.id == "1") {
                 for state in guild.voice_states.iter_mut() {
                     match state.user_id.as_str() {
@@ -505,6 +520,8 @@ pub fn load(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut Cont
         }
         "call" | "call-info" | "call-devices" | "call-watch" | "call-focus" | "pip" => {
             demo_call(waffle);
+            // As if the pointer rests on the stage, so its chrome shows.
+            waffle.call_pointer_inside = true;
             match scene {
                 "call-info" => waffle.connection_info = true,
                 // Watching moss lantern's Go Live: the stream over the filmstrip.
@@ -544,7 +561,7 @@ fn demo_profile(waffle: &mut Waffle, cx: &mut Context<Waffle>) {
         joinable: true,
     };
     let playing = Activity { kind: ActivityKind::Playing, text: rich.name.clone(), more: 0 };
-    waffle.presences.insert("8388608".into(), Presence { status: Presence_::Dnd, activity: Some(playing), rich: Some(rich) });
+    waffle.presences.insert("8388608".into(), Presence { status: Presence_::Dnd, custom: None, activity: Some(playing), rich: Some(rich) });
     let mut zoe = user("8388608", "Wren");
     zoe.tag = Some(GuildTag { text: "wony".into(), badge: Some("brand/icons/sticker.png".into()) });
     zoe.decoration = Some("demo/decoration.png".into());
@@ -629,7 +646,7 @@ fn demo_games(waffle: &mut Waffle) {
         let started = Some(chrono::Utc::now().timestamp_millis() - 47 * 60_000);
         let rich = crate::discord::RichPresence { kind: ActivityKind::Playing, name: name.into(), app_id: Some(app_id.into()), started, ..Default::default() };
         let activity = Activity { kind: ActivityKind::Playing, text: name.into(), more: 0 };
-        waffle.presences.insert(id.into(), Presence { status: Presence_::Online, activity: Some(activity), rich: Some(rich) });
+        waffle.presences.insert(id.into(), Presence { status: Presence_::Online, custom: None, activity: Some(activity), rich: Some(rich) });
     }
 }
 
@@ -703,7 +720,7 @@ fn demo_dm_call(waffle: &mut Waffle, scene: &str, window: &mut Window, cx: &mut 
     ];
     waffle.feeds.insert("dm".into(), Feed { messages: std::sync::Arc::new(messages), loaded: true, ..Default::default() });
     let state = VoiceState { guild_id: None, channel_id: Some("dm".into()), user_id: zoe.id.clone(), user: Some(zoe), muted: false, deafened: false, server_muted: false, server_deafened: false, streaming: false, camera: false };
-    waffle.on_event(Event::VoiceState(state), cx);
+    waffle.on_event(Event::VoiceState(state, None), cx);
     let ringing = if matches!(scene, "call-joinable" | "call-dm" | "call-dm-camera") { vec![] } else { vec![me.id.clone()] };
     waffle.on_event(Event::Call { channel_id: "dm".into(), ringing }, cx);
     if scene.starts_with("call-dm") {
@@ -852,7 +869,7 @@ fn ready(me: User) -> Ready {
             ("media".into(), ReadState { last_read: 100, mentions: 0 }),
             ("staff".into(), ReadState { last_read: 100, mentions: 2 }),
         ],
-        presences: vec![("8388608".into(), Presence { status: Presence_::Online, activity: None, rich: None })],
+        presences: vec![("8388608".into(), Presence { status: Presence_::Online, custom: None, activity: None, rich: None })],
         relationships: vec![
             Relationship { user: user("8388608", "Wren"), kind: Relation::Friend },
             Relationship { user: user("12582912", "moss lantern"), kind: Relation::Friend },
@@ -924,7 +941,7 @@ fn load_members() -> (Vec<(String, u32)>, Vec<ListItem>) {
         for n in 0..count {
             let id = format!("{}", 30_000_000 + items.len());
             let activity = (n % 3 == 0).then(|| Activity { kind: ActivityKind::Playing, text: format!("Game number {n}"), more: 0 });
-            items.push(ListItem::Member(Member { user: user(&id, &format!("{group} member {n}")), roles: vec!["r2".into()], presence: Presence { status, activity, rich: None } }));
+            items.push(ListItem::Member(Member { user: user(&id, &format!("{group} member {n}")), roles: vec!["r2".into()], presence: Presence { status, custom: None, activity, rich: None } }));
         }
     }
     (groups.iter().map(|(g, _, c)| ((*g).into(), *c)).collect(), items)
@@ -953,7 +970,12 @@ fn members() -> Vec<ListItem> {
         if id == "4194304" {
             user.nameplate = Some(crate::discord::Nameplate { art: "brand/icons/paper.png".into(), tint: (0x2D6A4F, 0x95D5B2) });
         }
-        ListItem::Member(Member { user, roles: roles.iter().map(|r| r.to_string()).collect(), presence: Presence { status, activity: activity.map(|(kind, text)| Activity { kind, text: text.into(), more: 0 }), rich: None } })
+        ListItem::Member(Member { user, roles: roles.iter().map(|r| r.to_string()).collect(), presence: Presence {
+            status,
+            custom: activity.filter(|(kind, _)| *kind == ActivityKind::Custom).map(|(_, text)| text.into()),
+            activity: activity.filter(|(kind, _)| *kind != ActivityKind::Custom).map(|(kind, text)| Activity { kind, text: text.into(), more: 0 }),
+            rich: None,
+        } })
     };
     vec![
         ListItem::Group { id: "r1".into(), count: 2 },
@@ -965,6 +987,128 @@ fn members() -> Vec<ListItem> {
         member("8388608", "Wren", &["r2"], Presence_::Online, None, false),
         ListItem::Group { id: "offline".into(), count: 1 },
         member("25165824", "a member whose display name runs long", &[], Presence_::Offline, None, false),
+    ]
+}
+
+// design/embeds.html's examples: every field, bot logs, a video, a gallery, a poll result, the worst case.
+fn embed_messages() -> Vec<Message> {
+    let bot = |id: &str, name: &str| {
+        let mut u = user(id, name);
+        u.bot = true;
+        u
+    };
+    let post = |id: &str, author: User, ts: &str, embeds: Vec<Embed>| Message { id: id.into(), channel_id: "general".into(), guild_id: Some("1".into()), author, timestamp: ts.into(), embeds, ..Default::default() };
+    let pic = |seed: &str, width: f32, height: f32| Media { url: avatar_url(seed, None), width, height, kind: MediaKind::Image };
+    let field = |name: &str, value: &str, inline: bool| (name.to_owned(), value.to_owned(), inline);
+    let now = chrono::Utc::now();
+    let ago = |min: i64| (now - chrono::Duration::minutes(min)).to_rfc3339();
+    let soon = |min: i64| (now + chrono::Duration::minutes(min)).timestamp();
+    let kitchen = Embed {
+        color: Some(0xE67E22),
+        author: Some("Raidbot · Night owls".into()),
+        author_url: Some("https://example.com/raid".into()),
+        author_icon: Some(avatar_url("1", None)),
+        title: Some("Raid tonight: Ashen Peaks, heroic".into()),
+        url: Some("https://example.com/r/2291".into()),
+        description: Some(format!("Sign-ups close <t:{}:R>. Bring **fire resist**, and read the [route notes](https://example.com/notes) first.\n> Ping <@&r1> if you can't make it.", soon(90))),
+        fields: vec![field("Starts", &format!("<t:{}:t>", soon(150)), true), field("Signed up", "17 of 20", true), field("Lead", "<@8388608>", true), field("Roles still open", "1 tank, 2 healers. Reply with `/join` and your role.", false)],
+        thumbnail: Some(pic("2", 128., 128.)),
+        images: vec![pic("3", 1280., 640.)],
+        footer: Some("Raid #2291".into()),
+        footer_icon: Some(avatar_url("1", None)),
+        timestamp: Some(ago(4)),
+        ..Default::default()
+    };
+    let voice = |joined: bool| Embed {
+        color: Some(if joined { 0x43B581 } else { 0xF04747 }),
+        author: Some("_kiwi".into()),
+        author_icon: Some(avatar_url("4194304", None)),
+        description: Some(format!("<@4194304> **{} voice channel** <#lounge>", if joined { "joined" } else { "left" })),
+        footer: Some("ID: 4194304".into()),
+        timestamp: Some(ago(if joined { 3 } else { 0 })),
+        ..Default::default()
+    };
+    let ban = Embed {
+        color: Some(0xC21F3A),
+        author: Some("Member banned".into()),
+        author_icon: Some(avatar_url("5", None)),
+        description: Some("**spam_account_92** was banned from Night owls.".into()),
+        fields: vec![field("User", "<@12582912>", true), field("Moderator", "<@8388608>", true), field("Duration", "Permanent", true), field("Reason", "Posting scam links in <#general> after a warning.", false)],
+        footer: Some("Case 418".into()),
+        timestamp: Some(ago(30)),
+        ..Default::default()
+    };
+    let stats = Embed {
+        color: Some(0x3498DB),
+        title: Some("Wren's season so far".into()),
+        url: Some("https://example.com/u/wren".into()),
+        thumbnail: Some(pic("4", 128., 128.)),
+        fields: vec![field("Rank", "Diamond II", true), field("Win rate", "58%", true), field("Matches", "214", true), field("Best hero", "Tide", true), field("Last match", "Win on Ashen Peaks, 13 to 9", false)],
+        footer: Some("stats.example".into()),
+        ..Default::default()
+    };
+    let plain = Embed { description: Some(format!("Servers go down for maintenance <t:{}:F>. It should take about an hour.", soon(60 * 24))), ..Default::default() };
+    let video = Embed {
+        video: true,
+        color: Some(0xFF0000),
+        url: Some("https://example.com/watch?v=s7".into()),
+        provider: Some("VideoSite".into()),
+        author: Some("Rift Notes".into()),
+        title: Some("Every change in Season 7, in 9 minutes".into()),
+        images: vec![pic("5", 1280., 720.)],
+        ..Default::default()
+    };
+    let gallery = Embed {
+        color: Some(0x9B59B6),
+        url: Some("https://example.com/peaks-set".into()),
+        author: Some("Rosa on ArtSite".into()),
+        author_icon: Some(avatar_url("6", None)),
+        title: Some("Ashen Peaks, concept set".into()),
+        description: Some("Day, dusk, night and the storm pass.".into()),
+        images: ["1", "2", "3", "4"].map(|s| pic(s, 800., 600.)).to_vec(),
+        footer: Some("ArtSite".into()),
+        ..Default::default()
+    };
+    let poll = |winner: bool| Embed {
+        poll: Some(crate::discord::PollResult {
+            question: "Which map first tonight?".into(),
+            winner: winner.then(|| ("Ashen Peaks".into(), Some(Emoji::unicode("🏔️")))),
+            winner_votes: if winner { 68 } else { 0 },
+            total_votes: if winner { 142 } else { 12 },
+        }),
+        ..Default::default()
+    };
+    let notes = "Patch notes for **Season 7**.\n\n# Ashen Peaks\nThe new map flips between day and night every four minutes. Sightlines change with the light, so routes that are safe at noon are deadly at dusk.\n\n## Heroes\n- **Ember**, a close-range brawler who heals on burn damage\n- **Tide**, a support who pushes and pulls with water walls\n\n## Ranked\n> The ladder now resets softly: you drop one division instead of two tiers.\n\nPlacement matches are down from ten to five, and duo queue opens at every rank.\n\n```\nqueue: ranked\nplacements: 5\n```\n-# Full notes on the site.";
+    let worst = Embed {
+        color: Some(0xFFFFFF),
+        author: Some("Bartholomew Featherstonehaugh-Montgomery of the Very Long Display Name and Several Other Titles".into()),
+        author_icon: Some(avatar_url("2", None)),
+        title: Some("This title runs to the full two hundred and fifty-six characters that Discord allows, which is far longer than anyone should write, so it has to wrap cleanly across several lines without pushing the thumbnail away or overflowing the card at any width at all, ok".into()),
+        url: Some("https://example.com".into()),
+        description: Some(format!("{notes}\nAn unbroken link: https://clips.example/watch/7f3a9c2e4b1d8a6f0e5c3b2a1d9e8f7c6b5a4d3e2f1a0b9c8d7e6f5a4b3c2d1e0")),
+        thumbnail: Some(pic("3", 128., 128.)),
+        fields: ["Region", "Queue", "Ping", "Players", "Mode", "Map", "Season", "Patch", "A field name long enough to wrap onto a second line"]
+            .iter()
+            .zip(["EU West", "Ranked", "24 ms", "9,812", "Control", "Ashen Peaks", "7", "7.0.3", "and a value that runs on for a while too"])
+            .map(|(n, v)| field(n, v, true))
+            .collect(),
+        footer: Some(format!("A footer long enough to wrap: {}", "server status, region, build and shard ".repeat(3).trim())),
+        footer_icon: Some(avatar_url("4", None)),
+        timestamp: Some(ago(60 * 26)),
+        ..Default::default()
+    };
+    let black = Embed { color: Some(0), title: Some("Colour 0x000000".into()), description: Some("A pure black bar, as Discord draws it.".into()), ..Default::default() };
+    let sensitive = Embed { color: Some(0x95A5A6), title: Some("Uncensored match highlights".into()), url: Some("https://example.com/h".into()), sensitive: true, images: vec![pic("5", 1280., 720.)], footer: Some("clips.example".into()), ..Default::default() };
+    let mut poll_post = post("206", bot("16777216", "Wren"), "2026-11-20T18:30:00Z", vec![poll(true), poll(false)]);
+    poll_post.reply_to = Some("201".into());
+    vec![
+        post("201", bot("33554432", "Raidbot"), "2026-11-20T12:00:00Z", vec![kitchen]),
+        post("202", bot("50331648", "Logger"), "2026-11-20T12:49:00Z", vec![voice(true), voice(false)]),
+        post("203", bot("67108864", "Dyno"), "2026-11-20T13:10:00Z", vec![ban]),
+        post("204", bot("83886080", "Statsy"), "2026-11-20T15:30:00Z", vec![stats, plain]),
+        post("205", user("8388608", "Wren"), "2026-11-20T18:12:00Z", vec![video, gallery]),
+        poll_post,
+        post("207", bot("100663296", "Stressbot"), "2026-11-20T21:00:00Z", vec![worst, black, sensitive]),
     ]
 }
 

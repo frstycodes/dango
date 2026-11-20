@@ -205,8 +205,8 @@ impl DesignSystem {
             .border_b_1()
             .border_color(palette::line(cx))
             .child(svg().path(MARK).size(px(22.)).text_color(palette::logo_ink(cx)))
-            .child(div().text_size(px(17.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child("Waffle"))
-            .child(div().text_size(px(17.)).font_weight(FontWeight::NORMAL).text_color(palette::faint(cx)).child("Design system"))
+            .child(div().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child("Waffle"))
+            .child(div().text_size(px(16.)).font_weight(FontWeight::NORMAL).text_color(palette::faint(cx)).child("Design system"))
             .child(div().flex_1())
             .child(ui::segmented_live("theme", &["Light", "Dark"], dark as usize, move |i, window, cx| {
                 this.update(cx, |this, cx| this.set_theme(i == 1, window, cx)).ok();

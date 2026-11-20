@@ -15,7 +15,7 @@ use crate::{
     icons::Glyph,
     layout::{decorated_avatar, nameplate_art, nameplate_tint},
     motion, palette,
-    sidebar::{Nav, activity_glyph, category_head, hover_ease},
+    sidebar::{Nav, activity_glyph, category_action, category_head, channel_glyph, hover_ease},
     ui::{self, Squircle},
 };
 
@@ -69,9 +69,9 @@ impl Waffle {
                 .bg(palette::surface(palette::Level::Sidebar, cx))
                 .text_color(palette::text(cx))
                 .text_size(px(14.))
-                // The list runs up under the header's glass, as the feed does, with the sidebar's hairline once it has scrolled.
-                .child(ui::scroll_area(div().id("right-panel").pt(px(crate::layout::HEADER_HEIGHT + 8.)).px_2().pb_2().flex().flex_col().gap(px(2.)).child(body), &self.panel_scroll))
-                .child(ui::glass_header(palette::surface(palette::Level::Sidebar, cx)).child(ui::hard_edge(move || ui::scrolled(&scroll), cx).child(head)))
+                // The list stops under the header, a hard edge with the sidebar's hairline once it has scrolled.
+                .child(ui::hard_edge(move || ui::scrolled(&scroll), cx).child(head))
+                .child(ui::scroll_area(div().id("right-panel").pt(px(8.)).px_2().pb_2().flex().flex_col().gap(px(2.)).child(body), &self.panel_scroll))
                 .child(self.resize_handle(Edge::Panel, cx))
                 .children(foot.map(|pager| div().flex_none().py(px(8.)).border_t_1().border_color(line).child(pager)))
                 .into_any_element(),
@@ -182,7 +182,7 @@ impl Waffle {
                 }
                 cx.notify();
             }));
-        let all = ui::icon_button("activity-all", Glyph::ChevronRight, "Show all activity", cx).on_click(cx.listener(|this, _, _, cx| {
+        let all = category_action("activity-all", Icon::new(Glyph::ChevronRight), None, "Show all activity", cx).on_click(cx.listener(|this, _, _, cx| {
             this.right_panel = RightPanel::Activity;
             cx.notify();
         }));
@@ -286,7 +286,8 @@ impl Waffle {
                 .when(owner, |r| r.child(Icon::new(Glyph::Crown).size(px(14.)).flex_none().text_color(crown)))
                 .when(member.user.bot, |r| r.child(ui::tag("App", cx)))
         };
-        let names = |key: String| div().min_w_0().flex().flex_col().child(name_line(key)).children(member.presence.activity.as_ref().filter(|_| !offline).map(|a| activity_line(a, cx)));
+        let status = self.member_status(member);
+        let names = |key: String| div().min_w_0().flex().flex_col().child(name_line(key)).children(status.clone().map(|s| s.line(cx)));
         // The row's fill in each state, laid solid over the panel, for the nameplate's mask to wash in.
         let fill = |wash: gpui_kit::Hsla| ui::mix(surface, wash.opacity(1.), wash.a);
         let fills = match selected {
@@ -323,6 +324,68 @@ impl Waffle {
                 cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_user_menu(user.clone(), guild_id.clone(), crate::user_menu::Surface::ServerChat, e.position, cx))
             })
             .into_any_element()
+    }
+}
+
+impl Waffle {
+    // Discord's line under a member (its ActivityStatus): one primary item, a Go Live first, then the first
+    // activity, then being in voice in this server; "+N" when more than one applies; the custom status after
+    // it. Nothing while offline.
+    fn member_status(&self, member: &Member) -> Option<MemberStatus> {
+        let presence = &member.presence;
+        if presence.status == Status::Offline {
+            return None;
+        }
+        let voice = self.guild().and_then(|g| {
+            let state = g.voice_states.iter().find(|v| v.user_id == member.user.id)?;
+            let channel = g.channels.iter().find(|c| Some(&c.id) == state.channel_id.as_ref())?;
+            Some((state.streaming, channel.clone()))
+        });
+        let activities = presence.activity.as_ref().map_or(0, |a| a.more + 1);
+        let custom = presence.custom.clone();
+        let (icon, text, live, sources) = match (&voice, &presence.activity) {
+            // Live: what they're playing names the stream, and isn't counted again.
+            (Some((true, _)), activity) => {
+                let game = activity.as_ref().filter(|a| a.kind == ActivityKind::Playing).map(|a| a.text.clone());
+                let sources = 1 + activities - usize::from(game.is_some());
+                (activity_glyph(ActivityKind::Streaming), game.unwrap_or_else(|| "Sharing their screen".into()), true, sources)
+            }
+            (_, Some(activity)) => (activity_glyph(activity.kind), activity.text.clone(), activity.kind == ActivityKind::Streaming, activities + usize::from(voice.is_some())),
+            (Some((false, channel)), None) => (Some(channel_glyph(channel)), "In voice".to_owned(), false, 1),
+            (None, None) => return custom.map(|custom| MemberStatus { icon: None, text: None, live: false, more: 0, custom: Some(custom) }),
+        };
+        // Bots show no activity icon.
+        let icon = icon.filter(|_| !member.user.bot);
+        Some(MemberStatus { icon, text: Some(text), live, more: sources.saturating_sub(1), custom })
+    }
+}
+
+#[derive(Clone)]
+struct MemberStatus {
+    icon: Option<Icon>,
+    text: Option<String>,
+    live: bool,
+    more: usize,
+    custom: Option<String>,
+}
+
+impl MemberStatus {
+    // Beside a custom status the primary item is its icon alone, as Discord's member list draws it.
+    fn line(self, cx: &App) -> Div {
+        let beside_custom = self.custom.is_some();
+        let primary = self.icon.is_some() || (self.text.is_some() && !beside_custom);
+        div()
+            .flex()
+            .items_center()
+            .gap_1()
+            .min_w_0()
+            .text_size(px(12.))
+            .text_color(palette::faint(cx))
+            .children(self.icon.map(|icon| icon.size(px(16.)).flex_none().when(self.live, |i| i.text_color(palette::accent_ink(cx)))))
+            .children(self.text.filter(|_| !beside_custom).map(|text| ui::truncating(format!("member-status-{text}"), text)))
+            .when(self.more > 0, |d| d.child(div().flex_none().child(format!("+{}", self.more))))
+            .when(primary && beside_custom, |d| d.child(div().flex_none().child("•")))
+            .children(self.custom.map(|custom| ui::truncating(format!("member-custom-{custom}"), custom)))
     }
 }
 
@@ -422,21 +485,6 @@ fn members_loading(cx: &App) -> Div {
         .child(row(0.52, None))
         .child(row(0.8, Some(0.6)))
         .child(row(0.4, None))
-}
-
-// The line under a member: the activity's filled glyph (live in accent ink), then its text and "+N".
-fn activity_line(activity: &crate::discord::Activity, cx: &App) -> Div {
-    let live = activity.kind == crate::discord::ActivityKind::Streaming;
-    let text = if activity.more > 0 { format!("{} +{}", activity.text, activity.more) } else { activity.text.clone() };
-    div()
-        .flex()
-        .items_center()
-        .gap_1()
-        .min_w_0()
-        .text_size(px(12.))
-        .text_color(palette::faint(cx))
-        .children(activity_glyph(activity.kind).map(|icon| icon.size(px(13.)).flex_none().when(live, |i| i.text_color(palette::accent_ink(cx)))))
-        .child(ui::truncating(format!("activity-{text}"), text))
 }
 
 const BOLT: &[u8] = include_bytes!("../assets/icons/reicon/bolt.svg");

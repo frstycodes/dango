@@ -5,6 +5,9 @@ use gpui_kit::{AssetSource, Result, SharedString, assets::IconNamed};
 // Waffle's own mark: a tilted waffle with honey dripping off its edge, one colour, tinted where it's drawn.
 // Written by tools/app_icons.py from design/waffle.html.
 pub const MARK: &str = "brand/waffle-mark.svg";
+// The unread line's NEW tag as one shape (design/unread-line.html): a point that the rule runs into, then a
+// body with squircle corners. 40x16; tinted, with NEW laid over its body.
+pub const NEW_TAG: &str = "shapes/new-tag.svg";
 
 // Reicon (MIT, github.com/dqev/reicon) in its filled weight, like Discord's chrome, plus Waffle's own glyphs
 // (muted, deafened, camera off, GIF...), all written to assets/icons/reicon/ by tools/reicon.py, which also
@@ -161,8 +164,9 @@ const GLYPHS: [(&str, &[u8]); 147] = [
     ("icons/sticker.svg", include_bytes!("../assets/icons/sticker.svg")),
 ];
 
-const BRAND: [(&str, &[u8]); 3] = [
+const BRAND: [(&str, &[u8]); 4] = [
     (MARK, include_bytes!("../assets/brand/waffle-mark.svg")),
+    (NEW_TAG, include_bytes!("../assets/icons/new-tag.svg")),
     // Stand-in art for the demo's profile scene, which stays offline.
     ("demo/decoration.png", include_bytes!("../assets/demo/decoration.png")),
     ("demo/banner.png", include_bytes!("../assets/demo/banner.png")),
