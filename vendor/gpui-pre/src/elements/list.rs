@@ -1297,7 +1297,9 @@ impl StateInner {
                 item_origin.y += self.overscroll.offset().y;
                 for item in &mut layout_response.item_layouts {
                     window.with_content_mask(Some(ContentMask { bounds }), |window| {
-                        item.element.prepaint_at(item_origin, window, cx);
+                        window.with_list_item(item.index, |window| {
+                            item.element.prepaint_at(item_origin, window, cx)
+                        });
                     });
 
                     if let Some(autoscroll_bounds) = window.take_autoscroll()

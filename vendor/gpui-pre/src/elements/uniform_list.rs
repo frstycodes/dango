@@ -509,7 +509,7 @@ impl Element for UniformList {
                                 AvailableSpace::Definite(item_height),
                             );
                             item.layout_as_root(available_space, window, cx);
-                            item.prepaint_at(item_origin, window, cx);
+                            window.with_list_item(ix, |window| item.prepaint_at(item_origin, window, cx));
                             frame_state.items.push(item);
                         }
 
