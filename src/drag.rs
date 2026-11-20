@@ -61,8 +61,9 @@ pub struct Carry {
     stepped_at: Instant,
 }
 
-// Held: stiffness 520 at 62% damping trails the pointer loosely; the tilt is softer still.
-const FOLLOW: (f32, f32) = (520., 0.62);
+// Held: stiff and a touch under critical, so the ghost keeps up with the pointer (~100ms) with a slight
+// settle; a looser spring read as the drag lagging. The tilt is softer.
+const FOLLOW: (f32, f32) = (1400., 0.78);
 const FOLLOW_TILT: (f32, f32) = (260., 0.55);
 // Landing: stiffer and nearly critical, so it glides in (~250ms) without bouncing off the row.
 const LAND: (f32, f32) = (900., 0.82);
@@ -582,6 +583,20 @@ mod tests {
 
     // Carried right fast it tilts clockwise toward 14° (its underdamped spring may pass it a little,
     // as the design's does) and swells; let go, it glides onto its row in about 250ms without a jump.
+    // Held, the ghost keeps up: 100px behind the pointer, it's there within 150ms, never more than a few px past.
+    #[test]
+    fn ghost_keeps_up_with_the_pointer() {
+        let mut carry = Carry::new(point(px(0.), px(0.)), 1.04, 0.);
+        carry.follow(point(px(0.), px(100.)));
+        let mut peak: f32 = 0.;
+        for _ in 0..9 {
+            carry.advance(1. / 60.);
+            peak = peak.max(carry.y.position);
+        }
+        assert!((carry.y.position - 100.).abs() < 3., "at 150ms it's {}", carry.y.position);
+        assert!(peak < 106., "overshot to {peak}");
+    }
+
     #[test]
     fn carries_then_lands() {
         let frame = 1. / 120.;

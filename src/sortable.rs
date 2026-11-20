@@ -25,8 +25,9 @@ use gpui_kit::{
     AnyElement, App, Bounds, Context, DragMoveEvent, Entity, InteractiveElement, IntoElement, Pixels, Point, Render, SharedString, WeakEntity, Window, canvas, div, prelude::*, px,
 };
 
-// On-screen movement: the house move curve, quick enough to keep up with the pointer.
-const SLIDE: Duration = Duration::from_millis(200);
+// Items slide on a spring that keeps its speed when its target moves (the pointer crossing rows, a folder
+// folding while the list measures it). A tween restarts its full length on every new target and crawls.
+const SLIDE: Duration = Duration::from_millis(220);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Place {
@@ -209,7 +210,8 @@ impl Board {
             .zip(shifts)
             .map(|(key, shift)| {
                 let id = SharedString::from(format!("sortable-{generation}-{key}"));
-                (key.clone(), gpui_kit::base::transition(id, shift, gpui_kit::base::Transition::new(SLIDE).ease(|t| crate::motion::ease_move().sample(t)), window, cx))
+                // Whole pixels, so measurement jitter never counts as a new target.
+                (key.clone(), gpui_kit::base::spring(id, shift.round(), gpui_kit::base::Spring::new(SLIDE), window, cx))
             })
             .collect();
         shared.shown.borrow_mut().extend(offsets.iter().map(|(k, v)| (k.clone(), *v)));
