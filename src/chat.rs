@@ -757,12 +757,18 @@ impl Waffle {
     fn autocomplete_popup(&self, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
         let auto = self.autocomplete.as_ref()?;
         let (hover, selected, strong, muted, text) = (palette::hover(cx), palette::selected(cx), palette::strong(cx), palette::muted(cx), palette::text(cx));
-        let heading = if auto.token.starts_with('#') { "Text Channels" } else { "Members" };
+        let heading: SharedString = match auto.token.chars().next() {
+            Some('#') => "Text Channels".into(),
+            Some(':') => format!("Emoji matching {}", auto.token).into(),
+            _ => "Members".into(),
+        };
         let rows = auto.items.iter().enumerate().map(|(i, item)| {
-            let lead = match &item.avatar {
-                Some(url) => ui::avatar(url.clone(), 28.).into_any_element(),
-                None => div().size(px(28.)).flex_none().rounded_full().bg(selected).text_color(muted).flex().items_center().justify_center().child(Icon::new(Glyph::Hashtag).size(px(16.))).into_any_element(),
+            let lead = match &item.lead {
+                crate::SuggestLead::Avatar(url) => ui::avatar(url.clone(), 28.).into_any_element(),
+                crate::SuggestLead::Channel => div().size(px(28.)).flex_none().rounded_full().bg(selected).text_color(muted).flex().items_center().justify_center().child(Icon::new(Glyph::Hashtag).size(px(16.))).into_any_element(),
+                crate::SuggestLead::Emoji(emoji) => div().size(px(28.)).flex_none().flex().items_center().justify_center().child(crate::menu::emoji_face(emoji, 22.)).into_any_element(),
             };
+            let detail = item.detail.clone().map(|d| div().flex_none().max_w(px(180.)).truncate().text_size(px(12.)).text_color(muted).child(d));
             div()
                 .id(SharedString::from(format!("suggest-{i}")))
                 .min_h(px(40.))
@@ -778,6 +784,7 @@ impl Waffle {
                 .when(i != auto.selected, |r| r.hover(move |s| s.bg(hover)))
                 .child(lead)
                 .child(div().flex_1().min_w_0().truncate().font_weight(FontWeight::MEDIUM).text_color(strong).child(item.label.clone()))
+                .children(detail)
                 .on_click(cx.listener(move |this, _, window, cx| {
                     if let Some(auto) = &mut this.autocomplete {
                         auto.selected = i;
