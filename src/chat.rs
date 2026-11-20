@@ -145,8 +145,10 @@ impl Waffle {
                 .occlude()
                 .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_notify_menu(open.clone(), guild_id.clone(), e.position, cx)))
         });
+        let pins_x = self.pins_button_x.clone();
         let pins = ui::icon_button("pins-button", Glyph::Pin, "Pinned Messages", cx)
             .occlude()
+            .child(gpui_kit::canvas(move |bounds, _, _| pins_x.set(f32::from(bounds.center().x)), |_, _, _, _| {}).absolute().size_full())
             .when(self.pins.is_some(), |b| b.bg(selected).text_color(strong))
             .on_mouse_down(gpui_kit::MouseButton::Left, cx.listener(|this, e: &gpui_kit::MouseDownEvent, _, cx| {
                 this.popover_at = e.position;
@@ -336,7 +338,7 @@ impl Waffle {
             let message = &messages[ix];
             let previous = ix.checked_sub(1).map(|i| &messages[i]);
             let new_day = day(&message.timestamp) != previous.and_then(|p| day(&p.timestamp));
-            let starts_group = new_day || message.reply.is_some() || previous.is_none_or(|p| p.call.is_some() || !continues(p, message));
+            let starts_group = new_day || message.reply.is_some() || previous.is_none_or(|p| p.call.is_some() || p.pin_notice || !continues(p, message));
             let row = message_row(message, starts_group, &ctx, cx);
             // One accent line above the first message after your read position.
             let first_unread = ctx.unread_marker.is_some_and(|read| crate::order(&message.id) > read && previous.is_none_or(|p| crate::order(&p.id) <= read));
@@ -901,6 +903,9 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
     if let Some(call) = &message.call {
         return call_line(message, call, ctx, cx);
     }
+    if message.pin_notice {
+        return pin_line(message, ctx, cx);
+    }
     let media = media_grid(message, ctx, cx);
     let group = SharedString::from(format!("msg-{}", message.id));
     let mine = ctx.me.as_ref().is_some_and(|me| me.id == message.author.id);
@@ -1323,6 +1328,56 @@ fn call_line(message: &Message, call: &crate::discord::CallRecord, ctx: &Rc<RowC
         .child(div().flex_none().text_size(px(12.)).text_color(palette::faint(cx)).child(clock(&message.timestamp)))
         .children(action)
         .into_any_element()
+}
+
+// Discord's pin notice, one line like a call record: who pinned, a link to the message, a link to the pins.
+fn pin_line(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> AnyElement {
+    let strong = palette::strong(cx);
+    let link = |id: String, label: &'static str| div().id(SharedString::from(id)).cursor_pointer().font_weight(FontWeight::MEDIUM).text_color(strong).hover(|s| s.underline()).child(label);
+    let (this, target) = (ctx.this.clone(), message.reply_to.clone());
+    let jump = link(format!("pin-jump-{}", message.id), "a message").on_click(move |_, _, cx| { cx.stop_propagation();
+        let Some(id) = target.clone() else { return };
+        this.update(cx, |this, cx| this.jump_to(id, cx)).ok();
+    });
+    let this = ctx.this.clone();
+    let pins = link(format!("pin-list-{}", message.id), "pinned messages").on_mouse_down(gpui_kit::MouseButton::Left, move |_, _, cx| { cx.stop_propagation();
+        this.update(cx, |this, cx| {
+            this.popover_at = gpui_kit::point(px(this.pins_button_x.get()), px(0.));
+            this.open_pins(cx);
+        })
+        .ok();
+    });
+    let name = profile_trigger(format!("pin-name-{}", message.id), &message.author, ctx).font_weight(FontWeight::MEDIUM).text_color(strong).hover(|s| s.underline()).child(ctx.name_of(&message.author));
+    // A group's spacing, as any message that starts one, so it sits as far from its neighbours.
+    let line = div()
+        .id(SharedString::from(format!("msg-{}", message.id)))
+        .w_full()
+        .px(px(16.))
+        .mt(px(12.))
+        .pt(px(4.))
+        .pb(px(2.))
+        .flex()
+        .items_center()
+        .gap(px(16.))
+        .text_size(px(14.))
+        .child(div().w(px(AVATAR)).flex_none().flex().justify_center().child(Icon::new(Glyph::Pin).size(px(18.)).text_color(palette::muted(cx))))
+        .child(
+            div()
+                .min_w_0()
+                .flex()
+                .flex_wrap()
+                .items_baseline()
+                .gap_x(px(4.))
+                .text_color(palette::muted(cx))
+                .child(name)
+                .child("pinned")
+                .child(jump)
+                .child("to this channel. See all")
+                .child(pins)
+                .child(div().ml(px(-4.)).child("."))
+                .child(div().ml(px(4.)).text_size(px(12.)).text_color(palette::faint(cx)).child(clock(&message.timestamp))),
+        );
+    inset(line.into_any_element(), false)
 }
 
 pub(crate) fn content(message: &Message, ctx: &Rc<RowContext>, cx: &App) -> Option<AnyElement> {

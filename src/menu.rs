@@ -17,7 +17,7 @@ use crate::{
     icons::Glyph,
     motion, palette,
     settings::Fill,
-    ui::{self, RADIUS_LG, RADIUS_SM, SURFACE_INSET, Squircle},
+    ui::{self, RADIUS_LG, RADIUS_MD, RADIUS_SM, SURFACE_INSET, Squircle},
 };
 
 pub type Act = Rc<dyn Fn(&mut Waffle, &mut Window, &mut Context<Waffle>)>;
@@ -295,17 +295,24 @@ pub struct OpenMenu {
     pending: Option<(usize, Vec<usize>)>,
 }
 
+// A dialog's 420px less its padding, the well's and the hit's avatar column.
+const PREVIEW_COLUMN: f32 = 420. - 48. - 24. - 48.;
+
 // A one-field dialog (nickname, note) or a confirmation (kick, ban, remove friend).
 pub struct Dialog {
     title: SharedString,
     body: SharedString,
     confirm: SharedString,
-    danger: bool,
+    pub(crate) danger: bool,
     // Leads the title with the warning mark: for what can't be undone.
     warn: bool,
     pub(crate) input: bool,
     // A key that confirms it from anywhere, drawn on the confirm button (D for a message's delete).
     key: Option<&'static str>,
+    // The message it acts on, drawn as search draws a hit (Discord's unpin confirm).
+    preview: Option<Box<crate::discord::Message>>,
+    // Discord's "Protip:" under the preview.
+    tip: Option<SharedString>,
     on_confirm: OnConfirm,
 }
 
@@ -403,7 +410,7 @@ impl Waffle {
             state.set_value(value.to_owned(), window, cx);
             state.focus(window, cx);
         });
-        self.dialog = Some(Dialog { title: title.into(), body: body.into(), confirm: confirm.into(), danger: false, warn: false, input: true, key: None, on_confirm: Rc::new(on_confirm) });
+        self.dialog = Some(Dialog { title: title.into(), body: body.into(), confirm: confirm.into(), danger: false, warn: false, input: true, key: None, preview: None, tip: None, on_confirm: Rc::new(on_confirm) });
         cx.notify();
     }
 
@@ -425,6 +432,8 @@ impl Waffle {
             warn: false,
             input: false,
             key: None,
+            preview: None,
+            tip: None,
             on_confirm: Rc::new(move |this, _, window, cx| on_confirm(this, window, cx)),
         });
         cx.notify();
@@ -633,6 +642,13 @@ impl Waffle {
         }
     }
 
+    pub(crate) fn set_dialog_preview(&mut self, message: crate::discord::Message, tip: impl Into<SharedString>) {
+        if let Some(dialog) = &mut self.dialog {
+            dialog.preview = Some(Box::new(message));
+            dialog.tip = Some(tip.into());
+        }
+    }
+
     pub(crate) fn dialog_key(&self) -> Option<&'static str> {
         self.dialog.as_ref().and_then(|d| d.key)
     }
@@ -641,6 +657,10 @@ impl Waffle {
         let dialog = self.dialog.as_ref()?;
         let submit = cx.listener(|this, _, window, cx| this.confirm_dialog(window, cx));
         let tone = if dialog.danger { ui::Tone::Danger } else { ui::Tone::Primary };
+        let preview = dialog.preview.as_deref().map(|m| {
+            let ctx = self.row_context(std::slice::from_ref(m), None, false, PREVIEW_COLUMN, cx);
+            div().p(px(12.)).squircle(RADIUS_MD).bg(palette::surface(palette::Level::Page, cx)).child(crate::chat::search_hit(m, &ctx, cx))
+        });
         let body = ui::dialog_body()
             .child(
                 div()
@@ -655,6 +675,10 @@ impl Waffle {
                     .child(dialog.title.clone()),
             )
             .child(div().text_size(px(14.)).line_height(px(20.)).text_color(palette::muted(cx)).child(dialog.body.clone()))
+            .children(preview)
+            .children(dialog.tip.clone().map(|tip| {
+                div().text_size(px(14.)).line_height(px(20.)).text_color(palette::text(cx)).child(div().font_weight(FontWeight::SEMIBOLD).text_color(palette::positive_ink(cx)).child("Protip:")).child(tip)
+            }))
             .when(dialog.input, |d| d.child(field(cx).child(div().flex_1().min_w_0().child(Input::new(&self.dialog_input).appearance(false)))))
             .child(
                 div()
