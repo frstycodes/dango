@@ -1,0 +1,786 @@
+<title>DM Call Panel</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Waffle's DM and group call UX: ringing, the call panel above the chat, group grid, the call while you're elsewhere, and how it ends.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400..700&display=swap" rel="stylesheet">
+<style>
+/* Layout: the page is a frame around one real-size Waffle window (rail, sidebar, pane); a state picker above, the reasoning below.
+   Tokens are Waffle's own (design/tokens.css, src/palette.rs). Dark first, like the app. The call stage is always dark. */
+:root {
+  color-scheme: dark;
+  --n: 0.004 260;
+  --doc: oklch(0.125 0.004 260);
+  --bg-rail: oklch(0.150 0.004 260);
+  --bg-sidebar: oklch(0.180 0.004 260);
+  --bg-page: oklch(0.210 0.004 260);
+  --bg-raised: oklch(0.250 0.005 260);
+  --bg-overlay: oklch(0.275 0.005 260);
+  --hover: oklch(1 0 0 / 0.05);
+  --press: oklch(1 0 0 / 0.09);
+  --selected: oklch(1 0 0 / 0.08);
+  --line: oklch(1 0 0 / 0.08);
+  --line-strong: oklch(1 0 0 / 0.14);
+  --text-strong: oklch(0.97 0.004 260);
+  --text: oklch(0.88 0.008 260);
+  --text-muted: oklch(0.72 0.012 260);
+  --text-faint: oklch(0.65 0.012 260);
+  --accent: #efa831;
+  --accent-hover: #e29a1d;
+  --on-accent: #2a1c00;
+  --accent-ink: #f6b84d;
+  --danger: #c21f3a;
+  --danger-hover: #a8172f;
+  --danger-ink: #ff7a8c;
+  --online: oklch(0.74 0.16 155);
+  --online-ink: oklch(0.78 0.15 155);
+  --shadow-pop: 0 12px 32px oklch(0 0 0 / 0.45), 0 0 0 1px var(--line-strong);
+  --focus: var(--accent);
+
+  /* The stage: one palette in both themes (src/palette.rs `stage`). */
+  --st-bg: oklch(0.150 0.004 260);
+  --st-group: oklch(0.215 0.004 260);
+  --st-edge: oklch(1 0 0 / 0.08);
+  --st-wash: oklch(1 0 0 / 0.1);
+  --st-wash-h: oklch(1 0 0 / 0.16);
+  --st-strong: oklch(0.97 0.004 260);
+  --st-muted: oklch(0.72 0.012 260);
+  --st-off: oklch(0.58 0.21 25 / 0.2);
+  --st-off-h: oklch(0.58 0.21 25 / 0.3);
+  --st-off-ink: #ff9079;
+  --st-on: oklch(0.97 0.004 260);
+  --st-on-ink: oklch(0.20 0.009 260);
+  --st-online: oklch(0.78 0.15 155);
+  --st-chip: oklch(0 0 0 / 0.6);
+
+  --font: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r-xs: 8px; --r-sm: 11px; --r-md: 14px; --r-lg: 20px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --doc: oklch(0.925 0.004 260);
+    --bg-rail: oklch(0.905 0.005 260);
+    --bg-sidebar: oklch(0.948 0.004 260);
+    --bg-page: oklch(0.982 0.002 260);
+    --bg-raised: oklch(0.995 0.001 260);
+    --bg-overlay: oklch(0.998 0.001 260);
+    --hover: oklch(0.3 0.008 260 / 0.06);
+    --press: oklch(0.3 0.008 260 / 0.1);
+    --selected: oklch(0.3 0.008 260 / 0.09);
+    --line: oklch(0.3 0.008 260 / 0.1);
+    --line-strong: oklch(0.3 0.008 260 / 0.18);
+    --text-strong: oklch(0.20 0.009 260);
+    --text: oklch(0.30 0.009 260);
+    --text-muted: oklch(0.46 0.009 260);
+    --text-faint: oklch(0.49 0.009 260);
+    --accent-ink: #8a5601;
+    --danger-ink: #b0182f;
+    --online: oklch(0.62 0.16 155);
+    --online-ink: oklch(0.48 0.13 155);
+    --shadow-pop: 0 12px 32px oklch(0.3 0.008 260 / 0.16), 0 0 0 1px var(--line-strong);
+    --focus: #bf7d06;
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --doc: oklch(0.925 0.004 260);
+  --bg-rail: oklch(0.905 0.005 260);
+  --bg-sidebar: oklch(0.948 0.004 260);
+  --bg-page: oklch(0.982 0.002 260);
+  --bg-raised: oklch(0.995 0.001 260);
+  --bg-overlay: oklch(0.998 0.001 260);
+  --hover: oklch(0.3 0.008 260 / 0.06);
+  --press: oklch(0.3 0.008 260 / 0.1);
+  --selected: oklch(0.3 0.008 260 / 0.09);
+  --line: oklch(0.3 0.008 260 / 0.1);
+  --line-strong: oklch(0.3 0.008 260 / 0.18);
+  --text-strong: oklch(0.20 0.009 260);
+  --text: oklch(0.30 0.009 260);
+  --text-muted: oklch(0.46 0.009 260);
+  --text-faint: oklch(0.49 0.009 260);
+  --accent-ink: #8a5601;
+  --danger-ink: #b0182f;
+  --online: oklch(0.62 0.16 155);
+  --online-ink: oklch(0.48 0.13 155);
+  --shadow-pop: 0 12px 32px oklch(0.3 0.008 260 / 0.16), 0 0 0 1px var(--line-strong);
+  --focus: #bf7d06;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--doc); color: var(--text); font: 14px/1.45 var(--font); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+svg.i { width: 16px; height: 16px; flex: none; display: block; }
+.sq { corner-shape: superellipse(1.4); }
+
+.page { max-width: 1240px; margin: 0 auto; padding-block: 32px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
+.intro h1 { margin: 0 0 4px; font-size: 28px; line-height: 1.15; color: var(--text-strong); font-weight: 700; text-wrap: balance; }
+.intro p { margin: 0; color: var(--text-muted); max-width: 70ch; text-wrap: pretty; }
+
+/* Pickers: a recessed track with a raised thumb */
+.pick { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--r-md); background: oklch(0 0 0 / 0.3); max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+:root[data-theme="light"] .seg { background: var(--selected); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .seg { background: var(--selected); } }
+.seg button { height: 30px; padding: 0 12px; border-radius: var(--r-sm); color: var(--text-muted); font-weight: 600; white-space: nowrap; transition: background 150ms, color 150ms; }
+.seg button:hover { color: var(--text-strong); }
+.seg button[aria-pressed="true"] { background: var(--bg-overlay); color: var(--text-strong); box-shadow: 0 1px 3px oklch(0 0 0 / 0.3), inset 0 0.5px 0 oklch(1 0 0 / 0.14); }
+.pick .spacer { flex: 1; }
+.ghost { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: var(--r-md); color: var(--text-muted); font-weight: 600; }
+.ghost:hover { background: var(--hover); color: var(--text-strong); }
+
+/* The window */
+.winwrap { overflow-x: auto; border-radius: var(--r-lg); box-shadow: 0 0 0 1px var(--line-strong), 0 24px 60px oklch(0 0 0 / 0.35); }
+.win { display: grid; grid-template-columns: 72px 248px minmax(0, 1fr); height: 680px; min-width: 1000px; background: var(--bg-page); color: var(--text); }
+.rail { background: var(--bg-rail); display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 12px; }
+.srv { position: relative; width: 44px; height: 44px; border-radius: var(--r-md); display: grid; place-items: center; background: var(--bg-raised); color: var(--text-strong); font-weight: 700; font-size: 15px; }
+.srv.home { background: var(--accent); color: var(--on-accent); }
+.srv.home i { width: 20px; height: 20px; border-radius: 5px; background: conic-gradient(from 0deg, var(--on-accent) 0 25%, transparent 0 50%, var(--on-accent) 0 75%, transparent 0) 0 0 / 10px 10px; rotate: -10deg; }
+.srv::before { content: ""; position: absolute; left: -14px; width: 4px; height: 8px; border-radius: 0 4px 4px 0; background: var(--text-strong); opacity: 0; }
+.srv.cur::before { opacity: 1; height: 36px; }
+.srv .badge { position: absolute; right: -4px; bottom: -4px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--online); color: oklch(0.2 0.03 155); box-shadow: 0 0 0 3px var(--bg-rail); }
+.srv .badge.idle { background: var(--bg-rail); color: var(--online-ink); box-shadow: 0 0 0 3px var(--bg-rail), inset 0 0 0 1.5px var(--online); }
+.srv .badge.ring { background: var(--accent); color: var(--on-accent); animation: pulse 1.4s ease-in-out infinite; }
+.srv .badge svg { width: 11px; height: 11px; }
+.sep { width: 32px; height: 2px; border-radius: 2px; background: var(--line-strong); }
+
+.side { background: var(--bg-sidebar); display: flex; flex-direction: column; min-height: 0; }
+.side-head { height: 52px; display: flex; align-items: center; padding: 0 12px; flex: none; }
+.search { flex: 1; height: 32px; border-radius: var(--r-md); background: var(--hover); color: var(--text-faint); display: flex; align-items: center; padding: 0 10px; font-size: 14px; }
+.side-head b { color: var(--text-strong); font-size: 15px; font-weight: 700; }
+.list { flex: 1; min-height: 0; overflow: hidden; padding: 4px 8px; display: flex; flex-direction: column; gap: 2px; }
+.label { padding: 16px 8px 6px; color: var(--text-faint); font-size: 12px; font-weight: 600; }
+.row { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 8px; border-radius: var(--r-sm); color: var(--text-muted); text-align: left; width: 100%; }
+.row:hover { background: var(--hover); color: var(--text); }
+.row.cur { background: var(--selected); color: var(--text-strong); }
+.row .nm { flex: 1; min-width: 0; display: grid; line-height: 1.25; }
+.row .nm span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.row .nm small { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-faint); white-space: nowrap; }
+.row .nm small svg { width: 12px; height: 12px; }
+.row .nm small.live { color: var(--online-ink); }
+.row .nm small.calling { color: var(--accent-ink); }
+.row .nm small.miss { color: var(--danger-ink); }
+.row.ch { min-height: 32px; }
+.row.ch svg { color: var(--text-faint); }
+
+/* Sidebar voice panel: the call riding along while you're elsewhere */
+.vp { margin: 0 8px; padding: 10px; border-radius: var(--r-md) var(--r-md) 0 0; background: var(--bg-rail); border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+.vp-top { display: flex; align-items: center; gap: 8px; }
+.vp-top > div { flex: 1; min-width: 0; display: grid; }
+.vp-top b { display: flex; align-items: center; gap: 6px; color: var(--online-ink); font-weight: 600; }
+.vp-ret { display: flex; align-items: center; gap: 6px; min-width: 0; margin: 2px -4px 0; padding: 2px 4px; border-radius: var(--r-xs); color: var(--text-muted); font-size: 12px; text-align: left; }
+.vp-ret:hover { background: var(--hover); color: var(--text-strong); }
+.vp-ret span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vp-acts { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
+.vbtn { height: 32px; border-radius: var(--r-sm); display: grid; place-items: center; background: var(--hover); color: var(--text); }
+.vbtn:hover { background: var(--press); color: var(--text-strong); }
+.vbtn.off { background: oklch(0.58 0.21 25 / 0.16); color: var(--danger-ink); }
+.vbtn.leave { width: 32px; background: transparent; color: var(--text-muted); }
+.vbtn.leave:hover { background: oklch(0.58 0.21 25 / 0.16); color: var(--danger-ink); }
+.bars { display: inline-flex; align-items: flex-end; gap: 1.5px; height: 12px; }
+.bars i { width: 3px; border-radius: 1px; background: currentColor; }
+.bars i:nth-child(1) { height: 4px; } .bars i:nth-child(2) { height: 7px; } .bars i:nth-child(3) { height: 10px; } .bars i:nth-child(4) { height: 12px; }
+
+.me { height: 56px; flex: none; margin: 0 8px 8px; padding: 0 8px; display: flex; align-items: center; gap: 8px; border-radius: 0 0 var(--r-md) var(--r-md); background: var(--bg-rail); }
+.me.solo { border-radius: var(--r-md); }
+.me .nm { flex: 1; min-width: 0; display: grid; line-height: 1.2; }
+.me .nm b { color: var(--text-strong); font-weight: 600; }
+.me .nm small { color: var(--text-faint); font-size: 12px; }
+.ib { width: 32px; height: 32px; border-radius: var(--r-sm); display: grid; place-items: center; color: var(--text-muted); flex: none; }
+.ib:hover { background: var(--hover); color: var(--text-strong); }
+.ib.off { color: var(--danger-ink); }
+
+/* Avatars */
+.av { --s: 32px; position: relative; width: var(--s); height: var(--s); flex: none; border-radius: 50%; display: grid; place-items: center; color: oklch(0.99 0 0); font-weight: 700; font-size: calc(var(--s) * 0.42); background: linear-gradient(160deg, oklch(0.74 0.12 var(--h)), oklch(0.5 0.14 var(--h))); }
+.stack { display: flex; }
+.stack .av { box-shadow: 0 0 0 2px var(--ring, var(--bg-page)); }
+.stack .av + .av { margin-left: -8px; }
+.stack .av.spk { box-shadow: 0 0 0 2px var(--ring, var(--bg-page)), 0 0 0 4px var(--st-online); z-index: 1; }
+
+/* Pane */
+.pane { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg-page); }
+.phead { height: 48px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--line); }
+.phead .t { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.phead .t b { color: var(--text-strong); font-weight: 600; font-size: 15px; white-space: nowrap; }
+.phead .t small { color: var(--text-faint); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.phead .acts { display: flex; gap: 2px; }
+.feed { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 14px; padding: 16px 16px 8px; }
+.msg { display: flex; gap: 12px; }
+.msg .av { --s: 40px; }
+.msg > div { min-width: 0; }
+.msg b { color: var(--text-strong); font-weight: 600; }
+.msg time { margin-left: 6px; color: var(--text-faint); font-size: 12px; }
+.msg p { margin: 2px 0 0; font-size: 16px; color: var(--text); }
+.sys { display: flex; align-items: center; gap: 12px; padding-left: 10px; color: var(--text-muted); font-size: 14px; animation: rise 260ms var(--ease-out) both; }
+.sys > svg { width: 20px; height: 20px; color: var(--online-ink); }
+.sys.miss > svg { color: var(--danger-ink); }
+.sys b { color: var(--text-strong); font-weight: 600; }
+.sys time { color: var(--text-faint); font-size: 12px; }
+.sbtn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-sm); background: var(--hover); color: var(--text-strong); font-weight: 600; font-size: 13px; }
+.sbtn:hover { background: var(--press); }
+.sbtn svg { width: 14px; height: 14px; }
+.composer { margin: 4px 16px 16px; height: 48px; flex: none; border-radius: var(--r-md); background: var(--bg-raised); box-shadow: inset 0 0 0 1px var(--line); display: flex; align-items: center; gap: 10px; padding: 0 12px; color: var(--text-faint); font-size: 16px; }
+.composer svg { width: 20px; height: 20px; }
+
+/* Tiles */
+.tile { --h: 260; position: relative; aspect-ratio: 16 / 9; max-width: 100%; border-radius: var(--r-lg); display: grid; place-items: center; background: oklch(0.27 0.03 var(--h)); overflow: hidden; isolation: isolate; }
+.tile .av { --s: clamp(40px, 22cqh, 72px); }
+.area.n5 .tile .av { --s: clamp(36px, 14cqh, 56px); }
+.tile::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 3; box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.06); transition: box-shadow 150ms; }
+.tile.spk::after { box-shadow: inset 0 0 0 2px var(--st-online), inset 0 0 0 4px oklch(0.15 0.004 260 / 0.6); }
+.tile .v { position: absolute; inset: 0; background:
+  radial-gradient(18% 26% at 50% 40%, oklch(0.78 0.06 50), transparent 70%),
+  radial-gradient(40% 32% at 50% 96%, oklch(0.42 0.08 var(--h)), transparent 72%),
+  radial-gradient(80% 90% at 10% 0%, oklch(0.55 0.07 200), transparent 60%),
+  linear-gradient(oklch(0.36 0.03 230), oklch(0.24 0.02 250)); }
+.tile .v.alt { background:
+  radial-gradient(17% 25% at 46% 42%, oklch(0.74 0.07 40), transparent 70%),
+  radial-gradient(42% 32% at 46% 98%, oklch(0.5 0.1 150), transparent 72%),
+  radial-gradient(70% 80% at 100% 0%, oklch(0.7 0.1 80), transparent 60%),
+  linear-gradient(oklch(0.4 0.04 90), oklch(0.26 0.03 60)); }
+.chip { position: absolute; left: 8px; bottom: 8px; z-index: 2; max-width: calc(100% - 16px); height: 24px; padding: 0 8px; display: flex; align-items: center; gap: 6px; border-radius: var(--r-xs); background: var(--st-chip); color: oklch(0.99 0 0); font-size: 12px; font-weight: 600; }
+.chip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip svg { width: 14px; height: 14px; color: var(--st-off-ink); }
+.chip.nm { opacity: 0; transition: opacity 150ms; }
+.cp:hover .chip.nm, .pip:hover .chip.nm { opacity: 1; }
+.tile.pend .av { opacity: 0.55; }
+.tile.pend .av::after { content: ""; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 2px var(--st-muted); animation: ripple 1.6s var(--ease-out) infinite; }
+.tile.gone .av { opacity: 0.35; filter: grayscale(0.6); }
+.tile .stackcol { display: grid; justify-items: center; gap: 12px; z-index: 2; }
+.wbtn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: var(--r-sm); background: var(--st-wash); color: var(--st-strong); font-weight: 600; font-size: 13px; }
+.wbtn:hover { background: var(--st-wash-h); }
+.wbtn svg { width: 14px; height: 14px; }
+
+/* Control bar: grouped, opaque groups; the red leave apart */
+.grp { display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 16px; background: var(--st-group); box-shadow: inset 0 0 0 1px var(--st-edge); }
+.cb { height: 40px; width: 44px; border-radius: 12px; display: grid; place-items: center; color: var(--st-strong); transition: background 150ms, scale 120ms; }
+.cb svg { width: 20px; height: 20px; }
+.cb:hover { background: var(--st-wash); }
+.cb:active { scale: 0.94; }
+.cb.chev { width: 22px; margin-left: -2px; color: var(--st-muted); }
+.cb.chev svg { width: 12px; height: 12px; }
+.cb.off { background: var(--st-off); color: var(--st-off-ink); }
+.cb.off:hover { background: var(--st-off-h); }
+.cb.on { background: var(--st-on); color: var(--st-on-ink); }
+.cb.active { background: var(--accent); color: var(--on-accent); }
+.cb.active:hover { background: var(--accent-hover); }
+.cb.hang { width: 64px; height: 48px; border-radius: 16px; background: var(--danger); color: oklch(0.99 0 0); }
+.cb.hang:hover { background: var(--danger-hover); }
+.cb.hang svg { width: 24px; height: 24px; }
+.cb[disabled] { opacity: 0.4; cursor: not-allowed; }
+.mini .grp { padding: 2px; border-radius: 13px; }
+.mini .cb { height: 32px; width: 36px; border-radius: 10px; }
+.mini .cb svg { width: 18px; height: 18px; }
+.mini .cb.hang { height: 36px; width: 48px; border-radius: 13px; }
+.mini .cb.hang svg { width: 20px; height: 20px; }
+
+
+/* The call player: the whole call as one floating window over whatever you're reading. Compact without video,
+   expanded when someone's on camera or sharing. Rests in a corner; dragged, it hangs from the pointer and snaps. */
+.player { position: absolute; right: 16px; bottom: 80px; z-index: 6; width: 248px; display: grid; border-radius: var(--r-lg); background: var(--st-bg); color: var(--st-strong); box-shadow: 0 18px 44px oklch(0 0 0 / 0.5), 0 0 0 1px oklch(1 0 0 / 0.08); overflow: hidden; touch-action: none; animation: pop 220ms var(--ease-out) both; transform-origin: bottom right; }
+.player.big { width: 440px; }
+/* Portrait unless the content is landscape (a shared screen): people and cameras crop to 3:4. */
+.player.tall .p-media { aspect-ratio: 3 / 4; }
+.player.tall .p-media .self { width: 32%; aspect-ratio: 3 / 4; }
+.player.carry { cursor: grabbing; transition: none !important; rotate: 1.5deg; scale: 1.02; }
+.player.landing { transition: left 260ms var(--ease-drawer), top 260ms var(--ease-drawer), rotate 200ms, scale 200ms; }
+.player.bye { animation: shrink 260ms var(--ease-out) both; }
+.p-head { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 6px 0 12px; cursor: grab; }
+.p-head .stack { --ring: var(--st-bg); }
+.p-head .stack .av { --s: 28px; }
+.p-head .tx { flex: 1; min-width: 0; display: grid; line-height: 1.25; }
+.p-head .tx b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p-head .tx small { font-size: 12px; color: var(--st-muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sib { width: 32px; height: 32px; border-radius: var(--r-sm); display: grid; place-items: center; color: var(--st-muted); flex: none; }
+.sib:hover { background: var(--st-wash); color: var(--st-strong); }
+.p-media { position: relative; margin: 0 8px; aspect-ratio: 16 / 9; border-radius: var(--r-md); overflow: hidden; container-type: size; }
+.p-media > .tile { width: 100%; height: 100%; border-radius: inherit; }
+.p-media .self { position: absolute; right: 8px; bottom: 8px; z-index: 4; width: 25%; aspect-ratio: 16 / 9; border-radius: 9px; overflow: hidden; box-shadow: 0 4px 12px oklch(0 0 0 / 0.4), 0 0 0 1px oklch(1 0 0 / 0.14); }
+.p-media .self .tile { width: 100%; height: 100%; border-radius: 0; }
+.p-media .self .tile .av { --s: 22px; }
+.p-media .self .tile .chip { display: none; }
+.p-media .bubble { position: absolute; right: 8px; bottom: 8px; z-index: 4; width: 28%; aspect-ratio: 16 / 9; border-radius: 9px; overflow: hidden; box-shadow: 0 4px 12px oklch(0 0 0 / 0.4); }
+.p-media .bubble .tile { width: 100%; height: 100%; border-radius: 0; }
+.p-media .bubble .chip { display: none; }
+.p-grid { margin: 0 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.p-grid .tile { border-radius: 12px; aspect-ratio: 3 / 4; }
+.p-grid .tile .av { --s: 36px; }
+.p-grid .tile .chip { left: 6px; bottom: 6px; height: 22px; font-size: 11px; }
+.p-faces { display: flex; justify-content: center; gap: 8px; padding: 2px 12px 4px; }
+.p-faces .who { display: grid; justify-items: center; gap: 4px; width: 56px; }
+.p-faces .who .av { --s: 40px; }
+.p-faces .who.spk .av { box-shadow: 0 0 0 2px var(--st-bg), 0 0 0 4px var(--st-online); }
+.p-faces .who.pend .av { opacity: 0.5; }
+.p-faces .who.pend .av::after { content: ""; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 2px var(--st-muted); animation: ripple 1.6s var(--ease-out) infinite; }
+.p-faces.col { flex-direction: column; align-items: center; gap: 16px; padding: 14px 12px 10px; }
+.p-faces.col .who { width: 100%; gap: 6px; }
+.p-faces.col .who .av { --s: 72px; }
+.p-faces.col .who small { font-size: 13px; }
+.p-faces.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-items: center; gap: 14px 8px; padding: 12px 12px 8px; }
+.p-faces.grid .who { width: 100%; }
+.p-faces.grid .who .av { --s: 52px; }
+.p-faces .who small { max-width: 100%; font-size: 11px; color: var(--st-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p-faces .who small svg { display: inline; width: 11px; height: 11px; vertical-align: -1px; color: var(--st-off-ink); }
+.p-bar { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 8px 10px; }
+.p-bar .grp { padding: 2px; border-radius: 12px; }
+.p-bar .cb { height: 32px; width: 36px; border-radius: 10px; }
+.p-bar .cb svg { width: 17px; height: 17px; }
+.p-bar .cb.chev { width: 20px; }
+.p-bar .cb.hang { width: 44px; height: 36px; border-radius: 12px; }
+.p-bar .cb.hang svg { width: 19px; height: 19px; }
+.p-note { margin: 0 12px; padding: 10px 0 2px; color: var(--st-muted); font-size: 13px; display: flex; align-items: center; gap: 10px; }
+
+/* Ringing: the same window, before the call */
+/* Ringing: landscape, who on the left, Join over Decline on the right */
+.player.ring { width: 340px; }
+.ringcard { display: grid; grid-template-columns: auto minmax(0, 1fr) 112px; align-items: center; gap: 12px; padding: 14px; }
+.ringcard .av { --s: 52px; }
+.ringcard .av::after { content: ""; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 3px var(--accent); animation: ripple 1.6s var(--ease-out) infinite; }
+.ringcard .who { min-width: 0; display: grid; gap: 2px; }
+.ringcard b { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ringcard small { color: var(--accent); font-size: 12px; font-weight: 600; }
+.ringacts { display: grid; gap: 6px; }
+.ringacts .go { order: -1; }
+.ringacts .pbtn { height: 34px; }
+.pbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 10px; border-radius: var(--r-md); font-weight: 600; }
+.pbtn svg { width: 18px; height: 18px; }
+.pbtn.deny { background: var(--danger); color: oklch(0.99 0 0); }
+.pbtn.deny:hover { background: var(--danger-hover); }
+.pbtn.wash { background: var(--st-wash); color: var(--st-strong); width: 38px; padding: 0; }
+.pbtn.wash:hover { background: var(--st-wash-h); }
+.pbtn.go { background: var(--accent); color: var(--on-accent); }
+.pbtn.go:hover { background: var(--accent-hover); }
+.wbtn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: var(--r-sm); background: var(--st-wash); color: var(--st-strong); font-weight: 600; font-size: 13px; }
+.wbtn:hover { background: var(--st-wash-h); }
+.wbtn svg { width: 14px; height: 14px; }
+
+/* A call going on that isn't ringing you: a pill in the DM header */
+.joinpill { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 4px 0 6px; border-radius: var(--r-md); background: var(--hover); color: var(--text); font-size: 13px; font-weight: 600; margin-right: 6px; }
+.joinpill .stack { --ring: var(--bg-page); }
+.joinpill .stack .av { --s: 22px; font-size: 10px; }
+.joinpill .jb { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 9px; background: var(--accent); color: var(--on-accent); font-weight: 700; }
+.joinpill .jb:hover { background: var(--accent-hover); }
+.joinpill .jb svg { width: 14px; height: 14px; }
+.joinpill .cam { width: 14px; height: 14px; color: var(--text-muted); }
+
+/* The stage: the server voice stage, unchanged, showing the DM's call */
+.stage { position: relative; display: grid; grid-template-rows: 52px minmax(0, 1fr) 80px; min-width: 0; min-height: 0; background: var(--st-bg); color: var(--st-strong); }
+.stage.full { grid-column: 1 / -1; }
+.s-head { display: flex; align-items: center; gap: 10px; padding: 0 10px 0 16px; }
+.s-head .t { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.s-head .t .av { --s: 22px; }
+.s-head .t small { color: var(--st-muted); font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
+.s-area { container-type: size; min-height: 0; padding: 0 16px; display: flex; flex-wrap: wrap; align-content: center; justify-content: center; gap: 12px; }
+.s-area .tile { width: min(calc((100cqw - 12px) / 2), calc(100cqh * 16 / 9)); }
+.s-area .tile .av { --s: clamp(48px, 18cqh, 88px); }
+.s-area.focus { flex-direction: column; flex-wrap: nowrap; align-items: center; }
+.s-area.focus .tile.big { width: min(100cqw, calc((100cqh - 108px) * 16 / 9)); }
+.s-area.focus .film { display: flex; gap: 10px; }
+.s-area.focus .film .tile { width: 170px; }
+.s-area.focus .film .tile .av { --s: 36px; }
+.s-bar { display: flex; align-items: center; justify-content: center; gap: 10px; position: relative; }
+.s-bar .corner { position: absolute; right: 12px; display: flex; gap: 4px; }
+.stream { position: absolute; inset: 0; background: radial-gradient(90% 120% at 10% 0%, oklch(0.6 0.14 200), transparent 55%), radial-gradient(100% 100% at 100% 100%, oklch(0.5 0.2 330), transparent 60%), oklch(0.25 0.05 280); }
+.stream::after { content: ""; position: absolute; left: 12%; top: 16%; width: 46%; height: 52%; border-radius: 6%; background: oklch(0.96 0.005 260 / 0.9); box-shadow: 0 10px 30px oklch(0 0 0 / 0.35); }
+.chip .scr { color: oklch(0.99 0 0); }
+
+/* Caption */
+.cap { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; }
+.cap h2 { margin: 0 0 6px; font-size: 20px; color: var(--text-strong); line-height: 1.2; }
+.cap p { margin: 0; color: var(--text-muted); text-wrap: pretty; max-width: 66ch; }
+.cap dl { margin: 0; display: grid; gap: 10px; }
+.cap dt { color: var(--text-faint); font-size: 12px; font-weight: 600; }
+.cap dd { margin: 0; color: var(--text); text-wrap: pretty; }
+.rust { border-top: 1px solid var(--line); padding-top: 20px; }
+.rust h2 { margin: 0 0 10px; font-size: 20px; color: var(--text-strong); }
+.rust ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; max-width: 90ch; }
+.rust li { color: var(--text); text-wrap: pretty; }
+.rust a { color: var(--accent-ink); }
+.rust code { font: 13px ui-monospace, "SF Mono", Menlo, monospace; color: var(--text-strong); background: var(--hover); padding: 1px 5px; border-radius: 5px; }
+@media (max-width: 760px) { .cap { grid-template-columns: minmax(0, 1fr); } }
+
+@keyframes ripple { 0% { opacity: 0.9; scale: 1; } 100% { opacity: 0; scale: 1.35; } }
+@keyframes pulse { 50% { opacity: 0.55; } }
+@keyframes drop { from { opacity: 0; transform: translateY(-12px) scale(0.97); } }
+@keyframes rise { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+@keyframes ripple { 0% { opacity: 0.9; scale: 1; } 100% { opacity: 0; scale: 1.35; } }
+@keyframes pulse { 50% { opacity: 0.55; } }
+@keyframes pop { from { opacity: 0; transform: scale(0.96) translateY(6px); } }
+@keyframes shrink { to { opacity: 0; transform: scale(0.94) translateY(6px); } }
+@keyframes rise { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><g fill="currentColor"><path d="M19.12 9.12c-.39 0-.7.31-.7.7v1.58c0 3.54-2.88 6.42-6.42 6.42s-6.42-2.88-6.42-6.42V9.81c0-.39-.31-.7-.7-.7s-.7.31-.7.7v1.58c0 4.07 3.13 7.42 7.12 7.78v2.13c0 .39.31.7.7.7s.7-.31.7-.7v-2.13c3.98-.35 7.12-3.71 7.12-7.78V9.81a.707.707 0 0 0-.7-.69"/><path d="M11.998 2c-2.44 0-4.42 1.98-4.42 4.42v5.12c0 2.44 1.98 4.42 4.42 4.42s4.42-1.98 4.42-4.42V6.42c0-2.44-1.98-4.42-4.42-4.42m1.31 6.95c-.07.26-.3.43-.56.43c-.05 0-.1-.01-.15-.02c-.39-.11-.8-.11-1.19 0c-.32.09-.63-.1-.71-.41c-.09-.31.1-.63.41-.71c.59-.16 1.21-.16 1.8 0c.3.08.48.4.4.71m.53-1.94a.58.58 0 0 1-.55.38c-.07 0-.13-.01-.2-.03c-.7-.26-1.48-.26-2.18 0a.59.59 0 0 1-.75-.35c-.11-.3.05-.64.35-.74a4.36 4.36 0 0 1 2.98 0c.3.11.46.44.35.74"/></g></g></symbol>
+<symbol id="i-mic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><mask id="cut-mic-off" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/><path d="M3.5 3.5 20.5 20.5" stroke="#000" stroke-width="6"/></mask><g mask="url(#cut-mic-off)"><g stroke="none"><g fill="currentColor"><path d="M19.12 9.12c-.39 0-.7.31-.7.7v1.58c0 3.54-2.88 6.42-6.42 6.42s-6.42-2.88-6.42-6.42V9.81c0-.39-.31-.7-.7-.7s-.7.31-.7.7v1.58c0 4.07 3.13 7.42 7.12 7.78v2.13c0 .39.31.7.7.7s.7-.31.7-.7v-2.13c3.98-.35 7.12-3.71 7.12-7.78V9.81a.707.707 0 0 0-.7-.69"/><path d="M11.998 2c-2.44 0-4.42 1.98-4.42 4.42v5.12c0 2.44 1.98 4.42 4.42 4.42s4.42-1.98 4.42-4.42V6.42c0-2.44-1.98-4.42-4.42-4.42m1.31 6.95c-.07.26-.3.43-.56.43c-.05 0-.1-.01-.15-.02c-.39-.11-.8-.11-1.19 0c-.32.09-.63-.1-.71-.41c-.09-.31.1-.63.41-.71c.59-.16 1.21-.16 1.8 0c.3.08.48.4.4.71m.53-1.94a.58.58 0 0 1-.55.38c-.07 0-.13-.01-.2-.03c-.7-.26-1.48-.26-2.18 0a.59.59 0 0 1-.75-.35c-.11-.3.05-.64.35-.74a4.36 4.36 0 0 1 2.98 0c.3.11.46.44.35.74"/></g></g></g><path d="M3.5 3.5 20.5 20.5"/></symbol>
+<symbol id="i-video" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><path fill="currentColor" d="M5.768 3.75h6.464c.813 0 1.469 0 2 .043c.546.045 1.026.14 1.47.366a3.75 3.75 0 0 1 1.64 1.639c.226.444.32.924.365 1.47c.043.531.043 1.187.043 2v5.464c0 .813 0 1.469-.043 2c-.045.546-.14 1.026-.366 1.47a3.75 3.75 0 0 1-1.639 1.64c-.444.226-.924.32-1.47.365c-.531.043-1.187.043-2 .043H5.768c-.813 0-1.469 0-2-.043c-.546-.045-1.026-.14-1.47-.366a3.75 3.75 0 0 1-1.64-1.639c-.226-.444-.32-.924-.365-1.47c-.043-.531-.043-1.187-.043-2V9.268c0-.813 0-1.469.043-2c.045-.546.14-1.026.366-1.47a3.75 3.75 0 0 1 1.639-1.64c.444-.226.924-.32 1.47-.365c.531-.043 1.187-.043 2-.043M18.75 14.706a1 1 0 0 0 .31.724l2.327 2.221c.795.76 2.113.196 2.113-.904V7.252c0-1.1-1.318-1.663-2.113-.904L19.059 8.57a1 1 0 0 0-.309.723z"/></g></symbol>
+<symbol id="i-video-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><mask id="cut-video-off" maskUnits="userSpaceOnUse" x="-2" y="-2" width="28" height="28"><rect x="-2" y="-2" width="28" height="28" fill="#fff"/><path d="M3.5 3.5 20.5 20.5" stroke="#000" stroke-width="6"/></mask><g mask="url(#cut-video-off)"><g stroke="none"><path fill="currentColor" d="M5.768 3.75h6.464c.813 0 1.469 0 2 .043c.546.045 1.026.14 1.47.366a3.75 3.75 0 0 1 1.64 1.639c.226.444.32.924.365 1.47c.043.531.043 1.187.043 2v5.464c0 .813 0 1.469-.043 2c-.045.546-.14 1.026-.366 1.47a3.75 3.75 0 0 1-1.639 1.64c-.444.226-.924.32-1.47.365c-.531.043-1.187.043-2 .043H5.768c-.813 0-1.469 0-2-.043c-.546-.045-1.026-.14-1.47-.366a3.75 3.75 0 0 1-1.64-1.639c-.226-.444-.32-.924-.365-1.47c-.043-.531-.043-1.187-.043-2V9.268c0-.813 0-1.469.043-2c.045-.546.14-1.026.366-1.47a3.75 3.75 0 0 1 1.639-1.64c.444-.226.924-.32 1.47-.365c.531-.043 1.187-.043 2-.043M18.75 14.706a1 1 0 0 0 .31.724l2.327 2.221c.795.76 2.113.196 2.113-.904V7.252c0-1.1-1.318-1.663-2.113-.904L19.059 8.57a1 1 0 0 0-.309.723z"/></g></g><path d="M3.5 3.5 20.5 20.5"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><g fill="currentColor"><path d="M6.5 4H14c3.772 0 5.657 0 6.829 1.172S22 8.229 22 12s0 5.657-1.171 6.828c-1.1 1.1-3.708 1.168-7.141 1.172a.687.687 0 0 1-.688-.687C13 13.617 8.383 9 2.688 9a.685.685 0 0 1-.686-.688c.002-.31.007-.593.018-.704a4 4 0 0 1 3.588-3.589C5.804 4 6.036 4 6.5 4"/><path d="M2 10.25a.75.75 0 0 0 0 1.5A8.25 8.25 0 0 1 10.25 20a.75.75 0 0 0 1.5 0A9.75 9.75 0 0 0 2 10.25"/><path d="M2 13.25a.75.75 0 0 0 0 1.5c2.9 0 5.25 2.35 5.25 5.25a.75.75 0 0 0 1.5 0A6.75 6.75 0 0 0 2 13.25"/><path d="M2 16.25a.75.75 0 0 0 0 1.5A2.25 2.25 0 0 1 4.25 20a.75.75 0 0 0 1.5 0A3.75 3.75 0 0 0 2 16.25"/></g></g></symbol>
+<symbol id="i-act" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><g fill="currentColor"><path d="M9.034 5.963L6.491 8.5c-.467.466-.896.893-1.235 1.28a6 6 0 0 0-.619.82l-.024-.025l-.095-.094a4.9 4.9 0 0 0-1.532-1.004l-.123-.05l-.379-.15a.764.764 0 0 1-.259-1.252C3.345 6.907 4.69 5.566 5.34 5.297a3.4 3.4 0 0 1 1.788-.229c.546.081 1.063.362 1.907.895m4.342 13.35c.205.208.34.355.464.512q.243.311.434.658c.142.26.253.537.474 1.092a.69.69 0 0 0 1.126.224l.084-.083c1.12-1.117 2.465-2.458 2.735-3.105a3.35 3.35 0 0 0 .229-1.782c-.081-.545-.362-1.06-.897-1.902l-2.552 2.544c-.478.477-.916.914-1.313 1.256c-.237.206-.497.41-.784.586"/><path fill-rule="evenodd" d="m14.447 16.377l5.847-5.83c.842-.839 1.263-1.259 1.484-1.792S22 7.627 22 6.44v-.567c0-1.826 0-2.739-.569-3.306S19.947 2 18.116 2h-.57c-1.19 0-1.785 0-2.32.221c-.536.221-.957.641-1.8 1.48L7.58 9.531c-.984.98-1.594 1.589-1.83 2.176a1.5 1.5 0 0 0-.112.562c0 .802.647 1.448 1.942 2.739l.174.173l2.038-2.069a.75.75 0 1 1 1.069 1.053L8.816 16.24l.137.137c1.295 1.29 1.943 1.936 2.747 1.936c.178 0 .348-.031.519-.094c.603-.222 1.219-.836 2.228-1.842m2.747-6.846a1.946 1.946 0 0 1-2.747 0a1.93 1.93 0 0 1 0-2.738a1.946 1.946 0 0 1 2.747 0a1.93 1.93 0 0 1 0 2.738" clip-rule="evenodd"/></g></g></symbol>
+<symbol id="i-more" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><path fill="currentColor" d="M7 12a2 2 0 1 1-4 0a2 2 0 0 1 4 0m7 0a2 2 0 1 1-4 0a2 2 0 0 1 4 0m7 0a2 2 0 1 1-4 0a2 2 0 0 1 4 0"/></g></symbol>
+<symbol id="i-hang" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><path fill="currentColor" d="M22.382 15.766a1.05 1.05 0 0 0 .816-.709c.052-.16.052-.353.052-.62v-1.328a4.93 4.93 0 0 0-2.506-4.272a15 15 0 0 0-4.411-1.644a22.1 22.1 0 0 0-8.672 0A15 15 0 0 0 3.246 8.84A4.92 4.92 0 0 0 .75 13.1v1.336c0 .268 0 .462.052.622c.12.368.434.64.816.707c.166.03.358.002.623-.036l5.116-.73q.173-.023.296-.05a.8.8 0 0 0 .252-.097a.75.75 0 0 0 .277-.32a.8.8 0 0 0 .062-.264q.008-.126.006-.299v-2.516c2.852-.805 4.822-.804 7.5-.003v2.519q-.002.174.006.3a.8.8 0 0 0 .062.263a.75.75 0 0 0 .277.32c.08.051.166.079.252.098q.124.025.296.048l5.117.731c.264.038.456.066.622.037"/></g></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><path fill="currentColor" d="m16.556 12.906l-.455.453s-1.083 1.076-4.038-1.862s-1.872-4.014-1.872-4.014l.286-.286c.707-.702.774-1.83.157-2.654L9.374 2.86C8.61 1.84 7.135 1.705 6.26 2.575l-1.57 1.56c-.433.432-.723.99-.688 1.61c.09 1.587.808 5 4.812 8.982c4.247 4.222 8.232 4.39 9.861 4.238c.516-.048.964-.31 1.325-.67l1.42-1.412c.96-.953.69-2.588-.538-3.255l-1.91-1.039c-.806-.437-1.787-.309-2.417.317"/></g></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><path fill="currentColor" d="M12.707 6.293a1 1 0 0 0-1.415 0L2.96 14.627a1 1 0 1 0 1.415 1.414L12 8.415l7.627 7.626a1 1 0 0 0 1.413 0a1 1 0 0 0 0-1.414z"/></g></symbol>
+<symbol id="i-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><path fill="currentColor" fill-rule="evenodd" d="M9.944 1.25H10a.75.75 0 0 1 0 1.5c-1.907 0-3.261.002-4.29.14c-1.005.135-1.585.389-2.008.812S3.025 4.705 2.89 5.71c-.138 1.029-.14 2.383-.14 4.29a.75.75 0 0 1-1.5 0v-.056c0-1.838 0-3.294.153-4.433c.158-1.172.49-2.121 1.238-2.87c.749-.748 1.698-1.08 2.87-1.238c1.14-.153 2.595-.153 4.433-.153m8.345 1.64c-1.027-.138-2.382-.14-4.289-.14a.75.75 0 0 1 0-1.5h.056c1.838 0 3.294 0 4.433.153c1.172.158 2.121.49 2.87 1.238c.748.749 1.08 1.698 1.238 2.87c.153 1.14.153 2.595.153 4.433V10a.75.75 0 0 1-1.5 0c0-1.907-.002-3.261-.14-4.29c-.135-1.005-.389-1.585-.812-2.008s-1.003-.677-2.009-.812M2 13.25a.75.75 0 0 1 .75.75c0 1.907.002 3.262.14 4.29c.135 1.005.389 1.585.812 2.008s1.003.677 2.009.812c1.028.138 2.382.14 4.289.14a.75.75 0 0 1 0 1.5h-.056c-1.838 0-3.294 0-4.433-.153c-1.172-.158-2.121-.49-2.87-1.238c-.748-.749-1.08-1.698-1.238-2.87c-.153-1.14-.153-2.595-.153-4.433V14a.75.75 0 0 1 .75-.75m20 0a.75.75 0 0 1 .75.75v.056c0 1.838 0 3.294-.153 4.433c-.158 1.172-.49 2.121-1.238 2.87c-.749.748-1.698 1.08-2.87 1.238c-1.14.153-2.595.153-4.433.153H14a.75.75 0 0 1 0-1.5c1.907 0 3.262-.002 4.29-.14c1.005-.135 1.585-.389 2.008-.812s.677-1.003.812-2.009c.138-1.027.14-2.382.14-4.289a.75.75 0 0 1 .75-.75" clip-rule="evenodd"/></g></symbol>
+<symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><g fill="currentColor"><circle cx="9.001" cy="6" r="4"/><ellipse cx="9.001" cy="17.001" rx="7" ry="4"/><path d="M21 17c0 1.657-2.036 3-4.521 3c.732-.8 1.236-1.805 1.236-2.998c0-1.195-.505-2.2-1.239-3.001C18.962 14 21 15.344 21 17M18 6a3 3 0 0 1-4.029 2.82A5.7 5.7 0 0 0 14.714 6c0-1.025-.27-1.987-.742-2.819A3 3 0 0 1 18 6.001"/></g></g></symbol>
+<symbol id="i-add" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><g fill="currentColor"><circle cx="12" cy="6" r="4"/><path fill-rule="evenodd" d="M16.5 22c-1.65 0-2.475 0-2.987-.513C13 20.975 13 20.15 13 18.5s0-2.475.513-2.987C14.025 15 14.85 15 16.5 15s2.475 0 2.987.513C20 16.025 20 16.85 20 18.5s0 2.475-.513 2.987C18.975 22 18.15 22 16.5 22m.583-5.056a.583.583 0 1 0-1.166 0v.973h-.973a.583.583 0 1 0 0 1.166h.973v.973a.583.583 0 1 0 1.166 0v-.973h.973a.583.583 0 1 0 0-1.166h-.973z" clip-rule="evenodd"/><path d="M15.678 13.503c-.473.005-.914.023-1.298.074c-.643.087-1.347.293-1.928.875c-.582.581-.788 1.285-.874 1.928c-.078.578-.078 1.284-.078 2.034v.172c0 .75 0 1.456.078 2.034c.06.451.18.932.447 1.38H12c-8 0-8-2.015-8-4.5S7.582 13 12 13c1.326 0 2.577.181 3.678.503"/></g></g></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><g fill="currentColor"><path d="M5.333 19.667a1 1 0 0 1-.707-1.708L17.96 4.627a1 1 0 1 1 1.415 1.414L6.04 19.373a1 1 0 0 1-.707.294"/><path d="M18.667 19.667a1 1 0 0 1-.707-.294L4.627 6.04A1 1 0 1 1 6.04 4.625L19.373 17.96a1 1 0 0 1-.706 1.708Z"/></g></g></symbol>
+<symbol id="i-hash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 3L8 21m8-18l-2 18M3.5 9h18m-19 6h18"/></symbol>
+<symbol id="i-head" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><g fill="currentColor"><path d="M2.75 18.65c-.41 0-.75-.34-.75-.75v-5.7c-.05-2.71.96-5.27 2.84-7.19c1.88-1.91 4.4-2.96 7.11-2.96C17.49 2.05 22 6.56 22 12.1v5.7c0 .41-.34.75-.75.75s-.75-.34-.75-.75v-5.7c0-4.71-3.83-8.55-8.55-8.55c-2.31 0-4.45.89-6.04 2.51c-1.6 1.63-2.45 3.8-2.41 6.12v5.71c0 .42-.33.76-.75.76"/><path d="M5.94 12.45h-.13c-2.1 0-3.81 1.71-3.81 3.81v1.88c0 2.1 1.71 3.81 3.81 3.81h.13c2.1 0 3.81-1.71 3.81-3.81v-1.88c0-2.1-1.71-3.81-3.81-3.81m12.25 0h-.13c-2.1 0-3.81 1.71-3.81 3.81v1.88c0 2.1 1.71 3.81 3.81 3.81h.13c2.1 0 3.81-1.71 3.81-3.81v-1.88c0-2.1-1.71-3.81-3.81-3.81"/></g></g></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><g fill="currentColor"><path d="M19.333 11h-6.756L9.2 5.15a1 1 0 1 0-1.731 1L10.847 12l-3.379 5.852a1 1 0 0 0 1.732 1L12.579 13h6.756a1 1 0 0 0 0-2Z"/><path d="M21.667 11h-1.4a8.3 8.3 0 0 0-.603-2.27l1.208-.697a.999.999 0 1 0-1-1.73l-1.217.703a8.4 8.4 0 0 0-1.658-1.658L17.7 4.13a1 1 0 0 0-1.73-1l-.698 1.208a8.2 8.2 0 0 0-2.27-.604v-1.4a1 1 0 0 0-2 0v1.398c-.795.096-1.558.3-2.269.604l-.697-1.208a.998.998 0 1 0-1.73 1l.702 1.219a8.3 8.3 0 0 0-1.657 1.657l-1.217-.703a1 1 0 1 0-1 1.73l1.208.698A8.3 8.3 0 0 0 3.738 11H2.333a1 1 0 0 0 0 2h1.399c.096.795.3 1.558.604 2.269l-1.208.697a.999.999 0 1 0 1.001 1.73l1.218-.702a8.4 8.4 0 0 0 1.657 1.657l-.703 1.219a1 1 0 0 0 1.732 1l.698-1.208a8.2 8.2 0 0 0 2.269.604v1.399a1 1 0 0 0 2 0v-1.399a8.3 8.3 0 0 0 2.27-.604l.697 1.208a1 1 0 0 0 1.366.365a1 1 0 0 0 .366-1.365l-.703-1.219a8.3 8.3 0 0 0 1.657-1.657l1.217.703a1 1 0 0 0 1.367-.366a1 1 0 0 0-.365-1.365l-1.208-.697c.304-.71.508-1.473.604-2.27h1.399a1 1 0 0 0 0-2ZM12 18.333c-3.492 0-6.333-2.841-6.333-6.333S8.508 5.667 12 5.667S18.333 8.508 18.333 12S15.492 18.333 12 18.333"/></g></g></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><path fill="currentColor" d="M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10s10-4.49 10-10S17.51 2 12 2m4 10.75h-3.25V16c0 .41-.34.75-.75.75s-.75-.34-.75-.75v-3.25H8c-.41 0-.75-.34-.75-.75s.34-.75.75-.75h3.25V8c0-.41.34-.75.75-.75s.75.34.75.75v3.25H16c.41 0 .75.34.75.75s-.34.75-.75.75"/></g></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><path fill="currentColor" d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2S2 6.477 2 12c0 1.6.376 3.112 1.043 4.453c.178.356.237.763.134 1.148l-.595 2.226a1.3 1.3 0 0 0 1.591 1.592l2.226-.596a1.63 1.63 0 0 1 1.149.133A9.96 9.96 0 0 0 12 22"/></g></symbol>
+<symbol id="i-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><path fill="currentColor" fill-rule="evenodd" d="M8.367 1.25h7.266c1.092 0 1.958 0 2.655.057c.714.058 1.317.18 1.869.46a4.75 4.75 0 0 1 2.075 2.077c.281.55.403 1.154.461 1.868c.057.697.057 1.563.057 2.655v7.266c0 1.092 0 1.958-.057 2.655c-.058.714-.18 1.317-.46 1.869a4.75 4.75 0 0 1-2.076 2.075c-.552.281-1.155.403-1.869.461c-.697.057-1.563.057-2.655.057H8.367c-1.092 0-1.958 0-2.655-.057c-.714-.058-1.317-.18-1.868-.46a4.75 4.75 0 0 1-2.076-2.076c-.281-.552-.403-1.155-.461-1.869c-.057-.697-.057-1.563-.057-2.655V8.367c0-1.092 0-1.958.057-2.655c.058-.714.18-1.317.46-1.868a4.75 4.75 0 0 1 2.077-2.076c.55-.281 1.154-.403 1.868-.461c.697-.057 1.563-.057 2.655-.057m7.663 6.72a.75.75 0 0 0-.53-.22H10a.75.75 0 0 0 0 1.5h3.69l-5.72 5.72a.75.75 0 1 0 1.06 1.06l5.72-5.72V14a.75.75 0 0 0 1.5 0V8.5a.75.75 0 0 0-.22-.53" clip-rule="evenodd"/></g></symbol>
+<symbol id="i-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><path fill="currentColor" fill-rule="evenodd" d="M14 1.25a.75.75 0 0 1 .75.75c0 1.907.002 3.261.14 4.29c.135 1.005.389 1.585.812 2.008s1.003.677 2.009.812c1.027.138 2.382.14 4.289.14a.75.75 0 0 1 0 1.5h-.056c-1.838 0-3.294 0-4.433-.153c-1.172-.158-2.121-.49-2.87-1.238c-.748-.749-1.08-1.698-1.238-2.87c-.153-1.14-.153-2.595-.153-4.433V2a.75.75 0 0 1 .75-.75m-4 0a.75.75 0 0 1 .75.75v.056c0 1.838 0 3.294-.153 4.433c-.158 1.172-.49 2.121-1.238 2.87c-.749.748-1.698 1.08-2.87 1.238c-1.14.153-2.595.153-4.433.153H2a.75.75 0 0 1 0-1.5c1.907 0 3.261-.002 4.29-.14c1.005-.135 1.585-.389 2.008-.812s.677-1.003.812-2.009c.138-1.028.14-2.382.14-4.289a.75.75 0 0 1 .75-.75M1.25 14a.75.75 0 0 1 .75-.75h.056c1.838 0 3.294 0 4.433.153c1.172.158 2.121.49 2.87 1.238c.748.749 1.08 1.698 1.238 2.87c.153 1.14.153 2.595.153 4.433V22a.75.75 0 0 1-1.5 0c0-1.907-.002-3.262-.14-4.29c-.135-1.005-.389-1.585-.812-2.008s-1.003-.677-2.009-.812c-1.028-.138-2.382-.14-4.289-.14a.75.75 0 0 1-.75-.75m20.694-.75H22a.75.75 0 0 1 0 1.5c-1.907 0-3.262.002-4.29.14c-1.005.135-1.585.389-2.008.812s-.677 1.003-.812 2.009c-.138 1.027-.14 2.382-.14 4.289a.75.75 0 0 1-1.5 0v-.056c0-1.838 0-3.294.153-4.433c.158-1.172.49-2.121 1.238-2.87c.749-.748 1.698-1.08 2.87-1.238c1.14-.153 2.595-.153 4.433-.153" clip-rule="evenodd"/></g></symbol>
+<symbol id="i-screen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g stroke="none"><g fill="currentColor"><path d="M6.5 4H14c3.772 0 5.657 0 6.829 1.172S22 8.229 22 12s0 5.657-1.171 6.828c-1.1 1.1-3.708 1.168-7.141 1.172a.687.687 0 0 1-.688-.687C13 13.617 8.383 9 2.688 9a.685.685 0 0 1-.686-.688c.002-.31.007-.593.018-.704a4 4 0 0 1 3.588-3.589C5.804 4 6.036 4 6.5 4"/><path d="M2 10.25a.75.75 0 0 0 0 1.5A8.25 8.25 0 0 1 10.25 20a.75.75 0 0 0 1.5 0A9.75 9.75 0 0 0 2 10.25"/><path d="M2 13.25a.75.75 0 0 0 0 1.5c2.9 0 5.25 2.35 5.25 5.25a.75.75 0 0 0 1.5 0A6.75 6.75 0 0 0 2 13.25"/><path d="M2 16.25a.75.75 0 0 0 0 1.5A2.25 2.25 0 0 1 4.25 20a.75.75 0 0 0 1.5 0A3.75 3.75 0 0 0 2 16.25"/></g></g></symbol>
+</svg>
+
+<div class="page">
+  <header class="intro">
+    <h1>DM call player</h1>
+    <p>Calls in DMs and group DMs as one floating window over whatever you're reading, the way Teams' minimized meeting window, Slack's huddle mini window and Meet's picture-in-picture work. It rings in the corner, becomes the call in place, grows when someone turns on video, and opens into the server voice stage when you want the big view. Drag it to any corner; everything in it works.</p>
+  </header>
+
+  <div class="pick">
+    <div class="seg" id="views" role="group" aria-label="State"></div>
+    <div class="spacer"></div>
+    <button class="ghost" id="theme" type="button">Light theme</button>
+  </div>
+  <div class="pick"><div class="seg" id="vars" role="group" aria-label="Case"></div></div>
+
+  <div class="winwrap"><div class="win" id="win"></div></div>
+
+  <div class="cap" id="cap"></div>
+
+  <section class="rust">
+    <h2>How other apps do it</h2>
+    <ol>
+      <li><b>Microsoft Teams:</b> minimizing a meeting leaves a small meeting window in the corner, with an expanded size (up to four videos) and a compact one (no video). Per Microsoft's <a href="https://support.microsoft.com/en-us/topic/01835df8-c655-435e-9ad8-d756caa2ba07">support page</a> and <a href="https://mc.merill.net/message/MC1266027">message center notice MC1266027</a>.</li>
+      <li><b>Slack huddles:</b> a huddle runs in a bar at the foot of the sidebar and pops out into a mini window. The pop-out is from a <a href="https://www.zdnet.com.au/article/how-to-use-slacks-huddle-feature-and-why-you-should/">ZDNet guide</a>; the current button names weren't checked.</li>
+      <li><b>Google Meet, FaceTime on Mac:</b> the call continues as picture-in-picture or its own small window while you work elsewhere. From memory, not checked this session.</li>
+      <li><b>Taken from them:</b> the call is one object that floats above the conversation instead of taking it over, has two sizes (with and without video), and goes big only when you ask.</li>
+    </ol>
+  </section>
+
+  <section class="rust">
+    <h2>What it means in the Rust code</h2>
+    <ol>
+      <li><b>Controls.</b> The stage keeps the full grouped bar the main session is building in <code>call.rs</code>. The player renders the same <code>control</code> buttons at a compact size (32px), only mute, camera and share in one group, plus leave.</li>
+      <li><b>The player is <code>pip.rs</code> grown up.</b> It already floats over the app, rests in a corner and springs to the nearest one when dropped. It becomes the DM call's window: a head (name, timer, open stage, more), then faces or video, then four compact controls: mute, camera, share, leave. Device menus, activities and the rest stay on the stage. Portrait by default (248px wide; faces and cameras crop to 3:4); it widens to 16:9 only for a shared screen, switching on its own when a stream starts or stops.</li>
+      <li><b>The strip goes.</b> <code>dm_call.rs::dm_call_strip</code> and its reserved height in <code>chat.rs</code> are removed; the feed gets its full height back. <code>incoming_call_banner</code> becomes the player's ringing state, in the same corner, so answering doesn't move anything.</li>
+      <li><b>Joinable calls.</b> <code>StripState::Joinable</code> becomes a pill in the DM header (<code>channel_header</code>): faces, a camera mark if anyone's on video, and Join. Nothing floats until you join.</li>
+      <li><b>The stage is the server's.</b> Open stage shows <code>render_call</code> for the DM channel exactly as for a server voice channel; nothing DM-specific is drawn there. Its header gets one new control, Back to chat, which returns to the player (Esc too). Full screen stays <code>set_call_fullscreen</code>.</li>
+      <li><b>Ending.</b> The player reads "Call ended · 12 minutes" for ~1.5s, then shrinks away. The call record line in <code>chat.rs</code> (already there) carries Call again or Call back.</li>
+    </ol>
+  </section>
+</div>
+
+<script>
+const P = {
+  me: { n: "frsty", l: "F", h: 210 },
+  bh: { n: "Bhabuk Carrier", l: "B", h: 30 },
+  mi: { n: "Mira", l: "M", h: 330 },
+  ke: { n: "Kenji", l: "K", h: 150 },
+  an: { n: "Ana", l: "A", h: 270 },
+};
+const VIEWS = [
+  { id: "incoming", label: "Incoming", vars: [["dm", "In the DM"], ["away", "Elsewhere"]] },
+  { id: "calling", label: "Calling", vars: [["ring", "Ringing"], ["none", "No answer"]] },
+  { id: "live", label: "In call", vars: [["voice", "Voice"], ["video", "Camera on"], ["stream", "Screen share"]] },
+  { id: "group", label: "Group call", vars: [["voice", "Voice"], ["video", "With video"]] },
+  { id: "joinable", label: "Call going on", vars: [["dm", "Not ringing you"]] },
+  { id: "away", label: "Elsewhere", vars: [["voice", "In a server"]] },
+  { id: "stage", label: "Stage", vars: [["pane", "Open stage"], ["full", "Full screen"]] },
+  { id: "ended", label: "Ended", vars: [["done", "Finished"], ["missed", "Missed"]] },
+];
+const CAPS = {
+  "incoming:dm": ["Ringing", "The call window appears in its corner as a ringing card: who's calling on the left, Join over Decline on the right. Join is voice only; the camera is one click away once you're in. It never takes focus, so typing can't answer or end it. Answering turns this same card into the call, in place.", [["Corner", "Bottom right by default, or wherever you last left the player."], ["Colour", "Honey on the ring and on Join: the one thing asking for you."]]],
+  "incoming:away": ["Ringing, elsewhere", "Exactly the same card, wherever you are. The DM row and the rail's home tile say it too.", [["Answering", "You stay where you are; the call starts in the corner. The DM is one click away from the player's head."]]],
+  "calling:ring": ["You called", "The window is the call from the first second: their face rippling under Ringing…, your controls ready.", [["Leave", "The red button's tooltip reads Cancel call until someone joins."]]],
+  "calling:none": ["Nobody picked up", "After 30 seconds the window says Bhabuk didn't pick up, with Ring again. You stay in until you leave, like Discord.", []],
+  "live:voice": ["Talking", "Portrait and narrow, so it covers little of the chat: faces stacked with names, whoever talks ringed in presence green, muted marks on the face, then four compact controls: mute, camera, share and leave. Activities, devices and settings stay on the stage. The chat underneath is untouched and full height.", [["Head", "Name and timer; drag here to move it. Open stage (the server's stage) and More sit on the right."]]],
+  "live:video": ["Camera on", "When someone turns their camera on the window shows them in portrait (cameras crop to 3:4), with your own camera as a small inset. You learn video is on because you see it.", [["Shape", "Portrait for cameras and faces; only a shared screen widens it to 16:9."]]],
+  "live:stream": ["Screen share", "A shared screen is the one thing that forces landscape: the window widens to 16:9 for it, with the sharer's camera as a bubble. Open stage for the big view, or full screen from there.", []],
+  "group:voice": ["Group call, voice", "Faces in two columns, so the window grows down rather than across, then +N; whoever the call still rings shows dimmed with a ripple.", [["Add people", "In More; adding to a 1:1 call makes a new group DM, as Discord does."]]],
+  "group:video": ["Group call, video", "With anyone on camera the window shows a 2 × 2 grid of portrait tiles: cameras first, then the rest in join order, then +N.", []],
+  "joinable:dm": ["A call you weren't rung for", "Someone's already in the call and it isn't ringing you. Nothing floats: the DM header shows a pill with who's in, a camera mark if anyone's on video, and Join.", [["Quiet on purpose", "Only a call ringing you gets the card."]]],
+  "away:voice": ["The call follows you", "Leave the DM and the window stays in its corner over whatever you open. The sidebar's voice panel shows the call too, like a server call, and its name takes you back to the DM.", []],
+  "stage:pane": ["Open stage", "The window's open-stage button shows the server voice stage, unchanged, for this DM: same tiles, same bar, same focus layout for a stream. One new control in its header, Back to chat, returns to the player; Esc does too.", [["No rework", "This is render_call for the DM's channel. Nothing here is drawn only for DMs."]]],
+  "stage:full": ["Full screen", "The server stage's own full screen. Exiting returns to the stage; Back to chat returns to the player.", []],
+  "ended:done": ["Call over", "The window reads Call ended · 12 minutes for a moment, then shrinks away. The chat keeps one line with Call again.", [["Replay", "Replay, beside the cases above, plays it again."]]],
+  "ended:missed": ["Missed call", "A missed call is the only red line, with Call back on it.", []],
+};
+
+const S = { view: "live", v: { incoming: "dm", calling: "ring", live: "voice", group: "voice", joinable: "dm", away: "voice", stage: "pane", ended: "done" }, muted: false, cam: false, share: false, t0: Date.now() - 724000, corner: null };
+const $ = (s, r = document) => r.querySelector(s);
+const ic = (n, cls = "") => `<svg class="i ${cls}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+const av = (p, cls = "", s) => `<span class="av ${cls}" style="--h:${p.h}${s ? `;--s:${s}px` : ""}" data-who="${p.l}">${p.l}</span>`;
+const clock = (s) => { const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = String(s % 60).padStart(2, "0"); return h ? `${h}:${String(m).padStart(2, "0")}:${x}` : `${m}:${x}`; };
+const variant = () => S.v[S.view];
+const isGroup = () => S.view === "group";
+const away = () => S.view === "away" || (S.view === "incoming" && variant() === "away");
+const elapsed = () => `<span data-clock>${clock(Math.floor((Date.now() - S.t0) / 1000))}</span>`;
+const btn = (cls, icon, label, extra = "") => `<button class="cb ${cls}" type="button" aria-label="${label}" title="${label}" ${extra}>${ic(icon)}</button>`;
+
+function bar(hangLabel, chevrons = true) {
+  const mic = btn(S.muted ? "off" : "", S.muted ? "mic-off" : "mic", S.muted ? "Unmute" : "Mute", 'data-act="mute"');
+  const cam = btn(S.cam ? "on" : "", S.cam ? "video" : "video-off", S.cam ? "Turn off camera" : "Turn on camera", 'data-act="cam"');
+  const share = btn(S.share ? "active" : "", "share", S.share ? "Stream options" : "Share your screen", 'data-act="share"');
+  const ch = (l) => (chevrons ? btn("chev", "chev", l) : "");
+  return `<div class="grp">${mic}${ch("Microphone options")}${cam}${ch("Camera options")}</div>
+    <div class="grp">${share}${btn("", "act", "Activities and soundboard")}${btn("", "more", "More options")}</div>
+    ${btn("hang", "hang", hangLabel, 'data-act="hang"')}`;
+}
+// The player keeps only what you reach for mid-call; everything else lives on the stage.
+function pbar(hangLabel) {
+  const mic = btn(S.muted ? "off" : "", S.muted ? "mic-off" : "mic", S.muted ? "Unmute" : "Mute", 'data-act="mute"');
+  const cam = btn(S.cam ? "on" : "", S.cam ? "video" : "video-off", S.cam ? "Turn off camera" : "Turn on camera", 'data-act="cam"');
+  const share = btn(S.share ? "active" : "", "share", S.share ? "Stop sharing" : "Share your screen", 'data-act="share"');
+  return `<div class="grp">${mic}${cam}${share}</div>${btn("hang", "hang", hangLabel, 'data-act="hang"')}`;
+}
+function tile(p, o = {}) {
+  const marks = o.muted ? ic("mic-off") : "";
+  const chip = `<span class="chip ${o.chip || marks ? "" : "nm"}">${marks}<span>${o.chip || p.n}</span></span>`;
+  const media = o.stream ? `<div class="stream"></div>` : o.video ? `<div class="v ${o.alt ? "alt" : ""}"></div>` : av(p);
+  return `<div class="tile ${o.spk ? "spk" : ""} ${o.cls || ""}" style="--h:${p.h}" ${o.cand ? `data-cand="${p.l}"` : ""}>${media}${o.stream ? `<span class="chip">${ic("screen", "scr")}<span>${p.n}'s screen</span></span>` : chip}</div>`;
+}
+
+function rail() {
+  const v = S.view, inCall = ["calling", "live", "group", "away"].includes(v);
+  const badge = inCall ? `<span class="badge">${ic("phone")}</span>` : v === "joinable" ? `<span class="badge idle">${ic("phone")}</span>` : v === "incoming" ? `<span class="badge ring">${ic("phone")}</span>` : "";
+  return `<nav class="rail" aria-label="Servers">
+    <div class="srv home ${away() ? "" : "cur"}" title="Direct messages"><i></i>${badge}</div>
+    <div class="sep"></div>
+    <div class="srv ${away() ? "cur" : ""}" style="background:oklch(0.55 0.12 150);color:#fff" title="Design crew">DC</div>
+    <div class="srv" style="background:oklch(0.5 0.1 260);color:#fff" title="Rust gamedev">RG</div>
+    <div class="srv" style="background:oklch(0.6 0.13 40);color:#fff" title="Keyboards">KB</div>
+  </nav>`;
+}
+function dmLine(id) {
+  const v = S.view, va = variant();
+  if (v === "incoming" && id === "bh") return `<small class="calling">${ic("phone")}Calling you…</small>`;
+  if (v === "ended" && va === "missed" && id === "bh") return `<small class="miss">${ic("phone")}Missed call</small>`;
+  if (v === "joinable" && id === "bh") return `<small class="live">${ic("phone")}In a call ${ic("video")}</small>`;
+  if (["calling", "live", "away", "stage"].includes(v) && id === "bh") return `<small class="live">${ic("phone")}${v === "calling" ? "Ringing" : "In call"}${v === "live" && va !== "voice" ? ic("video") : ""}</small>`;
+  if (v === "group" && id === "wc") return `<small class="live">${ic("phone")}In call · 4${va === "video" ? ic("video") : ""}</small>`;
+  return { bh: "<small>Online</small>", wc: "<small>5 members</small>", mi: "<small>Idle</small>", ke: "<small>Playing Hades II</small>" }[id];
+}
+function sidebar() {
+  const vp = S.view === "away" ? `<div class="vp">
+      <div class="vp-top"><div><b><span class="bars">${"<i></i>".repeat(4)}</span>In call</b>
+        <button class="vp-ret" type="button" data-go="live:voice" title="Open the DM"><span>Bhabuk Carrier</span></button></div>
+        <button class="vbtn leave" type="button" title="Leave call" aria-label="Leave call" data-act="hang">${ic("hang")}</button></div>
+      <div class="vp-acts">
+        <button class="vbtn" type="button" title="Turn on camera" aria-label="Turn on camera" data-act="cam">${ic(S.cam ? "video" : "video-off")}</button>
+        <button class="vbtn" type="button" title="Share your screen" aria-label="Share your screen">${ic("share")}</button>
+        <button class="vbtn" type="button" title="Activities and soundboard" aria-label="Activities and soundboard">${ic("act")}</button>
+      </div></div>` : "";
+  const me = `<div class="me ${vp ? "" : "solo"}">${av(P.me, "", 32)}<div class="nm"><b>frsty</b><small>Online</small></div>
+      <button class="ib ${S.muted ? "off" : ""}" type="button" aria-label="${S.muted ? "Unmute" : "Mute"}" title="${S.muted ? "Unmute" : "Mute"}" data-act="mute">${ic(S.muted ? "mic-off" : "mic")}</button>
+      <button class="ib" type="button" aria-label="Deafen" title="Deafen">${ic("head")}</button>
+      <button class="ib" type="button" aria-label="Settings" title="Settings">${ic("gear")}</button></div>`;
+  if (away()) return `<aside class="side"><div class="side-head"><b>Design crew</b></div><div class="list">
+      <div class="label">Text channels</div>
+      <button class="row ch cur" type="button">${ic("hash")}<span class="nm"><span>general</span></span></button>
+      <button class="row ch" type="button">${ic("hash")}<span class="nm"><span>links</span></span></button>
+      <button class="row ch" type="button">${ic("hash")}<span class="nm"><span>standup</span></span></button>
+      <div class="label">Voice channels</div>
+      <button class="row ch" type="button">${ic("head")}<span class="nm"><span>Lounge</span></span></button>
+    </div>${vp}${me}</aside>`;
+  const cur = isGroup() ? "wc" : "bh";
+  const row = (id, face, name) => `<button class="row ${cur === id ? "cur" : ""}" type="button">${face}<span class="nm"><span>${name}</span>${dmLine(id)}</span></button>`;
+  const wcFace = `<span class="stack" style="--ring:var(--bg-sidebar)">${av(P.mi, "", 20)}${av(P.ke, "", 20)}</span>`;
+  return `<aside class="side"><div class="side-head"><div class="search">Find or start a conversation</div></div><div class="list">
+      <button class="row" type="button">${ic("users")}<span class="nm"><span>Friends</span></span></button>
+      <div class="label">Direct messages</div>
+      ${row("bh", av(P.bh), "Bhabuk Carrier")}
+      ${row("wc", wcFace, "Weekend crew")}
+      ${row("mi", av(P.mi), "Mira")}
+      ${row("ke", av(P.ke), "Kenji")}
+    </div>${me}</aside>`;
+}
+
+function header() {
+  if (away()) return `<header class="phead"><div class="t">${ic("hash")}<b>general</b><small>Plans, drafts, show and tell</small></div><div class="acts"><button class="ib" type="button" aria-label="Members" title="Members">${ic("users")}</button></div></header>`;
+  const g = isGroup();
+  const face = g ? `<span class="stack">${[P.mi, P.ke, P.bh].map((p) => av(p, "", 24)).join("")}</span>` : av(P.bh, "", 24);
+  const inThis = ["calling", "live", "group"].includes(S.view);
+  const pill = S.view === "joinable" ? `<span class="joinpill" title="Bhabuk is in a call, camera on"><span class="stack">${av(P.bh)}</span>In a call ${ic("video", "cam")}<button class="jb" type="button" data-go="live:video">${ic("phone")}Join</button></span>` : "";
+  const callBtns = inThis || pill ? "" : `<button class="ib" type="button" aria-label="Start voice call" title="Start voice call" data-go="calling:ring">${ic("phone")}</button><button class="ib" type="button" aria-label="Start video call" title="Start video call" data-go="calling:ring" data-cam="1">${ic("video")}</button>`;
+  return `<header class="phead"><div class="t">${face}<b>${g ? "Weekend crew" : "Bhabuk Carrier"}</b>${g ? "<small>5 members</small>" : ""}</div>
+    <div class="acts">${pill}${callBtns}<button class="ib" type="button" aria-label="Add people" title="Add people">${ic("add")}</button><button class="ib" type="button" aria-label="Members" title="Members">${ic("users")}</button></div></header>`;
+}
+
+function feed() {
+  const m = (p, t, txt) => `<div class="msg">${av(p)}<div><b>${p.n}</b><time>${t}</time><p>${txt}</p></div></div>`;
+  if (away()) return `<div class="feed">${m(P.ke, "14:31", "pushed the new onboarding flow to staging, feedback welcome")}${m(P.mi, "14:40", "the mascot hop on the add friend page is so good")}${m(P.me, "14:52", "agreed, filing two nits in the thread")}</div>`;
+  if (isGroup()) return `<div class="feed">${m(P.mi, "20:58", "who's around tonight")}${m(P.ke, "21:01", "me in 10, grabbing food")}${m(P.bh, "21:04", "starting a call, hop in whenever")}</div>`;
+  let tail = "";
+  if (S.view === "ended") tail = variant() === "missed"
+    ? `<div class="sys miss">${ic("phone")}<span>You missed a call from <b>Bhabuk Carrier</b>.</span><time>15:06</time><button class="sbtn" type="button" data-go="calling:ring">${ic("phone")}Call back</button></div>`
+    : `<div class="sys">${ic("phone")}<span><b>frsty</b> started a call that lasted 12 minutes.</span><time>14:52</time><button class="sbtn" type="button" data-go="calling:ring">${ic("phone")}Call again</button></div>`;
+  return `<div class="feed">${m(P.bh, "14:44", "did you try the new folder drag? it snaps way better now")}${m(P.me, "14:47", "yeah, still a bit jumpy when the rail scrolls")}${m(P.bh, "14:49", "hop on a call? easier to show you")}${tail}</div>`;
+}
+
+function head(faces, title, sub, stage = true) {
+  return `<div class="p-head" data-drag>${faces ? `<span class="stack">${faces}</span>` : ""}<div class="tx"><b>${title}</b><small>${sub}</small></div>
+    ${stage ? `<button class="sib" type="button" aria-label="Open stage" title="Open stage" data-go="stage:pane">${ic("full")}</button>` : ""}
+    <button class="sib" type="button" aria-label="More" title="More: add people, open the DM, settings">${ic("more")}</button></div>`;
+}
+function who(p, o = {}) {
+  return `<div class="who ${o.spk ? "spk" : ""} ${o.pend ? "pend" : ""}" ${o.cand ? `data-cand="${p.l}"` : ""}>${av(p)}<small>${o.muted ? ic("mic-off") : ""}${o.label || p.n.split(" ")[0]}</small></div>`;
+}
+
+function player() {
+  const v = S.view, va = variant();
+  if (v === "incoming") return `<section class="player ring" aria-label="Incoming call"><div class="ringcard">${av(P.bh)}<div class="who"><b>Bhabuk Carrier</b><small>Incoming call</small></div>
+      <div class="ringacts"><button class="pbtn deny" type="button" data-go="ended:missed">${ic("hang")}Decline</button>
+      <button class="pbtn go" type="button" data-go="live:voice">${ic("phone")}Join</button></div></div></section>`;
+  if (v === "ended") return `<section class="player" id="endp" aria-label="Call ended">${head(av(P.bh), va === "missed" ? "Missed call" : "Call ended", va === "missed" ? "Bhabuk called at 15:06" : "Lasted 12 minutes", false)}<div style="height:8px"></div></section>`;
+  if (v === "calling") {
+    const none = va === "none";
+    return `<section class="player" aria-label="Call">${head("", none ? "Bhabuk didn't pick up" : "Calling Bhabuk Carrier…", none ? "Rang for 30s" : `Ringing · ${elapsed()}`)}
+      <div class="p-faces col">${who(P.me, { muted: S.muted, label: "You" })}${who(P.bh, none ? { label: "No answer" } : { pend: true, label: "Ringing…" })}</div>
+      ${none ? `<div class="p-note"><button class="wbtn" type="button" data-go="calling:ring">${ic("phone")}Ring again</button></div>` : ""}
+      <div class="p-bar">${pbar(none ? "Leave call" : "Cancel call")}</div></section>`;
+  }
+  if (v === "live" || v === "away") {
+    const vid = v === "live" && va !== "voice";
+    const title = "Bhabuk Carrier", sub = `In call · ${elapsed()}`;
+    if (!vid) return `<section class="player" aria-label="Call">${head("", title, sub)}
+      <div class="p-faces col">${who(P.bh, { spk: true, cand: true })}${who(P.me, { muted: S.muted, label: "You", cand: true })}</div>
+      <div class="p-bar">${pbar("Leave call")}</div></section>`;
+    const stream = va === "stream";
+    const main = stream ? tile(P.bh, { stream: true }) : tile(P.bh, { video: true, spk: true });
+    const inset = stream ? `<div class="bubble">${tile(P.bh, { video: true })}</div>` : `<div class="self">${tile(P.me, { video: S.cam, alt: true })}</div>`;
+    return `<section class="player ${stream ? "big" : "tall"}" aria-label="Call">${head("", title, sub)}<div class="p-media">${main}${inset}</div><div class="p-bar">${pbar("Leave call")}</div></section>`;
+  }
+  if (v === "group") {
+    const sub = `4 in call · ${elapsed()}`;
+    if (va === "voice") return `<section class="player" aria-label="Call">${head("", "Weekend crew", sub)}
+      <div class="p-faces grid">${who(P.bh, { spk: true, cand: true })}${who(P.me, { muted: S.muted, label: "You", cand: true })}${who(P.mi, { muted: true })}${who(P.ke, { cand: true })}${who(P.an, { pend: true, label: "Ringing…" })}</div>
+      <div class="p-bar">${pbar("Leave call")}</div></section>`;
+    return `<section class="player" aria-label="Call">${head("", "Weekend crew", sub)}
+      <div class="p-grid">${tile(P.bh, { video: true, spk: true, cand: true })}${tile(P.me, { video: S.cam, alt: true, muted: S.muted })}${tile(P.mi, { muted: true })}${tile(P.ke, { chip: "Kenji +1", cand: true })}</div>
+      <div class="p-bar">${pbar("Leave call")}</div></section>`;
+  }
+  return "";
+}
+
+function stage() {
+  const full = variant() === "full";
+  const tiles = `<div class="s-area focus"><div class="tile big">${'<div class="stream"></div>'}<span class="chip">${ic("screen", "scr")}<span>Bhabuk Carrier's screen</span></span></div>
+      <div class="film">${tile(P.bh, { video: true, spk: true, cand: true })}${tile(P.me, { video: S.cam, alt: true, muted: S.muted, cand: true })}</div></div>`;
+  return `<section class="stage ${full ? "full" : ""}" aria-label="Call stage">
+    <div class="s-head"><div class="t">${av(P.bh)}Bhabuk Carrier<small>${elapsed()}</small></div>
+      <button class="wbtn" type="button" data-go="live:stream" title="Back to chat (Esc)">${ic("chat")}Back to chat</button></div>
+    ${tiles}
+    <div class="s-bar">${bar("Leave call")}<div class="corner"><button class="sib" type="button" aria-label="${full ? "Exit full screen (Esc)" : "Full screen"}" title="${full ? "Exit full screen (Esc)" : "Full screen"}" data-go="stage:${full ? "pane" : "full"}">${ic(full ? "exit" : "full")}</button></div></div>
+  </section>`;
+}
+
+function render() {
+  $("#views").innerHTML = VIEWS.map((x) => `<button type="button" aria-pressed="${x.id === S.view}" data-view="${x.id}">${x.label}</button>`).join("");
+  const vw = VIEWS.find((x) => x.id === S.view);
+  $("#vars").innerHTML = vw.vars.map(([k, l]) => `<button type="button" aria-pressed="${k === variant()}" data-var="${k}">${l}</button>`).join("") + (S.view === "ended" ? `<button type="button" data-act="replay">Replay</button>` : "");
+  if (S.view === "stage") $("#win").innerHTML = variant() === "full" ? stage() : rail() + sidebar() + stage();
+  else $("#win").innerHTML = rail() + sidebar() + `<main class="pane">${header()}${feed()}<div class="composer">${ic("plus")}<span>Message ${away() ? "#general" : isGroup() ? "Weekend crew" : "@Bhabuk Carrier"}</span></div>${player()}</main>`;
+  const [h, p, d] = CAPS[`${S.view}:${variant()}`];
+  $("#cap").innerHTML = `<div><h2>${h}</h2><p>${p}</p></div><dl>${d.map(([t, x]) => `<div><dt>${t}</dt><dd>${x}</dd></div>`).join("")}</dl>`;
+  if (S.view === "ended") { clearTimeout(S.endT); S.endT = setTimeout(() => $("#endp")?.classList.add("bye"), 1500); }
+  bindPlayer();
+}
+
+function go(target, cam) {
+  const [view, v] = target.split(":");
+  S.view = view;
+  if (v) S.v[view] = v;
+  if (view === "calling") S.t0 = Date.now() - 7000;
+  else if (S.t0 > Date.now() - 60000) S.t0 = Date.now() - 724000;
+  render();
+}
+
+// Dragged by its head, the player hangs from the pointer and lands in the nearest corner of the pane.
+function bindPlayer() {
+  const el = $(".player"), pane = $(".pane");
+  if (!el || !pane) return;
+  if (S.corner) Object.assign(el.style, S.corner);
+  el.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("button")) return;
+    const pr = pane.getBoundingClientRect(), r = el.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+    let moved = false;
+    const move = (ev) => {
+      if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 4) return;
+      moved = true;
+      el.classList.remove("landing"); el.classList.add("carry");
+      Object.assign(el.style, { left: `${ev.clientX - pr.left - dx}px`, top: `${ev.clientY - pr.top - dy}px`, right: "auto", bottom: "auto" });
+    };
+    const up = (ev) => {
+      removeEventListener("pointermove", move); removeEventListener("pointerup", up);
+      if (!moved) return;
+      const cx = ev.clientX - pr.left, cy = ev.clientY - pr.top, w = el.offsetWidth, h = el.offsetHeight;
+      const left = cx < pr.width / 2 ? 16 : pr.width - w - 16, top = cy < pr.height / 2 ? 64 : pr.height - h - 80;
+      el.classList.remove("carry"); el.classList.add("landing");
+      Object.assign(el.style, { left: `${left}px`, top: `${top}px` });
+      S.corner = { left: cx < pr.width / 2 ? "16px" : "auto", right: cx < pr.width / 2 ? "auto" : "16px", top: cy < pr.height / 2 ? "64px" : "auto", bottom: cy < pr.height / 2 ? "auto" : "80px" };
+      setTimeout(() => { el.classList.remove("landing"); Object.assign(el.style, { left: "", top: "", right: "", bottom: "" }, S.corner); }, 280);
+    };
+    addEventListener("pointermove", move); addEventListener("pointerup", up);
+  });
+}
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("button, [data-go]");
+  if (!t) return;
+  if (t.dataset.view) return go(t.dataset.view);
+  if (t.dataset.var) return go(`${S.view}:${t.dataset.var}`);
+  const act = t.dataset.act;
+  if (act === "replay") return render();
+  if (act === "mute") { S.muted = !S.muted; return render(); }
+  if (act === "cam") {
+    S.cam = !S.cam;
+    if (S.view === "live" && S.cam && variant() === "voice") S.v.live = "video";
+    return render();
+  }
+  if (act === "share") { S.share = !S.share; return render(); }
+  if (act === "hang") return go(S.view === "calling" && variant() === "ring" ? "ended:missed" : "ended:done");
+  if (t.dataset.go) { if (t.dataset.cam) S.cam = true; return go(t.dataset.go); }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || S.view !== "stage") return;
+  go(variant() === "full" ? "stage:pane" : "live:stream");
+});
+
+setInterval(() => document.querySelectorAll("[data-clock]").forEach((el) => (el.textContent = clock(Math.floor((Date.now() - S.t0) / 1000)))), 1000);
+
+// Speaking moves between the people who can talk, so the green ring reads as live.
+setInterval(() => {
+  const c = [...document.querySelectorAll("[data-cand]")];
+  if (c.length < 2) return;
+  const cur = c.findIndex((x) => x.classList.contains("spk"));
+  c.forEach((x) => x.classList.remove("spk"));
+  c[(cur + 1) % c.length].classList.add("spk");
+}, 2400);
+
+const root = document.documentElement;
+function setTheme(t) {
+  root.dataset.theme = t;
+  $("#theme").textContent = t === "dark" ? "Light theme" : "Dark theme";
+  try { localStorage.setItem("dmcall-theme", t); } catch {}
+}
+let saved = null;
+try { saved = localStorage.getItem("dmcall-theme"); } catch {}
+setTheme(root.dataset.theme || saved || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
+$("#theme").addEventListener("click", () => setTheme(root.dataset.theme === "dark" ? "light" : "dark"));
+
+render();
+</script>
