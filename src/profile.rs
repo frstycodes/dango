@@ -24,7 +24,7 @@ const BANNER: f32 = WIDTH * 0.4;
 const BANNER_PLAIN: f32 = 64.;
 pub(crate) const AVATAR: f32 = 80.;
 pub(crate) const AVATAR_RING: f32 = 6.;
-// Used only to place the card before it is laid out; its max height keeps it inside the window either way.
+// Only picks which corner the card rises from; `anchored` places it by its measured size.
 const ESTIMATED_HEIGHT: f32 = 560.;
 const MAX_BADGES: usize = 6;
 const MAX_GAMES: usize = 3;
@@ -101,7 +101,7 @@ impl Waffle {
         let x = f32::from(card.at.x).clamp(8., f32::from(viewport.width) - WIDTH - 8.);
         let top = TITLE_HEIGHT + 8.;
         let y = f32::from(card.at.y).clamp(top, (f32::from(viewport.height) - ESTIMATED_HEIGHT - 8.).max(top));
-        let max_height = f32::from(viewport.height) - y - 8.;
+        let max_height = f32::from(viewport.height) - top - 8.;
         let is_me = self.me.as_ref().is_some_and(|me| me.id == card.user.id);
         let inner_radius = inner_radius(ink);
         let body = div()
@@ -128,16 +128,15 @@ impl Waffle {
         let card_el = outer
             .id("profile-card")
             .occlude()
-            .absolute()
-            .left(px(x))
-            .top(px(y))
             .w(px(WIDTH))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(inner);
         // It rises from the corner nearest where it was asked for: pushed in from an edge, from that side.
         let origin = ui::corner(x < f32::from(card.at.x), y < f32::from(card.at.y));
         let rise = ui::rise(card_el.transform_origin(origin), SharedString::from(format!("profile-{}", card.user.id)), Duration::ZERO);
-        Some(crate::overlays::backdrop("profile-backdrop", cx).child(rise).into_any_element())
+        // Measured, not estimated: a short card opened low sits just above the window's foot, not 560px up.
+        let placed = gpui_kit::anchored().position(card.at).snap_to_window_with_margin(gpui_kit::Edges { top: px(top), right: px(8.), bottom: px(8.), left: px(8.) }).child(rise);
+        Some(crate::overlays::backdrop("profile-backdrop", cx).child(placed).into_any_element())
     }
 
     // Banner with its round actions, then the avatar overlapping its foot.
