@@ -484,7 +484,7 @@ pub(crate) fn token_chip(key: &str, label: &str, avatar: Option<String>, in_fiel
         .gap(px(4.))
         .squircle(RADIUS_XS)
         .bg(fill)
-        .text_size(px(13.))
+        .text_size(px(14.))
         .text_color(palette::strong(cx))
         .child(div().font_weight(FontWeight::SEMIBOLD).text_color(word).child(format!("{key}:")))
         .children(avatar.map(|url| ui::avatar(url, 16.)))

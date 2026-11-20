@@ -1297,6 +1297,8 @@ pub struct Window {
     default_prevented: bool,
     mouse_position: Point<Pixels>,
     mouse_hit_test: HitTest,
+    // Dango patch: a left press on a `WindowControlArea::Drag` that hasn't moved yet (macOS).
+    pending_window_move: bool,
     modifiers: Modifiers,
     capslock: Capslock,
     scale_factor: f32,
@@ -2215,6 +2217,7 @@ impl Window {
             default_prevented: true,
             mouse_position,
             mouse_hit_test: HitTest::default(),
+            pending_window_move: false,
             modifiers,
             capslock,
             scale_factor,
@@ -6356,10 +6359,49 @@ impl Window {
             }
         }
 
+        #[cfg(target_os = "macos")]
+        self.handle_titlebar_drag(event);
+
         // Auto-release pointer capture on mouse up
         if event.is::<MouseUpEvent>() && self.captured_hitbox.is_some() {
             self.captured_hitbox = None;
         }
+    }
+
+    // Dango patch: with `app_owns_titlebar_drag`, AppKit leaves the titlebar alone, so every drag area
+    // moves the window on its first drag and zooms or minimizes on a double click, per the user's
+    // AppleActionOnDoubleClick. Only a drag area the pointer actually hovers counts, so controls on
+    // top of one keep their clicks. The move starts on drag, not on press: AppKit's drag loop would
+    // otherwise swallow the mouse up.
+    #[cfg(target_os = "macos")]
+    fn handle_titlebar_drag(&mut self, event: &dyn Any) {
+        if let Some(down) = event.downcast_ref::<crate::MouseDownEvent>() {
+            self.pending_window_move = false;
+            if down.button != MouseButton::Left || self.is_fullscreen() || !self.hovers_drag_area() {
+                return;
+            }
+            if down.click_count == 2 {
+                return self.titlebar_double_click();
+            }
+            self.pending_window_move = down.click_count == 1;
+        } else if let Some(moved) = event.downcast_ref::<MouseMoveEvent>() {
+            if !self.pending_window_move || moved.pressed_button != Some(MouseButton::Left) {
+                return;
+            }
+            self.pending_window_move = false;
+            self.start_window_move();
+        } else if event.is::<MouseUpEvent>() {
+            self.pending_window_move = false;
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn hovers_drag_area(&self) -> bool {
+        let hovered = &self.mouse_hit_test.ids[..self.mouse_hit_test.hover_hitbox_count];
+        self.rendered_frame
+            .window_control_hitboxes
+            .iter()
+            .any(|(area, hitbox)| *area == WindowControlArea::Drag && hovered.contains(&hitbox.id))
     }
 
     // If modifiers are not excessive (e.g. AltGr), and the input handler is accepting text input,

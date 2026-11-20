@@ -1331,6 +1331,24 @@
         ],
         "createdAt": "2026-11-19T10:14:14.847Z",
         "reason": "agent triage: the only infinite translateX is the skeleton loading shimmer (sweep) in the shared css/primitives.css, unused on this page; no auto-scrolling content"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/embeds.html"
+        ],
+        "createdAt": "2026-11-20T10:40:10.825Z",
+        "reason": "agent: the only radial gradient is the shared .pic image placeholder in css/messages.css, which stands in for real photos on this static design page"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/embeds.html"
+        ],
+        "createdAt": "2026-11-20T10:40:10.846Z",
+        "reason": "agent: no marquee element, class or animation exists in embeds.html, embeds.js or css/*.css (grep -i marquee finds nothing)"
       }
     ]
   }

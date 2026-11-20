@@ -601,7 +601,7 @@ impl Waffle {
             .map(|f| {
                 let (gid, target) = (guild_id.to_owned(), format!("folder-{}", f.id));
                 let name = f.name.clone().unwrap_or_else(|| "Folder".into());
-                item(name, move |this, _, cx| this.drop_on_rail(&gid, &target, crate::rail_drag::Drop::Into, cx)).icon(Glyph::Folder).entry()
+                item(name, move |this, _, cx| this.drop_on_rail(&gid, &target, crate::sortable::Place::Into, cx)).icon(Glyph::Folder).entry()
             })
             .collect();
         let first = entries.first().map(|e| rail_key(e, &self.guilds));
@@ -610,7 +610,7 @@ impl Waffle {
         let last_loose = last.clone();
         let no_folder = item("No folder", move |this, _, cx| {
             if let Some(target) = &last_loose {
-                this.drop_on_rail(&gid3, target, crate::rail_drag::Drop::After, cx);
+                this.drop_on_rail(&gid3, target, crate::sortable::Place::After, cx);
             }
         })
         .icon(Glyph::Minus);
@@ -618,13 +618,13 @@ impl Waffle {
         folder_rows.extend(folders);
         let first_item = item("First in list", move |this, _, cx| {
             if let Some(target) = &first {
-                this.drop_on_rail(&gid, target, crate::rail_drag::Drop::Before, cx);
+                this.drop_on_rail(&gid, target, crate::sortable::Place::Before, cx);
             }
         })
         .icon(Glyph::ArrowLineUp);
         let last_item = item("Last in list", move |this, _, cx| {
             if let Some(target) = &last {
-                this.drop_on_rail(&gid2, target, crate::rail_drag::Drop::After, cx);
+                this.drop_on_rail(&gid2, target, crate::sortable::Place::After, cx);
             }
         })
         .icon(Glyph::ArrowLineDown);
@@ -659,14 +659,14 @@ impl Waffle {
                 vec![
                     item("First in List", move |this, _, cx| {
                         if let Some(t) = &first {
-                            this.drop_on_rail(&k1, t, crate::rail_drag::Drop::Before, cx);
+                            this.drop_on_rail(&k1, t, crate::sortable::Place::Before, cx);
                         }
                     })
                     .icon(Glyph::ArrowLineUp)
                     .entry(),
                     item("Last in List", move |this, _, cx| {
                         if let Some(t) = &last {
-                            this.drop_on_rail(&k2, t, crate::rail_drag::Drop::After, cx);
+                            this.drop_on_rail(&k2, t, crate::sortable::Place::After, cx);
                         }
                     })
                     .icon(Glyph::ArrowLineDown)
@@ -893,7 +893,7 @@ fn set_joined(this: &mut Waffle, thread_id: &str, joined: bool) {
     }
 }
 
-fn rail_key(entry: &crate::RailEntry, guilds: &[crate::discord::Guild]) -> String {
+pub(crate) fn rail_key(entry: &crate::RailEntry, guilds: &[crate::discord::Guild]) -> String {
     match entry {
         crate::RailEntry::Guild(i) => guilds[*i].id.clone(),
         crate::RailEntry::Folder(f, _) => format!("folder-{}", f.id),

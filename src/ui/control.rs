@@ -109,7 +109,7 @@ pub fn round_button(id: impl Into<ElementId>, glyph: Glyph, tooltip: impl Into<S
 
 // A filter or toggle chip; pressed takes the accent tint and a half-accent edge.
 pub fn chip(id: impl Into<ElementId>, glyph: Option<Glyph>, label: impl Into<SharedString>, on: bool, cx: &App) -> Control {
-    chip_look(id, on, cx).when_some(glyph, |c, glyph| c.child(Icon::new(glyph).size(px(15.)))).child(label.into())
+    chip_look(id, on, cx).when_some(glyph, |c, glyph| c.child(Icon::new(glyph).size(px(16.)))).child(label.into())
 }
 
 fn chip_look(id: impl Into<ElementId>, on: bool, cx: &App) -> Control {
@@ -269,7 +269,7 @@ impl Control {
             (Kind::Icon, Size::Medium) => (32., RADIUS_SM, 20.),
             (Kind::Icon, Size::Large) => (40., RADIUS_MD, 22.),
             (Kind::Round(size), _) => (size as f32, size as f32 / 2., size as f32 / 2.),
-            (Kind::Chip, _) => (30., RADIUS_SM, 15.),
+            (Kind::Chip, _) => (30., RADIUS_SM, 16.),
             (Kind::Swatch, _) => (32., RADIUS_SM, 16.),
             (Kind::Field, _) => (40., RADIUS_MD, 18.),
             (Kind::Tab(TabKind::Underline), _) => (40., 0., 16.),

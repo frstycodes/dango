@@ -167,13 +167,13 @@ button.dm-start-mutual:hover { background: var(--hover); color: var(--text-stron
 .dm-start-state i { font-size: 18px; color: var(--online-ink); }
 
 /* Rich text */
-.msg .body a { color: var(--accent-ink); text-decoration: none; }
-.msg .body a:hover { text-decoration: underline; }
-.msg .body code { font-family: var(--font-mono); font-size: 0.875em; padding: 0.1em 0.3em; border-radius: 0.3em; background: var(--selected); color: var(--text-strong); }
-.msg .body ul, .msg .body ol { padding-left: 1.5em; margin: 2px 0; }
-.msg .body li::marker { color: var(--text-muted); }
-.msg .body blockquote { position: relative; padding-left: 16px; margin: 2px 0; color: var(--text); }
-.msg .body blockquote::before { content: ""; position: absolute; left: 0; top: 2px; bottom: 2px; width: 4px; border-radius: 4px; background: var(--line-strong); }
+:is(.msg, .remb) .body a { color: var(--accent-ink); text-decoration: none; }
+:is(.msg, .remb) .body a:hover { text-decoration: underline; }
+:is(.msg, .remb) .body code { font-family: var(--font-mono); font-size: 0.875em; padding: 0.1em 0.3em; border-radius: 0.3em; background: var(--selected); color: var(--text-strong); }
+:is(.msg, .remb) .body :is(ul, ol) { padding-left: 1.5em; margin: 2px 0; }
+:is(.msg, .remb) .body li::marker { color: var(--text-muted); }
+:is(.msg, .remb) .body blockquote { position: relative; padding-left: 16px; margin: 2px 0; color: var(--text); }
+:is(.msg, .remb) .body blockquote::before { content: ""; position: absolute; left: 0; top: 2px; bottom: 2px; width: 4px; border-radius: 4px; background: var(--line-strong); }
 .md-h1, .md-h2, .md-h3 { color: var(--text-strong); font-weight: var(--weight-bold); line-height: var(--leading-tight); margin: 8px 0 4px; }
 .md-h1 { font-size: var(--text-xl); }
 .md-h2 { font-size: var(--text-lg); }
@@ -536,3 +536,106 @@ a.fname:hover { text-decoration: underline; }
 .gp-fav .on, .gp-fav[aria-pressed="true"] .off { display: none; }
 .gp-fav[aria-pressed="true"] .on { display: block; color: oklch(0.85 0.15 85); }
 .gp-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--line); color: var(--text-faint); font-size: var(--text-xs); }
+
+/* Rich embeds: Discord's embed object field for field, in Waffle's card. The embed colour is Discord's bar
+   down the left edge, drawn as an inset so it follows the card's squircle instead of capping it. */
+.remb { position: relative; margin-top: 8px; width: fit-content; min-width: min(100%, 240px); max-width: min(100%, 520px); display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 16px; padding: 14px 16px 14px 20px; border-radius: var(--radius-lg); background: var(--bg-sidebar); border: 1px solid var(--line); box-shadow: inset 4px 0 var(--c, var(--line-strong)); }
+.remb:has(> .rmedia), .remb:has(.rfields) { width: 520px; }
+.remb + .remb { margin-top: 4px; }
+.remb .rtext { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; align-content: start; }
+.remb .rthumb { grid-column: 2; grid-row: 1; width: 80px; height: 80px; border-radius: var(--radius-sm); }
+.remb .rthumb.tall { height: auto; aspect-ratio: var(--ar); max-height: 80px; width: auto; max-width: 80px; }
+.remb .rprov { color: var(--text-faint); font-size: var(--text-xs); font-weight: var(--weight-medium); }
+.remb .rauth { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--text-strong); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.remb .rauth .av { --size: 24px; font-size: 10px; }
+.remb .rauth > :last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.remb a.rauth-name { color: inherit; text-decoration: none; }
+.remb a.rauth-name:hover { text-decoration: underline; }
+.remb .rtitle { color: var(--text-strong); font-size: var(--text-md); font-weight: var(--weight-bold); line-height: var(--leading-tight); overflow-wrap: anywhere; text-wrap: pretty; }
+.remb a.rtitle { color: var(--accent-ink); text-decoration: none; }
+.remb a.rtitle:hover { text-decoration: underline; }
+.remb .body { font-size: var(--text-sm); line-height: var(--leading-body); color: var(--text); }
+.remb .body .md-h1 { font-size: var(--text-lg); }
+.remb .body .md-h2 { font-size: var(--text-md); }
+.remb .body .md-h3 { font-size: var(--text-sm); }
+.remb .body .md-h1:first-child, .remb .body .md-h2:first-child, .remb .body .md-h3:first-child { margin-top: 0; }
+.remb .at i { margin-right: 2px; }
+.remb .rcode { margin: 4px 0; padding: 8px 10px; border-radius: var(--radius-xs); background: color-mix(in oklab, var(--bg-rail) 70%, transparent); border: 1px solid var(--line); font-family: var(--font-mono); font-size: 12px; line-height: 1.5; color: var(--text-strong); white-space: pre-wrap; overflow-wrap: anywhere; }
+.remb .rts { padding: 0 3px; border-radius: 4px; background: var(--selected); color: var(--text-strong); white-space: nowrap; }
+/* Long descriptions clip under a fade at ~12 lines instead of scrolling; Show more opens the rest. */
+.remb .rclip { max-height: 252px; overflow: hidden; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+.remb .rmore { justify-self: start; margin: -2px 0 0 -6px; height: 26px; padding: 0 6px; border-radius: var(--radius-xs); color: var(--accent-ink); font-size: var(--text-xs); font-weight: var(--weight-semibold); transition: background-color var(--dur-hover); }
+.remb .rmore:hover { background: var(--hover); }
+.remb .rfields { display: grid; gap: 10px; margin-top: 4px; }
+.remb .rrow { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 16px; }
+.remb .rf { min-width: 0; display: grid; gap: 2px; align-content: start; }
+.remb .rf-name { color: var(--text-muted); font-size: var(--text-xs); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.remb .rf .body { color: var(--text-strong); overflow-wrap: anywhere; }
+.remb .rmedia { grid-column: 1 / -1; margin-top: 12px; }
+.remb .rmedia .pic { width: 100%; aspect-ratio: var(--ar, 16 / 9); max-height: 360px; border-radius: var(--radius-sm); }
+.remb .rmedia .gallery { width: 100%; margin: 0; border-radius: var(--radius-sm); }
+.remb .rfoot { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: 12px; color: var(--text-faint); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.remb .rfoot .av { --size: 20px; font-size: 9px; }
+.remb .rfoot span { min-width: 0; overflow-wrap: anywhere; }
+.remb .rfoot time { white-space: nowrap; }
+.remb > .rtext { grid-column: 1 / -1; }
+.remb:has(> .rthumb) > .rtext { grid-column: 1; }
+.remb > :first-child { margin-top: 0; }
+/* Sensitive media: blurred behind a fixed dark scrim (it sits on imagery), revealed per embed. */
+.rsens { position: relative; overflow: hidden; border-radius: var(--radius-sm); }
+.rsens .pic, .rsens .gallery { filter: blur(28px) saturate(0.8); transform: scale(1.1); transition: filter var(--dur-panel) var(--ease-out), transform var(--dur-panel) var(--ease-out); }
+.rsens.shown .pic, .rsens.shown .gallery { filter: none; transform: none; }
+.rsens > button { position: absolute; inset: 0; z-index: 2; margin: auto; width: max-content; height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; border-radius: var(--radius-md); background: oklch(0.14 0.004 260 / 0.72); color: #fff; font-size: var(--text-sm); font-weight: var(--weight-semibold); transition: background-color var(--dur-hover), transform var(--dur-press) var(--ease-out); }
+.rsens > button:hover { background: oklch(0.14 0.004 260 / 0.86); }
+.rsens > button:active { transform: scale(0.97); }
+.rsens.shown > button { display: none; }
+/* Bare media types: image and gifv show as the picture alone, the way an attachment does. */
+.rbare { position: relative; margin-top: 8px; width: min(100%, var(--w, 400px)); aspect-ratio: var(--ar, 4 / 3); max-height: 360px; }
+/* Poll result: the winner, its share, and the way back to the poll. */
+.rpoll { margin-top: 8px; max-width: 520px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; border-radius: var(--radius-lg); background: var(--bg-sidebar); border: 1px solid var(--line); }
+.rpoll .e { font-size: 28px; line-height: 1; }
+.rpoll b { display: block; color: var(--text-strong); font-weight: var(--weight-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rpoll small { display: flex; align-items: center; gap: 4px; color: var(--text-muted); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.rpoll small i { color: var(--online-ink); font-size: 14px; }
+.rsys { display: flex; align-items: baseline; gap: 6px; color: var(--text-muted); font-size: var(--text-sm); }
+.rsys b { color: var(--text-strong); font-weight: var(--weight-semibold); }
+
+/* Embed playground */
+.rplay { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: var(--space-4); align-items: start; }
+.rplay .textarea { min-height: 520px; font-family: var(--font-mono); font-size: 12px; line-height: 1.55; tab-size: 2; }
+.rplay .board { padding: var(--space-3) 0; background: var(--bg-page); }
+.rlimits { display: grid; gap: 4px; margin-top: var(--space-3); font-size: var(--text-xs); color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.rlimits .bad { color: var(--danger-ink); font-weight: var(--weight-semibold); }
+@media (max-width: 960px) { .rplay { grid-template-columns: minmax(0, 1fr); } .rplay .textarea { min-height: 280px; } }
+
+/* Discord's own embed look, for side-by-side comparison only. Values taken from Discord's client, not tokens. */
+.dc-stage { --dc-bg: light-dark(#ffffff, #313338); --dc-embed: light-dark(#f2f3f5, #2b2d31); --dc-head: light-dark(#060607, #f2f3f5); --dc-text: light-dark(#313338, #dbdee1); --dc-muted: light-dark(#5c5e66, #b5bac1); --dc-link: light-dark(#006ce7, #00a8fc); background: var(--dc-bg); font-family: "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif; }
+.dc-stage .remb { width: auto; min-width: 0; max-width: 516px; padding: 8px 16px 16px 12px; box-shadow: none; border: 0; border-left: 4px solid var(--c, light-dark(#e3e5e8, #1e1f22)); border-radius: 4px; background: var(--dc-embed); corner-shape: round; }
+.dc-stage .remb:has(> .rmedia), .dc-stage .remb:has(.rfields) { width: auto; }
+.dc-stage .remb .rtext { gap: 8px; margin-top: 8px; }
+.dc-stage .remb .rthumb { margin-top: 8px; border-radius: 4px; corner-shape: round; }
+.dc-stage .remb .rauth, .dc-stage .remb .rtitle { color: var(--dc-head); font-weight: 600; }
+.dc-stage .remb a.rtitle { color: var(--dc-link); }
+.dc-stage .remb .body, .dc-stage .remb .rf .body { color: var(--dc-text); font-size: 14px; line-height: 1.375; }
+.dc-stage .remb .rf-name { color: var(--dc-head); font-size: 14px; font-weight: 600; }
+.dc-stage .remb .rfields { gap: 8px; margin-top: 0; }
+.dc-stage .remb .rrow { gap: 8px; }
+.dc-stage .remb .rmedia { margin-top: 16px; }
+.dc-stage .remb .rmedia .pic { border-radius: 4px; corner-shape: round; max-height: 300px; }
+.dc-stage .remb .rfoot { margin-top: 8px; color: var(--dc-muted); font-weight: 500; }
+.dc-stage .remb .rfoot .av, .dc-stage .remb .rauth .av { corner-shape: round; }
+.dc-stage .at { background: light-dark(rgb(88 101 242 / 0.15), rgb(88 101 242 / 0.3)); color: light-dark(#505cdc, #c9cdfb); border-radius: 3px; font-weight: 500; }
+.dc-stage .at.at--role { color: var(--role); background: color-mix(in srgb, var(--role) 10%, transparent); }
+.dc-stage .rts { background: light-dark(rgb(6 6 7 / 0.08), rgb(255 255 255 / 0.06)); color: inherit; border-radius: 3px; }
+.dc-stage .body code { background: light-dark(#ebebec, #2b2d31); border: 1px solid light-dark(#e1e2e4, #1e1f22); border-radius: 4px; color: inherit; }
+.dc-stage .body blockquote::before { background: light-dark(#d4d7dc, #4e5058); }
+.dc-stage .body a { color: var(--dc-link); }
+
+/* Comparison grid: Discord on the left, Waffle on the right. */
+.vs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.vs + .vs { margin-top: var(--space-3); }
+.vs > div { min-width: 0; padding: var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--line); }
+.vs > div:not(.dc-stage) { background: var(--bg-page); }
+.vs .vs-label { display: block; margin-bottom: 4px; color: var(--text-faint); font-family: var(--font-ui); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.vs .remb:first-of-type { margin-top: 0; }
+@media (max-width: 860px) { .vs { grid-template-columns: minmax(0, 1fr); } }

@@ -100,42 +100,6 @@ pub fn split(main: Control, options: Control) -> Div {
         .child(options.px(px(8.)).rounded_r(px(RADIUS_MD)).rounded_l(px(4.)))
 }
 
-/// A header floating over content that scrolls under it, like iOS's scroll edge effect: the content
-/// dissolves towards the window's top, with no band or hairline. gpui can't give an element an alpha mask,
-/// but the content sits on the solid `surface`, so fading it out is fading it into that exact tone; the
-/// curve runs from fully gone at the top edge, through ~90% at the bar's text, to clear just below the bar.
-/// `fade_right` keeps it off a column at the right.
-pub fn scroll_edge(surface: Hsla, fade_right: f32) -> Div {
-    scroll_edge_over(surface, fade_right, crate::layout::HEADER_HEIGHT, 24.)
-}
-
-/// The same over a bar `bar` tall, clear `tail` below it: the rail's strip is shorter than a header, and its
-/// first tile sits just under it, so its fade ends sooner.
-pub fn scroll_edge_over(surface: Hsla, fade_right: f32, bar: f32, tail: f32) -> Div {
-    let height = bar + tail;
-    // Two linear ramps stacked make an ease-out: steep at the top, long and soft below the bar.
-    let ramp = |h: f32| {
-        div().absolute().top_0().left_0().right(px(fade_right)).h(px(h)).bg(linear_gradient(
-            180.,
-            linear_color_stop(surface, 0.),
-            linear_color_stop(surface.opacity(0.), 1.),
-        ))
-    };
-    div()
-        .absolute()
-        .top_0()
-        .left_0()
-        .right_0()
-        .h(px(height))
-        // A clear surface (the native sidebar) has no colour for the ramps to fade into, so the content itself
-        // fades out toward the top instead.
-        .when(surface.a == 0., |d| {
-            d.child(div().absolute().inset_0().right(px(fade_right)).backdrop_clear_top(px(height)))
-        })
-        .child(ramp(height))
-        .child(ramp(bar * 0.75))
-}
-
 /// Whether a list has scrolled down from its top. A pull on a list with no room to scroll still dips the offset below 0.
 pub fn scrolled(scroll: &gpui_kit::ScrollHandle) -> bool {
     scroll.max_offset().y > px(0.) && scroll.offset().y < px(0.)
@@ -152,21 +116,6 @@ pub fn hard_edge(scrolled: impl Fn() -> bool + 'static, cx: &App) -> Div {
         }
     });
     div().relative().flex_none().w_full().child(rule.absolute().bottom_0().left_0().right_0().h(px(1.)))
-}
-
-/// A header over content that scrolls under it: frosted glass in the surface's tone, so the content stays faintly there
-/// instead of being cut off. Denser than the composer's glass (72%), which read as too see-through on a bar of text.
-/// The rows under it keep scrolling but take no hover or clicks through it.
-pub fn glass_header(surface: Hsla) -> Div {
-    div()
-        .absolute()
-        .top_0()
-        .left_0()
-        .right_0()
-        .block_mouse_except_scroll()
-        .bg(surface.opacity(0.9))
-        .backdrop_blur(px(24.))
-        .backdrop_saturate(1.6)
 }
 
 /// A vertical scroll area moving `list` on `scroll`, with the kit's scrollbar over it. Not `overflow_y_scrollbar`: that

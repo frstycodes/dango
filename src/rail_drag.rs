@@ -3,27 +3,11 @@
 // tile itself is carried like any dragged row (drag.rs).
 use gpui_kit::Context;
 
-use crate::{Waffle, discord::Folder};
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Drop {
-    Before,
-    Into,
-    After,
-}
-
-impl Drop {
-    // `fraction` is how far down the target the pointer is, 0 at its top.
-    pub fn at(fraction: f32, can_combine: bool) -> Self {
-        match (can_combine, fraction) {
-            (false, f) if f < 0.5 => Drop::Before,
-            (false, _) => Drop::After,
-            (true, f) if f < 0.25 => Drop::Before,
-            (true, f) if f > 0.75 => Drop::After,
-            _ => Drop::Into,
-        }
-    }
-}
+use crate::{
+    Waffle,
+    discord::Folder,
+    sortable::{Finished, Place},
+};
 
 // The dragged rail item: a guild id, or `folder-<id>` for a folder.
 #[derive(Clone)]
@@ -32,8 +16,15 @@ pub struct RailDrag {
 }
 
 impl Waffle {
-    pub(crate) fn drop_on_rail(&mut self, moved: &str, target: &str, drop: Drop, cx: &mut Context<Self>) {
-        self.rail_drop = None;
+    // A rail drag let go of over the rail or a folder: the move the rail was showing. Every rail list
+    // drops beside or onto an item; none has a header target.
+    pub(crate) fn finish_rail_sort(&mut self, done: Finished, cx: &mut Context<Self>) {
+        let Some(hint) = done.hint else { return };
+        let Some(target) = hint.target else { return };
+        self.drop_on_rail(&done.dragged, &target, hint.place, cx);
+    }
+
+    pub(crate) fn drop_on_rail(&mut self, moved: &str, target: &str, drop: Place, cx: &mut Context<Self>) {
         let mut folders = normalize(&self.folders, self.guilds.iter().map(|g| g.id.as_str()));
         if !apply(&mut folders, moved, target, drop, &new_folder_id) {
             return cx.notify();
@@ -73,7 +64,7 @@ fn normalize<'a>(folders: &[Folder], guild_ids: impl Iterator<Item = &'a str>) -
 }
 
 // Returns false when the drop changes nothing.
-fn apply(folders: &mut Vec<Folder>, moved: &str, target: &str, drop: Drop, new_id: &dyn Fn() -> String) -> bool {
+fn apply(folders: &mut Vec<Folder>, moved: &str, target: &str, drop: Place, new_id: &dyn Fn() -> String) -> bool {
     if moved == target || top_index(folders, target).is_none() {
         return false;
     }
@@ -92,40 +83,40 @@ fn top_index(folders: &[Folder], target: &str) -> Option<usize> {
     }
 }
 
-fn move_folder(folders: &mut Vec<Folder>, id: &str, target: &str, drop: Drop) -> bool {
+fn move_folder(folders: &mut Vec<Folder>, id: &str, target: &str, drop: Place) -> bool {
     let Some(from) = folders.iter().position(|f| !is_loose(f) && f.id == id) else { return false };
     if folders[from].guild_ids.iter().any(|g| g == target) {
         return false;
     }
     let folder = folders.remove(from);
     let at = top_index(folders, target).unwrap_or(from);
-    folders.insert(if drop == Drop::After { at + 1 } else { at }, folder);
+    folders.insert(if drop == Place::After { at + 1 } else { at }, folder);
     true
 }
 
-fn move_guild(folders: &mut Vec<Folder>, moved: &str, target: &str, drop: Drop, new_id: &dyn Fn() -> String) -> bool {
+fn move_guild(folders: &mut Vec<Folder>, moved: &str, target: &str, drop: Place, new_id: &dyn Fn() -> String) -> bool {
     for folder in folders.iter_mut() {
         folder.guild_ids.retain(|g| g != moved);
     }
     let Some(at) = top_index(folders, target) else { return false };
     if target.starts_with("folder-") {
         match drop {
-            Drop::Into => folders[at].guild_ids.push(moved.to_owned()),
-            Drop::Before => folders.insert(at, loose(moved)),
-            Drop::After => folders.insert(at + 1, loose(moved)),
+            Place::Into => folders[at].guild_ids.push(moved.to_owned()),
+            Place::Before => folders.insert(at, loose(moved)),
+            Place::After => folders.insert(at + 1, loose(moved)),
         }
         return true;
     }
     if is_loose(&folders[at]) {
         match drop {
-            Drop::Into => folders[at] = Folder { id: new_id(), name: None, color: None, guild_ids: vec![target.to_owned(), moved.to_owned()] },
-            Drop::Before => folders.insert(at, loose(moved)),
-            Drop::After => folders.insert(at + 1, loose(moved)),
+            Place::Into => folders[at] = Folder { id: new_id(), name: None, color: None, guild_ids: vec![target.to_owned(), moved.to_owned()] },
+            Place::Before => folders.insert(at, loose(moved)),
+            Place::After => folders.insert(at + 1, loose(moved)),
         }
         return true;
     }
     let position = folders[at].guild_ids.iter().position(|g| g == target).unwrap_or(0);
-    folders[at].guild_ids.insert(if drop == Drop::After { position + 1 } else { position }, moved.to_owned());
+    folders[at].guild_ids.insert(if drop == Place::After { position + 1 } else { position }, moved.to_owned());
     true
 }
 
@@ -149,7 +140,7 @@ mod tests {
         normalize(&[loose("a"), folder], ["a", "b", "c", "d", "e"].into_iter())
     }
 
-    fn run(moved: &str, target: &str, drop: Drop) -> String {
+    fn run(moved: &str, target: &str, drop: Place) -> String {
         let mut folders = start();
         apply(&mut folders, moved, target, drop, &|| "new".into());
         layout(&folders)
@@ -158,18 +149,15 @@ mod tests {
     #[test]
     fn drops() {
         assert_eq!(layout(&start()), "a [9:c,d] b e");
-        assert_eq!(run("e", "a", Drop::Before), "e a [9:c,d] b");
-        assert_eq!(run("a", "b", Drop::After), "[9:c,d] b a e");
-        assert_eq!(run("b", "a", Drop::Into), "[new:a,b] [9:c,d] e");
-        assert_eq!(run("e", "folder-9", Drop::Into), "a [9:c,d,e] b");
-        assert_eq!(run("e", "d", Drop::Before), "a [9:c,e,d] b");
-        assert_eq!(run("c", "b", Drop::After), "a [9:d] b c e");
-        assert_eq!(run("folder-9", "e", Drop::After), "a b e [9:c,d]");
-        assert_eq!(run("folder-9", "c", Drop::Before), "a [9:c,d] b e");
-        assert_eq!(run("c", "folder-9", Drop::Before), "a c [9:d] b e");
-        assert_eq!(run("a", "a", Drop::Into), "a [9:c,d] b e");
-        assert_eq!(Drop::at(0.1, true), Drop::Before);
-        assert_eq!(Drop::at(0.5, true), Drop::Into);
-        assert_eq!(Drop::at(0.6, false), Drop::After);
+        assert_eq!(run("e", "a", Place::Before), "e a [9:c,d] b");
+        assert_eq!(run("a", "b", Place::After), "[9:c,d] b a e");
+        assert_eq!(run("b", "a", Place::Into), "[new:a,b] [9:c,d] e");
+        assert_eq!(run("e", "folder-9", Place::Into), "a [9:c,d,e] b");
+        assert_eq!(run("e", "d", Place::Before), "a [9:c,e,d] b");
+        assert_eq!(run("c", "b", Place::After), "a [9:d] b c e");
+        assert_eq!(run("folder-9", "e", Place::After), "a b e [9:c,d]");
+        assert_eq!(run("folder-9", "c", Place::Before), "a [9:c,d] b e");
+        assert_eq!(run("c", "folder-9", Place::Before), "a c [9:d] b e");
+        assert_eq!(run("a", "a", Place::Into), "a [9:c,d] b e");
     }
 }

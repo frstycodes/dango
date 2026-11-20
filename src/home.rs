@@ -187,7 +187,7 @@ impl Waffle {
     }
 
     /// The Friends page: a header with the filter tabs, then the people in that tab.
-    // The Inbox page: every recent mention, under the same dissolving header as a channel's.
+    // The Inbox page: every recent mention, under a header like a channel's.
     pub(crate) fn render_inbox_page(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let page = palette::surface(palette::Level::Page, cx);
         let header = div()
@@ -215,12 +215,13 @@ impl Waffle {
             .bg(page)
             .text_color(palette::text(cx))
             .text_size(px(14.))
+            // The main view's header: a hard edge, never a hairline.
+            .child(ui::hard_edge(|| false, cx).child(header))
             .child(
-                div().id("inbox-page").flex_1().min_h_0().overflow_y_scrollbar().pt(px(crate::layout::HEADER_HEIGHT + 16.)).px_4().pb_6().child(
+                div().id("inbox-page").flex_1().min_h_0().overflow_y_scrollbar().pt(px(16.)).px_4().pb_6().child(
                     div().w_full().max_w(px(760.)).mx_auto().flex().flex_col().gap_3().child(self.inbox_head(false, window, cx)).child(self.inbox_body(None, cx)),
                 ),
             )
-            .child(ui::scroll_edge(page, 0.).child(header))
             .into_any_element()
     }
 
@@ -300,7 +301,7 @@ impl Waffle {
                 div().flex().flex_col().gap(px(2.)).child(label).children(rows).into_any_element()
             }
         };
-        // The list runs up under the header, which fades it (ui::scroll_edge).
+        // The list stops under the header, a hard edge (the main view's never takes a hairline).
         let page = palette::surface(palette::Level::Page, cx);
         div()
             .relative()
@@ -312,8 +313,8 @@ impl Waffle {
             .bg(page)
             .text_color(palette::text(cx))
             .text_size(px(14.))
-            .child(div().id("friends-list").flex_1().min_h_0().overflow_y_scrollbar().pt(px(crate::layout::HEADER_HEIGHT + 16.)).px_4().pb_6().child(body))
-            .child(ui::scroll_edge(page, 0.).child(header))
+            .child(ui::hard_edge(|| false, cx).child(header))
+            .child(div().id("friends-list").flex_1().min_h_0().overflow_y_scrollbar().pt(px(16.)).px_4().pb_6().child(body))
             .into_any_element()
     }
 
@@ -385,7 +386,7 @@ impl Waffle {
                     .items_center()
                     .gap(px(8.))
                     .child(mascot)
-                    .child(div().text_size(px(22.)).font_weight(FontWeight::SEMIBOLD).text_color(strong).child("Add a friend"))
+                    .child(div().text_size(px(20.)).font_weight(FontWeight::SEMIBOLD).text_color(strong).child("Add a friend"))
                     .child(div().text_color(muted).child("Send a request with their Discord username.")),
             )
             .child(div().flex().flex_col().gap(px(8.)).child(ui::settings_card(cx).p(px(16.)).gap(px(12.)).child(username).child(note).child(hint)).children(result))
@@ -447,7 +448,7 @@ impl Waffle {
             Relation::Incoming => "Wants to be friends".into(),
             Relation::Outgoing => "You sent a request".into(),
             Relation::Blocked => "Blocked".into(),
-            Relation::Friend => presence.activity.as_ref().map(|a| a.text.clone()).unwrap_or_else(|| if presence.status == Status::Offline { "Offline".into() } else { presence.status.label().into() }),
+            Relation::Friend => presence.custom.clone().or_else(|| presence.activity.as_ref().map(|a| a.text.clone())).unwrap_or_else(|| if presence.status == Status::Offline { "Offline".into() } else { presence.status.label().into() }),
         };
         let page = palette::surface(palette::Level::Page, cx);
         let status = (relation.kind == Relation::Friend).then_some(presence.status);

@@ -16,7 +16,8 @@ use crate::{
     icons::Glyph,
     layout::{RAIL_WIDTH, avatar_with_status},
     motion, palette,
-    rail_drag::{Drop, RailDrag},
+    rail_drag::RailDrag,
+    sortable::{Board, Place},
     ui::{self, Squircle},
 };
 
@@ -75,10 +76,6 @@ struct RailTile {
 
 impl Waffle {
     pub fn render_rail(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !cx.has_active_drag() {
-            self.rail_drop = None;
-            self.channel_drop = None;
-        }
         let dm_mentions: u32 = self.dms.iter().map(|d| self.mention_count(&d.id)).sum();
         let home = RailTile {
             key: "dms".into(),
@@ -96,12 +93,17 @@ impl Waffle {
         };
         let home = self.rail_item(home, window, cx);
         let dm_tiles = self.rail_dm_tiles(window, cx);
+        let entries = self.rail_entries();
+        let order: Vec<String> = entries.iter().map(|e| crate::channel_menu::rail_key(e, &self.guilds)).collect();
+        self.note_left_folder();
+        let top = self.rail_board.list(RAIL_LIST, order.clone(), window, cx);
         let mut items: Vec<AnyElement> = Vec::new();
-        for entry in self.rail_entries() {
-            match entry {
-                RailEntry::Guild(guild) => items.push(self.guild_item(guild, 1., window, cx)),
-                RailEntry::Folder(folder, guilds) => items.push(self.folder_item(folder, guilds, window, cx)),
-            }
+        for (entry, key) in entries.into_iter().zip(&order) {
+            let item = match entry {
+                RailEntry::Guild(guild) => self.guild_item(guild, 1., window, cx),
+                RailEntry::Folder(folder, guilds) => self.folder_item(folder, guilds, window, cx),
+            };
+            items.push(top.item(key, item));
         }
         // The rail's slot in the header row holds macOS's traffic lights while they show (Home then leads the
         // rail under the row); otherwise Home sits in it, inset like the header's other controls.
@@ -131,6 +133,7 @@ impl Waffle {
             .child(dm_tiles)
             .child(separator)
             .children(items)
+
             .child(rail_action("rail-discover", Nav::Compass.icon(), "Discover servers", cx).on_click(|_, _, cx| cx.open_url("https://discord.com/servers")))
     }
 
@@ -257,7 +260,8 @@ impl Waffle {
         let present = guild.voice_states.iter().filter(|v| v.channel_id.is_some());
         ServerPreview {
             name,
-            voice: present.clone().map(avatar).collect(),
+            // Each person once: someone live shows on the stream row, not on both.
+            voice: present.clone().filter(|v| !v.streaming).map(avatar).collect(),
             live: present.filter(|v| v.streaming).map(avatar).collect(),
             muted,
         }
@@ -305,7 +309,7 @@ impl Waffle {
     // A folder: closed, a tile of its first four servers; open, a tinted column holding them all.
     fn folder_item(&mut self, folder: Folder, indices: Vec<usize>, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let guilds: Vec<&Guild> = indices.iter().map(|&i| &self.guilds[i]).collect();
-        let open = self.open_folders.contains(&folder.id);
+        let open = self.folder_shown_open(&folder);
         let key = format!("folder-{}", folder.id);
         let motion = FolderMotion::frame(&key, open, window, cx);
         let tint: Hsla = folder.color.map(|c| rgb(c).into()).unwrap_or(palette::faint(cx));
@@ -357,7 +361,11 @@ impl Waffle {
         let landed = motion.trip >= 1.;
         let servers: Vec<AnyElement> = match (motion.trip > 0., landed) {
             (false, _) => Vec::new(),
-            (true, true) => indices.into_iter().enumerate().map(|(i, g)| div().absolute().left_0().top(px(slot_y(i))).child(self.guild_item(g, 1., window, cx)).into_any_element()).collect(),
+            (true, true) => {
+                let order: Vec<String> = indices.iter().map(|&g| self.guilds[g].id.clone()).collect();
+                let inside = self.rail_board.list(folder_list(&folder.id), order.clone(), window, cx);
+                indices.into_iter().zip(order).enumerate().map(|(i, (g, id))| div().absolute().left_0().top(px(slot_y(i))).child(inside.item(&id, self.guild_item(g, 1., window, cx))).into_any_element()).collect()
+            }
             (true, false) => minis.iter().zip(&badges).enumerate().map(|(i, (m, badge))| flying_tile(m, badge, head_pill, i, minis.len(), motion.trip, rail, cx)).collect(),
         };
         div()
@@ -390,7 +398,8 @@ impl Waffle {
         };
         let rail = palette::surface(palette::Level::Rail, cx);
         let look = crate::drag::Look::Tile(face.clone());
-        let drop_hint = self.rail_drop.as_ref().filter(|(target, _)| *target == key).map(|(_, drop)| *drop);
+        // Reordering shows as the rail making room; going onto a tile (a folder made or joined) as a ring.
+        let combine_ring = self.rail_board.hint().is_some_and(|h| h.place == Place::Into && h.target.as_deref() == Some(key.as_str()));
         let item_id = SharedString::from(format!("rail-{key}"));
         let carried = self.drag_motion.row(&item_id);
         let face = match carried {
@@ -430,44 +439,56 @@ impl Waffle {
             )
             .when(mentions > 0 && badge_scale > 0.01, |item| item.child(rail_count(mentions, badge_scale, crate::material::behind_sidebar(rail))))
             .children(media.filter(|_| badge_scale > 0.99).map(|m| media_badge(m, crate::material::behind_sidebar(rail), cx)))
-            .children(drop_hint.map(drop_marker))
+            .when(combine_ring, |item| item.child(combine_ring_mark()))
             .on_hover(cx.listener(move |this, hovered: &bool, _, cx| this.set_hovered(&hover_key, *hovered, cx)))
             .when_some(guild_id.clone(), |item, guild_id| item.on_click(cx.listener(move |this, _, window, cx| this.open_guild(Some(guild_id.clone()), window, cx))))
             .when(key == "dms", |item| item.on_click(cx.listener(|this, _, window, cx| this.open_guild(None, window, cx))));
         let item = match key.as_str() {
             k if k == "dms" || k.starts_with("dm-") => item,
-            _ => self.rail_draggable(item, RailDrag { key: key.clone() }, look, cx),
+            _ => self.rail_draggable(item, RailDrag { key: key.clone() }, look, self.rail_list_of(&key), cx),
         };
         let Some(guild_id) = guild_id else { return item.into_any_element() };
         item.on_mouse_down(gpui_kit::MouseButton::Right, cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| this.open_server_menu(guild_id.clone(), e.position, false, cx)))
             .into_any_element()
     }
 
-    // Carried, a tile swells to 104% and hangs at -4° (.srv.dragging), tilting further with speed.
-    fn rail_draggable(&self, item: ui::Pressable, drag: RailDrag, look: crate::drag::Look, cx: &mut Context<Self>) -> ui::Pressable {
+    // Carried, a tile swells to 104% and hangs at -4° (.srv.dragging), tilting further with speed. A server
+    // can go onto another top-level tile (making or joining a folder); inside a folder it only reorders.
+    fn rail_draggable(&self, item: ui::Pressable, drag: RailDrag, look: crate::drag::Look, list: SharedString, cx: &mut Context<Self>) -> ui::Pressable {
         let key = drag.key.clone();
-        let can_combine = !key.starts_with("folder-");
-        let (move_key, drop_key) = (key.clone(), key.clone());
-        let pick_up = crate::drag::pick_up(cx.weak_entity(), format!("rail-{key}").into(), look, point(px(RAIL_WIDTH), px(TILE)), 1.04, -4.);
-        item.on_drag(drag, pick_up)
-            .on_drag_move::<RailDrag>(cx.listener(move |this, event: &gpui_kit::DragMoveEvent<RailDrag>, _, cx| {
-                let inside = event.bounds.contains(&event.event.position);
-                let dragged_folder = event.drag(cx).key.starts_with("folder-");
-                let hint = inside.then(|| {
-                    let fraction = (event.event.position.y - event.bounds.top()) / event.bounds.size.height;
-                    (move_key.clone(), Drop::at(fraction, can_combine && !dragged_folder))
-                });
-                match (&hint, &this.rail_drop) {
-                    (Some(_), _) if this.rail_drop != hint => this.rail_drop = hint,
-                    (None, Some((target, _))) if *target == move_key => this.rail_drop = None,
-                    _ => return,
-                }
-                cx.notify();
-            }))
-            .on_drop(cx.listener(move |this, drag: &RailDrag, _, cx| {
-                let drop = this.rail_drop.as_ref().filter(|(target, _)| *target == drop_key).map_or(Drop::Before, |(_, drop)| *drop);
-                this.drop_on_rail(&drag.key.clone(), &drop_key, drop, cx);
-            }))
+        let ghost = crate::drag::pick_up(cx.weak_entity(), format!("rail-{key}").into(), look, point(px(RAIL_WIDTH), px(TILE)), 1.04, -4., true);
+        let combines_here = list == RAIL_LIST;
+        let item = item.on_drag(drag, Board::lift(cx.weak_entity(), rail_board, key.clone(), ghost));
+        Board::target(item, rail_board, list, key, move |d: &RailDrag| combines_here && !d.key.starts_with("folder-"), cx)
+    }
+
+    // The rail list `key` sits in: its open folder's, or the rail's own.
+    fn rail_list_of(&self, key: &str) -> SharedString {
+        match self.folders.iter().find(|f| !f.id.is_empty() && f.id != "0" && f.guild_ids.iter().any(|g| g == key)) {
+            Some(folder) => folder_list(&folder.id),
+            None => RAIL_LIST.into(),
+        }
+    }
+
+    // Sticky for the drag: once the dragged server is aimed outside the folder it came from, that folder
+    // folds too.
+    fn note_left_folder(&mut self) {
+        let Some(dragged) = self.rail_board.dragged() else { return self.rail_left_folder = false };
+        let Some(home) = self.folders.iter().find(|f| f.guild_ids.iter().any(|g| g == dragged)) else { return };
+        let inside = self.rail_board.hint().is_none_or(|h| h.list == folder_list(&home.id) || h.target.as_deref() == Some(format!("folder-{}", home.id).as_str()));
+        if !inside {
+            self.rail_left_folder = true;
+        }
+    }
+
+    // Open folders fold shut while a rail drag is on, so only top-level slots are in the way; the folder
+    // the dragged server came from stays open until the server leaves it. They reopen on letting go.
+    fn folder_shown_open(&self, folder: &Folder) -> bool {
+        let open = self.open_folders.contains(&folder.id);
+        match self.rail_board.dragged() {
+            None => open,
+            Some(dragged) => open && folder.guild_ids.iter().any(|g| g == dragged) && !self.rail_left_folder,
+        }
     }
 
     // .preview, the hover card on someone live: the stream's thumbnail under LIVE, with a way in
@@ -539,13 +560,15 @@ impl Waffle {
                 div()
                     .flex_1()
                     .min_w_0()
-                    .child(div().truncate().font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(app.unwrap_or(streamer.name).to_owned()))
+                    .child(div().truncate().text_size(px(14.)).font_weight(FontWeight::MEDIUM).text_color(palette::strong(cx)).child(app.unwrap_or(streamer.name).to_owned()))
                     .child(div().truncate().text_size(px(12.)).text_color(palette::faint(cx)).child(detail.join(" · "))),
             )
             .when_some(who, |d, who| d.tooltip(move |window, cx| Tooltip::new(who.clone()).build(window, cx)));
         let record = self.stream_card_bounds.clone();
         div()
             .id(SharedString::from(format!("stream-card-{}", streamer.id)))
+            // Blocks the rows under it; its own hover keeps it open once the pointer leaves the row.
+            .occlude()
             .w(px(STREAM_CARD_WIDTH))
             .child(gpui_kit::canvas(move |bounds, _, _| record.set(bounds), |_, _, _, _| {}).absolute().inset_0())
             .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
@@ -574,8 +597,24 @@ impl Waffle {
             (Status::Connecting, _) => rows.push(muted_line("Connecting to Discord…", cx)),
             (_, Some(guild)) => {
                 let me = self.my_id().to_owned();
+                // Beside the carried channel: "Move to Archive" while it's aimed into another category.
+                let tag = self.channel_board.dragged().zip(self.channel_board.hint()).and_then(|(moved, hint)| self.category_move(moved, hint.target.as_deref()?));
+                self.drag_motion.set_tag(tag);
                 for (i, (category, channels)) in channel_sections(&guild, &me).into_iter().enumerate() {
-                    let channel_rows = channels.iter().flat_map(|c| self.channel_rows(c, &guild, window, cx)).collect();
+                    let order: Vec<String> = channels.iter().map(|c| c.id.clone()).collect();
+                    let list = self.channel_board.list(channel_list(category.as_ref()), order, window, cx);
+                    // A channel's first row is the item; its people and threads move with it.
+                    let channel_rows = channels
+                        .iter()
+                        .flat_map(|c| {
+                            let rows = self.channel_rows(c, &guild, window, cx);
+                            let list = &list;
+                            rows.into_iter().enumerate().map(move |(i, row)| ChannelRow {
+                                keep: row.keep,
+                                element: if i == 0 { list.item(&c.id, row.element) } else { list.follow(&c.id, row.element) },
+                            })
+                        })
+                        .collect::<Vec<_>>();
                     match category {
                         Some(category) => rows.push(self.section(category, channel_rows, i > 0, window, cx)),
                         None => rows.extend(channel_rows.into_iter().map(|row: ChannelRow| row.element)),
@@ -647,7 +686,19 @@ impl Waffle {
             .text_size(px(14.))
             // The list stops under the header, a hard edge (ui::hard_edge).
             .child(ui::hard_edge(self.sidebar_scrolled(window), cx).child(header))
-            .child(ui::scroll_area(div().id("channels").pt(px(8.)).px_2().pb_2().flex().flex_col().gap(px(ROW_GAP)).children(rows), &self.channels_scroll))
+            .child(ui::scroll_area(
+                div()
+                    .id("channels")
+                    .pt(px(8.))
+                    .px_2()
+                    .pb_2()
+                    .flex()
+                    .flex_col()
+                    .gap(px(ROW_GAP))
+                    .children(rows)
+,
+                &self.channels_scroll,
+            ))
             .child(banner)
             .child(div().flex_none().h(self.user_panel_clearance()))
             .child(self.resize_handle(Edge::Channels, cx))
@@ -698,10 +749,6 @@ impl Waffle {
                 cx.notify();
             }))
             .drag_over::<crate::drag::ChannelDrag>(move |s, _, _, _| s.text_color(target_ink))
-            .on_drop({
-                let category = category.clone();
-                cx.listener(move |this, drag: &crate::drag::ChannelDrag, _, cx| this.drop_channel(drag, &category, crate::drag::Place::Into, cx))
-            })
             .on_mouse_down(gpui_kit::MouseButton::Right, {
                 let category = category.clone();
                 cx.listener(move |this, e: &gpui_kit::MouseDownEvent, _, cx| {
@@ -709,6 +756,7 @@ impl Waffle {
                     this.open_channel_menu(category.clone(), guild_id, e.position, cx);
                 })
             });
+        let label = Board::head::<_, crate::drag::ChannelDrag, _>(label, channel_board, channel_list(Some(&category)), cx);
         let can_add = self.guild_id.as_ref().is_some_and(|g| self.can_arrange_channels(g));
         let group: SharedString = format!("cathead-{}", category.id).into();
         let head = category_head(group.clone(), label, false, cx).when(can_add, |head| {
@@ -765,7 +813,7 @@ impl Waffle {
                 }))
                 .child(ui::truncating(format!("channel-name-{}", channel.id), channel.name.clone()).flex_1())
                 .children(elapsed)
-                .children(meta.filter(|_| !selected && !hovered).map(|icon| div().flex_none().flex().text_color(faint).child(icon.size(px(15.)))))
+                .children(meta.filter(|_| !selected && !hovered).map(|icon| div().flex_none().flex().text_color(faint).child(icon.size(px(16.)))))
                 .when(selected || hovered, |r| r.child(self.row_actions(channel, guild, cx)))
                 .when(mentions > 0, |r| r.child(ui::count_badge(mentions))),
         };
@@ -963,7 +1011,7 @@ impl Waffle {
                 true => {
                     let drag = crate::drag::VoiceDrag { user_id: state.user_id.clone(), guild_id: guild.id.clone(), name: name.clone().into(), avatar: avatar.clone() };
                     let look = crate::drag::Look::Person { avatar: drag.avatar.clone(), name: drag.name.clone() };
-                    row.on_drag(drag, crate::drag::pick_up(cx.weak_entity(), key, look, point(px(self.channels_width - 16.), px(30.)), 1.05, 0.))
+                    row.on_drag(drag, crate::drag::pick_up(cx.weak_entity(), key, look, point(px(self.channels_width - 16.), px(30.)), 1.05, 0., false))
                 }
                 false => row,
             };
@@ -1008,14 +1056,6 @@ impl Waffle {
         if !self.can_arrange_channels(&guild.id) {
             return row;
         }
-        let hint = self.channel_drop.as_ref().filter(|(id, _)| *id == channel.id).map(|(_, place)| *place);
-        let marker = hint.map(|place| {
-            let bar = div().absolute().left_0().right_0().h(px(2.)).rounded_full().bg(palette::accent());
-            match place {
-                crate::drag::Place::After => bar.bottom(px(-2.)),
-                _ => bar.top(px(-2.)),
-            }
-        });
         let drag = crate::drag::ChannelDrag { channel_id: channel.id.clone(), guild_id: guild.id.clone() };
         let people = match channel.kind {
             ChannelKind::Voice => self.voice_people(channel, guild),
@@ -1024,25 +1064,9 @@ impl Waffle {
         // The ghost is the row and its people, 30px each under it 1px apart.
         let size = point(px(self.channels_width - 16.), px(ROW_HEIGHT + people.len() as f32 * 31.));
         let look = crate::drag::Look::Channel { channel: Box::new(channel.clone()), people };
-        let (move_id, drop_target) = (channel.id.clone(), channel.clone());
-        row.children(marker)
-            .on_drag(drag, crate::drag::pick_up(cx.weak_entity(), channel.id.clone().into(), look, size, 1.05, 0.))
-            .on_drag_move::<crate::drag::ChannelDrag>(cx.listener(move |this, e: &gpui_kit::DragMoveEvent<crate::drag::ChannelDrag>, _, cx| {
-                let inside = e.bounds.contains(&e.event.position);
-                let hint = inside.then(|| (move_id.clone(), crate::drag::place_at((e.event.position.y - e.bounds.top()) / e.bounds.size.height)));
-                let tag = inside.then(|| this.category_move(&e.drag(cx).channel_id, &move_id)).flatten();
-                match (&hint, &this.channel_drop) {
-                    (Some(_), _) if this.channel_drop != hint => this.channel_drop = hint,
-                    (None, Some((id, _))) if *id == move_id => this.channel_drop = None,
-                    _ => return,
-                }
-                this.drag_motion.set_tag(tag);
-                cx.notify();
-            }))
-            .on_drop(cx.listener(move |this, drag: &crate::drag::ChannelDrag, _, cx| {
-                let place = this.channel_drop.take().map_or(crate::drag::Place::Before, |(_, p)| p);
-                this.drop_channel(drag, &drop_target, place, cx);
-            }))
+        let ghost = crate::drag::pick_up(cx.weak_entity(), channel.id.clone().into(), look, size, 1.05, 0., true);
+        let row = row.on_drag(drag, Board::lift(cx.weak_entity(), channel_board, channel.id.clone(), ghost));
+        Board::target(row, channel_board, channel_list(self.guild().and_then(|g| g.channels.iter().find(|c| Some(&c.id) == channel.parent_id.as_ref()))), channel.id.clone(), |_: &crate::drag::ChannelDrag| false, cx)
     }
 
     // "Move to Archive": the tag a channel carries over a row in another category.
@@ -1124,7 +1148,7 @@ impl Waffle {
             // A group always counts us and at least one other, so never "1 member".
             (false, None) => (!channel.recipients.is_empty()).then(|| div().child(format!("{} members", channel.recipients.len() + 1))),
         };
-        let line = call_line.map(|(glyph, label, ink)| div().child(Icon::new(glyph).size(px(13.)).flex_none().text_color(ink)).child(div().text_color(ink).child(label))).or(line);
+        let line = call_line.map(|(glyph, label, ink)| div().child(Icon::new(glyph).size(px(14.)).flex_none().text_color(ink)).child(div().text_color(ink).child(label))).or(line);
         let state = RowState { selected, unread, muted: false, strong: false };
         let (open, close_id) = (channel.clone(), channel.id.clone());
         let group: SharedString = format!("dm-{}", channel.id).into();
@@ -1236,6 +1260,11 @@ pub(crate) fn category_head(group: SharedString, label: Stateful<Div>, static_: 
 // The + at a category's end: creates a channel there (or, on Direct messages, starts a conversation).
 // With `reveal_on`, it shows only while that header group is hovered.
 fn cat_add(id: impl Into<gpui_kit::ElementId>, reveal_on: Option<SharedString>, tooltip: &'static str, cx: &App) -> Stateful<Div> {
+    category_action(id, Nav::Plus.icon(), reveal_on, tooltip, cx)
+}
+
+// A category head's trailing action: a 24px target with a 14px glyph, so every head's action is one size.
+pub(crate) fn category_action(id: impl Into<gpui_kit::ElementId>, icon: Icon, reveal_on: Option<SharedString>, tooltip: &'static str, cx: &App) -> Stateful<Div> {
     let strong = palette::strong(cx);
     div()
         .id(id)
@@ -1250,7 +1279,7 @@ fn cat_add(id: impl Into<gpui_kit::ElementId>, reveal_on: Option<SharedString>, 
         .text_color(palette::muted(cx))
         .hover(move |s| s.text_color(strong))
         .when_some(reveal_on, |add, group| add.opacity(0.).group_hover(group, |s| s.opacity(1.)))
-        .child(Nav::Plus.icon().size(px(14.)))
+        .child(icon.size(px(14.)))
         .tooltip(move |window, cx| Tooltip::new(tooltip).build(window, cx))
 }
 
@@ -1346,7 +1375,7 @@ fn voice_mark_for(state: &crate::discord::VoiceState, cx: &App) -> Option<AnyEle
         return None;
     }
     let (faint, danger) = (palette::faint(cx), palette::danger_ink(cx));
-    let mark = |icon: Icon, color: Hsla| div().flex_none().flex().text_color(color).child(icon.size(px(15.))).into_any_element();
+    let mark = |icon: Icon, color: Hsla| div().flex_none().flex().text_color(color).child(icon.size(px(16.))).into_any_element();
     let elements = marks.into_iter().map(|m| match m {
         VoiceMark::ServerMuted => mark(Nav::MicOffFill.icon(), danger),
         VoiceMark::ServerDeafened => mark(Nav::DeafenedFill.icon(), danger),
@@ -1555,17 +1584,17 @@ impl Render for ServerPreview {
         let (wash, strong) = (palette::selected(cx), palette::strong(cx));
         // Six slots at most per row, the last a "+n" when they don't all fit; the card stays a glance, not a roster.
         let row = |glyph: Glyph, avatars: &[String]| {
-            div().flex().items_center().gap(px(10.)).child(Icon::new(glyph).size(px(20.)).text_color(muted)).child(ui::capped_stack(avatars, PREVIEW_FACES, 28., surface, wash, strong))
+            div().flex().items_center().gap(px(8.)).child(Icon::new(glyph).size(px(16.)).text_color(muted)).child(ui::capped_stack(avatars, PREVIEW_FACES, 24., surface, wash, strong))
         };
         // Anchored flush to the tile; plain tooltips get their 12px gap from Tooltip's own margin.
         div().pl(px(12.)).child(ui::surface(cx)
             .max_w(px(280.))
             .p(px(12.))
-            .gap(px(10.))
-            .child(div().truncate().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(self.name.clone()))
+            .gap(px(8.))
+            .child(div().truncate().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(self.name.clone()))
             .when(!self.voice.is_empty(), |c| c.child(row(Glyph::VolumeHigh, &self.voice)))
             .when(!self.live.is_empty(), |c| c.child(row(Glyph::ShareScreen, &self.live)))
-            .when(self.muted, |c| c.child(div().text_size(px(14.)).text_color(muted).child("Muted"))))
+            .when(self.muted, |c| c.child(div().text_size(px(12.)).text_color(muted).child("Muted"))))
     }
 }
 
@@ -1659,15 +1688,29 @@ fn media_badge(media: Media, rail: Hsla, cx: &App) -> Div {
     )
 }
 
-// Drop cues: a bar in the gap to reorder, a ring around the tile to combine.
-fn drop_marker(drop: Drop) -> Div {
-    let accent = palette::accent();
-    let bar = || div().absolute().left(px((RAIL_WIDTH - 36.) / 2.)).w(px(36.)).h(px(4.)).rounded_full().bg(accent);
-    match drop {
-        Drop::Before => bar().top(px(-(RAIL_GAP + 4.) / 2.)),
-        Drop::After => bar().bottom(px(-(RAIL_GAP + 4.) / 2.)),
-        Drop::Into => div().absolute().left(px(TILE_X - 4.)).top(px(-4.)).size(px(TILE + 8.)).squircle(ui::RADIUS_LG + 4.).border_2().border_color(accent),
-    }
+// Going onto a tile (making or joining a folder): a ring around it. Reordering shows as the rail making room.
+fn combine_ring_mark() -> Div {
+    div().absolute().left(px(TILE_X - 4.)).top(px(-4.)).size(px(TILE + 8.)).squircle(ui::RADIUS_LG + 4.).border_2().border_color(palette::accent())
+}
+
+// The rail's own sortable list, and a folder's.
+const RAIL_LIST: &str = "rail";
+
+fn folder_list(id: &str) -> SharedString {
+    format!("folder-list-{id}").into()
+}
+
+fn rail_board(waffle: &mut Waffle) -> &mut Board {
+    &mut waffle.rail_board
+}
+
+fn channel_board(waffle: &mut Waffle) -> &mut Board {
+    &mut waffle.channel_board
+}
+
+// A category's sortable list; channels outside any category share one.
+pub(crate) fn channel_list(category: Option<&Channel>) -> SharedString {
+    category.map_or_else(|| "channels".into(), |c| format!("category-{}", c.id).into())
 }
 
 // ICONS

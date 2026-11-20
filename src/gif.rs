@@ -65,6 +65,8 @@ struct Layout {
     covered: bool,
     // The visible message area, which inline GIFs are clipped to.
     chat: Option<Bounds<Pixels>>,
+    // What floats over the message area (a message's hover toolbar): inline GIFs are clipped around it.
+    above: Vec<Bounds<Pixels>>,
 }
 
 impl Layout {
@@ -121,7 +123,14 @@ pub fn begin_inline_layout() {
         let mut layout = l.borrow_mut();
         layout.slots.retain(|_, slot| slot.top);
         layout.chat = None;
+        layout.above.clear();
     });
+}
+
+/// Marks its parent as floating over the message area, so inline GIFs never paint over it. The layer
+/// paints above the app, so without this a GIF under a hover toolbar would cover the toolbar.
+pub fn above_gifs() -> impl IntoElement {
+    canvas(|bounds, _, _| LAYOUT.with(|l| l.borrow_mut().above.push(bounds)), |_, _, _, _| {}).absolute().inset_0()
 }
 
 /// Where the message area is on screen this layout.
@@ -442,9 +451,12 @@ impl Render for GifLayer {
                             continue;
                         }
                         let image = cover(slot.bounds, frame.size(0));
-                        window.with_content_mask(Some(gpui_kit::ContentMask { bounds: layout.clip(slot) }), |window| {
-                            let _ = window.paint_image(slot.bounds, image, slot.corners, frame, 0, false);
-                        });
+                        let holes: &[Bounds<Pixels>] = if slot.top { &[] } else { &layout.above };
+                        for piece in subtract(layout.clip(slot), holes) {
+                            window.with_content_mask(Some(gpui_kit::ContentMask { bounds: piece }), |window| {
+                                let _ = window.paint_image(slot.bounds, image, slot.corners, frame.clone(), 0, false);
+                            });
+                        }
                         painted += 1;
                     }
                     PAINTED.with(|p| p.set(painted));
@@ -458,6 +470,32 @@ impl Render for GifLayer {
         .left_0()
         .size_full()
     }
+}
+
+// `area` less every rectangle in `holes`, as up to four bands per hole (above, below, left, right).
+fn subtract(area: Bounds<Pixels>, holes: &[Bounds<Pixels>]) -> Vec<Bounds<Pixels>> {
+    let mut pieces = vec![area];
+    for hole in holes {
+        pieces = pieces
+            .into_iter()
+            .flat_map(|r| {
+                if !r.intersects(hole) {
+                    return vec![r];
+                }
+                let (top, bottom) = (hole.top().max(r.top()), hole.bottom().min(r.bottom()));
+                [
+                    Bounds::from_corners(r.origin, point(r.right(), top)),
+                    Bounds::from_corners(point(r.left(), bottom), point(r.right(), r.bottom())),
+                    Bounds::from_corners(point(r.left(), top), point(hole.left().max(r.left()), bottom)),
+                    Bounds::from_corners(point(hole.right().min(r.right()), top), point(r.right(), bottom)),
+                ]
+                .into_iter()
+                .filter(|b| b.size.width > px(0.) && b.size.height > px(0.))
+                .collect()
+            })
+            .collect();
+    }
+    pieces
 }
 
 // The image's bounds when it covers `bounds` (centred, cropped), as object-fit: cover draws it.
@@ -582,6 +620,18 @@ mod tests {
     }
 
     // A Discord-style GIF: H.264 in MP4, 480 wide, 15 frames over one second; it loops seamlessly.
+    #[test]
+    fn gifs_clip_around_what_floats_over_them() {
+        let b = |x: f32, y: f32, w: f32, h: f32| Bounds::new(point(px(x), px(y)), size(px(w), px(h)));
+        let area = |pieces: &[Bounds<Pixels>]| pieces.iter().map(|p| f32::from(p.size.width) * f32::from(p.size.height)).sum::<f32>();
+        // A toolbar over the top-right corner of a 100x100 GIF takes its 40x20 out and nothing else.
+        let pieces = subtract(b(0., 0., 100., 100.), &[b(70., -10., 40., 30.)]);
+        assert_eq!(area(&pieces), 100. * 100. - 30. * 20.);
+        assert!(pieces.iter().all(|p| !p.intersects(&b(70., -10., 40., 30.))));
+        // Nothing over it: whole.
+        assert_eq!(subtract(b(0., 0., 10., 10.), &[b(20., 20., 5., 5.)]), vec![b(0., 0., 10., 10.)]);
+    }
+
     #[test]
     fn decodes_scaled_pictures_and_loops() {
         let pictures = first(include_bytes!("../testdata/gifv.mp4"), 31);

@@ -14,7 +14,7 @@ use gpui_kit::{
         text::{InlineElement, InlineRenderContext, MarkdownExtensions, MarkdownNode, MarkdownParseContext, MarkdownPlugin, TextView, markdown_ast},
         tooltip::Tooltip,
     },
-    div, img, list, point, prelude::*, px,
+    div, img, linear_color_stop, linear_gradient, list, point, prelude::*, px,
 };
 use gpui_motion_kit::core::{Motion, Target};
 
@@ -42,6 +42,8 @@ const GALLERY_GAP: f32 = 4.;
 const AVATAR: f32 = 40.;
 // The avatar column plus the gap to the content column: where replies and continuations line up.
 const CONTENT_INSET: f32 = AVATAR + 16.;
+// The unread bar's room at the feed's top: 8 above it, its 36, 8 below.
+const UNREAD_BAR_SPACE: f32 = 52.;
 // A reply preview's line, above the message it answers.
 const REPLY_HEIGHT: f32 = 22.;
 
@@ -54,7 +56,10 @@ impl Waffle {
             return main.child(empty_state("idle", Mood::Idle, "No channel open", "Pick a server on the left, then a channel to start reading.", cx));
         };
         let header = self.channel_header(&channel, window, cx);
-        let top = HEADER_HEIGHT;
+        let unread_bar = self.unread_bar(&channel.id, cx);
+        // The feed starts below the unread bar, so it never covers the first rows: opened on its first unread,
+        // the NEW line sits just under the bar.
+        let top = if unread_bar.is_some() { UNREAD_BAR_SPACE } else { 0. };
         let body = match self.feeds.get(&channel.id) {
             Some(Feed { loaded: true, messages, .. }) if messages.is_empty() && channel.kind == ChannelKind::Dm => match self.dm_start(&channel, false) {
                 // Nothing said yet: the header rests at the foot of the feed, where the first message will land.
@@ -66,7 +71,6 @@ impl Waffle {
             Some(Feed { error: Some(error), .. }) => empty_state("failed", Mood::Idle, "Couldn't load messages", error.clone(), cx),
             _ => skeleton(cx),
         };
-        let unread_bar = self.unread_bar(&channel.id, cx);
         let chat = div()
             .relative()
             .flex_1()
@@ -76,13 +80,14 @@ impl Waffle {
             .flex_col()
             .key_context("Chat")
             .on_action(cx.listener(Self::focus_search))
+            // The feed stops under the header, a hard edge.
+            .child(header)
             // The composer floats over the feed, which scrolls on under its glass.
             .child(div().relative().flex_1().min_h_0().child(body).children(unread_bar).child(self.render_composer(window, cx)));
-        // The feed runs up under the header's glass (ui::glass_header); the members column beside it runs to the
-        // window's top with a header of its own on the same line.
+        // The members column beside the feed runs to the window's top with a header of its own on the same line.
         let panel = self.panel_column_width().map(|w| self.part(crate::part::Column::Panel, gpui_kit::StyleRefinement::default().w(px(w)).h_full().flex_none(), cx));
         let drop_zone = self.drop_zone(&channel, cx);
-        main.child(div().flex_1().min_h_0().flex().child(chat.child(header).child(drop_zone)).children(panel))
+        main.child(div().flex_1().min_h_0().flex().child(chat.child(drop_zone)).children(panel))
     }
 
     // Where you are as breadcrumbs, the topic, then the channel's tools (design: navigation.html's chanbar).
@@ -182,7 +187,7 @@ impl Waffle {
             .children(topic)
             .child(div().ml_auto().flex_none().flex().items_center().gap(px(2.)).children(join).children(calls.into_iter().flatten()).children(threads).children(bell).child(pins).children(members).children(search))
             .child(self.caption_clearance(!self.panel_shown()));
-        ui::glass_header(palette::surface(Level::Page, cx)).child(bar)
+        ui::hard_edge(|| false, cx).child(bar)
     }
 
     // The header's search: one element that is a search button when closed and opens into the field, open
@@ -265,16 +270,20 @@ impl Waffle {
         let me = self.my_id();
         let fresh: Vec<&Message> = feed.messages.iter().filter(|m| crate::order(&m.id) > read && m.author.id != me).collect();
         let first = fresh.first()?;
-        let label = format!("{} new {} since {}", fresh.len(), if fresh.len() == 1 { "message" } else { "messages" }, clock(&first.timestamp));
+        // Not every unread is loaded while the oldest loaded one is still unread: Discord's count then reads "N+".
+        let estimated = feed.has_more && feed.messages.first().is_some_and(|m| crate::order(&m.id) > read);
+        let label = unread_label(fresh.len(), estimated, &first.timestamp);
         let tint = ui::mix(palette::surface(Level::Page, cx), palette::accent(), 0.16);
         let press = palette::accent().opacity(0.14);
         let button = move |id: &'static str| div().id(id).h(px(28.)).px(px(8.)).flex().items_center().gap(px(6.)).squircle(RADIUS_XS).cursor_pointer().hover(move |s| s.bg(press));
         let (first_id, channel_id) = (first.id.clone(), channel_id.to_owned());
-        let jump_channel = channel_id.clone();
         Some(
             div()
+                .id("unread-bar")
+                // Floats over the feed: the messages under it must not take its hover or clicks.
+                .occlude()
                 .absolute()
-                .top(px(HEADER_HEIGHT + 8.))
+                .top(px(8.))
                 .left(px(8.))
                 .right(px(8.))
                 .min_h(px(36.))
@@ -295,14 +304,12 @@ impl Waffle {
                         .ml(px(-8.))
                         .child(Icon::new(Glyph::ArrowUp).size(px(16.)))
                         .child(div().min_w_0().truncate().child(label))
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.jump_to(first_id.clone(), cx);
-                            this.mark_channel_read(&jump_channel, cx);
-                        })),
+                        // Discord's body only jumps to the first unread; reading it there is what marks it read.
+                        .on_click(cx.listener(move |this, _, _, cx| this.jump_to(first_id.clone(), cx))),
                 )
+                // Read now; the NEW line stays until the channel is left or you post, as Discord's does.
                 .child(button("unread-read").child("Mark as read").child(Icon::new(Glyph::Checkmark).size(px(16.))).on_click(cx.listener(move |this, _, _, cx| {
                     this.mark_channel_read(&channel_id, cx);
-                    this.unread_marker = None;
                     cx.notify();
                 })))
                 .into_any_element(),
@@ -912,7 +919,7 @@ fn message_row(message: &Message, starts_group: bool, ctx: &Rc<RowContext>, cx: 
         .children(content(message, ctx, cx))
         .children(media.map(|m| div().when(pending, |d| d.opacity(0.6)).child(m)))
         .children(message.stickers.iter().map(|s| div().when(pending, |d| d.opacity(0.6)).child(crate::stickers::in_chat(s, cx))))
-        .children(message.embeds.iter().filter(|_| ctx.embeds).enumerate().map(|(i, e)| embed_card(e, format!("embed-{}-{i}", message.id), ctx, cx)))
+        .children(message.embeds.iter().filter(|_| ctx.embeds).enumerate().map(|(i, e)| embed_card(e, message.reply_to.as_deref(), format!("embed-{}-{i}", message.id), ctx, cx)))
         .children(link_cards(message, ctx, cx))
         .children(message.thread.as_ref().map(|t| thread_card(t, ctx, cx)))
         .children(files(message, ctx, cx))
@@ -992,7 +999,7 @@ pub(crate) fn search_hit(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) 
         .child(message_head(message, ctx, cx))
         .children(content(message, ctx, cx))
         .children(media.map(|m| div().flex_none().child(m)))
-        .children(message.embeds.iter().enumerate().map(|(i, e)| embed_card(e, format!("hit-embed-{}-{i}", message.id), ctx, cx)))
+        .children(message.embeds.iter().enumerate().map(|(i, e)| embed_card(e, message.reply_to.as_deref(), format!("hit-embed-{}-{i}", message.id), ctx, cx)))
         .children(files(message, ctx, cx));
     div()
         .flex()
@@ -1595,7 +1602,7 @@ fn media_grid(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Option<A
     let rest = message.media.len() - tiles.len();
     let mut grid = div().mt(px(8.)).relative().flex_none().w(px(width)).h(px(height));
     for (i, tile) in tiles.iter().enumerate() {
-        let corners = gallery_corners(*tile, width, height);
+        let corners = gallery_corners(*tile, width, height, RADIUS_LG);
         let counts_rest = rest > 0 && i + 1 == tiles.len();
         grid = grid.child(
             div()
@@ -1711,10 +1718,10 @@ fn gallery_layout(count: usize) -> (f32, Vec<Tile>) {
 }
 
 // The gallery's outer corners take the card radius; inner ones a hairline 2px.
-fn gallery_corners(tile: Tile, width: f32, height: f32) -> Corners<Pixels> {
+fn gallery_corners(tile: Tile, width: f32, height: f32, outer: f32) -> Corners<Pixels> {
     let at = |a: f32, b: f32| (a - b).abs() < 0.5;
     let (left, top, right, bottom) = (at(tile.x, 0.), at(tile.y, 0.), at(tile.x + tile.w, width), at(tile.y + tile.h, height));
-    let radius = |outer: bool| px(if outer { RADIUS_LG } else { 2. });
+    let radius = |edge: bool| px(if edge { outer } else { 2. });
     Corners { top_left: radius(top && left), top_right: radius(top && right), bottom_left: radius(bottom && left), bottom_right: radius(bottom && right) }
 }
 
@@ -1731,62 +1738,127 @@ fn link_cards(message: &Message, ctx: &Rc<RowContext>, cx: &mut App) -> Vec<AnyE
     crate::link_preview::cards(&message.id, &message.content, &cards, cx)
 }
 
-fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElement {
-    let (strong, muted, faint) = (palette::strong(cx), palette::muted(cx), palette::faint(cx));
-    let link_ink = palette::accent_ink(cx);
-    let large = embed.thumbnail.as_ref().filter(|t| t.width >= 400.);
-    let small = embed.thumbnail.as_ref().filter(|t| t.width < 400.);
+// A rich embed (design/embeds.html), Discord's embed object field for field. Its colour is Discord's bar
+// down the left edge, so a bot's colours read the way its users know them. Text sits beside an 80px
+// thumbnail; pictures, the footer and the time run the card's width under it.
+fn embed_card(embed: &Embed, poll_message: Option<&str>, key: String, ctx: &RowContext, cx: &App) -> AnyElement {
+    if let Some(poll) = &embed.poll {
+        return poll_result(poll, poll_message, &key, ctx, cx);
+    }
+    let (strong, faint) = (palette::strong(cx), palette::faint(cx));
+    let fill = palette::surface(Level::Sidebar, cx);
+    let bar = embed.color.map_or(palette::line_strong(cx), |c| gpui_kit::rgb(c).into());
+    let width = EMBED_WIDTH.min(ctx.column);
+    let inner = width - 2. * EMBED_PAD.1 - EMBED_BAR - 2.;
     let md = |part: &str, text: &str| markdown(SharedString::from(format!("{key}-{part}")), readable(text, ctx), ctx);
-    let site = embed.provider.clone().map(|provider| {
-        let mark: Hsla = embed.color.filter(|c| *c != 0).map(|c| gpui_kit::rgb(c).into()).unwrap_or(palette::info_ink(cx));
-        div().flex().items_center().gap(px(6.)).min_w_0().text_size(px(12.)).font_weight(FontWeight::NORMAL).text_color(faint).child(div().size(px(14.)).flex_none().squircle(4.).bg(mark)).child(div().min_w_0().truncate().child(provider))
+    let open = |url: String| {
+        let this = ctx.this.clone();
+        move |_: &gpui_kit::ClickEvent, window: &mut Window, cx: &mut App| {
+            cx.stop_propagation();
+            this.update(cx, |this, cx| this.open_link(&url, window, cx)).ok();
+        }
+    };
+
+    let provider = embed.provider.clone().map(|name| {
+        div()
+            .id(SharedString::from(format!("{key}-provider")))
+            .text_size(px(12.))
+            .font_weight(FontWeight::MEDIUM)
+            .text_color(faint)
+            .when_some(embed.provider_url.clone(), |d, url| d.cursor_pointer().hover(|s| s.underline()).on_click(open(url)))
+            .child(name)
     });
     let author = embed.author.clone().map(|name| {
-        let (url, this) = (embed.author_url.clone(), ctx.this.clone());
         div()
             .id(SharedString::from(format!("{key}-author")))
             .flex()
             .items_center()
-            .gap(px(6.))
+            .gap(px(8.))
+            .min_w_0()
             .text_size(px(14.))
-            .font_weight(FontWeight::MEDIUM)
+            .font_weight(FontWeight::SEMIBOLD)
             .text_color(strong)
-            .children(embed.author_icon.clone().map(|icon| ui::avatar(icon, 20.)))
-            .child(div().when(url.is_some(), |d| d.cursor_pointer().hover(|s| s.underline())).child(name))
-            .when_some(url, |d, url| d.on_click(move |_, window, cx| { cx.stop_propagation(); this.update(cx, |this, cx| this.open_link(&url, window, cx)).ok(); }))
+            .children(embed.author_icon.clone().map(|icon| ui::avatar(icon, 24.)))
+            .child(div().min_w_0().truncate().when(embed.author_url.is_some(), |d| d.cursor_pointer().hover(|s| s.underline())).child(name))
+            .when_some(embed.author_url.clone(), |d, url| d.on_click(open(url)))
     });
-    let link = embed.url.clone();
     let title = embed.title.clone().map(|title| {
-        let this = ctx.this.clone();
         div()
             .id(SharedString::from(format!("{key}-title")))
-            .text_size(px(14.))
-            .font_weight(FontWeight::MEDIUM)
-            .text_color(if link.is_some() { link_ink } else { strong })
-            .when_some(link.clone(), |t, url| t.cursor_pointer().hover(|s| s.underline()).on_click(move |_, window, cx| { cx.stop_propagation(); this.update(cx, |this, cx| this.open_link(&url, window, cx)).ok(); }))
+            .text_size(px(16.))
+            .line_height(gpui_kit::relative(1.2))
+            .font_weight(FontWeight::BOLD)
+            .text_color(if embed.url.is_some() { palette::accent_ink(cx) } else { strong })
+            .when_some(embed.url.clone(), |t, url| t.cursor_pointer().hover(|s| s.underline()).on_click(open(url)))
             .child(title)
     });
+    let description = embed.description.as_deref().map(|text| {
+        let more = format!("{key}-more");
+        let long = long_description(text);
+        let open_full = !long || ctx.revealed.borrow().contains(&more);
+        let (reveal, refresh) = (ctx.revealed.clone(), ctx.this.clone());
+        div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .child(
+                div()
+                    .relative()
+                    .w_full()
+                    .text_color(palette::text(cx))
+                    .when(!open_full, |d| d.max_h(px(EMBED_CLIP)).overflow_hidden())
+                    .child(md("description", text))
+                    // The fade says there is more; it ends in the card's own fill.
+                    .when(!open_full, |d| d.child(div().absolute().left_0().right_0().bottom_0().h(px(72.)).bg(linear_gradient(180., linear_color_stop(fill.opacity(0.), 0.), linear_color_stop(fill, 1.))))),
+            )
+            .when(long, |d| {
+                d.child(
+                    div()
+                        .id(SharedString::from(more.clone()))
+                        .mt(px(2.))
+                        .ml(px(-6.))
+                        .h(px(26.))
+                        .px(px(6.))
+                        .flex()
+                        .items_center()
+                        .squircle(RADIUS_XS)
+                        .text_size(px(12.))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(palette::accent_ink(cx))
+                        .cursor_pointer()
+                        .hover(|s| s.bg(palette::hover(cx)))
+                        .child(if open_full { "Show less" } else { "Show more" })
+                        .on_click(move |_, _, cx| {
+                            cx.stop_propagation();
+                            let mut revealed = reveal.borrow_mut();
+                            if !revealed.remove(&more) {
+                                revealed.insert(more.clone());
+                            }
+                            drop(revealed);
+                            refresh.update(cx, |_, cx| cx.notify()).ok();
+                        }),
+                )
+            })
+    });
     let fields = (!embed.fields.is_empty()).then(|| {
-        div().flex().flex_wrap().gap(px(8.)).children(embed.fields.iter().enumerate().map(|(i, (name, value, inline))| {
-            div()
-                .when(*inline, |f| f.min_w(px(150.)))
-                .when(!inline, |f| f.w_full())
-                .flex()
-                .flex_col()
-                .gap(px(2.))
-                .child(div().font_weight(FontWeight::MEDIUM).text_color(strong).child(name.clone()))
-                .child(div().text_color(muted).child(md(&format!("field-{i}"), value)))
+        div().mt(px(4.)).flex().flex_col().gap(px(10.)).children(field_rows(&embed.fields, embed.thumbnail.is_some()).into_iter().map(|row| {
+            div().flex().gap(px(16.)).children(row.into_iter().map(|i| {
+                let (name, value, _) = &embed.fields[i];
+                div()
+                    .flex_1()
+                    .flex_basis(px(0.))
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .gap(px(2.))
+                    .child(div().text_size(px(12.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::muted(cx)).child(name.clone()))
+                    .child(div().text_color(strong).child(md(&format!("field-{i}"), value)))
+            }))
         }))
     });
-    let footer_text: Vec<String> = embed.footer.clone().into_iter().chain(embed.timestamp.as_deref().map(format_stamp)).collect();
-    let footer = (!footer_text.is_empty()).then(|| {
-        div().flex().items_center().gap(px(6.)).text_size(px(12.)).text_color(faint).children(embed.footer_icon.clone().map(|icon| ui::avatar(icon, 20.))).child(footer_text.join(" · "))
-    });
-    let image = large.map(|m| {
-        // The card's inner width: the column less its padding and border.
-        let w = m.width.min(COLUMN - 30.);
-        let h = w * m.height / m.width;
-        img(crate::discord::sized_image(&m.url, w, h, (m.width, m.height))).w(px(w)).h(px(h)).mt(px(4.)).squircle(RADIUS_SM)
+    let thumbnail = embed.thumbnail.as_ref().map(|m| {
+        let url = crate::discord::sized_image(&m.url, EMBED_THUMB, EMBED_THUMB, (m.width, m.height));
+        img(url).size(px(EMBED_THUMB)).flex_none().squircle(RADIUS_SM).object_fit(gpui_kit::ObjectFit::Cover)
     });
     let text = div()
         .flex_1()
@@ -1794,29 +1866,247 @@ fn embed_card(embed: &Embed, key: String, ctx: &RowContext, cx: &App) -> AnyElem
         .flex()
         .flex_col()
         .gap(px(6.))
-        .text_size(px(14.))
-        .children(site)
+        .children(provider)
         .children(author)
         .children(title)
-        .children(embed.description.as_deref().map(|d| div().text_color(muted).child(md("description", d))))
-        .children(fields)
-        .children(image)
-        .children(footer);
+        .children(description)
+        .children(fields);
+    let has_text = embed.provider.is_some() || embed.author.is_some() || embed.title.is_some() || embed.description.is_some() || !embed.fields.is_empty();
+    let top = (has_text || thumbnail.is_some()).then(|| div().flex().items_start().gap(px(16.)).child(text).children(thumbnail));
+    let media = embed_media(embed, &key, inner, ctx, cx);
+    let stamp = embed.timestamp.as_deref().map(|t| (format_stamp(t), day(t).map(|d| format!("{}, {}", d.format("%A, %B %-d, %Y"), clock(t))).unwrap_or_default()));
+    let footer = (embed.footer.is_some() || stamp.is_some()).then(|| {
+        let line = embed.footer.clone().into_iter().chain(stamp.as_ref().map(|(short, _)| short.clone())).collect::<Vec<_>>().join(" · ");
+        div()
+            .id(SharedString::from(format!("{key}-footer")))
+            .flex()
+            .items_center()
+            .gap(px(8.))
+            .min_w_0()
+            .text_size(px(12.))
+            .text_color(faint)
+            .children(embed.footer_icon.clone().map(|icon| ui::avatar(icon, 20.)))
+            .child(div().min_w_0().child(line))
+            .when_some(stamp.map(|(_, full)| full), |d, full| d.tooltip(move |window, cx| Tooltip::new(full.clone()).build(window, cx)))
+    });
+    let sections = [top.map(IntoElement::into_any_element), media, footer.map(IntoElement::into_any_element)];
+    let full = !embed.images.is_empty() || !embed.fields.is_empty();
+    // The bar is the card's own left 4px, following its squircle like a CSS inset shadow: a strip as wide as
+    // both left corners, cut to the card's corner shape, painted bar-coloured to 4px and clear past it.
+    let cut = EMBED_BAR / EMBED_BAR_STRIP;
+    let strip = ui::edge(div(), Corners { top_left: px(RADIUS_LG - 1.), bottom_left: px(RADIUS_LG - 1.), top_right: px(0.), bottom_right: px(0.) })
+        .absolute()
+        .left_0()
+        .top_0()
+        .bottom_0()
+        .w(px(EMBED_BAR_STRIP))
+        .bg(linear_gradient(90., linear_color_stop(bar, cut), linear_color_stop(bar.opacity(0.), cut + 0.02)));
+    div()
+        .relative()
+        .mt(px(8.))
+        .when(full, |d| d.w(px(width)))
+        .when(!full, |d| d.self_start().min_w(px(EMBED_MIN.min(width))))
+        .max_w(px(width))
+        .py(px(EMBED_PAD.0))
+        .pl(px(EMBED_PAD.1 + EMBED_BAR))
+        .pr(px(EMBED_PAD.1))
+        .flex()
+        .flex_col()
+        .gap(px(12.))
+        .squircle(RADIUS_LG)
+        .bg(fill)
+        .border_1()
+        .border_color(palette::line(cx))
+        .text_size(px(14.))
+        .line_height(gpui_kit::relative(1.45))
+        .child(strip)
+        .children(sections.into_iter().flatten())
+        .into_any_element()
+}
+
+const EMBED_WIDTH: f32 = 520.;
+const EMBED_MIN: f32 = 240.;
+// Vertical, horizontal.
+const EMBED_PAD: (f32, f32) = (14., 16.);
+const EMBED_BAR: f32 = 4.;
+// Wide enough to hold both left corners, so the bar's shape is the card's.
+const EMBED_BAR_STRIP: f32 = 2. * RADIUS_LG;
+const EMBED_THUMB: f32 = 80.;
+const EMBED_MEDIA_MAX_H: f32 = 360.;
+// About twelve lines of 14px text: a longer description folds under a fade.
+const EMBED_CLIP: f32 = 252.;
+
+// Twelve lines at roughly seventy characters each, the card's measure; gpui can't measure the text first.
+fn long_description(text: &str) -> bool {
+    text.lines().map(|line| line.chars().count().div_ceil(70).max(1)).sum::<usize>() > 12
+}
+
+// Indexes of the fields on each row: consecutive inline fields share one, three across, two when a
+// thumbnail takes the right edge; a field that isn't inline takes a row of its own.
+fn field_rows(fields: &[(String, String, bool)], thumbnail: bool) -> Vec<Vec<usize>> {
+    let per = if thumbnail { 2 } else { 3 };
+    let mut rows: Vec<Vec<usize>> = Vec::new();
+    let mut run = Vec::new();
+    for (i, (_, _, inline)) in fields.iter().enumerate() {
+        if !inline {
+            rows.extend((!run.is_empty()).then(|| std::mem::take(&mut run)));
+            rows.push(vec![i]);
+            continue;
+        }
+        run.push(i);
+        if run.len() == per {
+            rows.push(std::mem::take(&mut run));
+        }
+    }
+    rows.extend((!run.is_empty()).then_some(run));
+    rows
+}
+
+// The embed's pictures at the card's inner width: one at its own shape up to 360 tall, or a gallery of
+// up to four. A video's still carries the play button and opens the video; a sensitive one stays blurred.
+fn embed_media(embed: &Embed, key: &str, inner: f32, ctx: &RowContext, cx: &App) -> Option<AnyElement> {
+    let first = embed.images.first()?;
+    let tile = |i: usize, (w, h): (f32, f32), corners: Corners<Pixels>| {
+        let m = &embed.images[i];
+        let (this, url) = (ctx.this.clone(), if embed.video { embed.url.clone().unwrap_or_else(|| m.url.clone()) } else { m.url.clone() });
+        let video = embed.video;
+        ui::edge(div(), corners)
+            .id(SharedString::from(format!("{key}-media-{i}")))
+            .relative()
+            .size_full()
+            .overflow_hidden()
+            .bg(palette::selected(cx))
+            .cursor_pointer()
+            .hover(|s| s.opacity(0.92))
+            .child(ui::edge(img(crate::discord::sized_image(&m.url, w, h, (m.width, m.height))), corners).size_full().object_fit(gpui_kit::ObjectFit::Cover))
+            .when(video, |d| {
+                d.child(div().absolute().inset_0().flex().items_center().justify_center().child(
+                    div().size(px(56.)).rounded_full().flex().items_center().justify_center().bg(on_media(0.62)).text_color(gpui_kit::white()).child(Icon::new(Glyph::Play).size(px(26.))),
+                ))
+            })
+            .on_click(move |_, window, cx| {
+                cx.stop_propagation();
+                this.update(cx, |this, cx| if video { this.open_link(&url, window, cx) } else { this.open_viewer(&url, window, cx) }).ok();
+            })
+    };
+    let (height, body) = if embed.images.len() == 1 {
+        let h = (inner * first.height / first.width.max(1.)).min(EMBED_MEDIA_MAX_H);
+        (h, div().size_full().child(tile(0, (inner, h), ui::all(RADIUS_SM))))
+    } else {
+        let k = inner / COLUMN;
+        let (height, tiles) = gallery_layout(embed.images.len().min(4));
+        let height = height * k;
+        let mut grid = div().relative().size_full();
+        for (i, t) in tiles.into_iter().enumerate() {
+            let t = Tile { x: t.x * k, y: t.y * k, w: t.w * k, h: t.h * k };
+            grid = grid.child(div().absolute().left(px(t.x)).top(px(t.y)).w(px(t.w)).h(px(t.h)).child(tile(i, (t.w, t.h), gallery_corners(t, inner, height, RADIUS_SM))));
+        }
+        (height, grid)
+    };
+    let veil = format!("{key}-veil");
+    let veiled = embed.sensitive && !ctx.revealed.borrow().contains(&veil);
+    let (reveal, refresh) = (ctx.revealed.clone(), ctx.this.clone());
+    Some(
+        div()
+            .relative()
+            .w(px(inner))
+            .h(px(height))
+            .flex_none()
+            .child(body)
+            .when(veiled, |d| {
+                d.child(
+                    div()
+                        .id(SharedString::from(veil.clone()))
+                        .absolute()
+                        .inset_0()
+                        .squircle(RADIUS_SM)
+                        .bg(on_media(0.35))
+                        .backdrop_blur(px(28.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .cursor_pointer()
+                        .on_click(move |_, _, cx| {
+                            cx.stop_propagation();
+                            reveal.borrow_mut().insert(veil.clone());
+                            refresh.update(cx, |_, cx| cx.notify()).ok();
+                        })
+                        .child(
+                            div()
+                                .h(px(32.))
+                                .px(px(12.))
+                                .flex()
+                                .items_center()
+                                .gap(px(6.))
+                                .squircle(RADIUS_MD)
+                                .bg(on_media(0.72))
+                                .text_color(gpui_kit::white())
+                                .text_size(px(14.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child(Icon::new(Glyph::EyeSlash).size(px(16.)))
+                                .child("Sensitive content · Show"),
+                        ),
+                )
+            })
+            .into_any_element(),
+    )
+}
+
+// A closed poll's result: the winner, its share, and the way back to the poll.
+fn poll_result(poll: &crate::discord::PollResult, poll_message: Option<&str>, key: &str, ctx: &RowContext, cx: &App) -> AnyElement {
+    let share = (poll.winner_votes * 100).checked_div(poll.total_votes).unwrap_or(0);
+    let votes = if poll.winner_votes == 1 { "vote" } else { "votes" };
+    let (emoji, headline, line) = match &poll.winner {
+        Some((text, emoji)) => (emoji.clone(), text.clone(), format!("Won with {} {votes} · {share}%", poll.winner_votes)),
+        None => (None, "No winner".to_owned(), (if poll.total_votes == 0 { "Nobody voted" } else { "Tied at the top" }).to_owned()),
+    };
+    let mark = match emoji {
+        Some(e) => match e.url() {
+            Some(url) => img(url).size(px(28.)).into_any_element(),
+            None => div().text_size(px(28.)).line_height(px(28.)).child(e.name).into_any_element(),
+        },
+        None => div().text_size(px(28.)).line_height(px(28.)).child("📊").into_any_element(),
+    };
+    let (this, target) = (ctx.this.clone(), poll_message.map(str::to_owned));
     div()
         .mt(px(8.))
         .w_full()
-        .max_w(px(COLUMN))
+        .max_w(px(EMBED_WIDTH.min(ctx.column)))
         .py(px(12.))
-        .px(px(14.))
+        .pl(px(14.))
+        .pr(px(12.))
         .flex()
-        .items_start()
-        .gap(px(14.))
+        .items_center()
+        .gap(px(12.))
         .squircle(RADIUS_LG)
         .bg(palette::surface(Level::Sidebar, cx))
         .border_1()
         .border_color(palette::line(cx))
-        .child(text)
-        .children(small.map(|m| img(m.url.clone()).size(px(80.)).flex_none().squircle(RADIUS_SM).object_fit(gpui_kit::ObjectFit::Cover)))
+        .child(mark)
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .flex_col()
+                .child(div().truncate().text_size(px(16.)).font_weight(FontWeight::SEMIBOLD).text_color(palette::strong(cx)).child(headline))
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(4.))
+                        .text_size(px(12.))
+                        .text_color(palette::muted(cx))
+                        .when(poll.winner.is_some(), |d| d.child(Icon::new(Glyph::CheckCircle).size(px(14.)).text_color(palette::positive_ink(cx))))
+                        .child(line),
+                ),
+        )
+        .when_some(target, |d, id| {
+            d.child(ui::button(SharedString::from(format!("{key}-view-poll")), ui::Tone::Secondary, cx).small().child("View poll").on_click(move |_, _, cx| {
+                cx.stop_propagation();
+                this.update(cx, |this, cx| this.jump_to(id.clone(), cx)).ok();
+            }))
+        })
         .into_any_element()
 }
 
@@ -2053,7 +2343,8 @@ fn actions(message: &Message, mine: bool, ctx: &Rc<RowContext>, cx: &App) -> Any
         .gap(px(2.))
         .squircle(RADIUS_MD)
         .bg(palette::surface(Level::Overlay, cx))
-        .shadow(ui::shadow_pop(cx));
+        .shadow(ui::shadow_pop(cx))
+        .child(crate::gif::above_gifs());
     if shifted || message.state == SendState::Failed {
         if shifted {
             bar = bar.child(ui::kbd("Shift", cx).ml(px(6.)).mr(px(4.)));
@@ -2342,17 +2633,20 @@ fn skeleton(cx: &App) -> AnyElement {
 }
 
 // One accent line where unread starts, ending in a New badge.
+// Discord's unread divider (design/unread-line.html): a red rule into a NEW tag whose point runs back along
+// it. The tag is one shape (`icons::NEW_TAG`), NEW centred on its body, clear of the point.
 fn unread_line() -> AnyElement {
-    div()
-        .w_full()
-        .px(px(16.))
-        .my(px(8.))
-        .flex()
-        .items_center()
-        .gap(px(8.))
-        .child(div().flex_1().h(px(1.)).bg(palette::alert()))
-        .child(ui::badge(palette::alert(), gpui_kit::white()).h(px(18.)).px(px(6.)).child("New"))
-        .into_any_element()
+    let alert = palette::alert();
+    let tag = div()
+        .relative()
+        .flex_none()
+        .w(px(40.))
+        .h(px(16.))
+        // The rule runs on under the tag to its body, so it meets the sharp tip at full thickness.
+        .child(div().absolute().left(px(-1.)).w(px(9.)).top(px(7.5)).h(px(1.)).bg(alert))
+        .child(gpui_kit::svg().path(crate::icons::NEW_TAG).absolute().inset_0().size_full().text_color(alert))
+        .child(div().absolute().top_0().bottom_0().left(px(8.)).right_0().flex().items_center().justify_center().text_color(gpui_kit::white()).text_size(px(11.)).font_weight(FontWeight::BOLD).child("NEW"));
+    div().w_full().px(px(16.)).my(px(8.)).flex().items_center().child(div().flex_1().h(px(1.)).bg(alert)).child(tag).into_any_element()
 }
 
 // Between dates, inside the feed's gutters, never edge to edge.
@@ -2424,6 +2718,21 @@ pub(crate) fn format_stamp(timestamp: &str) -> String {
 }
 
 // "9:41 PM", or "21:41".
+// Discord's bar text: "21 new messages since 4:08 PM", "50+ new messages since…" when not all are loaded,
+// and " on November 3, 2026" after the time when the first unread is from another day.
+fn unread_label(count: usize, estimated: bool, since: &str) -> String {
+    let messages = match (estimated, count) {
+        (true, n) => format!("{n}+ new messages"),
+        (false, 1) => "1 new message".to_owned(),
+        (false, n) => format!("{n} new messages"),
+    };
+    let today = chrono::Local::now().date_naive();
+    match day(since).filter(|d| *d != today) {
+        Some(d) => format!("{messages} since {} on {}", clock(since), d.format("%B %-d, %Y")),
+        None => format!("{messages} since {}", clock(since)),
+    }
+}
+
 fn clock(timestamp: &str) -> String {
     local(timestamp).map(|t| t.format(time_format(false)).to_string()).unwrap_or_default()
 }
@@ -2463,6 +2772,17 @@ fn crumb(id: &'static str, cx: &App) -> Stateful<Div> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unread_bar_says_how_many_since_when() {
+        let now = chrono::Utc::now().to_rfc3339();
+        assert!(super::unread_label(1, false, &now).starts_with("1 new message since "));
+        assert!(super::unread_label(21, false, &now).starts_with("21 new messages since "));
+        assert!(super::unread_label(50, true, &now).starts_with("50+ new messages since "));
+        assert!(!super::unread_label(2, false, &now).contains(" on "), "today needs no date");
+        let lastweek = (chrono::Utc::now() - chrono::Duration::days(7)).to_rfc3339();
+        assert!(super::unread_label(2, false, &lastweek).contains(" on "), "another day adds it");
+    }
+
     #[test]
     fn name_styles_colour_per_letter_and_stay_readable() {
         use crate::discord::{NameEffect, NameStyle};
@@ -2533,6 +2853,23 @@ mod tests {
     }
 
     #[test]
+    fn embed_fields_share_rows_three_across_or_two_beside_a_thumbnail() {
+        let f = |inline: bool| (String::new(), String::new(), inline);
+        let fields = [f(true), f(true), f(true), f(true), f(false), f(true)];
+        assert_eq!(field_rows(&fields, false), vec![vec![0, 1, 2], vec![3], vec![4], vec![5]]);
+        assert_eq!(field_rows(&fields, true), vec![vec![0, 1], vec![2, 3], vec![4], vec![5]]);
+        assert!(field_rows(&[], false).is_empty());
+    }
+
+    #[test]
+    fn long_embed_descriptions_fold() {
+        assert!(!long_description("short"));
+        assert!(!long_description(&"line\n".repeat(12)));
+        assert!(long_description(&"line\n".repeat(13)));
+        assert!(long_description(&"x".repeat(70 * 12 + 1)));
+    }
+
+    #[test]
     fn spoilers_cover_until_revealed() {
         assert_eq!(hide_spoilers("a ||bc|| d", false), "a `██` d");
         assert_eq!(hide_spoilers("a ||bc|| d", true), "a bc d");
@@ -2567,7 +2904,7 @@ mod tests {
             // Tiles and their gaps cover the column: nothing overlaps, nothing is left empty but the gaps.
             let area: f32 = tiles.iter().map(|t| t.w * t.h).sum();
             assert!(area < COLUMN * height && area > (COLUMN - 2. * GALLERY_GAP) * (height - GALLERY_GAP) * 0.95, "{count}: area {area}");
-            let round = tiles.iter().map(|t| gallery_corners(*t, COLUMN, height)).flat_map(|c| [c.top_left, c.top_right, c.bottom_left, c.bottom_right]).filter(|r| *r == px(RADIUS_LG)).count();
+            let round = tiles.iter().map(|t| gallery_corners(*t, COLUMN, height, RADIUS_LG)).flat_map(|c| [c.top_left, c.top_right, c.bottom_left, c.bottom_right]).filter(|r| *r == px(RADIUS_LG)).count();
             assert_eq!(round, 4, "{count} items");
         }
     }

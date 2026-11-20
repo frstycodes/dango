@@ -127,6 +127,7 @@ impl Waffle {
             .when(!is_me, |c| c.child(message_field(&card.user, ink, cx)));
         let card_el = outer
             .id("profile-card")
+            .occlude()
             .absolute()
             .left(px(x))
             .top(px(y))
@@ -219,14 +220,14 @@ impl Waffle {
             .flex()
             .flex_col()
             .gap(px(2.))
-            .text_size(px(13.))
-            .child(div().truncate().text_size(px(15.)).font_weight(FontWeight::SEMIBOLD).text_color(ink.strong).child(rich.name.clone()))
+            .text_size(px(14.))
+            .child(div().truncate().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(ink.strong).child(rich.name.clone()))
             .children(rich.details.clone().map(line))
-            .children(state.map(|s| div().flex().items_center().gap_1().min_w_0().text_color(ink.text).when(rich.party.is_some(), |d| d.child(Icon::new(Glyph::Users).size(px(13.)).flex_none())).child(div().truncate().child(s))))
+            .children(state.map(|s| div().flex().items_center().gap_1().min_w_0().text_color(ink.text).when(rich.party.is_some(), |d| d.child(Icon::new(Glyph::Users).size(px(14.)).flex_none())).child(div().truncate().child(s))))
             .children(elapsed.map(|time| {
                 // Status green is ~2:1 on a light card; a deeper green keeps it readable there.
                 let green = if luminance(ink.strong) < 0.5 { rgb(0x1E7A46).into() } else { palette::status(crate::discord::Status::Online) };
-                div().flex().items_center().gap_1().text_color(green).child(Icon::new(Glyph::Game).size(px(13.))).child(div().font_family(mono).child(time))
+                div().flex().items_center().gap_1().text_color(green).child(Icon::new(Glyph::Game).size(px(14.))).child(div().font_family(mono).child(time))
             }));
         div()
             .p_3()
@@ -235,7 +236,7 @@ impl Waffle {
             .gap(px(10.))
             .squircle(RADIUS_MD)
             .bg(ink.tile)
-            .child(div().flex().items_center().justify_between().child(div().text_size(px(13.)).font_weight(FontWeight::MEDIUM).text_color(ink.strong).child(activity_heading(rich.kind))).child(more))
+            .child(div().flex().items_center().justify_between().child(div().text_size(px(14.)).font_weight(FontWeight::MEDIUM).text_color(ink.strong).child(activity_heading(rich.kind))).child(more))
             .child(div().flex().items_center().gap_3().min_w_0().child(art).child(facts))
             .when(rich.joinable, |c| c.child(ask_to_join(ink)))
     }
@@ -264,7 +265,7 @@ impl Waffle {
                 .gap_1()
                 .squircle(RADIUS_XS)
                 .cursor_pointer()
-                .text_size(px(13.))
+                .text_size(px(14.))
                 .text_color(ink.muted)
                 .hover(move |s| s.bg(ink.tile).text_color(ink.strong))
                 .child(Icon::new(Glyph::Plus).size(px(14.)))
@@ -377,7 +378,7 @@ pub(crate) fn name_block(user: &User, profile: &Profile, ink: Ink) -> Div {
             .squircle(RADIUS_XS)
             .bg(ink.tile)
             .text_color(ink.strong)
-            .text_size(px(13.))
+            .text_size(px(14.))
             .font_weight(FontWeight::MEDIUM)
             .children(tag.badge.clone().map(|badge| img(badge).size(px(14.))))
             .child(tag.text.clone())
@@ -410,7 +411,7 @@ fn badges(badges: &[Badge], ink: Ink) -> Option<Div> {
         .squircle(RADIUS_SM)
         .bg(ink.tile)
         .children(shown)
-        .when(more > 0, |p| p.child(div().pl(px(2.)).text_size(px(13.)).text_color(ink.text).child(format!("+{more}"))));
+        .when(more > 0, |p| p.child(div().pl(px(2.)).text_size(px(14.)).text_color(ink.text).child(format!("+{more}"))));
     Some(div().flex().child(pill))
 }
 
@@ -424,7 +425,7 @@ fn mutuals(profile: &Profile, ink: Ink) -> Option<Div> {
         return None;
     }
     let faces = profile.mutual_friends.iter().take(3).map(|u| u.avatar.clone());
-    Some(div().flex().items_center().gap_2().text_size(px(13.)).text_color(ink.muted).child(ui::avatar_stack(faces, 20., ink.top)).child(div().truncate().child(parts.join(" • "))))
+    Some(div().flex().items_center().gap_2().text_size(px(14.)).text_color(ink.muted).child(ui::avatar_stack(faces, 20., ink.top)).child(div().truncate().child(parts.join(" • "))))
 }
 
 // Discord markdown with custom emoji as images, as a message renders it; Discord gives the bio no heading.
@@ -441,7 +442,7 @@ fn game_collection(games: &[String], ink: Ink) -> Option<Div> {
     let tile = |el: Div| el.size(px(32.)).flex_none().squircle(RADIUS_XS);
     let icons = games.iter().take(MAX_GAMES).map(|url| ui::media(url.clone(), ui::all(RADIUS_XS)).size(px(32.)).flex_none().object_fit(gpui_kit::ObjectFit::Cover));
     let overflow = (more > 0).then(|| {
-        tile(div()).bg(gpui_kit::black().opacity(0.6)).flex().items_center().justify_center().text_size(px(13.)).text_color(gpui_kit::white()).child(format!("+{more}"))
+        tile(div()).bg(gpui_kit::black().opacity(0.6)).flex().items_center().justify_center().text_size(px(14.)).text_color(gpui_kit::white()).child(format!("+{more}"))
     });
     Some(
         div()
@@ -501,7 +502,7 @@ fn message_field(user: &User, ink: Ink, cx: &mut Context<Waffle>) -> Div {
         .bg(ink.tile)
         .cursor_text()
         .child(div().truncate().text_size(px(14.)).text_color(ink.muted).child(format!("Message @{}", user.name)))
-        .child(Icon::new(Glyph::Emoji).size(px(20.)).flex_none().text_color(ink.muted))
+        .child(Icon::new(Glyph::Emoji).size(px(16.)).flex_none().text_color(ink.muted))
         .on_click(cx.listener(move |this, _, window, cx| this.message_user(dm_user.clone(), window, cx)));
     div().flex_none().px_4().pt_1().pb_4().child(field)
 }

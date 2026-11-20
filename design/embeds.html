@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Waffle Rich Embeds</title>
+<meta name="description" content="Discord's embed object, every field and type, drawn in Waffle's style.">
+<link rel="icon" href="/assets/brand/icons/paper.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..800&family=Onest:wght@400..800&family=Figtree:wght@400..800&family=Rubik:wght@400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="css/primitives.css">
+<link rel="stylesheet" href="css/navigation.css">
+<link rel="stylesheet" href="css/messages.css">
+<link rel="stylesheet" href="css/voice.css">
+<link rel="stylesheet" href="css/overlays.css">
+<link rel="stylesheet" href="css/settings.css">
+<link rel="stylesheet" href="css/menus.css">
+<link rel="stylesheet" href="css/panels.css">
+<link rel="stylesheet" href="css/media.css">
+<link rel="stylesheet" href="css/auth.css">
+<link rel="stylesheet" href="css/profile.css">
+<link rel="stylesheet" href="css/community.css">
+<link rel="stylesheet" href="css/server-settings.css">
+<link rel="stylesheet" href="css/flows.css">
+<script>try{const p=JSON.parse(localStorage.getItem("waffle-ds")||"{}"),r=document.documentElement;if(p.theme)r.dataset.theme=p.theme;if(p.font)r.style.setProperty("--font-ui",`"${p.font}", system-ui, sans-serif`)}catch{}</script>
+</head>
+<body>
+<header id="top"></header>
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Design system"></nav>
+<main>
+<section id="first">
+  <h1>Rich embeds</h1>
+  <p class="lede">The cards bots and webhooks post. Every field of Discord's embed object renders, in the same order and under the same limits, so any bot looks complete. The card is Waffle's, with Discord's colour bar down its left edge: field names read as labels, and long text folds instead of running on.</p>
+</section>
+
+<section id="compare">
+  <h2>Discord and Waffle</h2>
+  <p class="lede">The same JSON drawn both ways. Discord's side uses its own colours, bar and type; switch the theme above to compare light too.</p>
+  <div class="vs" role="group" aria-label="Voice log">
+    <div class="dc-stage"><span class="vs-label">Discord · Voice log</span><div data-embeds="voiceJoin"></div></div>
+    <div><span class="vs-label">Waffle · Voice log</span><div data-embeds="voiceJoin"></div></div>
+  </div>
+  <div class="vs" role="group" aria-label="Moderation, with inline fields">
+    <div class="dc-stage"><span class="vs-label">Discord · Moderation, with inline fields</span><div data-embeds="ban"></div></div>
+    <div><span class="vs-label">Waffle · Moderation, with inline fields</span><div data-embeds="ban"></div></div>
+  </div>
+  <div class="vs" role="group" aria-label="Fields beside a thumbnail">
+    <div class="dc-stage"><span class="vs-label">Discord · Fields beside a thumbnail</span><div data-embeds="stats"></div></div>
+    <div><span class="vs-label">Waffle · Fields beside a thumbnail</span><div data-embeds="stats"></div></div>
+  </div>
+  <div class="vs" role="group" aria-label="Every field">
+    <div class="dc-stage"><span class="vs-label">Discord · Every field</span><div data-embeds="kitchen"></div></div>
+    <div><span class="vs-label">Waffle · Every field</span><div data-embeds="kitchen"></div></div>
+  </div>
+</section>
+
+<section id="anatomy">
+  <h2>Every field</h2>
+  <p class="lede">One embed using everything a rich embed can carry. Hover the title, author and footer time; the time's tooltip gives the full date.</p>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Raidbot"></span><div><div class="head"><span class="name">Raidbot</span><span class="tag">App</span><span class="time">Today at 8:02 PM</span></div>
+      <div data-embeds="kitchen"></div></div></div>
+  </div>
+  <div style="margin-top:var(--space-4)">
+    <div class="specimen"><span class="note">color</span><p>Discord's 4px bar down the left edge, in the exact colour the bot sent. No colour: the strong hairline tone.</p></div>
+    <div class="specimen"><span class="note">provider</span><p>12 faint, above everything. Link previews set it; bots rarely do.</p></div>
+    <div class="specimen"><span class="note">author</span><p>24px round icon, 14 semibold, one line with an ellipsis. A url makes the name a link.</p></div>
+    <div class="specimen"><span class="note">title + url</span><p>16 bold. With a url it takes the accent ink and links; without, it stays strong text.</p></div>
+    <div class="specimen"><span class="note">description</span><p>14 / 1.45 with Discord markdown: headers, subtext, quotes, lists, code, masked links, mentions, timestamps, spoilers. Past ~12 lines it clips under a fade with Show more.</p></div>
+    <div class="specimen"><span class="note">fields</span><p>Name 12 semibold muted over value 14 strong. Consecutive inline fields share a row: three across, two beside a thumbnail. A field without inline takes the full row.</p></div>
+    <div class="specimen"><span class="note">thumbnail</span><p>80 × 80 at the top right, beside the text, never above the image.</p></div>
+    <div class="specimen"><span class="note">image / video</span><p>The full width of the card at its own shape, up to 360 tall. Video adds the play button; embeds sharing a url fold into one gallery of up to four.</p></div>
+    <div class="specimen"><span class="note">footer + timestamp</span><p>20px icon, 12 faint, then the time as Today, Yesterday or a date, joined by a middle dot.</p></div>
+  </div>
+</section>
+
+<section id="bots">
+  <h2>Bot embeds</h2>
+  <p class="lede">What servers actually see: logs, moderation, game stats and plain announcements.</p>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Logger"></span><div><div class="head"><span class="name">Logger</span><span class="tag">App</span><span class="time">Today at 12:49 PM</span></div>
+      <div data-embeds="voiceJoin"></div></div></div>
+    <div class="msg"><span class="gutter">12:52</span><div><div data-embeds="voiceLeave"></div></div></div>
+    <div class="msg first"><span class="av" data-av="Dyno"></span><div><div class="head"><span class="name">Dyno</span><span class="tag">App</span><span class="time">Today at 1:10 PM</span></div>
+      <div data-embeds="ban"></div></div></div>
+    <div class="msg first"><span class="av" data-av="Statsy"></span><div><div class="head"><span class="name">Statsy</span><span class="tag">App</span><span class="time">Today at 3:30 PM</span></div>
+      <div data-embeds="stats"></div></div></div>
+    <div class="msg first"><span class="av" data-av="Announcer"></span><div><div class="head"><span class="name">Announcer</span><span class="tag">App</span><span class="time">Today at 5:00 PM</span></div>
+      <div data-embeds="plain"></div></div></div>
+  </div>
+  <p class="note" style="margin-top:8px">A message carries up to ten embeds; each stacks 4px under the last. The two-across field rows in the stats card are because of its thumbnail.</p>
+</section>
+
+<section id="types">
+  <h2>Embed types</h2>
+  <p class="lede">Discord sets the type on links it unfurls. Image and GIF links show as the picture alone, like an attachment; video keeps the card and plays in place; a closed poll posts its result.</p>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Ana"></span><div><div class="head"><span class="name">Ana</span><span class="time">Today at 6:12 PM</span></div><div class="body"><a href="#">https://video.example/watch?v=s7</a></div>
+      <div data-embeds="video"></div></div></div>
+    <div class="msg first"><span class="av" data-av="Jun"></span><div><div class="head"><span class="name">Jun</span><span class="time">Today at 6:14 PM</span></div><div class="body"><a href="#">https://gifs.example/view/waffle-flip</a></div>
+      <div data-embeds="gifv"></div></div></div>
+    <div class="msg first"><span class="av" data-av="Theo"></span><div><div class="head"><span class="name">Theo</span><span class="time">Today at 6:15 PM</span></div><div class="body"><a href="#">https://cdn.example/peaks.png</a></div>
+      <div data-embeds="image"></div></div></div>
+    <div class="msg first"><span class="av" data-av="Rosa"></span><div><div class="head"><span class="name">Rosa</span><span class="time">Today at 6:20 PM</span></div><div class="body"><a href="#">https://art.example/peaks-set</a></div>
+      <div data-embeds="gallery"></div></div></div>
+    <div class="msg first"><span class="av" data-av="Mira"></span><div>
+      <div class="rsys"><i class="ph-fill ph-chart-bar" aria-hidden="true"></i><span><b>Mira</b>'s poll <b>Which map first tonight?</b> has closed</span></div>
+      <div data-embeds="poll"></div><div data-embeds="pollTie"></div></div></div>
+  </div>
+  <p class="note" style="margin-top:8px">article and link types are link previews and draw as on <a href="messages.html#embeds" style="color:var(--accent-ink)">Messages</a>.</p>
+</section>
+
+<section id="edges">
+  <h2>Worst case</h2>
+  <p class="lede">Limits pushed: a 256-character title, an unbroken URL, a description long enough to fold, nine fields, white and black bars, and media flagged sensitive.</p>
+  <div class="board" style="padding:var(--space-3) 0;background:var(--bg-page)">
+    <div class="msg first"><span class="av" data-av="Stressbot"></span><div><div class="head"><span class="name">Stressbot</span><span class="tag">App</span><span class="time">Today at 9:00 PM</span></div>
+      <div data-embeds="worst"></div></div></div>
+    <div class="msg first"><span class="av" data-av="Ana"></span><div><div class="head"><span class="name">Ana</span><span class="time">Today at 9:05 PM</span></div>
+      <div data-embeds="sensitive"></div></div></div>
+  </div>
+</section>
+
+<section id="better">
+  <h2>Better than Discord</h2>
+  <div class="btd">
+    <div><p>Field</p><p>Discord</p><p>Waffle</p></div>
+    <div><p>fields</p><p>Bold names, values in body text: names and values compete.</p><p><b>Labels over values.</b>Muted 12 names, strong 14 values, so a stats card reads like a stat sheet.</p></div>
+    <div><p>description</p><p>Runs to 4,096 characters at full height.</p><p><b>Folds at ~12 lines.</b>A fade says there is more; Show more opens it in place.</p></div>
+    <div><p>timestamps</p><p>Footer time with no full date.</p><p><b>Full date on hover</b>, in the reader's locale, for footer and &lt;t:…&gt; alike.</p></div>
+    <div><p>sensitive media</p><p>A separate warning screen.</p><p><b>Blurred in place</b> behind one Show button that sits on the picture.</p></div>
+  </div>
+</section>
+
+<section id="playground">
+  <h2>Playground</h2>
+  <p class="lede">Paste a message's <code>embeds</code> array, a single embed, or a whole webhook body. It renders as you type and checks every limit the API enforces.</p>
+  <div class="rplay">
+    <div>
+      <textarea class="textarea" id="rjson" spellcheck="false" aria-label="Embed JSON" aria-describedby="rlimits"></textarea>
+      <div class="rlimits" id="rlimits" role="status"></div>
+    </div>
+    <div class="board"><div class="msg first"><span class="av" data-av="Webhook"></span><div><div class="head"><span class="name">Webhook</span><span class="tag">App</span><span class="time">Today at 9:41 PM</span></div><div id="rpreview"></div></div></div></div>
+  </div>
+</section>
+</main>
+</div>
+<script>
+const now = Date.now();
+const ago = min => new Date(now - min * 60000).toISOString();
+const LONG = "Patch notes for **Season 7**.\n\n# Ashen Peaks\nThe new map flips between day and night every four minutes. Sightlines change with the light, so routes that are safe at noon are deadly at dusk.\n\n## Heroes\n- **Ember**, a close-range brawler who heals on burn damage\n- **Tide**, a support who pushes and pulls with water walls\n\n## Ranked\n> The ladder now resets softly: you drop one division instead of two tiers.\n\nPlacement matches are down from ten to five, and duo queue opens at every rank.\n\n```\nqueue: ranked\nmin_level: 20\nplacements: 5\n```\n-# Full notes on the site. Servers restart <t:" + Math.round(now / 1000 + 7200) + ":R>.";
+const EXAMPLES = {
+  kitchen: [{
+    color: 0xe67e22,
+    author: { name: "Raidbot · Night owls", url: "https://raid.example", icon_url: "https://raid.example/icon.png" },
+    title: "Raid tonight: Ashen Peaks, heroic", url: "https://raid.example/r/2291",
+    description: "Sign-ups close <t:" + Math.round(now / 1000 + 5400) + ":R>. Bring **fire resist**, and read the [route notes](https://raid.example/notes) first.\n> Ping <@&9002> if you can't make it.",
+    fields: [
+      { name: "Starts", value: "<t:" + Math.round(now / 1000 + 9000) + ":t>", inline: true },
+      { name: "Signed up", value: "17 of 20", inline: true },
+      { name: "Lead", value: "<@80351110224678912>", inline: true },
+      { name: "Roles still open", value: "1 tank, 2 healers. Reply with `/join` and your role." },
+    ],
+    thumbnail: { url: "https://raid.example/boss.png", width: 128, height: 128 },
+    image: { url: "https://raid.example/map.png", width: 1280, height: 640 },
+    footer: { text: "Raid #2291", icon_url: "https://raid.example/icon.png" },
+    timestamp: ago(4),
+  }],
+  voiceJoin: [{ color: 0x43b581, author: { name: "_frsty", icon_url: "https://cdn.example/frsty.png" }, description: "<@454188684002983946> **joined voice channel** <#1200000000000000001>", footer: { text: "ID: 454188684002983946" }, timestamp: ago(1) }],
+  voiceLeave: [{ color: 0xf04747, author: { name: "_frsty", icon_url: "https://cdn.example/frsty.png" }, description: "<@454188684002983946> **left voice channel** <#1200000000000000001>", footer: { text: "ID: 454188684002983946" }, timestamp: ago(0) }],
+  ban: [{
+    color: 0xc21f3a, author: { name: "Member banned", icon_url: "https://cdn.example/spammer.png" },
+    description: "**spam_account_92** was banned from Night owls.",
+    fields: [{ name: "User", value: "<@155149108183695360>", inline: true }, { name: "Moderator", value: "<@80351110224678912>", inline: true }, { name: "Duration", value: "Permanent", inline: true }, { name: "Reason", value: "Posting scam links in <#1200000000000000002> after a warning." }],
+    footer: { text: "Case 418" }, timestamp: ago(30),
+  }],
+  stats: [{
+    color: 0x3498db, title: "Mira's season so far", url: "https://stats.example/u/mira",
+    thumbnail: { url: "https://stats.example/rank-diamond.png" },
+    fields: [{ name: "Rank", value: "Diamond II", inline: true }, { name: "Win rate", value: "58%", inline: true }, { name: "Matches", value: "214", inline: true }, { name: "Best hero", value: "Tide", inline: true }, { name: "Last match", value: "Win on Ashen Peaks, 13 to 9" }],
+    footer: { text: "stats.example" },
+  }],
+  plain: [{ description: "Servers go down for maintenance <t:" + Math.round(now / 1000 + 86400) + ":F>. It should take about an hour." }],
+  video: [{
+    type: "video", url: "https://video.example/watch?v=s7", color: 0xff0000,
+    provider: { name: "VideoSite", url: "https://video.example" }, author: { name: "Rift Notes", url: "https://video.example/@riftnotes" },
+    title: "Every change in Season 7, in 9 minutes",
+    thumbnail: { url: "https://video.example/s7.jpg", width: 1280, height: 720 }, video: { url: "https://video.example/embed/s7", width: 1280, height: 720 },
+  }],
+  gifv: [{ type: "gifv", url: "https://gifs.example/view/waffle-flip", provider: { name: "Gifs" }, thumbnail: { url: "https://gifs.example/flip.png", width: 498, height: 280 }, video: { url: "https://gifs.example/flip.mp4", width: 498, height: 280 } }],
+  image: [{ type: "image", url: "https://cdn.example/peaks.png", thumbnail: { url: "https://cdn.example/peaks.png", width: 1200, height: 900 } }],
+  gallery: [
+    { url: "https://art.example/peaks-set", color: 0x9b59b6, author: { name: "Rosa on ArtSite", icon_url: "https://art.example/rosa.png" }, title: "Ashen Peaks, concept set", description: "Day, dusk, night and the storm pass.", image: { url: "https://art.example/1.png" }, footer: { text: "ArtSite" } },
+    { url: "https://art.example/peaks-set", image: { url: "https://art.example/2.png" } },
+    { url: "https://art.example/peaks-set", image: { url: "https://art.example/3.png" } },
+    { url: "https://art.example/peaks-set", image: { url: "https://art.example/4.png" } },
+  ],
+  poll: [{ type: "poll_result", fields: [{ name: "poll_question_text", value: "Which map first tonight?" }, { name: "victor_answer_votes", value: "68" }, { name: "total_votes", value: "142" }, { name: "victor_answer_id", value: "1" }, { name: "victor_answer_text", value: "Ashen Peaks" }, { name: "victor_answer_emoji_name", value: "🏔️" }] }],
+  pollTie: [{ type: "poll_result", fields: [{ name: "poll_question_text", value: "Pizza or tacos?" }, { name: "victor_answer_votes", value: "0" }, { name: "total_votes", value: "12" }] }],
+  worst: [
+    {
+      color: 0xffffff,
+      author: { name: "Bartholomew Featherstonehaugh-Montgomery of the Very Long Display Name and Several Other Titles", icon_url: "https://cdn.example/b.png" },
+      title: "This title runs to the full two hundred and fifty-six characters that Discord allows, which is far longer than anyone should write, so it has to wrap cleanly across several lines without pushing the thumbnail away or overflowing the card at any width at all, ok",
+      url: "https://example.com",
+      description: LONG + "\nAn unbroken link: https://clips.example/watch/7f3a9c2e4b1d8a6f0e5c3b2a1d9e8f7c6b5a4d3e2f1a0b9c8d7e6f5a4b3c2d1e0",
+      thumbnail: { url: "https://cdn.example/t.png" },
+      fields: Array.from({ length: 9 }, (_, i) => ({ name: ["Region", "Queue", "Ping", "Players", "Mode", "Map", "Season", "Patch", "A field name long enough to wrap onto a second line"][i], value: ["EU West", "Ranked", "24 ms", "9,812", "Control", "Ashen Peaks", "7", "7.0.3", "and a value that runs on for a while too"][i], inline: true })),
+      footer: { text: "A footer long enough to wrap: " + "server status, region, build and shard ".repeat(3).trim(), icon_url: "https://cdn.example/f.png" },
+      timestamp: ago(60 * 26),
+    },
+    { color: 0x000000, title: "Colour 0x000000", description: "A pure black bar, as Discord draws it." },
+  ],
+  sensitive: [{ color: 0x95a5a6, title: "Uncensored match highlights", url: "https://clips.example/h", flags: 1 << 4, image: { url: "https://clips.example/h.png", width: 1280, height: 720 }, footer: { text: "clips.example" } }],
+};
+</script>
+<script src="site.js"></script>
+<script src="embeds.js"></script>
+<script>
+const box = document.getElementById("rjson"), preview = document.getElementById("rpreview"), limits = document.getElementById("rlimits");
+box.value = JSON.stringify({ embeds: EXAMPLES.kitchen }, null, 2);
+function render() {
+  let data;
+  try { data = JSON.parse(box.value); }
+  catch (err) { limits.innerHTML = `<span class="bad">That isn't valid JSON: ${err.message}</span>`; return; }
+  const embeds = Array.isArray(data) ? data : Array.isArray(data.embeds) ? data.embeds : [data];
+  Embeds.mount(preview, embeds);
+  const { total, issues } = Embeds.checkLimits(embeds);
+  limits.innerHTML = [`<span>${total.toLocaleString()} of ${Embeds.LIMITS.total.toLocaleString()} characters · ${embeds.length} of ${Embeds.LIMITS.embeds} embeds</span>`, ...issues.map(x => `<span class="bad">${x}</span>`)].join("");
+}
+box.addEventListener("input", render);
+render();
+</script>
+</body>
+</html>
